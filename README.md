@@ -12,6 +12,7 @@ Boilerplate workspace for a Bandai-style card game website.
 
 - Node.js installed
 - npm installed
+- .NET SDK installed
 
 ## Run frontend locally
 
@@ -73,8 +74,7 @@ Verified preview URL:
 
 ```bash
 cd server
-npm install
-npm run dev
+dotnet watch run --project ProjectHiddenVillage.Server.csproj --urls http://127.0.0.1:3001
 ```
 
 Server URL:
@@ -94,7 +94,7 @@ Build backend:
 
 ```bash
 cd server
-npm run build
+dotnet build ProjectHiddenVillage.Server.csproj
 ```
 
 ## Not included yet

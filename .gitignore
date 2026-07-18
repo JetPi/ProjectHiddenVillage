@@ -3,7 +3,8 @@ node_modules/
 
 # Build outputs
 client/dist/
-server/dist/
+server/bin/
+server/obj/
 
 # Logs
 *.log

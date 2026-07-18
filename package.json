@@ -3,8 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "concurrently -n client,server -c cyan,green \"npm --prefix client run dev -- --host 127.0.0.1 --port 5173\" \"npm --prefix server run dev\"",
-    "build": "npm --prefix server run build && npm --prefix client run build"
+    "dev": "concurrently -n client,server -c cyan,green \"npm --prefix client run dev -- --host 127.0.0.1 --port 5173\" \"dotnet watch --project server/ProjectHiddenVillage.Server.csproj run --urls http://127.0.0.1:3001\"",
+    "build": "dotnet build server/ProjectHiddenVillage.Server.csproj && npm --prefix client run build"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

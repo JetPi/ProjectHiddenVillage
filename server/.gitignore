@@ -1,5 +1,5 @@
-node_modules/
-dist/
+bin/
+obj/
 
 # Local environment files
 .env
