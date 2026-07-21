@@ -16,9 +16,16 @@ public sealed class GameState
 
     public Queue<PhaseDirective> PhaseDirectives { get; set; } = new();
 
+    public Queue<GamePhase> InsertedPhases { get; set; } = new();
+
     public Dictionary<string, Card> CardDefinitions { get; set; } = [];
 
     public List<PlayerState> Players { get; set; } = [];
 
     public List<CardInstance> Stack { get; set; } = [];
+
+    public void InsertPhase(GamePhase phase)
+    {
+        InsertedPhases.Enqueue(phase);
+    }
 }

@@ -2,6 +2,10 @@ using ProjectHiddenVillage.Server;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddSingleton<GameInstanceFactory>();
+builder.Services.AddSingleton<InMemoryGameInstanceRegistry>();
+builder.Services.AddControllers();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -27,17 +31,7 @@ app.UseSwaggerUI(options =>
 });
 
 app.MapGet("/docs.json", () => Results.Redirect("/docs/v1.json"));
-
-app.MapGet("/health", () =>
-{
-    return Results.Ok(new HealthResponse(
-        Status: "ok",
-        Service: "project-hidden-village-server",
-        Timestamp: DateTimeOffset.UtcNow));
-})
-.WithName("GetHealth")
-.WithTags("Health")
-.Produces<HealthResponse>(StatusCodes.Status200OK);
+app.MapControllers();
 
 if (app.Urls.Count == 0)
 {
