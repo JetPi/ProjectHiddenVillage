@@ -2,9 +2,9 @@ namespace ProjectHiddenVillage.Server;
 
 public enum GamePhase
 {
+    StartOfMainPhase,
     Draw,
     SetResource,
-    StartOfMainPhase,
     MainPhase,
     AttackDeclaration,
     BlockerDeclaration,

@@ -8,16 +8,16 @@ public sealed class GamePhaseService
     {
         return currentPhase switch
         {
+            GamePhase.StartOfMainPhase => GamePhase.Draw,
             GamePhase.Draw => GamePhase.SetResource,
-            GamePhase.SetResource => GamePhase.StartOfMainPhase,
-            GamePhase.StartOfMainPhase => GamePhase.MainPhase,
+            GamePhase.SetResource => GamePhase.MainPhase,
             GamePhase.MainPhase => GamePhase.AttackDeclaration,
             GamePhase.AttackDeclaration => GamePhase.BlockerDeclaration,
             GamePhase.BlockerDeclaration => GamePhase.ActionStep,
             GamePhase.ActionStep => GamePhase.AttackResolution,
             GamePhase.AttackResolution => GamePhase.BattleEndStep,
             GamePhase.BattleEndStep => GamePhase.MainPhase,
-            GamePhase.EndStep => GamePhase.Draw,
+            GamePhase.EndStep => GamePhase.StartOfMainPhase,
             _ => throw new ArgumentOutOfRangeException(nameof(currentPhase), currentPhase, "Unknown game phase.")
         };
     }
@@ -132,7 +132,7 @@ public sealed class GamePhaseService
             throw new InvalidOperationException("CompleteEndStep can only be used while in EndStep.");
         }
 
-        state.Phase = GamePhase.Draw;
+        state.Phase = GamePhase.StartOfMainPhase;
         ChangeActivePlayer(state);
         ClearPlayerPriority(state);
         ClearConsecutivePasses(state);

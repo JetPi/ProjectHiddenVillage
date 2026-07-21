@@ -11,4 +11,8 @@
     <PackageReference Include="Microsoft.OpenApi" Version="2.3.2" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.0.1" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests/**/*.cs" />
+  </ItemGroup>
 </Project>
