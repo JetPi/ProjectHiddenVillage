@@ -2,6 +2,8 @@ namespace ProjectHiddenVillage.Server;
 
 public sealed class Card
 {
+    public string Id { get; set; } = string.Empty;
+
     public List<string> Name { get; set; } = [];
 
     public string DisplayName { get; set; } = string.Empty;
@@ -19,18 +21,4 @@ public sealed class Card
     public List<ConditionSpec> Conditions { get; set; } = [];
 
     public List<EffectSpec> Effects { get; set; } = [];
-}
-
-public sealed class ConditionSpec
-{
-    public string Id { get; set; } = string.Empty;
-
-    public Dictionary<string, string> Args { get; set; } = [];
-}
-
-public sealed class EffectSpec
-{
-    public string Id { get; set; } = string.Empty;
-
-    public Dictionary<string, string> Args { get; set; } = [];
 }

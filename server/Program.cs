@@ -1,3 +1,5 @@
+using ProjectHiddenVillage.Server;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
@@ -43,5 +45,3 @@ if (app.Urls.Count == 0)
 }
 
 app.Run();
-
-internal sealed record HealthResponse(string Status, string Service, DateTimeOffset Timestamp);
