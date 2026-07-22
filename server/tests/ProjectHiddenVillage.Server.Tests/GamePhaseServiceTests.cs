@@ -168,6 +168,31 @@ public sealed class GamePhaseServiceTests
         Assert.AreEqual(1, state.PhaseDirectives.Count);
     }
 
+    [TestMethod]
+    public void AdvancePhase_UsesInsertedPhaseBeforeDefaultFlow()
+    {
+        var state = CreateState(phase: GamePhase.Draw);
+        state.InsertPhase(GamePhase.BlockerDeclaration);
+
+        service.AdvancePhase(state);
+
+        Assert.AreEqual(GamePhase.BlockerDeclaration, state.Phase);
+        Assert.AreEqual(0, state.InsertedPhases.Count);
+    }
+
+    [TestMethod]
+    public void AdvancePhase_UsesInsertedPhaseBeforeDirectives()
+    {
+        var state = CreateState(phase: GamePhase.Draw);
+        service.EnqueueJumpToPhase(state, GamePhase.MainPhase);
+        state.InsertPhase(GamePhase.SetResource);
+
+        service.AdvancePhase(state);
+
+        Assert.AreEqual(GamePhase.SetResource, state.Phase);
+        Assert.AreEqual(1, state.PhaseDirectives.Count);
+    }
+
     private static GameState CreateState(GamePhase phase)
     {
         return new GameState

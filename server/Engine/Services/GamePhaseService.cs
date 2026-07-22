@@ -31,8 +31,15 @@ public sealed class GamePhaseService
             throw new InvalidOperationException("Use CompleteEndStep to advance from EndStep.");
         }
 
-        var defaultNextPhase = GetNextPhase(state.Phase);
-        state.Phase = ResolveNextPhaseWithDirectives(state, defaultNextPhase);
+        if (state.InsertedPhases.Count > 0)
+        {
+            state.Phase = state.InsertedPhases.Dequeue();
+        }
+        else
+        {
+            var defaultNextPhase = GetNextPhase(state.Phase);
+            state.Phase = ResolveNextPhaseWithDirectives(state, defaultNextPhase);
+        }
 
         if (state.Phase == GamePhase.ActionStep)
         {
