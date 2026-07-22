@@ -34,6 +34,16 @@ public sealed class GameInstanceFactory
         };
 
         var instance = new GameInstance(state);
+        instance.AddActionLogEntry(
+            actionType: "game_created",
+            message: $"Game created with {state.Players.Count} player(s).",
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["playerCount"] = state.Players.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["phase"] = state.Phase.ToString(),
+                ["turnNumber"] = state.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            });
+
         EnsureStartingPlayerPrompt(instance, random);
         return instance;
     }
@@ -50,6 +60,15 @@ public sealed class GameInstanceFactory
         ValidateJoinablePlayer(player, knownPlayerIds, instance.State.CardDefinitions);
 
         instance.State.Players.Add(BuildPlayerState(player));
+        instance.AddActionLogEntry(
+            actionType: "player_joined",
+            message: $"{player.Id} joined the game.",
+            playerId: player.Id,
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["playerCount"] = instance.State.Players.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            });
+
         EnsureStartingPlayerPrompt(instance, random);
         instance.ValidateInvariants();
     }
@@ -84,6 +103,16 @@ public sealed class GameInstanceFactory
         };
 
         instance.EnqueuePrompt(startPrompt);
+        instance.AddActionLogEntry(
+            actionType: "prompt_created",
+            message: $"Starting player selection prompt created for {chooser}.",
+            playerId: chooser,
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["promptType"] = nameof(GamePromptType.ChooseStartingPlayer),
+                ["options"] = string.Join(",", startPrompt.Options)
+            });
+
         instance.ValidateInvariants();
     }
 

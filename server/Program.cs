@@ -3,6 +3,7 @@ using ProjectHiddenVillage.Server;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<GameInstanceFactory>();
+builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.GamePhaseService>();
 builder.Services.AddSingleton<InMemoryGameInstanceRegistry>();
 builder.Services.AddControllers();
 

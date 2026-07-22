@@ -193,6 +193,33 @@ public sealed class GamePhaseServiceTests
         Assert.AreEqual(1, state.PhaseDirectives.Count);
     }
 
+    [TestMethod]
+    public void AdvancePhase_GameInstanceOverload_WritesPhaseStartedLog()
+    {
+        var instance = CreateInstance(phase: GamePhase.StartOfMainPhase, activePlayerId: "p1");
+
+        service.AdvancePhase(instance);
+
+        Assert.AreEqual(GamePhase.Draw, instance.State.Phase);
+        var entry = instance.ActionLog.Last();
+        Assert.AreEqual("phase_started", entry.ActionType);
+        Assert.AreEqual("p1", entry.PlayerId);
+        Assert.AreEqual("StartOfMainPhase", entry.Metadata["fromPhase"]);
+        Assert.AreEqual("Draw", entry.Metadata["toPhase"]);
+    }
+
+    [TestMethod]
+    public void DeclarePassInActionStep_GameInstanceOverload_WritesPassLog()
+    {
+        var instance = CreateInstance(phase: GamePhase.ActionStep, activePlayerId: "p1", priorityPlayerId: "p1");
+
+        service.DeclarePassInActionStep(instance, "p1");
+
+        var entry = instance.ActionLog.Last();
+        Assert.AreEqual("action_step_pass_declared", entry.ActionType);
+        Assert.AreEqual("p1", entry.PlayerId);
+    }
+
     private static GameState CreateState(GamePhase phase)
     {
         return new GameState
@@ -205,5 +232,14 @@ public sealed class GamePhaseServiceTests
                 new PlayerState { PlayerId = "p2" }
             ]
         };
+    }
+
+    private static GameInstance CreateInstance(GamePhase phase, string activePlayerId, string priorityPlayerId = "")
+    {
+        var state = CreateState(phase);
+        state.ActivePlayerId = activePlayerId;
+        state.PriorityPlayerId = priorityPlayerId;
+
+        return new GameInstance(state);
     }
 }
