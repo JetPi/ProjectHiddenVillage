@@ -1,0 +1,32 @@
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+type SessionStoreState = {
+  displayName: string
+  gameCode: string
+  setSession: (payload: { displayName: string; gameCode: string }) => void
+  clearSession: () => void
+}
+
+const initialState = {
+  displayName: '',
+  gameCode: '',
+}
+
+export const useSessionStore = create<SessionStoreState>()(
+  persist(
+    (set) => ({
+      ...initialState,
+      setSession: ({ displayName, gameCode }) => {
+        set({
+          displayName: displayName.trim(),
+          gameCode: gameCode.trim().toUpperCase(),
+        })
+      },
+      clearSession: () => set(initialState),
+    }),
+    {
+      name: 'phv-session',
+    },
+  ),
+)
