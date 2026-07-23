@@ -9,3 +9,5 @@ public sealed record JoinGameInstanceRequest(Player Player);
 public sealed record ResolvePromptRequest(
     string RequestedPlayerId,
     string SelectedOption);
+
+public sealed record PlayerPhaseActionRequest(string PlayerId);

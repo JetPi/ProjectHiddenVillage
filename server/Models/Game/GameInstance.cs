@@ -23,6 +23,49 @@ public sealed class GameInstance
 
     public Queue<GamePrompt> PendingPrompts { get; } = new();
 
+    public List<GameActionLogEntry> ActionLog { get; } = [];
+
+    public GameActionLogEntry AddActionLogEntry(
+        string actionType,
+        string message,
+        string? playerId = null,
+        IReadOnlyDictionary<string, string>? metadata = null,
+        DateTimeOffset? timestampUtc = null)
+    {
+        if (string.IsNullOrWhiteSpace(actionType))
+        {
+            throw new InvalidOperationException("ActionType is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            throw new InvalidOperationException("Message is required.");
+        }
+
+        var resolvedPlayerId = playerId ?? string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(resolvedPlayerId)
+            && !State.Players.Any(player => string.Equals(player.PlayerId, resolvedPlayerId, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                $"Log player '{resolvedPlayerId}' was not found in game players.");
+        }
+
+        var entry = new GameActionLogEntry
+        {
+            ActionType = actionType,
+            Message = message,
+            PlayerId = resolvedPlayerId,
+            TimestampUtc = timestampUtc ?? DateTimeOffset.UtcNow,
+            Metadata = metadata is null
+                ? []
+                : new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+        };
+
+        ActionLog.Add(entry);
+        return entry;
+    }
+
     public void EnqueuePrompt(GamePrompt prompt)
     {
         ArgumentNullException.ThrowIfNull(prompt);
@@ -74,6 +117,26 @@ public sealed class GameInstance
         {
             State.ActivePlayerId = selectedOption;
             PendingPrompts.Dequeue();
+            AddActionLogEntry(
+                actionType: "prompt_resolved",
+                message: $"{requestedPlayerId} selected {selectedOption} as starting player.",
+                playerId: requestedPlayerId,
+                metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["promptType"] = nameof(GamePromptType.ChooseStartingPlayer),
+                    ["selectedPlayerId"] = selectedOption
+                });
+
+            AddActionLogEntry(
+                actionType: "phase_started",
+                message: $"{selectedOption} starts turn {State.TurnNumber} in {State.Phase}.",
+                playerId: selectedOption,
+                metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["phase"] = State.Phase.ToString(),
+                    ["turnNumber"] = State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                });
+
             ValidateInvariants();
             return;
         }
@@ -172,7 +235,41 @@ public sealed class GameInstance
             ValidateCardInstance(stackCard, playerIds);
         }
 
+        foreach (var entry in ActionLog)
+        {
+            ValidateActionLogEntry(entry, playerIds);
+        }
+
         ValidatePendingPrompts(playerIds);
+    }
+
+    private static void ValidateActionLogEntry(GameActionLogEntry entry, HashSet<string> playerIds)
+    {
+        if (entry is null)
+        {
+            throw new InvalidOperationException("Action log entries cannot be null.");
+        }
+
+        if (string.IsNullOrWhiteSpace(entry.EntryId))
+        {
+            throw new InvalidOperationException("Action log entries must have a non-empty EntryId.");
+        }
+
+        if (string.IsNullOrWhiteSpace(entry.ActionType))
+        {
+            throw new InvalidOperationException("Action log entries must have a non-empty ActionType.");
+        }
+
+        if (string.IsNullOrWhiteSpace(entry.Message))
+        {
+            throw new InvalidOperationException("Action log entries must have a non-empty Message.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.PlayerId) && !playerIds.Contains(entry.PlayerId))
+        {
+            throw new InvalidOperationException(
+                $"Action log entry references unknown player '{entry.PlayerId}'.");
+        }
     }
 
     private void ValidatePendingPrompts(HashSet<string> playerIds)

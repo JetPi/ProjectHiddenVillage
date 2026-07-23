@@ -4,6 +4,28 @@ namespace ProjectHiddenVillage.Server.Engine;
 
 public sealed class GamePhaseService
 {
+    public bool AdvancePhase(GameInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+
+        var previousPhase = instance.State.Phase;
+        var advancedToEndOfWindow = AdvancePhase(instance.State);
+        var activePlayerId = instance.State.ActivePlayerId;
+
+        instance.AddActionLogEntry(
+            actionType: "phase_started",
+            message: $"{DescribePlayer(activePlayerId)} started {instance.State.Phase}.",
+            playerId: activePlayerId,
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["fromPhase"] = previousPhase.ToString(),
+                ["toPhase"] = instance.State.Phase.ToString(),
+                ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            });
+
+        return advancedToEndOfWindow;
+    }
+
     public GamePhase GetNextPhase(GamePhase currentPhase)
     {
         return currentPhase switch
@@ -100,6 +122,26 @@ public sealed class GamePhaseService
         return false;
     }
 
+    public bool DeclarePassInActionStep(GameInstance instance, string playerId)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+
+        var advancedToResolution = DeclarePassInActionStep(instance.State, playerId);
+
+        instance.AddActionLogEntry(
+            actionType: "action_step_pass_declared",
+            message: $"{playerId} declared pass in ActionStep.",
+            playerId: playerId,
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["advancedToAttackResolution"] = advancedToResolution.ToString(),
+                ["nextPriorityPlayerId"] = instance.State.PriorityPlayerId,
+                ["consecutivePasses"] = instance.State.ConsecutivePasses.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            });
+
+        return advancedToResolution;
+    }
+
     public void DeclareActionInActionStep(GameState state, string playerId)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -118,6 +160,23 @@ public sealed class GamePhaseService
         SwapPlayerInPriority(state, playerId);
     }
 
+    public void DeclareActionInActionStep(GameInstance instance, string playerId)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+
+        DeclareActionInActionStep(instance.State, playerId);
+
+        instance.AddActionLogEntry(
+            actionType: "action_step_action_declared",
+            message: $"{playerId} declared an action in ActionStep.",
+            playerId: playerId,
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["nextPriorityPlayerId"] = instance.State.PriorityPlayerId,
+                ["consecutivePasses"] = instance.State.ConsecutivePasses.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            });
+    }
+
     public void DeclareEndStep(GameState state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -128,6 +187,23 @@ public sealed class GamePhaseService
         }
 
         state.Phase = GamePhase.EndStep;
+    }
+
+    public void DeclareEndStep(GameInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+
+        DeclareEndStep(instance.State);
+
+        instance.AddActionLogEntry(
+            actionType: "end_step_declared",
+            message: $"{DescribePlayer(instance.State.ActivePlayerId)} declared EndStep.",
+            playerId: instance.State.ActivePlayerId,
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["phase"] = instance.State.Phase.ToString(),
+                ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            });
     }
 
     public bool CompleteEndStep(GameState state)
@@ -145,6 +221,27 @@ public sealed class GamePhaseService
         ClearConsecutivePasses(state);
         state.TurnNumber++;
         return true;
+    }
+
+    public bool CompleteEndStep(GameInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+
+        var previousActivePlayerId = instance.State.ActivePlayerId;
+        var wrapped = CompleteEndStep(instance.State);
+
+        instance.AddActionLogEntry(
+            actionType: "turn_started",
+            message: $"Turn {instance.State.TurnNumber} started for {instance.State.ActivePlayerId}.",
+            playerId: instance.State.ActivePlayerId,
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["previousActivePlayerId"] = previousActivePlayerId,
+                ["phase"] = instance.State.Phase.ToString(),
+                ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            });
+
+        return wrapped;
     }
 
 
@@ -226,6 +323,11 @@ public sealed class GamePhaseService
 
         var nextIndex = (currentIndex + 1) % state.Players.Count;
         return state.Players[nextIndex].PlayerId;
+    }
+
+    private static string DescribePlayer(string playerId)
+    {
+        return string.IsNullOrWhiteSpace(playerId) ? "System" : playerId;
     }
 
 }

@@ -21,6 +21,7 @@ public sealed class GameInstanceFactoryTests
         Assert.AreEqual(1, game.State.Players.Count);
         Assert.AreEqual(string.Empty, game.State.ActivePlayerId);
         Assert.IsNull(game.GetPendingPrompt());
+        Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "game_created"));
     }
 
     [TestMethod]
@@ -45,6 +46,7 @@ public sealed class GameInstanceFactoryTests
         Assert.AreEqual("p2", prompt.RequestedPlayerId);
         CollectionAssert.AreEquivalent(new[] { "p1", "p2" }, prompt.Options);
         Assert.AreEqual(string.Empty, game.State.ActivePlayerId);
+        Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "prompt_created"));
     }
 
     [TestMethod]

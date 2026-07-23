@@ -8,10 +8,12 @@ public sealed class InMemoryGameInstanceRegistry
         new(StringComparer.Ordinal);
 
     private readonly GameInstanceFactory factory;
+    private readonly global::ProjectHiddenVillage.Server.Engine.GamePhaseService phaseService;
 
-    public InMemoryGameInstanceRegistry(GameInstanceFactory factory)
+    public InMemoryGameInstanceRegistry(GameInstanceFactory factory, global::ProjectHiddenVillage.Server.Engine.GamePhaseService phaseService)
     {
         this.factory = factory;
+        this.phaseService = phaseService;
     }
 
     public GameInstance Create(
@@ -52,6 +54,66 @@ public sealed class InMemoryGameInstanceRegistry
         lock (instance)
         {
             instance.ResolvePrompt(requestedPlayerId, selectedOption);
+            return instance;
+        }
+    }
+
+    public GameInstance AdvancePhase(string gameId)
+    {
+        var instance = GetRequired(gameId);
+
+        lock (instance)
+        {
+            phaseService.AdvancePhase(instance);
+            instance.ValidateInvariants();
+            return instance;
+        }
+    }
+
+    public GameInstance DeclarePassInActionStep(string gameId, string playerId)
+    {
+        var instance = GetRequired(gameId);
+
+        lock (instance)
+        {
+            phaseService.DeclarePassInActionStep(instance, playerId);
+            instance.ValidateInvariants();
+            return instance;
+        }
+    }
+
+    public GameInstance DeclareActionInActionStep(string gameId, string playerId)
+    {
+        var instance = GetRequired(gameId);
+
+        lock (instance)
+        {
+            phaseService.DeclareActionInActionStep(instance, playerId);
+            instance.ValidateInvariants();
+            return instance;
+        }
+    }
+
+    public GameInstance DeclareEndStep(string gameId)
+    {
+        var instance = GetRequired(gameId);
+
+        lock (instance)
+        {
+            phaseService.DeclareEndStep(instance);
+            instance.ValidateInvariants();
+            return instance;
+        }
+    }
+
+    public GameInstance CompleteEndStep(string gameId)
+    {
+        var instance = GetRequired(gameId);
+
+        lock (instance)
+        {
+            phaseService.CompleteEndStep(instance);
+            instance.ValidateInvariants();
             return instance;
         }
     }

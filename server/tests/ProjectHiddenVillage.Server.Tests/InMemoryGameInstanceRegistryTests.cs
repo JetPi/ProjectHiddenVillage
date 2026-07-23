@@ -1,11 +1,14 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ProjectHiddenVillage.Server.Engine;
 
 namespace ProjectHiddenVillage.Server.Tests;
 
 [TestClass]
 public sealed class InMemoryGameInstanceRegistryTests
 {
-    private readonly InMemoryGameInstanceRegistry registry = new(new GameInstanceFactory());
+    private readonly InMemoryGameInstanceRegistry registry = new(
+        new GameInstanceFactory(),
+        new global::ProjectHiddenVillage.Server.Engine.GamePhaseService());
 
     [TestMethod]
     public void Create_StoresGame_AndTryGetReturnsIt()
@@ -22,6 +25,7 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.IsTrue(found);
         Assert.IsNotNull(loaded);
         Assert.AreEqual(game.Id, loaded.Id);
+        Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "game_created"));
     }
 
     [TestMethod]
@@ -41,6 +45,8 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.IsNotNull(prompt);
         Assert.AreEqual(GamePromptType.ChooseStartingPlayer, prompt.Type);
         Assert.AreEqual("p2", prompt.RequestedPlayerId);
+        Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "player_joined" && entry.PlayerId == "p2"));
+        Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "prompt_created"));
     }
 
     [TestMethod]
@@ -62,6 +68,8 @@ public sealed class InMemoryGameInstanceRegistryTests
 
         Assert.AreEqual("p2", game.State.ActivePlayerId);
         Assert.IsNull(game.GetPendingPrompt());
+        Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "prompt_resolved" && entry.PlayerId == prompt.RequestedPlayerId));
+        Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "phase_started" && entry.PlayerId == "p2"));
     }
 
     [TestMethod]

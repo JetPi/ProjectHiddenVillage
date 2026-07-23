@@ -94,4 +94,99 @@ public sealed class GamesController : ControllerBase
                 : BadRequest(ex.Message);
         }
     }
+
+    [HttpPost("{gameId}/phase/advance")]
+    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    public ActionResult<GameInstance> AdvancePhase(string gameId)
+    {
+        try
+        {
+            var game = registry.AdvancePhase(gameId);
+            return Ok(game);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is KeyNotFoundException)
+        {
+            return ex is KeyNotFoundException
+                ? NotFound(ex.Message)
+                : BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPost("{gameId}/action-step/pass")]
+    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    public ActionResult<GameInstance> DeclarePassInActionStep(string gameId, [FromBody] PlayerPhaseActionRequest request)
+    {
+        try
+        {
+            var game = registry.DeclarePassInActionStep(gameId, request.PlayerId);
+            return Ok(game);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is KeyNotFoundException)
+        {
+            return ex is KeyNotFoundException
+                ? NotFound(ex.Message)
+                : BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPost("{gameId}/action-step/action")]
+    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    public ActionResult<GameInstance> DeclareActionInActionStep(string gameId, [FromBody] PlayerPhaseActionRequest request)
+    {
+        try
+        {
+            var game = registry.DeclareActionInActionStep(gameId, request.PlayerId);
+            return Ok(game);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is KeyNotFoundException)
+        {
+            return ex is KeyNotFoundException
+                ? NotFound(ex.Message)
+                : BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPost("{gameId}/end-step/declare")]
+    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    public ActionResult<GameInstance> DeclareEndStep(string gameId)
+    {
+        try
+        {
+            var game = registry.DeclareEndStep(gameId);
+            return Ok(game);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is KeyNotFoundException)
+        {
+            return ex is KeyNotFoundException
+                ? NotFound(ex.Message)
+                : BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPost("{gameId}/end-step/complete")]
+    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    public ActionResult<GameInstance> CompleteEndStep(string gameId)
+    {
+        try
+        {
+            var game = registry.CompleteEndStep(gameId);
+            return Ok(game);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is KeyNotFoundException)
+        {
+            return ex is KeyNotFoundException
+                ? NotFound(ex.Message)
+                : BadRequest(ex.Message);
+        }
+    }
 }
