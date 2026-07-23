@@ -1,9 +1,26 @@
-export async function getJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, init)
+import axios from 'axios'
+import type { AxiosRequestConfig } from 'axios'
 
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`)
-  }
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3001'
 
-  return (await response.json()) as T
+export const httpClient = axios.create({
+  baseURL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  const response = await httpClient.get<T>(url, config)
+  return response.data
+}
+
+export async function apiPost<TResponse, TBody>(
+  url: string,
+  body: TBody,
+  config?: AxiosRequestConfig,
+): Promise<TResponse> {
+  const response = await httpClient.post<TResponse>(url, body, config)
+  return response.data
 }
