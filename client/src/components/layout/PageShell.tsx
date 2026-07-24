@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
 import type { PropsWithChildren } from 'react'
+import { Lightbulb } from 'lucide-react';
 import { useThemeStore } from '../../state/themeStore'
 
 export function PageShell({ children }: PropsWithChildren) {
-  const theme = useThemeStore((state) => state.theme)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const initializeTheme = useThemeStore((state) => state.initializeTheme)
 
@@ -21,7 +21,7 @@ export function PageShell({ children }: PropsWithChildren) {
             onClick={toggleTheme}
             className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-hover)]"
           >
-            {theme === 'dark' ? 'Switch to Light' : 'Switch to Dark'}
+            <Lightbulb />
           </button>
         </div>
         {children}
