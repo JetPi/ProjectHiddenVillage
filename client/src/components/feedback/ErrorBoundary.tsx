@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       return (
         <section className="flex min-h-screen items-center justify-center bg-[var(--app-bg-end)] px-4">
-          <div className="w-full max-w-lg rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface)] p-6 text-[var(--text-primary)] shadow-[var(--panel-shadow)] backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-[var(--border-subtle)] bg-[var(--popup-bg)] p-6 text-[var(--text-primary)] shadow-[var(--panel-shadow)]">
             <h1 className="text-2xl font-black">Something went wrong</h1>
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
               An unexpected UI error occurred. You can try reloading the page.

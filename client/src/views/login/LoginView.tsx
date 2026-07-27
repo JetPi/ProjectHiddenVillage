@@ -1,40 +1,56 @@
-import { useState } from 'react'
 import type { FormEvent } from 'react'
+import {
+  deckOptionsFieldConfigByMode,
+  deckOptionsModeOptions,
+  gameCodeFieldConfigByMode,
+  gameCodeModeOptions,
+} from './configs/LoginView'
 import { useNavigate } from 'react-router-dom'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
 import {
+  AdaptiveFormField,
   Form,
   FormActions,
   FormErrorText,
   FormField,
-  FormHelperText,
-  FormInput,
   FormLabel,
+  FormInput,
+  OptionToggle,
 } from '../../components/forms'
 import { useSessionStore } from '../../state/sessionStore'
+import { useLoginViewModel } from './model/useLoginViewModel'
+
 
 export function LoginView() {
   const navigate = useNavigate()
   const setSession = useSessionStore((state) => state.setSession)
-  const [displayName, setDisplayName] = useState('')
-  const [gameCode, setGameCode] = useState('')
-  const [showDisplayNameError, setShowDisplayNameError] = useState(false)
+  const {
+    activeDeckOption,
+    activeGameCode,
+    deckOptionsMode,
+    displayName,
+    gameCodeMode,
+    setDeckOptionsMode,
+    setDeckOptionValue,
+    setDisplayName,
+    setGameCodeMode,
+    setGameCodeValue,
+    showDisplayNameError,
+    validateDisplayName,
+  } = useLoginViewModel()
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!displayName.trim()) {
-      setShowDisplayNameError(true)
+    if (!validateDisplayName()) {
       return
     }
 
-    setShowDisplayNameError(false)
-
     setSession({
       displayName,
-      gameCode,
+      gameCode: activeGameCode,
     })
 
     navigate('/game')
@@ -42,52 +58,73 @@ export function LoginView() {
 
   return (
     <PageShell>
-      <div className="grid grid-cols-2 max-h-[85vh] justify-items-center">
-         {/* <Panel className="w-1/2 max-w-xl"></Panel> */}
-        <Panel className="w-full px-5 max-w-xl">
+      <div className="grid w-full grid-cols-1 gap-4 px-2 sm:px-4">
+        <Panel className="my-2 w-full px-5">
           <h1 className="text-4xl font-black leading-tight text-[var(--text-primary)] sm:text-3xl">
             Become Hokage!
           </h1>
+        </Panel>
+        <Panel className="my-2 w-full px-5">
+          <Form className="mt-2 grid grid-cols-2 items-stretch gap-x-4" onSubmit={handleSubmit}>
 
-          <Form className="mt-2" onSubmit={handleSubmit}>
-            <FormField>
+            <FormField className="col-span-2">
               <FormLabel htmlFor="displayName">Display Name</FormLabel>
+              <div aria-hidden="true"  />
               <FormInput
                 id="displayName"
                 value={displayName}
-                onChange={(event) => {
-                  setDisplayName(event.target.value)
-
-                  if (showDisplayNameError && event.target.value.trim()) {
-                    setShowDisplayNameError(false)
-                  }
-                }}
+                onChange={(event) => setDisplayName(event.target.value)}
                 placeholder="Enter name here"
                 maxLength={24}
+                className="!py-1.5"
                 required
               />
               {showDisplayNameError ? <FormErrorText>Please enter a display name.</FormErrorText> : null}
             </FormField>
 
-            <FormField>
+            <FormField className="col-span-1">
               <FormLabel htmlFor="gameCode">Game Code</FormLabel>
-              <FormInput
-                id="gameCode"
-                value={gameCode}
-                onChange={(event) => setGameCode(event.target.value)}
-                className="uppercase"
-                placeholder="ABCD-1234"
-                maxLength={12}
+              <OptionToggle
+                ariaLabel="Game code input mode"
+                value={gameCodeMode}
+                options={gameCodeModeOptions}
+                optionClassName="!py-1"
+                onChange={(nextMode) => {
+                  setGameCodeMode(nextMode)
+                }}
               />
-              <FormHelperText>Leave empty to create or join later from game flow.</FormHelperText>
+              <AdaptiveFormField
+                id="gameCode"
+                value={activeGameCode}
+                onValueChange={setGameCodeValue}
+                config={gameCodeFieldConfigByMode[gameCodeMode]}
+                className="!py-1.5"
+              />
             </FormField>
 
-            <FormActions className="justify-start">
-              <AppButton type="submit" >
+            <FormField className="col-span-1">
+                <FormLabel htmlFor="deckOptions">Deck Options</FormLabel>
+                <OptionToggle
+                  ariaLabel="Deck options input mode"
+                  value={deckOptionsMode}
+                  options={deckOptionsModeOptions}
+                  optionClassName="!py-1"
+                  onChange={(nextMode) => {
+                    setDeckOptionsMode(nextMode)
+                  }}
+                />
+                <AdaptiveFormField
+                  id="deckOptions"
+                  value={activeDeckOption}
+                  onValueChange={setDeckOptionValue}
+                  config={deckOptionsFieldConfigByMode[deckOptionsMode]}
+                  className="!py-1.5"
+                />
+              </FormField>
+
+            <FormActions className="col-span-full w-full justify-start">
+              <AppButton type="submit" className="w-full">
                 Enter Game
-              </AppButton>
-              <AppButton type="button" variant="ghost" >
-                Create Lobby
               </AppButton>
             </FormActions>
           </Form>
