@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react'
+import type { SubmitEvent } from 'react'
 import {
   deckOptionsFieldConfigByMode,
   deckOptionsModeOptions,
@@ -41,7 +41,7 @@ export function LoginView() {
     validateDisplayName,
   } = useLoginViewModel()
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     if (!validateDisplayName()) {
