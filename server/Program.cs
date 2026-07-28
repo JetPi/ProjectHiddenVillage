@@ -1,6 +1,11 @@
+using Microsoft.EntityFrameworkCore;
 using ProjectHiddenVillage.Server;
+using ProjectHiddenVillage.Server.Data;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddSingleton<GameInstanceFactory>();
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.GamePhaseService>();
