@@ -57,6 +57,34 @@ npm run build
 
 This runs backend build first, then frontend build.
 
+## Manage EF migrations from root
+
+Create a migration:
+
+```bash
+npm run db:migration:add --name=AddUsersAndDecks
+```
+
+Apply migrations to database:
+
+```bash
+npm run db:migrate
+```
+
+Roll database to a specific migration:
+
+```bash
+npm run db:migrate:to --name=InitialCreate
+```
+
+Rollback all migrations:
+
+```bash
+npm run db:migrate:to --name=0
+```
+
+Both commands target `server/ProjectHiddenVillage.Server.csproj` as project and startup project.
+
 Verified preview URL:
 
 - http://127.0.0.1:4173/

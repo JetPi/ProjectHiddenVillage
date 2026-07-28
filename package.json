@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "concurrently -n client,server -c cyan,green \"npm --prefix client run dev -- --host 127.0.0.1 --port 5173\" \"dotnet watch --project server/ProjectHiddenVillage.Server.csproj run --urls http://127.0.0.1:3001\"",
-    "build": "dotnet build server/ProjectHiddenVillage.Server.csproj && npm --prefix client run build"
+    "build": "dotnet build server/ProjectHiddenVillage.Server.csproj && npm --prefix client run build",
+    "db:migration:add": "sh -c 'if [ -z \"$npm_config_name\" ]; then echo \"Missing required --name argument. Example: npm run db:migration:add --name=AddUsers\"; exit 1; fi; dotnet ef migrations add \"$npm_config_name\" --project server/ProjectHiddenVillage.Server.csproj --startup-project server/ProjectHiddenVillage.Server.csproj'",
+    "db:migrate": "dotnet ef database update --project server/ProjectHiddenVillage.Server.csproj --startup-project server/ProjectHiddenVillage.Server.csproj",
+    "db:migrate:to": "sh -c 'if [ -z \"$npm_config_name\" ]; then echo \"Missing required --name argument. Example: npm run db:migrate:to --name=InitialCreate (or --name=0 to rollback all)\"; exit 1; fi; dotnet ef database update \"$npm_config_name\" --project server/ProjectHiddenVillage.Server.csproj --startup-project server/ProjectHiddenVillage.Server.csproj'"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
