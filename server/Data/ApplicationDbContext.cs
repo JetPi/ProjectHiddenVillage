@@ -11,24 +11,13 @@ public sealed class ApplicationDbContext : DbContext
     }
 
     public DbSet<GameLogArchiveEntry> GameLogArchives => Set<GameLogArchiveEntry>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<SavedDeck> SavedDecks => Set<SavedDeck>();
+    public DbSet<SavedDeckCard> SavedDeckCards => Set<SavedDeckCard>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<GameLogArchiveEntry>(entity =>
-        {
-            entity.ToTable("game_log_archives");
-            entity.HasKey(record => record.Id);
-
-            entity.Property(record => record.GameId)
-                .IsRequired()
-                .HasMaxLength(128);
-
-            entity.Property(record => record.PayloadJson)
-                .IsRequired()
-                .HasColumnType("jsonb");
-
-            entity.HasIndex(record => record.GameId);
-            entity.HasIndex(record => record.CompletedAtUtc);
-        });
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+        base.OnModelCreating(modelBuilder);
     }
 }
