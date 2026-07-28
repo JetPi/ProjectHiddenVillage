@@ -1,3 +1,4 @@
+@import '@fontsource/water-brush';
 @import 'tailwindcss';
 @import './styles/theme.css';
 
@@ -9,24 +10,26 @@
 
   --app-overlay-a: rgba(255, 255, 255, 0.05);
   --app-overlay-b: rgba(255, 255, 255, 0);
-  --app-overlay-c: rgba(249, 115, 22, 0.16);
+  --app-overlay-c: rgba(251, 146, 60, 0.14);
 
-  --surface: rgba(255, 255, 255, 0.1);
-  --surface-muted: rgba(0, 0, 0, 0.36);
-  --surface-hover: rgba(255, 255, 255, 0.16);
-  --field-bg: rgba(0, 0, 0, 0.42);
+  --surface: #111827;
+  --surface-muted: #0b1220;
+  --surface-hover: #1f2937;
+  --field-bg: #0f172a;
+  --dropdown-bg: #162033;
+  --popup-bg: #1a2438;
 
   --border-subtle: rgba(255, 255, 255, 0.22);
-  --focus-ring: #f97316;
+  --focus-ring: #fb923c;
 
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.82);
   --text-muted: rgba(255, 255, 255, 0.56);
   --text-accent: rgba(96, 165, 250, 0.95);
 
-  --button-primary-bg: #f97316;
-  --button-primary-hover: #ea580c;
-  --button-primary-text: #ffffff;
+  --button-primary-bg: #fb923c;
+  --button-primary-hover: #f59e63;
+  --button-primary-text: #0a0a0a;
 
   --panel-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
 }
@@ -37,25 +40,27 @@ html[data-theme='light'] {
   --app-bg-deep: #dbeafe;
   --app-bg-end: #fff7ed;
 
-  --app-overlay-a: rgba(37, 99, 235, 0.12);
+  --app-overlay-a: rgba(96, 165, 250, 0.12);
   --app-overlay-b: rgba(0, 0, 0, 0);
-  --app-overlay-c: rgba(249, 115, 22, 0.14);
+  --app-overlay-c: rgba(251, 146, 60, 0.1);
 
-  --surface: rgba(255, 255, 255, 0.86);
-  --surface-muted: rgba(255, 255, 255, 0.68);
-  --surface-hover: rgba(255, 255, 255, 0.96);
-  --field-bg: rgba(255, 255, 255, 0.95);
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --surface-hover: #eef2ff;
+  --field-bg: #ffffff;
+  --dropdown-bg: #f1f5f9;
+  --popup-bg: #f8fafc;
 
   --border-subtle: rgba(0, 0, 0, 0.2);
-  --focus-ring: #2563eb;
+  --focus-ring: #4f93ef;
 
   --text-primary: #0a0a0a;
   --text-secondary: rgba(0, 0, 0, 0.78);
   --text-muted: rgba(0, 0, 0, 0.52);
-  --text-accent: rgba(234, 88, 12, 0.95);
+  --text-accent: rgba(194, 101, 38, 0.92);
 
-  --button-primary-bg: #2563eb;
-  --button-primary-hover: #1d4ed8;
+  --button-primary-bg: #2667cf;
+  --button-primary-hover: #3272e1;
   --button-primary-text: #ffffff;
 
   --panel-shadow: 0 12px 24px rgba(0, 0, 0, 0.16);
