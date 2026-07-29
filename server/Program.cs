@@ -1,6 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using ProjectHiddenVillage.Server;
 using ProjectHiddenVillage.Server.Data;
+using ProjectHiddenVillage.Server.Data.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,7 +14,12 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddSingleton<GameInstanceFactory>();
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.GamePhaseService>();
 builder.Services.AddSingleton<InMemoryGameInstanceRegistry>();
+builder.Services.AddSingleton<GamesService>();
+builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddControllers();
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<CreateGameInstanceRequestValidator>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>

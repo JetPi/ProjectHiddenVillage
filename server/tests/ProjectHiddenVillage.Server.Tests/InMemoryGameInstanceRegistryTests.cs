@@ -90,9 +90,9 @@ public sealed class InMemoryGameInstanceRegistryTests
                 Id = id,
                 DisplayName = id,
                 Name = [id],
-                Type = ["unit"],
+                Type = CardType.Character,
                 Traits = [],
-                Color = "neutral",
+                Color = CardColor.Red,
                 Description = string.Empty,
                 Conditions = [],
                 Effects = []
