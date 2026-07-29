@@ -4,13 +4,13 @@ namespace ProjectHiddenVillage.Server;
 
 [ApiController]
 [Route("api/[controller]")]
-public sealed class GamesController : ControllerBase
+public sealed class GamesController : ApiControllerBase
 {
-    private readonly InMemoryGameInstanceRegistry registry;
+    private readonly GamesService gamesService;
 
-    public GamesController(InMemoryGameInstanceRegistry registry)
+    public GamesController(GamesService gamesService)
     {
-        this.registry = registry;
+        this.gamesService = gamesService;
     }
 
     [HttpPost]
@@ -18,43 +18,28 @@ public sealed class GamesController : ControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     public ActionResult<GameInstance> Create([FromBody] CreateGameInstanceRequest request)
     {
-        if (request.Players is null)
+        var result = gamesService.Create(request);
+        if (result.IsError)
         {
-            return BadRequest("Players payload is required.");
+            return ProblemFromErrors<GameInstance>(result.Errors);
         }
 
-        if (request.CardDefinitions is null)
-        {
-            return BadRequest("CardDefinitions payload is required.");
-        }
-
-        try
-        {
-            var cardDefinitions = request.CardDefinitions.ToDictionary(
-                keySelector: card => card.Id,
-                elementSelector: card => card,
-                comparer: StringComparer.Ordinal);
-
-            var game = registry.Create(request.Players, cardDefinitions);
-            return CreatedAtAction(nameof(GetById), new { gameId = game.Id }, game);
-        }
-        catch (Exception ex) when (ex is InvalidOperationException || ex is ArgumentException)
-        {
-            return BadRequest(ex.Message);
-        }
+        return CreatedAtAction(nameof(GetById), new { gameId = result.Value.Id }, result.Value);
     }
 
     [HttpGet("{gameId}")]
     [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> GetById(string gameId)
     {
-        if (!registry.TryGet(gameId, out var game) || game is null)
+        var result = gamesService.GetById(gameId);
+        if (result.IsError)
         {
-            return NotFound();
+            return ProblemFromErrors<GameInstance>(result.Errors);
         }
 
-        return Ok(game);
+        return Ok(result.Value);
     }
 
     [HttpPost("{gameId}/join")]
@@ -63,17 +48,13 @@ public sealed class GamesController : ControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> Join(string gameId, [FromBody] JoinGameInstanceRequest request)
     {
-        try
+        var result = gamesService.Join(gameId, request);
+        if (result.IsError)
         {
-            var game = registry.Join(gameId, request.Player);
-            return Ok(game);
+            return ProblemFromErrors<GameInstance>(result.Errors);
         }
-        catch (Exception ex) when (ex is InvalidOperationException || ex is KeyNotFoundException)
-        {
-            return ex is KeyNotFoundException
-                ? NotFound(ex.Message)
-                : BadRequest(ex.Message);
-        }
+
+        return Ok(result.Value);
     }
 
     [HttpPost("{gameId}/prompts/resolve")]
@@ -82,17 +63,13 @@ public sealed class GamesController : ControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> ResolvePrompt(string gameId, [FromBody] ResolvePromptRequest request)
     {
-        try
+        var result = gamesService.ResolvePrompt(gameId, request);
+        if (result.IsError)
         {
-            var game = registry.ResolvePrompt(gameId, request.RequestedPlayerId, request.SelectedOption);
-            return Ok(game);
+            return ProblemFromErrors<GameInstance>(result.Errors);
         }
-        catch (Exception ex) when (ex is InvalidOperationException || ex is KeyNotFoundException)
-        {
-            return ex is KeyNotFoundException
-                ? NotFound(ex.Message)
-                : BadRequest(ex.Message);
-        }
+
+        return Ok(result.Value);
     }
 
     [HttpPost("{gameId}/phase/advance")]
@@ -101,17 +78,13 @@ public sealed class GamesController : ControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> AdvancePhase(string gameId)
     {
-        try
+        var result = gamesService.AdvancePhase(gameId);
+        if (result.IsError)
         {
-            var game = registry.AdvancePhase(gameId);
-            return Ok(game);
+            return ProblemFromErrors<GameInstance>(result.Errors);
         }
-        catch (Exception ex) when (ex is InvalidOperationException || ex is KeyNotFoundException)
-        {
-            return ex is KeyNotFoundException
-                ? NotFound(ex.Message)
-                : BadRequest(ex.Message);
-        }
+
+        return Ok(result.Value);
     }
 
     [HttpPost("{gameId}/action-step/pass")]
@@ -120,17 +93,13 @@ public sealed class GamesController : ControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> DeclarePassInActionStep(string gameId, [FromBody] PlayerPhaseActionRequest request)
     {
-        try
+        var result = gamesService.DeclarePassInActionStep(gameId, request);
+        if (result.IsError)
         {
-            var game = registry.DeclarePassInActionStep(gameId, request.PlayerId);
-            return Ok(game);
+            return ProblemFromErrors<GameInstance>(result.Errors);
         }
-        catch (Exception ex) when (ex is InvalidOperationException || ex is KeyNotFoundException)
-        {
-            return ex is KeyNotFoundException
-                ? NotFound(ex.Message)
-                : BadRequest(ex.Message);
-        }
+
+        return Ok(result.Value);
     }
 
     [HttpPost("{gameId}/action-step/action")]
@@ -139,17 +108,13 @@ public sealed class GamesController : ControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> DeclareActionInActionStep(string gameId, [FromBody] PlayerPhaseActionRequest request)
     {
-        try
+        var result = gamesService.DeclareActionInActionStep(gameId, request);
+        if (result.IsError)
         {
-            var game = registry.DeclareActionInActionStep(gameId, request.PlayerId);
-            return Ok(game);
+            return ProblemFromErrors<GameInstance>(result.Errors);
         }
-        catch (Exception ex) when (ex is InvalidOperationException || ex is KeyNotFoundException)
-        {
-            return ex is KeyNotFoundException
-                ? NotFound(ex.Message)
-                : BadRequest(ex.Message);
-        }
+
+        return Ok(result.Value);
     }
 
     [HttpPost("{gameId}/end-step/declare")]
@@ -158,17 +123,13 @@ public sealed class GamesController : ControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> DeclareEndStep(string gameId)
     {
-        try
+        var result = gamesService.DeclareEndStep(gameId);
+        if (result.IsError)
         {
-            var game = registry.DeclareEndStep(gameId);
-            return Ok(game);
+            return ProblemFromErrors<GameInstance>(result.Errors);
         }
-        catch (Exception ex) when (ex is InvalidOperationException || ex is KeyNotFoundException)
-        {
-            return ex is KeyNotFoundException
-                ? NotFound(ex.Message)
-                : BadRequest(ex.Message);
-        }
+
+        return Ok(result.Value);
     }
 
     [HttpPost("{gameId}/end-step/complete")]
@@ -177,16 +138,12 @@ public sealed class GamesController : ControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> CompleteEndStep(string gameId)
     {
-        try
+        var result = gamesService.CompleteEndStep(gameId);
+        if (result.IsError)
         {
-            var game = registry.CompleteEndStep(gameId);
-            return Ok(game);
+            return ProblemFromErrors<GameInstance>(result.Errors);
         }
-        catch (Exception ex) when (ex is InvalidOperationException || ex is KeyNotFoundException)
-        {
-            return ex is KeyNotFoundException
-                ? NotFound(ex.Message)
-                : BadRequest(ex.Message);
-        }
+
+        return Ok(result.Value);
     }
 }

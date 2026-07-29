@@ -191,9 +191,9 @@ public sealed class GameInstanceFactoryTests
                 Id = id,
                 DisplayName = id,
                 Name = [id],
-                Type = ["unit"],
+                Type = CardType.Character,
                 Traits = [],
-                Color = "neutral",
+                Color = CardColor.Red,
                 Description = string.Empty,
                 Conditions = [],
                 Effects = []
