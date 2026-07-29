@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { SubmitEvent } from 'react'
 import {
   deckOptionsFieldConfigByMode,
@@ -5,7 +6,7 @@ import {
   gameCodeFieldConfigByMode,
   gameCodeModeOptions,
 } from './configs/LoginView'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
@@ -19,7 +20,7 @@ import {
   FormInput,
   OptionToggle,
 } from '../../components/forms'
-import { Lightbulb } from 'lucide-react'
+import { Lightbulb, LogIn } from 'lucide-react'
 import { useSessionStore } from '../../state/sessionStore'
 import { useThemeStore } from '../../state/themeStore'
 import { useLoginViewModel } from './model/useLoginViewModel'
@@ -27,6 +28,9 @@ import { useLoginViewModel } from './model/useLoginViewModel'
 
 export function LoginView() {
   const navigate = useNavigate()
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
   const setSession = useSessionStore((state) => state.setSession)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const {
@@ -59,6 +63,11 @@ export function LoginView() {
     navigate('/game')
   }
 
+  const handleLoginSubmit = (event: SubmitEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setIsLoginModalOpen(false)
+  }
+
   return (
     <PageShell>
       <div className="grid w-full grid-cols-1 gap-4 px-2 sm:px-4">
@@ -86,15 +95,25 @@ export function LoginView() {
                   <Lightbulb size={12} />
                 </button>
               </div>
-              <FormInput
-                id="displayName"
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-                placeholder="Enter name here"
-                maxLength={24}
-                className="!py-1.5"
-                required
-              />
+              <div className="relative">
+                <FormInput
+                  id="displayName"
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  placeholder="Enter name here"
+                  maxLength={24}
+                  className="py-1.5 pr-12"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsLoginModalOpen(true)}
+                  aria-label="Open login modal"
+                  className="absolute right-0 top-0 bottom-0 inline-flex w-10 items-center justify-center rounded-r-xl border-l border-[var(--border-subtle)] bg-transparent text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                >
+                  <LogIn size={14} />
+                </button>
+              </div>
               {showDisplayNameError ? <FormErrorText>Please enter a display name.</FormErrorText> : null}
             </FormField>
 
@@ -104,7 +123,7 @@ export function LoginView() {
                 ariaLabel="Game code input mode"
                 value={gameCodeMode}
                 options={gameCodeModeOptions}
-                optionClassName="!py-1"
+                optionClassName="py-1"
                 onChange={(nextMode) => {
                   setGameCodeMode(nextMode)
                 }}
@@ -114,7 +133,7 @@ export function LoginView() {
                 value={activeGameCode}
                 onValueChange={setGameCodeValue}
                 config={gameCodeFieldConfigByMode[gameCodeMode]}
-                className="!py-1.5"
+                className="py-1.5"
               />
             </FormField>
 
@@ -124,7 +143,7 @@ export function LoginView() {
                   ariaLabel="Deck options input mode"
                   value={deckOptionsMode}
                   options={deckOptionsModeOptions}
-                  optionClassName="!py-1"
+                  optionClassName="py-1"
                   onChange={(nextMode) => {
                     setDeckOptionsMode(nextMode)
                   }}
@@ -134,7 +153,7 @@ export function LoginView() {
                   value={activeDeckOption}
                   onValueChange={setDeckOptionValue}
                   config={deckOptionsFieldConfigByMode[deckOptionsMode]}
-                  className="!py-1.5"
+                  className="py-1.5"
                 />
               </FormField>
 
@@ -146,6 +165,76 @@ export function LoginView() {
           </Form>
         </Panel>
       </div>
+
+      {isLoginModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="login-modal-title"
+          onClick={() => setIsLoginModalOpen(false)}
+        >
+          <Panel
+            className="w-full max-w-md p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 id="login-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
+                Log In
+              </h2>
+            </div>
+
+            <Form className="grid grid-cols-1 gap-2 space-y-0" onSubmit={handleLoginSubmit}>
+              <FormField className="space-y-0">
+                <FormLabel htmlFor="loginEmail" className="mb-1 text-[11px] font-normal normal-case leading-none tracking-[0.08em] text-[var(--text-muted)]">
+                  Email
+                </FormLabel>
+                <FormInput
+                  id="loginEmail"
+                  type="email"
+                  value={loginEmail}
+                  onChange={(event) => setLoginEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  className="py-1.5"
+                  required
+                />
+              </FormField>
+
+              <FormField className="space-y-0">
+                <FormLabel htmlFor="loginPassword" className="mb-1 text-[11px] font-normal normal-case leading-none tracking-[0.08em] text-[var(--text-muted)]">
+                  Password
+                </FormLabel>
+                <FormInput
+                  id="loginPassword"
+                  type="password"
+                  value={loginPassword}
+                  onChange={(event) => setLoginPassword(event.target.value)}
+                  placeholder="Enter password"
+                  className="py-1.5"
+                  required
+                />
+              </FormField>
+              <p className="text-center text-sm text-[var(--text-secondary)]">
+                Not registered?{' '}
+                <Link
+                  to="/sign-in"
+                  onClick={() => setIsLoginModalOpen(false)}
+                  className="font-semibold text-[var(--text-accent)] underline-offset-2 hover:underline"
+                >
+                  Sign in here!
+                </Link>
+              </p>
+
+              <FormActions className="w-full justify-end gap-2 pt-0">
+                <AppButton type="submit">
+                  Log In
+                </AppButton>
+              </FormActions>
+
+            </Form>
+          </Panel>
+        </div>
+      ) : null}
     </PageShell>
   )
 }

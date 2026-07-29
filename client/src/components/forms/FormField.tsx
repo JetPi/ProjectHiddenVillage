@@ -1,4 +1,5 @@
 import type { HTMLAttributes, PropsWithChildren } from 'react'
+import { twMerge } from 'tailwind-merge'
 
 type FormFieldProps = PropsWithChildren<HTMLAttributes<HTMLDivElement>>
 
@@ -6,7 +7,7 @@ export function FormField({ className = '', children, ...fieldProps }: FormField
   return (
     <div
       {...fieldProps}
-      className={`space-y-2 ${className}`.trim()}
+      className={twMerge('space-y-2', className)}
     >
       {children}
     </div>
