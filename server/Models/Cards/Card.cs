@@ -1,6 +1,6 @@
 namespace ProjectHiddenVillage.Server;
 
-public sealed class Card
+public class Card
 {
     public string Id { get; set; } = string.Empty;
 
@@ -8,17 +8,37 @@ public sealed class Card
 
     public string DisplayName { get; set; } = string.Empty;
 
-    public List<string> Type { get; set; } = [];
+    public CardType Type { get; set; }
 
     public List<string> Traits { get; set; } = [];
 
-    public int Cost { get; set; }
-
-    public string Color { get; set; } = string.Empty;
+    public CardColor Color { get; set; }
 
     public string Description { get; set; } = string.Empty;
+
+    public int Damage { get; set; }
+
+    public int Power { get; set; }
 
     public List<ConditionSpec> Conditions { get; set; } = [];
 
     public List<EffectSpec> Effects { get; set; } = [];
+}
+
+public sealed class LeaderCard : Card
+{
+    public int Life { get; set; }
+
+    public string RecoveryEffect { get; set; } = string.Empty;
+}
+
+public sealed class CharacterCard : Card
+{
+    public int Health { get; set; }
+
+    public string SupportName { get; set; } = string.Empty;
+
+    public string SupportEffect { get; set; } = string.Empty;
+
+    public int SupportCost { get; set; }
 }
