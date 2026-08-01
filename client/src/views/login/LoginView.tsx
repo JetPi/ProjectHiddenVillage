@@ -157,7 +157,7 @@ export function LoginView() {
                 />
               </FormField>
 
-            <FormActions className="col-span-full w-full justify-start">
+            <FormActions className="col-span-full pt-2 w-full justify-start">
               <AppButton type="submit" className="w-full">
                 Enter Game
               </AppButton>
