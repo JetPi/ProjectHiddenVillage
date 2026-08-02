@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { SubmitEvent } from 'react'
 import {
   deckOptionsFieldConfigByMode,
@@ -6,7 +6,7 @@ import {
   gameCodeFieldConfigByMode,
   gameCodeModeOptions,
 } from './configs/LoginView'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useActionData, useLoaderData, useNavigate, useNavigation } from 'react-router-dom'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
@@ -24,9 +24,13 @@ import { Lightbulb, LogIn } from 'lucide-react'
 import { useSessionStore } from '../../state/sessionStore'
 import { useThemeStore } from '../../state/themeStore'
 import { useLoginViewModel } from './model/useLoginViewModel'
+import type { LoginActionData, LoginLoaderData } from './handlers/loginRouteHandlers'
 
 
 export function LoginView() {
+  const loaderData = useLoaderData() as LoginLoaderData
+  const actionData = useActionData() as LoginActionData | undefined
+  const navigation = useNavigation()
   const navigate = useNavigate()
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [loginEmail, setLoginEmail] = useState('')
@@ -48,6 +52,22 @@ export function LoginView() {
     validateDisplayName,
   } = useLoginViewModel()
 
+  const isSubmittingLogin =
+    navigation.state === 'submitting' && navigation.formData?.get('intent') === 'login'
+
+  useEffect(() => {
+    const user = actionData?.login?.user
+
+    if (!user) {
+      return
+    }
+
+    setDisplayName(user.username)
+    setIsLoginModalOpen(false)
+    setLoginEmail('')
+    setLoginPassword('')
+  }, [actionData, setDisplayName])
+
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -63,15 +83,22 @@ export function LoginView() {
     navigate('/game')
   }
 
-  const handleLoginSubmit = (event: SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setIsLoginModalOpen(false)
-  }
-
   return (
     <PageShell>
       <div className="grid w-full grid-cols-1 gap-4 px-2 sm:px-4">
         <Panel className="my-2 w-full border-0 bg-transparent px-5 text-center shadow-none">
+          {loaderData.signupSuccess ? (
+            <p className="mb-3 rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-sm text-emerald-800">
+              Account created successfully. You can now log in.
+            </p>
+          ) : null}
+
+          {loaderData.authUser ? (
+            <p className="mb-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-[var(--text-secondary)]">
+              Logged in as {loaderData.authUser.username}
+            </p>
+          ) : null}
+
           <p className="mt-1 font-['Water_Brush'] text-6xl leading-none tracking-wide text-[var(--text-primary)] sm:text-7xl">
             Shinobi Tactics
           </p>
@@ -184,13 +211,15 @@ export function LoginView() {
               </h2>
             </div>
 
-            <Form className="grid grid-cols-1 gap-2 space-y-0" onSubmit={handleLoginSubmit}>
+            <Form className="grid grid-cols-1 gap-2 space-y-0" method="post">
+              <input type="hidden" name="intent" value="login" />
               <FormField className="space-y-0">
                 <FormLabel htmlFor="loginEmail" className="mb-1 text-[11px] font-normal normal-case leading-none tracking-[0.08em] text-[var(--text-muted)]">
                   Email
                 </FormLabel>
                 <FormInput
                   id="loginEmail"
+                  name="email"
                   type="email"
                   value={loginEmail}
                   onChange={(event) => setLoginEmail(event.target.value)}
@@ -206,6 +235,7 @@ export function LoginView() {
                 </FormLabel>
                 <FormInput
                   id="loginPassword"
+                  name="password"
                   type="password"
                   value={loginPassword}
                   onChange={(event) => setLoginPassword(event.target.value)}
@@ -214,6 +244,9 @@ export function LoginView() {
                   required
                 />
               </FormField>
+              {actionData?.login?.ok === false && actionData.login.error ? (
+                <FormErrorText>{actionData.login.error}</FormErrorText>
+              ) : null}
               <p className="text-center text-sm text-[var(--text-secondary)]">
                 Not registered?{' '}
                 <Link
@@ -221,13 +254,13 @@ export function LoginView() {
                   onClick={() => setIsLoginModalOpen(false)}
                   className="font-semibold text-[var(--text-accent)] underline-offset-2 hover:underline"
                 >
-                  Sign in here!
+                  Sign up here!
                 </Link>
               </p>
 
               <FormActions className="w-full justify-end gap-2 pt-0">
-                <AppButton type="submit">
-                  Log In
+                <AppButton type="submit" disabled={isSubmittingLogin}>
+                  {isSubmittingLogin ? 'Logging In...' : 'Log In'}
                 </AppButton>
               </FormActions>
 

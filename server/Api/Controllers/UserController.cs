@@ -8,10 +8,12 @@ namespace ProjectHiddenVillage.Server;
 public sealed class UserController : ApiControllerBase
 {
 	private readonly UserService userService;
+	private readonly AuthTokenService authTokenService;
 
-	public UserController(UserService userService)
+	public UserController(UserService userService, AuthTokenService authTokenService)
 	{
 		this.userService = userService;
+		this.authTokenService = authTokenService;
 	}
 
 	[HttpPost]
@@ -27,6 +29,38 @@ public sealed class UserController : ApiControllerBase
 		}
 
 		return Created($"/api/user/{result.Value.Id}", result.Value);
+	}
+
+	[HttpPost("login")]
+	[ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+	public async Task<ActionResult<LoginResponse>> Login([FromBody] UserLoginDto loginDto)
+	{
+		var loginResult = await userService.VerifyLogin(loginDto);
+		if (loginResult.IsError)
+		{
+			return ProblemFromErrors<LoginResponse>(loginResult.Errors);
+		}
+
+		var userResult = await userService.GetUser(loginResult.Value);
+		if (userResult.IsError)
+		{
+			return ProblemFromErrors<LoginResponse>(userResult.Errors);
+		}
+
+		var tokenResult = authTokenService.CreateToken(
+			userResult.Value.Id,
+			userResult.Value.Username,
+			userResult.Value.Email);
+
+		return Ok(new LoginResponse(
+			Id: userResult.Value.Id,
+			Username: userResult.Value.Username,
+			Email: userResult.Value.Email,
+			AccessToken: tokenResult.AccessToken,
+			ExpiresAt: tokenResult.ExpiresAt));
 	}
 
 	[HttpGet("{userId}")]
