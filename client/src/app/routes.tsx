@@ -7,7 +7,7 @@ import { AuthRouteErrorBoundary } from '../components/feedback/AuthRouteErrorBou
 import { loginAction, loginLoader } from '../views/login/handlers/loginRouteHandlers'
 import { signInAction, signInLoader } from '../views/login/handlers/signInRouteHandlers'
 import { NotFoundView } from '../views/NotFoundView'
-import { Navigate } from 'react-router-dom'
+// import { Navigate } from 'react-router-dom'
 
 export const router = createBrowserRouter([
   {
@@ -29,14 +29,6 @@ export const router = createBrowserRouter([
         loader: signInLoader,
         action: signInAction,
         errorElement: <AuthRouteErrorBoundary />,
-      },
-      {
-        path: '/signin',
-        element: <Navigate to="/sign-in" replace />,
-      },
-      {
-        path: '/sign-up',
-        element: <Navigate to="/sign-in" replace />,
       },
       {
         path: '*',

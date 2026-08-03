@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SubmitEvent } from 'react'
 import {
   deckOptionsFieldConfigByMode,
@@ -20,7 +20,9 @@ import {
   FormInput,
   OptionToggle,
 } from '../../components/forms'
-import { Lightbulb, LogIn } from 'lucide-react'
+import { Lightbulb, LogIn, X } from 'lucide-react'
+import { showAppInfoToast, showAppSuccessToast } from '../../components/feedback/AppToast'
+import { clearAuthSession } from '../../state/authSession'
 import { useSessionStore } from '../../state/sessionStore'
 import { useThemeStore } from '../../state/themeStore'
 import { useLoginViewModel } from './model/useLoginViewModel'
@@ -32,9 +34,14 @@ export function LoginView() {
   const actionData = useActionData() as LoginActionData | undefined
   const navigation = useNavigation()
   const navigate = useNavigate()
+
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
+  const hasShownSignupToast = useRef(false)
+  const lastAuthToastUsername = useRef<string | null>(null)
+  
   const setSession = useSessionStore((state) => state.setSession)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const {
@@ -54,6 +61,35 @@ export function LoginView() {
 
   const isSubmittingLogin =
     navigation.state === 'submitting' && navigation.formData?.get('intent') === 'login'
+  const authUsername = actionData?.login?.user?.username ?? loaderData.authUser?.username ?? ''
+
+  if (loaderData.signupSuccess && !hasShownSignupToast.current) {
+    showAppSuccessToast('Account created successfully.', { id: 'signup-success', duration: 3200 })
+
+    hasShownSignupToast.current = true
+  }
+
+  if (
+    authUsername &&
+    !loaderData.signupSuccess &&
+    lastAuthToastUsername.current !== authUsername
+  ) {
+    showAppInfoToast('Logged in as ' + authUsername, { id: 'auth-login-status', duration: 3200 })
+
+    lastAuthToastUsername.current = authUsername
+  }
+
+  if (!authUsername && lastAuthToastUsername.current) {
+    lastAuthToastUsername.current = null
+  }
+
+  useEffect(() => {
+    if (!authUsername) {
+      return
+    }
+
+    setDisplayName(authUsername)
+  }, [authUsername, setDisplayName])
 
   useEffect(() => {
     const user = actionData?.login?.user
@@ -62,11 +98,20 @@ export function LoginView() {
       return
     }
 
-    setDisplayName(user.username)
     setIsLoginModalOpen(false)
     setLoginEmail('')
     setLoginPassword('')
-  }, [actionData, setDisplayName])
+  }, [actionData])
+
+  const handleLogout = () => {
+    clearAuthSession()
+    setDisplayName('')
+    setLoginEmail('')
+    setLoginPassword('')
+    setIsLogoutModalOpen(false)
+    showAppInfoToast('Logged out successfully.', { id: 'auth-logout-status', duration: 3200 })
+    navigate('/', { replace: true })
+  }
 
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -87,18 +132,6 @@ export function LoginView() {
     <PageShell>
       <div className="grid w-full grid-cols-1 gap-4 px-2 sm:px-4">
         <Panel className="my-2 w-full border-0 bg-transparent px-5 text-center shadow-none">
-          {loaderData.signupSuccess ? (
-            <p className="mb-3 rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-sm text-emerald-800">
-              Account created successfully. You can now log in.
-            </p>
-          ) : null}
-
-          {loaderData.authUser ? (
-            <p className="mb-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-[var(--text-secondary)]">
-              Logged in as {loaderData.authUser.username}
-            </p>
-          ) : null}
-
           <p className="mt-1 font-['Water_Brush'] text-6xl leading-none tracking-wide text-[var(--text-primary)] sm:text-7xl">
             Shinobi Tactics
           </p>
@@ -134,11 +167,18 @@ export function LoginView() {
                 />
                 <button
                   type="button"
-                  onClick={() => setIsLoginModalOpen(true)}
-                  aria-label="Open login modal"
+                  onClick={() => {
+                    if (authUsername) {
+                      setIsLogoutModalOpen(true)
+                      return
+                    }
+
+                    setIsLoginModalOpen(true)
+                  }}
+                  aria-label={authUsername ? 'Open logout modal' : 'Open login modal'}
                   className="absolute right-0 top-0 bottom-0 inline-flex w-10 items-center justify-center rounded-r-xl border-l border-[var(--border-subtle)] bg-transparent text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                 >
-                  <LogIn size={14} />
+                  {authUsername ? <X size={14} /> : <LogIn size={14} />}
                 </button>
               </div>
               {showDisplayNameError ? <FormErrorText>Please enter a display name.</FormErrorText> : null}
@@ -265,6 +305,38 @@ export function LoginView() {
               </FormActions>
 
             </Form>
+          </Panel>
+        </div>
+      ) : null}
+
+      {isLogoutModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="logout-modal-title"
+          onClick={() => setIsLogoutModalOpen(false)}
+        >
+          <Panel
+            className="w-full max-w-md p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 id="logout-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
+                Are you sure?
+              </h2>
+            </div>
+            <p className="mb-4 text-sm text-[var(--text-secondary)]">
+              Do you want to log out of your current session?
+            </p>
+            <div className="flex justify-end gap-2">
+              <AppButton type="button" variant="ghost" onClick={() => setIsLogoutModalOpen(false)}>
+                Cancel
+              </AppButton>
+              <AppButton type="button" onClick={handleLogout}>
+                Log Out
+              </AppButton>
+            </div>
           </Panel>
         </div>
       ) : null}

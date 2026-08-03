@@ -26,21 +26,6 @@ export function SignInView() {
 
           <Form className="grid grid-cols-1 gap-2 space-y-0" method="post">
             <FormField className="space-y-0">
-              <FormLabel htmlFor="signinUsername" className="mb-1 text-[11px] font-normal normal-case leading-none tracking-[0.08em] text-[var(--text-muted)]">
-                Username
-              </FormLabel>
-              <FormInput
-                id="signinUsername"
-                name="username"
-                type="text"
-                defaultValue={actionData?.signUp?.values?.username ?? ''}
-                placeholder="Enter username"
-                className="py-1.5"
-                required
-              />
-            </FormField>
-
-            <FormField className="space-y-0">
               <FormLabel htmlFor="signinEmail" className="mb-1 text-[11px] font-normal normal-case leading-none tracking-[0.08em] text-[var(--text-muted)]">
                 Email
               </FormLabel>
@@ -50,6 +35,21 @@ export function SignInView() {
                 type="email"
                 defaultValue={actionData?.signUp?.values?.email ?? ''}
                 placeholder="you@example.com"
+                className="py-1.5"
+                required
+              />
+            </FormField>
+
+            <FormField className="space-y-0">
+              <FormLabel htmlFor="signinUsername" className="mb-1 text-[11px] font-normal normal-case leading-none tracking-[0.08em] text-[var(--text-muted)]">
+                Username
+              </FormLabel>
+              <FormInput
+                id="signinUsername"
+                name="username"
+                type="text"
+                defaultValue={actionData?.signUp?.values?.username ?? ''}
+                placeholder="Enter username"
                 className="py-1.5"
                 required
               />

@@ -1,6 +1,8 @@
 import type { ActionFunctionArgs } from 'react-router-dom'
 import { redirect } from 'react-router-dom'
 import { api } from '../../../services/api/httpClient'
+import type { AuthSession } from '../../../state/authSession'
+import { persistAuthSession } from '../../../state/authSession'
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage'
 
 type UserResponse = {
@@ -11,6 +13,19 @@ type UserResponse = {
 
 type SignUpApiRequest = {
   username: string
+  email: string
+  password: string
+}
+
+type LoginResponse = {
+  id: string
+  username: string
+  email: string
+  accessToken: string
+  expiresAt: string
+}
+
+type LoginApiRequest = {
   email: string
   password: string
 }
@@ -58,6 +73,24 @@ export async function signInAction({ request }: ActionFunctionArgs): Promise<Sig
     }
 
     await api.post<UserResponse>('/api/user', signUpPayload)
+
+    // Auto-login after successful signup so the user can continue immediately.
+    const loginPayload: LoginApiRequest = {
+      email,
+      password,
+    }
+
+    const { data: loginResponse } = await api.post<LoginResponse>('/api/user/login', loginPayload)
+
+    const authUser: AuthSession = {
+      userId: loginResponse.id,
+      username: loginResponse.username,
+      email: loginResponse.email,
+      accessToken: loginResponse.accessToken,
+      expiresAt: loginResponse.expiresAt,
+    }
+
+    persistAuthSession(authUser)
 
     return redirect('/?signup=success')
   } catch (error) {
