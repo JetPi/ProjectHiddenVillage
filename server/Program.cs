@@ -28,6 +28,7 @@ builder.Services.AddSingleton<GameInstanceFactory>();
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.GamePhaseService>();
 builder.Services.AddSingleton<InMemoryGameInstanceRegistry>();
 builder.Services.AddSingleton<GamesService>();
+builder.Services.AddScoped<CardMappingService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddSingleton<AuthTokenService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();

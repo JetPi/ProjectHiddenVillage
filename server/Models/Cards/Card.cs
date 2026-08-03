@@ -4,6 +4,14 @@ public class Card
 {
     public string Id { get; set; } = string.Empty;
 
+    public string Image { get; set; } = string.Empty;
+
+    public string OriginalId { get; set; } = string.Empty;
+
+    public bool MainAlternate { get; set; }
+
+    public string? Attribute { get; set; }
+
     public List<string> Name { get; set; } = [];
 
     public string DisplayName { get; set; } = string.Empty;

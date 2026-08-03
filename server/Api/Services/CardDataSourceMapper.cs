@@ -1,0 +1,223 @@
+using System.Text.RegularExpressions;
+
+namespace ProjectHiddenVillage.Server;
+
+public static partial class CardDataSourceMapper
+{
+    [GeneratedRegex(@"\[(.*?)\]", RegexOptions.Compiled)]
+    private static partial Regex EffectKeywordRegex();
+
+    [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    private static partial Regex BrTagRegex();
+
+    public static Card ToCard(CardDataSourceRecord source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        var cardType = ParseCardType(source.CategoryData);
+        var power = ParseNullableInt(source.Power) ?? 0;
+        var description = NormalizeOptional(source.Effect) ?? string.Empty;
+
+        Card mapped = cardType switch
+        {
+            CardType.Leader => new LeaderCard
+            {
+                Life = source.Health ?? 0,
+                RecoveryEffect = ExtractRecoveryEffect(description)
+            },
+            _ => new CharacterCard
+            {
+                Health = source.Health ?? 0,
+                SupportName = ExtractSupportName(description),
+                SupportEffect = string.Empty,
+                SupportCost = source.Cost ?? 0
+            }
+        };
+
+        mapped.Id = NormalizeRequired(source.CardNo);
+        mapped.Image = NormalizeRequired(source.Image);
+        mapped.OriginalId = NormalizeRequired(source.OriginalId);
+        mapped.MainAlternate = source.MainAlternate ?? false;
+        mapped.Attribute = NormalizeOptional(source.Attribute);
+        mapped.DisplayName = NormalizeRequired(source.Name);
+        mapped.Name = BuildNameEntries(source.Name);
+        mapped.Type = cardType;
+        mapped.Traits = ParseTraits(source.Trait);
+        mapped.Color = ParseColor(source.Color);
+        mapped.Description = description;
+        mapped.Damage = source.Damage ?? 0;
+        mapped.Power = power;
+        mapped.Conditions = ExtractConditions(description);
+        mapped.Effects = [];
+
+        return mapped;
+    }
+
+    private static string NormalizeRequired(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+    }
+
+    private static string? NormalizeOptional(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static int? ParseNullableInt(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return int.TryParse(value.Trim(), out var parsed) ? parsed : null;
+    }
+
+    private static CardType ParseCardType(string? categoryData)
+    {
+        var normalized = NormalizeRequired(categoryData).ToUpperInvariant();
+        if (normalized == "LEADER")
+        {
+            return CardType.Leader;
+        }
+
+        if (normalized.Contains("EX", StringComparison.Ordinal))
+        {
+            return CardType.ExCharacter;
+        }
+
+        return CardType.Character;
+    }
+
+    private static CardColor ParseColor(string? color)
+    {
+        var normalized = NormalizeRequired(color);
+        return Enum.TryParse<CardColor>(normalized, ignoreCase: true, out var parsed)
+            ? parsed
+            : CardColor.Red;
+    }
+
+    private static List<string> ParseTraits(string? trait)
+    {
+        if (string.IsNullOrWhiteSpace(trait))
+        {
+            return [];
+        }
+
+        return trait
+            .Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+    }
+
+    private static List<string> BuildNameEntries(string? name)
+    {
+        var normalized = NormalizeRequired(name);
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return [];
+        }
+
+        return [normalized];
+    }
+
+    private static string ExtractRecoveryEffect(string description)
+    {
+        const string marker = "[Recovery]";
+        var index = description.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return string.Empty;
+        }
+
+        return description[(index + marker.Length)..].Trim();
+    }
+
+    private static List<ConditionSpec> ExtractConditions(string description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return [];
+        }
+
+        var allowedKeywords = new HashSet<string>(
+            EffectConditionKeywords.All,
+            StringComparer.OrdinalIgnoreCase);
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenNamedReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var conditions = new List<ConditionSpec>();
+
+        foreach (Match match in EffectKeywordRegex().Matches(description))
+        {
+            var keyword = NormalizeRequired(match.Groups[1].Value);
+            if (allowedKeywords.Contains(keyword))
+            {
+                if (!seen.Add(keyword))
+                {
+                    continue;
+                }
+
+                conditions.Add(new ConditionSpec
+                {
+                    Id = keyword,
+                    Args = []
+                });
+                continue;
+            }
+
+            if (!IsNamedCardReferenceKeyword(keyword) || !seenNamedReferences.Add(keyword))
+            {
+                continue;
+            }
+
+            conditions.Add(new ConditionSpec
+            {
+                Id = EffectConditionKeywords.NamedCardReference,
+                Args = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["name"] = keyword
+                }
+            });
+        }
+
+        return conditions;
+    }
+
+    private static string ExtractSupportName(string description)
+    {
+        const string supportMarker = "[Support]";
+        var supportIndex = description.IndexOf(supportMarker, StringComparison.OrdinalIgnoreCase);
+        if (supportIndex < 0)
+        {
+            return string.Empty;
+        }
+
+        var afterSupport = description[(supportIndex + supportMarker.Length)..];
+        var brMatch = BrTagRegex().Match(afterSupport);
+        var supportHeader = brMatch.Success
+            ? afterSupport[..brMatch.Index]
+            : afterSupport;
+
+        return supportHeader.Trim();
+    }
+
+    private static bool IsNamedCardReferenceKeyword(string keyword)
+    {
+        if (string.IsNullOrWhiteSpace(keyword))
+        {
+            return false;
+        }
+
+        if (!keyword.Any(char.IsWhiteSpace))
+        {
+            return false;
+        }
+
+        if (keyword.Contains(':', StringComparison.Ordinal) || keyword.Contains('-', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return char.IsLetter(keyword[0]);
+    }
+}
