@@ -123,6 +123,52 @@ public sealed class CardMappingService
             Items: items);
     }
 
+    public async Task<ErrorOr<List<CardCatalogItemResponse>>> GetCardCatalogByIds(IReadOnlyList<string>? cardIds)
+    {
+        if (cardIds is null || cardIds.Count == 0)
+        {
+            return Error.Validation(
+                code: "Card.CatalogByIds.Empty",
+                description: "At least one card id is required.");
+        }
+
+        var normalizedIds = cardIds
+            .Select(id => id?.Trim())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (normalizedIds.Count == 0)
+        {
+            return Error.Validation(
+                code: "Card.CatalogByIds.Empty",
+                description: "At least one card id is required.");
+        }
+
+        var normalizedUpperIds = normalizedIds
+            .Select(id => id.ToUpperInvariant())
+            .ToHashSet(StringComparer.Ordinal);
+
+        var entries = await dbContext.CardCatalogEntries
+            .AsNoTracking()
+            .Where(entry => normalizedUpperIds.Contains(entry.CardId.ToUpper()))
+            .ToListAsync();
+
+        var entriesById = entries.ToDictionary(entry => entry.CardId, StringComparer.OrdinalIgnoreCase);
+        var orderedItems = new List<CardCatalogItemResponse>(normalizedIds.Count);
+
+        foreach (var cardId in normalizedIds)
+        {
+            if (entriesById.TryGetValue(cardId, out var entry))
+            {
+                orderedItems.Add(ToCatalogResponse(entry));
+            }
+        }
+
+        return orderedItems;
+    }
+
     private static CardCatalogEntry ToNewEntry(Card card)
     {
         var now = DateTimeOffset.UtcNow;

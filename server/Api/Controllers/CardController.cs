@@ -43,4 +43,18 @@ public sealed class CardController : ApiControllerBase
 
         return Ok(result.Value);
     }
+
+    [HttpPost("catalog/by-ids")]
+    [ProducesResponseType(typeof(List<CardCatalogItemResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<List<CardCatalogItemResponse>>> GetCardCatalogByIds([FromBody] List<string>? cardIds)
+    {
+        var result = await cardMappingService.GetCardCatalogByIds(cardIds);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<List<CardCatalogItemResponse>>(result.Errors);
+        }
+
+        return Ok(result.Value);
+    }
 }

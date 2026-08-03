@@ -31,6 +31,22 @@
   --button-primary-hover: #f59e63;
   --button-primary-text: #0a0a0a;
 
+  --stat-pill-pow-bg: rgba(251, 113, 133, 0.2);
+  --stat-pill-pow-border: #fb7185;
+  --stat-pill-pow-text: #ffe4e6;
+
+  --stat-pill-dmg-bg: rgba(153, 27, 27, 0.45);
+  --stat-pill-dmg-border: #ef4444;
+  --stat-pill-dmg-text: #fee2e2;
+
+  --stat-pill-life-bg: rgba(74, 222, 128, 0.2);
+  --stat-pill-life-border: #4ade80;
+  --stat-pill-life-text: #dcfce7;
+
+  --stat-pill-hp-bg: rgba(34, 197, 94, 0.35);
+  --stat-pill-hp-border: #22c55e;
+  --stat-pill-hp-text: #dcfce7;
+
   --panel-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
 }
 
@@ -62,6 +78,22 @@ html[data-theme='light'] {
   --button-primary-bg: #2667cf;
   --button-primary-hover: #3272e1;
   --button-primary-text: #ffffff;
+
+  --stat-pill-pow-bg: #ffe4e6;
+  --stat-pill-pow-border: #fb7185;
+  --stat-pill-pow-text: #881337;
+
+  --stat-pill-dmg-bg: #fecaca;
+  --stat-pill-dmg-border: #ef4444;
+  --stat-pill-dmg-text: #7f1d1d;
+
+  --stat-pill-life-bg: #dcfce7;
+  --stat-pill-life-border: #4ade80;
+  --stat-pill-life-text: #14532d;
+
+  --stat-pill-hp-bg: #86efac;
+  --stat-pill-hp-border: #16a34a;
+  --stat-pill-hp-text: #14532d;
 
   --panel-shadow: 0 12px 24px rgba(0, 0, 0, 0.16);
 }

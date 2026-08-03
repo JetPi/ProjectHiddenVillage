@@ -1,13 +1,58 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
+import { CardPreviewCard } from '../../components/ui/CardPreviewCard'
+import { fetchCardCatalogByIdsCached } from '../../services/api/cardCatalogApi'
 import { useSessionStore } from '../../state/sessionStore'
+import type { CardCatalogItemResponse } from '../../types/cardCatalog'
+import { getApiErrorMessage } from '../utils/getApiErrorMessage'
+
+const PREVIEW_SAMPLE_CARD_IDS = ['n-001']
 
 export function GameView() {
   const displayName = useSessionStore((state) => state.displayName)
   const gameCode = useSessionStore((state) => state.gameCode)
   const clearSession = useSessionStore((state) => state.clearSession)
+  const [previewCard, setPreviewCard] = useState<CardCatalogItemResponse | null>(null)
+  const [isPreviewLoading, setIsPreviewLoading] = useState(true)
+  const [previewErrorMessage, setPreviewErrorMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isCancelled = false
+
+    async function loadPreviewCard() {
+      setIsPreviewLoading(true)
+      setPreviewErrorMessage(null)
+
+      try {
+        const cards = await fetchCardCatalogByIdsCached(PREVIEW_SAMPLE_CARD_IDS)
+        if (isCancelled) {
+          return
+        }
+
+        setPreviewCard(cards[0] ?? null)
+      } catch (error) {
+        if (isCancelled) {
+          return
+        }
+
+        setPreviewCard(null)
+        setPreviewErrorMessage(getApiErrorMessage(error, 'Failed to load card preview.'))
+      } finally {
+        if (!isCancelled) {
+          setIsPreviewLoading(false)
+        }
+      }
+    }
+
+    void loadPreviewCard()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [])
 
   return (
     <PageShell>
@@ -36,6 +81,29 @@ export function GameView() {
         </Panel>
 
         <div className="grid gap-4">
+          <Panel>
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-accent)]">Card Details Preview</p>
+            {isPreviewLoading ? (
+              <p className="mt-3 text-sm text-[var(--text-secondary)]">Loading card preview...</p>
+            ) : null}
+
+            {!isPreviewLoading && previewErrorMessage ? (
+              <p role="alert" className="mt-3 text-sm font-medium text-[var(--button-primary-bg)]">
+                {previewErrorMessage}
+              </p>
+            ) : null}
+
+            {!isPreviewLoading && !previewErrorMessage && previewCard ? (
+              <CardPreviewCard card={previewCard} className="mt-3" />
+            ) : null}
+
+            {!isPreviewLoading && !previewErrorMessage && !previewCard ? (
+              <p className="mt-3 text-sm text-[var(--text-secondary)]">
+                No preview card data is available for the selected sample card.
+              </p>
+            ) : null}
+          </Panel>
+
           <Panel className="min-h-44">
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-accent)]">Turn Control</p>
             <div className="mt-3 space-y-2">
