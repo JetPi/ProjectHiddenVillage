@@ -112,9 +112,33 @@ public sealed class CardDataSourceMapperTests
 
         Assert.IsNotNull(character);
         Assert.AreEqual("[8-Trigram] Air Palm", character.SupportName);
+        Assert.AreEqual("Choose 1 of your [Naruto Uzumaki]: It gets +2 power this turn.", character.SupportEffect);
         Assert.AreEqual(2, result.Conditions.Count);
         Assert.AreEqual(EffectConditionKeywords.Support, result.Conditions[0].Id);
         Assert.AreEqual(EffectConditionKeywords.NamedCardReference, result.Conditions[1].Id);
         Assert.AreEqual("Naruto Uzumaki", result.Conditions[1].Args["name"]);
+    }
+
+    [TestMethod]
+    public void ToCard_ExtractsSupportEffect_BetweenFirstAndSecondBr()
+    {
+        var source = new CardDataSourceRecord
+        {
+            CardNo = "C-099",
+            Name = "Jiraiya",
+            Image = "https://example.com/C-099.webp",
+            Color = "Red",
+            CategoryData = "CHARACTER",
+            Cost = 3,
+            OriginalId = "C-099",
+            Effect = "[Support] Fire Style: Toad Flame Bombs<br>[During Your Opponent's Attack] Choose up to 2 rested Characters: K.O. the chosen cards.<br>[Flavor] text"
+        };
+
+        var result = CardDataSourceMapper.ToCard(source);
+        var character = result as CharacterCard;
+
+        Assert.IsNotNull(character);
+        Assert.AreEqual("Fire Style: Toad Flame Bombs", character.SupportName);
+        Assert.AreEqual("[During Your Opponent's Attack] Choose up to 2 rested Characters: K.O. the chosen cards.", character.SupportEffect);
     }
 }
