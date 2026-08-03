@@ -1,5 +1,6 @@
 using ErrorOr;
 using System.Text.Json;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Entities;
@@ -9,6 +10,17 @@ namespace ProjectHiddenVillage.Server;
 public sealed class CardMappingService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly HashSet<string> AllowedCatalogSortFields =
+    [
+        "cardId",
+        "displayName",
+        "type",
+        "color",
+        "power",
+        "damage",
+        "createdAtUtc",
+        "updatedAtUtc"
+    ];
 
     private readonly ApplicationDbContext dbContext;
 
@@ -73,6 +85,44 @@ public sealed class CardMappingService
         return mappedCards;
     }
 
+    public async Task<ErrorOr<PagedResponse<CardCatalogItemResponse>>> GetCardCatalog(
+        int page = 1,
+        int pageSize = 100,
+        string? sort = null)
+    {
+        var normalizedPage = page <= 0 ? 1 : page;
+        var normalizedPageSize = pageSize <= 0 ? 100 : Math.Min(pageSize, 100);
+
+        var sortResult = ParseSort(sort);
+        if (sortResult.IsError)
+        {
+            return sortResult.Errors;
+        }
+
+        var totalCount = await dbContext.CardCatalogEntries.CountAsync();
+        var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)normalizedPageSize);
+
+        var orderedQuery = ApplySort(
+            dbContext.CardCatalogEntries.AsNoTracking(),
+            sortResult.Value.Field,
+            sortResult.Value.Descending)
+            .ThenBy(entry => entry.CardId);
+
+        var entries = await orderedQuery
+            .Skip((normalizedPage - 1) * normalizedPageSize)
+            .Take(normalizedPageSize)
+            .ToListAsync();
+
+        var items = entries.Select(ToCatalogResponse).ToList();
+
+        return new PagedResponse<CardCatalogItemResponse>(
+            Page: normalizedPage,
+            PageSize: normalizedPageSize,
+            TotalCount: totalCount,
+            TotalPages: totalPages,
+            Items: items);
+    }
+
     private static CardCatalogEntry ToNewEntry(Card card)
     {
         var now = DateTimeOffset.UtcNow;
@@ -111,6 +161,46 @@ public sealed class CardMappingService
         }
 
         return entry;
+    }
+
+    private static CardCatalogItemResponse ToCatalogResponse(CardCatalogEntry entry)
+    {
+        var names = DeserializeOrDefault<List<string>>(entry.NameJson, []);
+        var traits = DeserializeOrDefault<List<string>>(entry.TraitsJson, []);
+        var conditions = DeserializeOrDefault<List<ConditionSpec>>(entry.ConditionsJson, []);
+        var effects = DeserializeOrDefault<List<EffectSpec>>(entry.EffectsJson, []);
+
+        return new CardCatalogItemResponse(
+            Id: entry.CardId,
+            Image: entry.Image,
+            OriginalId: entry.OriginalId,
+            MainAlternate: entry.MainAlternate,
+            Attribute: entry.Attribute,
+            Name: names,
+            DisplayName: entry.DisplayName,
+            Type: ToReadableCardType(entry.Type),
+            Traits: traits,
+            Color: ToReadableCardColor(entry.Color),
+            Description: entry.Description,
+            Damage: entry.Damage,
+            Power: entry.Power,
+            Conditions: conditions
+                .Select(condition => new CardCatalogConditionResponse(
+                    Id: condition.Id,
+                    Args: condition.Args))
+                .ToList(),
+            Effects: effects
+                .Select(effect => new CardCatalogEffectResponse(
+                    Id: effect.Id,
+                    Kind: ToReadableEffectKind(effect.Kind),
+                    Timing: ToReadableEffectTiming(effect.Timing),
+                    Args: effect.Args))
+                .ToList(),
+            Life: entry.Life,
+            Health: entry.Health,
+            SupportName: entry.SupportName,
+            SupportEffect: entry.SupportEffect,
+            SupportCost: entry.SupportCost);
     }
 
     private static void ApplySelectiveUpdate(CardCatalogEntry existing, Card mapped, CardDataSourceRecord source)
@@ -208,8 +298,129 @@ public sealed class CardMappingService
         return int.TryParse(value, out _);
     }
 
+    private static ErrorOr<CatalogSortSpec> ParseSort(string? sort)
+    {
+        if (string.IsNullOrWhiteSpace(sort))
+        {
+            return new CatalogSortSpec(Field: "cardId", Descending: false);
+        }
+
+        var normalized = sort.Trim();
+        var descending = normalized.StartsWith("-", StringComparison.Ordinal);
+        var field = descending ? normalized[1..] : normalized;
+        field = field.Trim();
+
+        if (!AllowedCatalogSortFields.Contains(field))
+        {
+            return Error.Validation(
+                code: "Card.Catalog.InvalidSort",
+                description: "Unsupported sort field. Use one of: cardId, displayName, type, color, power, damage, createdAtUtc, updatedAtUtc. Prefix with '-' for descending order.");
+        }
+
+        return new CatalogSortSpec(Field: field, Descending: descending);
+    }
+
+    private static IOrderedQueryable<CardCatalogEntry> ApplySort(
+        IQueryable<CardCatalogEntry> query,
+        string field,
+        bool descending)
+    {
+        return (field, descending) switch
+        {
+            ("cardId", false) => query.OrderBy(entry => entry.CardId),
+            ("cardId", true) => query.OrderByDescending(entry => entry.CardId),
+            ("displayName", false) => query.OrderBy(entry => entry.DisplayName),
+            ("displayName", true) => query.OrderByDescending(entry => entry.DisplayName),
+            ("type", false) => query.OrderBy(entry => entry.Type),
+            ("type", true) => query.OrderByDescending(entry => entry.Type),
+            ("color", false) => query.OrderBy(entry => entry.Color),
+            ("color", true) => query.OrderByDescending(entry => entry.Color),
+            ("power", false) => query.OrderBy(entry => entry.Power),
+            ("power", true) => query.OrderByDescending(entry => entry.Power),
+            ("damage", false) => query.OrderBy(entry => entry.Damage),
+            ("damage", true) => query.OrderByDescending(entry => entry.Damage),
+            ("createdAtUtc", false) => query.OrderBy(entry => entry.CreatedAtUtc),
+            ("createdAtUtc", true) => query.OrderByDescending(entry => entry.CreatedAtUtc),
+            ("updatedAtUtc", false) => query.OrderBy(entry => entry.UpdatedAtUtc),
+            ("updatedAtUtc", true) => query.OrderByDescending(entry => entry.UpdatedAtUtc),
+            _ => query.OrderBy(entry => entry.CardId)
+        };
+    }
+
+    private static T DeserializeOrDefault<T>(string json, T fallback)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return fallback;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<T>(json, SerializerOptions) ?? fallback;
+        }
+        catch (JsonException)
+        {
+            return fallback;
+        }
+    }
+
+    private static string ToReadableCardType(CardType type)
+    {
+        return type switch
+        {
+            CardType.ExCharacter => "EX Character",
+            _ => SplitPascalCase(type.ToString())
+        };
+    }
+
+    private static string ToReadableCardColor(CardColor color)
+    {
+        return SplitPascalCase(color.ToString());
+    }
+
+    private static string ToReadableEffectKind(EffectKind kind)
+    {
+        return SplitPascalCase(kind.ToString());
+    }
+
+    private static string ToReadableEffectTiming(EffectTiming timing)
+    {
+        return SplitPascalCase(timing.ToString());
+    }
+
+    private static string SplitPascalCase(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(value.Length + 8);
+        builder.Append(value[0]);
+
+        for (var index = 1; index < value.Length; index++)
+        {
+            var current = value[index];
+            var previous = value[index - 1];
+            var hasNext = index + 1 < value.Length;
+            var next = hasNext ? value[index + 1] : '\0';
+
+            if (char.IsUpper(current) &&
+                (char.IsLower(previous) || (hasNext && char.IsLower(next))))
+            {
+                builder.Append(' ');
+            }
+
+            builder.Append(current);
+        }
+
+        return builder.ToString();
+    }
+
     private static string Serialize<T>(T value)
     {
         return JsonSerializer.Serialize(value, SerializerOptions);
     }
+
+    private sealed record CatalogSortSpec(string Field, bool Descending);
 }

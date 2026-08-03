@@ -29,7 +29,7 @@ public static partial class CardDataSourceMapper
             {
                 Health = source.Health ?? 0,
                 SupportName = ExtractSupportName(description),
-                SupportEffect = string.Empty,
+                SupportEffect = ExtractSupportEffect(description),
                 SupportCost = source.Cost ?? 0
             }
         };
@@ -199,6 +199,31 @@ public static partial class CardDataSourceMapper
             : afterSupport;
 
         return supportHeader.Trim();
+    }
+
+    private static string ExtractSupportEffect(string description)
+    {
+        const string supportMarker = "[Support]";
+        var supportIndex = description.IndexOf(supportMarker, StringComparison.OrdinalIgnoreCase);
+        if (supportIndex < 0)
+        {
+            return string.Empty;
+        }
+
+        var afterSupport = description[(supportIndex + supportMarker.Length)..];
+        var firstBrMatch = BrTagRegex().Match(afterSupport);
+        if (!firstBrMatch.Success)
+        {
+            return string.Empty;
+        }
+
+        var afterFirstBr = afterSupport[(firstBrMatch.Index + firstBrMatch.Length)..];
+        var secondBrMatch = BrTagRegex().Match(afterFirstBr);
+        var supportEffect = secondBrMatch.Success
+            ? afterFirstBr[..secondBrMatch.Index]
+            : afterFirstBr;
+
+        return supportEffect.Trim();
     }
 
     private static bool IsNamedCardReferenceKeyword(string keyword)
