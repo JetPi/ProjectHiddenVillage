@@ -14,6 +14,7 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<SavedDeck> SavedDecks => Set<SavedDeck>();
     public DbSet<SavedDeckCard> SavedDeckCards => Set<SavedDeckCard>();
+    public DbSet<CardCatalogEntry> CardCatalogEntries => Set<CardCatalogEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
