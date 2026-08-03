@@ -25,6 +25,21 @@ The server starts on http://127.0.0.1:3001.
 - Swagger UI: http://127.0.0.1:3001/docs/
 - OpenAPI JSON: http://127.0.0.1:3001/docs.json
 
+## CORS
+
+- Local development is automatically allowed from loopback frontend origins (`localhost` and `127.0.0.1`) on any port.
+- For non-loopback clients, add explicit origins in `appsettings.json` under `Cors:AllowedOrigins`.
+
+Example:
+
+```json
+"Cors": {
+  "AllowedOrigins": [
+    "https://your-frontend.example.com"
+  ]
+}
+```
+
 Example response:
 
 ```json

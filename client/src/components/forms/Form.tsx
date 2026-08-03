@@ -1,15 +1,16 @@
-import type { FormHTMLAttributes, PropsWithChildren } from 'react'
+import type { ComponentProps, PropsWithChildren } from 'react'
+import { Form as RouterForm } from 'react-router-dom'
 import { twMerge } from 'tailwind-merge'
 
-type FormProps = PropsWithChildren<FormHTMLAttributes<HTMLFormElement>>
+type FormProps = PropsWithChildren<ComponentProps<typeof RouterForm>>
 
 export function Form({ className = '', children, ...formProps }: FormProps) {
   return (
-    <form
+    <RouterForm
       {...formProps}
       className={twMerge('space-y-4', className)}
     >
       {children}
-    </form>
+    </RouterForm>
   )
 }

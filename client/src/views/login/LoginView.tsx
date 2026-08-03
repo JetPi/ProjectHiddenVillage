@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SubmitEvent } from 'react'
 import {
   deckOptionsFieldConfigByMode,
@@ -6,7 +6,7 @@ import {
   gameCodeFieldConfigByMode,
   gameCodeModeOptions,
 } from './configs/LoginView'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useActionData, useLoaderData, useNavigate, useNavigation } from 'react-router-dom'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
@@ -20,17 +20,28 @@ import {
   FormInput,
   OptionToggle,
 } from '../../components/forms'
-import { Lightbulb, LogIn } from 'lucide-react'
+import { Lightbulb, LogIn, X } from 'lucide-react'
+import { showAppInfoToast, showAppSuccessToast } from '../../components/feedback/AppToast'
+import { clearAuthSession } from '../../state/authSession'
 import { useSessionStore } from '../../state/sessionStore'
 import { useThemeStore } from '../../state/themeStore'
 import { useLoginViewModel } from './model/useLoginViewModel'
+import type { LoginActionData, LoginLoaderData } from './handlers/loginRouteHandlers'
 
 
 export function LoginView() {
+  const loaderData = useLoaderData() as LoginLoaderData
+  const actionData = useActionData() as LoginActionData | undefined
+  const navigation = useNavigation()
   const navigate = useNavigate()
+
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
+  const hasShownSignupToast = useRef(false)
+  const lastAuthToastUsername = useRef<string | null>(null)
+  
   const setSession = useSessionStore((state) => state.setSession)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const {
@@ -48,6 +59,60 @@ export function LoginView() {
     validateDisplayName,
   } = useLoginViewModel()
 
+  const isSubmittingLogin =
+    navigation.state === 'submitting' && navigation.formData?.get('intent') === 'login'
+  const authUsername = actionData?.login?.user?.username ?? loaderData.authUser?.username ?? ''
+
+  if (loaderData.signupSuccess && !hasShownSignupToast.current) {
+    showAppSuccessToast('Account created successfully.', { id: 'signup-success', duration: 3200 })
+
+    hasShownSignupToast.current = true
+  }
+
+  if (
+    authUsername &&
+    !loaderData.signupSuccess &&
+    lastAuthToastUsername.current !== authUsername
+  ) {
+    showAppInfoToast('Logged in as ' + authUsername, { id: 'auth-login-status', duration: 3200 })
+
+    lastAuthToastUsername.current = authUsername
+  }
+
+  if (!authUsername && lastAuthToastUsername.current) {
+    lastAuthToastUsername.current = null
+  }
+
+  useEffect(() => {
+    if (!authUsername) {
+      return
+    }
+
+    setDisplayName(authUsername)
+  }, [authUsername, setDisplayName])
+
+  useEffect(() => {
+    const user = actionData?.login?.user
+
+    if (!user) {
+      return
+    }
+
+    setIsLoginModalOpen(false)
+    setLoginEmail('')
+    setLoginPassword('')
+  }, [actionData])
+
+  const handleLogout = () => {
+    clearAuthSession()
+    setDisplayName('')
+    setLoginEmail('')
+    setLoginPassword('')
+    setIsLogoutModalOpen(false)
+    showAppInfoToast('Logged out successfully.', { id: 'auth-logout-status', duration: 3200 })
+    navigate('/', { replace: true })
+  }
+
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -61,11 +126,6 @@ export function LoginView() {
     })
 
     navigate('/game')
-  }
-
-  const handleLoginSubmit = (event: SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setIsLoginModalOpen(false)
   }
 
   return (
@@ -107,11 +167,18 @@ export function LoginView() {
                 />
                 <button
                   type="button"
-                  onClick={() => setIsLoginModalOpen(true)}
-                  aria-label="Open login modal"
+                  onClick={() => {
+                    if (authUsername) {
+                      setIsLogoutModalOpen(true)
+                      return
+                    }
+
+                    setIsLoginModalOpen(true)
+                  }}
+                  aria-label={authUsername ? 'Open logout modal' : 'Open login modal'}
                   className="absolute right-0 top-0 bottom-0 inline-flex w-10 items-center justify-center rounded-r-xl border-l border-[var(--border-subtle)] bg-transparent text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                 >
-                  <LogIn size={14} />
+                  {authUsername ? <X size={14} /> : <LogIn size={14} />}
                 </button>
               </div>
               {showDisplayNameError ? <FormErrorText>Please enter a display name.</FormErrorText> : null}
@@ -184,13 +251,15 @@ export function LoginView() {
               </h2>
             </div>
 
-            <Form className="grid grid-cols-1 gap-2 space-y-0" onSubmit={handleLoginSubmit}>
+            <Form className="grid grid-cols-1 gap-2 space-y-0" method="post">
+              <input type="hidden" name="intent" value="login" />
               <FormField className="space-y-0">
                 <FormLabel htmlFor="loginEmail" className="mb-1 text-[11px] font-normal normal-case leading-none tracking-[0.08em] text-[var(--text-muted)]">
                   Email
                 </FormLabel>
                 <FormInput
                   id="loginEmail"
+                  name="email"
                   type="email"
                   value={loginEmail}
                   onChange={(event) => setLoginEmail(event.target.value)}
@@ -206,6 +275,7 @@ export function LoginView() {
                 </FormLabel>
                 <FormInput
                   id="loginPassword"
+                  name="password"
                   type="password"
                   value={loginPassword}
                   onChange={(event) => setLoginPassword(event.target.value)}
@@ -214,6 +284,9 @@ export function LoginView() {
                   required
                 />
               </FormField>
+              {actionData?.login?.ok === false && actionData.login.error ? (
+                <FormErrorText>{actionData.login.error}</FormErrorText>
+              ) : null}
               <p className="text-center text-sm text-[var(--text-secondary)]">
                 Not registered?{' '}
                 <Link
@@ -221,17 +294,49 @@ export function LoginView() {
                   onClick={() => setIsLoginModalOpen(false)}
                   className="font-semibold text-[var(--text-accent)] underline-offset-2 hover:underline"
                 >
-                  Sign in here!
+                  Sign up here!
                 </Link>
               </p>
 
               <FormActions className="w-full justify-end gap-2 pt-0">
-                <AppButton type="submit">
-                  Log In
+                <AppButton type="submit" disabled={isSubmittingLogin}>
+                  {isSubmittingLogin ? 'Logging In...' : 'Log In'}
                 </AppButton>
               </FormActions>
 
             </Form>
+          </Panel>
+        </div>
+      ) : null}
+
+      {isLogoutModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="logout-modal-title"
+          onClick={() => setIsLogoutModalOpen(false)}
+        >
+          <Panel
+            className="w-full max-w-md p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 id="logout-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
+                Are you sure?
+              </h2>
+            </div>
+            <p className="mb-4 text-sm text-[var(--text-secondary)]">
+              Do you want to log out of your current session?
+            </p>
+            <div className="flex justify-end gap-2">
+              <AppButton type="button" variant="ghost" onClick={() => setIsLogoutModalOpen(false)}>
+                Cancel
+              </AppButton>
+              <AppButton type="button" onClick={handleLogout}>
+                Log Out
+              </AppButton>
+            </div>
           </Panel>
         </div>
       ) : null}

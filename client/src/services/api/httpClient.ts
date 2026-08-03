@@ -1,9 +1,9 @@
 import axios from 'axios'
-import type { AxiosRequestConfig } from 'axios'
+import { getAuthAccessToken } from '../../state/authSession'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3001'
 
-export const httpClient = axios.create({
+export const api = axios.create({
   baseURL,
   timeout: 10000,
   headers: {
@@ -11,16 +11,12 @@ export const httpClient = axios.create({
   },
 })
 
-export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-  const response = await httpClient.get<T>(url, config)
-  return response.data
-}
+api.interceptors.request.use((config) => {
+  const token = getAuthAccessToken()
 
-export async function apiPost<TResponse, TBody>(
-  url: string,
-  body: TBody,
-  config?: AxiosRequestConfig,
-): Promise<TResponse> {
-  const response = await httpClient.post<TResponse>(url, body, config)
-  return response.data
-}
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+
+  return config
+})

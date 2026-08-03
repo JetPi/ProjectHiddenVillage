@@ -1,20 +1,22 @@
-import type { SubmitEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useActionData, useNavigation } from 'react-router-dom'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
 import {
   Form,
   FormActions,
+  FormErrorText,
   FormField,
   FormInput,
   FormLabel,
 } from '../../components/forms'
+import type { SignUpActionData } from './handlers/signInRouteHandlers'
 
 export function SignInView() {
-  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault()
-  }
+  const actionData = useActionData() as SignUpActionData | undefined
+  const navigation = useNavigation()
+
+  const isSubmitting = navigation.state === 'submitting'
 
   return (
     <PageShell>
@@ -22,15 +24,32 @@ export function SignInView() {
         <Panel className="w-full max-w-md p-5">
           <h1 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">Sign In</h1>
 
-          <Form className="grid grid-cols-1 gap-2 space-y-0" onSubmit={handleSubmit}>
+          <Form className="grid grid-cols-1 gap-2 space-y-0" method="post">
             <FormField className="space-y-0">
               <FormLabel htmlFor="signinEmail" className="mb-1 text-[11px] font-normal normal-case leading-none tracking-[0.08em] text-[var(--text-muted)]">
                 Email
               </FormLabel>
               <FormInput
                 id="signinEmail"
+                name="email"
                 type="email"
+                defaultValue={actionData?.signUp?.values?.email ?? ''}
                 placeholder="you@example.com"
+                className="py-1.5"
+                required
+              />
+            </FormField>
+
+            <FormField className="space-y-0">
+              <FormLabel htmlFor="signinUsername" className="mb-1 text-[11px] font-normal normal-case leading-none tracking-[0.08em] text-[var(--text-muted)]">
+                Username
+              </FormLabel>
+              <FormInput
+                id="signinUsername"
+                name="username"
+                type="text"
+                defaultValue={actionData?.signUp?.values?.username ?? ''}
+                placeholder="Enter username"
                 className="py-1.5"
                 required
               />
@@ -42,12 +61,17 @@ export function SignInView() {
               </FormLabel>
               <FormInput
                 id="signinPassword"
+                name="password"
                 type="password"
                 placeholder="Enter password"
                 className="py-1.5"
                 required
               />
             </FormField>
+
+            {actionData?.signUp?.ok === false && actionData.signUp.error ? (
+              <FormErrorText>{actionData.signUp.error}</FormErrorText>
+            ) : null}
 
             <FormActions className="w-full justify-end gap-2 pt-0">
               <Link
@@ -56,7 +80,9 @@ export function SignInView() {
               >
                 Back
               </Link>
-              <AppButton type="submit">Sign In</AppButton>
+              <AppButton type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Creating Account...' : 'Sign In'}
+              </AppButton>
             </FormActions>
           </Form>
         </Panel>
