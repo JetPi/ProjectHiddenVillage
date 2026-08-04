@@ -146,14 +146,15 @@ export function LoginView() {
             <FormField className="col-span-2">
               <div className="flex items-center justify-between gap-3">
                 <FormLabel htmlFor="displayName" className="mb-0">Display Name</FormLabel>
-                <button
+                <AppButton
                   type="button"
+                  variant="ghost"
                   onClick={toggleTheme}
                   aria-label="Toggle light and dark mode"
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-hover)]"
+                  className="h-6 w-6 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
                 >
                   <Lightbulb size={12} />
-                </button>
+                </AppButton>
               </div>
               <div className="relative">
                 <FormInput
