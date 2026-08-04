@@ -13,20 +13,16 @@ export function GameView() {
   return (
     <PageShell compact>
       <div ref={outerZoneRef} className="grid h-full min-h-0 overflow-hidden gap-1.5 rounded-2xl turn-zone-split-outer lg:grid-cols-[1.1fr_1.9fr_1.1fr]">
-        <Panel className="col-span-full h-full min-h-0 overflow-hidden bg-transparent p-2.5">
+        <Panel className="col-span-full h-full min-h-0 overflow-hidden bg-transparent py-2.5 px-1.5">
           <div className="grid h-full min-h-0 grid-rows-[1fr_4fr_auto_1fr] gap-1.5 rounded-2xl p-1">
-            <div className="grid min-h-0 grid-cols-[2.75rem_1fr_2.75rem] gap-1.5">
+            <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
               
-              <div className="min-h-0 rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 col-start-2 turn-band-blue">
-                <div className="flex h-full flex-wrap items-start gap-2" />
+              <div className="min-h-0 rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 turn-band-blue">
+                <div className="flex h-full flex-wrap items-start gap-2" /> 
               </div>
             </div>
 
-            <div className="grid min-h-0 grid-cols-[2.75rem_1fr_2.75rem] gap-1.5">
-              <div className="flex flex-col gap-2">
-                
-              </div>
-
+            <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
               <div ref={boardZoneRef} className="grid min-h-0 overflow-hidden grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1.5 rounded-2xl border border-dashed border-[var(--border-subtle)] p-2 turn-zone-split">
                 <div className="row-span-2 grid min-h-0 grid-rows-[1fr_1fr] gap-1 rounded-xl p-1">
                   <div className="grid min-h-0 overflow-visible grid-cols-6 gap-1.5">
@@ -103,7 +99,7 @@ export function GameView() {
                 </div>
               </div>
 
-              <div className="flex flex-col items-end justify-center gap-1.5">
+              <div className="flex flex-col items-end justify-center gap-1">
                 <div className="group relative">
                   <AppButton
                     type="button"
@@ -163,8 +159,8 @@ export function GameView() {
               </div>
             </div>
 
-            <div className="grid grid-cols-[2.75rem_1fr_2.75rem] gap-2">
-              <div className="flex flex-wrap items-center justify-start gap-1.5 col-start-2 rounded-xl p-1">
+            <div className="grid grid-cols-[1fr_1.5rem] gap-1">
+              <div className="flex flex-wrap items-center justify-start gap-1.5 rounded-xl p-1">
                 <AppButton
                   type="button"
                   variant="ghost"
@@ -196,8 +192,8 @@ export function GameView() {
               </div>
             </div>
 
-            <div className="grid min-h-0 grid-cols-[2.75rem_1fr_2.75rem] gap-1.5">
-              <div className="min-h-0 overflow-hidden rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 col-start-2 turn-band-orange">
+            <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
+              <div className="min-h-0 overflow-hidden rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 turn-band-orange">
                 <div className="flex h-full min-h-0 flex-wrap items-start gap-2" />
               </div>
             </div>
