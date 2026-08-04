@@ -49,7 +49,21 @@ export function GameView() {
                   </div>
 
                   <div className="grid min-h-0 overflow-hidden grid-cols-6 gap-1.5">
-                    <div className="rounded-lg border border-transparent bg-transparent" />
+                    <div className="grid min-h-0 grid-rows-[1fr_1fr_1fr] gap-px rounded-lg border border-dashed border-[var(--border-subtle)] p-px turn-band-blue">
+                      <div className="flex min-h-0 items-center justify-center gap-0.5">
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                      </div>
+                      <div className="flex min-h-0 items-center justify-center gap-0.5">
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                      </div>
+                      <div className="grid min-h-0 place-items-center">
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                      </div>
+                    </div>
                     <div className="col-span-4 rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
                     <div className="rounded-lg border border-transparent bg-transparent" />
                   </div>
@@ -75,7 +89,21 @@ export function GameView() {
                       </div>
                     </div>
                     <div className="col-span-4 rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" ></div>
-                    <div className="rounded-lg border border-transparent bg-transparent" />
+                    <div className="grid min-h-0 grid-rows-[1fr_1fr_1fr] gap-px rounded-lg border border-dashed border-[var(--border-subtle)] p-px bg-[var(--surface-elevated)]">
+                      <div className="flex min-h-0 items-center justify-center gap-0.5">
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                      </div>
+                      <div className="flex min-h-0 items-center justify-center gap-0.5">
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                      </div>
+                      <div className="grid min-h-0 place-items-center">
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid min-h-0 overflow-hidden grid-cols-6 gap-1.5">
