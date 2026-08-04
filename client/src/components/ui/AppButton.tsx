@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, PropsWithChildren } from 'react'
+import { twMerge } from 'tailwind-merge'
 
 type AppButtonProps = PropsWithChildren<{
   variant?: 'primary' | 'ghost'
@@ -19,7 +20,11 @@ export function AppButton({
   return (
     <button
       {...buttonProps}
-      className={`inline-flex items-center justify-center rounded-xl border border-[var(--border-subtle)] px-4 py-2 text-sm font-semibold transition-colors duration-200 ${variantClass} ${className}`.trim()}
+      className={twMerge(
+        'inline-flex items-center justify-center rounded-xl border border-[var(--border-subtle)] px-4 py-2 text-sm font-semibold transition-colors duration-200',
+        variantClass,
+        className,
+      )}
     >
       {children}
     </button>

@@ -3,6 +3,13 @@
 @import './styles/theme.css';
 
 :root {
+  --theme-dark-text-primary: #ffffff;
+  --theme-light-text-primary: #0a0a0a;
+  --turn-band-blue: rgba(29, 78, 216, 0.28);
+  --turn-band-orange: rgba(234, 88, 12, 0.24);
+  --turn-band-orange-button-bg: rgba(154, 52, 18, 0.5);
+  --turn-band-orange-button-hover: rgba(124, 45, 18, 0.62);
+
   --app-bg-start: #1d4ed8;
   --app-bg-mid: #0f172a;
   --app-bg-deep: #0a0a0a;
@@ -51,6 +58,11 @@
 }
 
 html[data-theme='light'] {
+  --turn-band-blue: rgba(37, 99, 235, 0.2);
+  --turn-band-orange: rgba(234, 88, 12, 0.18);
+  --turn-band-orange-button-bg: rgba(194, 101, 38, 0.24);
+  --turn-band-orange-button-hover: rgba(194, 101, 38, 0.34);
+
   --app-bg-start: #ffffff;
   --app-bg-mid: #eff6ff;
   --app-bg-deep: #dbeafe;
@@ -130,4 +142,61 @@ html[data-theme='light'] {
     font-family: var(--font-display);
     letter-spacing: -0.03em;
   }
+}
+
+.turn-indicator-blue {
+  background-color: #2563eb;
+}
+
+.turn-indicator-orange {
+  background-color: #f97316;
+}
+
+.turn-indicator-text-dark-theme {
+  color: var(--theme-dark-text-primary);
+}
+
+.turn-indicator-text-light-theme {
+  color: var(--theme-light-text-primary);
+}
+
+.turn-band-blue {
+  background-color: var(--turn-band-blue);
+}
+
+.turn-band-orange {
+  background-color: var(--turn-band-orange);
+}
+
+.turn-zone-split {
+  background: linear-gradient(
+    to bottom,
+    var(--turn-band-blue) 0%,
+    var(--turn-band-blue) 49.5%,
+    var(--turn-band-orange) 50.5%,
+    var(--turn-band-orange) 100%
+  );
+}
+
+.turn-zone-split-outer {
+  background: linear-gradient(
+    to bottom,
+    var(--turn-band-blue) 0%,
+    var(--turn-band-blue) var(--turn-split-start, 45.5%),
+    var(--turn-band-orange) var(--turn-split-end, 46.5%),
+    var(--turn-band-orange) 100%
+  );
+}
+
+.turn-band-orange-button {
+  background-color: var(--turn-band-orange-button-bg);
+  color: var(--text-primary);
+}
+
+.turn-band-orange-button:hover {
+  background-color: var(--turn-band-orange-button-hover);
+}
+
+.zone-surface-soft {
+  background-color: color-mix(in srgb, var(--surface-muted) 82%, transparent);
 }

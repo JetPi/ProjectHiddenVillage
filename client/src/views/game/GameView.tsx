@@ -1,125 +1,233 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
-import { CardPreviewCard } from '../../components/ui/CardPreviewCard'
-import { fetchCardCatalogByIdsCached } from '../../services/api/cardCatalogApi'
-import { useSessionStore } from '../../state/sessionStore'
-import type { CardCatalogItemResponse } from '../../types/cardCatalog'
-import { getApiErrorMessage } from '../utils/getApiErrorMessage'
-
-const PREVIEW_SAMPLE_CARD_IDS = ['n-001']
+import { useThemeStore } from '../../state/themeStore'
+import { useAlignedSplit } from './useAlignedSplit'
 
 export function GameView() {
-  const displayName = useSessionStore((state) => state.displayName)
-  const gameCode = useSessionStore((state) => state.gameCode)
-  const clearSession = useSessionStore((state) => state.clearSession)
-  const [previewCard, setPreviewCard] = useState<CardCatalogItemResponse | null>(null)
-  const [isPreviewLoading, setIsPreviewLoading] = useState(true)
-  const [previewErrorMessage, setPreviewErrorMessage] = useState<string | null>(null)
-
-  useEffect(() => {
-    let isCancelled = false
-
-    async function loadPreviewCard() {
-      setIsPreviewLoading(true)
-      setPreviewErrorMessage(null)
-
-      try {
-        const cards = await fetchCardCatalogByIdsCached(PREVIEW_SAMPLE_CARD_IDS)
-        if (isCancelled) {
-          return
-        }
-
-        setPreviewCard(cards[0] ?? null)
-      } catch (error) {
-        if (isCancelled) {
-          return
-        }
-
-        setPreviewCard(null)
-        setPreviewErrorMessage(getApiErrorMessage(error, 'Failed to load card preview.'))
-      } finally {
-        if (!isCancelled) {
-          setIsPreviewLoading(false)
-        }
-      }
-    }
-
-    void loadPreviewCard()
-
-    return () => {
-      isCancelled = true
-    }
-  }, [])
+  const toggleTheme = useThemeStore((state) => state.toggleTheme)
+  const isPlayerTurn = true
+  const { outerRef: outerZoneRef, innerRef: boardZoneRef } = useAlignedSplit()
 
   return (
-    <PageShell>
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_1.9fr_1.1fr]">
-        <Panel className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-accent)]">Player</p>
-          <h2 className="text-2xl font-bold text-[var(--text-primary)]">{displayName || 'Unknown Player'}</h2>
-          <p className="text-sm text-[var(--text-secondary)]">Code: {gameCode || 'N/A'}</p>
-          <div className="pt-2">
-            <Link to="/">
-              <AppButton variant="ghost" onClick={clearSession}>Back to Login</AppButton>
-            </Link>
-          </div>
-        </Panel>
+    <PageShell compact>
+      <div ref={outerZoneRef} className="grid h-full min-h-0 overflow-hidden gap-1.5 rounded-2xl turn-zone-split-outer lg:grid-cols-[1.1fr_1.9fr_1.1fr]">
+        <Panel className="col-span-full h-full min-h-0 overflow-hidden bg-transparent py-2.5 px-1.5">
+          <div className="grid h-full min-h-0 grid-rows-[1fr_4fr_auto_1fr] gap-1.5 rounded-2xl p-1">
+            <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
+              
+              <div className="min-h-0 rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 turn-band-blue">
+                <div className="flex h-full flex-wrap items-start gap-2" /> 
+              </div>
+            </div>
 
-        <Panel className="min-h-[60vh]">
-          <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-accent)]">Battlefield</p>
-          <div className="mt-4 grid min-h-[50vh] place-items-center rounded-2xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)] text-center">
-            <div>
-              <p className="text-xl font-semibold text-[var(--text-primary)]">Game Board Placeholder</p>
-              <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                Future zones: deck, hand, stack, battlefield, and turn actions.
-              </p>
+            <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
+              <div ref={boardZoneRef} className="grid min-h-0 overflow-hidden grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1.5 rounded-2xl border border-dashed border-[var(--border-subtle)] p-2 turn-zone-split">
+                <div className="row-span-2 grid min-h-0 grid-rows-[1fr_1fr] gap-1 rounded-xl p-1">
+                  <div className="grid min-h-0 overflow-visible grid-cols-6 gap-1.5">
+                    <div className="flex h-full items-stretch justify-start gap-0">
+                      <div className="h-full mx-1 w-auto max-w-full aspect-[200/277] object-cover flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]" >
+                        Deck
+                      </div>
+                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]" >
+                        Trash
+                      </div>
+                    </div>
+                    <div className="col-start-2 col-span-4 grid min-h-0 overflow-hidden grid-cols-5 justify-items-center gap-1.5">
+                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                    </div>
+                    <div className="relative h-full">
+                      <div className="absolute right-0 top-0 z-10 h-[calc(200%+0.375rem)] w-auto aspect-[200/277] object-cover flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]" >
+                        Leader
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid min-h-0 overflow-hidden grid-cols-6 gap-1.5">
+                    <div className="grid min-h-0 grid-rows-[1fr_1fr_1fr] gap-px rounded-lg border border-dashed border-[var(--border-subtle)] p-px bg-[var(--surface-elevated)]">
+                      <div className="flex min-h-0 items-center justify-center gap-0.5">
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                      </div>
+                      <div className="flex min-h-0 items-center justify-center gap-0.5">
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                      </div>
+                      <div className="grid min-h-0 place-items-center">
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
+                      </div>
+                    </div>
+                    <div className="col-span-4 rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                    <div className="rounded-lg border border-transparent bg-transparent" />
+                  </div>
+                </div>
+
+                <div className="grid min-h-0 grid-cols-6">
+                  <div
+                    className={`text-[12px] col-span-6 rounded-md border border-[var(--border-subtle)] py-0.5 text-center font-extrabold leading-none ${
+                      isPlayerTurn
+                        ? 'turn-indicator-orange turn-indicator-text-light-theme'
+                        : 'turn-indicator-blue turn-indicator-text-dark-theme'
+                    }`}
+                  >
+                    Your turn
+                  </div>
+                </div>
+
+                <div className="row-span-2 grid min-h-0 grid-rows-[1fr_1fr] gap-1 rounded-xl p-1">
+                  <div className="grid min-h-0 overflow-visible grid-cols-6 gap-1.5">
+                    <div className="relative h-full">
+                      <div className="absolute top-0 left-0 z-10 h-[calc(200%+0.375rem)] w-auto aspect-[200/277] object-cover flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]" >
+                        Leader
+                      </div>
+                    </div>
+                    <div className="col-span-4 rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" ></div>
+                    <div className="grid min-h-0 grid-rows-[1fr_1fr_1fr] gap-px rounded-lg border border-dashed border-[var(--border-subtle)] p-px bg-[var(--surface-elevated)]">
+                      <div className="flex min-h-0 items-center justify-center gap-0.5">
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                      </div>
+                      <div className="flex min-h-0 items-center justify-center gap-0.5">
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                      </div>
+                      <div className="grid min-h-0 place-items-center">
+                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid min-h-0 overflow-hidden grid-cols-6 gap-1.5">
+                    <div className="rounded-lg border border-transparent bg-transparent" />
+                    <div className="col-start-2 col-span-4 grid min-h-0 overflow-hidden grid-cols-5 justify-items-center gap-1.5">
+                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                    </div>
+                    <div className="flex h-full items-stretch justify-end gap-0">
+                      <div className="h-full mx-1 w-auto max-w-full aspect-[200/277] object-cover flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]" >
+                        Trash
+                      </div>
+                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]" >
+                        Deck
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-end justify-center gap-1">
+                <div className="group relative">
+                  <AppButton
+                    type="button"
+                    variant="ghost"
+                    onClick={toggleTheme}
+                    aria-label="Toggle light and dark mode"
+                    className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+                  >
+                    <Lightbulb size={10} />
+                  </AppButton>
+                  <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
+                    Toggle Theme
+                  </span>
+                </div>
+
+                <div className="group relative">
+                  <AppButton
+                    type="button"
+                    variant="ghost"
+                    aria-label="Pass turn"
+                    className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+                  >
+                    <SkipForward size={10} />
+                  </AppButton>
+                  <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
+                    Pass Turn
+                  </span>
+                </div>
+                
+                <div className="group relative">
+                  <AppButton
+                    type="button"
+                    variant="ghost"
+                    aria-label="Undo action"
+                    className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+                  >
+                    <RotateCcw size={10} />
+                  </AppButton>
+                  <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
+                    Undo Action
+                  </span>
+                </div>
+
+                <div className="group relative">
+                  <AppButton
+                    type="button"
+                    variant="ghost"
+                    aria-label="Open log"
+                    className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+                  >
+                    <ScrollText size={10} />
+                  </AppButton>
+                  <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
+                    Open Log
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-[1fr_1.5rem] gap-1">
+              <div className="flex flex-wrap items-center justify-start gap-1.5 rounded-xl p-1">
+                <AppButton
+                  type="button"
+                  variant="ghost"
+                  className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
+                >
+                  Attack
+                </AppButton>
+                <AppButton
+                  type="button"
+                  variant="ghost"
+                  className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
+                >
+                  Defend
+                </AppButton>
+                <AppButton
+                  type="button"
+                  variant="ghost"
+                  className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
+                >
+                  Summon
+                </AppButton>
+                <AppButton
+                  type="button"
+                  variant="ghost"
+                  className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
+                >
+                  End Turn
+                </AppButton>
+              </div>
+            </div>
+
+            <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
+              <div className="min-h-0 overflow-hidden rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 turn-band-orange">
+                <div className="flex h-full min-h-0 flex-wrap items-start gap-2" />
+              </div>
             </div>
           </div>
         </Panel>
 
-        <div className="grid gap-4">
-          <Panel>
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-accent)]">Card Details Preview</p>
-            {isPreviewLoading ? (
-              <p className="mt-3 text-sm text-[var(--text-secondary)]">Loading card preview...</p>
-            ) : null}
-
-            {!isPreviewLoading && previewErrorMessage ? (
-              <p role="alert" className="mt-3 text-sm font-medium text-[var(--button-primary-bg)]">
-                {previewErrorMessage}
-              </p>
-            ) : null}
-
-            {!isPreviewLoading && !previewErrorMessage && previewCard ? (
-              <CardPreviewCard card={previewCard} className="mt-3" />
-            ) : null}
-
-            {!isPreviewLoading && !previewErrorMessage && !previewCard ? (
-              <p className="mt-3 text-sm text-[var(--text-secondary)]">
-                No preview card data is available for the selected sample card.
-              </p>
-            ) : null}
-          </Panel>
-
-          <Panel className="min-h-44">
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-accent)]">Turn Control</p>
-            <div className="mt-3 space-y-2">
-              <AppButton className="w-full">Advance Phase</AppButton>
-              <AppButton variant="ghost" className="w-full">Declare Action</AppButton>
-            </div>
-          </Panel>
-
-          <Panel className="min-h-72">
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-accent)]">Action Log</p>
-            <ul className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
-              <li>Waiting for first turn events...</li>
-              <li>Player logs will stream here next.</li>
-            </ul>
-          </Panel>
-        </div>
       </div>
     </PageShell>
   )
