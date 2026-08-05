@@ -81,6 +81,29 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.AreEqual("Game instance 'missing' was not found.", ex.Message);
     }
 
+    [TestMethod]
+    public void Create_InitializesAndPreservesSummonCardFlags()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        Assert.IsTrue(game.State.Player1SummonCard);
+        Assert.IsTrue(game.State.Player2SummonCard);
+
+        var found = registry.TryGet(game.Id, out var loaded);
+
+        Assert.IsTrue(found);
+        Assert.IsNotNull(loaded);
+        Assert.IsTrue(loaded.State.Player1SummonCard);
+        Assert.IsTrue(loaded.State.Player2SummonCard);
+    }
+
     private static Dictionary<string, Card> BuildDefinitions(params string[] ids)
     {
         return ids.ToDictionary(

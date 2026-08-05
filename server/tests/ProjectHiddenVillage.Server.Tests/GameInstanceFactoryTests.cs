@@ -182,6 +182,23 @@ public sealed class GameInstanceFactoryTests
         Assert.IsTrue(p1.Deck.All(card => !string.IsNullOrWhiteSpace(card.InstanceId)));
     }
 
+    [TestMethod]
+    public void Create_InitializesSummonCardFlags_ToTrueForBothPlayers()
+    {
+        var players = new List<Player>
+        {
+            new() { Id = "p1", Deck = ["card-1"] },
+            new() { Id = "p2", Deck = ["card-1"] }
+        };
+
+        var cardDefinitions = BuildDefinitions("card-1");
+
+        var game = factory.Create(players, cardDefinitions, new FixedIndexRandom(0));
+
+        Assert.IsTrue(game.State.Player1SummonCard);
+        Assert.IsTrue(game.State.Player2SummonCard);
+    }
+
     private static Dictionary<string, Card> BuildDefinitions(params string[] ids)
     {
         return ids.ToDictionary(

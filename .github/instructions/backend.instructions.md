@@ -14,7 +14,6 @@ applyTo: "server/**"
 ## Implementation Guidance
 
 - Put HTTP concerns in controllers and business rules in services.
-- Keep EF entity/configuration changes paired with migrations when schema changes.
 - Prefer dependency injection over static/global state.
 - Keep request validation explicit and fail with clear messages.
 
