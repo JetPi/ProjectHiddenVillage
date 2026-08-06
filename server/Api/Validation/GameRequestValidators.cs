@@ -3,33 +3,27 @@ using ProjectHiddenVillage.Server.Data.DTOs;
 
 namespace ProjectHiddenVillage.Server;
 
-public sealed class CreateGameInstanceRequestValidator : AbstractValidator<CreateGameInstanceRequest>
+public sealed class CreateGameForUserRequestValidator : AbstractValidator<CreateGameForUserRequest>
 {
-    public CreateGameInstanceRequestValidator()
+    public CreateGameForUserRequestValidator()
     {
-        RuleFor(request => request.Players)
-            .NotNull().WithMessage("Players payload is required.")
-            .NotEmpty().WithMessage("At least one player is required.");
+        RuleFor(request => request.UserId)
+            .NotEmpty().WithMessage("UserId is required.");
 
-        RuleForEach(request => request.Players)
-            .SetValidator(new PlayerValidator());
-
-        RuleFor(request => request.CardDefinitions)
-            .NotNull().WithMessage("CardDefinitions payload is required.")
-            .NotEmpty().WithMessage("At least one card definition is required.");
-
-        RuleForEach(request => request.CardDefinitions)
-            .SetValidator(new CardValidator());
+        RuleFor(request => request.DeckId)
+            .NotEmpty().WithMessage("DeckId is required.");
     }
 }
 
-public sealed class JoinGameInstanceRequestValidator : AbstractValidator<JoinGameInstanceRequest>
+public sealed class JoinGameAsPlayerValidator : AbstractValidator<JoinGameAsPlayer>
 {
-    public JoinGameInstanceRequestValidator()
+    public JoinGameAsPlayerValidator()
     {
-        RuleFor(request => request.Player)
-            .NotNull().WithMessage("Player payload is required.")
-            .SetValidator(new PlayerValidator());
+        RuleFor(request => request.UserId)
+            .NotEmpty().WithMessage("UserId is required.");
+
+        RuleFor(request => request.DeckId)
+            .NotEmpty().WithMessage("DeckId is required.");
     }
 }
 

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 
 namespace ProjectHiddenVillage.Server;
 
@@ -25,11 +26,10 @@ public sealed class InMemoryGameInstanceRegistry
         Random? random = null)
     {
         var instance = factory.Create(players, cardDefinitions, random);
-        var rng = random ?? Random.Shared;
 
         for (var attempt = 0; attempt < 128; attempt++)
         {
-            instance.State.GameId = GenerateGameCode(rng);
+            instance.State.GameId = GenerateGameCode();
             if (instances.TryAdd(instance.Id, instance))
             {
                 return instance;
@@ -48,10 +48,35 @@ public sealed class InMemoryGameInstanceRegistry
 
     public GameInstance Join(string gameId, Player player, Random? random = null)
     {
+        return Join(gameId, player, additionalCardDefinitions: null, random);
+    }
+
+    public GameInstance Join(
+        string gameId,
+        Player player,
+        IReadOnlyDictionary<string, Card>? additionalCardDefinitions,
+        Random? random = null)
+    {
         var instance = GetRequired(gameId);
 
         lock (instance)
         {
+            if (instance.State.Players.Count >= 2)
+            {
+                throw new InvalidOperationException($"Game instance '{gameId}' already has two players.");
+            }
+
+            if (additionalCardDefinitions is not null)
+            {
+                foreach (var (cardId, definition) in additionalCardDefinitions)
+                {
+                    if (!instance.State.CardDefinitions.ContainsKey(cardId))
+                    {
+                        instance.State.CardDefinitions[cardId] = definition;
+                    }
+                }
+            }
+
             factory.JoinPlayer(instance, player, random);
             return instance;
         }
@@ -146,13 +171,13 @@ public sealed class InMemoryGameInstanceRegistry
         return instance;
     }
 
-    private static string GenerateGameCode(Random random)
+    private static string GenerateGameCode()
     {
-        return string.Create(GameCodeLength, random, static (buffer, rng) =>
+        return string.Create(GameCodeLength, 0, static (buffer, _) =>
         {
             for (var index = 0; index < buffer.Length; index++)
             {
-                buffer[index] = GameCodeAlphabet[rng.Next(GameCodeAlphabet.Length)];
+                buffer[index] = GameCodeAlphabet[RandomNumberGenerator.GetInt32(GameCodeAlphabet.Length)];
             }
         });
     }

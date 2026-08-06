@@ -39,7 +39,7 @@ builder.Services.AddSingleton<AuthTokenService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddControllers();
 builder.Services.AddFluentValidationAutoValidation();
-builder.Services.AddValidatorsFromAssemblyContaining<CreateGameInstanceRequestValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<CreateGameForUserRequestValidator>();
 
 var configuredCorsOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")

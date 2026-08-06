@@ -16,9 +16,10 @@ public sealed class GamesController : ApiControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(GameInstance), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    public ActionResult<GameInstance> Create([FromBody] CreateGameInstanceRequest request)
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<GameInstance>> Create([FromBody] CreateGameForUserRequest request)
     {
-        var result = gamesService.Create(request);
+        var result = await gamesService.CreateGameForUser(request);
         if (result.IsError)
         {
             return ProblemFromErrors<GameInstance>(result.Errors);
@@ -61,9 +62,9 @@ public sealed class GamesController : ApiControllerBase
     [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public ActionResult<GameInstance> Join(string gameId, [FromBody] JoinGameInstanceRequest request)
+    public async Task<ActionResult<GameInstance>> Join(string gameId, [FromBody] JoinGameAsPlayer request)
     {
-        var result = gamesService.Join(gameId, request);
+        var result = await gamesService.JoinGameForUser(gameId, request);
         if (result.IsError)
         {
             return ProblemFromErrors<GameInstance>(result.Errors);
