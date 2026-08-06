@@ -114,6 +114,23 @@ public sealed class UserDtoValidator : AbstractValidator<UserDto>
     }
 }
 
+public sealed class CreateDeckRequestValidator : AbstractValidator<CreateDeckRequest>
+{
+    public CreateDeckRequestValidator()
+    {
+        RuleFor(request => request.Type)
+            .IsInEnum().WithMessage("Deck type is invalid.");
+
+        RuleFor(request => request.Cards)
+            .NotEmpty().WithMessage("Cards payload is required.");
+
+        RuleFor(request => request.UserId)
+            .NotNull()
+            .When(request => request.Type == Data.Entities.DeckType.User)
+            .WithMessage("UserId is required when deck type is User.");
+    }
+}
+
 public sealed class UserLoginDtoValidator : AbstractValidator<UserLoginDto>
 {
     public UserLoginDtoValidator()

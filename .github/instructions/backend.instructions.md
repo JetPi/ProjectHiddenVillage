@@ -22,3 +22,4 @@ applyTo: "server/**"
 - Build the server project after changes.
 - Run targeted tests under `tests/ProjectHiddenVillage.Server.Tests` when behavior changes.
 - For endpoint changes, verify response shape and status code behavior.
+- The coding assistant is allowed to create and include an EF Core migration when model/schema changes warrant it.

@@ -23,12 +23,12 @@ public sealed class GameInstanceConfiguration : IEntityTypeConfiguration<GameIns
             .OnDelete(DeleteBehavior.Restrict);
 
         entity.HasOne(record => record.Player1Deck)
-            .WithMany(record => record.Player1GameInstances)
+            .WithMany()
             .HasForeignKey(record => record.Player1DeckId)
             .OnDelete(DeleteBehavior.Restrict);
 
         entity.HasOne(record => record.Player2Deck)
-            .WithMany(record => record.Player2GameInstances)
+            .WithMany()
             .HasForeignKey(record => record.Player2DeckId)
             .OnDelete(DeleteBehavior.Restrict);
 

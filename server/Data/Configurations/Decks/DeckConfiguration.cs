@@ -11,6 +11,10 @@ public sealed class DeckConfiguration : IEntityTypeConfiguration<Deck>
         entity.ToTable("decks");
         entity.HasKey(record => record.Id);
 
+        entity.Property(record => record.Type)
+            .HasConversion<string>()
+            .HasMaxLength(16);
+
         entity.HasOne(record => record.User)
             .WithMany(record => record.Decks)
             .HasForeignKey(record => record.UserId)

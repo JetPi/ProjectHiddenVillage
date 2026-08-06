@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "scripts": {
     "dev:prepare": "sh -c 'fuser -k 3001/tcp 2>/dev/null || true; fuser -k 5173/tcp 2>/dev/null || true; fuser -k 5174/tcp 2>/dev/null || true'",
-    "dev": "npm run dev:prepare && concurrently -n client,server -c cyan,green \"npm --prefix client run dev\" \"dotnet watch --project server/ProjectHiddenVillage.Server.csproj run --urls http://127.0.0.1:3001\"",
+    "dev": "npm run dev:prepare && concurrently -n client,server -c cyan,green \"npm --prefix client run dev\" \"ASPNETCORE_ENVIRONMENT=Development DOTNET_ENVIRONMENT=Development dotnet watch --project server/ProjectHiddenVillage.Server.csproj run --urls http://127.0.0.1:3001\"",
+    "dev:prod": "npm run dev:prepare && concurrently -n client,server -c cyan,green \"npm --prefix client run dev\" \"dotnet watch --project server/ProjectHiddenVillage.Server.csproj run --urls http://127.0.0.1:3001\"",
     "build": "dotnet build server/ProjectHiddenVillage.Server.csproj && npm --prefix client run build",
     "db:migration:add": "sh -c 'if [ -z \"$npm_config_name\" ]; then echo \"Missing required --name argument. Example: npm run db:migration:add --name=AddUsers\"; exit 1; fi; dotnet ef migrations add \"$npm_config_name\" --project server/ProjectHiddenVillage.Server.csproj --startup-project server/ProjectHiddenVillage.Server.csproj'",
     "db:migrate": "dotnet ef database update --project server/ProjectHiddenVillage.Server.csproj --startup-project server/ProjectHiddenVillage.Server.csproj",

@@ -42,6 +42,21 @@ public sealed class GamesController : ApiControllerBase
         return Ok(result.Value);
     }
 
+    [HttpGet("{gameId}/cards")]
+    [ProducesResponseType(typeof(List<CardCatalogItemResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<List<CardCatalogItemResponse>>> GetCardsForGame(string gameId)
+    {
+        var result = await gamesService.GetCardsForGame(gameId);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<List<CardCatalogItemResponse>>(result.Errors);
+        }
+
+        return Ok(result.Value);
+    }
+
     [HttpPost("{gameId}/join")]
     [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]

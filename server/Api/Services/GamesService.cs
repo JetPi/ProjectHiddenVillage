@@ -1,14 +1,23 @@
 using ErrorOr;
+using Microsoft.EntityFrameworkCore;
+using ProjectHiddenVillage.Server.Data;
 
 namespace ProjectHiddenVillage.Server;
 
 public sealed class GamesService
 {
     private readonly InMemoryGameInstanceRegistry registry;
+    private readonly CardMappingService cardMappingService;
+    private readonly ApplicationDbContext dbContext;
 
-    public GamesService(InMemoryGameInstanceRegistry registry)
+    public GamesService(
+        InMemoryGameInstanceRegistry registry,
+        CardMappingService cardMappingService,
+        ApplicationDbContext dbContext)
     {
         this.registry = registry;
+        this.cardMappingService = cardMappingService;
+        this.dbContext = dbContext;
     }
 
     public ErrorOr<GameInstance> Create(CreateGameInstanceRequest request)
@@ -32,6 +41,50 @@ public sealed class GamesService
         {
             return Error.Validation(code: "Game.Create.InvalidState", description: ex.Message);
         }
+    }
+
+    public async Task<ErrorOr<List<CardCatalogItemResponse>>> GetCardsForGame(string gameId)
+    {
+        if (string.IsNullOrWhiteSpace(gameId))
+        {
+            return Error.Validation(code: "Game.GetById.MissingId", description: "Game id is required.");
+        }
+
+        if (!Guid.TryParse(gameId.Trim(), out var parsedGameId))
+        {
+            return Error.NotFound(code: "Game.NotFound", description: $"Game instance '{gameId}' was not found.");
+        }
+
+        var deckAssignments = await dbContext.GameInstances
+            .AsNoTracking()
+            .Where(game => game.Id == parsedGameId)
+            .Select(game => new { game.Player1DeckId, game.Player2DeckId })
+            .SingleOrDefaultAsync();
+
+        if (deckAssignments is null)
+        {
+            return Error.NotFound(code: "Game.NotFound", description: $"Game instance '{gameId}' was not found.");
+        }
+
+        var rawCardIds = await dbContext.DeckCards
+            .AsNoTracking()
+            .Where(deckCard => deckCard.DeckId == deckAssignments.Player1DeckId || deckCard.DeckId == deckAssignments.Player2DeckId)
+            .Select(deckCard => deckCard.CardCatalogEntry.CardId)
+            .ToListAsync();
+
+        var cardIds = rawCardIds
+            .Select(cardId => cardId?.Trim())
+            .Where(cardId => !string.IsNullOrWhiteSpace(cardId))
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (cardIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await cardMappingService.GetCardCatalogByIds(cardIds);
     }
 
     public ErrorOr<GameInstance> GetById(string gameId)
@@ -121,4 +174,5 @@ public sealed class GamesService
             return Error.Validation(code: $"{operationName}.InvalidState", description: ex.Message);
         }
     }
+
 }
