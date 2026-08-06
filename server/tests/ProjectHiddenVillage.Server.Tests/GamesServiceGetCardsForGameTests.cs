@@ -26,7 +26,7 @@ public sealed class GamesServiceGetCardsForGameTests
 
         var service = new GamesService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
 
-        var result = await service.GetCardsForGame(gameEntity.Id.ToString("D"));
+        var result = await service.GetCardsForGame(gameEntity.JoinCode);
 
         Assert.IsFalse(result.IsError);
         Assert.AreEqual(2, result.Value.Count);
@@ -50,7 +50,7 @@ public sealed class GamesServiceGetCardsForGameTests
 
         var service = new GamesService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
 
-        var result = await service.GetCardsForGame(gameEntity.Id.ToString("D"));
+        var result = await service.GetCardsForGame(gameEntity.JoinCode);
 
         Assert.IsFalse(result.IsError);
         Assert.AreEqual(2, result.Value.Count);
@@ -78,7 +78,7 @@ public sealed class GamesServiceGetCardsForGameTests
 
         var service = new GamesService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
 
-        var result = await service.GetCardsForGame(gameEntity.Id.ToString("D"));
+        var result = await service.GetCardsForGame(gameEntity.JoinCode);
 
         Assert.IsFalse(result.IsError);
         Assert.AreEqual(1, result.Value.Count);
@@ -165,6 +165,7 @@ public sealed class GamesServiceGetCardsForGameTests
         var entity = new GameInstanceEntity
         {
             Id = Guid.NewGuid(),
+            JoinCode = CreateJoinCode(),
             Player1User = player1,
             Player1UserId = player1.Id,
             Player2User = player2,
@@ -196,6 +197,20 @@ public sealed class GamesServiceGetCardsForGameTests
             .ToList();
 
         return entity;
+    }
+
+    private static string CreateJoinCode()
+    {
+        const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        var random = Random.Shared;
+
+        return string.Create(5, random, static (buffer, rng) =>
+        {
+            for (var index = 0; index < buffer.Length; index++)
+            {
+                buffer[index] = alphabet[rng.Next(alphabet.Length)];
+            }
+        });
     }
 
     private static CardCatalogEntry CreateCatalogEntry(string cardId, string displayName)

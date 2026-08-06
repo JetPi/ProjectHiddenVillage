@@ -12,6 +12,10 @@ public sealed class GameInstanceConfiguration : IEntityTypeConfiguration<GameIns
         entity.ToTable("game_instances");
         entity.HasKey(record => record.Id);
 
+        entity.Property(record => record.JoinCode)
+            .IsRequired()
+            .HasMaxLength(5);
+
         entity.HasOne(record => record.Player1User)
             .WithMany(record => record.Player1GameInstances)
             .HasForeignKey(record => record.Player1UserId)
@@ -76,6 +80,8 @@ public sealed class GameInstanceConfiguration : IEntityTypeConfiguration<GameIns
         entity.HasIndex(record => record.Player2UserId);
         entity.HasIndex(record => record.Player1DeckId);
         entity.HasIndex(record => record.Player2DeckId);
+        entity.HasIndex(record => record.JoinCode)
+            .IsUnique();
 
         entity.Property(record => record.Player1CurrentChakras)
             .IsRequired()
@@ -108,5 +114,9 @@ public sealed class GameInstanceConfiguration : IEntityTypeConfiguration<GameIns
         entity.ToTable(table => table.HasCheckConstraint(
             "CK_game_instances_player2_current_chakras_length",
             "cardinality(\"Player2CurrentChakras\") = 6"));
+
+        entity.ToTable(table => table.HasCheckConstraint(
+            "CK_game_instances_join_code_format",
+            "\"JoinCode\" ~ '^[A-Za-z0-9]{5}$'"));
     }
 }

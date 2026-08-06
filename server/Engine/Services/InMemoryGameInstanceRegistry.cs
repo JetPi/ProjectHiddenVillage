@@ -4,6 +4,9 @@ namespace ProjectHiddenVillage.Server;
 
 public sealed class InMemoryGameInstanceRegistry
 {
+    private const int GameCodeLength = 5;
+    private const string GameCodeAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
     private readonly ConcurrentDictionary<string, GameInstance> instances =
         new(StringComparer.Ordinal);
 
@@ -22,8 +25,18 @@ public sealed class InMemoryGameInstanceRegistry
         Random? random = null)
     {
         var instance = factory.Create(players, cardDefinitions, random);
-        instances[instance.Id] = instance;
-        return instance;
+        var rng = random ?? Random.Shared;
+
+        for (var attempt = 0; attempt < 128; attempt++)
+        {
+            instance.State.GameId = GenerateGameCode(rng);
+            if (instances.TryAdd(instance.Id, instance))
+            {
+                return instance;
+            }
+        }
+
+        throw new InvalidOperationException("A unique game code could not be generated.");
     }
 
     public bool TryGet(string gameId, out GameInstance? instance)
@@ -131,5 +144,16 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         return instance;
+    }
+
+    private static string GenerateGameCode(Random random)
+    {
+        return string.Create(GameCodeLength, random, static (buffer, rng) =>
+        {
+            for (var index = 0; index < buffer.Length; index++)
+            {
+                buffer[index] = GameCodeAlphabet[rng.Next(GameCodeAlphabet.Length)];
+            }
+        });
     }
 }

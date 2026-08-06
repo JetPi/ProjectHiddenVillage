@@ -47,17 +47,14 @@ public sealed class GamesService
     {
         if (string.IsNullOrWhiteSpace(gameId))
         {
-            return Error.Validation(code: "Game.GetById.MissingId", description: "Game id is required.");
+            return Error.Validation(code: "Game.GetById.MissingId", description: "Game code is required.");
         }
 
-        if (!Guid.TryParse(gameId.Trim(), out var parsedGameId))
-        {
-            return Error.NotFound(code: "Game.NotFound", description: $"Game instance '{gameId}' was not found.");
-        }
+        var gameCode = gameId.Trim();
 
         var deckAssignments = await dbContext.GameInstances
             .AsNoTracking()
-            .Where(game => game.Id == parsedGameId)
+            .Where(game => game.JoinCode == gameCode)
             .Select(game => new { game.Player1DeckId, game.Player2DeckId })
             .SingleOrDefaultAsync();
 
