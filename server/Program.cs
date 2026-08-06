@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using ProjectHiddenVillage.Server;
 using ProjectHiddenVillage.Server.Data;
+using ProjectHiddenVillage.Server.Data.Seeding.Development;
 using ProjectHiddenVillage.Server.Data.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,9 +28,11 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddSingleton<GameInstanceFactory>();
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.GamePhaseService>();
 builder.Services.AddSingleton<InMemoryGameInstanceRegistry>();
-builder.Services.AddSingleton<GamesService>();
+builder.Services.AddScoped<GamesService>();
 builder.Services.AddScoped<CardMappingService>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<DeckService>();
+builder.Services.AddScoped<DevelopmentDeckSeeder>();
 builder.Services.AddSingleton<AuthTokenService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddControllers();
@@ -113,6 +116,13 @@ if (isAppSettingsSource)
 startupLogger.LogInformation(
     "CORS policy 'ClientDev' allows configured origins [{ConfiguredOrigins}] plus localhost/127.0.0.1 on any port for local development.",
     configuredCorsOrigins.Length == 0 ? "none" : string.Join(", ", configuredCorsOrigins));
+
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var deckSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentDeckSeeder>();
+    await deckSeeder.SeedAsync();
+}
 
 app.UseSwagger(options =>
 {
