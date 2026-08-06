@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProjectHiddenVillage.Server.Engine;
+using System.Text.RegularExpressions;
 
 namespace ProjectHiddenVillage.Server.Tests;
 
@@ -102,6 +103,20 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.IsNotNull(loaded);
         Assert.IsTrue(loaded.State.Player1SummonCard);
         Assert.IsTrue(loaded.State.Player2SummonCard);
+    }
+
+    [TestMethod]
+    public void Create_AssignsFiveCharacterAlphanumericGameCode()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildDefinitions("card-1"));
+
+        Assert.AreEqual(5, game.Id.Length);
+        Assert.IsTrue(Regex.IsMatch(game.Id, "^[A-Za-z0-9]{5}$"));
     }
 
     private static Dictionary<string, Card> BuildDefinitions(params string[] ids)

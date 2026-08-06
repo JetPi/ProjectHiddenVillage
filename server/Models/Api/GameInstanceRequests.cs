@@ -1,10 +1,12 @@
 namespace ProjectHiddenVillage.Server;
 
-public sealed record CreateGameInstanceRequest(
-    List<Player> Players,
-    List<Card> CardDefinitions);
+public sealed record CreateGameForUserRequest(
+    Guid UserId,
+    Guid DeckId);
 
-public sealed record JoinGameInstanceRequest(Player Player);
+public sealed record JoinGameAsPlayer(
+    Guid UserId,
+    Guid DeckId);
 
 public sealed record ResolvePromptRequest(
     string RequestedPlayerId,

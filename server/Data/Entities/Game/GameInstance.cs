@@ -4,6 +4,8 @@ public sealed class GameInstance
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
+    public string JoinCode { get; set; } = string.Empty;
+
     public Guid Player1UserId { get; set; }
     public User Player1User { get; set; } = null!;
     public Guid Player1DeckId { get; set; }

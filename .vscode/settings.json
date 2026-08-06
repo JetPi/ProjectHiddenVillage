@@ -1,1 +1,8 @@
-{}
+{
+    "csharp-dev-tools.entityFramework.migrationPreferences": {
+        "ProjectHiddenVillage.virtual.sln": {
+            "startupProject": "/home/ibrahim/Documents/Work Projects/Project Omega/ProjectHiddenVillage/server/ProjectHiddenVillage.Server.csproj",
+            "migrationsProject": "/home/ibrahim/Documents/Work Projects/Project Omega/ProjectHiddenVillage/server/ProjectHiddenVillage.Server.csproj"
+        }
+    }
+}
