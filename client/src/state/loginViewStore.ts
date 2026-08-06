@@ -11,7 +11,7 @@ const initialGameCodeByMode: Record<GameCodeEntryMode, string> = {
 const initialDeckOptionsByMode: Record<DeckOptionsEntryMode, string> = {
   import: '',
   saved_decks: '',
-  starter_decks: 'casual',
+  starter_decks: '',
 }
 
 const initialState = {

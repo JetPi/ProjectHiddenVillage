@@ -26,14 +26,14 @@ export const gameCodeFieldConfigByMode: Record<GameCodeEntryMode, AdaptiveFieldC
     type: 'input',
     props: {
       placeholder: 'Paste your code here',
-      maxLength: 12,
+      maxLength: 5,
     },
   },
   create: {
     type: 'input',
     props: {
-      placeholder: 'Copy your code and share with friends',
-      maxLength: 12,
+      placeholder: 'Code will be generated on create',
+      maxLength: 5,
     },
   },
 }
@@ -42,20 +42,21 @@ export const deckOptionsFieldConfigByMode: Record<DeckOptionsEntryMode, Adaptive
     import: {
       type: 'input',
       props: {
-        placeholder: 'Import your Deck here',
+        placeholder: 'Use Import to paste your deck list',
+        readOnly: true,
       },
     },
    saved_decks:{
     type: 'select',
     choices: [
-      { value: 'placeholder', label: 'Placeholder' }
+      { value: '', label: 'Loading saved decks...' }
     ],
     
   },
   starter_decks: {
     type: 'select',
     choices: [
-      { value: 'placeholder', label: 'Placeholder' }
+      { value: '', label: 'Loading public decks...' }
     ],
   },
 }

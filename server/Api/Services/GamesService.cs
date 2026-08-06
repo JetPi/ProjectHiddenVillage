@@ -26,6 +26,11 @@ public sealed class GamesService
 
     public async Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request)
     {
+        return await CreateGameForUser(request, preferredGameCode: null);
+    }
+
+    public async Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request, string? preferredGameCode)
+    {
         ArgumentNullException.ThrowIfNull(request);
 
         var playerDeckResult = await ResolvePlayerDeck(request.UserId, request.DeckId, operationName: "Game.CreateForUser");
@@ -38,7 +43,7 @@ public sealed class GamesService
 
         try
         {
-            return registry.Create([playerDeck.Player], playerDeck.CardDefinitions);
+            return registry.Create([playerDeck.Player], playerDeck.CardDefinitions, preferredGameCode);
         }
         catch (ArgumentException ex)
         {

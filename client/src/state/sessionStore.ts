@@ -20,7 +20,7 @@ export const useSessionStore = create<SessionStoreState>()(
       setSession: ({ displayName, gameCode }) => {
         set({
           displayName: displayName.trim(),
-          gameCode: gameCode.trim().toUpperCase(),
+          gameCode: gameCode.trim(),
         })
       },
       clearSession: () => set(initialState),
