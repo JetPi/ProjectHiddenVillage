@@ -4,12 +4,20 @@ import { useParams } from 'react-router-dom'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
+import { PlayCard } from '../../components/ui/PlayCard'
+import { PlayPileZone } from '../../components/ui/PlayPileZone'
+import { PlayResourceTracker } from '../../components/ui/PlayResourceTracker'
+import { PlayRow } from '../../components/ui/PlayRow'
+import { SupportCardZone } from '../../components/ui/SupportCardZone'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
 import { preloadCardsByIds } from '../../services/cardPreloadService'
 import { useGameCardsQuery } from '../../services/queries/cardQueries'
 
 const GAME_CARD_PRELOAD_POLL_INTERVAL_MS = 6_000
+
+const GAMEBOARD_MAX_WIDTH_CLASS = 'max-w-[800px]'
+const GAMEBOARD_COLUMNS_CLASS = 'lg:grid-cols-[1.1fr_1.7fr_1.1fr]'
 
 export function GameView() {
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
@@ -56,60 +64,35 @@ export function GameView() {
 
   return (
     <PageShell compact>
-      <div ref={outerZoneRef} className="grid h-full min-h-0 overflow-hidden gap-1.5 rounded-2xl turn-zone-split-outer lg:grid-cols-[1.1fr_1.9fr_1.1fr]">
+      <div
+        ref={outerZoneRef}
+        className={`mx-auto grid h-full min-h-0 w-full overflow-hidden gap-1.5 rounded-2xl turn-zone-split-outer ${GAMEBOARD_MAX_WIDTH_CLASS} ${GAMEBOARD_COLUMNS_CLASS}`}
+      >
         <Panel className="col-span-full h-full min-h-0 overflow-hidden bg-transparent py-2.5 px-1.5">
           <div className="grid h-full min-h-0 grid-rows-[1fr_4fr_auto_1fr] gap-1.5 rounded-2xl p-1">
             <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
-              
-              <div className="min-h-0 rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 turn-band-blue">
+              <PlayRow className="rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 turn-band-blue">
                 <div className="flex h-full flex-wrap items-start gap-2" /> 
-              </div>
+              </PlayRow>
             </div>
 
             <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
               <div ref={boardZoneRef} className="grid min-h-0 overflow-hidden grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1.5 rounded-2xl border border-dashed border-[var(--border-subtle)] p-2 turn-zone-split">
-                <div className="row-span-2 grid min-h-0 grid-rows-[1fr_1fr] gap-1 rounded-xl p-1">
-                  <div className="grid min-h-0 overflow-visible grid-cols-6 gap-1.5">
-                    <div className="flex h-full items-stretch justify-start gap-0">
-                      <div className="h-full mx-1 w-auto max-w-full aspect-[200/277] object-cover flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]" >
-                        Deck
-                      </div>
-                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]" >
-                        Trash
-                      </div>
-                    </div>
-                    <div className="col-start-2 col-span-4 grid min-h-0 overflow-hidden grid-cols-5 justify-items-center gap-1.5">
-                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                    </div>
-                    <div className="relative h-full">
-                      <div className="absolute right-0 top-0 z-10 h-[calc(200%+0.375rem)] w-auto aspect-[200/277] object-cover flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]" >
-                        Leader
-                      </div>
-                    </div>
+                <div className="row-span-2 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-1.5 rounded-xl p-1">
+                  <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
+                    <PlayPileZone labels={['Deck', 'Trash', 'Exclusion']} />
+                    <PlayResourceTracker cardClassName="turn-band-blue" reverse />
                   </div>
 
-                  <div className="grid min-h-0 overflow-hidden grid-cols-6 gap-1.5">
-                    <div className="grid min-h-0 grid-rows-[1fr_1fr_1fr] gap-px rounded-lg border border-dashed border-[var(--border-subtle)] p-px bg-[var(--surface-elevated)]">
-                      <div className="flex min-h-0 items-center justify-center gap-0.5">
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
-                      </div>
-                      <div className="flex min-h-0 items-center justify-center gap-0.5">
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
-                      </div>
-                      <div className="grid min-h-0 place-items-center">
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-blue" />
-                      </div>
-                    </div>
-                    <div className="col-span-4 rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                    <div className="rounded-lg border border-transparent bg-transparent" />
+                  <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
+                    <SupportCardZone />
+                    <div className="rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                  </div>
+
+                  <div className="min-h-0">
+                    <PlayCard className="h-full flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]">
+                      Leader
+                    </PlayCard>
                   </div>
                 </div>
 
@@ -125,48 +108,21 @@ export function GameView() {
                   </div>
                 </div>
 
-                <div className="row-span-2 grid min-h-0 grid-rows-[1fr_1fr] gap-1 rounded-xl p-1">
-                  <div className="grid min-h-0 overflow-visible grid-cols-6 gap-1.5">
-                    <div className="relative h-full">
-                      <div className="absolute top-0 left-0 z-10 h-[calc(200%+0.375rem)] w-auto aspect-[200/277] object-cover flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]" >
-                        Leader
-                      </div>
-                    </div>
-                    <div className="col-span-4 rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" ></div>
-                    <div className="grid min-h-0 grid-rows-[1fr_1fr_1fr] gap-px rounded-lg border border-dashed border-[var(--border-subtle)] p-px bg-[var(--surface-elevated)]">
-                      <div className="flex min-h-0 items-center justify-center gap-0.5">
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
-                      </div>
-                      <div className="flex min-h-0 items-center justify-center gap-0.5">
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
-                      </div>
-                      <div className="grid min-h-0 place-items-center">
-                        <div className="h-full max-h-full w-auto max-w-full aspect-[200/277] rounded-sm border border-[var(--border-subtle)] turn-band-orange-button" />
-                      </div>
-                    </div>
+                <div className="row-span-2 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-1.5 rounded-xl p-1">
+                  <div className="min-h-0">
+                    <PlayCard className="h-full flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]">
+                      Leader
+                    </PlayCard>
                   </div>
 
-                  <div className="grid min-h-0 overflow-hidden grid-cols-6 gap-1.5">
-                    <div className="rounded-lg border border-transparent bg-transparent" />
-                    <div className="col-start-2 col-span-4 grid min-h-0 overflow-hidden grid-cols-5 justify-items-center gap-1.5">
-                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                    </div>
-                    <div className="flex h-full items-stretch justify-end gap-0">
-                      <div className="h-full mx-1 w-auto max-w-full aspect-[200/277] object-cover flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]" >
-                        Trash
-                      </div>
-                      <div className="h-full w-auto max-w-full aspect-[200/277] object-cover flex items-center justify-center text-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]" >
-                        Deck
-                      </div>
-                    </div>
+                  <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
+                    <div className="rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                    <SupportCardZone />
+                  </div>
+
+                  <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
+                    <PlayResourceTracker cardClassName="turn-band-orange-button" />
+                    <PlayPileZone labels={['Exclusion', 'Trash', 'Deck']} />
                   </div>
                 </div>
               </div>
@@ -271,9 +227,9 @@ export function GameView() {
             </div>
 
             <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
-              <div className="min-h-0 overflow-hidden rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 turn-band-orange">
+              <PlayRow className="overflow-hidden rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 turn-band-orange">
                 <div className="flex h-full min-h-0 flex-wrap items-start gap-2" />
-              </div>
+              </PlayRow>
             </div>
           </div>
         </Panel>
