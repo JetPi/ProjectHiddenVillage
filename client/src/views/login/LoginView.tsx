@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SubmitEvent } from 'react'
 import {
-  deckOptionsFieldConfigByMode,
   deckOptionsModeOptions,
   gameCodeFieldConfigByMode,
   gameCodeModeOptions,
@@ -18,6 +17,7 @@ import {
   FormField,
   FormLabel,
   FormInput,
+  FormTextarea,
   OptionToggle,
 } from '../../components/forms'
 import { Lightbulb, LogIn, X } from 'lucide-react'
@@ -27,6 +27,11 @@ import { useSessionStore } from '../../state/sessionStore'
 import { useThemeStore } from '../../state/themeStore'
 import { useLoginViewModel } from './model/useLoginViewModel'
 import type { LoginActionData, LoginLoaderData } from './handlers/loginRouteHandlers'
+import { createGameForUser, joinGameAsPlayer } from '../../services/api/gameApi'
+import { getApiErrorMessage } from '../utils/getApiErrorMessage'
+import { createUserDeck, fetchDecks } from '../../services/api/deckApi'
+import { validateDeckCardsPayload } from './utils/validateDeckCardsPayload'
+import type { DeckResponse } from '../../types/deck'
 
 
 export function LoginView() {
@@ -37,8 +42,15 @@ export function LoginView() {
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
+  const [savedDeckChoices, setSavedDeckChoices] = useState<{ value: string; label: string }[]>([
+    { value: '', label: 'Log in to load your decks' },
+  ])
+  const [starterDeckChoices, setStarterDeckChoices] = useState<{ value: string; label: string }[]>([
+    { value: '', label: 'Loading public decks...' },
+  ])
   const hasShownSignupToast = useRef(false)
   const lastAuthToastUsername = useRef<string | null>(null)
   
@@ -62,26 +74,30 @@ export function LoginView() {
   const isSubmittingLogin =
     navigation.state === 'submitting' && navigation.formData?.get('intent') === 'login'
   const authUsername = actionData?.login?.user?.username ?? loaderData.authUser?.username ?? ''
+  const authUser = actionData?.login?.user ?? loaderData.authUser
 
-  if (loaderData.signupSuccess && !hasShownSignupToast.current) {
+  useEffect(() => {
+    if (!loaderData.signupSuccess || hasShownSignupToast.current) {
+      return
+    }
+
     showAppSuccessToast('Account created successfully.', { id: 'signup-success', duration: 3200 })
-
     hasShownSignupToast.current = true
-  }
+  }, [loaderData.signupSuccess])
 
-  if (
-    authUsername &&
-    !loaderData.signupSuccess &&
-    lastAuthToastUsername.current !== authUsername
-  ) {
+  useEffect(() => {
+    if (!authUsername) {
+      lastAuthToastUsername.current = null
+      return
+    }
+
+    if (loaderData.signupSuccess || lastAuthToastUsername.current === authUsername) {
+      return
+    }
+
     showAppInfoToast('Logged in as ' + authUsername, { id: 'auth-login-status', duration: 3200 })
-
     lastAuthToastUsername.current = authUsername
-  }
-
-  if (!authUsername && lastAuthToastUsername.current) {
-    lastAuthToastUsername.current = null
-  }
+  }, [authUsername, loaderData.signupSuccess])
 
   useEffect(() => {
     if (!authUsername) {
@@ -98,10 +114,82 @@ export function LoginView() {
       return
     }
 
-    setIsLoginModalOpen(false)
-    setLoginEmail('')
-    setLoginPassword('')
+    queueMicrotask(() => {
+      setIsLoginModalOpen(false)
+      setLoginEmail('')
+      setLoginPassword('')
+    })
   }, [actionData])
+
+  useEffect(() => {
+    let isCancelled = false
+
+    async function loadDeckChoices() {
+      try {
+        const [allDecks, userDecks] = await Promise.all([
+          fetchDecks(),
+          authUser?.userId ? fetchDecks({ userId: authUser.userId }) : Promise.resolve([]),
+        ])
+
+        if (isCancelled) {
+          return
+        }
+
+        const publicDecks = allDecks.filter((deck) => deck.type === 'Public')
+        setStarterDeckChoices(toDeckChoices(publicDecks, 'No public decks available yet.'))
+
+        if (!authUser?.userId) {
+          setSavedDeckChoices([{ value: '', label: 'Log in to load your decks' }])
+          return
+        }
+
+        setSavedDeckChoices(toDeckChoices(userDecks, 'No saved decks found for this user.'))
+      } catch {
+        if (isCancelled) {
+          return
+        }
+
+        setStarterDeckChoices([{ value: '', label: 'Failed to load public decks.' }])
+        setSavedDeckChoices([{ value: '', label: 'Failed to load your decks.' }])
+      }
+    }
+
+    void loadDeckChoices()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authUser?.userId])
+
+  const activeDeckFieldConfig = useMemo(() => {
+    if (deckOptionsMode === 'saved_decks') {
+      return {
+        type: 'select' as const,
+        choices: savedDeckChoices,
+      }
+    }
+
+    if (deckOptionsMode === 'starter_decks') {
+      return {
+        type: 'select' as const,
+        choices: starterDeckChoices,
+      }
+    }
+
+    return {
+      type: 'select' as const,
+      choices: starterDeckChoices,
+    }
+  }, [deckOptionsMode, savedDeckChoices, starterDeckChoices])
+
+  const importedDeckLineCount = useMemo(
+    () =>
+      activeDeckOption
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0).length,
+    [activeDeckOption],
+  )
 
   const handleLogout = () => {
     clearAuthSession()
@@ -113,19 +201,109 @@ export function LoginView() {
     navigate('/', { replace: true })
   }
 
-  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     if (!validateDisplayName()) {
       return
     }
 
-    setSession({
-      displayName,
-      gameCode: activeGameCode,
-    })
+    const normalizedGameCode = activeGameCode.trim()
 
-    navigate('/game')
+    if (gameCodeMode === 'quickmatch') {
+      setSession({
+        displayName,
+        gameCode: normalizedGameCode,
+      })
+
+      navigate(toGameRoutePath(normalizedGameCode))
+      return
+    }
+
+    if (!authUser?.userId) {
+      showAppInfoToast('Please log in before creating or joining a game.')
+      setIsLoginModalOpen(true)
+      return
+    }
+
+    try {
+      let deckId = ''
+
+      if (deckOptionsMode === 'import') {
+        const deckCardsPayload = activeDeckOption.trim()
+        if (!deckCardsPayload) {
+          showAppInfoToast('Please paste your deck list before continuing.')
+          return
+        }
+
+        const deckPayloadValidation = validateDeckCardsPayload(deckCardsPayload)
+        if (!deckPayloadValidation.isValid) {
+          showAppInfoToast(deckPayloadValidation.message ?? 'Deck list format is invalid.')
+          return
+        }
+
+        deckId = await createUserDeck(deckCardsPayload, authUser.userId)
+      } else {
+        deckId = activeDeckOption.trim()
+        if (!deckId) {
+          const deckModeLabel = deckOptionsMode === 'saved_decks' ? 'saved deck' : 'public deck'
+          showAppInfoToast(`Please select a ${deckModeLabel} before continuing.`)
+          return
+        }
+      }
+
+      if (gameCodeMode === 'create') {
+        const createdGame = await createGameForUser({
+          userId: authUser.userId,
+          deckId,
+        })
+
+        setGameCodeValue(createdGame.id)
+        setSession({
+          displayName,
+          gameCode: createdGame.id,
+        })
+
+        showAppSuccessToast(`Game created. Share code ${createdGame.id}`)
+        navigate(toGameRoutePath(createdGame.id))
+        return
+      }
+
+      if (!normalizedGameCode) {
+        showAppInfoToast('Please provide a game code to join.')
+        return
+      }
+
+      const joinedGame = await joinGameAsPlayer(normalizedGameCode, {
+        userId: authUser.userId,
+        deckId,
+      })
+
+      setSession({
+        displayName,
+        gameCode: joinedGame.id,
+      })
+
+      showAppSuccessToast('Joined game successfully.')
+      navigate(toGameRoutePath(joinedGame.id))
+    } catch (error) {
+      const apiMessage = getApiErrorMessage(error, 'Unable to submit deck or join game. Please try again.')
+
+      if (
+        gameCodeMode === 'join' &&
+        normalizedGameCode.length > 0 &&
+        apiMessage.toLowerCase().includes('already part of this game instance')
+      ) {
+        setSession({
+          displayName,
+          gameCode: normalizedGameCode,
+        })
+        navigate(toGameRoutePath(normalizedGameCode))
+        return
+      }
+
+      showAppInfoToast(apiMessage)
+    }
   }
 
   return (
@@ -214,15 +392,36 @@ export function LoginView() {
                   optionClassName="py-1"
                   onChange={(nextMode) => {
                     setDeckOptionsMode(nextMode)
+                    if (nextMode === 'import') {
+                      setIsImportModalOpen(true)
+                    }
                   }}
                 />
-                <AdaptiveFormField
-                  id="deckOptions"
-                  value={activeDeckOption}
-                  onValueChange={setDeckOptionValue}
-                  config={deckOptionsFieldConfigByMode[deckOptionsMode]}
-                  className="py-1.5"
-                />
+                {deckOptionsMode === 'import' ? (
+                  <>
+                    <AppButton
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setIsImportModalOpen(true)}
+                      className="w-full justify-center py-1.5"
+                    >
+                      Import your deck here
+                    </AppButton>
+                    {importedDeckLineCount > 0 ? (
+                      <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                        Imported deck list ready ({importedDeckLineCount} lines).
+                      </p>
+                    ) : null}
+                  </>
+                ) : (
+                  <AdaptiveFormField
+                    id="deckOptions"
+                    value={activeDeckOption}
+                    onValueChange={setDeckOptionValue}
+                    config={activeDeckFieldConfig}
+                    className="py-1.5"
+                  />
+                )}
               </FormField>
 
             <FormActions className="col-span-full pt-2 w-full justify-start">
@@ -341,6 +540,70 @@ export function LoginView() {
           </Panel>
         </div>
       ) : null}
+
+      {isImportModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="import-modal-title"
+          onClick={() => setIsImportModalOpen(false)}
+        >
+          <Panel
+            className="w-full max-w-2xl p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 id="import-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
+                Import Deck List
+              </h2>
+            </div>
+            <p className="mb-2 text-sm text-[var(--text-secondary)]">
+              Paste one card per line using format like: 1x N-001
+            </p>
+            <FormTextarea
+              id="deckImportPayload"
+              value={activeDeckOption}
+              onChange={(event) => setDeckOptionValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  setIsImportModalOpen(false)
+                }
+              }}
+              placeholder={'1x N-001\n2x N-045'}
+              rows={10}
+              className="py-2"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <AppButton type="button" variant="ghost" onClick={() => setIsImportModalOpen(false)}>
+                Close
+              </AppButton>
+            </div>
+          </Panel>
+        </div>
+      ) : null}
     </PageShell>
   )
+}
+
+function toGameRoutePath(joinCode: string): string {
+  return `/game/${encodeURIComponent(joinCode.trim())}`
+}
+
+function toDeckChoices(decks: DeckResponse[], emptyStateLabel: string): { value: string; label: string }[] {
+  if (decks.length === 0) {
+    return [{ value: '', label: emptyStateLabel }]
+  }
+
+  return decks.map((deck, index) => {
+    const totalCards = deck.cards.reduce((sum, card) => sum + card.quantity, 0)
+    const shortId = deck.id.slice(0, 8)
+    const deckNumber = index + 1
+
+    return {
+      value: deck.id,
+      label: `Deck ${deckNumber} (${shortId}) - ${totalCards} cards`,
+    }
+  })
 }

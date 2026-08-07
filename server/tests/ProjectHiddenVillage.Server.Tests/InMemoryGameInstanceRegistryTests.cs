@@ -119,6 +119,43 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.IsTrue(Regex.IsMatch(game.Id, "^[A-Za-z0-9]{5}$"));
     }
 
+    [TestMethod]
+    public void Create_UsesPreferredGameCode_WhenValidAndAvailable()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildDefinitions("card-1"),
+            preferredGameCode: "TEST1");
+
+        Assert.AreEqual("TEST1", game.Id);
+    }
+
+    [TestMethod]
+    public void Create_Throws_WhenPreferredGameCodeIsAlreadyInUse()
+    {
+        registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildDefinitions("card-1"),
+            preferredGameCode: "TEST1");
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.Create(
+                players:
+                [
+                    new Player { Id = "p2", Deck = ["card-1"] }
+                ],
+                cardDefinitions: BuildDefinitions("card-1"),
+                preferredGameCode: "TEST1"));
+
+        Assert.AreEqual("Game code 'TEST1' is already in use.", ex.Message);
+    }
+
     private static Dictionary<string, Card> BuildDefinitions(params string[] ids)
     {
         return ids.ToDictionary(

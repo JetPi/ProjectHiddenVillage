@@ -35,6 +35,7 @@ builder.Services.AddScoped<DeckService>();
 builder.Services.AddScoped<DevelopmentDeckSeeder>();
 builder.Services.AddScoped<DevelopmentUserSeeder>();
 builder.Services.AddScoped<DevelopmentGameInstanceSeeder>();
+builder.Services.AddScoped<DevelopmentRuntimeGameSeeder>();
 builder.Services.AddSingleton<AuthTokenService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddControllers();
@@ -125,10 +126,12 @@ if (app.Environment.IsDevelopment())
     var deckSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentDeckSeeder>();
     var userSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentUserSeeder>();
     var gameInstanceSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentGameInstanceSeeder>();
+    var runtimeGameSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentRuntimeGameSeeder>();
 
     await deckSeeder.SeedAsync();
     await userSeeder.SeedAsync();
     await gameInstanceSeeder.SeedAsync();
+    await runtimeGameSeeder.SeedAsync();
 }
 
 app.UseSwagger(options =>

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 
 namespace ProjectHiddenVillage.Server;
 
@@ -7,6 +8,7 @@ public sealed class InMemoryGameInstanceRegistry
 {
     private const int GameCodeLength = 5;
     private const string GameCodeAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    private static readonly Regex GameCodePattern = new("^[A-Za-z0-9]{5}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly ConcurrentDictionary<string, GameInstance> instances =
         new(StringComparer.Ordinal);
@@ -23,9 +25,27 @@ public sealed class InMemoryGameInstanceRegistry
     public GameInstance Create(
         IReadOnlyList<Player> players,
         IReadOnlyDictionary<string, Card> cardDefinitions,
+        string? preferredGameCode,
         Random? random = null)
     {
         var instance = factory.Create(players, cardDefinitions, random);
+
+        if (!string.IsNullOrWhiteSpace(preferredGameCode))
+        {
+            var normalizedCode = preferredGameCode.Trim();
+            if (!GameCodePattern.IsMatch(normalizedCode))
+            {
+                throw new ArgumentException("Preferred game code must be a 5-character alphanumeric string.", nameof(preferredGameCode));
+            }
+
+            instance.State.GameId = normalizedCode;
+            if (instances.TryAdd(instance.Id, instance))
+            {
+                return instance;
+            }
+
+            throw new InvalidOperationException($"Game code '{normalizedCode}' is already in use.");
+        }
 
         for (var attempt = 0; attempt < 128; attempt++)
         {
@@ -37,6 +57,14 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         throw new InvalidOperationException("A unique game code could not be generated.");
+    }
+
+    public GameInstance Create(
+        IReadOnlyList<Player> players,
+        IReadOnlyDictionary<string, Card> cardDefinitions,
+        Random? random = null)
+    {
+        return Create(players, cardDefinitions, preferredGameCode: null, random);
     }
 
     public bool TryGet(string gameId, out GameInstance? instance)

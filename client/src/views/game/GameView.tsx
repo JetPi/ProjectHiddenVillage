@@ -1,4 +1,5 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
+import { useParams } from 'react-router-dom'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
@@ -8,6 +9,7 @@ import { useAlignedSplit } from './useAlignedSplit'
 export function GameView() {
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const isPlayerTurn = true
+  const { joinCode } = useParams<{ joinCode: string }>()
   const { outerRef: outerZoneRef, innerRef: boardZoneRef } = useAlignedSplit()
 
   return (
@@ -128,6 +130,12 @@ export function GameView() {
               </div>
 
               <div className="flex flex-col items-end justify-center gap-1">
+                {joinCode ? (
+                  <div className="mb-1 px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] [writing-mode:vertical-rl] rotate-180">
+                    {joinCode}
+                  </div>
+                ) : null}
+
                 <div className="group relative">
                   <AppButton
                     type="button"
