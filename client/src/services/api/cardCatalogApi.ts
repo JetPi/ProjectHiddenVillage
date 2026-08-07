@@ -1,14 +1,8 @@
 import { api } from './httpClient'
 import type { CardCatalogItemResponse, PagedResponse } from '../../types/cardCatalog'
+import { appQueryClient, DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '../queryClient'
 
-const CARD_CATALOG_CACHE_TTL_MS = 120_000
-
-type CardCatalogCacheEntry = {
-  expiresAt: number
-  cards: CardCatalogItemResponse[]
-}
-
-const cardCatalogByIdsCache = new Map<string, CardCatalogCacheEntry>()
+const CARD_CATALOG_CACHE_TTL_MS = DEFAULT_CARD_CATALOG_STALE_TIME_MS
 
 function sanitizeRequestedCardIds(cardIds: string[]): string[] {
   return cardIds
@@ -22,8 +16,64 @@ function normalizeCardIdsForCacheKey(cardIds: string[]): string[] {
   return Array.from(new Set(normalized)).sort((left, right) => left.localeCompare(right))
 }
 
-function getCardCatalogCacheKey(cardIds: string[]): string {
-  return normalizeCardIdsForCacheKey(cardIds).join('|')
+function sanitizeUniqueRequestedCardIds(cardIds: string[]): string[] {
+  const seen = new Set<string>()
+  const uniqueIds: string[] = []
+
+  for (const requestedId of sanitizeRequestedCardIds(cardIds)) {
+    const normalizedId = toNormalizedCardId(requestedId)
+    if (!normalizedId || seen.has(normalizedId)) {
+      continue
+    }
+
+    seen.add(normalizedId)
+    uniqueIds.push(requestedId)
+  }
+
+  return uniqueIds
+}
+
+function toNormalizedCardId(cardId: string): string {
+  return cardId.trim().toLowerCase()
+}
+
+function getCardCatalogByIdsQueryKey(cardIds: string[]): readonly [string, string, string] {
+  return ['card-catalog', 'by-ids', normalizeCardIdsForCacheKey(cardIds).join('|')] as const
+}
+
+function getCardCatalogByIdQueryKey(cardId: string): readonly [string, string, string] {
+  return ['card-catalog', 'by-id', toNormalizedCardId(cardId)] as const
+}
+
+function setCardItemQueryCache(cards: CardCatalogItemResponse[]): void {
+  for (const card of cards) {
+    const normalizedId = toNormalizedCardId(card.id)
+    if (!normalizedId) {
+      continue
+    }
+
+    appQueryClient.setQueryData(getCardCatalogByIdQueryKey(normalizedId), card)
+  }
+}
+
+function getFreshCardItemFromCache(cardId: string, ttlMs: number): CardCatalogItemResponse | undefined {
+  const normalizedCardId = toNormalizedCardId(cardId)
+  if (!normalizedCardId) {
+    return undefined
+  }
+
+  const queryKey = getCardCatalogByIdQueryKey(normalizedCardId)
+  const queryState = appQueryClient.getQueryState<CardCatalogItemResponse>(queryKey)
+  if (!queryState?.data) {
+    return undefined
+  }
+
+  const staleAt = queryState.dataUpdatedAt + Math.max(0, ttlMs)
+  if (Date.now() >= staleAt) {
+    return undefined
+  }
+
+  return queryState.data
 }
 
 export type CardCatalogPageQuery = {
@@ -52,37 +102,95 @@ export async function fetchCardCatalogByIdsCached(
   cardIds: string[],
   ttlMs: number = CARD_CATALOG_CACHE_TTL_MS,
 ): Promise<CardCatalogItemResponse[]> {
-  const requestedIds = sanitizeRequestedCardIds(cardIds)
+  const requestedIds = sanitizeUniqueRequestedCardIds(cardIds)
   if (requestedIds.length === 0) {
     return []
   }
 
-  const cacheKey = getCardCatalogCacheKey(requestedIds)
-  const now = Date.now()
+  const cards = await appQueryClient.fetchQuery({
+    queryKey: getCardCatalogByIdsQueryKey(requestedIds),
+    queryFn: () => fetchCardCatalogByIds(requestedIds),
+    staleTime: Math.max(0, ttlMs),
+  })
 
-  try {
-    const cachedEntry = cardCatalogByIdsCache.get(cacheKey)
-    if (cachedEntry && cachedEntry.expiresAt > now) {
-      return cachedEntry.cards
-    }
-
-    if (cachedEntry && cachedEntry.expiresAt <= now) {
-      cardCatalogByIdsCache.delete(cacheKey)
-    }
-  } catch {
-    // Cache should never block API reads.
-  }
-
-  const cards = await fetchCardCatalogByIds(requestedIds)
-
-  try {
-    cardCatalogByIdsCache.set(cacheKey, {
-      cards,
-      expiresAt: now + Math.max(0, ttlMs),
-    })
-  } catch {
-    // Ignore cache write failures and return the fresh result.
-  }
+  setCardItemQueryCache(cards)
 
   return cards
+}
+
+export function getMissingCardCatalogIds(cardIds: string[]): string[] {
+  const requestedIds = sanitizeUniqueRequestedCardIds(cardIds)
+  if (requestedIds.length === 0) {
+    return []
+  }
+
+  const missingByNormalizedId = new Map<string, string>()
+
+  for (const requestedId of requestedIds) {
+    const normalizedCardId = toNormalizedCardId(requestedId)
+    if (!normalizedCardId || missingByNormalizedId.has(normalizedCardId)) {
+      continue
+    }
+
+    const cachedCard = getFreshCardItemFromCache(requestedId, CARD_CATALOG_CACHE_TTL_MS)
+    if (!cachedCard) {
+      missingByNormalizedId.set(normalizedCardId, requestedId)
+    }
+  }
+
+  return Array.from(missingByNormalizedId.values())
+}
+
+export async function fetchCardCatalogByIdsSparseCached(
+  cardIds: string[],
+  ttlMs: number = CARD_CATALOG_CACHE_TTL_MS,
+): Promise<CardCatalogItemResponse[]> {
+  const requestedIds = sanitizeUniqueRequestedCardIds(cardIds)
+  if (requestedIds.length === 0) {
+    return []
+  }
+
+  const requestedByNormalizedId = new Map<string, string>()
+
+  for (const requestedId of requestedIds) {
+    const normalizedCardId = toNormalizedCardId(requestedId)
+    if (!normalizedCardId || requestedByNormalizedId.has(normalizedCardId)) {
+      continue
+    }
+
+    requestedByNormalizedId.set(normalizedCardId, requestedId)
+  }
+
+  const cardsByNormalizedId = new Map<string, CardCatalogItemResponse>()
+  const missingIds: string[] = []
+
+  for (const [normalizedCardId, requestedId] of requestedByNormalizedId.entries()) {
+    const cachedCard = getFreshCardItemFromCache(requestedId, ttlMs)
+    if (cachedCard) {
+      cardsByNormalizedId.set(normalizedCardId, cachedCard)
+      continue
+    }
+
+    missingIds.push(requestedId)
+  }
+
+  if (missingIds.length > 0) {
+    const fetchedCards = await fetchCardCatalogByIdsCached(missingIds, ttlMs)
+    setCardItemQueryCache(fetchedCards)
+
+    for (const card of fetchedCards) {
+      cardsByNormalizedId.set(toNormalizedCardId(card.id), card)
+    }
+  }
+
+  const orderedCards: CardCatalogItemResponse[] = []
+
+  for (const normalizedCardId of requestedByNormalizedId.keys()) {
+    const card = cardsByNormalizedId.get(normalizedCardId)
+    if (card) {
+      orderedCards.push(card)
+    }
+  }
+
+  return orderedCards
 }

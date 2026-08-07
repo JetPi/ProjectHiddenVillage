@@ -1,19 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ImgHTMLAttributes } from 'react'
 import { twMerge } from 'tailwind-merge'
-
-const preloadedImageSources = new Set<string>()
-
-function preloadImageSource(src: string) {
-  if (!src || preloadedImageSources.has(src)) {
-    return
-  }
-
-  const image = new Image()
-  image.decoding = 'async'
-  image.src = src
-  preloadedImageSources.add(src)
-}
+import { preloadImageSource } from '../../services/imagePreloadCache'
 
 const fallbackSvg = encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="500" viewBox="0 0 360 500">
@@ -66,7 +54,9 @@ export function CardImage({
 
   useEffect(() => {
     if (hasSource) {
-      preloadImageSource(normalizedSrc)
+      void preloadImageSource(normalizedSrc).catch(() => {
+        // CardImage should fall back visually when image loading fails.
+      })
     }
   }, [hasSource, normalizedSrc])
 
