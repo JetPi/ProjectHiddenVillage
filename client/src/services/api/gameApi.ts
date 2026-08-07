@@ -1,4 +1,5 @@
 import { api } from './httpClient'
+import type { CardCatalogItemResponse } from '../../types/cardCatalog'
 
 type CreateGameForUserRequest = {
   userId: string
@@ -24,5 +25,10 @@ export async function joinGameAsPlayer(
   request: JoinGameAsPlayerRequest,
 ): Promise<GameInstanceResponse> {
   const { data } = await api.post<GameInstanceResponse>(`/api/games/${encodeURIComponent(gameCode)}/join`, request)
+  return data
+}
+
+export async function fetchGameCards(gameCode: string): Promise<CardCatalogItemResponse[]> {
+  const { data } = await api.get<CardCatalogItemResponse[]>(`/api/games/${encodeURIComponent(gameCode)}/cards`)
   return data
 }

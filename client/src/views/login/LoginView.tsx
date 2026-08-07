@@ -32,7 +32,11 @@ import { getApiErrorMessage } from '../utils/getApiErrorMessage'
 import { createUserDeck, fetchDecks } from '../../services/api/deckApi'
 import { validateDeckCardsPayload } from './utils/validateDeckCardsPayload'
 import type { DeckResponse } from '../../types/deck'
+import { preloadCardsByIds } from '../../services/cardPreloadService'
 
+const DECK_LINE_PATTERN = /^\s*(\d+)x\s+([A-Za-z0-9-]+)\s*$/
+const STARTER_DECK_FETCH_RETRY_ATTEMPTS = 3
+const STARTER_DECK_FETCH_RETRY_DELAY_MS = 700
 
 export function LoginView() {
   const loaderData = useLoaderData() as LoginLoaderData
@@ -51,6 +55,10 @@ export function LoginView() {
   const [starterDeckChoices, setStarterDeckChoices] = useState<{ value: string; label: string }[]>([
     { value: '', label: 'Loading public decks...' },
   ])
+  const [starterDeckFetchFailed, setStarterDeckFetchFailed] = useState(false)
+  const [starterDeckRetryToken, setStarterDeckRetryToken] = useState(0)
+  const [savedDeckCardIdsByDeckId, setSavedDeckCardIdsByDeckId] = useState<Record<string, string[]>>({})
+  const [starterDeckCardIdsByDeckId, setStarterDeckCardIdsByDeckId] = useState<Record<string, string[]>>({})
   const hasShownSignupToast = useRef(false)
   const lastAuthToastUsername = useRef<string | null>(null)
   
@@ -126,31 +134,47 @@ export function LoginView() {
 
     async function loadDeckChoices() {
       try {
-        const [allDecks, userDecks] = await Promise.all([
-          fetchDecks(),
-          authUser?.userId ? fetchDecks({ userId: authUser.userId }) : Promise.resolve([]),
-        ])
+        const allDecks = await fetchDecksWithRetry(
+          () => fetchDecks(),
+          STARTER_DECK_FETCH_RETRY_ATTEMPTS,
+          STARTER_DECK_FETCH_RETRY_DELAY_MS,
+        )
 
-        if (isCancelled) {
-          return
+        if (!isCancelled) {
+          const publicDecks = allDecks.filter((deck) => deck.type === 'Public')
+          setStarterDeckChoices(toDeckChoices(publicDecks, 'No public decks available yet.'))
+          setStarterDeckCardIdsByDeckId(toDeckCardIdsByDeckId(publicDecks))
+          setStarterDeckFetchFailed(false)
         }
-
-        const publicDecks = allDecks.filter((deck) => deck.type === 'Public')
-        setStarterDeckChoices(toDeckChoices(publicDecks, 'No public decks available yet.'))
-
-        if (!authUser?.userId) {
-          setSavedDeckChoices([{ value: '', label: 'Log in to load your decks' }])
-          return
-        }
-
-        setSavedDeckChoices(toDeckChoices(userDecks, 'No saved decks found for this user.'))
       } catch {
-        if (isCancelled) {
-          return
+        if (!isCancelled) {
+          setStarterDeckChoices([{ value: '', label: 'Failed to load public decks.' }])
+          setStarterDeckCardIdsByDeckId({})
+          setStarterDeckFetchFailed(true)
+        }
+      }
+
+      if (!authUser?.userId) {
+        if (!isCancelled) {
+          setSavedDeckChoices([{ value: '', label: 'Log in to load your decks' }])
+          setSavedDeckCardIdsByDeckId({})
         }
 
-        setStarterDeckChoices([{ value: '', label: 'Failed to load public decks.' }])
-        setSavedDeckChoices([{ value: '', label: 'Failed to load your decks.' }])
+        return
+      }
+
+      try {
+        const userDecks = await fetchDecks({ userId: authUser.userId })
+
+        if (!isCancelled) {
+          setSavedDeckChoices(toDeckChoices(userDecks, 'No saved decks found for this user.'))
+          setSavedDeckCardIdsByDeckId(toDeckCardIdsByDeckId(userDecks))
+        }
+      } catch {
+        if (!isCancelled) {
+          setSavedDeckChoices([{ value: '', label: 'Failed to load your decks.' }])
+          setSavedDeckCardIdsByDeckId({})
+        }
       }
     }
 
@@ -159,7 +183,34 @@ export function LoginView() {
     return () => {
       isCancelled = true
     }
-  }, [authUser?.userId])
+  }, [authUser?.userId, starterDeckRetryToken])
+
+  useEffect(() => {
+    const selectedDeckId = activeDeckOption.trim()
+    if (!selectedDeckId) {
+      return
+    }
+
+    const deckCardIds =
+      deckOptionsMode === 'saved_decks'
+        ? savedDeckCardIdsByDeckId[selectedDeckId]
+        : deckOptionsMode === 'starter_decks'
+          ? starterDeckCardIdsByDeckId[selectedDeckId]
+          : undefined
+
+    if (!deckCardIds || deckCardIds.length === 0) {
+      return
+    }
+
+    void preloadCardsByIds(deckCardIds).catch(() => {
+      // Deck image warm-up should never block the login flow.
+    })
+  }, [
+    activeDeckOption,
+    deckOptionsMode,
+    savedDeckCardIdsByDeckId,
+    starterDeckCardIdsByDeckId,
+  ])
 
   const activeDeckFieldConfig = useMemo(() => {
     if (deckOptionsMode === 'saved_decks') {
@@ -241,6 +292,11 @@ export function LoginView() {
           showAppInfoToast(deckPayloadValidation.message ?? 'Deck list format is invalid.')
           return
         }
+
+        const importedDeckCardIds = parseDeckCardIdsFromPayload(deckCardsPayload)
+        void preloadCardsByIds(importedDeckCardIds).catch(() => {
+          // Import preloading is best effort and should not block submit.
+        })
 
         deckId = await createUserDeck(deckCardsPayload, authUser.userId)
       } else {
@@ -384,7 +440,18 @@ export function LoginView() {
             </FormField>
 
             <FormField className="col-span-1">
-                <FormLabel htmlFor="deckOptions">Deck Options</FormLabel>
+                <div className="flex items-center justify-between gap-2">
+                  <FormLabel htmlFor="deckOptions" className="mb-0">Deck Options</FormLabel>
+                  {starterDeckFetchFailed && deckOptionsMode === 'starter_decks' ? (
+                    <button
+                      type="button"
+                      onClick={() => setStarterDeckRetryToken((value) => value + 1)}
+                      className="px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] transition-opacity hover:opacity-75"
+                    >
+                      Retry
+                    </button>
+                  ) : null}
+                </div>
                 <OptionToggle
                   ariaLabel="Deck options input mode"
                   value={deckOptionsMode}
@@ -605,5 +672,88 @@ function toDeckChoices(decks: DeckResponse[], emptyStateLabel: string): { value:
       value: deck.id,
       label: `Deck ${deckNumber} (${shortId}) - ${totalCards} cards`,
     }
+  })
+}
+
+function toDeckCardIdsByDeckId(decks: DeckResponse[]): Record<string, string[]> {
+  return decks.reduce<Record<string, string[]>>((result, deck) => {
+    const seen = new Set<string>()
+    const cardIds: string[] = []
+
+    for (const card of deck.cards) {
+      const normalizedCardId = card.cardId.trim()
+      const key = normalizedCardId.toLowerCase()
+
+      if (!normalizedCardId || seen.has(key)) {
+        continue
+      }
+
+      seen.add(key)
+      cardIds.push(normalizedCardId)
+    }
+
+    result[deck.id] = cardIds
+    return result
+  }, {})
+}
+
+function parseDeckCardIdsFromPayload(cardsPayload: string): string[] {
+  const lines = cardsPayload
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+
+  const seen = new Set<string>()
+  const cardIds: string[] = []
+
+  for (const line of lines) {
+    const match = DECK_LINE_PATTERN.exec(line)
+    if (!match) {
+      continue
+    }
+
+    const cardId = match[2].trim()
+    const cardKey = cardId.toLowerCase()
+
+    if (!cardId || seen.has(cardKey)) {
+      continue
+    }
+
+    seen.add(cardKey)
+    cardIds.push(cardId)
+  }
+
+  return cardIds
+}
+
+async function fetchDecksWithRetry(
+  fetchOperation: () => Promise<DeckResponse[]>,
+  attempts: number,
+  baseDelayMs: number,
+): Promise<DeckResponse[]> {
+  const totalAttempts = Math.max(1, attempts)
+  let lastError: unknown
+
+  for (let attemptIndex = 0; attemptIndex < totalAttempts; attemptIndex += 1) {
+    try {
+      return await fetchOperation()
+    } catch (error) {
+      lastError = error
+
+      if (attemptIndex >= totalAttempts - 1) {
+        break
+      }
+
+      const retryDelayMs = baseDelayMs * (attemptIndex + 1)
+      await waitForMilliseconds(retryDelayMs)
+    }
+  }
+
+  throw lastError ?? new Error('Failed to fetch deck list after retries.')
+}
+
+function waitForMilliseconds(delayMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, Math.max(0, delayMs))
   })
 }

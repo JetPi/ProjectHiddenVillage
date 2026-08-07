@@ -1,16 +1,58 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
+import { preloadCardsByIds } from '../../services/cardPreloadService'
+import { useGameCardsQuery } from '../../services/queries/cardQueries'
+
+const GAME_CARD_PRELOAD_POLL_INTERVAL_MS = 6_000
 
 export function GameView() {
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const isPlayerTurn = true
   const { joinCode } = useParams<{ joinCode: string }>()
   const { outerRef: outerZoneRef, innerRef: boardZoneRef } = useAlignedSplit()
+  const { data: gameCards = [] } = useGameCardsQuery(joinCode, {
+    refetchIntervalMs: GAME_CARD_PRELOAD_POLL_INTERVAL_MS,
+  })
+  const lastPreloadedCardSignatureRef = useRef('')
+
+  useEffect(() => {
+    if (gameCards.length === 0) {
+      return
+    }
+
+    const cardIds = Array.from(
+      new Set(
+        gameCards
+          .map((card) => card.id.trim())
+          .filter((cardId) => cardId.length > 0),
+      ),
+    )
+
+    if (cardIds.length === 0) {
+      return
+    }
+
+    const signature = cardIds
+      .map((cardId) => cardId.toLowerCase())
+      .sort((left, right) => left.localeCompare(right))
+      .join('|')
+
+    if (signature === lastPreloadedCardSignatureRef.current) {
+      return
+    }
+
+    lastPreloadedCardSignatureRef.current = signature
+
+    void preloadCardsByIds(cardIds).catch(() => {
+      // Card preloading should not block gameplay rendering.
+    })
+  }, [gameCards])
 
   return (
     <PageShell compact>
