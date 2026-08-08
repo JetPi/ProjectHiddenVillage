@@ -278,37 +278,52 @@ export function LoginView() {
     }
 
     try {
-      let deckId = ''
+      const isCreateMode = gameCodeMode === 'create'
+      let deckId: string | null = null
 
       if (deckOptionsMode === 'import') {
         const deckCardsPayload = activeDeckOption.trim()
         if (!deckCardsPayload) {
-          showAppInfoToast('Please paste your deck list before continuing.')
-          return
+          if (isCreateMode) {
+            showAppInfoToast('Please paste your deck list before continuing.')
+            return
+          }
+        } else {
+          const deckPayloadValidation = validateDeckCardsPayload(deckCardsPayload)
+          if (!deckPayloadValidation.isValid) {
+            showAppInfoToast(deckPayloadValidation.message ?? 'Deck list format is invalid.')
+            return
+          }
+
+          const importedDeckCardIds = parseDeckCardIdsFromPayload(deckCardsPayload)
+          void preloadCardsByIds(importedDeckCardIds).catch(() => {
+            // Import preloading is best effort and should not block submit.
+          })
+
+          deckId = await createUserDeck(deckCardsPayload, authUser.userId)
         }
-
-        const deckPayloadValidation = validateDeckCardsPayload(deckCardsPayload)
-        if (!deckPayloadValidation.isValid) {
-          showAppInfoToast(deckPayloadValidation.message ?? 'Deck list format is invalid.')
-          return
-        }
-
-        const importedDeckCardIds = parseDeckCardIdsFromPayload(deckCardsPayload)
-        void preloadCardsByIds(importedDeckCardIds).catch(() => {
-          // Import preloading is best effort and should not block submit.
-        })
-
-        deckId = await createUserDeck(deckCardsPayload, authUser.userId)
       } else {
-        deckId = activeDeckOption.trim()
+        const selectedDeckId = activeDeckOption.trim()
+        if (!selectedDeckId) {
+          if (!isCreateMode) {
+            deckId = null
+          } else {
+            const deckModeLabel = deckOptionsMode === 'saved_decks' ? 'saved deck' : 'public deck'
+            showAppInfoToast(`Please select a ${deckModeLabel} before continuing.`)
+            return
+          }
+        } else {
+          deckId = selectedDeckId
+        }
+      }
+
+      if (gameCodeMode === 'create') {
         if (!deckId) {
           const deckModeLabel = deckOptionsMode === 'saved_decks' ? 'saved deck' : 'public deck'
           showAppInfoToast(`Please select a ${deckModeLabel} before continuing.`)
           return
         }
-      }
 
-      if (gameCodeMode === 'create') {
         const createdGame = await createGameForUser({
           userId: authUser.userId,
           deckId,
@@ -332,7 +347,7 @@ export function LoginView() {
 
       const joinedGame = await joinGameAsPlayer(normalizedGameCode, {
         userId: authUser.userId,
-        deckId,
+        ...(deckId ? { deckId } : {}),
       })
 
       setSession({

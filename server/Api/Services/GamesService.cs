@@ -139,20 +139,35 @@ public sealed class GamesService
         }
 
         var normalizedGameCode = gameCode.Trim();
-        var playerDeckResult = await ResolvePlayerDeck(request.UserId, request.DeckId, operationName: "Game.JoinForUser");
-        if (playerDeckResult.IsError)
-        {
-            return playerDeckResult.Errors;
-        }
-
         if (!registry.TryGet(normalizedGameCode, out var game) || game is null)
         {
             return Error.NotFound(code: "Game.JoinForUser.NotFound", description: $"Game instance '{normalizedGameCode}' was not found.");
         }
 
-        if (game.State.Players.Any(player => string.Equals(player.PlayerId, request.UserId.ToString("N"), StringComparison.Ordinal)))
+        var existingPlayer = game.State.Players
+            .SingleOrDefault(player => string.Equals(player.PlayerId, request.UserId.ToString("N"), StringComparison.Ordinal));
+
+        if (existingPlayer is not null)
         {
-            return Error.Validation(code: "Game.JoinForUser.AlreadyJoined", description: "User is already part of this game instance.");
+            if (HasStoredDeck(existingPlayer))
+            {
+                return game;
+            }
+
+            return Error.Validation(
+                code: "Game.JoinForUser.MissingStoredDeck",
+                description: "User is already part of this game instance, but no stored deck was found for that player.");
+        }
+
+        if (!request.DeckId.HasValue || request.DeckId.Value == Guid.Empty)
+        {
+            return Error.Validation(code: "Game.JoinForUser.MissingDeckId", description: "DeckId is required.");
+        }
+
+        var playerDeckResult = await ResolvePlayerDeck(request.UserId, request.DeckId.Value, operationName: "Game.JoinForUser");
+        if (playerDeckResult.IsError)
+        {
+            return playerDeckResult.Errors;
         }
 
         var playerDeck = playerDeckResult.Value;
@@ -370,6 +385,11 @@ public sealed class GamesService
         {
             return fallback;
         }
+    }
+
+    private static bool HasStoredDeck(PlayerState playerState)
+    {
+        return playerState.Deck.Any(card => !string.IsNullOrWhiteSpace(card.CardDefinitionId));
     }
 
     private sealed record ResolvedPlayerDeck(

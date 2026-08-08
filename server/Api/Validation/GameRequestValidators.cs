@@ -21,9 +21,6 @@ public sealed class JoinGameAsPlayerValidator : AbstractValidator<JoinGameAsPlay
     {
         RuleFor(request => request.UserId)
             .NotEmpty().WithMessage("UserId is required.");
-
-        RuleFor(request => request.DeckId)
-            .NotEmpty().WithMessage("DeckId is required.");
     }
 }
 

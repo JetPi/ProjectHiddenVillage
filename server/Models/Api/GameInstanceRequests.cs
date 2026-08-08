@@ -6,7 +6,7 @@ public sealed record CreateGameForUserRequest(
 
 public sealed record JoinGameAsPlayer(
     Guid UserId,
-    Guid DeckId);
+    Guid? DeckId);
 
 public sealed record ResolvePromptRequest(
     string RequestedPlayerId,

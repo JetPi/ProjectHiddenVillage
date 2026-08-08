@@ -82,6 +82,62 @@ public sealed class GamesServiceUserDeckFlowTests
     }
 
     [TestMethod]
+    public async Task JoinGameForUser_WhenUserAlreadyInGame_AllowsRejoinWithoutDeckId()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var user = CreateUser("rejoin@example.com", "rejoin-user");
+        var card = CreateCatalogEntry("N-099", "Card 99");
+
+        dbContext.Users.Add(user);
+        dbContext.Decks.Add(CreateDeck(user.Id, [(card, 1)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
+        var service = CreateService(dbContext);
+
+        var createResult = await service.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
+        Assert.IsFalse(createResult.IsError);
+
+        var rejoinResult = await service.JoinGameForUser(
+            createResult.Value.Id,
+            new JoinGameAsPlayer(user.Id, null));
+
+        Assert.IsFalse(rejoinResult.IsError);
+        Assert.AreEqual(createResult.Value.Id, rejoinResult.Value.Id);
+        Assert.AreEqual(1, rejoinResult.Value.State.Players.Count);
+        Assert.AreEqual(user.Id.ToString("N"), rejoinResult.Value.State.Players[0].PlayerId);
+    }
+
+    [TestMethod]
+    public async Task JoinGameForUser_WhenStoredDeckIsMissing_RejectsDecklessRejoin()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var user = CreateUser("missing-deck@example.com", "missing-deck-user");
+        var card = CreateCatalogEntry("N-100", "Card 100");
+
+        dbContext.Users.Add(user);
+        dbContext.Decks.Add(CreateDeck(user.Id, [(card, 1)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
+        var service = CreateService(dbContext);
+
+        var createResult = await service.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
+        Assert.IsFalse(createResult.IsError);
+
+        createResult.Value.State.Players[0].Deck.Clear();
+
+        var rejoinResult = await service.JoinGameForUser(
+            createResult.Value.Id,
+            new JoinGameAsPlayer(user.Id, null));
+
+        Assert.IsTrue(rejoinResult.IsError);
+        Assert.AreEqual("Game.JoinForUser.MissingStoredDeck", rejoinResult.FirstError.Code);
+    }
+
+    [TestMethod]
     public async Task GetCardsForGame_ResolvesFromRuntimeGame_WhenDbGameRowDoesNotExist()
     {
         await using var dbContext = CreateDbContext();
