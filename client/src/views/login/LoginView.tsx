@@ -26,12 +26,12 @@ import { clearAuthSession } from '../../state/authSession'
 import { useSessionStore } from '../../state/sessionStore'
 import { useThemeStore } from '../../state/themeStore'
 import { useLoginViewModel } from './model/useLoginViewModel'
-import type { LoginActionData, LoginLoaderData } from './handlers/loginRouteHandlers'
+import type { ILoginActionData, ILoginLoaderData } from './handlers/loginRouteHandlers'
 import { createGameForUser, joinGameAsPlayer } from '../../services/api/gameApi'
 import { getApiErrorMessage } from '../utils/getApiErrorMessage'
 import { createUserDeck, fetchDecks } from '../../services/api/deckApi'
 import { validateDeckCardsPayload } from './utils/validateDeckCardsPayload'
-import type { DeckResponse } from '../../types/deck'
+import type { IDeckResponse } from '../../types/deck'
 import { preloadCardsByIds } from '../../services/cardPreloadService'
 
 const DECK_LINE_PATTERN = /^\s*(\d+)x\s+([A-Za-z0-9-]+)\s*$/
@@ -39,8 +39,8 @@ const STARTER_DECK_FETCH_RETRY_ATTEMPTS = 3
 const STARTER_DECK_FETCH_RETRY_DELAY_MS = 700
 
 export function LoginView() {
-  const loaderData = useLoaderData() as LoginLoaderData
-  const actionData = useActionData() as LoginActionData | undefined
+  const loaderData = useLoaderData() as ILoginLoaderData
+  const actionData = useActionData() as ILoginActionData | undefined
   const navigation = useNavigation()
   const navigate = useNavigate()
 
@@ -673,7 +673,7 @@ function toGameRoutePath(joinCode: string): string {
   return `/game/${encodeURIComponent(joinCode.trim())}`
 }
 
-function toDeckChoices(decks: DeckResponse[], emptyStateLabel: string): { value: string; label: string }[] {
+function toDeckChoices(decks: IDeckResponse[], emptyStateLabel: string): { value: string; label: string }[] {
   if (decks.length === 0) {
     return [{ value: '', label: emptyStateLabel }]
   }
@@ -690,7 +690,7 @@ function toDeckChoices(decks: DeckResponse[], emptyStateLabel: string): { value:
   })
 }
 
-function toDeckCardIdsByDeckId(decks: DeckResponse[]): Record<string, string[]> {
+function toDeckCardIdsByDeckId(decks: IDeckResponse[]): Record<string, string[]> {
   return decks.reduce<Record<string, string[]>>((result, deck) => {
     const seen = new Set<string>()
     const cardIds: string[] = []
@@ -742,10 +742,10 @@ function parseDeckCardIdsFromPayload(cardsPayload: string): string[] {
 }
 
 async function fetchDecksWithRetry(
-  fetchOperation: () => Promise<DeckResponse[]>,
+  fetchOperation: () => Promise<IDeckResponse[]>,
   attempts: number,
   baseDelayMs: number,
-): Promise<DeckResponse[]> {
+): Promise<IDeckResponse[]> {
   const totalAttempts = Math.max(1, attempts)
   let lastError: unknown
 

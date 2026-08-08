@@ -1,4 +1,4 @@
-export type AuthSession = {
+export type IAuthSession = {
   userId: string
   username: string
   email: string
@@ -8,7 +8,7 @@ export type AuthSession = {
 
 const AUTH_SESSION_STORAGE_KEY = 'phv-auth-session'
 
-export function readAuthSession(): AuthSession | null {
+export function readAuthSession(): IAuthSession | null {
   if (typeof window === 'undefined') {
     return null
   }
@@ -19,7 +19,7 @@ export function readAuthSession(): AuthSession | null {
   }
 
   try {
-    const parsed = JSON.parse(rawValue) as Partial<AuthSession>
+    const parsed = JSON.parse(rawValue) as Partial<IAuthSession>
     if (
       !parsed.userId ||
       !parsed.username ||
@@ -55,7 +55,7 @@ export function getAuthAccessToken(): string | null {
   return session?.accessToken ?? null
 }
 
-export function persistAuthSession(session: AuthSession): void {
+export function persistAuthSession(session: IAuthSession): void {
   if (typeof window === 'undefined') {
     return
   }

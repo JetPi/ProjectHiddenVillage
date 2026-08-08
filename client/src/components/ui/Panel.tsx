@@ -1,11 +1,11 @@
 import type { HTMLAttributes, PropsWithChildren } from 'react'
 
-type PanelProps = PropsWithChildren<{
+type IPanelProps = PropsWithChildren<{
   className?: string
 }> &
   HTMLAttributes<HTMLElement>
 
-export function Panel({ className = '', children, ...sectionProps }: PanelProps) {
+export function Panel({ className = '', children, ...sectionProps }: IPanelProps) {
   return (
     <section
       {...sectionProps}

@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import type { PropsWithChildren } from 'react'
 import { useThemeStore } from '../../state/themeStore'
 
-type PageShellProps = PropsWithChildren<{
+type IPageShellProps = PropsWithChildren<{
   compact?: boolean
   className?: string
   overlayClassName?: string
@@ -15,7 +15,7 @@ export function PageShell({
   className = '',
   overlayClassName = '',
   backgroundClassName,
-}: PageShellProps) {
+}: IPageShellProps) {
   const initializeTheme = useThemeStore((state) => state.initializeTheme)
   const backgroundClasses =
     backgroundClassName ??

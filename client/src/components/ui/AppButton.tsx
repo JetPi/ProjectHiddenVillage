@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, PropsWithChildren } from 'react'
 import { twMerge } from 'tailwind-merge'
 
-type AppButtonProps = PropsWithChildren<{
+type IAppButtonProps = PropsWithChildren<{
   variant?: 'primary' | 'ghost'
 }> &
   ButtonHTMLAttributes<HTMLButtonElement>
@@ -11,7 +11,7 @@ export function AppButton({
   className = '',
   children,
   ...buttonProps
-}: AppButtonProps) {
+}: IAppButtonProps) {
   const variantClass =
     variant === 'primary'
       ? 'bg-[var(--button-primary-bg)] text-[var(--button-primary-text)] hover:bg-[var(--button-primary-hover)]'

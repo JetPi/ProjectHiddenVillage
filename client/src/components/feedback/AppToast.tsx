@@ -1,20 +1,20 @@
 import { CheckCircle2, Info, X } from 'lucide-react'
 import { toast } from 'sonner'
 
-type AppToastTone = 'success' | 'info'
+type IAppToastTone = 'success' | 'info'
 
-type AppToastProps = {
-  tone: AppToastTone
+type IAppToastProps = {
+  tone: IAppToastTone
   message: string
   onClose: () => void
 }
 
-type AppToastOptions = {
+type IAppToastOptions = {
   id?: string
   duration?: number
 }
 
-function toneIcon(tone: AppToastTone) {
+function toneIcon(tone: IAppToastTone) {
   if (tone === 'success') {
     return <CheckCircle2 size={14} aria-hidden="true" />
   }
@@ -22,7 +22,7 @@ function toneIcon(tone: AppToastTone) {
   return <Info size={14} aria-hidden="true" />
 }
 
-export function AppToast({ tone, message, onClose }: AppToastProps) {
+export function AppToast({ tone, message, onClose }: IAppToastProps) {
   const badgeClassName =
     tone === 'success'
       ? 'bg-[var(--button-primary-bg)] text-[var(--button-primary-text)]'
@@ -48,7 +48,7 @@ export function AppToast({ tone, message, onClose }: AppToastProps) {
   )
 }
 
-function showAppToast(tone: AppToastTone, message: string, options: AppToastOptions = {}) {
+function showAppToast(tone: IAppToastTone, message: string, options: IAppToastOptions = {}) {
   return toast.custom(
     (id) => <AppToast tone={tone} message={message} onClose={() => toast.dismiss(id)} />,
     {
@@ -59,10 +59,10 @@ function showAppToast(tone: AppToastTone, message: string, options: AppToastOpti
   )
 }
 
-export function showAppSuccessToast(message: string, options?: AppToastOptions) {
+export function showAppSuccessToast(message: string, options?: IAppToastOptions) {
   return showAppToast('success', message, options)
 }
 
-export function showAppInfoToast(message: string, options?: AppToastOptions) {
+export function showAppInfoToast(message: string, options?: IAppToastOptions) {
   return showAppToast('info', message, options)
 }

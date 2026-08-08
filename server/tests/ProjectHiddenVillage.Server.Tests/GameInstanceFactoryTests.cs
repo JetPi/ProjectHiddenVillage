@@ -183,6 +183,65 @@ public sealed class GameInstanceFactoryTests
     }
 
     [TestMethod]
+    public void Create_BuildsLeaderCardInstance_WithRuntimeLeaderData()
+    {
+        var players = new List<Player>
+        {
+            new() { Id = "p1", Deck = ["leader-1", "card-1"] },
+            new() { Id = "p2", Deck = ["card-1"] }
+        };
+
+        var cardDefinitions = new Dictionary<string, Card>(StringComparer.Ordinal)
+        {
+            ["leader-1"] = new LeaderCard
+            {
+                Id = "leader-1",
+                DisplayName = "Naruto Uzumaki",
+                Name = ["Naruto Uzumaki"],
+                Type = CardType.Leader,
+                Color = CardColor.Red,
+                Description = "[Recovery] Draw 1 card.",
+                Traits = ["Leaf", "Ninja"],
+                Damage = 2,
+                Power = 7,
+                Life = 6,
+                RecoveryEffect = "Draw 1 card."
+            },
+            ["card-1"] = new Card
+            {
+                Id = "card-1",
+                DisplayName = "Support Shinobi",
+                Name = ["Support Shinobi"],
+                Type = CardType.Character,
+                Color = CardColor.Red,
+                Description = string.Empty,
+                Traits = [],
+                Damage = 0,
+                Power = 1,
+                Conditions = [],
+                Effects = []
+            }
+        };
+
+        var game = factory.Create(players, cardDefinitions, new FixedIndexRandom(0));
+        var p1 = game.State.Players.Single(player => player.PlayerId == "p1");
+
+        Assert.IsNotNull(p1.LeaderCardInstance);
+        Assert.AreEqual("leader-1", p1.LeaderCardInstance.CardDefinitionId);
+        Assert.AreEqual("Naruto Uzumaki", p1.LeaderCardInstance.Name);
+        Assert.AreEqual(CardColor.Red, p1.LeaderCardInstance.Color);
+        Assert.AreEqual("[Recovery] Draw 1 card.", p1.LeaderCardInstance.Description);
+        CollectionAssert.AreEqual(new[] { "Leaf", "Ninja" }, p1.LeaderCardInstance.Traits);
+        Assert.AreEqual(2, p1.LeaderCardInstance.Damage);
+        Assert.AreEqual(7, p1.LeaderCardInstance.Power);
+        Assert.AreEqual("Draw 1 card.", p1.LeaderCardInstance.RecoveryEffect);
+        Assert.AreEqual(6, p1.LeaderCardInstance.TotalLife);
+        Assert.AreEqual(6, p1.LeaderCardInstance.CurrentLife);
+        Assert.AreEqual("p1", p1.LeaderCardInstance.OwnerPlayerId);
+        Assert.AreEqual("p1", p1.LeaderCardInstance.ControllerPlayerId);
+    }
+
+    [TestMethod]
     public void Create_InitializesSummonCardFlags_ToTrueForBothPlayers()
     {
         var players = new List<Player>

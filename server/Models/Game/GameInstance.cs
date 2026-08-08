@@ -314,6 +314,8 @@ public sealed class GameInstance
 
     private void ValidatePlayerCardInstances(PlayerState player, HashSet<string> playerIds)
     {
+        ValidateLeaderCardInstance(player, playerIds);
+
         foreach (var card in player.Deck)
         {
             ValidateCardInstance(card, playerIds);
@@ -332,6 +334,61 @@ public sealed class GameInstance
         foreach (var card in player.DiscardPile)
         {
             ValidateCardInstance(card, playerIds);
+        }
+    }
+
+    private void ValidateLeaderCardInstance(PlayerState player, HashSet<string> playerIds)
+    {
+        var leader = player.LeaderCardInstance;
+        if (leader is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(leader.InstanceId))
+        {
+            throw new InvalidOperationException($"Player '{player.PlayerId}' has a leader card with an empty InstanceId.");
+        }
+
+        if (string.IsNullOrWhiteSpace(leader.CardDefinitionId))
+        {
+            throw new InvalidOperationException($"Player '{player.PlayerId}' has a leader card with an empty CardDefinitionId.");
+        }
+
+        if (!State.CardDefinitions.TryGetValue(leader.CardDefinitionId, out var leaderDefinition))
+        {
+            throw new InvalidOperationException(
+                $"Leader card definition '{leader.CardDefinitionId}' was not found for player '{player.PlayerId}'.");
+        }
+
+        if (leaderDefinition.Type != CardType.Leader)
+        {
+            throw new InvalidOperationException(
+                $"Leader card definition '{leader.CardDefinitionId}' for player '{player.PlayerId}' is not a leader card.");
+        }
+
+        if (!playerIds.Contains(leader.OwnerPlayerId))
+        {
+            throw new InvalidOperationException(
+                $"Leader card '{leader.InstanceId}' has unknown owner '{leader.OwnerPlayerId}'.");
+        }
+
+        if (!playerIds.Contains(leader.ControllerPlayerId))
+        {
+            throw new InvalidOperationException(
+                $"Leader card '{leader.InstanceId}' has unknown controller '{leader.ControllerPlayerId}'.");
+        }
+
+        if (leader.TotalLife < 0)
+        {
+            throw new InvalidOperationException(
+                $"Leader card '{leader.InstanceId}' has invalid TotalLife '{leader.TotalLife}'.");
+        }
+
+        if (leader.CurrentLife < 0 || leader.CurrentLife > leader.TotalLife)
+        {
+            throw new InvalidOperationException(
+                $"Leader card '{leader.InstanceId}' has invalid CurrentLife '{leader.CurrentLife}'.");
         }
     }
 

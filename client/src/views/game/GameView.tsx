@@ -1,7 +1,6 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { useEffect, useMemo, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useParams } from 'react-router-dom'
+import { useActionData, useLoaderData, useRevalidator, useSubmit } from 'react-router-dom'
 import { CardImage } from '../../components/ui/CardImage'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
@@ -15,8 +14,8 @@ import { readAuthSession } from '../../state/authSession'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
 import { preloadCardsByIds } from '../../services/cardPreloadService'
-import { useGameCardsQuery } from '../../services/queries/cardQueries'
-import { fetchGameById, type GamePlayerStateResponse } from '../../services/api/gameApi'
+import { buildCardPreloadPayload, deriveGameViewState } from './utils/functions'
+import type { IGameActionData, IGameLoaderData } from './types/routeData'
 
 const GAME_CARD_PRELOAD_POLL_INTERVAL_MS = 6_000
 
@@ -25,153 +24,52 @@ const GAMEBOARD_COLUMNS_CLASS = 'lg:grid-cols-[1.1fr_1.7fr_1.1fr]'
 const LEADER_CARD_FRAME_CLASS = 'h-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]'
 const LEADER_CARD_IMAGE_CLASS = 'h-[102%] w-[102%] -m-[1%] rounded-none object-contain [image-rendering:auto]'
 
-function normalizePlayerId(value: string): string {
-  return value.trim().toLowerCase().replace(/-/g, '')
-}
-
-function findLeaderCardId(
-  player: GamePlayerStateResponse | null,
-  cardTypeById: ReadonlyMap<string, string>,
-): string | null {
-  if (!player) {
-    return null
-  }
-
-  const leader = player.deck.find((card) => {
-    const normalizedCardId = card.cardDefinitionId.trim().toLowerCase()
-    return cardTypeById.get(normalizedCardId) === 'leader'
-  })
-
-  return leader?.cardDefinitionId ?? null
-}
-
 export function GameView() {
-  const toggleTheme = useThemeStore((state) => state.toggleTheme)
-  const isPlayerTurn = true
-  const { joinCode } = useParams<{ joinCode: string }>()
-  const normalizedJoinCode = joinCode?.trim() ?? ''
-  const authSession = useMemo(() => readAuthSession(), [])
   const { outerRef: outerZoneRef, innerRef: boardZoneRef } = useAlignedSplit()
-  const { data: gameCards = [] } = useGameCardsQuery(joinCode, {
-    refetchIntervalMs: GAME_CARD_PRELOAD_POLL_INTERVAL_MS,
-  })
-  const { data: gameInstance } = useQuery({
-    queryKey: ['games', 'by-id', normalizedJoinCode.toLowerCase()],
-    queryFn: () => fetchGameById(normalizedJoinCode),
-    enabled: normalizedJoinCode.length > 0,
-    staleTime: 4_000,
-    refetchInterval: GAME_CARD_PRELOAD_POLL_INTERVAL_MS,
-  })
+  const toggleTheme = useThemeStore((state) => state.toggleTheme)
+  const authSession = useMemo(() => readAuthSession(), [])
+  
+  const { joinCode, gameCards, gameInstance } = useLoaderData() as IGameLoaderData
+  const actionData = useActionData() as IGameActionData | undefined
+  const revalidator = useRevalidator()
+  const submit = useSubmit()
+  const isPlayerTurn = true
+  
   const lastPreloadedCardSignatureRef = useRef('')
+  
+  const players = gameInstance.state.players
 
-  const cardById = useMemo(() => {
-    const nextMap = new Map<string, (typeof gameCards)[number]>()
-
-    for (const card of gameCards) {
-      const normalizedCardId = card.id.trim().toLowerCase()
-      if (!normalizedCardId || nextMap.has(normalizedCardId)) {
-        continue
-      }
-
-      nextMap.set(normalizedCardId, card)
-    }
-
-    return nextMap
-  }, [gameCards])
-
-  const cardTypeById = useMemo(() => {
-    const nextMap = new Map<string, string>()
-
-    for (const card of gameCards) {
-      const normalizedCardId = card.id.trim().toLowerCase()
-      const normalizedType = card.type.trim().toLowerCase()
-
-      if (!normalizedCardId || !normalizedType || nextMap.has(normalizedCardId)) {
-        continue
-      }
-
-      nextMap.set(normalizedCardId, normalizedType)
-    }
-
-    return nextMap
-  }, [gameCards])
-
-  const currentPlayer = useMemo(() => {
-    const players = gameInstance?.state.players ?? []
-    if (players.length === 0) {
-      return null
-    }
-
-    const normalizedCurrentUserId = normalizePlayerId(authSession?.userId ?? '')
-    if (!normalizedCurrentUserId) {
-      return players[0]
-    }
-
-    return (
-      players.find((player) => normalizePlayerId(player.playerId) === normalizedCurrentUserId) ?? players[0]
-    )
-  }, [authSession?.userId, gameInstance?.state.players])
-
-  const opponentPlayer = useMemo(() => {
-    const players = gameInstance?.state.players ?? []
-    if (!currentPlayer || players.length === 0) {
-      return null
-    }
-
-    const normalizedCurrentPlayerId = normalizePlayerId(currentPlayer.playerId)
-    return players.find((player) => normalizePlayerId(player.playerId) !== normalizedCurrentPlayerId) ?? null
-  }, [currentPlayer, gameInstance?.state.players])
-
-  const topLeaderCard = useMemo(() => {
-    const leaderCardId = findLeaderCardId(opponentPlayer, cardTypeById)
-    if (!leaderCardId) {
-      return null
-    }
-
-    return cardById.get(leaderCardId.trim().toLowerCase()) ?? null
-  }, [cardById, cardTypeById, opponentPlayer])
-
-  const bottomLeaderCard = useMemo(() => {
-    const leaderCardId = findLeaderCardId(currentPlayer, cardTypeById)
-    if (!leaderCardId) {
-      return null
-    }
-
-    return cardById.get(leaderCardId.trim().toLowerCase()) ?? null
-  }, [cardById, cardTypeById, currentPlayer])
-
-  const topLeaderCardFrameClassName = useMemo(
-    () => `${LEADER_CARD_FRAME_CLASS} ${topLeaderCard ? 'border-transparent' : ''}`.trim(),
-    [topLeaderCard],
+  const {
+    topLeaderCard,
+    bottomLeaderCard,
+  } = useMemo(
+    () => deriveGameViewState(gameCards, players, authSession?.userId),
+    [authSession?.userId, gameCards, players],
   )
 
-  const bottomLeaderCardFrameClassName = useMemo(
-    () => `${LEADER_CARD_FRAME_CLASS} ${bottomLeaderCard ? 'border-transparent' : ''}`.trim(),
-    [bottomLeaderCard],
-  )
+  
+  const topLeaderCardFrameClassName = `${LEADER_CARD_FRAME_CLASS} ${topLeaderCard ? 'border-transparent' : ''}`.trim()
+  const bottomLeaderCardFrameClassName = `${LEADER_CARD_FRAME_CLASS} ${bottomLeaderCard ? 'border-transparent' : ''}`.trim()
 
   useEffect(() => {
-    if (gameCards.length === 0) {
+    const interval = window.setInterval(() => {
+      if (revalidator.state !== 'idle') {
+        return
+      }
+
+      revalidator.revalidate()
+    }, GAME_CARD_PRELOAD_POLL_INTERVAL_MS)
+
+    return () => window.clearInterval(interval)
+  }, [revalidator])
+
+  useEffect(() => {
+    const preloadPayload = buildCardPreloadPayload(gameCards)
+    if (!preloadPayload) {
       return
     }
 
-    const cardIds = Array.from(
-      new Set(
-        gameCards
-          .map((card) => card.id.trim())
-          .filter((cardId) => cardId.length > 0),
-      ),
-    )
-
-    if (cardIds.length === 0) {
-      return
-    }
-
-    const signature = cardIds
-      .map((cardId) => cardId.toLowerCase())
-      .sort((left, right) => left.localeCompare(right))
-      .join('|')
-
+    const { cardIds, signature } = preloadPayload
     if (signature === lastPreloadedCardSignatureRef.current) {
       return
     }
@@ -182,6 +80,10 @@ export function GameView() {
       // Card preloading should not block gameplay rendering.
     })
   }, [gameCards])
+
+  function submitGameIntent(intent: string): void {
+    submit({ intent }, { method: 'post' })
+  }
 
   return (
     <PageShell compact>
@@ -293,6 +195,7 @@ export function GameView() {
                     type="button"
                     variant="ghost"
                     aria-label="Pass turn"
+                    onClick={() => submitGameIntent('pass-turn')}
                     className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
                   >
                     <SkipForward size={10} />
@@ -334,9 +237,13 @@ export function GameView() {
 
             <div className="grid grid-cols-[1fr_1.5rem] gap-1">
               <div className="flex flex-wrap items-center justify-start gap-1.5 rounded-xl p-1">
+                {actionData?.gameAction && !actionData.gameAction.ok ? (
+                  <span className="text-[10px] font-semibold text-[var(--text-danger)]">{actionData.gameAction.error}</span>
+                ) : null}
                 <AppButton
                   type="button"
                   variant="ghost"
+                  onClick={() => submitGameIntent('declare-action')}
                   className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
                 >
                   Attack
@@ -358,6 +265,7 @@ export function GameView() {
                 <AppButton
                   type="button"
                   variant="ghost"
+                  onClick={() => submitGameIntent('advance-phase')}
                   className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
                 >
                   End Turn

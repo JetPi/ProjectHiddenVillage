@@ -1,25 +1,25 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type ThemeMode = 'light' | 'dark'
+export type IThemeMode = 'light' | 'dark'
 
-type ThemeStoreState = {
-  theme: ThemeMode
+type IThemeStoreState = {
+  theme: IThemeMode
   initialized: boolean
   initializeTheme: () => void
-  setTheme: (theme: ThemeMode) => void
+  setTheme: (theme: IThemeMode) => void
   toggleTheme: () => void
 }
 
-function applyTheme(theme: ThemeMode) {
+function applyTheme(theme: IThemeMode) {
   document.documentElement.dataset.theme = theme
 }
 
-function getSystemTheme(): ThemeMode {
+function getSystemTheme(): IThemeMode {
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
 }
 
-export const useThemeStore = create<ThemeStoreState>()(
+export const useThemeStore = create<IThemeStoreState>()(
   persist(
     (set, get) => ({
       theme: 'dark',
@@ -38,7 +38,7 @@ export const useThemeStore = create<ThemeStoreState>()(
         set({ theme, initialized: true })
       },
       toggleTheme: () => {
-        const nextTheme: ThemeMode = get().theme === 'dark' ? 'light' : 'dark'
+        const nextTheme: IThemeMode = get().theme === 'dark' ? 'light' : 'dark'
         applyTheme(nextTheme)
         set({ theme: nextTheme, initialized: true })
       },

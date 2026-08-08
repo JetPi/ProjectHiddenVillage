@@ -1,13 +1,13 @@
 import { useLayoutEffect, useRef } from 'react'
 
-type UseAlignedSplitOptions = {
+type IUseAlignedSplitOptions = {
   splitStartVar?: string
   splitEndVar?: string
   halfBandPercent?: number
 }
 
 export function useAlignedSplit(
-  options: UseAlignedSplitOptions = {},
+  options: IUseAlignedSplitOptions = {},
 ) {
   const {
     splitStartVar = '--turn-split-start',

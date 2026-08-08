@@ -1,15 +1,15 @@
 import type { HTMLAttributes } from 'react'
 import { twMerge } from 'tailwind-merge'
 
-export type ToggleOption<T extends string> = {
+export type IToggleOption<T extends string> = {
   value: T
   label: string
   disabled?: boolean
 }
 
-type OptionToggleProps<T extends string> = {
+type IOptionToggleProps<T extends string> = {
   value: T
-  options: readonly ToggleOption<T>[]
+  options: readonly IToggleOption<T>[]
   onChange: (value: T) => void
   ariaLabel: string
   className?: string
@@ -25,7 +25,7 @@ export function OptionToggle<T extends string>({
   className = '',
   optionClassName = '',
   ...groupProps
-}: OptionToggleProps<T>) {
+}: IOptionToggleProps<T>) {
   return (
     <div
       {...groupProps}

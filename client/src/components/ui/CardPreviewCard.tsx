@@ -1,16 +1,16 @@
 import { Fragment, useEffect, useId, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { twMerge } from 'tailwind-merge'
-import type { CardCatalogItemResponse } from '../../types/cardCatalog'
+import type { ICardCatalogItemResponse } from '../../types/cardCatalog'
 import { CardImage } from './CardImage'
 
-type CardPreviewCardProps = {
-    card: CardCatalogItemResponse
+type ICardPreviewCardProps = {
+    card: ICardCatalogItemResponse
     className?: string
     imageLoading?: 'lazy' | 'eager'
 }
 
-function getPrimaryName(card: CardCatalogItemResponse): string {
+function getPrimaryName(card: ICardCatalogItemResponse): string {
     if (card.displayName.trim()) {
         return card.displayName
     }
@@ -22,7 +22,7 @@ function getPrimaryName(card: CardCatalogItemResponse): string {
     return card.id
 }
 
-function getCardIdentityLine(card: CardCatalogItemResponse): string {
+function getCardIdentityLine(card: ICardCatalogItemResponse): string {
     return [card.type, card.color].filter(Boolean).join(' - ')
 }
 
@@ -34,7 +34,7 @@ function splitDescriptionLines(description: string | null | undefined): string[]
     return description.split(/<br\s*\/?>/gi).map((line) => line.trim())
 }
 
-export function CardPreviewCard({ card, className, imageLoading = 'lazy' }: CardPreviewCardProps) {
+export function CardPreviewCard({ card, className, imageLoading = 'lazy' }: ICardPreviewCardProps) {
     const [isZoomOpen, setIsZoomOpen] = useState(false)
     const dialogTitleId = useId()
     const primaryName = getPrimaryName(card)

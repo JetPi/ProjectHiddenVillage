@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { CardCatalogItemResponse } from '../../types/cardCatalog'
+import type { ICardCatalogItemResponse } from '../../types/cardCatalog'
 import { fetchCardCatalogByIdsSparseCached } from '../api/cardCatalogApi'
 import { fetchGameCards } from '../api/gameApi'
 import { DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '../queryClient'
@@ -37,19 +37,19 @@ export const cardQueryKeys = {
   gameCards: (joinCode: string) => ['cards', 'game', joinCode.trim().toLowerCase()] as const,
 }
 
-type UseCardCatalogByIdsQueryOptions = {
+type IUseCardCatalogByIdsQueryOptions = {
   enabled?: boolean
   staleTimeMs?: number
 }
 
 export function useCardCatalogByIdsQuery(
   cardIds: string[],
-  options: UseCardCatalogByIdsQueryOptions = {},
+  options: IUseCardCatalogByIdsQueryOptions = {},
 ) {
   const normalizedCardIds = useMemo(() => normalizeCardIds(cardIds), [cardIds])
   const staleTimeMs = options.staleTimeMs ?? DEFAULT_CARD_CATALOG_STALE_TIME_MS
 
-  return useQuery<CardCatalogItemResponse[]>({
+  return useQuery<ICardCatalogItemResponse[]>({
     queryKey: cardQueryKeys.byIds(normalizedCardIds),
     queryFn: () => fetchCardCatalogByIdsSparseCached(normalizedCardIds, staleTimeMs),
     enabled: (options.enabled ?? true) && normalizedCardIds.length > 0,
@@ -57,7 +57,7 @@ export function useCardCatalogByIdsQuery(
   })
 }
 
-type UseGameCardsQueryOptions = {
+type IUseGameCardsQueryOptions = {
   enabled?: boolean
   staleTimeMs?: number
   refetchIntervalMs?: number
@@ -65,12 +65,12 @@ type UseGameCardsQueryOptions = {
 
 export function useGameCardsQuery(
   joinCode: string | undefined,
-  options: UseGameCardsQueryOptions = {},
+  options: IUseGameCardsQueryOptions = {},
 ) {
   const normalizedJoinCode = joinCode?.trim() ?? ''
   const staleTimeMs = options.staleTimeMs ?? 4_000
 
-  return useQuery<CardCatalogItemResponse[]>({
+  return useQuery<ICardCatalogItemResponse[]>({
     queryKey: cardQueryKeys.gameCards(normalizedJoinCode),
     queryFn: () => fetchGameCards(normalizedJoinCode),
     enabled: (options.enabled ?? true) && normalizedJoinCode.length > 0,
@@ -79,19 +79,19 @@ export function useGameCardsQuery(
   })
 }
 
-type UseGameCardMapByIdResult = {
-  cardsById: Map<string, CardCatalogItemResponse>
-  getCardById: (cardId: string | null | undefined) => CardCatalogItemResponse | undefined
+type IUseGameCardMapByIdResult = {
+  cardsById: Map<string, ICardCatalogItemResponse>
+  getCardById: (cardId: string | null | undefined) => ICardCatalogItemResponse | undefined
 }
 
 export function useGameCardMapById(
   joinCode: string | undefined,
-  options: UseGameCardsQueryOptions = {},
-): UseGameCardMapByIdResult {
+  options: IUseGameCardsQueryOptions = {},
+): IUseGameCardMapByIdResult {
   const queryResult = useGameCardsQuery(joinCode, options)
 
   const cardsById = useMemo(() => {
-    const nextMap = new Map<string, CardCatalogItemResponse>()
+    const nextMap = new Map<string, ICardCatalogItemResponse>()
 
     for (const card of queryResult.data ?? []) {
       const normalizedCardId = card.id.trim().toLowerCase()
@@ -105,7 +105,7 @@ export function useGameCardMapById(
     return nextMap
   }, [queryResult.data])
 
-  const getCardById = (cardId: string | null | undefined): CardCatalogItemResponse | undefined => {
+  const getCardById = (cardId: string | null | undefined): ICardCatalogItemResponse | undefined => {
     const normalizedCardId = cardId?.trim().toLowerCase() ?? ''
     if (!normalizedCardId) {
       return undefined

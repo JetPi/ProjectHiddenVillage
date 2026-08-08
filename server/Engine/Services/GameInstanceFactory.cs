@@ -17,7 +17,7 @@ public sealed class GameInstanceFactory
             ValidateJoinablePlayer(player, knownPlayerIds, cardDefinitions);
         }
 
-        var playerStates = players.Select(BuildPlayerState).ToList();
+        var playerStates = players.Select(player => BuildPlayerState(player, cardDefinitions)).ToList();
 
         var state = new GameState
         {
@@ -59,7 +59,7 @@ public sealed class GameInstanceFactory
 
         ValidateJoinablePlayer(player, knownPlayerIds, instance.State.CardDefinitions);
 
-        instance.State.Players.Add(BuildPlayerState(player));
+        instance.State.Players.Add(BuildPlayerState(player, instance.State.CardDefinitions));
         instance.AddActionLogEntry(
             actionType: "player_joined",
             message: $"{player.Id} joined the game.",
@@ -141,7 +141,7 @@ public sealed class GameInstanceFactory
         }
     }
 
-    private static PlayerState BuildPlayerState(Player player)
+    private static PlayerState BuildPlayerState(Player player, IReadOnlyDictionary<string, Card> cardDefinitions)
     {
         var deckInstances = player.Deck.Select(cardDefinitionId => new CardInstance
         {
@@ -152,14 +152,77 @@ public sealed class GameInstanceFactory
             IsExhausted = false
         }).ToList();
 
+        var leaderCardInstance = BuildLeaderCardInstance(deckInstances, cardDefinitions);
+
         return new PlayerState
         {
             PlayerId = player.Id,
             ResourcePool = 0,
+            LeaderCardInstance = leaderCardInstance,
             Deck = deckInstances,
             Hand = [],
             Battlefield = [],
             DiscardPile = []
         };
+    }
+
+    private static LeaderCardInstanceState? BuildLeaderCardInstance(
+        IReadOnlyList<CardInstance> deckInstances,
+        IReadOnlyDictionary<string, Card> cardDefinitions)
+    {
+        var leaderDeckInstance = deckInstances.FirstOrDefault(instance =>
+            cardDefinitions.TryGetValue(instance.CardDefinitionId, out var definition)
+            && definition.Type == CardType.Leader);
+
+        if (leaderDeckInstance is null)
+        {
+            return null;
+        }
+
+        if (!cardDefinitions.TryGetValue(leaderDeckInstance.CardDefinitionId, out var leaderDefinition))
+        {
+            return null;
+        }
+
+        var totalLife = leaderDefinition is LeaderCard typedLeader
+            ? typedLeader.Life
+            : 0;
+
+        var recoveryEffect = leaderDefinition is LeaderCard withRecovery
+            ? withRecovery.RecoveryEffect
+            : string.Empty;
+
+        return new LeaderCardInstanceState
+        {
+            InstanceId = leaderDeckInstance.InstanceId,
+            CardDefinitionId = leaderDeckInstance.CardDefinitionId,
+            OwnerPlayerId = leaderDeckInstance.OwnerPlayerId,
+            ControllerPlayerId = leaderDeckInstance.ControllerPlayerId,
+            Name = ResolveLeaderName(leaderDefinition),
+            Color = leaderDefinition.Color,
+            Description = leaderDefinition.Description,
+            Traits = [.. leaderDefinition.Traits],
+            Damage = leaderDefinition.Damage,
+            Power = leaderDefinition.Power,
+            RecoveryEffect = recoveryEffect,
+            TotalLife = totalLife,
+            CurrentLife = totalLife
+        };
+    }
+
+    private static string ResolveLeaderName(Card card)
+    {
+        if (!string.IsNullOrWhiteSpace(card.DisplayName))
+        {
+            return card.DisplayName;
+        }
+
+        var fallbackName = card.Name.FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
+        if (!string.IsNullOrWhiteSpace(fallbackName))
+        {
+            return fallbackName;
+        }
+
+        return card.Id;
     }
 }

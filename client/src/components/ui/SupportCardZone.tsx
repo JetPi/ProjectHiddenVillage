@@ -1,7 +1,7 @@
 import { twMerge } from 'tailwind-merge'
 import { PlayCard } from './PlayCard'
 
-type SupportCardZoneProps = {
+type ISupportCardZoneProps = {
   className?: string
   slotClassName?: string
 }
@@ -9,7 +9,7 @@ type SupportCardZoneProps = {
 export function SupportCardZone({
   className,
   slotClassName = 'h-full rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]',
-}: SupportCardZoneProps) {
+}: ISupportCardZoneProps) {
   return (
     <div className={twMerge('grid min-h-0 w-full overflow-hidden grid-cols-5 justify-items-center gap-1.5', className)}>
       <PlayCard className={slotClassName} />
