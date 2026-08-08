@@ -1,21 +1,21 @@
 import { api } from './httpClient'
-import type { DeckResponse } from '../../types/deck'
+import type { IDeckResponse } from '../../types/deck'
 
 const DECK_TYPE_USER = 1
 
-type CreateDeckRequest = {
+type ICreateDeckRequest = {
   type: number
   cards: string
   userId: string
 }
 
-type FetchDecksQuery = {
+type IFetchDecksQuery = {
   userId?: string
   populate?: boolean
 }
 
 export async function createUserDeck(cards: string, userId: string): Promise<string> {
-  const payload: CreateDeckRequest = {
+  const payload: ICreateDeckRequest = {
     type: DECK_TYPE_USER,
     cards,
     userId,
@@ -25,8 +25,8 @@ export async function createUserDeck(cards: string, userId: string): Promise<str
   return data
 }
 
-export async function fetchDecks(query: FetchDecksQuery = {}): Promise<DeckResponse[]> {
-  const { data } = await api.get<DeckResponse[]>('/api/deck', {
+export async function fetchDecks(query: IFetchDecksQuery = {}): Promise<IDeckResponse[]> {
+  const { data } = await api.get<IDeckResponse[]>('/api/deck', {
     params: query,
   })
 

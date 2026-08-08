@@ -10,10 +10,10 @@ import {
   FormInput,
   FormLabel,
 } from '../../components/forms'
-import type { SignUpActionData } from './handlers/signInRouteHandlers'
+import type { ISignUpActionData } from './handlers/signInRouteHandlers'
 
 export function SignInView() {
-  const actionData = useActionData() as SignUpActionData | undefined
+  const actionData = useActionData() as ISignUpActionData | undefined
   const navigation = useNavigation()
 
   const isSubmitting = navigation.state === 'submitting'

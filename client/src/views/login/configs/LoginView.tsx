@@ -1,20 +1,20 @@
-import type { ToggleOption } from '../../../components/forms'
-import type { AdaptiveFieldConfig } from '../../../components/forms'
-import type { DeckOptionsEntryMode, GameCodeEntryMode } from '../../../types/login'
+import type { IToggleOption } from '../../../components/forms'
+import type { IAdaptiveFieldConfig } from '../../../components/forms'
+import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from '../../../types/login'
 
-export const deckOptionsModeOptions: readonly ToggleOption<DeckOptionsEntryMode>[] = [
+export const deckOptionsModeOptions: readonly IToggleOption<IDeckOptionsEntryMode>[] = [
   { value: 'import', label: 'Import' },
   { value: 'saved_decks', label: 'Saved Decks' },
   { value: 'starter_decks', label: 'Starter Decks' },
 ]
 
-export const gameCodeModeOptions: readonly ToggleOption<GameCodeEntryMode>[] = [
+export const gameCodeModeOptions: readonly IToggleOption<IGameCodeEntryMode>[] = [
   { value: 'quickmatch', label: 'Quick Match' },
   { value: 'join', label: 'Join' },
   { value: 'create', label: 'Create' },
 ]
 
-export const gameCodeFieldConfigByMode: Record<GameCodeEntryMode, AdaptiveFieldConfig> = {
+export const gameCodeFieldConfigByMode: Record<IGameCodeEntryMode, IAdaptiveFieldConfig> = {
   quickmatch: {
     type: 'select',
     choices: [
@@ -38,7 +38,7 @@ export const gameCodeFieldConfigByMode: Record<GameCodeEntryMode, AdaptiveFieldC
   },
 }
 
-export const deckOptionsFieldConfigByMode: Record<DeckOptionsEntryMode, AdaptiveFieldConfig> = {
+export const deckOptionsFieldConfigByMode: Record<IDeckOptionsEntryMode, IAdaptiveFieldConfig> = {
     import: {
       type: 'input',
       props: {

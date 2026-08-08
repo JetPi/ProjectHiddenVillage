@@ -1,23 +1,23 @@
 import { Component, type ErrorInfo, type PropsWithChildren, type ReactNode } from 'react'
 
-type ErrorBoundaryProps = PropsWithChildren<{
+type IErrorBoundaryProps = PropsWithChildren<{
   fallback?: ReactNode
 }>
 
-type ErrorBoundaryState = {
+type IErrorBoundaryState = {
   hasError: boolean
   errorMessage: string
 }
 
-const initialState: ErrorBoundaryState = {
+const initialState: IErrorBoundaryState = {
   hasError: false,
   errorMessage: '',
 }
 
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = initialState
+export class ErrorBoundary extends Component<IErrorBoundaryProps, IErrorBoundaryState> {
+  state: IErrorBoundaryState = initialState
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+  static getDerivedStateFromError(error: Error): IErrorBoundaryState {
     return {
       hasError: true,
       errorMessage: error.message,

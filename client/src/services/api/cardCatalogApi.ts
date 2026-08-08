@@ -1,5 +1,5 @@
 import { api } from './httpClient'
-import type { CardCatalogItemResponse, PagedResponse } from '../../types/cardCatalog'
+import type { ICardCatalogItemResponse, IPagedResponse } from '../../types/cardCatalog'
 import { appQueryClient, DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '../queryClient'
 
 const CARD_CATALOG_CACHE_TTL_MS = DEFAULT_CARD_CATALOG_STALE_TIME_MS
@@ -45,7 +45,7 @@ function getCardCatalogByIdQueryKey(cardId: string): readonly [string, string, s
   return ['card-catalog', 'by-id', toNormalizedCardId(cardId)] as const
 }
 
-function setCardItemQueryCache(cards: CardCatalogItemResponse[]): void {
+function setCardItemQueryCache(cards: ICardCatalogItemResponse[]): void {
   for (const card of cards) {
     const normalizedId = toNormalizedCardId(card.id)
     if (!normalizedId) {
@@ -56,14 +56,14 @@ function setCardItemQueryCache(cards: CardCatalogItemResponse[]): void {
   }
 }
 
-function getFreshCardItemFromCache(cardId: string, ttlMs: number): CardCatalogItemResponse | undefined {
+function getFreshCardItemFromCache(cardId: string, ttlMs: number): ICardCatalogItemResponse | undefined {
   const normalizedCardId = toNormalizedCardId(cardId)
   if (!normalizedCardId) {
     return undefined
   }
 
   const queryKey = getCardCatalogByIdQueryKey(normalizedCardId)
-  const queryState = appQueryClient.getQueryState<CardCatalogItemResponse>(queryKey)
+  const queryState = appQueryClient.getQueryState<ICardCatalogItemResponse>(queryKey)
   if (!queryState?.data) {
     return undefined
   }
@@ -76,24 +76,24 @@ function getFreshCardItemFromCache(cardId: string, ttlMs: number): CardCatalogIt
   return queryState.data
 }
 
-export type CardCatalogPageQuery = {
+export type ICardCatalogPageQuery = {
   page?: number
   pageSize?: number
   sort?: string
 }
 
 export async function fetchCardCatalogPage(
-  query: CardCatalogPageQuery = {},
-): Promise<PagedResponse<CardCatalogItemResponse>> {
-  const { data } = await api.get<PagedResponse<CardCatalogItemResponse>>('/api/card/catalog', {
+  query: ICardCatalogPageQuery = {},
+): Promise<IPagedResponse<ICardCatalogItemResponse>> {
+  const { data } = await api.get<IPagedResponse<ICardCatalogItemResponse>>('/api/card/catalog', {
     params: query,
   })
 
   return data
 }
 
-export async function fetchCardCatalogByIds(cardIds: string[]): Promise<CardCatalogItemResponse[]> {
-  const { data } = await api.post<CardCatalogItemResponse[]>('/api/card/catalog/by-ids', cardIds)
+export async function fetchCardCatalogByIds(cardIds: string[]): Promise<ICardCatalogItemResponse[]> {
+  const { data } = await api.post<ICardCatalogItemResponse[]>('/api/card/catalog/by-ids', cardIds)
 
   return data
 }
@@ -101,7 +101,7 @@ export async function fetchCardCatalogByIds(cardIds: string[]): Promise<CardCata
 export async function fetchCardCatalogByIdsCached(
   cardIds: string[],
   ttlMs: number = CARD_CATALOG_CACHE_TTL_MS,
-): Promise<CardCatalogItemResponse[]> {
+): Promise<ICardCatalogItemResponse[]> {
   const requestedIds = sanitizeUniqueRequestedCardIds(cardIds)
   if (requestedIds.length === 0) {
     return []
@@ -144,7 +144,7 @@ export function getMissingCardCatalogIds(cardIds: string[]): string[] {
 export async function fetchCardCatalogByIdsSparseCached(
   cardIds: string[],
   ttlMs: number = CARD_CATALOG_CACHE_TTL_MS,
-): Promise<CardCatalogItemResponse[]> {
+): Promise<ICardCatalogItemResponse[]> {
   const requestedIds = sanitizeUniqueRequestedCardIds(cardIds)
   if (requestedIds.length === 0) {
     return []
@@ -161,7 +161,7 @@ export async function fetchCardCatalogByIdsSparseCached(
     requestedByNormalizedId.set(normalizedCardId, requestedId)
   }
 
-  const cardsByNormalizedId = new Map<string, CardCatalogItemResponse>()
+  const cardsByNormalizedId = new Map<string, ICardCatalogItemResponse>()
   const missingIds: string[] = []
 
   for (const [normalizedCardId, requestedId] of requestedByNormalizedId.entries()) {
@@ -183,7 +183,7 @@ export async function fetchCardCatalogByIdsSparseCached(
     }
   }
 
-  const orderedCards: CardCatalogItemResponse[] = []
+  const orderedCards: ICardCatalogItemResponse[] = []
 
   for (const normalizedCardId of requestedByNormalizedId.keys()) {
     const card = cardsByNormalizedId.get(normalizedCardId)

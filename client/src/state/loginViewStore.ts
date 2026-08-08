@@ -1,14 +1,14 @@
 import { create } from 'zustand'
-import type { DeckOptionsEntryMode, GameCodeEntryMode } from '../types/login'
-import type { LoginViewStoreState } from './types/loginViewStore'
+import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from '../types/login'
+import type { ILoginViewStoreState } from './types/loginViewStore'
 
-const initialGameCodeByMode: Record<GameCodeEntryMode, string> = {
+const initialGameCodeByMode: Record<IGameCodeEntryMode, string> = {
   quickmatch: 'casual',
   join: '',
   create: '',
 }
 
-const initialDeckOptionsByMode: Record<DeckOptionsEntryMode, string> = {
+const initialDeckOptionsByMode: Record<IDeckOptionsEntryMode, string> = {
   import: '',
   saved_decks: '',
   starter_decks: '',
@@ -16,14 +16,14 @@ const initialDeckOptionsByMode: Record<DeckOptionsEntryMode, string> = {
 
 const initialState = {
   displayName: '',
-  gameCodeMode: 'quickmatch' as GameCodeEntryMode,
+  gameCodeMode: 'quickmatch' as IGameCodeEntryMode,
   gameCodeByMode: initialGameCodeByMode,
-  deckOptionsMode: 'import' as DeckOptionsEntryMode,
+  deckOptionsMode: 'import' as IDeckOptionsEntryMode,
   deckOptionsByMode: initialDeckOptionsByMode,
   showDisplayNameError: false,
 }
 
-export const useLoginViewStore = create<LoginViewStoreState>()((set, get) => ({
+export const useLoginViewStore = create<ILoginViewStoreState>()((set, get) => ({
   ...initialState,
   setDisplayName: (value) => {
     const hasValue = value.trim().length > 0

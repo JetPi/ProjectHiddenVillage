@@ -37,6 +37,41 @@ public sealed class GamesServiceUserDeckFlowTests
     }
 
     [TestMethod]
+    public async Task CreateGameForUser_PopulatesLeaderCardInstance_WhenDeckContainsLeader()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var user = CreateUser("leader@example.com", "leader-user");
+        var leader = CreateLeaderCatalogEntry("L-001", "Naruto", life: 5, description: "[Recovery] Heal 1");
+        var support = CreateCatalogEntry("C-001", "Support Card");
+
+        dbContext.Users.Add(user);
+        dbContext.Decks.Add(CreateDeck(user.Id, [
+            (leader, 1),
+            (support, 1)
+        ]));
+        await dbContext.SaveChangesAsync();
+
+        var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
+        var service = CreateService(dbContext);
+
+        var result = await service.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
+
+        Assert.IsFalse(result.IsError);
+        var player = result.Value.State.Players.Single();
+        Assert.IsNotNull(player.LeaderCardInstance);
+        Assert.AreEqual("L-001", player.LeaderCardInstance.CardDefinitionId);
+        Assert.AreEqual("Naruto", player.LeaderCardInstance.Name);
+        Assert.AreEqual(CardColor.Red, player.LeaderCardInstance.Color);
+        Assert.AreEqual("[Recovery] Heal 1", player.LeaderCardInstance.Description);
+        Assert.AreEqual("Heal 1", player.LeaderCardInstance.RecoveryEffect);
+        Assert.AreEqual(5, player.LeaderCardInstance.TotalLife);
+        Assert.AreEqual(5, player.LeaderCardInstance.CurrentLife);
+        Assert.AreEqual(user.Id.ToString("N"), player.LeaderCardInstance.OwnerPlayerId);
+        Assert.AreEqual(user.Id.ToString("N"), player.LeaderCardInstance.ControllerPlayerId);
+    }
+
+    [TestMethod]
     public async Task JoinGameForUser_AllowsSecondPlayer_AndRejectsThirdPlayer()
     {
         await using var dbContext = CreateDbContext();
@@ -215,6 +250,27 @@ public sealed class GamesServiceUserDeckFlowTests
             TraitsJson = "[]",
             ConditionsJson = "[]",
             EffectsJson = "[]",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        };
+    }
+
+    private static CardCatalogEntry CreateLeaderCatalogEntry(string cardId, string displayName, int life, string description)
+    {
+        return new CardCatalogEntry
+        {
+            CardId = cardId,
+            Image = $"https://example.com/{cardId.ToLowerInvariant()}.webp",
+            OriginalId = cardId,
+            DisplayName = displayName,
+            Type = CardType.Leader,
+            Color = CardColor.Red,
+            Description = description,
+            NameJson = $"[\"{displayName}\"]",
+            TraitsJson = "[]",
+            ConditionsJson = "[]",
+            EffectsJson = "[]",
+            Life = life,
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };

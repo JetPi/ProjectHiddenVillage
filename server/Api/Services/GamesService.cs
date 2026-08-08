@@ -339,7 +339,7 @@ public sealed class GamesService
             CardType.Leader => new LeaderCard
             {
                 Life = entry.Life ?? 0,
-                RecoveryEffect = string.Empty
+                RecoveryEffect = ExtractRecoveryEffect(entry.Description)
             },
             CardType.Character or CardType.ExCharacter => new CharacterCard
             {
@@ -385,6 +385,23 @@ public sealed class GamesService
         {
             return fallback;
         }
+    }
+
+    private static string ExtractRecoveryEffect(string description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return string.Empty;
+        }
+
+        const string marker = "[Recovery]";
+        var index = description.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return string.Empty;
+        }
+
+        return description[(index + marker.Length)..].Trim();
     }
 
     private static bool HasStoredDeck(PlayerState playerState)

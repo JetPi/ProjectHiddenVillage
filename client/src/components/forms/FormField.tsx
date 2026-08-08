@@ -1,9 +1,9 @@
 import type { HTMLAttributes, PropsWithChildren } from 'react'
 import { twMerge } from 'tailwind-merge'
 
-type FormFieldProps = PropsWithChildren<HTMLAttributes<HTMLDivElement>>
+type IFormFieldProps = PropsWithChildren<HTMLAttributes<HTMLDivElement>>
 
-export function FormField({ className = '', children, ...fieldProps }: FormFieldProps) {
+export function FormField({ className = '', children, ...fieldProps }: IFormFieldProps) {
   return (
     <div
       {...fieldProps}

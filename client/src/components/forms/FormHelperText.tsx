@@ -1,8 +1,8 @@
 import type { HTMLAttributes, PropsWithChildren } from 'react'
 
-type FormHelperTextProps = PropsWithChildren<HTMLAttributes<HTMLParagraphElement>>
+type IFormHelperTextProps = PropsWithChildren<HTMLAttributes<HTMLParagraphElement>>
 
-export function FormHelperText({ className = '', children, ...helperProps }: FormHelperTextProps) {
+export function FormHelperText({ className = '', children, ...helperProps }: IFormHelperTextProps) {
   return (
     <p
       {...helperProps}

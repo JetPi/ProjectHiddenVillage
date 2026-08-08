@@ -1,11 +1,11 @@
-export type DeckCardResponse = {
+export type IDeckCardResponse = {
   cardId: string
   quantity: number
 }
 
-export type DeckResponse = {
+export type IDeckResponse = {
   id: string
   type: string
   userId: string | null
-  cards: DeckCardResponse[]
+  cards: IDeckCardResponse[]
 }

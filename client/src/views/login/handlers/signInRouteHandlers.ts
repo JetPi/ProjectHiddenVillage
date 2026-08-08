@@ -1,23 +1,23 @@
 import type { ActionFunctionArgs } from 'react-router-dom'
 import { redirect } from 'react-router-dom'
 import { api } from '../../../services/api/httpClient'
-import type { AuthSession } from '../../../state/authSession'
+import type { IAuthSession } from '../../../state/authSession'
 import { persistAuthSession } from '../../../state/authSession'
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage'
 
-type UserResponse = {
+type IUserResponse = {
   id: string
   username: string
   email: string
 }
 
-type SignUpApiRequest = {
+type ISignUpApiRequest = {
   username: string
   email: string
   password: string
 }
 
-type LoginResponse = {
+type ILoginResponse = {
   id: string
   username: string
   email: string
@@ -25,12 +25,12 @@ type LoginResponse = {
   expiresAt: string
 }
 
-type LoginApiRequest = {
+type ILoginApiRequest = {
   email: string
   password: string
 }
 
-export type SignUpActionData = {
+export type ISignUpActionData = {
   signUp?: {
     ok: boolean
     error?: string
@@ -45,7 +45,7 @@ export async function signInLoader(): Promise<null> {
   return null
 }
 
-export async function signInAction({ request }: ActionFunctionArgs): Promise<SignUpActionData | Response> {
+export async function signInAction({ request }: ActionFunctionArgs): Promise<ISignUpActionData | Response> {
   const formData = await request.formData()
 
   const username = String(formData.get('username') ?? '').trim()
@@ -66,23 +66,23 @@ export async function signInAction({ request }: ActionFunctionArgs): Promise<Sig
   }
 
   try {
-    const signUpPayload: SignUpApiRequest = {
+    const signUpPayload: ISignUpApiRequest = {
       username,
       email,
       password,
     }
 
-    await api.post<UserResponse>('/api/user', signUpPayload)
+    await api.post<IUserResponse>('/api/user', signUpPayload)
 
     // Auto-login after successful signup so the user can continue immediately.
-    const loginPayload: LoginApiRequest = {
+    const loginPayload: ILoginApiRequest = {
       email,
       password,
     }
 
-    const { data: loginResponse } = await api.post<LoginResponse>('/api/user/login', loginPayload)
+    const { data: loginResponse } = await api.post<ILoginResponse>('/api/user/login', loginPayload)
 
-    const authUser: AuthSession = {
+    const authUser: IAuthSession = {
       userId: loginResponse.id,
       username: loginResponse.username,
       email: loginResponse.email,

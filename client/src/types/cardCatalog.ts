@@ -1,4 +1,4 @@
-export type PagedResponse<TItem> = {
+export type IPagedResponse<TItem> = {
   page: number
   pageSize: number
   totalCount: number
@@ -6,19 +6,19 @@ export type PagedResponse<TItem> = {
   items: TItem[]
 }
 
-export type CardCatalogConditionResponse = {
+export type ICardCatalogConditionResponse = {
   id: string
   args: Record<string, string>
 }
 
-export type CardCatalogEffectResponse = {
+export type ICardCatalogEffectResponse = {
   id: string
   kind: string
   timing: string
   args: Record<string, string>
 }
 
-export type CardCatalogItemResponse = {
+export type ICardCatalogItemResponse = {
   id: string
   image: string
   originalId: string
@@ -32,8 +32,8 @@ export type CardCatalogItemResponse = {
   description: string
   damage: number
   power: number
-  conditions: CardCatalogConditionResponse[]
-  effects: CardCatalogEffectResponse[]
+  conditions: ICardCatalogConditionResponse[]
+  effects: ICardCatalogEffectResponse[]
   life: number | null
   health: number | null
   supportName: string | null

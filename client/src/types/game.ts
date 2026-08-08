@@ -1,4 +1,4 @@
-export type GamePhase =
+export type IGamePhase =
   | 'StartOfMainPhase'
   | 'Draw'
   | 'SetResource'
@@ -10,7 +10,7 @@ export type GamePhase =
   | 'BattleEndStep'
   | 'EndStep'
 
-export type GameActionLogEntry = {
+export type IGameActionLogEntry = {
   entryId: string
   timestampUtc: string
   actionType: string

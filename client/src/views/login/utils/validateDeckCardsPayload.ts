@@ -1,11 +1,11 @@
 const DECK_LINE_PATTERN = /^\s*(\d+)x\s+([A-Za-z0-9-]+)\s*$/
 
-export type DeckCardsValidationResult = {
+export type IDeckCardsValidationResult = {
   isValid: boolean
   message?: string
 }
 
-export function validateDeckCardsPayload(cardsPayload: string): DeckCardsValidationResult {
+export function validateDeckCardsPayload(cardsPayload: string): IDeckCardsValidationResult {
   const lines = cardsPayload
     .split(/\r?\n/)
     .map((line) => line.trim())

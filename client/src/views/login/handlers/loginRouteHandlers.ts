@@ -1,10 +1,10 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router-dom'
 import { api } from '../../../services/api/httpClient'
-import type { AuthSession } from '../../../state/authSession'
+import type { IAuthSession } from '../../../state/authSession'
 import { persistAuthSession, readAuthSession } from '../../../state/authSession'
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage'
 
-type LoginResponse = {
+type ILoginResponse = {
   id: string
   username: string
   email: string
@@ -12,25 +12,25 @@ type LoginResponse = {
   expiresAt: string
 }
 
-type LoginApiRequest = {
+type ILoginApiRequest = {
   email: string
   password: string
 }
 
-export type LoginLoaderData = {
+export type ILoginLoaderData = {
   signupSuccess: boolean
-  authUser: AuthSession | null
+  authUser: IAuthSession | null
 }
 
-export type LoginActionData = {
+export type ILoginActionData = {
   login?: {
     ok: boolean
     error?: string
-    user?: AuthSession
+    user?: IAuthSession
   }
 }
 
-export async function loginLoader({ request }: LoaderFunctionArgs): Promise<LoginLoaderData> {
+export async function loginLoader({ request }: LoaderFunctionArgs): Promise<ILoginLoaderData> {
   const url = new URL(request.url)
 
   return {
@@ -39,7 +39,7 @@ export async function loginLoader({ request }: LoaderFunctionArgs): Promise<Logi
   }
 }
 
-export async function loginAction({ request }: ActionFunctionArgs): Promise<LoginActionData> {
+export async function loginAction({ request }: ActionFunctionArgs): Promise<ILoginActionData> {
   const formData = await request.formData()
   const intent = String(formData.get('intent') ?? '')
 
@@ -60,14 +60,14 @@ export async function loginAction({ request }: ActionFunctionArgs): Promise<Logi
   }
 
   try {
-    const loginPayload: LoginApiRequest = {
+    const loginPayload: ILoginApiRequest = {
       email,
       password,
     }
 
-    const {data: payload} = await api.post<LoginResponse>('/api/user/login', loginPayload)
+    const {data: payload} = await api.post<ILoginResponse>('/api/user/login', loginPayload)
 
-    const authUser: AuthSession = {
+    const authUser: IAuthSession = {
       userId: payload.id,
       username: payload.username,
       email: payload.email,

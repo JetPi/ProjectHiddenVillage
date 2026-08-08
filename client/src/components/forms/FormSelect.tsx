@@ -2,16 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { twMerge } from 'tailwind-merge'
 
-type FormSelectOption = {
+type IFormSelectOption = {
   value: string
   label: string
   disabled?: boolean
 }
 
-type FormSelectProps = {
+type IFormSelectProps = {
   id: string
   value: string
-  options: readonly FormSelectOption[]
+  options: readonly IFormSelectOption[]
   onValueChange: (value: string) => void
   name?: string
   placeholder?: string
@@ -28,7 +28,7 @@ export function FormSelect({
   placeholder = 'Select an option',
   disabled = false,
   className = '',
-}: FormSelectProps) {
+}: IFormSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
 

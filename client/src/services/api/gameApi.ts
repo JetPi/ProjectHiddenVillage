@@ -1,17 +1,21 @@
 import { api } from './httpClient'
-import type { CardCatalogItemResponse } from '../../types/cardCatalog'
+import type { ICardCatalogItemResponse } from '../../types/cardCatalog'
 
-type CreateGameForUserRequest = {
+type ICreateGameForUserRequest = {
   userId: string
   deckId: string
 }
 
-type JoinGameAsPlayerRequest = {
+type IJoinGameAsPlayerRequest = {
   userId: string
   deckId?: string
 }
 
-export type GameCardInstanceResponse = {
+type IPlayerPhaseActionRequest = {
+  playerId: string
+}
+
+export type IGameCardInstanceResponse = {
   instanceId: string
   cardDefinitionId: string
   ownerPlayerId: string
@@ -19,52 +23,98 @@ export type GameCardInstanceResponse = {
   isExhausted: boolean
 }
 
-export type GamePlayerStateResponse = {
-  playerId: string
-  resourcePool: number
-  deck: GameCardInstanceResponse[]
-  hand: GameCardInstanceResponse[]
-  battlefield: GameCardInstanceResponse[]
-  discardPile: GameCardInstanceResponse[]
+export type IGameLeaderCardInstanceResponse = {
+  instanceId: string
+  cardDefinitionId: string
+  ownerPlayerId: string
+  controllerPlayerId: string
+  name: string
+  color: string
+  description: string
+  traits: string[]
+  damage: number
+  power: number
+  recoveryEffect: string
+  totalLife: number
+  currentLife: number
 }
 
-export type GameStateResponse = {
+export type IGamePlayerStateResponse = {
+  playerId: string
+  resourcePool: number
+  leaderCardInstance: IGameLeaderCardInstanceResponse | null
+  deck: IGameCardInstanceResponse[]
+  hand: IGameCardInstanceResponse[]
+  battlefield: IGameCardInstanceResponse[]
+  discardPile: IGameCardInstanceResponse[]
+}
+
+export type IGameStateResponse = {
   gameId: string
   turnNumber: number
   activePlayerId: string
   priorityPlayerId: string
   consecutivePasses: number
-  players: GamePlayerStateResponse[]
+  players: IGamePlayerStateResponse[]
 }
 
-type GameInstanceResponse = {
+type IGameInstanceResponse = {
   id: string
 }
 
-export type GameInstanceDetailResponse = {
+export type IGameInstanceDetailResponse = {
   id: string
-  state: GameStateResponse
+  state: IGameStateResponse
 }
 
-export async function createGameForUser(request: CreateGameForUserRequest): Promise<GameInstanceResponse> {
-  const { data } = await api.post<GameInstanceResponse>('/api/games', request)
+export async function createGameForUser(request: ICreateGameForUserRequest): Promise<IGameInstanceResponse> {
+  const { data } = await api.post<IGameInstanceResponse>('/api/games', request)
   return data
 }
 
 export async function joinGameAsPlayer(
   gameCode: string,
-  request: JoinGameAsPlayerRequest,
-): Promise<GameInstanceResponse> {
-  const { data } = await api.post<GameInstanceResponse>(`/api/games/${encodeURIComponent(gameCode)}/join`, request)
+  request: IJoinGameAsPlayerRequest,
+): Promise<IGameInstanceResponse> {
+  const { data } = await api.post<IGameInstanceResponse>(`/api/games/${encodeURIComponent(gameCode)}/join`, request)
   return data
 }
 
-export async function fetchGameCards(gameCode: string): Promise<CardCatalogItemResponse[]> {
-  const { data } = await api.get<CardCatalogItemResponse[]>(`/api/games/${encodeURIComponent(gameCode)}/cards`)
+export async function fetchGameCards(gameCode: string): Promise<ICardCatalogItemResponse[]> {
+  const { data } = await api.get<ICardCatalogItemResponse[]>(`/api/games/${encodeURIComponent(gameCode)}/cards`)
   return data
 }
 
-export async function fetchGameById(gameCode: string): Promise<GameInstanceDetailResponse> {
-  const { data } = await api.get<GameInstanceDetailResponse>(`/api/games/${encodeURIComponent(gameCode)}`)
+export async function fetchGameById(gameCode: string): Promise<IGameInstanceDetailResponse> {
+  const { data } = await api.get<IGameInstanceDetailResponse>(`/api/games/${encodeURIComponent(gameCode)}`)
+  return data
+}
+
+export async function declarePassInActionStep(
+  gameCode: string,
+  request: IPlayerPhaseActionRequest,
+): Promise<IGameInstanceDetailResponse> {
+  const { data } = await api.post<IGameInstanceDetailResponse>(
+    `/api/games/${encodeURIComponent(gameCode)}/action-step/pass`,
+    request,
+  )
+
+  return data
+}
+
+export async function declareActionInActionStep(
+  gameCode: string,
+  request: IPlayerPhaseActionRequest,
+): Promise<IGameInstanceDetailResponse> {
+  const { data } = await api.post<IGameInstanceDetailResponse>(
+    `/api/games/${encodeURIComponent(gameCode)}/action-step/action`,
+    request,
+  )
+
+  return data
+}
+
+export async function advancePhase(gameCode: string): Promise<IGameInstanceDetailResponse> {
+  const { data } = await api.post<IGameInstanceDetailResponse>(`/api/games/${encodeURIComponent(gameCode)}/phase/advance`)
   return data
 }

@@ -7,34 +7,34 @@ import { FormInput } from './FormInput'
 import { FormSelect } from './FormSelect'
 import { FormTextarea } from './FormTextarea'
 
-type SelectChoice = {
+type ISelectChoice = {
   value: string
   label: string
 }
 
-type AdaptiveInputConfig = {
+type IAdaptiveInputConfig = {
   type: 'input'
   props?: Omit<InputHTMLAttributes<HTMLInputElement>, 'id' | 'value' | 'onChange'>
 }
 
-type AdaptiveSelectConfig = {
+type IAdaptiveSelectConfig = {
   type: 'select'
-  choices: readonly SelectChoice[]
+  choices: readonly ISelectChoice[]
   props?: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'id' | 'value' | 'onChange'>
 }
 
-type AdaptiveTextareaConfig = {
+type IAdaptiveTextareaConfig = {
   type: 'textarea'
   props?: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'id' | 'value' | 'onChange'>
 }
 
-export type AdaptiveFieldConfig = AdaptiveInputConfig | AdaptiveSelectConfig | AdaptiveTextareaConfig
+export type IAdaptiveFieldConfig = IAdaptiveInputConfig | IAdaptiveSelectConfig | IAdaptiveTextareaConfig
 
-type AdaptiveFormFieldProps = {
+type IAdaptiveFormFieldProps = {
   id: string
   value: string
   onValueChange: (value: string) => void
-  config: AdaptiveFieldConfig
+  config: IAdaptiveFieldConfig
   className?: string
 }
 
@@ -44,7 +44,7 @@ export function AdaptiveFormField({
   onValueChange,
   config,
   className = '',
-}: AdaptiveFormFieldProps) {
+}: IAdaptiveFormFieldProps) {
   if (config.type === 'input') {
     return (
       <FormInput

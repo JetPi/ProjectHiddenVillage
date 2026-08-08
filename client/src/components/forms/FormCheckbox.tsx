@@ -1,16 +1,16 @@
 import { forwardRef } from 'react'
 import type { InputHTMLAttributes, PropsWithChildren } from 'react'
 
-type FormCheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>
+type IFormCheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>
 
-type FormCheckboxFieldProps = PropsWithChildren<{
+type IFormCheckboxFieldProps = PropsWithChildren<{
   className?: string
   labelClassName?: string
   label: string
 }> &
-  FormCheckboxProps
+  IFormCheckboxProps
 
-export const FormCheckbox = forwardRef<HTMLInputElement, FormCheckboxProps>(function FormCheckbox(
+export const FormCheckbox = forwardRef<HTMLInputElement, IFormCheckboxProps>(function FormCheckbox(
   { className = '', ...checkboxProps },
   ref,
 ) {
@@ -31,7 +31,7 @@ export function FormCheckboxField({
   id,
   children,
   ...checkboxProps
-}: FormCheckboxFieldProps) {
+}: IFormCheckboxFieldProps) {
   return (
     <label
       htmlFor={id}

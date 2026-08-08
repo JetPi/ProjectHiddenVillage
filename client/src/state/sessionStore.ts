@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-type SessionStoreState = {
+type ISessionStoreState = {
   displayName: string
   gameCode: string
   setSession: (payload: { displayName: string; gameCode: string }) => void
@@ -13,7 +13,7 @@ const initialState = {
   gameCode: '',
 }
 
-export const useSessionStore = create<SessionStoreState>()(
+export const useSessionStore = create<ISessionStoreState>()(
   persist(
     (set) => ({
       ...initialState,

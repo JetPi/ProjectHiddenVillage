@@ -19,7 +19,7 @@ const fallbackSvg = encodeURIComponent(
 
 const FALLBACK_IMAGE_SRC = `data:image/svg+xml;charset=UTF-8,${fallbackSvg}`
 
-type CardImageProps = Omit<
+type ICardImageProps = Omit<
   ImgHTMLAttributes<HTMLImageElement>,
   'src' | 'alt' | 'loading' | 'decoding' | 'width' | 'height' | 'fetchPriority'
 > & {
@@ -46,7 +46,7 @@ export function CardImage({
   fallbackLabel,
   onError,
   ...imageProps
-}: CardImageProps) {
+}: ICardImageProps) {
   const normalizedSrc = src?.trim() ?? ''
   const hasSource = normalizedSrc.length > 0
   const [failedSource, setFailedSource] = useState<string | null>(null)
