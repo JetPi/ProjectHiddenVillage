@@ -8,21 +8,18 @@ type CardBackProps = {
   className?: string
 }
 
-const BLUE_TONE_CLASS = 'bg-[#2e5fd4]'
+const CARD_BACK_FRAME_CLASS = 'h-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)]'
+const CARD_BACK_IMAGE_CLASS = 'block h-full w-full rounded-none object-contain [image-rendering:auto]'
 
-const ORANGE_TONE_CLASS = 'bg-[#d87433]'
-
-export function CardBack({ tone = 'blue', className }: CardBackProps) {
-  const toneClassName = tone === 'orange' ? ORANGE_TONE_CLASS : BLUE_TONE_CLASS
-
+export function CardBack({ className }: CardBackProps) {
   return (
-    <div className={twMerge('h-full w-full overflow-hidden rounded-lg border-[3px] border-white', toneClassName, className)}>
+    <div className={twMerge(CARD_BACK_FRAME_CLASS, className)}>
       <img
         src={cardBackImage}
         alt="Card back"
         loading="lazy"
         decoding="async"
-        className="h-full w-full object-cover"
+        className={CARD_BACK_IMAGE_CLASS}
       />
     </div>
   )
