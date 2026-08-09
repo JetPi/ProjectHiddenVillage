@@ -21,8 +21,8 @@ import {
   OptionToggle,
 } from '../../components/forms'
 import { Lightbulb, LogIn, X } from 'lucide-react'
-import { showAppInfoToast, showAppSuccessToast } from '../../components/feedback/AppToast'
-import { clearAuthSession } from '../../state/authSession'
+import { showAppInfoToast, showAppSuccessToast } from '../../components/feedback/appToastNotifications'
+import { clearAuthSession, useAuthSessionStore } from '../../state/authSession'
 import { useSessionStore } from '../../state/sessionStore'
 import { useThemeStore } from '../../state/themeStore'
 import { useLoginViewModel } from './model/useLoginViewModel'
@@ -81,8 +81,9 @@ export function LoginView() {
 
   const isSubmittingLogin =
     navigation.state === 'submitting' && navigation.formData?.get('intent') === 'login'
-  const authUsername = actionData?.login?.user?.username ?? loaderData.authUser?.username ?? ''
-  const authUser = actionData?.login?.user ?? loaderData.authUser
+  const authSession = useAuthSessionStore((state) => state.session)
+  const authUser = authSession ?? actionData?.login?.user ?? null
+  const authUsername = authUser?.username ?? ''
 
   useEffect(() => {
     if (!loaderData.signupSuccess || hasShownSignupToast.current) {

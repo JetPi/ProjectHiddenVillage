@@ -1,3 +1,5 @@
+import { create } from 'zustand'
+
 export type IAuthSession = {
   userId: string
   username: string
@@ -6,14 +8,15 @@ export type IAuthSession = {
   expiresAt: string
 }
 
+type IAuthSessionStoreState = {
+  session: IAuthSession | null
+  setSession: (session: IAuthSession) => void
+  clearSession: () => void
+}
+
 const AUTH_SESSION_STORAGE_KEY = 'phv-auth-session'
 
-export function readAuthSession(): IAuthSession | null {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  const rawValue = window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY)
+function parseAuthSession(rawValue: string | null): IAuthSession | null {
   if (!rawValue) {
     return null
   }
@@ -27,13 +30,11 @@ export function readAuthSession(): IAuthSession | null {
       !parsed.accessToken ||
       !parsed.expiresAt
     ) {
-      clearAuthSession()
       return null
     }
 
     const expiresAtMs = Date.parse(parsed.expiresAt)
     if (Number.isNaN(expiresAtMs) || expiresAtMs <= Date.now()) {
-      clearAuthSession()
       return null
     }
 
@@ -45,9 +46,58 @@ export function readAuthSession(): IAuthSession | null {
       expiresAt: parsed.expiresAt,
     }
   } catch {
-    clearAuthSession()
     return null
   }
+}
+
+function readAuthSessionFromStorage(): IAuthSession | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const rawValue = window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY)
+  const parsedSession = parseAuthSession(rawValue)
+
+  if (!parsedSession && rawValue) {
+    window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY)
+  }
+
+  return parsedSession
+}
+
+const initialSession = readAuthSessionFromStorage()
+
+export const useAuthSessionStore = create<IAuthSessionStoreState>()((set) => ({
+  session: initialSession,
+  setSession: (session) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(session))
+    }
+
+    set({ session })
+  },
+  clearSession: () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY)
+    }
+
+    set({ session: null })
+  },
+}))
+
+export function readAuthSession(): IAuthSession | null {
+  const session = useAuthSessionStore.getState().session
+  if (!session) {
+    return null
+  }
+
+  const expiresAtMs = Date.parse(session.expiresAt)
+  if (Number.isNaN(expiresAtMs) || expiresAtMs <= Date.now()) {
+    useAuthSessionStore.getState().clearSession()
+    return null
+  }
+
+  return session
 }
 
 export function getAuthAccessToken(): string | null {
@@ -56,17 +106,9 @@ export function getAuthAccessToken(): string | null {
 }
 
 export function persistAuthSession(session: IAuthSession): void {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(session))
+  useAuthSessionStore.getState().setSession(session)
 }
 
 export function clearAuthSession(): void {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY)
+  useAuthSessionStore.getState().clearSession()
 }

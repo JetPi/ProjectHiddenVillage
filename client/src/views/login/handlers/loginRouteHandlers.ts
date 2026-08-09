@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router-dom'
 import { api } from '../../../services/api/httpClient'
 import type { IAuthSession } from '../../../state/authSession'
-import { persistAuthSession, readAuthSession } from '../../../state/authSession'
+import { persistAuthSession } from '../../../state/authSession'
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage'
 
 type ILoginResponse = {
@@ -19,7 +19,6 @@ type ILoginApiRequest = {
 
 export type ILoginLoaderData = {
   signupSuccess: boolean
-  authUser: IAuthSession | null
 }
 
 export type ILoginActionData = {
@@ -35,7 +34,6 @@ export async function loginLoader({ request }: LoaderFunctionArgs): Promise<ILog
 
   return {
     signupSuccess: url.searchParams.get('signup') === 'success',
-    authUser: readAuthSession(),
   }
 }
 
