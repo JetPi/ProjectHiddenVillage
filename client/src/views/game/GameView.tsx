@@ -9,6 +9,7 @@ import { PlayPileZone } from '../../components/ui/PlayPileZone'
 import { PlayResourceTracker } from '../../components/ui/PlayResourceTracker'
 import { PlayRow } from '../../components/ui/PlayRow'
 import { SupportCardZone } from '../../components/ui/SupportCardZone'
+import { CardOverlayBadge } from '../../components/ui/CardOverlayBadge'
 import { useAuthSessionStore } from '../../state/authSession'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
@@ -50,6 +51,8 @@ export function GameView() {
   )
   useCardCatalogPreload(gameCards)
 
+  console.log('GameView render', { topLeaderCard, bottomLeaderCard })
+
   return (
     <PageShell compact>
       <div
@@ -80,12 +83,16 @@ export function GameView() {
                   <div className="min-h-0">
                     <PlayCard className={topLeaderCardFrameClassName}>
                       {topLeaderCard ? (
-                        <CardImage
-                          src={topLeaderCard.image}
-                          alt={topLeaderCard.displayName || topLeaderCard.id}
-                          loading="eager"
-                          className={LEADER_CARD_IMAGE_CLASS}
-                        />
+                        <>
+                            <CardOverlayBadge value={topLeaderCard.currentLife ?? 0} />
+                         
+                          <CardImage
+                            src={topLeaderCard.image}
+                            alt={topLeaderCard.displayName || topLeaderCard.id}
+                            loading="eager"
+                            className={LEADER_CARD_IMAGE_CLASS}
+                          />
+                        </>
                       ) : (
                         <div className="flex h-full items-center justify-center text-center">Leader</div>
                       )}
@@ -109,12 +116,17 @@ export function GameView() {
                   <div className="min-h-0">
                     <PlayCard className={bottomLeaderCardFrameClassName}>
                       {bottomLeaderCard ? (
-                        <CardImage
-                          src={bottomLeaderCard.image}
-                          alt={bottomLeaderCard.displayName || bottomLeaderCard.id}
-                          loading="eager"
-                          className={LEADER_CARD_IMAGE_CLASS}
-                        />
+                        <>
+                          {typeof bottomLeaderCard.currentLife === 'number' ? (
+                            <CardOverlayBadge value={bottomLeaderCard.currentLife} />
+                          ) : null}
+                          <CardImage
+                            src={bottomLeaderCard.image}
+                            alt={bottomLeaderCard.displayName || bottomLeaderCard.id}
+                            loading="eager"
+                            className={LEADER_CARD_IMAGE_CLASS}
+                          />
+                        </>
                       ) : (
                         <div className="flex h-full items-center justify-center text-center">Leader</div>
                       )}

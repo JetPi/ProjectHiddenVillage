@@ -1,5 +1,6 @@
 import { twMerge } from 'tailwind-merge'
 import cardBackImage from '../../assets/CardBackside.png'
+import { CardImage } from './CardImage'
 
 export type ICardBackTone = 'blue' | 'orange'
 
@@ -14,7 +15,7 @@ const CARD_BACK_IMAGE_CLASS = 'block h-full w-full rounded-none object-contain [
 export function CardBack({ className }: ICardBackProps) {
   return (
     <div className={twMerge(CARD_BACK_FRAME_CLASS, className)}>
-      <img
+      <CardImage
         src={cardBackImage}
         alt="Card back"
         loading="lazy"

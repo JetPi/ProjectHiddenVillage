@@ -24,6 +24,8 @@ public class Card
 
     public string Description { get; set; } = string.Empty;
 
+    public string MainEffect { get; set; } = string.Empty;
+
     public int Damage { get; set; }
 
     public int Power { get; set; }
