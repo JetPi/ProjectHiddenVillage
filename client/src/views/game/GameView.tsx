@@ -1,6 +1,5 @@
+import { useActionData, useLoaderData, useRevalidator } from 'react-router-dom'
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
-import { useEffect, useMemo, useRef } from 'react'
-import { useActionData, useLoaderData, useRevalidator, useSubmit } from 'react-router-dom'
 import { CardImage } from '../../components/ui/CardImage'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
@@ -10,80 +9,46 @@ import { PlayPileZone } from '../../components/ui/PlayPileZone'
 import { PlayResourceTracker } from '../../components/ui/PlayResourceTracker'
 import { PlayRow } from '../../components/ui/PlayRow'
 import { SupportCardZone } from '../../components/ui/SupportCardZone'
-import { readAuthSession } from '../../state/authSession'
+import { useAuthSessionStore } from '../../state/authSession'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
-import { preloadCardsByIds } from '../../services/cardPreloadService'
-import { buildCardPreloadPayload, deriveGameViewState } from './utils/functions'
+import { buildLeaderCardFrameClass } from './utils/functions'
 import type { IGameActionData, IGameLoaderData } from './types/routeData'
-
-const GAME_CARD_PRELOAD_POLL_INTERVAL_MS = 6_000
-
-const GAMEBOARD_MAX_WIDTH_CLASS = 'max-w-[800px]'
-const GAMEBOARD_COLUMNS_CLASS = 'lg:grid-cols-[1.1fr_1.7fr_1.1fr]'
-const LEADER_CARD_FRAME_CLASS = 'h-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]'
-const LEADER_CARD_IMAGE_CLASS = 'h-[102%] w-[102%] -m-[1%] rounded-none object-contain [image-rendering:auto]'
+import { useCardCatalogPreload, useIdleRevalidationPoll } from './hooks/useGameViewEffects'
+import { useGameIntentSubmit } from './hooks/useGameIntentSubmit'
+import { useDerivedGameViewState } from './hooks/useDerivedGameViewState'
+import {
+  GAME_CARD_PRELOAD_POLL_INTERVAL_MS,
+  GAMEBOARD_MAX_WIDTH_CLASS,
+  GAMEBOARD_COLUMNS_CLASS,
+  LEADER_CARD_FRAME_CLASS,
+  LEADER_CARD_IMAGE_CLASS,
+} from './utils/contants'
 
 export function GameView() {
   const { outerRef: outerZoneRef, innerRef: boardZoneRef } = useAlignedSplit()
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
-  const authSession = useMemo(() => readAuthSession(), [])
+  const authUserId = useAuthSessionStore((state) => state.session?.userId)
   
   const { joinCode, gameCards, gameInstance } = useLoaderData() as IGameLoaderData
   const actionData = useActionData() as IGameActionData | undefined
   const revalidator = useRevalidator()
-  const submit = useSubmit()
+  const submitGameIntent = useGameIntentSubmit()
   const isPlayerTurn = true
-  
-  const lastPreloadedCardSignatureRef = useRef('')
   
   const players = gameInstance.state.players
 
-  const {
-    topLeaderCard,
-    bottomLeaderCard,
-  } = useMemo(
-    () => deriveGameViewState(gameCards, players, authSession?.userId),
-    [authSession?.userId, gameCards, players],
+  const { topLeaderCard, bottomLeaderCard } = useDerivedGameViewState(gameCards, players, authUserId)
+
+  const topLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(topLeaderCard))
+  const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
+
+  useIdleRevalidationPoll(
+    revalidator.state,
+    revalidator.revalidate,
+    GAME_CARD_PRELOAD_POLL_INTERVAL_MS,
   )
-
-  
-  const topLeaderCardFrameClassName = `${LEADER_CARD_FRAME_CLASS} ${topLeaderCard ? 'border-transparent' : ''}`.trim()
-  const bottomLeaderCardFrameClassName = `${LEADER_CARD_FRAME_CLASS} ${bottomLeaderCard ? 'border-transparent' : ''}`.trim()
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      if (revalidator.state !== 'idle') {
-        return
-      }
-
-      revalidator.revalidate()
-    }, GAME_CARD_PRELOAD_POLL_INTERVAL_MS)
-
-    return () => window.clearInterval(interval)
-  }, [revalidator])
-
-  useEffect(() => {
-    const preloadPayload = buildCardPreloadPayload(gameCards)
-    if (!preloadPayload) {
-      return
-    }
-
-    const { cardIds, signature } = preloadPayload
-    if (signature === lastPreloadedCardSignatureRef.current) {
-      return
-    }
-
-    lastPreloadedCardSignatureRef.current = signature
-
-    void preloadCardsByIds(cardIds).catch(() => {
-      // Card preloading should not block gameplay rendering.
-    })
-  }, [gameCards])
-
-  function submitGameIntent(intent: string): void {
-    submit({ intent }, { method: 'post' })
-  }
+  useCardCatalogPreload(gameCards)
 
   return (
     <PageShell compact>
