@@ -60,6 +60,22 @@ export function CardImage({
     }
   }, [hasSource, normalizedSrc])
 
+  useEffect(() => {
+    if (!hasSource || failedSource !== normalizedSrc) {
+      return
+    }
+
+    function handleReconnect() {
+      setFailedSource((current) => (current === normalizedSrc ? null : current))
+      void preloadImageSource(normalizedSrc).catch(() => {
+        // Reconnect retries are best effort; fallback remains if loading still fails.
+      })
+    }
+
+    window.addEventListener('online', handleReconnect)
+    return () => window.removeEventListener('online', handleReconnect)
+  }, [failedSource, hasSource, normalizedSrc])
+
   const resolvedFallbackLabel = useMemo(() => {
     if (fallbackLabel?.trim()) {
       return fallbackLabel

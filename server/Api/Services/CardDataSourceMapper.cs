@@ -45,6 +45,7 @@ public static partial class CardDataSourceMapper
         mapped.Traits = ParseTraits(source.Trait);
         mapped.Color = ParseColor(source.Color);
         mapped.Description = description;
+        mapped.MainEffect = ExtractMainEffect(description);
         mapped.Damage = source.Damage ?? 0;
         mapped.Power = power;
         mapped.Conditions = ExtractConditions(description);
@@ -130,6 +131,30 @@ public static partial class CardDataSourceMapper
         }
 
         return description[(index + marker.Length)..].Trim();
+    }
+
+    private static string ExtractMainEffect(string description)
+    {
+        const string supportMarker = "[Support]";
+        const string recoveryMarker = "[Recovery]";
+
+        var supportIndex = description.IndexOf(supportMarker, StringComparison.OrdinalIgnoreCase);
+        var recoveryIndex = description.IndexOf(recoveryMarker, StringComparison.OrdinalIgnoreCase);
+
+        var endIndex = description.Length;
+        if (supportIndex >= 0)
+        {
+            endIndex = supportIndex;
+        }
+
+        if (recoveryIndex >= 0)
+        {
+            endIndex = Math.Min(endIndex, recoveryIndex);
+        }
+
+        var mainEffectSegment = description[..endIndex];
+        var withoutBrTags = BrTagRegex().Replace(mainEffectSegment, " ");
+        return withoutBrTags.Trim();
     }
 
     private static List<ConditionSpec> ExtractConditions(string description)

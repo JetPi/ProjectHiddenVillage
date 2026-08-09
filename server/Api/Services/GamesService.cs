@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Entities;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace ProjectHiddenVillage.Server;
 
@@ -362,6 +363,7 @@ public sealed class GamesService
         card.Traits = traits;
         card.Color = entry.Color;
         card.Description = entry.Description;
+        card.MainEffect = ExtractMainEffect(entry.Description);
         card.Damage = entry.Damage;
         card.Power = entry.Power;
         card.Conditions = conditions;
@@ -402,6 +404,35 @@ public sealed class GamesService
         }
 
         return description[(index + marker.Length)..].Trim();
+    }
+
+    private static string ExtractMainEffect(string description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return string.Empty;
+        }
+
+        const string supportMarker = "[Support]";
+        const string recoveryMarker = "[Recovery]";
+
+        var supportIndex = description.IndexOf(supportMarker, StringComparison.OrdinalIgnoreCase);
+        var recoveryIndex = description.IndexOf(recoveryMarker, StringComparison.OrdinalIgnoreCase);
+
+        var endIndex = description.Length;
+        if (supportIndex >= 0)
+        {
+            endIndex = supportIndex;
+        }
+
+        if (recoveryIndex >= 0)
+        {
+            endIndex = Math.Min(endIndex, recoveryIndex);
+        }
+
+        var mainEffectSegment = description[..endIndex];
+        var withoutBrTags = Regex.Replace(mainEffectSegment, @"<br\s*/?>", " ", RegexOptions.IgnoreCase);
+        return withoutBrTags.Trim();
     }
 
     private static bool HasStoredDeck(PlayerState playerState)

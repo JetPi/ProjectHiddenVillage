@@ -50,6 +50,7 @@ public sealed class CardDataSourceMapperTests
         CollectionAssert.AreEqual(
             new List<string> { EffectConditionKeywords.ActivateMain, EffectConditionKeywords.Recovery },
             result.Conditions.Select(condition => condition.Id).ToList());
+        Assert.AreEqual("[Activate: Main] Example.", result.MainEffect);
         Assert.IsNotNull(leader);
         Assert.AreEqual("If it is the second turn or later.", leader.RecoveryEffect);
     }
@@ -113,6 +114,7 @@ public sealed class CardDataSourceMapperTests
         Assert.IsNotNull(character);
         Assert.AreEqual("[8-Trigram] Air Palm", character.SupportName);
         Assert.AreEqual("Choose 1 of your [Naruto Uzumaki]: It gets +2 power this turn.", character.SupportEffect);
+        Assert.AreEqual(string.Empty, result.MainEffect);
         Assert.AreEqual(2, result.Conditions.Count);
         Assert.AreEqual(EffectConditionKeywords.Support, result.Conditions[0].Id);
         Assert.AreEqual(EffectConditionKeywords.NamedCardReference, result.Conditions[1].Id);
@@ -140,5 +142,27 @@ public sealed class CardDataSourceMapperTests
         Assert.IsNotNull(character);
         Assert.AreEqual("Fire Style: Toad Flame Bombs", character.SupportName);
         Assert.AreEqual("[During Your Opponent's Attack] Choose up to 2 rested Characters: K.O. the chosen cards.", character.SupportEffect);
+        Assert.AreEqual(string.Empty, result.MainEffect);
+    }
+
+    [TestMethod]
+    public void ToCard_ExtractsMainEffect_UntilSupportOrRecovery_AndStripsBrTags()
+    {
+        var source = new CardDataSourceRecord
+        {
+            CardNo = "L-010",
+            Name = "Shikamaru Nara",
+            Image = "https://example.com/L-010.webp",
+            Color = "Green",
+            CategoryData = "LEADER",
+            OriginalId = "L-010",
+            Effect = "[Activate: Main] Flip 1 of your CHAKRA face-down and choose 1 Character: The chosen card gets +3 power during this turn.<br>[Recovery] If it is the second turn or later, rest this card and flip all of your CHAKRA face-up."
+        };
+
+        var result = CardDataSourceMapper.ToCard(source);
+
+        Assert.AreEqual(
+            "[Activate: Main] Flip 1 of your CHAKRA face-down and choose 1 Character: The chosen card gets +3 power during this turn.",
+            result.MainEffect);
     }
 }

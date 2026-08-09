@@ -59,12 +59,14 @@ public sealed class GamesServiceUserDeckFlowTests
 
         Assert.IsFalse(result.IsError);
         var player = result.Value.State.Players.Single();
+        var leaderCard = result.Value.State.CardDefinitions["L-001"];
         Assert.IsNotNull(player.LeaderCardInstance);
         Assert.AreEqual("L-001", player.LeaderCardInstance.CardDefinitionId);
         Assert.AreEqual("Naruto", player.LeaderCardInstance.Name);
         Assert.AreEqual(CardColor.Red, player.LeaderCardInstance.Color);
         Assert.AreEqual("[Recovery] Heal 1", player.LeaderCardInstance.Description);
         Assert.AreEqual("Heal 1", player.LeaderCardInstance.RecoveryEffect);
+        Assert.AreEqual(string.Empty, leaderCard.MainEffect);
         Assert.AreEqual(5, player.LeaderCardInstance.TotalLife);
         Assert.AreEqual(5, player.LeaderCardInstance.CurrentLife);
         Assert.AreEqual(user.Id.ToString("N"), player.LeaderCardInstance.OwnerPlayerId);
