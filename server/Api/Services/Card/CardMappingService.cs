@@ -7,7 +7,7 @@ using ProjectHiddenVillage.Server.Data.Entities;
 
 namespace ProjectHiddenVillage.Server;
 
-public sealed class CardMappingService
+public sealed class CardMappingService : ICardMappingService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
     private static readonly HashSet<string> AllowedCatalogSortFields =
@@ -467,6 +467,4 @@ public sealed class CardMappingService
     {
         return JsonSerializer.Serialize(value, SerializerOptions);
     }
-
-    private sealed record CatalogSortSpec(string Field, bool Descending);
 }

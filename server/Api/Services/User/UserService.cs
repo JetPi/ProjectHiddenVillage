@@ -7,7 +7,7 @@ using ProjectHiddenVillage.Server.Data.Entities;
 
 namespace ProjectHiddenVillage.Server;
 
-public sealed class UserService
+public sealed class UserService : IUserService
 {
     private readonly ApplicationDbContext dbContext;
     private readonly IPasswordHasher<User> passwordHasher;

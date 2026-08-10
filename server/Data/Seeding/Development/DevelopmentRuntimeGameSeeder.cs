@@ -8,12 +8,12 @@ public sealed class DevelopmentRuntimeGameSeeder
     private static readonly Guid SeedDeckOneId = Guid.Parse("10000000-0000-0000-0000-000000000001");
 
     private readonly InMemoryGameInstanceRegistry registry;
-    private readonly GamesService gamesService;
+    private readonly IGamesService gamesService;
     private readonly ILogger<DevelopmentRuntimeGameSeeder> logger;
 
     public DevelopmentRuntimeGameSeeder(
         InMemoryGameInstanceRegistry registry,
-        GamesService gamesService,
+        IGamesService gamesService,
         ILogger<DevelopmentRuntimeGameSeeder> logger)
     {
         this.registry = registry;

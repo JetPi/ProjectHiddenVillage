@@ -7,9 +7,9 @@ namespace ProjectHiddenVillage.Server;
 [Route("api/[controller]")]
 public sealed class DeckController : ApiControllerBase
 {
-    private readonly DeckService deckService;
+    private readonly IDeckService deckService;
 
-    public DeckController(DeckService deckService)
+    public DeckController(IDeckService deckService)
     {
         this.deckService = deckService;
     }

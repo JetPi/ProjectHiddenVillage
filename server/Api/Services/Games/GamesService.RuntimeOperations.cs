@@ -1,33 +1,16 @@
-using ErrorOr;
-using Microsoft.EntityFrameworkCore;
-using ProjectHiddenVillage.Server.Data;
-using ProjectHiddenVillage.Server.Data.Entities;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using ErrorOr;
+using Microsoft.EntityFrameworkCore;
+using ProjectHiddenVillage.Server.Data.Entities;
 
 namespace ProjectHiddenVillage.Server;
 
-public sealed class GamesService
+public sealed partial class GamesService
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
-
-    private readonly InMemoryGameInstanceRegistry registry;
-    private readonly CardMappingService cardMappingService;
-    private readonly ApplicationDbContext dbContext;
-
-    public GamesService(
-        InMemoryGameInstanceRegistry registry,
-        CardMappingService cardMappingService,
-        ApplicationDbContext dbContext)
+    public Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request)
     {
-        this.registry = registry;
-        this.cardMappingService = cardMappingService;
-        this.dbContext = dbContext;
-    }
-
-    public async Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request)
-    {
-        return await CreateGameForUser(request, preferredGameCode: null);
+        return CreateGameForUser(request, preferredGameCode: null);
     }
 
     public async Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request, string? preferredGameCode)
@@ -54,80 +37,6 @@ public sealed class GamesService
         {
             return Error.Validation(code: "Game.CreateForUser.InvalidState", description: ex.Message);
         }
-    }
-
-    public async Task<ErrorOr<List<CardCatalogItemResponse>>> GetCardsForGame(string gameCode)
-    {
-        if (string.IsNullOrWhiteSpace(gameCode))
-        {
-            return Error.Validation(code: "Game.GetById.MissingId", description: "Game code is required.");
-        }
-
-        var normalizedGameCode = gameCode.Trim();
-
-        if (registry.TryGet(normalizedGameCode, out var runtimeGame) && runtimeGame is not null)
-        {
-            var runtimeCardIds = runtimeGame.State.Players
-                .SelectMany(player => player.Deck)
-                .Select(card => card.CardDefinitionId?.Trim())
-                .Where(cardId => !string.IsNullOrWhiteSpace(cardId))
-                .Cast<string>()
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (runtimeCardIds.Count == 0)
-            {
-                return [];
-            }
-
-            return await cardMappingService.GetCardCatalogByIds(runtimeCardIds);
-        }
-
-        var deckAssignments = await dbContext.GameInstances
-            .AsNoTracking()
-            .Where(game => game.JoinCode == normalizedGameCode)
-            .Select(game => new { game.Player1DeckId, game.Player2DeckId })
-            .SingleOrDefaultAsync();
-
-        if (deckAssignments is null)
-        {
-            return Error.NotFound(code: "Game.NotFound", description: $"Game instance '{normalizedGameCode}' was not found.");
-        }
-
-        var rawCardIds = await dbContext.DeckCards
-            .AsNoTracking()
-            .Where(deckCard => deckCard.DeckId == deckAssignments.Player1DeckId || deckCard.DeckId == deckAssignments.Player2DeckId)
-            .Select(deckCard => deckCard.CardCatalogEntry.CardId)
-            .ToListAsync();
-
-        var cardIds = rawCardIds
-            .Select(cardId => cardId?.Trim())
-            .Where(cardId => !string.IsNullOrWhiteSpace(cardId))
-            .Cast<string>()
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (cardIds.Count == 0)
-        {
-            return [];
-        }
-
-        return await cardMappingService.GetCardCatalogByIds(cardIds);
-    }
-
-    public ErrorOr<GameInstance> GetById(string gameCode)
-    {
-        if (string.IsNullOrWhiteSpace(gameCode))
-        {
-            return Error.Validation(code: "Game.GetById.MissingId", description: "Game code is required.");
-        }
-
-        if (!registry.TryGet(gameCode.Trim(), out var game) || game is null)
-        {
-            return Error.NotFound(code: "Game.NotFound", description: $"Game instance '{gameCode}' was not found.");
-        }
-
-        return game;
     }
 
     public async Task<ErrorOr<GameInstance>> JoinGameForUser(string gameCode, JoinGameAsPlayer request)
@@ -439,9 +348,4 @@ public sealed class GamesService
     {
         return playerState.Deck.Any(card => !string.IsNullOrWhiteSpace(card.CardDefinitionId));
     }
-
-    private sealed record ResolvedPlayerDeck(
-        Player Player,
-        IReadOnlyDictionary<string, Card> CardDefinitions);
-
 }
