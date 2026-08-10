@@ -6,9 +6,9 @@ namespace ProjectHiddenVillage.Server;
 [Route("api/[controller]")]
 public sealed class CardController : ApiControllerBase
 {
-    private readonly CardMappingService cardMappingService;
+    private readonly ICardMappingService cardMappingService;
 
-    public CardController(CardMappingService cardMappingService)
+    public CardController(ICardMappingService cardMappingService)
     {
         this.cardMappingService = cardMappingService;
     }

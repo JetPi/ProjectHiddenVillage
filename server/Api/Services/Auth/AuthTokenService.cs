@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 namespace ProjectHiddenVillage.Server;
 
-public sealed class AuthTokenService
+public sealed class AuthTokenService : IAuthTokenService
 {
     private readonly JwtOptions jwtOptions;
 
@@ -53,5 +53,3 @@ public sealed class AuthTokenService
         return new AuthTokenResult(token, expiresAt);
     }
 }
-
-public sealed record AuthTokenResult(string AccessToken, DateTimeOffset ExpiresAt);

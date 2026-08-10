@@ -1,4 +1,8 @@
 {
+    "chat.plugins.enabled": true,
+    "chat.plugins.marketplaces": [
+        "dotnet/skills"
+    ],
     "csharp-dev-tools.entityFramework.migrationPreferences": {
         "ProjectHiddenVillage.virtual.sln": {
             "startupProject": "/home/ibrahim/Documents/Work Projects/Project Omega/ProjectHiddenVillage/server/ProjectHiddenVillage.Server.csproj",

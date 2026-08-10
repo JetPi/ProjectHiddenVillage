@@ -6,9 +6,9 @@ namespace ProjectHiddenVillage.Server;
 [Route("api/[controller]")]
 public sealed class GamesController : ApiControllerBase
 {
-    private readonly GamesService gamesService;
+    private readonly IGamesService gamesService;
 
-    public GamesController(GamesService gamesService)
+    public GamesController(IGamesService gamesService)
     {
         this.gamesService = gamesService;
     }
@@ -49,7 +49,7 @@ public sealed class GamesController : ApiControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<List<CardCatalogItemResponse>>> GetCardsForGame(string gameId)
     {
-        var result = await gamesService.GetCardsForGame(gameId);
+        var result = await gamesService.GetCardDataForGame(gameId);
         if (result.IsError)
         {
             return ProblemFromErrors<List<CardCatalogItemResponse>>(result.Errors);

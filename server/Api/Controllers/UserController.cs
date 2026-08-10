@@ -7,10 +7,10 @@ namespace ProjectHiddenVillage.Server;
 [Route("api/[controller]")]
 public sealed class UserController : ApiControllerBase
 {
-	private readonly UserService userService;
-	private readonly AuthTokenService authTokenService;
+	private readonly IUserService userService;
+	private readonly IAuthTokenService authTokenService;
 
-	public UserController(UserService userService, AuthTokenService authTokenService)
+	public UserController(IUserService userService, IAuthTokenService authTokenService)
 	{
 		this.userService = userService;
 		this.authTokenService = authTokenService;
