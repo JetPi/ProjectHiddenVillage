@@ -14,6 +14,24 @@ public sealed class GamesHub(
     IGamePhaseHandlingService gamePhaseHandlingService,
     IGameReadService gameReadService) : Hub
 {
+    public Task<HubOperationResult<GameStateResponse>> GetCurrentGameState(string gameId)
+    {
+        var requesterIdResult = GetRequestingPlayerId();
+        if (requesterIdResult.IsError)
+        {
+            return Task.FromResult(HubOperationResult<GameStateResponse>.FromErrors(requesterIdResult.Errors));
+        }
+
+        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        if (gameResult.IsError)
+        {
+            return Task.FromResult(HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors));
+        }
+
+        var stateResponse = GameStateResponseMapper.ToGameStateResponse(gameResult.Value.State, requesterIdResult.Value);
+        return Task.FromResult(HubOperationResult<GameStateResponse>.Success(stateResponse));
+    }
+
     public async Task<HubOperationResult<GameStateResponse>> CreateGame(CreateGameForUserRequest request, string? preferredGameCode = null)
     {
         var requesterIdResult = GetRequestingPlayerId();
@@ -82,6 +100,12 @@ public sealed class GamesHub(
             return HubOperationResult<GameStateResponse>.FromErrors(requesterIdResult.Errors);
         }
 
+        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        if (gameResult.IsError)
+        {
+            return HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors);
+        }
+
         var result = gamePhaseHandlingService.ResolvePrompt(gameId, request);
         return await PublishGameMutationResult(result, requesterIdResult.Value);
     }
@@ -92,6 +116,12 @@ public sealed class GamesHub(
         if (requesterIdResult.IsError)
         {
             return HubOperationResult<GameStateResponse>.FromErrors(requesterIdResult.Errors);
+        }
+
+        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        if (gameResult.IsError)
+        {
+            return HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors);
         }
 
         var result = gamePhaseHandlingService.AdvancePhase(gameId);
@@ -106,6 +136,12 @@ public sealed class GamesHub(
             return HubOperationResult<GameStateResponse>.FromErrors(requesterIdResult.Errors);
         }
 
+        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        if (gameResult.IsError)
+        {
+            return HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors);
+        }
+
         var result = gamePhaseHandlingService.DeclarePassInActionStep(gameId, request);
         return await PublishGameMutationResult(result, requesterIdResult.Value);
     }
@@ -116,6 +152,12 @@ public sealed class GamesHub(
         if (requesterIdResult.IsError)
         {
             return HubOperationResult<GameStateResponse>.FromErrors(requesterIdResult.Errors);
+        }
+
+        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        if (gameResult.IsError)
+        {
+            return HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors);
         }
 
         var result = gamePhaseHandlingService.DeclareActionInActionStep(gameId, request);
@@ -130,6 +172,12 @@ public sealed class GamesHub(
             return HubOperationResult<GameStateResponse>.FromErrors(requesterIdResult.Errors);
         }
 
+        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        if (gameResult.IsError)
+        {
+            return HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors);
+        }
+
         var result = gamePhaseHandlingService.DeclareEndStep(gameId);
         return await PublishGameMutationResult(result, requesterIdResult.Value);
     }
@@ -142,13 +190,26 @@ public sealed class GamesHub(
             return HubOperationResult<GameStateResponse>.FromErrors(requesterIdResult.Errors);
         }
 
+        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        if (gameResult.IsError)
+        {
+            return HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors);
+        }
+
         var result = gamePhaseHandlingService.CompleteEndStep(gameId);
         return await PublishGameMutationResult(result, requesterIdResult.Value);
     }
 
     public async Task SubscribeToGame(string gameId)
     {
-        if (string.IsNullOrWhiteSpace(gameId))
+        var requesterIdResult = GetRequestingPlayerId();
+        if (requesterIdResult.IsError || string.IsNullOrWhiteSpace(gameId))
+        {
+            return;
+        }
+
+        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        if (gameResult.IsError)
         {
             return;
         }
@@ -179,6 +240,27 @@ public sealed class GamesHub(
 
         var stateResponse = GameStateResponseMapper.ToGameStateResponse(game.State, requestingPlayerId);
         return HubOperationResult<GameStateResponse>.Success(stateResponse);
+    }
+
+    private ErrorOr<GameInstance> GetAuthorizedGameInstance(string gameId, string requestingPlayerId)
+    {
+        var gameResult = gameReadService.GetById(gameId);
+        if (gameResult.IsError)
+        {
+            return gameResult.Errors;
+        }
+
+        var isPlayerInGame = gameResult.Value.State.Players.Any(player =>
+            string.Equals(player.PlayerId, requestingPlayerId, StringComparison.Ordinal));
+
+        if (!isPlayerInGame)
+        {
+            return Error.Unauthorized(
+                code: "Game.Hub.Forbidden",
+                description: "Current user is not a player in this game.");
+        }
+
+        return gameResult.Value;
     }
 
     private ErrorOr<string> GetRequestingPlayerId()
