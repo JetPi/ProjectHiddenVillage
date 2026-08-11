@@ -15,4 +15,8 @@ public sealed class PlayerState
     public List<CardInstance> Battlefield { get; set; } = [];
 
     public List<CardInstance> DiscardPile { get; set; } = [];
+
+    public List<CardInstance> SupportZone { get; set; } = [];
+
+    public List<CardInstance> ExileZone { get; set; } = [];
 }

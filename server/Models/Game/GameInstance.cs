@@ -335,6 +335,16 @@ public sealed class GameInstance
         {
             ValidateCardInstance(card, playerIds);
         }
+
+        foreach (var card in player.SupportZone)
+        {
+            ValidateCardInstance(card, playerIds);
+        }
+
+        foreach (var card in player.ExileZone)
+        {
+            ValidateCardInstance(card, playerIds);
+        }
     }
 
     private void ValidateLeaderCardInstance(PlayerState player, HashSet<string> playerIds)
