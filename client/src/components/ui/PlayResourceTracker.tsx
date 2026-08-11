@@ -23,10 +23,10 @@ export function PlayResourceTracker({ cardClassName, className, reverse = false 
     )
 
     return (
-        <div className={twMerge('grid min-h-0 grid-cols-2 gap-px rounded-lg border border-dashed border-[var(--border-subtle)] p-px bg-[var(--surface-elevated)]', className)}>
+        <div className={twMerge('grid min-h-0 max-w-[250px] grid-cols-[1fr_auto] gap-px rounded-lg border border-dashed border-[var(--border-subtle)] p-px bg-[var(--surface-elevated)]', className)}>
             <div
                 className={twMerge(
-                    'grid min-h-0 grid-rows-2 gap-px rounded-lg p-px bg-[var(--surface-elevated)]',
+                    'grid min-h-0 m-1 grid-rows-2 gap-px rounded-lg p-px bg-[var(--surface-elevated)]',
                     reverse ? 'order-2' : 'order-1',
                 )}
             >
@@ -60,7 +60,7 @@ export function PlayResourceTracker({ cardClassName, className, reverse = false 
                 </div>
             </div>
 
-            <div className={twMerge('grid min-h-0 place-items-center', reverse ? 'order-1' : 'order-2')}>
+            <div className={twMerge('grid min-h-0 w-fit place-items-center justify-self-center', reverse ? 'order-1' : 'order-2')}>
                 <PlayCard className={largeCardFrameClassName}>
                     <CardImage
                         src={summonCardImage}

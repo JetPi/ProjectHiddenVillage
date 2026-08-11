@@ -9,12 +9,16 @@ function isDeckLabel(label: string): boolean {
 
 export function PlayPileZone({ labels, className, cardBackTone = 'blue' }: IPlayPileZoneProps) {
   const labeledPileCardClassName =
-    'h-full w-full flex items-center justify-center text-center overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]'
-  const deckPileCardClassName = 'h-full w-full overflow-hidden rounded-lg'
+    'h-full flex items-center justify-center text-center overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]'
+  const deckPileCardClassName = 'h-full overflow-hidden rounded-lg'
+  const columnCount = Math.max(labels.length, 1)
 
   return (
-    <div className={twMerge('h-full w-full max-w-full overflow-hidden px-1', className)}>
-      <div className="grid h-full w-full grid-cols-3 gap-0.5">
+    <div className={twMerge('h-full w-full max-w-[250px] justify-self-center overflow-hidden px-1', className)}>
+      <div
+        className="grid h-full w-full justify-center justify-items-center gap-0.5"
+        style={{ gridTemplateColumns: `repeat(${columnCount}, auto)` }}
+      >
         {labels.map((label, labelIndex) => (
           <PlayCard
             key={`pile-slot-${labelIndex}-${label}`}

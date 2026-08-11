@@ -1,4 +1,5 @@
 import { api } from './httpClient'
+import axios from 'axios'
 import type { ICardCatalogItemResponse } from '../../types/cardCatalog'
 import type {
   ICreateGameForUserRequest,
@@ -6,6 +7,7 @@ import type {
   IGameStateResponse,
   IJoinGameAsPlayerRequest,
 } from './types/game'
+import { createGameForUserViaHub, joinGameAsPlayerViaHub } from './gameHubApi'
 
 export type {
   ICreateGameForUserRequest,
@@ -18,16 +20,42 @@ export type {
 } from './types/game'
 
 export async function createGameForUser(request: ICreateGameForUserRequest): Promise<IGameInstanceResponse> {
-  const { data } = await api.post<IGameInstanceResponse>('/api/games', request)
-  return data
+  try {
+    const { data } = await api.post<IGameInstanceResponse>('/api/games', request)
+    return data
+  } catch (error) {
+    if (!axios.isAxiosError(error)) {
+      throw error
+    }
+
+    const status = error.response?.status
+    if (status === 404 || status === 405) {
+      return createGameForUserViaHub(request)
+    }
+
+    throw error
+  }
 }
 
 export async function joinGameAsPlayer(
   gameCode: string,
   request: IJoinGameAsPlayerRequest,
 ): Promise<IGameInstanceResponse> {
-  const { data } = await api.post<IGameInstanceResponse>(`/api/games/${encodeURIComponent(gameCode)}/join`, request)
-  return data
+  try {
+    const { data } = await api.post<IGameInstanceResponse>(`/api/games/${encodeURIComponent(gameCode)}/join`, request)
+    return data
+  } catch (error) {
+    if (!axios.isAxiosError(error)) {
+      throw error
+    }
+
+    const status = error.response?.status
+    if (status === 404 || status === 405) {
+      return joinGameAsPlayerViaHub(gameCode, request)
+    }
+
+    throw error
+  }
 }
 
 export async function fetchGameCards(gameCode: string): Promise<ICardCatalogItemResponse[]> {
