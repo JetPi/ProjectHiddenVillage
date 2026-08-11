@@ -72,6 +72,17 @@ public sealed class GamesReadService(
         return await cardMappingService.GetCardCatalogByIds(cardIds);
     }
 
+    public ErrorOr<GameState> GetCurrentGameState(string gameCode)
+    {
+        var gameResult = GetById(gameCode);
+        if (gameResult.IsError)
+        {
+            return gameResult.Errors;
+        }
+
+        return gameResult.Value.State;
+    }
+
     public async Task<ErrorOr<ResolvedPlayerDeck>> ResolvePlayerDeckData(Guid userId, Guid deckId, string operationName)
     {
         var user = await dbContext.Users

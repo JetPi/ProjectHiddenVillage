@@ -230,7 +230,7 @@ public sealed class GameInstance
             throw new InvalidOperationException("PriorityPlayerId must be set during ActionStep.");
         }
 
-        foreach (var stackCard in State.Stack)
+        foreach (var stackCard in State.EffectResolutionStack)
         {
             ValidateCardInstance(stackCard, playerIds);
         }

@@ -10,6 +10,7 @@ using ProjectHiddenVillage.Server;
 using ProjectHiddenVillage.Server.Api.Interfaces.Auth;
 using ProjectHiddenVillage.Server.Api.Interfaces.Card;
 using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
+using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
 using ProjectHiddenVillage.Server.Api.Interfaces.User;
@@ -31,7 +32,7 @@ var jwtKeyProvider = configurationRoot.Providers
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddSingleton<GameInstanceFactory>();
+builder.Services.AddSingleton(_ => new GameInstanceFactory());
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.GamePhaseService>();
 builder.Services.AddSingleton<InMemoryGameInstanceRegistry>();
 builder.Services.AddScoped<IGameEffectHandlingService, GameEffectHandlingService>();
@@ -49,6 +50,7 @@ builder.Services.AddScoped<DevelopmentRuntimeGameSeeder>();
 builder.Services.AddSingleton<IAuthTokenService, AuthTokenService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateGameForUserRequestValidator>();
 
@@ -160,6 +162,7 @@ app.UseCors("ClientDev");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<GamesHub>("/hubs/games");
 
 app.Run();
 
