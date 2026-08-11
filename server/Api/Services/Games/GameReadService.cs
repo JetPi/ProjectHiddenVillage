@@ -2,7 +2,6 @@ using ErrorOr;
 using Microsoft.EntityFrameworkCore;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Entities;
-using System.Text.Json;
 
 namespace ProjectHiddenVillage.Server;
 
@@ -10,10 +9,8 @@ public sealed class GamesReadService(
     InMemoryGameInstanceRegistry registry,
     ICardMappingService cardMappingService,
     ApplicationDbContext dbContext,
-    IGameEffectHandlingService gameEffectHandlingService) : IGameReadService
+    IGameRuntimeDeckService gameRuntimeDeckService) : IGameReadService
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
-
     public async Task<ErrorOr<List<CardCatalogItemResponse>>> GetCardDataForGame(string gameCode)
     {
         if (string.IsNullOrWhiteSpace(gameCode))
@@ -136,7 +133,7 @@ public sealed class GamesReadService(
 
             if (!cardDefinitions.ContainsKey(cardId))
             {
-                cardDefinitions[cardId] = ToRuntimeCard(deckCard.CardCatalogEntry);
+                cardDefinitions[cardId] = gameRuntimeDeckService.ToRuntimeCard(deckCard.CardCatalogEntry);
             }
         }
 
@@ -172,66 +169,5 @@ public sealed class GamesReadService(
         }
 
         return game;
-    }
-
-    private Card ToRuntimeCard(CardCatalogEntry entry)
-    {
-        var names = DeserializeOrDefault<List<string>>(entry.NameJson, []);
-        var traits = DeserializeOrDefault<List<string>>(entry.TraitsJson, []);
-        var conditions = DeserializeOrDefault<List<ConditionSpec>>(entry.ConditionsJson, []);
-        var effects = DeserializeOrDefault<List<EffectSpec>>(entry.EffectsJson, []);
-
-        Card card = entry.Type switch
-        {
-            CardType.Leader => new LeaderCard
-            {
-                Life = entry.Life ?? 0,
-                RecoveryEffect = gameEffectHandlingService.ExtractRecoveryEffect(entry.Description)
-            },
-            CardType.Character or CardType.ExCharacter => new CharacterCard
-            {
-                Health = entry.Health ?? 0,
-                SupportName = entry.SupportName ?? string.Empty,
-                SupportEffect = entry.SupportEffect ?? string.Empty,
-                SupportCost = entry.SupportCost ?? 0
-            },
-            _ => new Card()
-        };
-
-        card.Id = entry.CardId;
-        card.Image = entry.Image;
-        card.OriginalId = entry.OriginalId;
-        card.MainAlternate = entry.MainAlternate;
-        card.Attribute = entry.Attribute;
-        card.Name = names;
-        card.DisplayName = entry.DisplayName;
-        card.Type = entry.Type;
-        card.Traits = traits;
-        card.Color = entry.Color;
-        card.Description = entry.Description;
-        card.MainEffect = gameEffectHandlingService.ExtractMainEffect(entry.Description);
-        card.Damage = entry.Damage;
-        card.Power = entry.Power;
-        card.Conditions = conditions;
-        card.Effects = effects;
-
-        return card;
-    }
-
-    private static T DeserializeOrDefault<T>(string json, T fallback)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return fallback;
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize<T>(json, SerializerOptions) ?? fallback;
-        }
-        catch (JsonException)
-        {
-            return fallback;
-        }
     }
 }

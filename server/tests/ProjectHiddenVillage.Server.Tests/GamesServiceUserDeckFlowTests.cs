@@ -211,7 +211,11 @@ public sealed class GamesServiceUserDeckFlowTests
             new global::ProjectHiddenVillage.Server.Engine.GamePhaseService());
 
         var effectHandlingService = new GameEffectHandlingService();
-        var readService = new GamesReadService(registry, new CardMappingService(dbContext), dbContext, effectHandlingService);
+        var readService = new GamesReadService(
+            registry,
+            new CardMappingService(dbContext),
+            dbContext,
+            new GameRuntimeDeckService(effectHandlingService));
 
         return new TestGameServices(
             InstanceService: new GameInstanceService(registry, readService),

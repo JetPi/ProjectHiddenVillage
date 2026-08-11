@@ -24,7 +24,11 @@ public sealed class GamesServiceGetCardsForGameTests
 
         await dbContext.SaveChangesAsync();
 
-        var service = new GamesReadService(CreateRegistry(), new CardMappingService(dbContext), dbContext, new GameEffectHandlingService());
+        var service = new GamesReadService(
+            CreateRegistry(),
+            new CardMappingService(dbContext),
+            dbContext,
+            new GameRuntimeDeckService(new GameEffectHandlingService()));
 
         var result = await service.GetCardDataForGame(gameEntity.JoinCode);
 
@@ -48,7 +52,11 @@ public sealed class GamesServiceGetCardsForGameTests
 
         await dbContext.SaveChangesAsync();
 
-        var service = new GamesReadService(CreateRegistry(), new CardMappingService(dbContext), dbContext, new GameEffectHandlingService());
+        var service = new GamesReadService(
+            CreateRegistry(),
+            new CardMappingService(dbContext),
+            dbContext,
+            new GameRuntimeDeckService(new GameEffectHandlingService()));
 
         var result = await service.GetCardDataForGame(gameEntity.JoinCode);
 
@@ -76,7 +84,11 @@ public sealed class GamesServiceGetCardsForGameTests
 
         await dbContext.SaveChangesAsync();
 
-        var service = new GamesReadService(CreateRegistry(), new CardMappingService(dbContext), dbContext, new GameEffectHandlingService());
+        var service = new GamesReadService(
+            CreateRegistry(),
+            new CardMappingService(dbContext),
+            dbContext,
+            new GameRuntimeDeckService(new GameEffectHandlingService()));
 
         var result = await service.GetCardDataForGame(gameEntity.JoinCode);
 
@@ -89,7 +101,11 @@ public sealed class GamesServiceGetCardsForGameTests
     public async Task GetCardsForGame_ReturnsValidationError_WhenGameIdIsBlank()
     {
         await using var dbContext = CreateDbContext();
-        var service = new GamesReadService(CreateRegistry(), new CardMappingService(dbContext), dbContext, new GameEffectHandlingService());
+        var service = new GamesReadService(
+            CreateRegistry(),
+            new CardMappingService(dbContext),
+            dbContext,
+            new GameRuntimeDeckService(new GameEffectHandlingService()));
 
         var result = await service.GetCardDataForGame("   ");
 
@@ -101,7 +117,11 @@ public sealed class GamesServiceGetCardsForGameTests
     public async Task GetCardsForGame_ReturnsNotFound_WhenGameIsUnknown()
     {
         await using var dbContext = CreateDbContext();
-        var service = new GamesReadService(CreateRegistry(), new CardMappingService(dbContext), dbContext, new GameEffectHandlingService());
+        var service = new GamesReadService(
+            CreateRegistry(),
+            new CardMappingService(dbContext),
+            dbContext,
+            new GameRuntimeDeckService(new GameEffectHandlingService()));
 
         var result = await service.GetCardDataForGame("missing-game");
 
