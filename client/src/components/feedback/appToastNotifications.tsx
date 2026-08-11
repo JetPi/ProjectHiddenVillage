@@ -1,12 +1,6 @@
 import { toast } from 'sonner'
 import { AppToast } from './AppToast'
-
-type IAppToastTone = 'success' | 'info'
-
-type IAppToastOptions = {
-  id?: string
-  duration?: number
-}
+import type { IAppToastOptions, IAppToastTone } from './types'
 
 function showAppToast(tone: IAppToastTone, message: string, options: IAppToastOptions = {}) {
   return toast.custom(

@@ -1,21 +1,5 @@
-import type { HTMLAttributes } from 'react'
 import { twMerge } from 'tailwind-merge'
-
-export type IToggleOption<T extends string> = {
-  value: T
-  label: string
-  disabled?: boolean
-}
-
-type IOptionToggleProps<T extends string> = {
-  value: T
-  options: readonly IToggleOption<T>[]
-  onChange: (value: T) => void
-  ariaLabel: string
-  className?: string
-  optionClassName?: string
-} &
-  Omit<HTMLAttributes<HTMLDivElement>, 'onChange'>
+import type { IOptionToggleProps } from './types'
 
 export function OptionToggle<T extends string>({
   value,

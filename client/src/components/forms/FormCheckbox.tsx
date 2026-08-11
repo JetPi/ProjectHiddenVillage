@@ -1,14 +1,5 @@
 import { forwardRef } from 'react'
-import type { InputHTMLAttributes, PropsWithChildren } from 'react'
-
-type IFormCheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>
-
-type IFormCheckboxFieldProps = PropsWithChildren<{
-  className?: string
-  labelClassName?: string
-  label: string
-}> &
-  IFormCheckboxProps
+import type { IFormCheckboxFieldProps, IFormCheckboxProps } from './types'
 
 export const FormCheckbox = forwardRef<HTMLInputElement, IFormCheckboxProps>(function FormCheckbox(
   { className = '', ...checkboxProps },

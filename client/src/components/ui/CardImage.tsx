@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ImgHTMLAttributes } from 'react'
 import { twMerge } from 'tailwind-merge'
 import { preloadImageSource } from '../../services/imagePreloadCache'
+import type { ICardImageProps } from './types'
 
 const fallbackSvg = encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="500" viewBox="0 0 360 500">
@@ -18,21 +19,6 @@ const fallbackSvg = encodeURIComponent(
 )
 
 const FALLBACK_IMAGE_SRC = `data:image/svg+xml;charset=UTF-8,${fallbackSvg}`
-
-type ICardImageProps = Omit<
-  ImgHTMLAttributes<HTMLImageElement>,
-  'src' | 'alt' | 'loading' | 'decoding' | 'width' | 'height' | 'fetchPriority'
-> & {
-  src?: string | null
-  alt: string
-  loading?: 'lazy' | 'eager'
-  decoding?: 'async' | 'sync' | 'auto'
-  fetchPriority?: 'high' | 'low' | 'auto'
-  className?: string
-  width?: number
-  height?: number
-  fallbackLabel?: string
-}
 
 export function CardImage({
   src,

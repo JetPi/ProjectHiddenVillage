@@ -1,10 +1,5 @@
 import { useLayoutEffect, useRef } from 'react'
-
-type IUseAlignedSplitOptions = {
-  splitStartVar?: string
-  splitEndVar?: string
-  halfBandPercent?: number
-}
+import type { IUseAlignedSplitOptions } from './types/hooks'
 
 export function useAlignedSplit(
   options: IUseAlignedSplitOptions = {},

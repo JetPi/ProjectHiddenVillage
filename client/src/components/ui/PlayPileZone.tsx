@@ -1,12 +1,7 @@
 import { twMerge } from 'tailwind-merge'
 import { PlayCard } from './PlayCard'
-import { CardBack, type ICardBackTone } from './CardBack'
-
-type IPlayPileZoneProps = {
-  labels: [string, string, string]
-  className?: string
-  cardBackTone?: ICardBackTone
-}
+import { CardBack } from './CardBack'
+import type { IPlayPileZoneProps } from './types'
 
 function isDeckLabel(label: string): boolean {
   return label.trim().toLowerCase() === 'deck'

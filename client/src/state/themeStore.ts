@@ -1,15 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-
-export type IThemeMode = 'light' | 'dark'
-
-type IThemeStoreState = {
-  theme: IThemeMode
-  initialized: boolean
-  initializeTheme: () => void
-  setTheme: (theme: IThemeMode) => void
-  toggleTheme: () => void
-}
+import type { IThemeMode, IThemeStoreState } from './types/themeStore'
 
 function applyTheme(theme: IThemeMode) {
   document.documentElement.dataset.theme = theme
@@ -59,3 +50,7 @@ export const useThemeStore = create<IThemeStoreState>()(
     },
   ),
 )
+
+export type {
+  IThemeMode,
+}

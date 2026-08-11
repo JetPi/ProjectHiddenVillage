@@ -1,6 +1,4 @@
-import type { HTMLAttributes, PropsWithChildren } from 'react'
-
-type IFormErrorTextProps = PropsWithChildren<HTMLAttributes<HTMLParagraphElement>>
+import type { IFormErrorTextProps } from './types'
 
 export function FormErrorText({ className = '', children, ...errorProps }: IFormErrorTextProps) {
   return (

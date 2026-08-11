@@ -1,10 +1,10 @@
-import type { IGameInstanceDetailResponse } from '../../../services/api/gameApi'
+import type { IGameStateResponse } from '../../../services/api/gameApi'
 import type { ICardCatalogItemResponse } from '../../../types/cardCatalog'
 
 export type IGameLoaderData = {
   joinCode: string
   gameCards: ICardCatalogItemResponse[]
-  gameInstance: IGameInstanceDetailResponse
+  gameState: IGameStateResponse
 }
 
 export type IGameActionData = {

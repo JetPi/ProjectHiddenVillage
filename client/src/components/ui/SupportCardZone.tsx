@@ -1,10 +1,6 @@
 import { twMerge } from 'tailwind-merge'
 import { PlayCard } from './PlayCard'
-
-type ISupportCardZoneProps = {
-  className?: string
-  slotClassName?: string
-}
+import type { ISupportCardZoneProps } from './types'
 
 export function SupportCardZone({
   className,

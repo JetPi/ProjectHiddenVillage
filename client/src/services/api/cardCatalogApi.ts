@@ -1,6 +1,7 @@
 import { api } from './httpClient'
 import type { ICardCatalogItemResponse, IPagedResponse } from '../../types/cardCatalog'
 import { appQueryClient, DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '../queryClient'
+import type { ICardCatalogPageQuery } from './types/cardCatalog'
 
 const CARD_CATALOG_CACHE_TTL_MS = DEFAULT_CARD_CATALOG_STALE_TIME_MS
 
@@ -74,12 +75,6 @@ function getFreshCardItemFromCache(cardId: string, ttlMs: number): ICardCatalogI
   }
 
   return queryState.data
-}
-
-export type ICardCatalogPageQuery = {
-  page?: number
-  pageSize?: number
-  sort?: string
 }
 
 export async function fetchCardCatalogPage(
@@ -193,4 +188,8 @@ export async function fetchCardCatalogByIdsSparseCached(
   }
 
   return orderedCards
+}
+
+export type {
+  ICardCatalogPageQuery,
 }

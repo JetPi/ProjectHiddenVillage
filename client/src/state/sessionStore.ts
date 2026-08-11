@@ -1,12 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-
-type ISessionStoreState = {
-  displayName: string
-  gameCode: string
-  setSession: (payload: { displayName: string; gameCode: string }) => void
-  clearSession: () => void
-}
+import type { ISessionStoreState } from './types/sessionStore'
 
 const initialState = {
   displayName: '',

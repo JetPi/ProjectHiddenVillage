@@ -1,8 +1,6 @@
-import type { ComponentProps, PropsWithChildren } from 'react'
 import { Form as RouterForm } from 'react-router-dom'
 import { twMerge } from 'tailwind-merge'
-
-type IFormProps = PropsWithChildren<ComponentProps<typeof RouterForm>>
+import type { IFormProps } from './types'
 
 export function Form({ className = '', children, ...formProps }: IFormProps) {
   return (

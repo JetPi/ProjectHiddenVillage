@@ -1,7 +1,5 @@
-import type { LabelHTMLAttributes, PropsWithChildren } from 'react'
 import { twMerge } from 'tailwind-merge'
-
-type IFormLabelProps = PropsWithChildren<LabelHTMLAttributes<HTMLLabelElement>>
+import type { IFormLabelProps } from './types'
 
 export function FormLabel({ className = '', children, ...labelProps }: IFormLabelProps) {
   return (

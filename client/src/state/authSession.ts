@@ -1,18 +1,5 @@
 import { create } from 'zustand'
-
-export type IAuthSession = {
-  userId: string
-  username: string
-  email: string
-  accessToken: string
-  expiresAt: string
-}
-
-type IAuthSessionStoreState = {
-  session: IAuthSession | null
-  setSession: (session: IAuthSession) => void
-  clearSession: () => void
-}
+import type { IAuthSession, IAuthSessionStoreState } from './types/authSession'
 
 const AUTH_SESSION_STORAGE_KEY = 'phv-auth-session'
 
@@ -111,4 +98,8 @@ export function persistAuthSession(session: IAuthSession): void {
 
 export function clearAuthSession(): void {
   useAuthSessionStore.getState().clearSession()
+}
+
+export type {
+  IAuthSession,
 }

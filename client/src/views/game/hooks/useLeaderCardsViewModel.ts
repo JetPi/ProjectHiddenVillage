@@ -1,14 +1,8 @@
 import type { IGamePlayerStateResponse } from '../../../services/api/gameApi'
 import type { IGameLoaderData } from '../types/routeData'
+import type { ILeaderCardsViewModel } from '../types/hooks'
 import { buildLeaderCardFrameClass } from '../utils/functions'
 import { useDerivedGameViewState } from './useDerivedGameViewState'
-
-type ILeaderCardsViewModel = {
-  topLeaderCard: ReturnType<typeof useDerivedGameViewState>['topLeaderCard']
-  bottomLeaderCard: ReturnType<typeof useDerivedGameViewState>['bottomLeaderCard']
-  topLeaderCardFrameClassName: string
-  bottomLeaderCardFrameClassName: string
-}
 
 function useLeaderCardsViewModel(
   gameCards: IGameLoaderData['gameCards'],

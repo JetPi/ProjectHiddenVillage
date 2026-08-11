@@ -3,31 +3,12 @@ import { api } from '../../../services/api/httpClient'
 import type { IAuthSession } from '../../../state/authSession'
 import { persistAuthSession } from '../../../state/authSession'
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage'
-
-type ILoginResponse = {
-  id: string
-  username: string
-  email: string
-  accessToken: string
-  expiresAt: string
-}
-
-type ILoginApiRequest = {
-  email: string
-  password: string
-}
-
-export type ILoginLoaderData = {
-  signupSuccess: boolean
-}
-
-export type ILoginActionData = {
-  login?: {
-    ok: boolean
-    error?: string
-    user?: IAuthSession
-  }
-}
+import type {
+  ILoginActionData,
+  ILoginApiRequest,
+  ILoginLoaderData,
+  ILoginResponse,
+} from '../types/routeHandlers'
 
 export async function loginLoader({ request }: LoaderFunctionArgs): Promise<ILoginLoaderData> {
   const url = new URL(request.url)

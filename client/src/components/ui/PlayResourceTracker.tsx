@@ -3,16 +3,11 @@ import { twMerge } from 'tailwind-merge'
 import { CardImage } from './CardImage'
 import chakraCardImage from '../../assets/ChakraCard.webp'
 import summonCardImage from '../../assets/SummonCard.webp'
+import type { IPlayResourceTrackerProps } from './types'
 
 const SMALL_RESOURCE_CARD_SLOTS = 6
 const RESOURCE_CARD_FRAME_CLASS = 'h-full max-h-full overflow-hidden rounded-sm border border-[var(--border-subtle)] bg-[var(--surface-muted)]'
 const RESOURCE_CARD_IMAGE_CLASS = 'h-full w-full rounded-none object-contain p-[1px] [image-rendering:auto] [transform:translateZ(0)]'
-
-type IPlayResourceTrackerProps = {
-    cardClassName: string
-    className?: string
-    reverse?: boolean
-}
 
 export function PlayResourceTracker({ cardClassName, className, reverse = false }: IPlayResourceTrackerProps) {
     const smallResourceCardSlots = Array.from({ length: SMALL_RESOURCE_CARD_SLOTS }, (_, slotIndex) => slotIndex)

@@ -1,8 +1,6 @@
 import { forwardRef } from 'react'
-import type { InputHTMLAttributes } from 'react'
 import { twMerge } from 'tailwind-merge'
-
-type IFormInputProps = InputHTMLAttributes<HTMLInputElement>
+import type { IFormInputProps } from './types'
 
 export const FormInput = forwardRef<HTMLInputElement, IFormInputProps>(function FormInput(
   { className = '', ...inputProps },

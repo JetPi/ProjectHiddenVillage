@@ -4,42 +4,13 @@ import { api } from '../../../services/api/httpClient'
 import type { IAuthSession } from '../../../state/authSession'
 import { persistAuthSession } from '../../../state/authSession'
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage'
-
-type IUserResponse = {
-  id: string
-  username: string
-  email: string
-}
-
-type ISignUpApiRequest = {
-  username: string
-  email: string
-  password: string
-}
-
-type ILoginResponse = {
-  id: string
-  username: string
-  email: string
-  accessToken: string
-  expiresAt: string
-}
-
-type ILoginApiRequest = {
-  email: string
-  password: string
-}
-
-export type ISignUpActionData = {
-  signUp?: {
-    ok: boolean
-    error?: string
-    values?: {
-      username: string
-      email: string
-    }
-  }
-}
+import type {
+  ILoginApiRequest,
+  ILoginResponse,
+  ISignUpActionData,
+  ISignUpApiRequest,
+  IUserResponse,
+} from '../types/routeHandlers'
 
 export async function signInLoader(): Promise<null> {
   return null

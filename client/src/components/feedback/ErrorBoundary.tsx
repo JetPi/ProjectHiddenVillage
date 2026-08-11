@@ -1,13 +1,5 @@
-import { Component, type ErrorInfo, type PropsWithChildren, type ReactNode } from 'react'
-
-type IErrorBoundaryProps = PropsWithChildren<{
-  fallback?: ReactNode
-}>
-
-type IErrorBoundaryState = {
-  hasError: boolean
-  errorMessage: string
-}
+import { Component, type ErrorInfo } from 'react'
+import type { IErrorBoundaryProps, IErrorBoundaryState } from './types'
 
 const initialState: IErrorBoundaryState = {
   hasError: false,
