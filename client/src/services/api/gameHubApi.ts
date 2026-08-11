@@ -1,19 +1,11 @@
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { getAuthAccessToken } from '../../state/authSession'
 import type { IGameStateResponse } from './gameApi'
-
-type IHubOperationResult<T> = {
-  succeeded: boolean
-  value: T | null
-  errorCode: string | null
-  errorDescription: string | null
-}
-
-type IPlayerPhaseActionRequest = {
-  playerId: string
-}
-
-type IGameStateInvalidatedHandler = (gameId: string) => void
+import type {
+  IGameStateInvalidatedHandler,
+  IHubOperationResult,
+  IPlayerPhaseActionRequest,
+} from './types/gameHub'
 
 const EVENT_GAME_STATE_INVALIDATED = 'GameStateInvalidated'
 const HUB_ENDPOINT_PATH = '/hubs/games'

@@ -15,17 +15,7 @@ import {
 } from '../../../services/api/gameHubApi'
 import type { IGameStateResponse } from '../../../services/api/gameApi'
 import { useGameHubStore } from '../../../state/gameHubStore'
-
-type IGameHubActionIntent = 'pass-turn' | 'declare-action' | 'advance-phase'
-
-type IUseGameHubStateResult = {
-  gameState: IGameStateResponse
-  isConnected: boolean
-  isActionPending: boolean
-  connectionError: string | null
-  actionError: string | null
-  submitHubIntent: (intent: IGameHubActionIntent) => Promise<void>
-}
+import type { IGameHubActionIntent, IUseGameHubStateResult } from '../types/hub'
 
 function resolveHubErrorMessage(result: IHubOperationResult<IGameStateResponse>): string {
   if (result.errorDescription) {
