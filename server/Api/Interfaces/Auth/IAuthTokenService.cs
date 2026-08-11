@@ -1,4 +1,4 @@
-namespace ProjectHiddenVillage.Server;
+namespace ProjectHiddenVillage.Server.Api.Interfaces.Auth;
 
 public interface IAuthTokenService
 {

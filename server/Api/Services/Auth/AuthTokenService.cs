@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using ProjectHiddenVillage.Server.Api.Interfaces.Auth;
 namespace ProjectHiddenVillage.Server;
 
 public sealed class AuthTokenService : IAuthTokenService

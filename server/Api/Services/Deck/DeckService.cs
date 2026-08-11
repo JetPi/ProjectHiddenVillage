@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using ErrorOr;
 using Microsoft.EntityFrameworkCore;
+using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.DTOs;
 using ProjectHiddenVillage.Server.Data.Entities;

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 using ProjectHiddenVillage.Server.Data.DTOs;
 
 namespace ProjectHiddenVillage.Server;

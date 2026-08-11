@@ -1,6 +1,7 @@
 using ErrorOr;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using ProjectHiddenVillage.Server.Api.Interfaces.User;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.DTOs;
 using ProjectHiddenVillage.Server.Data.Entities;
