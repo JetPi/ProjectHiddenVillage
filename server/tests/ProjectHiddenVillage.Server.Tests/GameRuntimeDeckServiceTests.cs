@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ProjectHiddenVillage.Server.Api.Services.Games;
 
 namespace ProjectHiddenVillage.Server.Tests;
 

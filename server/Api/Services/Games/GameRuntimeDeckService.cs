@@ -3,7 +3,7 @@ using System.Text.Json;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Data.Entities;
 
-namespace ProjectHiddenVillage.Server;
+namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
 public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffectHandlingService) : IGameRuntimeDeckService
 {
