@@ -1,9 +1,6 @@
-const DECK_LINE_PATTERN = /^\s*(\d+)x\s+([A-Za-z0-9-]+)\s*$/
+import type { IDeckCardsValidationResult } from '../types/deckValidation'
 
-export type IDeckCardsValidationResult = {
-  isValid: boolean
-  message?: string
-}
+const DECK_LINE_PATTERN = /^\s*(\d+)x\s+([A-Za-z0-9-]+)\s*$/
 
 export function validateDeckCardsPayload(cardsPayload: string): IDeckCardsValidationResult {
   const lines = cardsPayload

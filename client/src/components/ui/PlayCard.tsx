@@ -1,10 +1,5 @@
-import type { ReactNode } from 'react'
 import { twMerge } from 'tailwind-merge'
-
-type IPlayCardProps = {
-  className?: string
-  children?: ReactNode
-}
+import type { IPlayCardProps } from './types'
 
 export function PlayCard({ className, children }: IPlayCardProps) {
   return (

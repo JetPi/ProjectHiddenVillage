@@ -1,13 +1,6 @@
 import { useEffect } from 'react'
-import type { PropsWithChildren } from 'react'
 import { useThemeStore } from '../../state/themeStore'
-
-type IPageShellProps = PropsWithChildren<{
-  compact?: boolean
-  className?: string
-  overlayClassName?: string
-  backgroundClassName?: string
-}>
+import type { IPageShellProps } from './types'
 
 export function PageShell({
   children,

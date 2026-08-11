@@ -1,7 +1,5 @@
 import { forwardRef } from 'react'
-import type { TextareaHTMLAttributes } from 'react'
-
-type IFormTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement>
+import type { IFormTextareaProps } from './types'
 
 export const FormTextarea = forwardRef<HTMLTextAreaElement, IFormTextareaProps>(function FormTextarea(
   { className = '', rows = 4, ...textareaProps },

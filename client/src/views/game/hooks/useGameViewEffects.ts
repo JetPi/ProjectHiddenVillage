@@ -5,9 +5,8 @@ import chakraCardImage from '../../../assets/ChakraCard.webp'
 import summonCardImage from '../../../assets/SummonCard.webp'
 import cardBackImage from '../../../assets/CardBackside.png'
 import type { IGameLoaderData } from '../types/routeData'
+import type { IRevalidatorState } from '../types/hooks'
 import { buildCardPreloadPayload } from '../utils/functions'
-
-type IRevalidatorState = 'idle' | 'loading'
 const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackImage]
 
 function useIdleRevalidationPoll(

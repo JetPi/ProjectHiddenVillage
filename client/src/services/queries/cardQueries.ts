@@ -4,6 +4,11 @@ import type { ICardCatalogItemResponse } from '../../types/cardCatalog'
 import { fetchCardCatalogByIdsSparseCached } from '../api/cardCatalogApi'
 import { fetchGameCards } from '../api/gameApi'
 import { DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '../queryClient'
+import type {
+  IUseCardCatalogByIdsQueryOptions,
+  IUseGameCardMapByIdResult,
+  IUseGameCardsQueryOptions,
+} from './types/cardQueries'
 
 function normalizeCardIds(cardIds: string[]): string[] {
   const uniqueCardIds = new Map<string, string>()
@@ -37,11 +42,6 @@ export const cardQueryKeys = {
   gameCards: (joinCode: string) => ['cards', 'game', joinCode.trim().toLowerCase()] as const,
 }
 
-type IUseCardCatalogByIdsQueryOptions = {
-  enabled?: boolean
-  staleTimeMs?: number
-}
-
 export function useCardCatalogByIdsQuery(
   cardIds: string[],
   options: IUseCardCatalogByIdsQueryOptions = {},
@@ -55,12 +55,6 @@ export function useCardCatalogByIdsQuery(
     enabled: (options.enabled ?? true) && normalizedCardIds.length > 0,
     staleTime: staleTimeMs,
   })
-}
-
-type IUseGameCardsQueryOptions = {
-  enabled?: boolean
-  staleTimeMs?: number
-  refetchIntervalMs?: number
 }
 
 export function useGameCardsQuery(
@@ -77,11 +71,6 @@ export function useGameCardsQuery(
     staleTime: staleTimeMs,
     refetchInterval: options.refetchIntervalMs,
   })
-}
-
-type IUseGameCardMapByIdResult = {
-  cardsById: Map<string, ICardCatalogItemResponse>
-  getCardById: (cardId: string | null | undefined) => ICardCatalogItemResponse | undefined
 }
 
 export function useGameCardMapById(

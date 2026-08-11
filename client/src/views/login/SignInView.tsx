@@ -10,7 +10,7 @@ import {
   FormInput,
   FormLabel,
 } from '../../components/forms'
-import type { ISignUpActionData } from './handlers/signInRouteHandlers'
+import type { ISignUpActionData } from './types/routeHandlers'
 
 export function SignInView() {
   const actionData = useActionData() as ISignUpActionData | undefined

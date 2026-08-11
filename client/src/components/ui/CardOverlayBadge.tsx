@@ -1,9 +1,5 @@
 import { twMerge } from 'tailwind-merge'
-
-type ICardOverlayBadgeProps = {
-  value: number
-  className?: string
-}
+import type { ICardOverlayBadgeProps } from './types'
 
 export function CardOverlayBadge({ value, className }: ICardOverlayBadgeProps) {
   return (

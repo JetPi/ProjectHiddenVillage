@@ -1,42 +1,7 @@
-import type {
-  InputHTMLAttributes,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-} from 'react'
 import { FormInput } from './FormInput'
 import { FormSelect } from './FormSelect'
 import { FormTextarea } from './FormTextarea'
-
-type ISelectChoice = {
-  value: string
-  label: string
-}
-
-type IAdaptiveInputConfig = {
-  type: 'input'
-  props?: Omit<InputHTMLAttributes<HTMLInputElement>, 'id' | 'value' | 'onChange'>
-}
-
-type IAdaptiveSelectConfig = {
-  type: 'select'
-  choices: readonly ISelectChoice[]
-  props?: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'id' | 'value' | 'onChange'>
-}
-
-type IAdaptiveTextareaConfig = {
-  type: 'textarea'
-  props?: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'id' | 'value' | 'onChange'>
-}
-
-export type IAdaptiveFieldConfig = IAdaptiveInputConfig | IAdaptiveSelectConfig | IAdaptiveTextareaConfig
-
-type IAdaptiveFormFieldProps = {
-  id: string
-  value: string
-  onValueChange: (value: string) => void
-  config: IAdaptiveFieldConfig
-  className?: string
-}
+import type { IAdaptiveFormFieldProps } from './types'
 
 export function AdaptiveFormField({
   id,

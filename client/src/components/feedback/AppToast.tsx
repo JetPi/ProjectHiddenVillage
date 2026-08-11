@@ -1,12 +1,5 @@
 import { CheckCircle2, Info, X } from 'lucide-react'
-
-type IAppToastTone = 'success' | 'info'
-
-type IAppToastProps = {
-  tone: IAppToastTone
-  message: string
-  onClose: () => void
-}
+import type { IAppToastProps, IAppToastTone } from './types'
 
 function toneIcon(tone: IAppToastTone) {
   if (tone === 'success') {

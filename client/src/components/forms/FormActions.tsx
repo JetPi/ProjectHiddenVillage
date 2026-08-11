@@ -1,7 +1,5 @@
-import type { HTMLAttributes, PropsWithChildren } from 'react'
 import { twMerge } from 'tailwind-merge'
-
-type IFormActionsProps = PropsWithChildren<HTMLAttributes<HTMLDivElement>>
+import type { IFormActionsProps } from './types'
 
 export function FormActions({ className = '', children, ...actionsProps }: IFormActionsProps) {
   return (

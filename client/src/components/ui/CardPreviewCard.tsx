@@ -3,12 +3,7 @@ import { createPortal } from 'react-dom'
 import { twMerge } from 'tailwind-merge'
 import type { ICardCatalogItemResponse } from '../../types/cardCatalog'
 import { CardImage } from './CardImage'
-
-type ICardPreviewCardProps = {
-    card: ICardCatalogItemResponse
-    className?: string
-    imageLoading?: 'lazy' | 'eager'
-}
+import type { ICardPreviewCardProps } from './types'
 
 function getPrimaryName(card: ICardCatalogItemResponse): string {
     if (card.displayName.trim()) {
