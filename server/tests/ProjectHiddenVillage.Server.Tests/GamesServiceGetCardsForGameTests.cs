@@ -11,6 +11,99 @@ namespace ProjectHiddenVillage.Server.Tests;
 public sealed class GamesServiceGetCardsForGameTests
 {
     [TestMethod]
+    public async Task GetCurrentGameState_ReturnsRuntimeZonesForPlayers()
+    {
+        await using var dbContext = CreateDbContext();
+        var registry = CreateRegistry();
+
+        var stateCard = new Card
+        {
+            Id = "STATE-001",
+            DisplayName = "State Card",
+            Name = ["State Card"]
+        };
+
+        var runtimeGame = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["STATE-001"] }
+            ],
+            cardDefinitions: new Dictionary<string, Card>(StringComparer.Ordinal)
+            {
+                ["STATE-001"] = stateCard
+            },
+            preferredGameCode: "Ab12C");
+
+        var player = runtimeGame.State.Players.Single(player => player.PlayerId == "p1");
+        var movedToHand = player.Deck[0];
+        player.Deck.RemoveAt(0);
+        player.Hand.Add(movedToHand);
+        player.SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-1",
+            CardDefinitionId = "STATE-001",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1"
+        });
+        player.ExileZone.Add(new CardInstance
+        {
+            InstanceId = "exile-1",
+            CardDefinitionId = "STATE-001",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1"
+        });
+
+        var service = new GamesReadService(
+            registry,
+            new CardMappingService(dbContext),
+            dbContext,
+            new GameRuntimeDeckService(new GameEffectHandlingService()));
+
+        var result = service.GetCurrentGameState(runtimeGame.Id);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(runtimeGame.Id, result.Value.GameId);
+        Assert.AreEqual(1, result.Value.Players.Count);
+        var returnedPlayer = result.Value.Players.Single(current => current.PlayerId == "p1");
+        Assert.AreEqual(0, returnedPlayer.Deck.Count);
+        Assert.AreEqual(1, returnedPlayer.Hand.Count);
+        Assert.AreEqual(1, returnedPlayer.SupportZone.Count);
+        Assert.AreEqual(1, returnedPlayer.ExileZone.Count);
+    }
+
+    [TestMethod]
+    public async Task GetCurrentGameState_ReturnsValidationError_WhenGameIdIsBlank()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new GamesReadService(
+            CreateRegistry(),
+            new CardMappingService(dbContext),
+            dbContext,
+            new GameRuntimeDeckService(new GameEffectHandlingService()));
+
+        var result = service.GetCurrentGameState("   ");
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Game.GetById.MissingId", result.FirstError.Code);
+    }
+
+    [TestMethod]
+    public async Task GetCurrentGameState_ReturnsNotFound_WhenGameIsUnknown()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new GamesReadService(
+            CreateRegistry(),
+            new CardMappingService(dbContext),
+            dbContext,
+            new GameRuntimeDeckService(new GameEffectHandlingService()));
+
+        var result = service.GetCurrentGameState("missing-game");
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Game.NotFound", result.FirstError.Code);
+    }
+
+    [TestMethod]
     public async Task GetCardsForGame_ReturnsCombinedCardsFromAssignedPlayerDecks()
     {
         await using var dbContext = CreateDbContext();

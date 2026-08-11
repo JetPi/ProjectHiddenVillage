@@ -1,7 +1,22 @@
+using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using ProjectHiddenVillage.Server.Api.Services.Games;
+
 namespace ProjectHiddenVillage.Server;
 
 public sealed class GameInstanceFactory
 {
+    private readonly IGameRuntimeDeckService gameRuntimeDeckService;
+
+    public GameInstanceFactory()
+        : this(new GameRuntimeDeckService(new GameEffectHandlingService()))
+    {
+    }
+
+    public GameInstanceFactory(IGameRuntimeDeckService gameRuntimeDeckService)
+    {
+        this.gameRuntimeDeckService = gameRuntimeDeckService;
+    }
+
     public GameInstance Create(
         IReadOnlyList<Player> players,
         IReadOnlyDictionary<string, Card> cardDefinitions,
@@ -30,7 +45,7 @@ public sealed class GameInstanceFactory
             PhaseDirectives = new Queue<PhaseDirective>(),
             CardDefinitions = new Dictionary<string, Card>(cardDefinitions, StringComparer.Ordinal),
             Players = playerStates,
-            Stack = []
+            EffectResolutionStack = []
         };
 
         var instance = new GameInstance(state);
@@ -141,16 +156,9 @@ public sealed class GameInstanceFactory
         }
     }
 
-    private static PlayerState BuildPlayerState(Player player, IReadOnlyDictionary<string, Card> cardDefinitions)
+    private PlayerState BuildPlayerState(Player player, IReadOnlyDictionary<string, Card> cardDefinitions)
     {
-        var deckInstances = player.Deck.Select(cardDefinitionId => new CardInstance
-        {
-            InstanceId = Guid.NewGuid().ToString("N"),
-            CardDefinitionId = cardDefinitionId,
-            OwnerPlayerId = player.Id,
-            ControllerPlayerId = player.Id,
-            IsExhausted = false
-        }).ToList();
+        var deckInstances = gameRuntimeDeckService.ToRuntimeDeck(player.Deck, player.Id);
 
         var leaderCardInstance = BuildLeaderCardInstance(deckInstances, cardDefinitions);
 

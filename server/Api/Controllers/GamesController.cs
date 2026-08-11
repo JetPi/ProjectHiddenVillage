@@ -1,47 +1,52 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using ErrorOr;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using ProjectHiddenVillage.Server.Api.Services.Games;
 
 namespace ProjectHiddenVillage.Server;
 
 [ApiController]
 [Route("api/[controller]")]
 public sealed class GamesController(
-    IGameInstanceService gameInstanceService,
-    IGameReadService gameReadService,
-    IGamePhaseHandlingService gamePhaseHandlingService) : ApiControllerBase
+    IGameReadService gameReadService) : ApiControllerBase
 {
-    private readonly IGameInstanceService gameInstanceService = gameInstanceService;
     private readonly IGameReadService gameReadService = gameReadService;
-    private readonly IGamePhaseHandlingService gamePhaseHandlingService = gamePhaseHandlingService;
 
-    [HttpPost]
-    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<GameInstance>> Create([FromBody] CreateGameForUserRequest request)
-    {
-        var result = await gameInstanceService.CreateGameForUser(request);
-        if (result.IsError)
-        {
-            return ProblemFromErrors<GameInstance>(result.Errors);
-        }
-
-        return CreatedAtAction(nameof(GetById), new { gameId = result.Value.Id }, result.Value);
-    }
-
-    [HttpGet("{gameId}")]
-    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
+    [HttpGet("{gameId}/state")]
+    [Authorize]
+    [ProducesResponseType(typeof(GameStateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<GameInstance> GetById(string gameId)
+    public ActionResult<GameStateResponse> GetCurrentGameState(string gameId)
     {
-        var result = gameReadService.GetById(gameId);
-        if (result.IsError)
+        var requestingPlayerIdResult = GetRequestingPlayerId();
+        if (requestingPlayerIdResult.IsError)
         {
-            return ProblemFromErrors<GameInstance>(result.Errors);
+            return ProblemFromErrors<GameStateResponse>(requestingPlayerIdResult.Errors);
         }
 
-        return Ok(result.Value);
+        var result = gameReadService.GetCurrentGameState(gameId);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<GameStateResponse>(result.Errors);
+        }
+
+        if (!result.Value.Players.Any(player =>
+                string.Equals(player.PlayerId, requestingPlayerIdResult.Value, StringComparison.Ordinal)))
+        {
+            return ProblemFromErrors<GameStateResponse>(
+            [
+                Error.Unauthorized(
+                    code: "Game.GetCurrentState.Forbidden",
+                    description: "Current user is not a player in this game.")
+            ]);
+        }
+
+        return Ok(GameStateResponseMapper.ToGameStateResponse(result.Value, requestingPlayerIdResult.Value));
     }
 
     [HttpGet("{gameId}/cards")]
@@ -59,108 +64,26 @@ public sealed class GamesController(
         return Ok(result.Value);
     }
 
-    [HttpPost("{gameId}/join")]
-    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<GameInstance>> Join(string gameId, [FromBody] JoinGameAsPlayer request)
+    private ErrorOr<string> GetRequestingPlayerId()
     {
-        var result = await gameInstanceService.JoinGameForUser(gameId, request);
-        if (result.IsError)
+        var rawUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        if (string.IsNullOrWhiteSpace(rawUserId))
         {
-            return ProblemFromErrors<GameInstance>(result.Errors);
+            return Error.Unauthorized(
+                code: "Game.GetCurrentState.Unauthorized",
+                description: "Authenticated user id claim is missing.");
         }
 
-        return Ok(result.Value);
-    }
-
-    [HttpPost("{gameId}/prompts/resolve")]
-    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public ActionResult<GameInstance> ResolvePrompt(string gameId, [FromBody] ResolvePromptRequest request)
-    {
-        var result = gamePhaseHandlingService.ResolvePrompt(gameId, request);
-        if (result.IsError)
+        if (!Guid.TryParse(rawUserId, out var userId))
         {
-            return ProblemFromErrors<GameInstance>(result.Errors);
+            return Error.Unauthorized(
+                code: "Game.GetCurrentState.Unauthorized",
+                description: "Authenticated user id claim is invalid.");
         }
 
-        return Ok(result.Value);
+        return userId.ToString("N");
     }
 
-    [HttpPost("{gameId}/phase/advance")]
-    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public ActionResult<GameInstance> AdvancePhase(string gameId)
-    {
-        var result = gamePhaseHandlingService.AdvancePhase(gameId);
-        if (result.IsError)
-        {
-            return ProblemFromErrors<GameInstance>(result.Errors);
-        }
-
-        return Ok(result.Value);
-    }
-
-    [HttpPost("{gameId}/action-step/pass")]
-    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public ActionResult<GameInstance> DeclarePassInActionStep(string gameId, [FromBody] PlayerPhaseActionRequest request)
-    {
-        var result = gamePhaseHandlingService.DeclarePassInActionStep(gameId, request);
-        if (result.IsError)
-        {
-            return ProblemFromErrors<GameInstance>(result.Errors);
-        }
-
-        return Ok(result.Value);
-    }
-
-    [HttpPost("{gameId}/action-step/action")]
-    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public ActionResult<GameInstance> DeclareActionInActionStep(string gameId, [FromBody] PlayerPhaseActionRequest request)
-    {
-        var result = gamePhaseHandlingService.DeclareActionInActionStep(gameId, request);
-        if (result.IsError)
-        {
-            return ProblemFromErrors<GameInstance>(result.Errors);
-        }
-
-        return Ok(result.Value);
-    }
-
-    [HttpPost("{gameId}/end-step/declare")]
-    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public ActionResult<GameInstance> DeclareEndStep(string gameId)
-    {
-        var result = gamePhaseHandlingService.DeclareEndStep(gameId);
-        if (result.IsError)
-        {
-            return ProblemFromErrors<GameInstance>(result.Errors);
-        }
-
-        return Ok(result.Value);
-    }
-
-    [HttpPost("{gameId}/end-step/complete")]
-    [ProducesResponseType(typeof(GameInstance), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
-    public ActionResult<GameInstance> CompleteEndStep(string gameId)
-    {
-        var result = gamePhaseHandlingService.CompleteEndStep(gameId);
-        if (result.IsError)
-        {
-            return ProblemFromErrors<GameInstance>(result.Errors);
-        }
-
-        return Ok(result.Value);
-    }
 }
