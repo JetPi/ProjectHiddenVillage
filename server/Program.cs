@@ -28,7 +28,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddSingleton<GameInstanceFactory>();
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.GamePhaseService>();
 builder.Services.AddSingleton<InMemoryGameInstanceRegistry>();
-builder.Services.AddScoped<IGameDeckResolverService, GameDeckResolverService>();
+builder.Services.AddScoped<IGameEffectHandlingService, GameEffectHandlingService>();
 builder.Services.AddScoped<IGamePhaseHandlingService, GamePhaseHandlingService>();
 builder.Services.AddScoped<IGameInstanceService, GameInstanceService>();
 builder.Services.AddScoped<IGameReadService, GamesReadService>();

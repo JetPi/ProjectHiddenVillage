@@ -1,17 +1,79 @@
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using ErrorOr;
 using Microsoft.EntityFrameworkCore;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Entities;
+using System.Text.Json;
 
 namespace ProjectHiddenVillage.Server;
 
-public sealed class GameDeckResolverService(ApplicationDbContext dbContext) : IGameDeckResolverService
+public sealed class GamesReadService(
+    InMemoryGameInstanceRegistry registry,
+    ICardMappingService cardMappingService,
+    ApplicationDbContext dbContext,
+    IGameEffectHandlingService gameEffectHandlingService) : IGameReadService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<ErrorOr<ResolvedPlayerDeck>> ResolvePlayerDeck(Guid userId, Guid deckId, string operationName)
+    public async Task<ErrorOr<List<CardCatalogItemResponse>>> GetCardDataForGame(string gameCode)
+    {
+        if (string.IsNullOrWhiteSpace(gameCode))
+        {
+            return Error.Validation(code: "Game.GetById.MissingId", description: "Game code is required.");
+        }
+
+        var normalizedGameCode = gameCode.Trim();
+
+        if (registry.TryGet(normalizedGameCode, out var runtimeGame) && runtimeGame is not null)
+        {
+            var runtimeCardIds = runtimeGame.State.Players
+                .SelectMany(player => player.Deck)
+                .Select(card => card.CardDefinitionId?.Trim())
+                .Where(cardId => !string.IsNullOrWhiteSpace(cardId))
+                .Cast<string>()
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (runtimeCardIds.Count == 0)
+            {
+                return [];
+            }
+
+            return await cardMappingService.GetCardCatalogByIds(runtimeCardIds);
+        }
+
+        var deckAssignments = await dbContext.GameInstances
+            .AsNoTracking()
+            .Where(game => game.JoinCode == normalizedGameCode)
+            .Select(game => new { game.Player1DeckId, game.Player2DeckId })
+            .SingleOrDefaultAsync();
+
+        if (deckAssignments is null)
+        {
+            return Error.NotFound(code: "Game.NotFound", description: $"Game instance '{normalizedGameCode}' was not found.");
+        }
+
+        var rawCardIds = await dbContext.DeckCards
+            .AsNoTracking()
+            .Where(deckCard => deckCard.DeckId == deckAssignments.Player1DeckId || deckCard.DeckId == deckAssignments.Player2DeckId)
+            .Select(deckCard => deckCard.CardCatalogEntry.CardId)
+            .ToListAsync();
+
+        var cardIds = rawCardIds
+            .Select(cardId => cardId?.Trim())
+            .Where(cardId => !string.IsNullOrWhiteSpace(cardId))
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (cardIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await cardMappingService.GetCardCatalogByIds(cardIds);
+    }
+
+    public async Task<ErrorOr<ResolvedPlayerDeck>> ResolvePlayerDeckData(Guid userId, Guid deckId, string operationName)
     {
         var user = await dbContext.Users
             .AsNoTracking()
@@ -97,7 +159,22 @@ public sealed class GameDeckResolverService(ApplicationDbContext dbContext) : IG
         return new ResolvedPlayerDeck(player, cardDefinitions);
     }
 
-    private static Card ToRuntimeCard(CardCatalogEntry entry)
+    public ErrorOr<GameInstance> GetById(string gameCode)
+    {
+        if (string.IsNullOrWhiteSpace(gameCode))
+        {
+            return Error.Validation(code: "Game.GetById.MissingId", description: "Game code is required.");
+        }
+
+        if (!registry.TryGet(gameCode.Trim(), out var game) || game is null)
+        {
+            return Error.NotFound(code: "Game.NotFound", description: $"Game instance '{gameCode}' was not found.");
+        }
+
+        return game;
+    }
+
+    private Card ToRuntimeCard(CardCatalogEntry entry)
     {
         var names = DeserializeOrDefault<List<string>>(entry.NameJson, []);
         var traits = DeserializeOrDefault<List<string>>(entry.TraitsJson, []);
@@ -109,7 +186,7 @@ public sealed class GameDeckResolverService(ApplicationDbContext dbContext) : IG
             CardType.Leader => new LeaderCard
             {
                 Life = entry.Life ?? 0,
-                RecoveryEffect = ExtractRecoveryEffect(entry.Description)
+                RecoveryEffect = gameEffectHandlingService.ExtractRecoveryEffect(entry.Description)
             },
             CardType.Character or CardType.ExCharacter => new CharacterCard
             {
@@ -132,7 +209,7 @@ public sealed class GameDeckResolverService(ApplicationDbContext dbContext) : IG
         card.Traits = traits;
         card.Color = entry.Color;
         card.Description = entry.Description;
-        card.MainEffect = ExtractMainEffect(entry.Description);
+        card.MainEffect = gameEffectHandlingService.ExtractMainEffect(entry.Description);
         card.Damage = entry.Damage;
         card.Power = entry.Power;
         card.Conditions = conditions;
@@ -156,51 +233,5 @@ public sealed class GameDeckResolverService(ApplicationDbContext dbContext) : IG
         {
             return fallback;
         }
-    }
-
-    private static string ExtractRecoveryEffect(string description)
-    {
-        if (string.IsNullOrWhiteSpace(description))
-        {
-            return string.Empty;
-        }
-
-        const string marker = "[Recovery]";
-        var index = description.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
-        if (index < 0)
-        {
-            return string.Empty;
-        }
-
-        return description[(index + marker.Length)..].Trim();
-    }
-
-    private static string ExtractMainEffect(string description)
-    {
-        if (string.IsNullOrWhiteSpace(description))
-        {
-            return string.Empty;
-        }
-
-        const string supportMarker = "[Support]";
-        const string recoveryMarker = "[Recovery]";
-
-        var supportIndex = description.IndexOf(supportMarker, StringComparison.OrdinalIgnoreCase);
-        var recoveryIndex = description.IndexOf(recoveryMarker, StringComparison.OrdinalIgnoreCase);
-
-        var endIndex = description.Length;
-        if (supportIndex >= 0)
-        {
-            endIndex = supportIndex;
-        }
-
-        if (recoveryIndex >= 0)
-        {
-            endIndex = Math.Min(endIndex, recoveryIndex);
-        }
-
-        var mainEffectSegment = description[..endIndex];
-        var withoutBrTags = Regex.Replace(mainEffectSegment, @"<br\s*/?>", " ", RegexOptions.IgnoreCase);
-        return withoutBrTags.Trim();
     }
 }

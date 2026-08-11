@@ -5,7 +5,7 @@ namespace ProjectHiddenVillage.Server;
 
 public sealed class GameInstanceService(
     InMemoryGameInstanceRegistry registry,
-    IGameDeckResolverService deckResolverService) : IGameInstanceService
+    IGameReadService gameReadService) : IGameInstanceService
 {
     public Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request)
     {
@@ -16,7 +16,7 @@ public sealed class GameInstanceService(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var playerDeckResult = await deckResolverService.ResolvePlayerDeck(request.UserId, request.DeckId, operationName: "Game.CreateForUser");
+        var playerDeckResult = await gameReadService.ResolvePlayerDeckData(request.UserId, request.DeckId, operationName: "Game.CreateForUser");
         if (playerDeckResult.IsError)
         {
             return playerDeckResult.Errors;
@@ -73,7 +73,7 @@ public sealed class GameInstanceService(
             return Error.Validation(code: "Game.JoinForUser.MissingDeckId", description: "DeckId is required.");
         }
 
-        var playerDeckResult = await deckResolverService.ResolvePlayerDeck(request.UserId, request.DeckId.Value, operationName: "Game.JoinForUser");
+        var playerDeckResult = await gameReadService.ResolvePlayerDeckData(request.UserId, request.DeckId.Value, operationName: "Game.JoinForUser");
         if (playerDeckResult.IsError)
         {
             return playerDeckResult.Errors;
