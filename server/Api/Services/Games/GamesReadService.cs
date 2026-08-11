@@ -1,9 +1,13 @@
 using ErrorOr;
 using Microsoft.EntityFrameworkCore;
+using ProjectHiddenVillage.Server.Data;
 
 namespace ProjectHiddenVillage.Server;
 
-public sealed partial class GamesService
+public sealed class GamesReadService(
+    InMemoryGameInstanceRegistry registry,
+    ICardMappingService cardMappingService,
+    ApplicationDbContext dbContext) : IGameReadService
 {
     public async Task<ErrorOr<List<CardCatalogItemResponse>>> GetCardDataForGame(string gameCode)
     {

@@ -6,11 +6,18 @@ namespace ProjectHiddenVillage.Server;
 [Route("api/[controller]")]
 public sealed class GamesController : ApiControllerBase
 {
-    private readonly IGamesService gamesService;
+    private readonly IGameInstanceService gameInstanceService;
+    private readonly IGameReadService gameReadService;
+    private readonly IGamePhaseHandlingService gamePhaseHandlingService;
 
-    public GamesController(IGamesService gamesService)
+    public GamesController(
+        IGameInstanceService gameInstanceService,
+        IGameReadService gameReadService,
+        IGamePhaseHandlingService gamePhaseHandlingService)
     {
-        this.gamesService = gamesService;
+        this.gameInstanceService = gameInstanceService;
+        this.gameReadService = gameReadService;
+        this.gamePhaseHandlingService = gamePhaseHandlingService;
     }
 
     [HttpPost]
@@ -19,7 +26,7 @@ public sealed class GamesController : ApiControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<GameInstance>> Create([FromBody] CreateGameForUserRequest request)
     {
-        var result = await gamesService.CreateGameForUser(request);
+        var result = await gameInstanceService.CreateGameForUser(request);
         if (result.IsError)
         {
             return ProblemFromErrors<GameInstance>(result.Errors);
@@ -34,7 +41,7 @@ public sealed class GamesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> GetById(string gameId)
     {
-        var result = gamesService.GetById(gameId);
+        var result = gameReadService.GetById(gameId);
         if (result.IsError)
         {
             return ProblemFromErrors<GameInstance>(result.Errors);
@@ -49,7 +56,7 @@ public sealed class GamesController : ApiControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<List<CardCatalogItemResponse>>> GetCardsForGame(string gameId)
     {
-        var result = await gamesService.GetCardDataForGame(gameId);
+        var result = await gameReadService.GetCardDataForGame(gameId);
         if (result.IsError)
         {
             return ProblemFromErrors<List<CardCatalogItemResponse>>(result.Errors);
@@ -64,7 +71,7 @@ public sealed class GamesController : ApiControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<GameInstance>> Join(string gameId, [FromBody] JoinGameAsPlayer request)
     {
-        var result = await gamesService.JoinGameForUser(gameId, request);
+        var result = await gameInstanceService.JoinGameForUser(gameId, request);
         if (result.IsError)
         {
             return ProblemFromErrors<GameInstance>(result.Errors);
@@ -79,7 +86,7 @@ public sealed class GamesController : ApiControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> ResolvePrompt(string gameId, [FromBody] ResolvePromptRequest request)
     {
-        var result = gamesService.ResolvePrompt(gameId, request);
+        var result = gamePhaseHandlingService.ResolvePrompt(gameId, request);
         if (result.IsError)
         {
             return ProblemFromErrors<GameInstance>(result.Errors);
@@ -94,7 +101,7 @@ public sealed class GamesController : ApiControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> AdvancePhase(string gameId)
     {
-        var result = gamesService.AdvancePhase(gameId);
+        var result = gamePhaseHandlingService.AdvancePhase(gameId);
         if (result.IsError)
         {
             return ProblemFromErrors<GameInstance>(result.Errors);
@@ -109,7 +116,7 @@ public sealed class GamesController : ApiControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> DeclarePassInActionStep(string gameId, [FromBody] PlayerPhaseActionRequest request)
     {
-        var result = gamesService.DeclarePassInActionStep(gameId, request);
+        var result = gamePhaseHandlingService.DeclarePassInActionStep(gameId, request);
         if (result.IsError)
         {
             return ProblemFromErrors<GameInstance>(result.Errors);
@@ -124,7 +131,7 @@ public sealed class GamesController : ApiControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> DeclareActionInActionStep(string gameId, [FromBody] PlayerPhaseActionRequest request)
     {
-        var result = gamesService.DeclareActionInActionStep(gameId, request);
+        var result = gamePhaseHandlingService.DeclareActionInActionStep(gameId, request);
         if (result.IsError)
         {
             return ProblemFromErrors<GameInstance>(result.Errors);
@@ -139,7 +146,7 @@ public sealed class GamesController : ApiControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> DeclareEndStep(string gameId)
     {
-        var result = gamesService.DeclareEndStep(gameId);
+        var result = gamePhaseHandlingService.DeclareEndStep(gameId);
         if (result.IsError)
         {
             return ProblemFromErrors<GameInstance>(result.Errors);
@@ -154,7 +161,7 @@ public sealed class GamesController : ApiControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public ActionResult<GameInstance> CompleteEndStep(string gameId)
     {
-        var result = gamesService.CompleteEndStep(gameId);
+        var result = gamePhaseHandlingService.CompleteEndStep(gameId);
         if (result.IsError)
         {
             return ProblemFromErrors<GameInstance>(result.Errors);

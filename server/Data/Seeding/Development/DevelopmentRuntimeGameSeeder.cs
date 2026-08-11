@@ -8,16 +8,16 @@ public sealed class DevelopmentRuntimeGameSeeder
     private static readonly Guid SeedDeckOneId = Guid.Parse("10000000-0000-0000-0000-000000000001");
 
     private readonly InMemoryGameInstanceRegistry registry;
-    private readonly IGamesService gamesService;
+    private readonly IGameInstanceService gameInstanceService;
     private readonly ILogger<DevelopmentRuntimeGameSeeder> logger;
 
     public DevelopmentRuntimeGameSeeder(
         InMemoryGameInstanceRegistry registry,
-        IGamesService gamesService,
+        IGameInstanceService gameInstanceService,
         ILogger<DevelopmentRuntimeGameSeeder> logger)
     {
         this.registry = registry;
-        this.gamesService = gamesService;
+        this.gameInstanceService = gameInstanceService;
         this.logger = logger;
     }
 
@@ -31,7 +31,7 @@ public sealed class DevelopmentRuntimeGameSeeder
             return;
         }
 
-        var createResult = await gamesService.CreateGameForUser(
+        var createResult = await gameInstanceService.CreateGameForUser(
             new CreateGameForUserRequest(
                 UserId: DevelopmentUserSeeder.SeedUserOneId,
                 DeckId: SeedDeckOneId),

@@ -28,7 +28,10 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddSingleton<GameInstanceFactory>();
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.GamePhaseService>();
 builder.Services.AddSingleton<InMemoryGameInstanceRegistry>();
-builder.Services.AddScoped<IGamesService, GamesService>();
+builder.Services.AddScoped<IGameDeckResolverService, GameDeckResolverService>();
+builder.Services.AddScoped<IGamePhaseHandlingService, GamePhaseHandlingService>();
+builder.Services.AddScoped<IGameInstanceService, GameInstanceService>();
+builder.Services.AddScoped<IGameReadService, GamesReadService>();
 builder.Services.AddScoped<ICardMappingService, CardMappingService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IDeckService, DeckService>();

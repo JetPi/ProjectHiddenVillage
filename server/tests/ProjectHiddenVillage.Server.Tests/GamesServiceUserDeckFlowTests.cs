@@ -25,9 +25,9 @@ public sealed class GamesServiceUserDeckFlowTests
         await dbContext.SaveChangesAsync();
 
         var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
-        var service = CreateService(dbContext);
+        var services = CreateServices(dbContext);
 
-        var result = await service.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
+        var result = await services.InstanceService.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
 
         Assert.IsFalse(result.IsError);
         Assert.AreEqual(5, result.Value.Id.Length);
@@ -53,9 +53,9 @@ public sealed class GamesServiceUserDeckFlowTests
         await dbContext.SaveChangesAsync();
 
         var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
-        var service = CreateService(dbContext);
+        var services = CreateServices(dbContext);
 
-        var result = await service.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
+        var result = await services.InstanceService.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
 
         Assert.IsFalse(result.IsError);
         var player = result.Value.State.Players.Single();
@@ -98,19 +98,19 @@ public sealed class GamesServiceUserDeckFlowTests
             .AsNoTracking()
             .ToDictionaryAsync(deck => deck.UserId!.Value, deck => deck.Id);
 
-        var service = CreateService(dbContext);
+        var services = CreateServices(dbContext);
 
-        var createResult = await service.CreateGameForUser(new CreateGameForUserRequest(user1.Id, deckIdsByUserId[user1.Id]));
+        var createResult = await services.InstanceService.CreateGameForUser(new CreateGameForUserRequest(user1.Id, deckIdsByUserId[user1.Id]));
         Assert.IsFalse(createResult.IsError);
 
-        var joinResult = await service.JoinGameForUser(
+        var joinResult = await services.InstanceService.JoinGameForUser(
             createResult.Value.Id,
             new JoinGameAsPlayer(user2.Id, deckIdsByUserId[user2.Id]));
 
         Assert.IsFalse(joinResult.IsError);
         Assert.AreEqual(2, joinResult.Value.State.Players.Count);
 
-        var thirdJoinResult = await service.JoinGameForUser(
+        var thirdJoinResult = await services.InstanceService.JoinGameForUser(
             createResult.Value.Id,
             new JoinGameAsPlayer(user3.Id, deckIdsByUserId[user3.Id]));
 
@@ -131,12 +131,12 @@ public sealed class GamesServiceUserDeckFlowTests
         await dbContext.SaveChangesAsync();
 
         var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
-        var service = CreateService(dbContext);
+        var services = CreateServices(dbContext);
 
-        var createResult = await service.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
+        var createResult = await services.InstanceService.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
         Assert.IsFalse(createResult.IsError);
 
-        var rejoinResult = await service.JoinGameForUser(
+        var rejoinResult = await services.InstanceService.JoinGameForUser(
             createResult.Value.Id,
             new JoinGameAsPlayer(user.Id, null));
 
@@ -159,14 +159,14 @@ public sealed class GamesServiceUserDeckFlowTests
         await dbContext.SaveChangesAsync();
 
         var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
-        var service = CreateService(dbContext);
+        var services = CreateServices(dbContext);
 
-        var createResult = await service.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
+        var createResult = await services.InstanceService.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
         Assert.IsFalse(createResult.IsError);
 
         createResult.Value.State.Players[0].Deck.Clear();
 
-        var rejoinResult = await service.JoinGameForUser(
+        var rejoinResult = await services.InstanceService.JoinGameForUser(
             createResult.Value.Id,
             new JoinGameAsPlayer(user.Id, null));
 
@@ -191,12 +191,12 @@ public sealed class GamesServiceUserDeckFlowTests
         await dbContext.SaveChangesAsync();
 
         var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
-        var service = CreateService(dbContext);
+        var services = CreateServices(dbContext);
 
-        var createResult = await service.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
+        var createResult = await services.InstanceService.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
         Assert.IsFalse(createResult.IsError);
 
-        var cardsResult = await service.GetCardsForGame(createResult.Value.Id);
+        var cardsResult = await services.ReadService.GetCardDataForGame(createResult.Value.Id);
 
         Assert.IsFalse(cardsResult.IsError);
         CollectionAssert.AreEquivalent(
@@ -204,14 +204,18 @@ public sealed class GamesServiceUserDeckFlowTests
             cardsResult.Value.Select(card => card.Id).ToArray());
     }
 
-    private static GamesService CreateService(ApplicationDbContext dbContext)
+    private static TestGameServices CreateServices(ApplicationDbContext dbContext)
     {
         var registry = new InMemoryGameInstanceRegistry(
             new GameInstanceFactory(),
             new global::ProjectHiddenVillage.Server.Engine.GamePhaseService());
 
-        return new GamesService(registry, new CardMappingService(dbContext), dbContext);
+        return new TestGameServices(
+            InstanceService: new GameInstanceService(registry, new GameDeckResolverService(dbContext)),
+            ReadService: new GamesReadService(registry, new CardMappingService(dbContext), dbContext));
     }
+
+    private sealed record TestGameServices(IGameInstanceService InstanceService, IGameReadService ReadService);
 
     private static User CreateUser(string email, string username)
     {

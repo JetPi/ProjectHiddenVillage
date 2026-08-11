@@ -24,9 +24,9 @@ public sealed class GamesServiceGetCardsForGameTests
 
         await dbContext.SaveChangesAsync();
 
-        var service = new GamesService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
+        var service = new GamesReadService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
 
-        var result = await service.GetCardsForGame(gameEntity.JoinCode);
+        var result = await service.GetCardDataForGame(gameEntity.JoinCode);
 
         Assert.IsFalse(result.IsError);
         Assert.AreEqual(2, result.Value.Count);
@@ -48,9 +48,9 @@ public sealed class GamesServiceGetCardsForGameTests
 
         await dbContext.SaveChangesAsync();
 
-        var service = new GamesService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
+        var service = new GamesReadService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
 
-        var result = await service.GetCardsForGame(gameEntity.JoinCode);
+        var result = await service.GetCardDataForGame(gameEntity.JoinCode);
 
         Assert.IsFalse(result.IsError);
         Assert.AreEqual(2, result.Value.Count);
@@ -76,9 +76,9 @@ public sealed class GamesServiceGetCardsForGameTests
 
         await dbContext.SaveChangesAsync();
 
-        var service = new GamesService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
+        var service = new GamesReadService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
 
-        var result = await service.GetCardsForGame(gameEntity.JoinCode);
+        var result = await service.GetCardDataForGame(gameEntity.JoinCode);
 
         Assert.IsFalse(result.IsError);
         Assert.AreEqual(1, result.Value.Count);
@@ -89,9 +89,9 @@ public sealed class GamesServiceGetCardsForGameTests
     public async Task GetCardsForGame_ReturnsValidationError_WhenGameIdIsBlank()
     {
         await using var dbContext = CreateDbContext();
-        var service = new GamesService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
+        var service = new GamesReadService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
 
-        var result = await service.GetCardsForGame("   ");
+        var result = await service.GetCardDataForGame("   ");
 
         Assert.IsTrue(result.IsError);
         Assert.AreEqual("Game.GetById.MissingId", result.FirstError.Code);
@@ -101,9 +101,9 @@ public sealed class GamesServiceGetCardsForGameTests
     public async Task GetCardsForGame_ReturnsNotFound_WhenGameIsUnknown()
     {
         await using var dbContext = CreateDbContext();
-        var service = new GamesService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
+        var service = new GamesReadService(CreateRegistry(), new CardMappingService(dbContext), dbContext);
 
-        var result = await service.GetCardsForGame("missing-game");
+        var result = await service.GetCardDataForGame("missing-game");
 
         Assert.IsTrue(result.IsError);
         Assert.AreEqual("Game.NotFound", result.FirstError.Code);
