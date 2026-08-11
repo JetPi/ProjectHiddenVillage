@@ -1,10 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router-dom'
 import {
-  advancePhase,
-  declareActionInActionStep,
-  declarePassInActionStep,
-  fetchGameById,
   fetchGameCards,
+  fetchGameState,
 } from '../../../services/api/gameApi'
 import { readAuthSession } from '../../../state/authSession'
 import { getApiErrorMessage } from '../../utils/getApiErrorMessage'
@@ -37,15 +34,15 @@ export async function gameLoader({ params }: LoaderFunctionArgs): Promise<IGameL
   const joinCode = resolveJoinCode(params)
 
   try {
-    const [gameCards, gameInstance] = await Promise.all([
+    const [gameCards, gameState] = await Promise.all([
       fetchGameCards(joinCode),
-      fetchGameById(joinCode),
+      fetchGameState(joinCode),
     ])
 
     return {
       joinCode,
       gameCards,
-      gameInstance,
+      gameState,
     }
   } catch (error) {
     throw new Response(getApiErrorMessage(error, 'Unable to load this game.'), { status: 400 })
@@ -53,7 +50,7 @@ export async function gameLoader({ params }: LoaderFunctionArgs): Promise<IGameL
 }
 
 export async function gameAction({ params, request }: ActionFunctionArgs): Promise<IGameActionData> {
-  const joinCode = resolveJoinCode(params)
+  resolveJoinCode(params)
   const formData = await request.formData()
   const intent = String(formData.get('intent') ?? '').trim()
 
@@ -61,36 +58,30 @@ export async function gameAction({ params, request }: ActionFunctionArgs): Promi
     return {}
   }
 
-  try {
-    if (intent === 'pass-turn') {
-      await declarePassInActionStep(joinCode, { playerId: resolveActionPlayerId() })
+  if (intent === 'pass-turn' || intent === 'declare-action') {
+    try {
+      resolveActionPlayerId()
       return { gameAction: { ok: true, intent } }
+    } catch (error) {
+      return {
+        gameAction: {
+          ok: false,
+          intent,
+          error: getApiErrorMessage(error, 'Game action failed.'),
+        },
+      }
     }
+  }
 
-    if (intent === 'declare-action') {
-      await declareActionInActionStep(joinCode, { playerId: resolveActionPlayerId() })
-      return { gameAction: { ok: true, intent } }
-    }
+  if (intent === 'advance-phase') {
+    return { gameAction: { ok: true, intent } }
+  }
 
-    if (intent === 'advance-phase') {
-      await advancePhase(joinCode)
-      return { gameAction: { ok: true, intent } }
-    }
-
-    return {
-      gameAction: {
-        ok: false,
-        intent,
-        error: `Unknown game action '${intent}'.`,
-      },
-    }
-  } catch (error) {
-    return {
-      gameAction: {
-        ok: false,
-        intent,
-        error: getApiErrorMessage(error, 'Game action failed.'),
-      },
-    }
+  return {
+    gameAction: {
+      ok: false,
+      intent,
+      error: `Unknown game action '${intent}'.`,
+    },
   }
 }

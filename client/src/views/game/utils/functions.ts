@@ -14,17 +14,21 @@ function resolveLeaderCardId(
     return null
   }
 
-  const leaderCardIdFromState = player.leaderCardInstance?.cardDefinitionId?.trim()
-  if (leaderCardIdFromState) {
-    return leaderCardIdFromState
-  }
-
-  const leader = player.deck.find((card) => {
+  const fromCharacterField = player.characterField.find((card) => {
     const normalizedCardId = card.cardDefinitionId.trim().toLowerCase()
     return cardTypeById.get(normalizedCardId) === 'leader'
   })
 
-  return leader?.cardDefinitionId ?? null
+  if (fromCharacterField?.cardDefinitionId) {
+    return fromCharacterField.cardDefinitionId
+  }
+
+  const fromDeck = player.deck.find((card) => {
+    const normalizedCardId = card.cardDefinitionId.trim().toLowerCase()
+    return cardTypeById.get(normalizedCardId) === 'leader'
+  })
+
+  return fromDeck?.cardDefinitionId ?? null
 }
 
 function buildCardById(cards: IGameLoaderData['gameCards']): Map<string, IGameLoaderData['gameCards'][number]> {
@@ -98,35 +102,33 @@ function resolveLeaderCard(
   }
 
   const catalogCard = cardById.get(leaderCardId.trim().toLowerCase())
-  const runtimeLeader = player?.leaderCardInstance
-
-  if (!catalogCard && !runtimeLeader) {
+  if (!catalogCard) {
     return null
   }
 
-  const life = runtimeLeader?.totalLife ?? catalogCard?.life ?? null
-  const currentLife = runtimeLeader?.currentLife ?? life
-  const leaderId = catalogCard?.id ?? runtimeLeader?.cardDefinitionId ?? leaderCardId
+  const life = catalogCard.life ?? null
+  const currentLife = life
+  const leaderId = catalogCard.id ?? leaderCardId
 
   return {
-    instanceId: runtimeLeader?.instanceId ?? '',
-    cardDefinitionId: runtimeLeader?.cardDefinitionId ?? leaderId,
-    ownerPlayerId: runtimeLeader?.ownerPlayerId ?? player?.playerId ?? '',
-    controllerPlayerId: runtimeLeader?.controllerPlayerId ?? player?.playerId ?? '',
+    instanceId: '',
+    cardDefinitionId: leaderId,
+    ownerPlayerId: player?.playerId ?? '',
+    controllerPlayerId: player?.playerId ?? '',
     id: leaderId,
-    image: catalogCard?.image ?? '',
-    attribute: catalogCard?.attribute ?? null,
-    name: catalogCard?.name ?? (runtimeLeader?.name ? [runtimeLeader.name] : []),
-    displayName: catalogCard?.displayName ?? runtimeLeader?.name ?? leaderCardId,
-    type: catalogCard?.type ?? 'Leader',
-    traits: runtimeLeader?.traits ?? catalogCard?.traits ?? [],
-    color: runtimeLeader?.color ?? catalogCard?.color ?? '',
-    description: runtimeLeader?.description ?? catalogCard?.description ?? '',
-    damage: runtimeLeader?.damage ?? catalogCard?.damage ?? 0,
-    power: runtimeLeader?.power ?? catalogCard?.power ?? 0,
+    image: catalogCard.image,
+    attribute: catalogCard.attribute ?? null,
+    name: catalogCard.name,
+    displayName: catalogCard.displayName,
+    type: catalogCard.type,
+    traits: catalogCard.traits,
+    color: catalogCard.color,
+    description: catalogCard.description,
+    damage: catalogCard.damage,
+    power: catalogCard.power,
     life,
     currentLife,
-    recoveryEffect: runtimeLeader?.recoveryEffect ?? '',
+    recoveryEffect: '',
   }
 }
 

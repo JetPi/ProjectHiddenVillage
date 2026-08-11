@@ -1,4 +1,4 @@
-import { useActionData, useLoaderData, useRevalidator } from 'react-router-dom'
+import { useLoaderData } from 'react-router-dom'
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { CardImage } from '../../components/ui/CardImage'
 import { PageShell } from '../../components/layout/PageShell'
@@ -14,12 +14,11 @@ import { useAuthSessionStore } from '../../state/authSession'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
 import { buildLeaderCardFrameClass } from './utils/functions'
-import type { IGameActionData, IGameLoaderData } from './types/routeData'
-import { useCardCatalogPreload, useIdleRevalidationPoll } from './hooks/useGameViewEffects'
-import { useGameIntentSubmit } from './hooks/useGameIntentSubmit'
+import type { IGameLoaderData } from './types/routeData'
+import { useCardCatalogPreload } from './hooks/useGameViewEffects'
 import { useDerivedGameViewState } from './hooks/useDerivedGameViewState'
+import { useGameHubState } from './hooks/useGameHubState'
 import {
-  GAME_CARD_PRELOAD_POLL_INTERVAL_MS,
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
   LEADER_CARD_FRAME_CLASS,
@@ -31,27 +30,26 @@ export function GameView() {
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const authUserId = useAuthSessionStore((state) => state.session?.userId)
   
-  const { joinCode, gameCards, gameInstance } = useLoaderData() as IGameLoaderData
-  const actionData = useActionData() as IGameActionData | undefined
-  const revalidator = useRevalidator()
-  const submitGameIntent = useGameIntentSubmit()
-  const isPlayerTurn = true
-  
-  const players = gameInstance.state.players
+  const { joinCode, gameCards, gameState: initialGameState } = useLoaderData() as IGameLoaderData
+  const {
+    gameState,
+    isConnected,
+    isActionPending,
+    connectionError,
+    actionError,
+    submitHubIntent,
+  } = useGameHubState(joinCode, initialGameState, authUserId)
+
+  const players = gameState.players
+  const normalizedAuthUserId = (authUserId ?? '').trim().toLowerCase().replace(/-/g, '')
+  const isPlayerTurn = normalizedAuthUserId.length > 0 && gameState.activePlayerId === normalizedAuthUserId
 
   const { topLeaderCard, bottomLeaderCard } = useDerivedGameViewState(gameCards, players, authUserId)
 
   const topLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(topLeaderCard))
   const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
 
-  useIdleRevalidationPoll(
-    revalidator.state,
-    revalidator.revalidate,
-    GAME_CARD_PRELOAD_POLL_INTERVAL_MS,
-  )
   useCardCatalogPreload(gameCards)
-
-  console.log('GameView render', { topLeaderCard, bottomLeaderCard })
 
   return (
     <PageShell compact>
@@ -172,7 +170,10 @@ export function GameView() {
                     type="button"
                     variant="ghost"
                     aria-label="Pass turn"
-                    onClick={() => submitGameIntent('pass-turn')}
+                    onClick={() => {
+                      void submitHubIntent('pass-turn')
+                    }}
+                    disabled={!isConnected || isActionPending}
                     className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
                   >
                     <SkipForward size={10} />
@@ -187,6 +188,7 @@ export function GameView() {
                     type="button"
                     variant="ghost"
                     aria-label="Undo action"
+                    disabled={!isConnected || isActionPending}
                     className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
                   >
                     <RotateCcw size={10} />
@@ -201,6 +203,7 @@ export function GameView() {
                     type="button"
                     variant="ghost"
                     aria-label="Open log"
+                    disabled={!isConnected || isActionPending}
                     className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
                   >
                     <ScrollText size={10} />
@@ -214,13 +217,19 @@ export function GameView() {
 
             <div className="grid grid-cols-[1fr_1.5rem] gap-1">
               <div className="flex flex-wrap items-center justify-start gap-1.5 rounded-xl p-1">
-                {actionData?.gameAction && !actionData.gameAction.ok ? (
-                  <span className="text-[10px] font-semibold text-[var(--text-danger)]">{actionData.gameAction.error}</span>
+                {connectionError ? (
+                  <span className="text-[10px] font-semibold text-[var(--text-danger)]">{connectionError}</span>
+                ) : null}
+                {actionError ? (
+                  <span className="text-[10px] font-semibold text-[var(--text-danger)]">{actionError}</span>
                 ) : null}
                 <AppButton
                   type="button"
                   variant="ghost"
-                  onClick={() => submitGameIntent('declare-action')}
+                  onClick={() => {
+                    void submitHubIntent('declare-action')
+                  }}
+                  disabled={!isConnected || isActionPending}
                   className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
                 >
                   Attack
@@ -228,6 +237,7 @@ export function GameView() {
                 <AppButton
                   type="button"
                   variant="ghost"
+                  disabled={!isConnected || isActionPending}
                   className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
                 >
                   Defend
@@ -235,6 +245,7 @@ export function GameView() {
                 <AppButton
                   type="button"
                   variant="ghost"
+                  disabled={!isConnected || isActionPending}
                   className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
                 >
                   Summon
@@ -242,7 +253,10 @@ export function GameView() {
                 <AppButton
                   type="button"
                   variant="ghost"
-                  onClick={() => submitGameIntent('advance-phase')}
+                  onClick={() => {
+                    void submitHubIntent('advance-phase')
+                  }}
+                  disabled={!isConnected || isActionPending}
                   className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
                 >
                   End Turn
