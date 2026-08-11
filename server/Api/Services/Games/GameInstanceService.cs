@@ -1,4 +1,3 @@
-using System.Text.Json;
 using ErrorOr;
 using ProjectHiddenVillage.Server.Data;
 
@@ -8,8 +7,6 @@ public sealed class GameInstanceService(
     InMemoryGameInstanceRegistry registry,
     IGameDeckResolverService deckResolverService) : IGameInstanceService
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
-
     public Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request)
     {
         return CreateGameForUser(request, preferredGameCode: null);
@@ -83,73 +80,21 @@ public sealed class GameInstanceService(
         }
 
         var playerDeck = playerDeckResult.Value;
-        return ExecuteRegistryOperation(
-            operationName: "Game.JoinForUser",
-            operation: () => registry.Join(normalizedGameCode, playerDeck.Player, playerDeck.CardDefinitions));
-    }
-
-    public ErrorOr<GameInstance> ResolvePrompt(string gameId, ResolvePromptRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        return ExecuteRegistryOperation(
-            operationName: "Game.ResolvePrompt",
-            operation: () => registry.ResolvePrompt(gameId, request.RequestedPlayerId, request.SelectedOption));
-    }
-
-    public ErrorOr<GameInstance> AdvancePhase(string gameId)
-    {
-        return ExecuteRegistryOperation(
-            operationName: "Game.AdvancePhase",
-            operation: () => registry.AdvancePhase(gameId));
-    }
-
-    public ErrorOr<GameInstance> DeclarePassInActionStep(string gameId, PlayerPhaseActionRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        return ExecuteRegistryOperation(
-            operationName: "Game.DeclarePassInActionStep",
-            operation: () => registry.DeclarePassInActionStep(gameId, request.PlayerId));
-    }
-
-    public ErrorOr<GameInstance> DeclareActionInActionStep(string gameId, PlayerPhaseActionRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        return ExecuteRegistryOperation(
-            operationName: "Game.DeclareActionInActionStep",
-            operation: () => registry.DeclareActionInActionStep(gameId, request.PlayerId));
-    }
-
-    public ErrorOr<GameInstance> DeclareEndStep(string gameId)
-    {
-        return ExecuteRegistryOperation(
-            operationName: "Game.DeclareEndStep",
-            operation: () => registry.DeclareEndStep(gameId));
-    }
-
-    public ErrorOr<GameInstance> CompleteEndStep(string gameId)
-    {
-        return ExecuteRegistryOperation(
-            operationName: "Game.CompleteEndStep",
-            operation: () => registry.CompleteEndStep(gameId));
-    }
-
-    private static ErrorOr<GameInstance> ExecuteRegistryOperation(string operationName, Func<GameInstance> operation)
-    {
         try
         {
-            return operation();
+            return registry.Join(normalizedGameCode, playerDeck.Player, playerDeck.CardDefinitions);
         }
         catch (KeyNotFoundException ex)
         {
-            return Error.NotFound(code: $"{operationName}.NotFound", description: ex.Message);
+            return Error.NotFound(code: "Game.JoinForUser.NotFound", description: ex.Message);
         }
         catch (ArgumentException ex)
         {
-            return Error.Validation(code: $"{operationName}.InvalidRequest", description: ex.Message);
+            return Error.Validation(code: "Game.JoinForUser.InvalidRequest", description: ex.Message);
         }
         catch (InvalidOperationException ex)
         {
-            return Error.Validation(code: $"{operationName}.InvalidState", description: ex.Message);
+            return Error.Validation(code: "Game.JoinForUser.InvalidState", description: ex.Message);
         }
     }
 
