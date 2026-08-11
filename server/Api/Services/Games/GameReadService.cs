@@ -1,5 +1,7 @@
 using ErrorOr;
 using Microsoft.EntityFrameworkCore;
+using ProjectHiddenVillage.Server.Api.Interfaces.Card;
+using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Entities;
 

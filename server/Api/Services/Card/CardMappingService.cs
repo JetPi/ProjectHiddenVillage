@@ -2,6 +2,7 @@ using ErrorOr;
 using System.Text.Json;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using ProjectHiddenVillage.Server.Api.Interfaces.Card;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Entities;
 

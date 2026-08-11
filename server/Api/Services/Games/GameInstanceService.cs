@@ -1,4 +1,5 @@
 using ErrorOr;
+using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Data;
 
 namespace ProjectHiddenVillage.Server;

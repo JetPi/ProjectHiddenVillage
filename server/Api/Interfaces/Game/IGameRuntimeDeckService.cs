@@ -1,8 +1,8 @@
-namespace ProjectHiddenVillage.Server;
+namespace ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 public interface IGameRuntimeDeckService
 {
-    Card ToRuntimeCard(Data.Entities.CardCatalogEntry entry);
+    global::ProjectHiddenVillage.Server.Card ToRuntimeCard(Data.Entities.CardCatalogEntry entry);
 
     List<CardInstance> ToRuntimeDeck(IReadOnlyList<string> cardDefinitionIds, string playerId);
 

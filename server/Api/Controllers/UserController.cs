@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using ProjectHiddenVillage.Server.Api.Interfaces.Auth;
+using ProjectHiddenVillage.Server.Api.Interfaces.User;
 using ProjectHiddenVillage.Server.Data.DTOs;
 
 namespace ProjectHiddenVillage.Server;

@@ -1,4 +1,5 @@
 using ProjectHiddenVillage.Server.Data.DTOs;
+using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server.Data.Seeding.Development;
 

@@ -1,5 +1,6 @@
 using ProjectHiddenVillage.Server.Data.Entities;
 using System.Text.Json;
+using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server;
 

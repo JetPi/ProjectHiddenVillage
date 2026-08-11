@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using ProjectHiddenVillage.Server.Api.Interfaces.Card;
 
 namespace ProjectHiddenVillage.Server;
 

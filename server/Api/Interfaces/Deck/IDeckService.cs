@@ -1,7 +1,7 @@
 using ErrorOr;
 using ProjectHiddenVillage.Server.Data.DTOs;
 
-namespace ProjectHiddenVillage.Server;
+namespace ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 
 public interface IDeckService
 {

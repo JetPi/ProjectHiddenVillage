@@ -1,24 +1,18 @@
 using Microsoft.AspNetCore.Mvc;
+using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server;
 
 [ApiController]
 [Route("api/[controller]")]
-public sealed class GamesController : ApiControllerBase
+public sealed class GamesController(
+    IGameInstanceService gameInstanceService,
+    IGameReadService gameReadService,
+    IGamePhaseHandlingService gamePhaseHandlingService) : ApiControllerBase
 {
-    private readonly IGameInstanceService gameInstanceService;
-    private readonly IGameReadService gameReadService;
-    private readonly IGamePhaseHandlingService gamePhaseHandlingService;
-
-    public GamesController(
-        IGameInstanceService gameInstanceService,
-        IGameReadService gameReadService,
-        IGamePhaseHandlingService gamePhaseHandlingService)
-    {
-        this.gameInstanceService = gameInstanceService;
-        this.gameReadService = gameReadService;
-        this.gamePhaseHandlingService = gamePhaseHandlingService;
-    }
+    private readonly IGameInstanceService gameInstanceService = gameInstanceService;
+    private readonly IGameReadService gameReadService = gameReadService;
+    private readonly IGamePhaseHandlingService gamePhaseHandlingService = gamePhaseHandlingService;
 
     [HttpPost]
     [ProducesResponseType(typeof(GameInstance), StatusCodes.Status201Created)]
