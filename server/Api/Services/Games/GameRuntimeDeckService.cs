@@ -1,12 +1,14 @@
-using ProjectHiddenVillage.Server.Data.Entities;
+using System.Security.Cryptography;
 using System.Text.Json;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using ProjectHiddenVillage.Server.Data.Entities;
 
-namespace ProjectHiddenVillage.Server;
+namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
 public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffectHandlingService) : IGameRuntimeDeckService
 {
-	private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+	const int topDeck = 0;
+    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
 	public Card ToRuntimeCard(CardCatalogEntry entry)
 	{
@@ -54,12 +56,249 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 
 	public List<CardInstance> ToRuntimeDeck(IReadOnlyList<string> cardDefinitionIds, string playerId)
 	{
-		throw new NotImplementedException();
+		if (string.IsNullOrWhiteSpace(playerId))
+		{
+			throw new ArgumentException("Player id must be provided.", nameof(playerId));
+		}
+
+		if (cardDefinitionIds is null)
+		{
+			throw new ArgumentNullException(nameof(cardDefinitionIds));
+		}
+
+		var rawDeck = cardDefinitionIds.Select(cardDefinitionId => new CardInstance
+		{
+			InstanceId = Guid.NewGuid().ToString("N"),
+			CardDefinitionId = cardDefinitionId,
+			OwnerPlayerId = playerId,
+			ControllerPlayerId = playerId,
+			IsExhausted = false
+		}).ToList();
+
+		return DeckShuffle(rawDeck);
 	}
 
-	public void DeckShuffle(List<CardInstance> deck, Random? random = null)
+	public List<CardInstance> DeckShuffle(List<CardInstance> deck, Random? random = null)
 	{
-		throw new NotImplementedException();
+		if (deck is null)
+		{
+			throw new ArgumentNullException(nameof(deck));
+		}
+
+		var bottomDeck = deck.Count - 1;
+
+		if (deck.Count <= 1)
+		{
+			return deck;
+		}
+
+		if (random is not null)
+		{
+			for (var i = bottomDeck; i > topDeck; i--)
+			{
+				var j = random.Next(i + 1);
+				(deck[i], deck[j]) = (deck[j], deck[i]);
+			}
+
+			return deck;
+		}
+
+		for (var i = bottomDeck; i > topDeck; i--)
+		{
+			var j = RandomNumberGenerator.GetInt32(i + 1);
+			(deck[i], deck[j]) = (deck[j], deck[i]);
+		}
+
+		return deck;
+	}
+
+	public CardInstance MoveCardToZone(
+		GameInstance gameInstance,
+		string playerId,
+		PlayerZone sourceZone,
+		PlayerZone destinationZone,
+		string cardInstanceId,
+		int? destinationIndex = null,
+		string? destinationPlayerId = null,
+		bool allowCrossPlayer = false)
+	{
+        ArgumentNullException.ThrowIfNull(gameInstance);
+
+        if (string.IsNullOrWhiteSpace(playerId))
+		{
+			throw new ArgumentException("Player id must be provided.", nameof(playerId));
+		}
+
+		if (string.IsNullOrWhiteSpace(cardInstanceId))
+		{
+			throw new ArgumentException("Card instance id must be provided.", nameof(cardInstanceId));
+		}
+
+		var resolvedDestinationPlayerId = string.IsNullOrWhiteSpace(destinationPlayerId)
+			? playerId
+			: destinationPlayerId;
+
+		var isCrossPlayerMove = !string.Equals(playerId, resolvedDestinationPlayerId, StringComparison.Ordinal);
+		if (isCrossPlayerMove && !allowCrossPlayer)
+		{
+			throw new InvalidOperationException(
+				$"Cross-player zone moves require '{nameof(allowCrossPlayer)}' to be true. Source player '{playerId}', destination player '{resolvedDestinationPlayerId}'.");
+		}
+
+		var sourceList = ResolvePlayerZone(gameInstance, playerId, sourceZone);
+		var destinationList = ResolvePlayerZone(gameInstance, resolvedDestinationPlayerId, destinationZone);
+
+		var sourceIndex = sourceList.FindIndex(card =>
+			string.Equals(card.InstanceId, cardInstanceId, StringComparison.Ordinal));
+
+		if (sourceIndex < 0)
+		{
+			throw new InvalidOperationException(
+				$"Card instance '{cardInstanceId}' was not found in source zone '{sourceZone}' for player '{playerId}'.");
+		}
+
+		var movedCard = sourceList[sourceIndex];
+		sourceList.RemoveAt(sourceIndex);
+
+		var insertIndex = destinationIndex ?? topDeck;
+		if (ReferenceEquals(sourceList, destinationList) && destinationIndex.HasValue && destinationIndex.Value > sourceIndex)
+		{
+			insertIndex--;
+		}
+
+		if (insertIndex < topDeck || insertIndex > destinationList.Count)
+		{
+			throw new ArgumentOutOfRangeException(
+				nameof(destinationIndex),
+				destinationIndex,
+				$"Destination index must be between {topDeck} and {destinationList.Count}.");
+		}
+
+		if (isCrossPlayerMove)
+		{
+			movedCard.ControllerPlayerId = resolvedDestinationPlayerId;
+		}
+
+		destinationList.Insert(insertIndex, movedCard);
+		return movedCard;
+	}
+
+	public CardInstance? DrawCardFromDeck(GameInstance gameInstance, string playerId)
+	{
+		ArgumentNullException.ThrowIfNull(gameInstance);
+
+		if (string.IsNullOrWhiteSpace(playerId))
+		{
+			throw new ArgumentException("Player id must be provided.", nameof(playerId));
+		}
+
+		var deck = ResolvePlayerZone(gameInstance, playerId, PlayerZone.Deck);
+		var bottomDeck = deck.Count - 1;
+
+		if (bottomDeck < topDeck)
+		{
+			return null;
+		}
+
+		var topCard = deck[topDeck];
+		return MoveCardToZone(
+			gameInstance,
+			playerId,
+			PlayerZone.Deck,
+			PlayerZone.Hand,
+			topCard.InstanceId);
+	}
+
+	public CardInstance MoveCardFromHandToField(GameInstance gameInstance, string playerId, string cardInstanceId)
+	{
+		return MoveCardToZone(
+			gameInstance,
+			playerId,
+		    PlayerZone.Hand,
+			PlayerZone.CharacterField,
+			cardInstanceId);
+	}
+
+	public CardInstance MoveCardFromFieldToTrash(GameInstance gameInstance, string playerId, string cardInstanceId)
+	{
+		return MoveCardToZone(
+			gameInstance,
+			playerId,
+			PlayerZone.CharacterField,
+			PlayerZone.Trash,
+			cardInstanceId);
+	}
+
+	public CardInstance MoveCardFromHandToSupportZone(
+		GameInstance gameInstance,
+		string playerId,
+		string cardInstanceId,
+		int supportZoneIndex)
+	{
+		return MoveCardToZone(
+			gameInstance,
+			playerId,
+			PlayerZone.Hand,
+			PlayerZone.SupportZone,
+			cardInstanceId,
+			destinationIndex: supportZoneIndex);
+	}
+
+	public CardInstance MoveCardFromSupportZoneToTrash(GameInstance gameInstance, string playerId, string cardInstanceId)
+	{
+		return MoveCardToZone(
+			gameInstance,
+			playerId,
+			PlayerZone.SupportZone,
+			PlayerZone.Trash,
+			cardInstanceId);
+	}
+
+	public CardInstance MoveCardFromHandToTopDeck(GameInstance gameInstance, string playerId, string cardInstanceId)
+	{
+		return MoveCardToZone(
+			gameInstance,
+			playerId,
+			PlayerZone.Hand,
+			PlayerZone.Deck,
+			cardInstanceId,
+			destinationIndex: topDeck);
+	}
+
+	public CardInstance MoveCardFromZoneToExileZone(
+		GameInstance gameInstance,
+		string playerId,
+		PlayerZone sourceZone,
+		string cardInstanceId)
+	{
+		return MoveCardToZone(
+			gameInstance,
+			playerId,
+			sourceZone,
+			PlayerZone.ExileZone,
+			cardInstanceId);
+	}
+
+	private static List<CardInstance> ResolvePlayerZone(GameInstance gameInstance, string playerId, PlayerZone zone)
+	{
+		var player = gameInstance.State.Players.FirstOrDefault(current =>
+			string.Equals(current.PlayerId, playerId, StringComparison.Ordinal));
+
+		if (player is null)
+		{
+			throw new InvalidOperationException($"Player '{playerId}' was not found in game '{gameInstance.Id}'.");
+		}
+
+		return zone switch
+		{
+			PlayerZone.Hand => player.Hand,
+			PlayerZone.Deck => player.Deck,
+			PlayerZone.Trash => player.DiscardPile,
+			PlayerZone.ExileZone => player.ExileZone,
+			PlayerZone.SupportZone => player.SupportZone,
+			PlayerZone.CharacterField => player.Battlefield,
+			_ => throw new ArgumentOutOfRangeException(nameof(zone), zone, "Unsupported zone.")
+		};
 	}
 
 	private static T DeserializeOrDefault<T>(string json, T fallback)
