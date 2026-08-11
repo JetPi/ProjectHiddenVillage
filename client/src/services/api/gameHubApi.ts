@@ -1,6 +1,11 @@
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { getAuthAccessToken } from '../../state/authSession'
-import type { IGameStateResponse } from './gameApi'
+import type {
+  ICreateGameForUserRequest,
+  IGameInstanceResponse,
+  IGameStateResponse,
+  IJoinGameAsPlayerRequest,
+} from './types/game'
 import type {
   IGameStateInvalidatedHandler,
   IHubOperationResult,
@@ -22,10 +27,15 @@ function createGameHubConnection(): HubConnection {
   return new HubConnectionBuilder()
     .withUrl(`${hubBaseUrl}${HUB_ENDPOINT_PATH}`, {
       accessTokenFactory: () => getAuthAccessToken() ?? '',
+      withCredentials: false,
     })
     .withAutomaticReconnect()
     .configureLogging(LogLevel.Warning)
     .build()
+}
+
+function resolveHubOperationErrorMessage(result: IHubOperationResult<unknown>): string {
+  return result.errorDescription || result.errorCode || 'Hub operation failed.'
 }
 
 async function invokeHubStateMethod(
@@ -122,6 +132,60 @@ async function declareActionInActionStep(
   return result
 }
 
+async function createGameForUserViaHub(
+  request: ICreateGameForUserRequest,
+  preferredGameCode?: string,
+): Promise<IGameInstanceResponse> {
+  const connection = createGameHubConnection()
+
+  try {
+    await connectGameHub(connection)
+
+    const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(
+      'CreateGame',
+      request,
+      preferredGameCode ?? null,
+    )
+
+    if (!result.succeeded || !result.value) {
+      throw new Error(resolveHubOperationErrorMessage(result))
+    }
+
+    return {
+      id: result.value.gameId,
+    }
+  } finally {
+    await disconnectGameHub(connection)
+  }
+}
+
+async function joinGameAsPlayerViaHub(
+  gameCode: string,
+  request: IJoinGameAsPlayerRequest,
+): Promise<IGameInstanceResponse> {
+  const connection = createGameHubConnection()
+
+  try {
+    await connectGameHub(connection)
+
+    const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(
+      'JoinGame',
+      gameCode,
+      request,
+    )
+
+    if (!result.succeeded || !result.value) {
+      throw new Error(resolveHubOperationErrorMessage(result))
+    }
+
+    return {
+      id: result.value.gameId,
+    }
+  } finally {
+    await disconnectGameHub(connection)
+  }
+}
+
 export {
   createGameHubConnection,
   connectGameHub,
@@ -133,6 +197,8 @@ export {
   advancePhase,
   declarePassInActionStep,
   declareActionInActionStep,
+  createGameForUserViaHub,
+  joinGameAsPlayerViaHub,
 }
 
 export type {

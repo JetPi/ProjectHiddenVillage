@@ -51,7 +51,7 @@ export type IPlayResourceTrackerProps = {
 }
 
 export type IPlayPileZoneProps = {
-  labels: [string, string, string]
+  labels: string[]
   className?: string
   cardBackTone?: ICardBackTone
 }
