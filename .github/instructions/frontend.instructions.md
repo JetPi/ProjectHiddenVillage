@@ -18,6 +18,9 @@ applyTo: "client/src/**"
 - For new routes, update router configuration and ensure fallback behavior is preserved.
 - Keep styling consistent with existing theme variables and structure.
 - When composing reusable UI primitives, use `tailwind-merge` to resolve class conflicts and prefer merged overrides over `!` utility modifiers.
+- Keep TypeScript types in dedicated `types` files/folders colocated by domain (components, views, state, services, queries).
+- Do not declare new inline `type`/`interface` blocks in implementation files (`*.tsx`, hooks, stores, services, handlers) unless there is a one-off local generic constraint that cannot be reasonably reused.
+- Prefer importing types from `.../types` modules and re-exporting from local barrels only when needed for compatibility.
 
 ## Validation
 
