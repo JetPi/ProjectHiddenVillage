@@ -10,6 +10,7 @@ import type {
   IGameStateInvalidatedHandler,
   IHubOperationResult,
   IPlayerPhaseActionRequest,
+  IResolvePromptRequest,
 } from './types/gameHub'
 
 const EVENT_GAME_STATE_INVALIDATED = 'GameStateInvalidated'
@@ -132,6 +133,26 @@ async function declareActionInActionStep(
   return result
 }
 
+async function resolvePrompt(
+  connection: HubConnection,
+  gameId: string,
+  requestedPlayerId: string,
+  selectedOption: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  const payload: IResolvePromptRequest = {
+    requestedPlayerId: normalizePlayerId(requestedPlayerId),
+    selectedOption,
+  }
+
+  const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(
+    'ResolvePrompt',
+    gameId,
+    payload,
+  )
+
+  return result
+}
+
 async function createGameForUserViaHub(
   request: ICreateGameForUserRequest,
   preferredGameCode?: string,
@@ -195,6 +216,7 @@ export {
   unsubscribeFromGame,
   getCurrentGameState,
   advancePhase,
+  resolvePrompt,
   declarePassInActionStep,
   declareActionInActionStep,
   createGameForUserViaHub,

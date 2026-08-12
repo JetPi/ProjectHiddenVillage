@@ -46,12 +46,28 @@ export type IGamePlayerStateResponse = {
   exileZone: IGameCardInstanceResponse[]
 }
 
+export type IGameActionOptionResponse = {
+  actionId: string
+  label: string
+  isEnabled: boolean
+  disabledReason: string | null
+}
+
+export type IPendingPromptResponse = {
+  promptId: string
+  type: string
+  isAwaitingRequestingPlayer: boolean
+  options: string[]
+}
+
 export type IGameStateResponse = {
   gameId: string
   turnNumber: number
   activePlayerId: string
   priorityPlayerId: string
   phase: string
+  pendingPrompt: IPendingPromptResponse | null
+  availableActions: IGameActionOptionResponse[]
   players: IGamePlayerStateResponse[]
 }
 

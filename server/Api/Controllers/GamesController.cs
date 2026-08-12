@@ -29,13 +29,13 @@ public sealed class GamesController(
             return ProblemFromErrors<GameStateResponse>(requestingPlayerIdResult.Errors);
         }
 
-        var result = gameReadService.GetCurrentGameState(gameId);
+        var result = gameReadService.GetById(gameId);
         if (result.IsError)
         {
             return ProblemFromErrors<GameStateResponse>(result.Errors);
         }
 
-        if (!result.Value.Players.Any(player =>
+        if (!result.Value.State.Players.Any(player =>
                 string.Equals(player.PlayerId, requestingPlayerIdResult.Value, StringComparison.Ordinal)))
         {
             return ProblemFromErrors<GameStateResponse>(

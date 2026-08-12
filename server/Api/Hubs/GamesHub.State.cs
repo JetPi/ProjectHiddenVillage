@@ -18,7 +18,7 @@ public sealed partial class GamesHub
             return Task.FromResult(HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors));
         }
 
-        var stateResponse = GameStateResponseMapper.ToGameStateResponse(gameResult.Value.State, requesterIdResult.Value);
+        var stateResponse = GameStateResponseMapper.ToGameStateResponse(gameResult.Value, requesterIdResult.Value);
         return Task.FromResult(HubOperationResult<GameStateResponse>.Success(stateResponse));
     }
 }

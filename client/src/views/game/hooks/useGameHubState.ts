@@ -9,13 +9,14 @@ import {
   disconnectGameHub,
   getCurrentGameState,
   onGameStateInvalidated,
+  resolvePrompt,
   subscribeToGame,
   unsubscribeFromGame,
   type IHubOperationResult,
 } from '../../../services/api/gameHubApi'
 import type { IGameStateResponse } from '../../../services/api/gameApi'
 import { useGameHubStore } from '../../../state/gameHubStore'
-import type { IGameHubActionIntent, IUseGameHubStateResult } from '../types/hub'
+import type { ISubmitHubIntentRequest, IUseGameHubStateResult } from '../types/hub'
 
 function resolveHubErrorMessage(result: IHubOperationResult<IGameStateResponse>): string {
   if (result.errorDescription) {
@@ -133,7 +134,7 @@ function useGameHubState(
   }, [gameId, refreshCurrentGameState, resetConnectionState, setConnected, setConnectionError])
 
   const submitHubIntent = useCallback(
-    async (intent: IGameHubActionIntent): Promise<void> => {
+    async (request: ISubmitHubIntentRequest): Promise<void> => {
       const currentConnection = connectionRef.current
 
       if (!currentConnection || currentConnection.state !== HubConnectionState.Connected) {
@@ -141,7 +142,7 @@ function useGameHubState(
         return
       }
 
-      if (!authUserId && (intent === 'pass-turn' || intent === 'declare-action')) {
+      if (!authUserId && request.intent !== 'advance-phase') {
         setActionError('You must be logged in to perform this action.')
         return
       }
@@ -152,10 +153,12 @@ function useGameHubState(
       try {
         let result: IHubOperationResult<IGameStateResponse>
 
-        if (intent === 'pass-turn') {
+        if (request.intent === 'pass-turn') {
           result = await declarePassInActionStep(currentConnection, gameId, authUserId ?? '')
-        } else if (intent === 'declare-action') {
+        } else if (request.intent === 'declare-action') {
           result = await declareActionInActionStep(currentConnection, gameId, authUserId ?? '')
+        } else if (request.intent === 'resolve-prompt') {
+          result = await resolvePrompt(currentConnection, gameId, authUserId ?? '', request.selectedOption)
         } else {
           result = await advancePhase(currentConnection, gameId)
         }

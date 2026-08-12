@@ -6,7 +6,21 @@ public sealed record GameStateResponse(
     string ActivePlayerId,
     string PriorityPlayerId,
     string Phase,
+    PendingPromptResponse? PendingPrompt,
+    IReadOnlyList<GameActionOptionResponse> AvailableActions,
     IReadOnlyList<PlayerZonesResponse> Players);
+
+public sealed record PendingPromptResponse(
+    string PromptId,
+    string Type,
+    bool IsAwaitingRequestingPlayer,
+    IReadOnlyList<string> Options);
+
+public sealed record GameActionOptionResponse(
+    string ActionId,
+    string Label,
+    bool IsEnabled,
+    string? DisabledReason = null);
 
 public sealed record PlayerZonesResponse(
     string PlayerId,
@@ -25,7 +39,10 @@ public record CardInstanceResponse(
     string InstanceId,
     string CardDefinitionId,
     string OwnerPlayerId,
-    string ControllerPlayerId);
+    string ControllerPlayerId)
+{
+    public IReadOnlyList<GameActionOptionResponse> AvailableActions { get; init; } = [];
+}
 
 public sealed record LeaderCardInstanceResponse(
     string InstanceId,
