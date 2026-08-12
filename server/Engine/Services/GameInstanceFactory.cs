@@ -165,6 +165,7 @@ public sealed class GameInstanceFactory
         return new PlayerState
         {
             PlayerId = player.Id,
+            TurnCount = 0,
             ResourcePool = 0,
             LeaderCardInstance = leaderCardInstance,
             Deck = deckInstances,

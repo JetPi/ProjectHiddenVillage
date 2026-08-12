@@ -116,6 +116,8 @@ public sealed class GameInstance
         if (prompt.Type == GamePromptType.ChooseStartingPlayer)
         {
             State.ActivePlayerId = selectedOption;
+            var startingPlayer = State.Players.Single(player => string.Equals(player.PlayerId, selectedOption, StringComparison.Ordinal));
+            startingPlayer.TurnCount++;
             PendingPrompts.Dequeue();
             AddActionLogEntry(
                 actionType: "prompt_resolved",
@@ -173,6 +175,11 @@ public sealed class GameInstance
             if (player.ResourcePool < 0)
             {
                 throw new InvalidOperationException($"Player '{player.PlayerId}' has a negative resource pool.");
+            }
+
+            if (player.TurnCount < 0)
+            {
+                throw new InvalidOperationException($"Player '{player.PlayerId}' has a negative turn count.");
             }
         }
 

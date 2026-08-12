@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useLoaderData } from 'react-router-dom'
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { CardImage } from '../../components/ui/CardImage'
@@ -51,6 +52,14 @@ export function GameView() {
   const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
 
   useCardCatalogPreload(gameCards)
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return
+    }
+
+    console.log('[GameView] Received gameState update', gameState)
+  }, [gameState])
 
   return (
     <PageShell compact>
