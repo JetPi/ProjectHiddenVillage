@@ -99,33 +99,23 @@ public sealed class GameInstanceFactory
         {
             return;
         }
-
-        var hasStartingPrompt = instance.PendingPrompts.Any(prompt => prompt.Type == GamePromptType.ChooseStartingPlayer);
-
-        if (hasStartingPrompt)
-        {
-            return;
-        }
-
         var turnRng = random ?? Random.Shared;
-        var chooser = instance.State.Players[turnRng.Next(instance.State.Players.Count)].PlayerId;
+        var startingPlayerId = instance.State.Players[turnRng.Next(instance.State.Players.Count)].PlayerId;
+        instance.State.ActivePlayerId = startingPlayerId;
 
-        var startPrompt = new GamePrompt
-        {
-            Type = GamePromptType.ChooseStartingPlayer,
-            RequestedPlayerId = chooser,
-            Options = instance.State.Players.Select(player => player.PlayerId).ToList()
-        };
+        var startingPlayer = instance.State.Players.Single(player =>
+            string.Equals(player.PlayerId, startingPlayerId, StringComparison.Ordinal));
 
-        instance.EnqueuePrompt(startPrompt);
+        startingPlayer.TurnCount++;
+
         instance.AddActionLogEntry(
-            actionType: "prompt_created",
-            message: $"Starting player selection prompt created for {chooser}.",
-            playerId: chooser,
+            actionType: "starting_player_assigned",
+            message: $"Starting player assigned to {startingPlayerId}.",
+            playerId: startingPlayerId,
             metadata: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ["promptType"] = nameof(GamePromptType.ChooseStartingPlayer),
-                ["options"] = string.Join(",", startPrompt.Options)
+                ["selectedPlayerId"] = startingPlayerId,
+                ["playerCount"] = instance.State.Players.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
             });
 
         instance.ValidateInvariants();
