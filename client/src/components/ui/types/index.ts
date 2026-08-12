@@ -6,6 +6,7 @@ import type {
   ReactNode,
 } from 'react'
 import type { ICardCatalogItemResponse } from '../../../types/cardCatalog'
+import type { IDerivedGameViewState } from '../../../views/game/types/viewModels'
 
 export type ICardOverlayBadgeProps = {
   value: number
@@ -52,8 +53,10 @@ export type IPlayResourceTrackerProps = {
 
 export type IPlayPileZoneProps = {
   labels: string[]
+  side: 'top' | 'bottom'
   className?: string
   cardBackTone?: ICardBackTone
+  gameState?: IDerivedGameViewState | null
 }
 
 export type IPlayCardProps = {

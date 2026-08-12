@@ -44,7 +44,8 @@ export function GameView() {
   const normalizedActivePlayerId = gameState.activePlayerId.trim().toLowerCase().replace(/-/g, '')
   const isPlayerTurn = normalizedAuthUserId.length > 0 && normalizedActivePlayerId === normalizedAuthUserId
 
-  const { topLeaderCard, bottomLeaderCard } = useDerivedGameViewState(gameCards, players, authUserId)
+  const derivedGameState = useDerivedGameViewState(gameCards, players, authUserId)
+  const { topLeaderCard, bottomLeaderCard } = derivedGameState
 
   const topLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(topLeaderCard))
   const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
@@ -77,7 +78,7 @@ export function GameView() {
               <div ref={boardZoneRef} className="grid min-h-0 overflow-hidden grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1.5 rounded-2xl border border-dashed border-[var(--border-subtle)] p-2 turn-zone-split">
                 <div className="row-span-2 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-1.5 rounded-xl p-1">
                   <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
-                    <PlayPileZone labels={['Deck', 'Trash']} cardBackTone="blue" />
+                    <PlayPileZone side="top" labels={['Deck', 'Trash']} cardBackTone="blue" gameState={derivedGameState} />
                     <PlayResourceTracker cardClassName="turn-band-blue" reverse />
                   </div>
 
@@ -124,7 +125,7 @@ export function GameView() {
 
                   <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
                     <PlayResourceTracker cardClassName="turn-band-orange-button" />
-                    <PlayPileZone labels={['Trash', 'Deck']} cardBackTone="orange" />
+                    <PlayPileZone side="bottom" labels={['Trash', 'Deck']} cardBackTone="orange" gameState={derivedGameState} />
                   </div>
                 </div>
               </div>
