@@ -14,6 +14,10 @@ function resolveLeaderCardId(
     return null
   }
 
+  if (player.leader?.cardDefinitionId) {
+    return player.leader.cardDefinitionId
+  }
+
   const fromCharacterField = player.characterField.find((card) => {
     const normalizedCardId = card.cardDefinitionId.trim().toLowerCase()
     return cardTypeById.get(normalizedCardId) === 'leader'
@@ -107,14 +111,14 @@ function resolveLeaderCard(
   }
 
   const life = catalogCard.life ?? null
-  const currentLife = life
+  const currentLife = player?.leader?.currentLife ?? life
   const leaderId = catalogCard.id ?? leaderCardId
 
   return {
-    instanceId: '',
-    cardDefinitionId: leaderId,
-    ownerPlayerId: player?.playerId ?? '',
-    controllerPlayerId: player?.playerId ?? '',
+    instanceId: player?.leader?.instanceId ?? '',
+    cardDefinitionId: player?.leader?.cardDefinitionId ?? leaderId,
+    ownerPlayerId: player?.leader?.ownerPlayerId ?? player?.playerId ?? '',
+    controllerPlayerId: player?.leader?.controllerPlayerId ?? player?.playerId ?? '',
     id: leaderId,
     image: catalogCard.image,
     attribute: catalogCard.attribute ?? null,
@@ -128,7 +132,7 @@ function resolveLeaderCard(
     power: catalogCard.power,
     life,
     currentLife,
-    recoveryEffect: '',
+    recoveryEffect: player?.leader?.recoveryEffect ?? '',
   }
 }
 

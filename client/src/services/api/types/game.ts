@@ -16,8 +16,26 @@ export type IGameCardInstanceResponse = {
   isExhausted: boolean
 }
 
+export type IGameLeaderCardInstanceResponse = {
+  instanceId: string
+  cardDefinitionId: string
+  ownerPlayerId: string
+  controllerPlayerId: string
+  isExhausted: boolean
+  displayName: string
+  color: string
+  traits: string[]
+  damage: number
+  power: number
+  totalLife: number
+  currentLife: number
+  recoveryEffect: string
+}
+
 export type IGamePlayerStateResponse = {
   playerId: string
+  turnCount: number
+  leader: IGameLeaderCardInstanceResponse
   deck: IGameCardInstanceResponse[]
   deckCount: number
   hand: IGameCardInstanceResponse[]

@@ -1,16 +1,14 @@
 import { useEffect } from 'react'
 import { useLoaderData } from 'react-router-dom'
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
-import { CardImage } from '../../components/ui/CardImage'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
-import { PlayCard } from '../../components/ui/PlayCard'
 import { PlayPileZone } from '../../components/ui/PlayPileZone'
 import { PlayResourceTracker } from '../../components/ui/PlayResourceTracker'
 import { PlayRow } from '../../components/ui/PlayRow'
 import { SupportCardZone } from '../../components/ui/SupportCardZone'
-import { CardOverlayBadge } from '../../components/ui/CardOverlayBadge'
+import { LeaderCard } from '../../components/ui/LeaderCard'
 import { useAuthSessionStore } from '../../state/authSession'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
@@ -89,22 +87,12 @@ export function GameView() {
                   </div>
 
                   <div className="min-h-0">
-                    <PlayCard className={topLeaderCardFrameClassName}>
-                      {topLeaderCard ? (
-                        <>
-                            <CardOverlayBadge value={topLeaderCard.currentLife ?? 0} />
-                         
-                          <CardImage
-                            src={topLeaderCard.image}
-                            alt={topLeaderCard.displayName || topLeaderCard.id}
-                            loading="eager"
-                            className={LEADER_CARD_IMAGE_CLASS}
-                          />
-                        </>
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-center">Leader</div>
-                      )}
-                    </PlayCard>
+                    <LeaderCard
+                      className={topLeaderCardFrameClassName}
+                      imageClassName={LEADER_CARD_IMAGE_CLASS}
+                      leaderCard={topLeaderCard}
+                      showBadgeWhenLifeMissing
+                    />
                   </div>
                 </div>
 
@@ -122,23 +110,11 @@ export function GameView() {
 
                 <div className="row-span-2 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-1.5 rounded-xl p-1">
                   <div className="min-h-0">
-                    <PlayCard className={bottomLeaderCardFrameClassName}>
-                      {bottomLeaderCard ? (
-                        <>
-                          {typeof bottomLeaderCard.currentLife === 'number' ? (
-                            <CardOverlayBadge value={bottomLeaderCard.currentLife} />
-                          ) : null}
-                          <CardImage
-                            src={bottomLeaderCard.image}
-                            alt={bottomLeaderCard.displayName || bottomLeaderCard.id}
-                            loading="eager"
-                            className={LEADER_CARD_IMAGE_CLASS}
-                          />
-                        </>
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-center">Leader</div>
-                      )}
-                    </PlayCard>
+                    <LeaderCard
+                      className={bottomLeaderCardFrameClassName}
+                      imageClassName={LEADER_CARD_IMAGE_CLASS}
+                      leaderCard={bottomLeaderCard}
+                    />
                   </div>
 
                   <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
