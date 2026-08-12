@@ -4,6 +4,8 @@ public sealed class PlayerState
 {
     public string PlayerId { get; set; } = string.Empty;
 
+    public int TurnCount { get; set; }
+
     public int ResourcePool { get; set; }
 
     public LeaderCardInstanceState? LeaderCardInstance { get; set; }

@@ -1,15 +1,14 @@
+import { useEffect } from 'react'
 import { useLoaderData } from 'react-router-dom'
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
-import { CardImage } from '../../components/ui/CardImage'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
-import { PlayCard } from '../../components/ui/PlayCard'
 import { PlayPileZone } from '../../components/ui/PlayPileZone'
 import { PlayResourceTracker } from '../../components/ui/PlayResourceTracker'
 import { PlayRow } from '../../components/ui/PlayRow'
 import { SupportCardZone } from '../../components/ui/SupportCardZone'
-import { CardOverlayBadge } from '../../components/ui/CardOverlayBadge'
+import { LeaderCard } from '../../components/ui/LeaderCard'
 import { useAuthSessionStore } from '../../state/authSession'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
@@ -45,12 +44,21 @@ export function GameView() {
   const normalizedActivePlayerId = gameState.activePlayerId.trim().toLowerCase().replace(/-/g, '')
   const isPlayerTurn = normalizedAuthUserId.length > 0 && normalizedActivePlayerId === normalizedAuthUserId
 
-  const { topLeaderCard, bottomLeaderCard } = useDerivedGameViewState(gameCards, players, authUserId)
+  const derivedGameState = useDerivedGameViewState(gameCards, players, authUserId)
+  const { topLeaderCard, bottomLeaderCard } = derivedGameState
 
   const topLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(topLeaderCard))
   const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
 
   useCardCatalogPreload(gameCards)
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return
+    }
+
+    console.log('[GameView] Received gameState update', gameState)
+  }, [gameState])
 
   return (
     <PageShell compact>
@@ -70,7 +78,7 @@ export function GameView() {
               <div ref={boardZoneRef} className="grid min-h-0 overflow-hidden grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1.5 rounded-2xl border border-dashed border-[var(--border-subtle)] p-2 turn-zone-split">
                 <div className="row-span-2 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-1.5 rounded-xl p-1">
                   <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
-                    <PlayPileZone labels={['Deck', 'Trash']} cardBackTone="blue" />
+                    <PlayPileZone side="top" labels={['Deck', 'Trash']} cardBackTone="blue" gameState={derivedGameState} />
                     <PlayResourceTracker cardClassName="turn-band-blue" reverse />
                   </div>
 
@@ -80,22 +88,12 @@ export function GameView() {
                   </div>
 
                   <div className="min-h-0">
-                    <PlayCard className={topLeaderCardFrameClassName}>
-                      {topLeaderCard ? (
-                        <>
-                            <CardOverlayBadge value={topLeaderCard.currentLife ?? 0} />
-                         
-                          <CardImage
-                            src={topLeaderCard.image}
-                            alt={topLeaderCard.displayName || topLeaderCard.id}
-                            loading="eager"
-                            className={LEADER_CARD_IMAGE_CLASS}
-                          />
-                        </>
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-center">Leader</div>
-                      )}
-                    </PlayCard>
+                    <LeaderCard
+                      className={topLeaderCardFrameClassName}
+                      imageClassName={LEADER_CARD_IMAGE_CLASS}
+                      leaderCard={topLeaderCard}
+                      showBadgeWhenLifeMissing
+                    />
                   </div>
                 </div>
 
@@ -113,23 +111,11 @@ export function GameView() {
 
                 <div className="row-span-2 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-1.5 rounded-xl p-1">
                   <div className="min-h-0">
-                    <PlayCard className={bottomLeaderCardFrameClassName}>
-                      {bottomLeaderCard ? (
-                        <>
-                          {typeof bottomLeaderCard.currentLife === 'number' ? (
-                            <CardOverlayBadge value={bottomLeaderCard.currentLife} />
-                          ) : null}
-                          <CardImage
-                            src={bottomLeaderCard.image}
-                            alt={bottomLeaderCard.displayName || bottomLeaderCard.id}
-                            loading="eager"
-                            className={LEADER_CARD_IMAGE_CLASS}
-                          />
-                        </>
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-center">Leader</div>
-                      )}
-                    </PlayCard>
+                    <LeaderCard
+                      className={bottomLeaderCardFrameClassName}
+                      imageClassName={LEADER_CARD_IMAGE_CLASS}
+                      leaderCard={bottomLeaderCard}
+                    />
                   </div>
 
                   <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
@@ -139,7 +125,7 @@ export function GameView() {
 
                   <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
                     <PlayResourceTracker cardClassName="turn-band-orange-button" />
-                    <PlayPileZone labels={['Trash', 'Deck']} cardBackTone="orange" />
+                    <PlayPileZone side="bottom" labels={['Trash', 'Deck']} cardBackTone="orange" gameState={derivedGameState} />
                   </div>
                 </div>
               </div>

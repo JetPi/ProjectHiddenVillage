@@ -54,7 +54,10 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 		return card;
 	}
 
-	public List<CardInstance> ToRuntimeDeck(IReadOnlyList<string> cardDefinitionIds, string playerId)
+	public List<CardInstance> ToRuntimeDeck(
+		IReadOnlyList<string> cardDefinitionIds,
+		IReadOnlyDictionary<string, Card> cardDefinitions,
+		string playerId)
 	{
 		if (string.IsNullOrWhiteSpace(playerId))
 		{
@@ -66,7 +69,16 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 			throw new ArgumentNullException(nameof(cardDefinitionIds));
 		}
 
-		var rawDeck = cardDefinitionIds.Select(cardDefinitionId => new CardInstance
+		if (cardDefinitions is null)
+		{
+			throw new ArgumentNullException(nameof(cardDefinitions));
+		}
+
+		var filteredCardDefinitionIds = cardDefinitionIds.Where(cardDefinitionId =>
+			cardDefinitions.TryGetValue(cardDefinitionId, out var definition)
+			&& definition.Type != CardType.Leader);
+
+		var rawDeck = filteredCardDefinitionIds.Select(cardDefinitionId => new CardInstance
 		{
 			InstanceId = Guid.NewGuid().ToString("N"),
 			CardDefinitionId = cardDefinitionId,

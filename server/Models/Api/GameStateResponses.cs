@@ -10,6 +10,8 @@ public sealed record GameStateResponse(
 
 public sealed record PlayerZonesResponse(
     string PlayerId,
+    int TurnCount,
+    LeaderCardInstanceResponse Leader,
     IReadOnlyList<CardInstanceResponse> Deck,
     int DeckCount,
     IReadOnlyList<CardInstanceResponse> Hand,
@@ -19,9 +21,48 @@ public sealed record PlayerZonesResponse(
     IReadOnlyList<CardInstanceResponse> Trash,
     IReadOnlyList<CardInstanceResponse> ExileZone);
 
-public sealed record CardInstanceResponse(
+public record CardInstanceResponse(
+    string InstanceId,
+    string CardDefinitionId,
+    string OwnerPlayerId,
+    string ControllerPlayerId);
+
+public sealed record LeaderCardInstanceResponse(
     string InstanceId,
     string CardDefinitionId,
     string OwnerPlayerId,
     string ControllerPlayerId,
-    bool IsExhausted);
+    bool IsExhausted,
+    string DisplayName,
+    CardColor Color,
+    IReadOnlyList<string> Traits,
+    int Damage,
+    int Power,
+    int TotalLife,
+    int CurrentLife,
+    string RecoveryEffect
+) : CardInstanceResponse(
+    InstanceId,
+    CardDefinitionId,
+    OwnerPlayerId,
+    ControllerPlayerId);
+
+public sealed record EnrichedCardInstanceResponse(
+    string InstanceId,
+    string CardDefinitionId,
+    string OwnerPlayerId,
+    string ControllerPlayerId,
+    bool IsExhausted,
+    string DisplayName,
+    CardType Type,
+    CardColor Color,
+    IReadOnlyList<string> Traits,
+    int Health,
+    int MaxHealth,
+    int Damage,
+    int Power
+) : CardInstanceResponse(
+    InstanceId,
+    CardDefinitionId,
+    OwnerPlayerId,
+    ControllerPlayerId);

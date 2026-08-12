@@ -216,7 +216,9 @@ public sealed class GamePhaseService
         }
 
         state.Phase = GamePhase.StartOfMainPhase;
-        ChangeActivePlayer(state);
+        var nextActivePlayerId = ChangeActivePlayer(state);
+        var nextPlayer = state.Players.Single(player => string.Equals(player.PlayerId, nextActivePlayerId, StringComparison.Ordinal));
+        nextPlayer.TurnCount++;
         ClearPlayerPriority(state);
         ClearConsecutivePasses(state);
         state.TurnNumber++;
