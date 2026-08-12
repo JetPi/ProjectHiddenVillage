@@ -30,7 +30,7 @@ public sealed class InMemoryGameInstanceRegistryTests
     }
 
     [TestMethod]
-    public void Join_AddsPlayer_AndCanCreateStartingPrompt()
+    public void Join_AddsPlayer_AndAssignsStartingPlayer()
     {
         var game = registry.Create(
             players:
@@ -42,12 +42,10 @@ public sealed class InMemoryGameInstanceRegistryTests
         registry.Join(game.Id, new Player { Id = "p2", Deck = ["card-1"] }, new FixedIndexRandom(1));
 
         Assert.AreEqual(2, game.State.Players.Count);
-        var prompt = game.GetPendingPrompt();
-        Assert.IsNotNull(prompt);
-        Assert.AreEqual(GamePromptType.ChooseStartingPlayer, prompt.Type);
-        Assert.AreEqual("p2", prompt.RequestedPlayerId);
+        Assert.IsNull(game.GetPendingPrompt());
+        Assert.AreEqual("p2", game.State.ActivePlayerId);
         Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "player_joined" && entry.PlayerId == "p2"));
-        Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "prompt_created"));
+        Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "starting_player_assigned" && entry.PlayerId == "p2"));
     }
 
     [TestMethod]
@@ -62,8 +60,13 @@ public sealed class InMemoryGameInstanceRegistryTests
             cardDefinitions: BuildDefinitions("card-1"),
             random: new FixedIndexRandom(0));
 
-        var prompt = game.GetPendingPrompt();
-        Assert.IsNotNull(prompt);
+        var prompt = new GamePrompt
+        {
+            RequestedPlayerId = "p1",
+            Type = GamePromptType.ChooseStartingPlayer,
+            Options = ["p1", "p2"]
+        };
+        game.EnqueuePrompt(prompt);
 
         registry.ResolvePrompt(game.Id, prompt.RequestedPlayerId, "p2");
 

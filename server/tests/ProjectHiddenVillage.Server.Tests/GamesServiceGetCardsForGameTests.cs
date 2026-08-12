@@ -20,7 +20,8 @@ public sealed class GamesServiceGetCardsForGameTests
         {
             Id = "STATE-001",
             DisplayName = "State Card",
-            Name = ["State Card"]
+            Name = ["State Card"],
+            Type = CardType.Character
         };
 
         var runtimeGame = registry.Create(

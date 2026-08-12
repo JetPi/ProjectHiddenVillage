@@ -25,7 +25,7 @@ public sealed class GameInstanceFactoryTests
     }
 
     [TestMethod]
-    public void JoinPlayer_WhenSecondPlayerJoins_EnqueuesStartingPrompt()
+    public void JoinPlayer_WhenSecondPlayerJoins_AssignsStartingPlayer()
     {
         var game = factory.Create(
             players:
@@ -39,14 +39,11 @@ public sealed class GameInstanceFactoryTests
             player: new Player { Id = "p2", Deck = ["card-1"] },
             random: new FixedIndexRandom(1));
 
-        var prompt = game.GetPendingPrompt();
-
-        Assert.IsNotNull(prompt);
-        Assert.AreEqual(GamePromptType.ChooseStartingPlayer, prompt.Type);
-        Assert.AreEqual("p2", prompt.RequestedPlayerId);
-        CollectionAssert.AreEquivalent(new[] { "p1", "p2" }, prompt.Options);
-        Assert.AreEqual(string.Empty, game.State.ActivePlayerId);
-        Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "prompt_created"));
+        Assert.AreEqual("p2", game.State.ActivePlayerId);
+        Assert.IsNull(game.GetPendingPrompt());
+        var startingPlayer = game.State.Players.Single(player => player.PlayerId == "p2");
+        Assert.AreEqual(1, startingPlayer.TurnCount);
+        Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "starting_player_assigned"));
     }
 
     [TestMethod]
@@ -84,7 +81,7 @@ public sealed class GameInstanceFactoryTests
     }
 
     [TestMethod]
-    public void Create_EnqueuesStartingPlayerPrompt_ForRandomChooser()
+    public void Create_AssignsStartingPlayer_ForRandomChooser()
     {
         var players = new List<Player>
         {
@@ -97,15 +94,12 @@ public sealed class GameInstanceFactoryTests
         var stubRandom = new FixedIndexRandom(fixedIndex: 2);
 
         var game = factory.Create(players, cardDefinitions, stubRandom);
-        var prompt = game.GetPendingPrompt();
-
-        Assert.IsNotNull(prompt);
-        Assert.AreEqual(GamePromptType.ChooseStartingPlayer, prompt.Type);
-        Assert.AreEqual("p3", prompt.RequestedPlayerId);
-        CollectionAssert.AreEquivalent(new[] { "p1", "p2", "p3" }, prompt.Options);
-        Assert.AreEqual(string.Empty, game.State.ActivePlayerId);
+        Assert.IsNull(game.GetPendingPrompt());
+        Assert.AreEqual("p3", game.State.ActivePlayerId);
         Assert.AreEqual(GamePhase.StartOfMainPhase, game.State.Phase);
         Assert.AreEqual(string.Empty, game.State.PriorityPlayerId);
+        var startingPlayer = game.State.Players.Single(player => player.PlayerId == "p3");
+        Assert.AreEqual(1, startingPlayer.TurnCount);
     }
 
     [TestMethod]
@@ -119,9 +113,14 @@ public sealed class GameInstanceFactoryTests
         };
 
         var game = factory.Create(players, BuildDefinitions("card-1"), new FixedIndexRandom(0));
-        var prompt = game.GetPendingPrompt();
+        var prompt = new GamePrompt
+        {
+            RequestedPlayerId = "p1",
+            Type = GamePromptType.ChooseStartingPlayer,
+            Options = ["p1", "p2", "p3"]
+        };
+        game.EnqueuePrompt(prompt);
 
-        Assert.IsNotNull(prompt);
         game.ResolvePrompt(prompt.RequestedPlayerId, "p2");
 
         Assert.AreEqual("p2", game.State.ActivePlayerId);
@@ -138,6 +137,12 @@ public sealed class GameInstanceFactoryTests
         };
 
         var game = factory.Create(players, BuildDefinitions("card-1"), new FixedIndexRandom(0));
+        game.EnqueuePrompt(new GamePrompt
+        {
+            RequestedPlayerId = "p1",
+            Type = GamePromptType.ChooseStartingPlayer,
+            Options = ["p1", "p2"]
+        });
 
         var ex = Assert.ThrowsException<InvalidOperationException>(() => game.ResolvePrompt("p2", "p1"));
         Assert.AreEqual("Only the requested player can resolve this prompt.", ex.Message);
@@ -153,9 +158,14 @@ public sealed class GameInstanceFactoryTests
         };
 
         var game = factory.Create(players, BuildDefinitions("card-1"), new FixedIndexRandom(0));
-        var prompt = game.GetPendingPrompt();
+        var prompt = new GamePrompt
+        {
+            RequestedPlayerId = "p1",
+            Type = GamePromptType.ChooseStartingPlayer,
+            Options = ["p1", "p2"]
+        };
+        game.EnqueuePrompt(prompt);
 
-        Assert.IsNotNull(prompt);
         var ex = Assert.ThrowsException<InvalidOperationException>(() =>
             game.ResolvePrompt(prompt.RequestedPlayerId, "unknown"));
 

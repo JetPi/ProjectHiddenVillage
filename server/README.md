@@ -98,3 +98,48 @@ dotnet test server/tests/ProjectHiddenVillage.Server.Tests/ProjectHiddenVillage.
 - Enum JSON response serialization as strings (currently deferred).
 - Additional normalization rules for optional upstream fields may still be needed.
 - Review lingering EF Core relational package version warning in test output (`10.0.4` vs `10.0.9`).
+
+## Game State Action Options Contract (2026-08)
+
+The game state response now supports two action scopes:
+
+- Global game actions: `GameStateResponse.AvailableActions`
+- Per-card actions: `CardInstanceResponse.AvailableActions`
+
+### Where per-card actions are populated
+
+Per-card `AvailableActions` are currently evaluated in `GameStateResponseMapper` for:
+
+- `Hand`
+- `SupportZone`
+- `CharacterField` (battlefield)
+
+All other zones currently return empty card actions.
+
+### Visibility and gating rules (current backend behavior)
+
+- Card actions are only emitted for the requesting player's own cards.
+- Card actions are only emitted during `ActionStep`.
+- Card actions are only emitted for cards controlled by the current priority player.
+- If a pending prompt exists, card actions are suppressed until prompt resolution.
+
+### Current action id conventions
+
+- Hand card: `play-card:{instanceId}`
+- Support card: `activate-support:{instanceId}`
+- Battlefield card: `battle-action:{instanceId}`
+
+### Frontend integration guidance (for follow-up issue)
+
+When wiring UI later:
+
+- Read `availableActions` from each card object in hand/support/battlefield.
+- Use `actionId` as the stable interaction key.
+- Render `label` as button text.
+- Respect `isEnabled` and optional `disabledReason`.
+- Keep support for global `GameStateResponse.AvailableActions` in parallel with card-level actions.
+
+### Submit path note
+
+Only global actions and prompt resolution are currently executable through hub methods.
+Card-specific submit methods are intentionally not added yet in this work item.

@@ -19,7 +19,7 @@ public sealed partial class GamesHub
         await Groups.AddToGroupAsync(Context.ConnectionId, game.Id);
         await Clients.Group(game.Id).SendAsync("GameStateInvalidated", game.Id);
 
-        var stateResponse = GameStateResponseMapper.ToGameStateResponse(game.State, requestingPlayerId);
+        var stateResponse = GameStateResponseMapper.ToGameStateResponse(game, requestingPlayerId);
         return HubOperationResult<GameStateResponse>.Success(stateResponse);
     }
 

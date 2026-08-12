@@ -14,6 +14,7 @@ import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
 import { buildLeaderCardFrameClass } from './utils/functions'
 import type { IGameLoaderData } from './types/routeData'
+import type { IGameActionOptionResponse } from '../../services/api/types/game'
 import { useCardCatalogPreload } from './hooks/useGameViewEffects'
 import { useDerivedGameViewState } from './hooks/useDerivedGameViewState'
 import { useGameHubState } from './hooks/useGameHubState'
@@ -59,6 +60,36 @@ export function GameView() {
 
     console.log('[GameView] Received gameState update', gameState)
   }, [gameState])
+
+  const canResolvePrompt = gameState.pendingPrompt?.isAwaitingRequestingPlayer ?? false
+
+  function submitMappedAction(action: IGameActionOptionResponse): void {
+    if (action.actionId.startsWith('resolve-prompt:')) {
+      if (!canResolvePrompt) {
+        return
+      }
+
+      void submitHubIntent({
+        intent: 'resolve-prompt',
+        selectedOption: action.label,
+      })
+      return
+    }
+
+    if (action.actionId === 'declare-action') {
+      void submitHubIntent({ intent: 'declare-action' })
+      return
+    }
+
+    if (action.actionId === 'pass-turn') {
+      void submitHubIntent({ intent: 'pass-turn' })
+      return
+    }
+
+    if (action.actionId === 'advance-phase') {
+      void submitHubIntent({ intent: 'advance-phase' })
+    }
+  }
 
   return (
     <PageShell compact>
@@ -158,7 +189,7 @@ export function GameView() {
                     variant="ghost"
                     aria-label="Pass turn"
                     onClick={() => {
-                      void submitHubIntent('pass-turn')
+                      void submitHubIntent({ intent: 'pass-turn' })
                     }}
                     disabled={!isConnected || isActionPending}
                     className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
@@ -203,51 +234,39 @@ export function GameView() {
             </div>
 
             <div className="grid grid-cols-[1fr_1.5rem] gap-1">
-              <div className="flex flex-wrap items-center justify-start gap-1.5 rounded-xl p-1">
+              <div className="flex flex-col justify-start gap-1 rounded-xl p-1">
+                {gameState.pendingPrompt ? (
+                  <span className="text-[10px] font-semibold text-[var(--text-muted)]">
+                    {gameState.pendingPrompt.isAwaitingRequestingPlayer
+                      ? `${gameState.pendingPrompt.type} (${gameState.pendingPrompt.options.join(', ')})`
+                      : `Waiting on opponent...`}
+                  </span>
+                ) : null}
                 {connectionError ? (
                   <span className="text-[10px] font-semibold text-[var(--text-danger)]">{connectionError}</span>
                 ) : null}
                 {actionError ? (
                   <span className="text-[10px] font-semibold text-[var(--text-danger)]">{actionError}</span>
                 ) : null}
-                <AppButton
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    void submitHubIntent('declare-action')
-                  }}
-                  disabled={!isConnected || isActionPending}
-                  className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
-                >
-                  Attack
-                </AppButton>
-                <AppButton
-                  type="button"
-                  variant="ghost"
-                  disabled={!isConnected || isActionPending}
-                  className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
-                >
-                  Defend
-                </AppButton>
-                <AppButton
-                  type="button"
-                  variant="ghost"
-                  disabled={!isConnected || isActionPending}
-                  className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
-                >
-                  Summon
-                </AppButton>
-                <AppButton
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    void submitHubIntent('advance-phase')
-                  }}
-                  disabled={!isConnected || isActionPending}
-                  className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
-                >
-                  End Turn
-                </AppButton>
+                <div className="flex h-6 flex-wrap items-center justify-start gap-1.5">
+                  {gameState.availableActions.map((action) => {
+                    return (
+                      <AppButton
+                        key={action.actionId}
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          submitMappedAction(action)
+                        }}
+                        disabled={!isConnected || isActionPending || !action.isEnabled}
+                        title={action.disabledReason ?? undefined}
+                        className="h-6 min-w-0 px-1.5 text-[10px] turn-band-orange-button"
+                      >
+                        {action.label}
+                      </AppButton>
+                    )
+                  })}
+                </div>
               </div>
             </div>
 
