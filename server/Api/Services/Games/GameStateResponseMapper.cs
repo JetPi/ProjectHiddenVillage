@@ -32,7 +32,7 @@ public static class GameStateResponseMapper
                 ? player.Hand.ConvertAll(card => ToCardInstanceResponse(card, cardDefinitions, PlayerZone.Hand)) : [],
             HandCount: player.Hand.Count,
             CharacterField: player.Battlefield.ConvertAll(card => ToCardInstanceResponse(card, cardDefinitions, PlayerZone.CharacterField)),
-            SupportZone: player.SupportZone.ConvertAll(card => ToCardInstanceResponse(card, cardDefinitions, PlayerZone.SupportZone)),
+            SupportZone: player.SupportZone.ConvertAll(card => ToCardInstanceResponse(card, cardDefinitions, PlayerZone.SupportZone, isRequestingPlayer)),
             Trash: player.DiscardPile.ConvertAll(card => ToCardInstanceResponse(card, cardDefinitions, PlayerZone.Trash)),
             ExileZone: player.ExileZone.ConvertAll(card => ToCardInstanceResponse(card, cardDefinitions, PlayerZone.ExileZone)));
     }
@@ -40,7 +40,8 @@ public static class GameStateResponseMapper
     private static CardInstanceResponse ToCardInstanceResponse(
         CardInstance card,
         IReadOnlyDictionary<string, Card> cardDefinitions,
-        PlayerZone playerZone)
+        PlayerZone playerZone,
+        bool isRequestingPlayer = false)
     {
         var definition = cardDefinitions[card.CardDefinitionId];
         var maxHealth = definition is CharacterCard characterDefinition
@@ -67,6 +68,27 @@ public static class GameStateResponseMapper
                     MaxHealth: maxHealth,
                     Damage: definition.Damage,
                     Power: definition.Power),
+            PlayerZone.SupportZone =>
+                    isRequestingPlayer
+                        ? new EnrichedCardInstanceResponse(
+                            InstanceId: card.InstanceId,
+                            CardDefinitionId: card.CardDefinitionId,
+                            OwnerPlayerId: card.OwnerPlayerId,
+                            ControllerPlayerId: card.ControllerPlayerId,
+                            IsExhausted: card.IsExhausted,
+                            DisplayName: definition.DisplayName,
+                            Type: definition.Type,
+                            Color: definition.Color,
+                            Traits: definition.Traits,
+                            Health: maxHealth,
+                            MaxHealth: maxHealth,
+                            Damage: definition.Damage,
+                            Power: definition.Power)
+                        : new CardInstanceResponse(
+                            InstanceId: card.InstanceId,
+                            CardDefinitionId: card.CardDefinitionId,
+                            OwnerPlayerId: card.OwnerPlayerId,
+                            ControllerPlayerId: card.ControllerPlayerId),
 
             _ => new CardInstanceResponse(
                 InstanceId: card.InstanceId,
