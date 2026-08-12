@@ -4,7 +4,10 @@ public interface IGameRuntimeDeckService
 {
     global::ProjectHiddenVillage.Server.Card ToRuntimeCard(Data.Entities.CardCatalogEntry entry);
 
-    List<CardInstance> ToRuntimeDeck(IReadOnlyList<string> cardDefinitionIds, string playerId);
+    List<CardInstance> ToRuntimeDeck(
+        IReadOnlyList<string> cardDefinitionIds,
+        IReadOnlyDictionary<string, global::ProjectHiddenVillage.Server.Card> cardDefinitions,
+        string playerId);
 
     List<CardInstance> DeckShuffle(List<CardInstance> deck, Random? random = null);
 

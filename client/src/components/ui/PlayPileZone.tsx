@@ -26,9 +26,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
     deckCount = opponentPlayer.deckCount
     trashCount = opponentPlayer.trash.length
   }
-
-  console.log('PlayPileZone', currentPlayer, opponentPlayer, gameState) // Debugging line to check the values of currentPlayer, opponentPlayer, and
-
+  
   return (
     <div
       data-side={side}

@@ -148,9 +148,9 @@ public sealed class GameInstanceFactory
 
     private PlayerState BuildPlayerState(Player player, IReadOnlyDictionary<string, Card> cardDefinitions)
     {
-        var deckInstances = gameRuntimeDeckService.ToRuntimeDeck(player.Deck, player.Id);
+        var deckInstances = gameRuntimeDeckService.ToRuntimeDeck(player.Deck, cardDefinitions, player.Id);
 
-        var leaderCardInstance = BuildLeaderCardInstance(deckInstances, cardDefinitions);
+        var leaderCardInstance = BuildLeaderCardInstance(player.Deck, cardDefinitions, player.Id);
 
         return new PlayerState
         {
@@ -166,19 +166,20 @@ public sealed class GameInstanceFactory
     }
 
     private static LeaderCardInstanceState? BuildLeaderCardInstance(
-        IReadOnlyList<CardInstance> deckInstances,
-        IReadOnlyDictionary<string, Card> cardDefinitions)
+        IReadOnlyList<string> cardDefinitionIds,
+        IReadOnlyDictionary<string, Card> cardDefinitions,
+        string playerId)
     {
-        var leaderDeckInstance = deckInstances.FirstOrDefault(instance =>
-            cardDefinitions.TryGetValue(instance.CardDefinitionId, out var definition)
+        var leaderCardDefinitionId = cardDefinitionIds.FirstOrDefault(cardDefinitionId =>
+            cardDefinitions.TryGetValue(cardDefinitionId, out var definition)
             && definition.Type == CardType.Leader);
 
-        if (leaderDeckInstance is null)
+        if (string.IsNullOrWhiteSpace(leaderCardDefinitionId))
         {
             return null;
         }
 
-        if (!cardDefinitions.TryGetValue(leaderDeckInstance.CardDefinitionId, out var leaderDefinition))
+        if (!cardDefinitions.TryGetValue(leaderCardDefinitionId, out var leaderDefinition))
         {
             return null;
         }
@@ -193,10 +194,10 @@ public sealed class GameInstanceFactory
 
         return new LeaderCardInstanceState
         {
-            InstanceId = leaderDeckInstance.InstanceId,
-            CardDefinitionId = leaderDeckInstance.CardDefinitionId,
-            OwnerPlayerId = leaderDeckInstance.OwnerPlayerId,
-            ControllerPlayerId = leaderDeckInstance.ControllerPlayerId,
+            InstanceId = Guid.NewGuid().ToString("N"),
+            CardDefinitionId = leaderCardDefinitionId,
+            OwnerPlayerId = playerId,
+            ControllerPlayerId = playerId,
             Name = ResolveLeaderName(leaderDefinition),
             Color = leaderDefinition.Color,
             Description = leaderDefinition.Description,
