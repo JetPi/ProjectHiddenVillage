@@ -90,27 +90,55 @@ public static class GameStateResponseMapper
         var isRequestingPlayerActive = string.Equals(state.ActivePlayerId, requestingPlayerId, StringComparison.Ordinal);
         var isRequestingPlayerPriority = string.Equals(state.PriorityPlayerId, requestingPlayerId, StringComparison.Ordinal);
 
-        if (isRequestingPlayerActive && phaseData.AvailablePhaseOptions.Count > 0)
-        {
-            actions.AddRange(phaseData.AvailablePhaseOptions.Select(option =>
-                new GameActionOptionResponse(
-                    ActionId: option,
-                    Label: option,
-                    IsEnabled: true)));
-        }
-
-        if (state.Phase == GamePhase.ActionStep && isRequestingPlayerPriority)
-        {
-            actions.Add(new GameActionOptionResponse(ActionId: "pass-turn", Label: "Pass Turn", IsEnabled: true));
-            actions.Add(new GameActionOptionResponse(ActionId: "declare-action", Label: "Declare Action", IsEnabled: true));
-        }
-
-        if (isRequestingPlayerActive && phaseData.AvailablePhaseOptions.Count == 0)
-        {
-            actions.Add(new GameActionOptionResponse(ActionId: "advance-phase", Label: "Advance Phase", IsEnabled: true));
-        }
+        AddActivePlayerPhaseOptionActions(actions, phaseData, isRequestingPlayerActive);
+        AddActionStepPriorityActions(actions, state.Phase, isRequestingPlayerPriority);
+        AddDefaultAdvancePhaseAction(actions, phaseData, isRequestingPlayerActive);
 
         return actions;
+    }
+
+    private static void AddActivePlayerPhaseOptionActions(
+        List<GameActionOptionResponse> actions,
+        GamePhaseData phaseData,
+        bool isRequestingPlayerActive)
+    {
+        if (!isRequestingPlayerActive || phaseData.AvailablePhaseOptions.Count == 0)
+        {
+            return;
+        }
+
+        actions.AddRange(phaseData.AvailablePhaseOptions.Select(option =>
+            new GameActionOptionResponse(
+                ActionId: option,
+                Label: option,
+                IsEnabled: true)));
+    }
+
+    private static void AddActionStepPriorityActions(
+        List<GameActionOptionResponse> actions,
+        GamePhase phase,
+        bool isRequestingPlayerPriority)
+    {
+        if (phase != GamePhase.ActionStep || !isRequestingPlayerPriority)
+        {
+            return;
+        }
+
+        actions.Add(new GameActionOptionResponse(ActionId: "pass-turn", Label: "Pass Turn", IsEnabled: true));
+        actions.Add(new GameActionOptionResponse(ActionId: "declare-action", Label: "Declare Action", IsEnabled: true));
+    }
+
+    private static void AddDefaultAdvancePhaseAction(
+        List<GameActionOptionResponse> actions,
+        GamePhaseData phaseData,
+        bool isRequestingPlayerActive)
+    {
+        if (!isRequestingPlayerActive || phaseData.AvailablePhaseOptions.Count > 0)
+        {
+            return;
+        }
+
+        actions.Add(new GameActionOptionResponse(ActionId: "advance-phase", Label: "Advance Phase", IsEnabled: true));
     }
 
     private static PlayerZonesResponse ToPlayerZonesResponse(

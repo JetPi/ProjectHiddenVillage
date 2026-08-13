@@ -25,16 +25,11 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
             promptHandler(instance);
         }
 
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "phase_started",
-            message: $"{DescribePlayer(activePlayerId)} started {instance.State.Phase}.",
             playerId: activePlayerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["fromPhase"] = previousPhase.ToString(),
-                ["toPhase"] = instance.State.Phase.ToString(),
-                ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+            previousPhase: previousPhase);
 
         return phaseData;
     }
@@ -45,16 +40,11 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
 
         var advancedToResolution = phaseStateService.DeclarePassInActionStep(instance.State, playerId);
 
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "action_step_pass_declared",
-            message: $"{playerId} declared pass in ActionStep.",
             playerId: playerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["advancedToAttackResolution"] = advancedToResolution.ToString(),
-                ["nextPriorityPlayerId"] = instance.State.PriorityPlayerId,
-                ["consecutivePasses"] = instance.State.ConsecutivePasses.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+            advancedToAttackResolution: advancedToResolution);
 
         return advancedToResolution;
     }
@@ -65,15 +55,10 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
 
         phaseStateService.DeclareActionInActionStep(instance.State, playerId);
 
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "action_step_action_declared",
-            message: $"{playerId} declared an action in ActionStep.",
-            playerId: playerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["nextPriorityPlayerId"] = instance.State.PriorityPlayerId,
-                ["consecutivePasses"] = instance.State.ConsecutivePasses.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+            playerId: playerId);
     }
 
     public void DeclareEndStep(GameInstance instance)
@@ -82,15 +67,10 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
 
         phaseStateService.DeclareEndStep(instance.State);
 
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "end_step_declared",
-            message: $"{DescribePlayer(instance.State.ActivePlayerId)} declared EndStep.",
-            playerId: instance.State.ActivePlayerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["phase"] = instance.State.Phase.ToString(),
-                ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+            playerId: instance.State.ActivePlayerId);
     }
 
     public bool CompleteEndStep(GameInstance instance)
@@ -100,16 +80,11 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
         var previousActivePlayerId = instance.State.ActivePlayerId;
         var wrapped = phaseStateService.CompleteEndStep(instance.State);
 
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "turn_started",
-            message: $"Turn {instance.State.TurnNumber} started for {instance.State.ActivePlayerId}.",
             playerId: instance.State.ActivePlayerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["previousActivePlayerId"] = previousActivePlayerId,
-                ["phase"] = instance.State.Phase.ToString(),
-                ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+            previousActivePlayerId: previousActivePlayerId);
 
         return wrapped;
     }
@@ -157,16 +132,10 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
             Options = ["mulligan", "noMulligan"]
         });
 
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "mulligan_prompted",
-            message: $"{secondPlayerId} can choose mulligan.",
-            playerId: secondPlayerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["promptType"] = nameof(GamePromptType.Mulligan),
-                ["phase"] = instance.State.Phase.ToString(),
-                ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+            playerId: secondPlayerId);
     }
 
     private static string GetNextPlayerId(GameState state, string currentPlayerId)
@@ -186,6 +155,72 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
 
         var nextIndex = (currentIndex + 1) % state.Players.Count;
         return state.Players[nextIndex].PlayerId;
+    }
+
+    private static void LogAction(
+        GameInstance instance,
+        string actionType,
+        string? playerId = null,
+        GamePhase? previousPhase = null,
+        bool? advancedToAttackResolution = null,
+        string? previousActivePlayerId = null)
+    {
+        var message = actionType switch
+        {
+            "phase_started" => $"{DescribePlayer(playerId ?? string.Empty)} started {instance.State.Phase}.",
+            "action_step_pass_declared" => $"{playerId} declared pass in ActionStep.",
+            "action_step_action_declared" => $"{playerId} declared an action in ActionStep.",
+            "end_step_declared" => $"{DescribePlayer(instance.State.ActivePlayerId)} declared EndStep.",
+            "turn_started" => $"Turn {instance.State.TurnNumber} started for {instance.State.ActivePlayerId}.",
+            "mulligan_prompted" => $"{playerId} can choose mulligan.",
+            _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
+        };
+
+        var metadata = actionType switch
+        {
+            "phase_started" => CreateMetadata(
+                ("fromPhase", (previousPhase ?? throw new InvalidOperationException("Previous phase is required.")).ToString()),
+                ("toPhase", instance.State.Phase.ToString()),
+                ("turnNumber", ToInvariant(instance.State.TurnNumber))),
+            "action_step_pass_declared" => CreateMetadata(
+                ("advancedToAttackResolution", (advancedToAttackResolution ?? throw new InvalidOperationException("Pass resolution flag is required.")).ToString()),
+                ("nextPriorityPlayerId", instance.State.PriorityPlayerId),
+                ("consecutivePasses", ToInvariant(instance.State.ConsecutivePasses))),
+            "action_step_action_declared" => CreateMetadata(
+                ("nextPriorityPlayerId", instance.State.PriorityPlayerId),
+                ("consecutivePasses", ToInvariant(instance.State.ConsecutivePasses))),
+            "end_step_declared" => CreateMetadata(
+                ("phase", instance.State.Phase.ToString()),
+                ("turnNumber", ToInvariant(instance.State.TurnNumber))),
+            "turn_started" => CreateMetadata(
+                ("previousActivePlayerId", previousActivePlayerId ?? throw new InvalidOperationException("Previous active player id is required.")),
+                ("phase", instance.State.Phase.ToString()),
+                ("turnNumber", ToInvariant(instance.State.TurnNumber))),
+            "mulligan_prompted" => CreateMetadata(
+                ("promptType", nameof(GamePromptType.Mulligan)),
+                ("phase", instance.State.Phase.ToString()),
+                ("turnNumber", ToInvariant(instance.State.TurnNumber))),
+            _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
+        };
+
+        instance.AddActionLogEntry(actionType, message, playerId, metadata);
+    }
+
+    private static IReadOnlyDictionary<string, string> CreateMetadata(params (string Key, string Value)[] entries)
+    {
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var (key, value) in entries)
+        {
+            metadata[key] = value;
+        }
+
+        return metadata;
+    }
+
+    private static string ToInvariant(int value)
+    {
+        return value.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
 }
