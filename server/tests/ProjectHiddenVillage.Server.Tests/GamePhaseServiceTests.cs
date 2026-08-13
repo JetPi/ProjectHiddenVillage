@@ -60,6 +60,11 @@ public sealed class GamePhaseServiceTests
         service.AdvancePhase(instance);
 
         Assert.AreEqual(GamePhase.Mulligan, instance.State.Phase);
+        var mulliganPrompt = instance.GetPendingPrompt();
+        Assert.IsNotNull(mulliganPrompt);
+        Assert.AreEqual(GamePromptType.Mulligan, mulliganPrompt.Type);
+        Assert.AreEqual("p2", mulliganPrompt.RequestedPlayerId);
+        CollectionAssert.AreEqual(new[] { "mulligan", "noMulligan" }, mulliganPrompt.Options);
         Assert.AreEqual(5, instance.State.Players[0].Hand.Count);
         Assert.AreEqual(1, instance.State.Players[0].Deck.Count);
         Assert.AreEqual("p1-card-1", instance.State.Players[0].Hand[0].CardDefinitionId);
@@ -69,6 +74,43 @@ public sealed class GamePhaseServiceTests
         Assert.AreEqual(1, instance.State.Players[1].Deck.Count);
         Assert.AreEqual("p2-card-1", instance.State.Players[1].Hand[0].CardDefinitionId);
         Assert.AreEqual("p2-card-6", instance.State.Players[1].Deck[0].CardDefinitionId);
+    }
+
+    [TestMethod]
+    public void ResolvePrompt_Mulligan_RedrawsSecondPlayerHand()
+    {
+        var instance = CreateInstance(phase: GamePhase.ChooseStartingPlayer, activePlayerId: "p1");
+
+        SeedDefinitions(instance.State, "p1-card", 6);
+        SeedDefinitions(instance.State, "p2-card", 6);
+
+        instance.State.Players[0].Deck.AddRange(CreateDeckCards("p1", "p1-card", 6));
+        instance.State.Players[1].Deck.AddRange(CreateDeckCards("p2", "p2-card", 6));
+
+        service.AdvancePhase(instance);
+        service.AdvancePhase(instance);
+
+        var prompt = instance.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual("p2", prompt.RequestedPlayerId);
+
+        var secondPlayer = instance.State.Players[1];
+        var originalSecondPlayerCardInstanceIds = secondPlayer.Hand
+            .Concat(secondPlayer.Deck)
+            .Select(card => card.InstanceId)
+            .ToList();
+
+        instance.ResolvePrompt(prompt.RequestedPlayerId, "mulligan");
+
+        Assert.IsNull(instance.GetPendingPrompt());
+        Assert.AreEqual(5, secondPlayer.Hand.Count);
+        Assert.AreEqual(1, secondPlayer.Deck.Count);
+        CollectionAssert.AreEquivalent(
+            originalSecondPlayerCardInstanceIds,
+            secondPlayer.Hand
+                .Concat(secondPlayer.Deck)
+                .Select(card => card.InstanceId)
+                .ToList());
     }
 
     [TestMethod]
@@ -277,5 +319,24 @@ public sealed class GamePhaseServiceTests
         }
 
         return cards;
+    }
+
+    private static void SeedDefinitions(GameState state, string cardPrefix, int count)
+    {
+        for (var index = 1; index <= count; index++)
+        {
+            var definitionId = $"{cardPrefix}-{index}";
+            state.CardDefinitions[definitionId] = new Card
+            {
+                Id = definitionId,
+                DisplayName = definitionId,
+                Name = [definitionId],
+                Type = CardType.Character,
+                Description = string.Empty,
+                Traits = [],
+                Conditions = [],
+                Effects = []
+            };
+        }
     }
 }

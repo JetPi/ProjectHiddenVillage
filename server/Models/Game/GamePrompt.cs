@@ -2,7 +2,8 @@ namespace ProjectHiddenVillage.Server;
 
 public enum GamePromptType
 {
-    ChooseStartingPlayer
+    ChooseStartingPlayer,
+    Mulligan
 }
 
 public sealed class GamePrompt

@@ -4,6 +4,12 @@ namespace ProjectHiddenVillage.Server.Engine;
 
 public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
 {
+    private static readonly IReadOnlyDictionary<GamePhase, Action<GameInstance>> PhaseEntryPromptHandlers =
+        new Dictionary<GamePhase, Action<GameInstance>>
+        {
+            [GamePhase.Mulligan] = EnsureMulliganPrompt
+        };
+
     private readonly IGamePhaseStateService phaseStateService = phaseStateService ?? throw new ArgumentNullException(nameof(phaseStateService));
 
     public GamePhaseData AdvancePhase(GameInstance instance)
@@ -13,6 +19,11 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
         var previousPhase = instance.State.Phase;
         var phaseData = phaseStateService.AdvancePhase(instance.State);
         var activePlayerId = instance.State.ActivePlayerId;
+
+        if (PhaseEntryPromptHandlers.TryGetValue(instance.State.Phase, out var promptHandler))
+        {
+            promptHandler(instance);
+        }
 
         instance.AddActionLogEntry(
             actionType: "phase_started",
@@ -123,6 +134,58 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
     private static string DescribePlayer(string playerId)
     {
         return string.IsNullOrWhiteSpace(playerId) ? "System" : playerId;
+    }
+
+    private static void EnsureMulliganPrompt(GameInstance instance)
+    {
+        if (instance.State.Players.Count < 2)
+        {
+            return;
+        }
+
+        if (instance.PendingPrompts.Any(prompt => prompt.Type == GamePromptType.Mulligan))
+        {
+            return;
+        }
+
+        var secondPlayerId = GetNextPlayerId(instance.State, instance.State.ActivePlayerId);
+
+        instance.EnqueuePrompt(new GamePrompt
+        {
+            RequestedPlayerId = secondPlayerId,
+            Type = GamePromptType.Mulligan,
+            Options = ["mulligan", "noMulligan"]
+        });
+
+        instance.AddActionLogEntry(
+            actionType: "mulligan_prompted",
+            message: $"{secondPlayerId} can choose mulligan.",
+            playerId: secondPlayerId,
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["promptType"] = nameof(GamePromptType.Mulligan),
+                ["phase"] = instance.State.Phase.ToString(),
+                ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            });
+    }
+
+    private static string GetNextPlayerId(GameState state, string currentPlayerId)
+    {
+        if (state.Players.Count < 2)
+        {
+            throw new InvalidOperationException("At least two players are required for control handoff.");
+        }
+
+        var currentIndex = state.Players.FindIndex(player =>
+            string.Equals(player.PlayerId, currentPlayerId, StringComparison.Ordinal));
+
+        if (currentIndex < 0)
+        {
+            throw new InvalidOperationException($"Player '{currentPlayerId}' was not found in turn order.");
+        }
+
+        var nextIndex = (currentIndex + 1) % state.Players.Count;
+        return state.Players[nextIndex].PlayerId;
     }
 
 }
