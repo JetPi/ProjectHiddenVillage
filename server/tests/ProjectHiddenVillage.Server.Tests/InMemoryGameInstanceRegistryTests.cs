@@ -9,7 +9,7 @@ public sealed class InMemoryGameInstanceRegistryTests
 {
     private readonly InMemoryGameInstanceRegistry registry = new(
         new GameInstanceFactory(),
-        new global::ProjectHiddenVillage.Server.Engine.GamePhaseService());
+        new global::ProjectHiddenVillage.Server.Engine.GamePhaseService(new global::ProjectHiddenVillage.Server.Engine.GamePhaseStateService()));
 
     [TestMethod]
     public void Create_StoresGame_AndTryGetReturnsIt()

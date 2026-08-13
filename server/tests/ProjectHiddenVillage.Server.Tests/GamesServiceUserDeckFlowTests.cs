@@ -210,7 +210,7 @@ public sealed class GamesServiceUserDeckFlowTests
     {
         var registry = new InMemoryGameInstanceRegistry(
             new GameInstanceFactory(),
-            new global::ProjectHiddenVillage.Server.Engine.GamePhaseService());
+            new global::ProjectHiddenVillage.Server.Engine.GamePhaseService(new global::ProjectHiddenVillage.Server.Engine.GamePhaseStateService()));
 
         var effectHandlingService = new GameEffectHandlingService();
         var readService = new GamesReadService(
