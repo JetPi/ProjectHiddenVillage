@@ -1,8 +1,9 @@
 using ProjectHiddenVillage.Server;
+using ProjectHiddenVillage.Server.Engine.Interfaces;
 
 namespace ProjectHiddenVillage.Server.Engine;
 
-public sealed class GamePhaseStateService
+public sealed class GamePhaseStateService : IGamePhaseStateService
 {
     public GamePhase GetNextPhase(GamePhase currentPhase)
     {

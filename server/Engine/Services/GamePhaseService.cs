@@ -1,10 +1,10 @@
-using ProjectHiddenVillage.Server;
+using ProjectHiddenVillage.Server.Engine.Interfaces;
 
 namespace ProjectHiddenVillage.Server.Engine;
 
-public sealed class GamePhaseService(GamePhaseStateService phaseStateService)
+public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
 {
-    private readonly GamePhaseStateService phaseStateService = phaseStateService ?? throw new ArgumentNullException(nameof(phaseStateService));
+    private readonly IGamePhaseStateService phaseStateService = phaseStateService ?? throw new ArgumentNullException(nameof(phaseStateService));
 
     public bool AdvancePhase(GameInstance instance)
     {
@@ -26,23 +26,6 @@ public sealed class GamePhaseService(GamePhaseStateService phaseStateService)
             });
 
         return advancedToEndOfWindow;
-    }
-
-    public GamePhase GetNextPhase(GamePhase currentPhase)
-    {
-        return phaseStateService.GetNextPhase(currentPhase);
-    }
-
-    public void EnqueueSkipPhase(GameInstance instance, GamePhase phaseToSkip)
-    {
-        ArgumentNullException.ThrowIfNull(instance);
-        phaseStateService.EnqueueSkipPhase(instance.State, phaseToSkip);
-    }
-
-    public void EnqueueJumpToPhase(GameInstance instance, GamePhase targetPhase)
-    {
-        ArgumentNullException.ThrowIfNull(instance);
-        phaseStateService.EnqueueJumpToPhase(instance.State, targetPhase);
     }
 
     public bool DeclarePassInActionStep(GameInstance instance, string playerId)
@@ -118,6 +101,23 @@ public sealed class GamePhaseService(GamePhaseStateService phaseStateService)
             });
 
         return wrapped;
+    }
+
+    public GamePhase GetNextPhase(GamePhase currentPhase)
+    {
+        return phaseStateService.GetNextPhase(currentPhase);
+    }
+
+    public void EnqueueSkipPhase(GameInstance instance, GamePhase phaseToSkip)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        phaseStateService.EnqueueSkipPhase(instance.State, phaseToSkip);
+    }
+
+    public void EnqueueJumpToPhase(GameInstance instance, GamePhase targetPhase)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        phaseStateService.EnqueueJumpToPhase(instance.State, targetPhase);
     }
 
     private static string DescribePlayer(string playerId)
