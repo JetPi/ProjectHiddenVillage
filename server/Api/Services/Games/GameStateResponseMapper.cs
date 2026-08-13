@@ -45,10 +45,9 @@ public static class GameStateResponseMapper
             return null;
         }
 
-        var isAwaitingRequestingPlayer = string.Equals(
+        var isAwaitingRequestingPlayer = IsSamePlayerId(
             pendingPrompt.RequestedPlayerId,
-            requestingPlayerId,
-            StringComparison.Ordinal);
+            requestingPlayerId);
 
         var options = isAwaitingRequestingPlayer
             ? pendingPrompt.Options
@@ -69,10 +68,9 @@ public static class GameStateResponseMapper
     {
         if (pendingPrompt is not null)
         {
-            var isAwaitingRequestingPlayer = string.Equals(
+            var isAwaitingRequestingPlayer = IsSamePlayerId(
                 pendingPrompt.RequestedPlayerId,
-                requestingPlayerId,
-                StringComparison.Ordinal);
+                requestingPlayerId);
 
             if (!isAwaitingRequestingPlayer)
             {
@@ -87,8 +85,8 @@ public static class GameStateResponseMapper
         }
 
         var actions = new List<GameActionOptionResponse>();
-        var isRequestingPlayerActive = string.Equals(state.ActivePlayerId, requestingPlayerId, StringComparison.Ordinal);
-        var isRequestingPlayerPriority = string.Equals(state.PriorityPlayerId, requestingPlayerId, StringComparison.Ordinal);
+        var isRequestingPlayerActive = IsSamePlayerId(state.ActivePlayerId, requestingPlayerId);
+        var isRequestingPlayerPriority = IsSamePlayerId(state.PriorityPlayerId, requestingPlayerId);
 
         AddActivePlayerPhaseOptionActions(actions, phaseData, isRequestingPlayerActive);
         AddActionStepPriorityActions(actions, state.Phase, isRequestingPlayerPriority);
@@ -107,11 +105,27 @@ public static class GameStateResponseMapper
             return;
         }
 
-        actions.AddRange(phaseData.AvailablePhaseOptions.Select(option =>
-            new GameActionOptionResponse(
+        if (phaseData.PhaseName == GamePhase.ActionStep)
+        {
+            return;
+        }
+
+        actions.AddRange(phaseData.AvailablePhaseOptions.Select(MapPhaseOptionToAction));
+    }
+
+    private static GameActionOptionResponse MapPhaseOptionToAction(string option)
+    {
+        return option switch
+        {
+            "endPhase" => new GameActionOptionResponse(
+                ActionId: "declare-end-step",
+                Label: "End Phase",
+                IsEnabled: true),
+            _ => new GameActionOptionResponse(
                 ActionId: option,
                 Label: option,
-                IsEnabled: true)));
+                IsEnabled: true)
+        };
     }
 
     private static void AddActionStepPriorityActions(
@@ -138,6 +152,12 @@ public static class GameStateResponseMapper
             return;
         }
 
+        if (phaseData.PhaseName == GamePhase.EndStep)
+        {
+            actions.Add(new GameActionOptionResponse(ActionId: "complete-end-step", Label: "Complete End Step", IsEnabled: true));
+            return;
+        }
+
         actions.Add(new GameActionOptionResponse(ActionId: "advance-phase", Label: "Advance Phase", IsEnabled: true));
     }
 
@@ -147,7 +167,7 @@ public static class GameStateResponseMapper
         GameState state,
         GamePrompt? pendingPrompt)
     {
-        var isRequestingPlayer = string.Equals(player.PlayerId, requestingPlayerId, StringComparison.Ordinal);
+        var isRequestingPlayer = IsSamePlayerId(player.PlayerId, requestingPlayerId);
 
         return new PlayerZonesResponse(
             PlayerId: player.PlayerId,
@@ -163,6 +183,21 @@ public static class GameStateResponseMapper
             SupportZone: player.SupportZone.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.SupportZone, state, pendingPrompt, isRequestingPlayer)),
             Trash: player.DiscardPile.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Trash)),
             ExileZone: player.ExileZone.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.ExileZone)));
+    }
+
+    private static bool IsSamePlayerId(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+
+        if (Guid.TryParse(left, out var leftGuid) && Guid.TryParse(right, out var rightGuid))
+        {
+            return leftGuid == rightGuid;
+        }
+
+        return string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
     private static CardInstanceResponse ToCardInstanceResponse(

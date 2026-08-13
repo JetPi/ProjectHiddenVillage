@@ -119,9 +119,27 @@ public sealed class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
+            var phaseBeforeResolve = instance.State.Phase;
             instance.ResolvePrompt(requestedPlayerId, selectedOption);
+
+            if (ShouldAdvanceAfterPromptResolution(phaseBeforeResolve, instance.GetPendingPrompt()))
+            {
+                phaseService.AdvancePhase(instance);
+            }
+
+            instance.ValidateInvariants();
             return instance;
         }
+    }
+
+    private static bool ShouldAdvanceAfterPromptResolution(GamePhase phaseBeforeResolve, GamePrompt? nextPendingPrompt)
+    {
+        if (nextPendingPrompt is not null)
+        {
+            return false;
+        }
+
+        return phaseBeforeResolve is GamePhase.ChooseStartingPlayer or GamePhase.Mulligan;
     }
 
     public GameInstance AdvancePhase(string gameId)

@@ -69,9 +69,38 @@ public sealed class InMemoryGameInstanceRegistryTests
         registry.ResolvePrompt(game.Id, prompt.RequestedPlayerId, "goSecond");
 
         Assert.AreEqual("p2", game.State.ActivePlayerId);
+        Assert.AreEqual(GamePhase.DrawInitialHand, game.State.Phase);
         Assert.IsNull(game.GetPendingPrompt());
         Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "prompt_resolved" && entry.PlayerId == prompt.RequestedPlayerId));
         Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "phase_started" && entry.PlayerId == "p2"));
+    }
+
+    [TestMethod]
+    public void ResolvePrompt_Mulligan_AdvancesToStartOfMainPhase()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1", "card-1", "card-1", "card-1", "card-1", "card-1"] },
+                new Player { Id = "p2", Deck = ["card-1", "card-1", "card-1", "card-1", "card-1", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        var startingPrompt = game.GetPendingPrompt()!;
+        registry.ResolvePrompt(game.Id, startingPrompt.RequestedPlayerId, "goFirst");
+
+        // Enter Mulligan and enqueue mulligan prompt for the second player.
+        registry.AdvancePhase(game.Id);
+
+        var mulliganPrompt = game.GetPendingPrompt();
+        Assert.IsNotNull(mulliganPrompt);
+        Assert.AreEqual(GamePromptType.Mulligan, mulliganPrompt.Type);
+
+        registry.ResolvePrompt(game.Id, mulliganPrompt.RequestedPlayerId, "noMulligan");
+
+        Assert.AreEqual(GamePhase.StartOfMainPhase, game.State.Phase);
+        Assert.IsNull(game.GetPendingPrompt());
     }
 
     [TestMethod]
