@@ -148,6 +148,11 @@ public sealed class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
+            if (instance.GetPendingPrompt() is not null)
+            {
+                throw new InvalidOperationException("Cannot advance phase while a prompt is pending.");
+            }
+
             phaseService.AdvancePhase(instance);
             instance.ValidateInvariants();
             return instance;

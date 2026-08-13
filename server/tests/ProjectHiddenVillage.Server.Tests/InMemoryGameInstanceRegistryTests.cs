@@ -76,6 +76,24 @@ public sealed class InMemoryGameInstanceRegistryTests
     }
 
     [TestMethod]
+    public void AdvancePhase_Throws_WhenPromptIsPending()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        Assert.IsNotNull(game.GetPendingPrompt());
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() => registry.AdvancePhase(game.Id));
+        Assert.AreEqual("Cannot advance phase while a prompt is pending.", ex.Message);
+    }
+
+    [TestMethod]
     public void ResolvePrompt_Mulligan_AdvancesToStartOfMainPhase()
     {
         var game = registry.Create(

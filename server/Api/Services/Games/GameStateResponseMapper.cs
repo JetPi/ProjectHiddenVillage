@@ -118,8 +118,12 @@ public static class GameStateResponseMapper
         return option switch
         {
             "endPhase" => new GameActionOptionResponse(
-                ActionId: "declare-end-step",
-                Label: "End Phase",
+                ActionId: "turn-end",
+                Label: "End Turn",
+                IsEnabled: true),
+            "declareAttack" => new GameActionOptionResponse(
+                ActionId: "declare-attack",
+                Label: "Declare Attack",
                 IsEnabled: true),
             _ => new GameActionOptionResponse(
                 ActionId: option,

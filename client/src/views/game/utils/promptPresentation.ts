@@ -1,6 +1,6 @@
 import type { IPromptPresentation, IPromptPresentationOption, IPromptPresentationSource } from '../types/promptPresentation'
 
-const OVERLAY_PROMPT_TYPES = new Set<string>(['ChooseStartingPlayer'])
+const OVERLAY_PROMPT_TYPES = new Set<string>(['ChooseStartingPlayer', 'Mulligan'])
 
 const PROMPT_TITLES: Record<string, string> = {
   ChooseStartingPlayer: 'Choose Who Starts',

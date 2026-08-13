@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLoaderData } from 'react-router-dom'
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { PageShell } from '../../components/layout/PageShell'
@@ -28,7 +28,18 @@ import {
 } from './utils/contants'
 
 export function GameView() {
+  const AUTO_SIGNAL_PHASES = new Set([
+    'DrawInitialHand',
+    'RefreshPhase',
+    'StartOfMainPhase',
+    'DrawPhase',
+    'AttackDeclaration',
+    'AttackResolution',
+    'BattleEndStep',
+  ])
+
   const { outerRef: outerZoneRef, innerRef: boardZoneRef } = useAlignedSplit()
+  const lastAutoSignalKeyRef = useRef('')
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const authUserId = useAuthSessionStore((state) => state.session?.userId)
   
@@ -68,6 +79,31 @@ export function GameView() {
   const shouldShowPromptOverlay =
     promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
 
+  useEffect(() => {
+    if (!isConnected || isActionPending || gameState.pendingPrompt) {
+      return
+    }
+
+    if (!AUTO_SIGNAL_PHASES.has(gameState.phase)) {
+      return
+    }
+
+    const phaseSnapshotKey = `${gameState.turnNumber}:${gameState.phase}:${gameState.activePlayerId}`
+    if (lastAutoSignalKeyRef.current === phaseSnapshotKey) {
+      return
+    }
+
+    lastAutoSignalKeyRef.current = phaseSnapshotKey
+
+    const timerId = window.setTimeout(() => {
+      void submitHubIntent({ intent: 'advance-phase' })
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timerId)
+    }
+  }, [gameState.activePlayerId, gameState.pendingPrompt, gameState.phase, gameState.turnNumber, isActionPending, isConnected, submitHubIntent])
+
   const mappedAvailableActions = shouldShowPromptOverlay
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:'))
     : gameState.availableActions
@@ -99,6 +135,26 @@ export function GameView() {
 
     if (action.actionId === 'advance-phase') {
       void submitHubIntent({ intent: 'advance-phase' })
+      return
+    }
+
+    if (action.actionId === 'declare-end-step' || action.actionId === 'endPhase' || action.actionId === 'turn-end') {
+      void submitHubIntent({ intent: 'declare-end-step' })
+      return
+    }
+
+    if (action.actionId === 'declare-attack' || action.actionId === 'declareAttack') {
+      void submitHubIntent({ intent: 'advance-phase' })
+      return
+    }
+
+    if (action.actionId === 'complete-end-step') {
+      void submitHubIntent({ intent: 'complete-end-step' })
+      return
+    }
+
+    if (action.actionId === 'pass') {
+      void submitHubIntent({ intent: 'pass-turn' })
     }
   }
 
