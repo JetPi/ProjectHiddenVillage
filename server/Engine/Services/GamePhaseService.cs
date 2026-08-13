@@ -6,12 +6,12 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
 {
     private readonly IGamePhaseStateService phaseStateService = phaseStateService ?? throw new ArgumentNullException(nameof(phaseStateService));
 
-    public bool AdvancePhase(GameInstance instance)
+    public GamePhaseData AdvancePhase(GameInstance instance)
     {
         ArgumentNullException.ThrowIfNull(instance);
 
         var previousPhase = instance.State.Phase;
-        var advancedToEndOfWindow = phaseStateService.AdvancePhase(instance.State);
+        var phaseData = phaseStateService.AdvancePhase(instance.State);
         var activePlayerId = instance.State.ActivePlayerId;
 
         instance.AddActionLogEntry(
@@ -25,7 +25,7 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
                 ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
             });
 
-        return advancedToEndOfWindow;
+        return phaseData;
     }
 
     public bool DeclarePassInActionStep(GameInstance instance, string playerId)

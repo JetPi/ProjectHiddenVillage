@@ -47,6 +47,28 @@ public sealed class GamePhaseServiceTests
     }
 
     [TestMethod]
+    public void AdvancePhase_EnteringDrawInitialHand_DrawsTopFiveCardsForEachPlayer()
+    {
+        var instance = CreateInstance(phase: GamePhase.ChooseStartingPlayer, activePlayerId: "p1");
+
+        instance.State.Players[0].Deck.AddRange(CreateDeckCards("p1", "p1-card", 6));
+        instance.State.Players[1].Deck.AddRange(CreateDeckCards("p2", "p2-card", 6));
+
+        service.AdvancePhase(instance);
+
+        Assert.AreEqual(GamePhase.DrawInitialHand, instance.State.Phase);
+        Assert.AreEqual(5, instance.State.Players[0].Hand.Count);
+        Assert.AreEqual(1, instance.State.Players[0].Deck.Count);
+        Assert.AreEqual("p1-card-1", instance.State.Players[0].Hand[0].CardDefinitionId);
+        Assert.AreEqual("p1-card-6", instance.State.Players[0].Deck[0].CardDefinitionId);
+
+        Assert.AreEqual(5, instance.State.Players[1].Hand.Count);
+        Assert.AreEqual(1, instance.State.Players[1].Deck.Count);
+        Assert.AreEqual("p2-card-1", instance.State.Players[1].Hand[0].CardDefinitionId);
+        Assert.AreEqual("p2-card-6", instance.State.Players[1].Deck[0].CardDefinitionId);
+    }
+
+    [TestMethod]
     public void DeclarePassInActionStep_RequiresPriorityPlayer()
     {
         var instance = CreateInstance(phase: GamePhase.ActionStep, activePlayerId: "p1", priorityPlayerId: "p1");
@@ -235,5 +257,22 @@ public sealed class GamePhaseServiceTests
         state.PriorityPlayerId = priorityPlayerId;
 
         return new GameInstance(state);
+    }
+
+    private static List<CardInstance> CreateDeckCards(string playerId, string cardPrefix, int count)
+    {
+        var cards = new List<CardInstance>(capacity: count);
+
+        for (var index = 1; index <= count; index++)
+        {
+            cards.Add(new CardInstance
+            {
+                CardDefinitionId = $"{cardPrefix}-{index}",
+                OwnerPlayerId = playerId,
+                ControllerPlayerId = playerId
+            });
+        }
+
+        return cards;
     }
 }

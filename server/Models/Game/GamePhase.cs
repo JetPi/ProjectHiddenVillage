@@ -16,3 +16,10 @@ public enum GamePhase
     BattleEndStep,
     EndStep
 }
+
+public enum PhaseAdvanceMode
+{
+    ManualOnly,
+    AutoAdvanceWhenNoPriority,
+    AutoAdvanceImmediately
+}

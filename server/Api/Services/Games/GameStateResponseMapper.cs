@@ -1,7 +1,12 @@
+using ProjectHiddenVillage.Server.Engine;
+using ProjectHiddenVillage.Server.Engine.Interfaces;
+
 namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
 public static class GameStateResponseMapper
 {
+    private static readonly IGamePhaseStateService PhaseStateService = new GamePhaseStateService();
+
     public static GameStateResponse ToGameStateResponse(GameInstance game, string requestingPlayerId)
     {
         ArgumentNullException.ThrowIfNull(game);
@@ -19,6 +24,8 @@ public static class GameStateResponseMapper
         string requestingPlayerId,
         GamePrompt? pendingPrompt)
     {
+        var phaseData = PhaseStateService.GetPhaseData(state.Phase);
+
         return new GameStateResponse(
             GameId: state.GameId,
             TurnNumber: state.TurnNumber,
@@ -26,7 +33,7 @@ public static class GameStateResponseMapper
             PriorityPlayerId: state.PriorityPlayerId,
             Phase: state.Phase.ToString(),
             PendingPrompt: ToPendingPromptResponse(pendingPrompt, requestingPlayerId),
-            AvailableActions: BuildAvailableActions(state, requestingPlayerId, pendingPrompt),
+            AvailableActions: BuildAvailableActions(state, phaseData, requestingPlayerId, pendingPrompt),
             Players: state.Players
                 .ConvertAll(player => ToPlayerZonesResponse(player, requestingPlayerId, state, pendingPrompt)));
     }
@@ -56,6 +63,7 @@ public static class GameStateResponseMapper
 
     private static IReadOnlyList<GameActionOptionResponse> BuildAvailableActions(
         GameState state,
+        GamePhaseData phaseData,
         string requestingPlayerId,
         GamePrompt? pendingPrompt)
     {
@@ -82,13 +90,22 @@ public static class GameStateResponseMapper
         var isRequestingPlayerActive = string.Equals(state.ActivePlayerId, requestingPlayerId, StringComparison.Ordinal);
         var isRequestingPlayerPriority = string.Equals(state.PriorityPlayerId, requestingPlayerId, StringComparison.Ordinal);
 
+        if (isRequestingPlayerActive && phaseData.AvailablePhaseOptions.Count > 0)
+        {
+            actions.AddRange(phaseData.AvailablePhaseOptions.Select(option =>
+                new GameActionOptionResponse(
+                    ActionId: option,
+                    Label: option,
+                    IsEnabled: true)));
+        }
+
         if (state.Phase == GamePhase.ActionStep && isRequestingPlayerPriority)
         {
             actions.Add(new GameActionOptionResponse(ActionId: "pass-turn", Label: "Pass Turn", IsEnabled: true));
             actions.Add(new GameActionOptionResponse(ActionId: "declare-action", Label: "Declare Action", IsEnabled: true));
         }
 
-        if (isRequestingPlayerActive)
+        if (isRequestingPlayerActive && phaseData.AvailablePhaseOptions.Count == 0)
         {
             actions.Add(new GameActionOptionResponse(ActionId: "advance-phase", Label: "Advance Phase", IsEnabled: true));
         }

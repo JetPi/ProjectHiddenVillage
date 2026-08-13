@@ -5,10 +5,43 @@ namespace ProjectHiddenVillage.Server.Engine;
 
 public sealed class GamePhaseStateService : IGamePhaseStateService
 {
+    private static readonly IReadOnlyDictionary<GamePhase, PhaseMetadataTemplate> PhaseMetadata =
+        new Dictionary<GamePhase, PhaseMetadataTemplate>
+        {
+            [GamePhase.ChooseStartingPlayer] = new(["goFirst", "goSecond"], true, PhaseAdvanceMode.ManualOnly),
+            [GamePhase.DrawInitialHand] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
+            [GamePhase.Mulligan] = new(["mulligan", "noMulligan"], true, PhaseAdvanceMode.ManualOnly),
+            [GamePhase.RefreshPhase] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
+            [GamePhase.StartOfMainPhase] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
+            [GamePhase.DrawPhase] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
+            [GamePhase.MainPhase] = new(["endPhase"], true, PhaseAdvanceMode.ManualOnly),
+            [GamePhase.AttackDeclaration] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
+            [GamePhase.BlockerDeclaration] = new([], true, PhaseAdvanceMode.ManualOnly),
+            [GamePhase.ActionStep] = new(["pass"], true, PhaseAdvanceMode.ManualOnly),
+            [GamePhase.AttackResolution] = new([], false,  PhaseAdvanceMode.AutoAdvanceImmediately),
+            [GamePhase.BattleEndStep] = new([], false,  PhaseAdvanceMode.AutoAdvanceImmediately),
+            [GamePhase.EndStep] = new([], false,  PhaseAdvanceMode.AutoAdvanceImmediately)
+        };
+
+    public GamePhaseData GetPhaseData(GamePhase phase)
+    {
+        if (!PhaseMetadata.TryGetValue(phase, out var metadata))
+        {
+            throw new ArgumentOutOfRangeException(nameof(phase), phase, "Unknown game phase.");
+        }
+
+        return new GamePhaseData(
+            phase,
+            [..metadata.AvailablePhaseOptions],
+            metadata.HasPlayerInteraction,
+            metadata.AdvanceMode);
+    }
+
     public GamePhase GetNextPhase(GamePhase currentPhase)
     {
         return currentPhase switch
         {
+            GamePhase.ChooseStartingPlayer => GamePhase.DrawInitialHand,
             GamePhase.DrawInitialHand => GamePhase.Mulligan,
             GamePhase.Mulligan => GamePhase.StartOfMainPhase,
             GamePhase.StartOfMainPhase => GamePhase.DrawPhase,
@@ -25,7 +58,7 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
         };
     }
 
-    public bool AdvancePhase(GameState state)
+    public GamePhaseData AdvancePhase(GameState state)
     {
         ArgumentNullException.ThrowIfNull(state);
 
@@ -40,17 +73,12 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
         }
         else
         {
-            var defaultNextPhase = GetNextPhase(state.Phase);
-            state.Phase = ResolveNextPhaseWithDirectives(state, defaultNextPhase);
+            state.Phase = AdvanceCurrentPhase(state);
         }
 
-        if (state.Phase == GamePhase.ActionStep)
-        {
-            state.PriorityPlayerId = state.ActivePlayerId;
-            state.ConsecutivePasses = 0;
-        }
+        ApplyPhaseEntryState(state);
 
-        return false;
+        return GetPhaseData(state.Phase);
     }
 
     public void EnqueueSkipPhase(GameState state, GamePhase phaseToSkip)
@@ -152,7 +180,104 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
         return true;
     }
 
-    private GamePhase ResolveNextPhaseWithDirectives(GameState state, GamePhase defaultNextPhase)
+    private GamePhase AdvanceCurrentPhase(GameState state)
+    {
+        return state.Phase switch
+        {
+            GamePhase.ChooseStartingPlayer => EnterChooseStartingPlayer(state),
+            GamePhase.DrawInitialHand => EnterDrawInitialHand(state),
+            GamePhase.Mulligan => EnterMulligan(state),
+            GamePhase.RefreshPhase => EnterRefreshPhase(state),
+            GamePhase.StartOfMainPhase => EnterStartOfMainPhase(state),
+            GamePhase.DrawPhase => EnterDrawPhase(state),
+            GamePhase.MainPhase => EnterMainPhase(state),
+            GamePhase.AttackDeclaration => EnterAttackDeclaration(state),
+            GamePhase.BlockerDeclaration => EnterBlockerDeclaration(state),
+            GamePhase.ActionStep => EnterActionStep(state),
+            GamePhase.AttackResolution => EnterAttackResolution(state),
+            GamePhase.BattleEndStep => EnterBattleEndStep(state),
+            _ => throw new ArgumentOutOfRangeException(nameof(state.Phase), state.Phase, "Unknown game phase.")
+        };
+    }
+
+    private void ApplyPhaseEntryState(GameState state)
+    {
+        switch (state.Phase)
+        {
+            case GamePhase.ActionStep:
+                OnEnterActionStep(state);
+                break;
+        }
+    }
+
+    private static void OnEnterActionStep(GameState state)
+    {
+        state.PriorityPlayerId = state.ActivePlayerId;
+        state.ConsecutivePasses = 0;
+    }
+
+    private GamePhase EnterChooseStartingPlayer(GameState state)
+    {
+        return ApplyQueuedPhaseDirectives(state, GamePhase.DrawInitialHand);
+    }
+
+    private GamePhase EnterDrawInitialHand(GameState state)
+    {
+        DealInitialHands(state, cardsToDraw: 5);
+        return ApplyQueuedPhaseDirectives(state, GamePhase.Mulligan);
+    }
+
+    private GamePhase EnterMulligan(GameState state)
+    {
+        return ApplyQueuedPhaseDirectives(state, GamePhase.StartOfMainPhase);
+    }
+
+    private GamePhase EnterRefreshPhase(GameState state)
+    {
+        return ApplyQueuedPhaseDirectives(state, GamePhase.MainPhase);
+    }
+
+    private GamePhase EnterStartOfMainPhase(GameState state)
+    {
+        return ApplyQueuedPhaseDirectives(state, GamePhase.DrawPhase);
+    }
+
+    private GamePhase EnterDrawPhase(GameState state)
+    {
+        return ApplyQueuedPhaseDirectives(state, GamePhase.RefreshPhase);
+    }
+
+    private GamePhase EnterMainPhase(GameState state)
+    {
+        return ApplyQueuedPhaseDirectives(state, GamePhase.AttackDeclaration);
+    }
+
+    private GamePhase EnterAttackDeclaration(GameState state)
+    {
+        return ApplyQueuedPhaseDirectives(state, GamePhase.BlockerDeclaration);
+    }
+
+    private GamePhase EnterBlockerDeclaration(GameState state)
+    {
+        return ApplyQueuedPhaseDirectives(state, GamePhase.ActionStep);
+    }
+
+    private GamePhase EnterActionStep(GameState state)
+    {
+        return ApplyQueuedPhaseDirectives(state, GamePhase.AttackResolution);
+    }
+
+    private GamePhase EnterAttackResolution(GameState state)
+    {
+        return ApplyQueuedPhaseDirectives(state, GamePhase.BattleEndStep);
+    }
+
+    private GamePhase EnterBattleEndStep(GameState state)
+    {
+        return ApplyQueuedPhaseDirectives(state, GamePhase.MainPhase);
+    }
+
+    private GamePhase ApplyQueuedPhaseDirectives(GameState state, GamePhase defaultNextPhase)
     {
         var resolvedPhase = defaultNextPhase;
         var guardCounter = 0;
@@ -231,4 +356,25 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
         var nextIndex = (currentIndex + 1) % state.Players.Count;
         return state.Players[nextIndex].PlayerId;
     }
+
+    private static void DealInitialHands(GameState state, int cardsToDraw)
+    {
+        foreach (var player in state.Players)
+        {
+            var drawCount = Math.Min(cardsToDraw, player.Deck.Count);
+            if (drawCount <= 0)
+            {
+                continue;
+            }
+
+            var drawnCards = player.Deck.Take(drawCount).ToList();
+            player.Deck.RemoveRange(0, drawCount);
+            player.Hand.AddRange(drawnCards);
+        }
+    }
+
+    private sealed record PhaseMetadataTemplate(
+        IReadOnlyList<string> AvailablePhaseOptions,
+        bool HasPlayerInteraction,
+        PhaseAdvanceMode AdvanceMode);
 }
