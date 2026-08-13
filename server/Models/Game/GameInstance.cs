@@ -302,29 +302,24 @@ public sealed class GameInstance
     {
         var startingPlayerId = ResolveStartingPlayerFromPromptOption(instance.State, requestedPlayerId, selectedOption);
         instance.State.ActivePlayerId = startingPlayerId;
+
         var startingPlayer = instance.State.Players.Single(player => string.Equals(player.PlayerId, startingPlayerId, StringComparison.Ordinal));
         startingPlayer.TurnCount++;
-        instance.PendingPrompts.Dequeue();
-        instance.AddActionLogEntry(
-            actionType: "prompt_resolved",
-            message: $"{requestedPlayerId} selected {selectedOption} and {startingPlayerId} will start.",
-            playerId: requestedPlayerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["promptType"] = nameof(GamePromptType.ChooseStartingPlayer),
-                ["selectedOption"] = selectedOption,
-                ["selectedPlayerId"] = startingPlayerId
-            });
 
-        instance.AddActionLogEntry(
+        instance.PendingPrompts.Dequeue();
+
+        LogAction(
+            instance,
+            actionType: "prompt_resolved",
+            playerId: requestedPlayerId,
+            promptType: GamePromptType.ChooseStartingPlayer,
+            selectedOption: selectedOption,
+            selectedPlayerId: startingPlayerId);
+
+        LogAction(
+            instance,
             actionType: "phase_started",
-            message: $"{startingPlayerId} starts turn {instance.State.TurnNumber} in {instance.State.Phase}.",
-            playerId: startingPlayerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["phase"] = instance.State.Phase.ToString(),
-                ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+            playerId: startingPlayerId);
 
         instance.ValidateInvariants();
     }
@@ -407,15 +402,12 @@ public sealed class GameInstance
         }
 
         instance.PendingPrompts.Dequeue();
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "prompt_resolved",
-            message: $"{requestedPlayerId} selected {selectedOption} for mulligan.",
             playerId: requestedPlayerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["promptType"] = nameof(GamePromptType.Mulligan),
-                ["selectedOption"] = selectedOption
-            });
+            promptType: GamePromptType.Mulligan,
+            selectedOption: selectedOption);
 
         instance.ValidateInvariants();
     }
@@ -443,6 +435,96 @@ public sealed class GameInstance
         bool RequiresOptions,
         Action<GameInstance, string, string> Resolve,
         Action<GameInstance, GamePrompt, HashSet<string>> Validate);
+
+    private static void LogAction(
+        GameInstance instance,
+        string actionType,
+        string? playerId = null,
+        GamePromptType? promptType = null,
+        string? selectedOption = null,
+        string? selectedPlayerId = null)
+    {
+        var message = actionType switch
+        {
+            "prompt_resolved" => BuildPromptResolvedMessage(
+                promptType ?? throw new InvalidOperationException("Prompt type is required."),
+                playerId ?? throw new InvalidOperationException("Player id is required for prompt resolution."),
+                selectedOption ?? throw new InvalidOperationException("Selected option is required for prompt resolution."),
+                selectedPlayerId),
+            "phase_started" => $"{playerId} starts turn {instance.State.TurnNumber} in {instance.State.Phase}.",
+            _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
+        };
+
+        var metadata = actionType switch
+        {
+            "prompt_resolved" => BuildPromptResolvedMetadata(
+                promptType ?? throw new InvalidOperationException("Prompt type is required."),
+                selectedOption ?? throw new InvalidOperationException("Selected option is required for prompt resolution."),
+                selectedPlayerId),
+            "phase_started" => CreateMetadata(
+                ("phase", instance.State.Phase.ToString()),
+                ("turnNumber", ToInvariant(instance.State.TurnNumber))),
+            _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
+        };
+
+        instance.AddActionLogEntry(actionType, message, playerId, metadata);
+    }
+
+    private static string BuildPromptResolvedMessage(
+        GamePromptType promptType,
+        string requestedPlayerId,
+        string selectedOption,
+        string? selectedPlayerId)
+    {
+        return promptType switch
+        {
+            GamePromptType.ChooseStartingPlayer =>
+                $"{requestedPlayerId} selected {selectedOption} and {selectedPlayerId ?? throw new InvalidOperationException("Selected player id is required.")} will start.",
+            GamePromptType.Mulligan =>
+                $"{requestedPlayerId} selected {selectedOption} for mulligan.",
+            _ => throw new InvalidOperationException($"Unsupported prompt type '{promptType}'.")
+        };
+    }
+
+    private static IReadOnlyDictionary<string, string> BuildPromptResolvedMetadata(
+        GamePromptType promptType,
+        string selectedOption,
+        string? selectedPlayerId)
+    {
+        if (promptType == GamePromptType.ChooseStartingPlayer)
+        {
+            return CreateMetadata(
+                ("promptType", nameof(GamePromptType.ChooseStartingPlayer)),
+                ("selectedOption", selectedOption),
+                ("selectedPlayerId", selectedPlayerId ?? throw new InvalidOperationException("Selected player id is required.")));
+        }
+
+        if (promptType == GamePromptType.Mulligan)
+        {
+            return CreateMetadata(
+                ("promptType", nameof(GamePromptType.Mulligan)),
+                ("selectedOption", selectedOption));
+        }
+
+        throw new InvalidOperationException($"Unsupported prompt type '{promptType}'.");
+    }
+
+    private static IReadOnlyDictionary<string, string> CreateMetadata(params (string Key, string Value)[] entries)
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var (key, value) in entries)
+        {
+            map[key] = value;
+        }
+
+        return map;
+    }
+
+    private static string ToInvariant(int value)
+    {
+        return value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     private void ValidatePlayerCardInstances(PlayerState player, HashSet<string> playerIds)
     {
