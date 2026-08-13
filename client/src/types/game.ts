@@ -1,7 +1,10 @@
 export type IGamePhase =
+  | 'ChooseStartingPlayer'
+  | 'DrawInitialHand'
+  | 'Mulligan'
+  | 'RefreshPhase'
   | 'StartOfMainPhase'
-  | 'Draw'
-  | 'SetResource'
+  | 'DrawPhase'
   | 'MainPhase'
   | 'AttackDeclaration'
   | 'BlockerDeclaration'

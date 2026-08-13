@@ -2,9 +2,12 @@ namespace ProjectHiddenVillage.Server;
 
 public enum GamePhase
 {
+    ChooseStartingPlayer,
+    DrawInitialHand,
+    Mulligan,
+    RefreshPhase,
     StartOfMainPhase,
-    Draw,
-    SetResource,
+    DrawPhase,
     MainPhase,
     AttackDeclaration,
     BlockerDeclaration,
@@ -12,4 +15,11 @@ public enum GamePhase
     AttackResolution,
     BattleEndStep,
     EndStep
+}
+
+public enum PhaseAdvanceMode
+{
+    ManualOnly,
+    AutoAdvanceWhenNoPriority,
+    AutoAdvanceImmediately
 }

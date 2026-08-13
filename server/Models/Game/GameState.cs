@@ -33,3 +33,15 @@ public sealed class GameState
         InsertedPhases.Enqueue(phase);
     }
 }
+
+public class GamePhaseData(
+    GamePhase phaseName,
+    List<string> availablePhaseOptions,
+    bool hasPlayerInteraction,
+    PhaseAdvanceMode advanceMode)
+{
+    public GamePhase PhaseName { get; } = phaseName;
+    public List<string> AvailablePhaseOptions { get; } = availablePhaseOptions;
+    public bool HasPlayerInteraction { get; } = hasPlayerInteraction;
+    public PhaseAdvanceMode AdvanceMode { get; } = advanceMode;
+}

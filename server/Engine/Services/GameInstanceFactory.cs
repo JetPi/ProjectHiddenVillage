@@ -38,7 +38,7 @@ public sealed class GameInstanceFactory
         {
             GameId = Guid.NewGuid().ToString("N"),
             TurnNumber = 1,
-            Phase = GamePhase.StartOfMainPhase,
+            Phase = GamePhase.ChooseStartingPlayer,
             ActivePlayerId = string.Empty,
             PriorityPlayerId = string.Empty,
             ConsecutivePasses = 0,
@@ -49,15 +49,9 @@ public sealed class GameInstanceFactory
         };
 
         var instance = new GameInstance(state);
-        instance.AddActionLogEntry(
-            actionType: "game_created",
-            message: $"Game created with {state.Players.Count} player(s).",
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["playerCount"] = state.Players.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["phase"] = state.Phase.ToString(),
-                ["turnNumber"] = state.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+        LogAction(
+            instance,
+            actionType: "game_created");
 
         EnsureStartingPlayerPrompt(instance, random);
         return instance;
@@ -75,14 +69,10 @@ public sealed class GameInstanceFactory
         ValidateJoinablePlayer(player, knownPlayerIds, instance.State.CardDefinitions);
 
         instance.State.Players.Add(BuildPlayerState(player, instance.State.CardDefinitions));
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "player_joined",
-            message: $"{player.Id} joined the game.",
-            playerId: player.Id,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["playerCount"] = instance.State.Players.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+            playerId: player.Id);
 
         EnsureStartingPlayerPrompt(instance, random);
         instance.ValidateInvariants();
@@ -95,28 +85,32 @@ public sealed class GameInstanceFactory
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(instance.State.ActivePlayerId))
+        if (!string.IsNullOrWhiteSpace(instance.State.ActivePlayerId)
+            || instance.PendingPrompts.Any(prompt => prompt.Type == GamePromptType.ChooseStartingPlayer))
         {
             return;
         }
+
         var turnRng = random ?? Random.Shared;
-        var startingPlayerId = instance.State.Players[turnRng.Next(instance.State.Players.Count)].PlayerId;
-        instance.State.ActivePlayerId = startingPlayerId;
+        var requestedPlayerId = instance.State.Players[turnRng.Next(instance.State.Players.Count)].PlayerId;
+        instance.State.ActivePlayerId = requestedPlayerId;
 
-        var startingPlayer = instance.State.Players.Single(player =>
-            string.Equals(player.PlayerId, startingPlayerId, StringComparison.Ordinal));
-
-        startingPlayer.TurnCount++;
-
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "starting_player_assigned",
-            message: $"Starting player assigned to {startingPlayerId}.",
-            playerId: startingPlayerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["selectedPlayerId"] = startingPlayerId,
-                ["playerCount"] = instance.State.Players.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+            playerId: requestedPlayerId);
+
+        instance.EnqueuePrompt(new GamePrompt
+        {
+            RequestedPlayerId = requestedPlayerId,
+            Type = GamePromptType.ChooseStartingPlayer,
+            Options = ["goFirst", "goSecond"]
+        });
+
+        LogAction(
+            instance,
+            actionType: "starting_player_prompted",
+            playerId: requestedPlayerId);
 
         instance.ValidateInvariants();
     }
@@ -224,5 +218,56 @@ public sealed class GameInstanceFactory
         }
 
         return card.Id;
+    }
+
+    private static void LogAction(
+        GameInstance instance,
+        string actionType,
+        string? playerId = null)
+    {
+        var message = actionType switch
+        {
+            "game_created" => $"Game created with {instance.State.Players.Count} player(s).",
+            "player_joined" => $"{playerId} joined the game.",
+            "starting_player_assigned" => $"Starting player candidate auto-assigned to {playerId}.",
+            "starting_player_prompted" => $"{playerId} must choose who starts.",
+            _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
+        };
+
+        var metadata = actionType switch
+        {
+            "game_created" => CreateMetadata(
+                ("playerCount", ToInvariant(instance.State.Players.Count)),
+                ("phase", instance.State.Phase.ToString()),
+                ("turnNumber", ToInvariant(instance.State.TurnNumber))),
+            "player_joined" => CreateMetadata(
+                ("playerCount", ToInvariant(instance.State.Players.Count))),
+            "starting_player_assigned" => CreateMetadata(
+                ("assignmentType", "candidate"),
+                ("playerCount", ToInvariant(instance.State.Players.Count))),
+            "starting_player_prompted" => CreateMetadata(
+                ("promptType", nameof(GamePromptType.ChooseStartingPlayer)),
+                ("playerCount", ToInvariant(instance.State.Players.Count))),
+            _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
+        };
+
+        instance.AddActionLogEntry(actionType, message, playerId, metadata);
+    }
+
+    private static IReadOnlyDictionary<string, string> CreateMetadata(params (string Key, string Value)[] entries)
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var (key, value) in entries)
+        {
+            map[key] = value;
+        }
+
+        return map;
+    }
+
+    private static string ToInvariant(int value)
+    {
+        return value.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 }

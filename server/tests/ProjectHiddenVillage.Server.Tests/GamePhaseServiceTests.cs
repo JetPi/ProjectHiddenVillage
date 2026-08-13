@@ -7,14 +7,14 @@ namespace ProjectHiddenVillage.Server.Tests;
 [TestClass]
 public sealed class GamePhaseServiceTests
 {
-    private readonly GamePhaseService service = new();
+    private readonly GamePhaseService service = new(new GamePhaseStateService());
 
     [TestMethod]
     public void GetNextPhase_UsesExpectedDefaultOrder()
     {
-        Assert.AreEqual(GamePhase.Draw, service.GetNextPhase(GamePhase.StartOfMainPhase));
-        Assert.AreEqual(GamePhase.SetResource, service.GetNextPhase(GamePhase.Draw));
-        Assert.AreEqual(GamePhase.MainPhase, service.GetNextPhase(GamePhase.SetResource));
+        Assert.AreEqual(GamePhase.DrawPhase, service.GetNextPhase(GamePhase.StartOfMainPhase));
+        Assert.AreEqual(GamePhase.RefreshPhase, service.GetNextPhase(GamePhase.DrawPhase));
+        Assert.AreEqual(GamePhase.MainPhase, service.GetNextPhase(GamePhase.RefreshPhase));
         Assert.AreEqual(GamePhase.AttackDeclaration, service.GetNextPhase(GamePhase.MainPhase));
         Assert.AreEqual(GamePhase.BlockerDeclaration, service.GetNextPhase(GamePhase.AttackDeclaration));
         Assert.AreEqual(GamePhase.ActionStep, service.GetNextPhase(GamePhase.BlockerDeclaration));
@@ -27,170 +27,231 @@ public sealed class GamePhaseServiceTests
     [TestMethod]
     public void AdvancePhase_Throws_WhenCalledOnEndStep()
     {
-        var state = CreateState(phase: GamePhase.EndStep);
+        var instance = CreateInstance(phase: GamePhase.EndStep, activePlayerId: "p1");
 
-        var ex = Assert.ThrowsException<InvalidOperationException>(() => service.AdvancePhase(state));
+        var ex = Assert.ThrowsException<InvalidOperationException>(() => service.AdvancePhase(instance));
         Assert.AreEqual("Use CompleteEndStep to advance from EndStep.", ex.Message);
     }
 
     [TestMethod]
     public void AdvancePhase_InitializesActionStepPriority_WhenEnteringActionStep()
     {
-        var state = CreateState(phase: GamePhase.BlockerDeclaration);
-        state.PriorityPlayerId = "p2";
-        state.ConsecutivePasses = 1;
+        var instance = CreateInstance(phase: GamePhase.BlockerDeclaration, activePlayerId: "p1", priorityPlayerId: "p2");
+        instance.State.ConsecutivePasses = 1;
 
-        service.AdvancePhase(state);
+        service.AdvancePhase(instance);
 
-        Assert.AreEqual(GamePhase.ActionStep, state.Phase);
-        Assert.AreEqual("p1", state.PriorityPlayerId);
-        Assert.AreEqual(0, state.ConsecutivePasses);
+        Assert.AreEqual(GamePhase.ActionStep, instance.State.Phase);
+        Assert.AreEqual("p1", instance.State.PriorityPlayerId);
+        Assert.AreEqual(0, instance.State.ConsecutivePasses);
+    }
+
+    [TestMethod]
+    public void AdvancePhase_LeavingDrawInitialHand_DrawsTopFiveCardsForEachPlayer()
+    {
+        var instance = CreateInstance(phase: GamePhase.ChooseStartingPlayer, activePlayerId: "p1");
+
+        instance.State.Players[0].Deck.AddRange(CreateDeckCards("p1", "p1-card", 6));
+        instance.State.Players[1].Deck.AddRange(CreateDeckCards("p2", "p2-card", 6));
+
+        service.AdvancePhase(instance);
+        Assert.AreEqual(GamePhase.DrawInitialHand, instance.State.Phase);
+
+        service.AdvancePhase(instance);
+
+        Assert.AreEqual(GamePhase.Mulligan, instance.State.Phase);
+        var mulliganPrompt = instance.GetPendingPrompt();
+        Assert.IsNotNull(mulliganPrompt);
+        Assert.AreEqual(GamePromptType.Mulligan, mulliganPrompt.Type);
+        Assert.AreEqual("p2", mulliganPrompt.RequestedPlayerId);
+        CollectionAssert.AreEqual(new[] { "mulligan", "noMulligan" }, mulliganPrompt.Options);
+        Assert.AreEqual(5, instance.State.Players[0].Hand.Count);
+        Assert.AreEqual(1, instance.State.Players[0].Deck.Count);
+        Assert.AreEqual("p1-card-1", instance.State.Players[0].Hand[0].CardDefinitionId);
+        Assert.AreEqual("p1-card-6", instance.State.Players[0].Deck[0].CardDefinitionId);
+
+        Assert.AreEqual(5, instance.State.Players[1].Hand.Count);
+        Assert.AreEqual(1, instance.State.Players[1].Deck.Count);
+        Assert.AreEqual("p2-card-1", instance.State.Players[1].Hand[0].CardDefinitionId);
+        Assert.AreEqual("p2-card-6", instance.State.Players[1].Deck[0].CardDefinitionId);
+    }
+
+    [TestMethod]
+    public void ResolvePrompt_Mulligan_RedrawsSecondPlayerHand()
+    {
+        var instance = CreateInstance(phase: GamePhase.ChooseStartingPlayer, activePlayerId: "p1");
+
+        SeedDefinitions(instance.State, "p1-card", 6);
+        SeedDefinitions(instance.State, "p2-card", 6);
+
+        instance.State.Players[0].Deck.AddRange(CreateDeckCards("p1", "p1-card", 6));
+        instance.State.Players[1].Deck.AddRange(CreateDeckCards("p2", "p2-card", 6));
+
+        service.AdvancePhase(instance);
+        service.AdvancePhase(instance);
+
+        var prompt = instance.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual("p2", prompt.RequestedPlayerId);
+
+        var secondPlayer = instance.State.Players[1];
+        var originalSecondPlayerCardInstanceIds = secondPlayer.Hand
+            .Concat(secondPlayer.Deck)
+            .Select(card => card.InstanceId)
+            .ToList();
+
+        instance.ResolvePrompt(prompt.RequestedPlayerId, "mulligan");
+
+        Assert.IsNull(instance.GetPendingPrompt());
+        Assert.AreEqual(5, secondPlayer.Hand.Count);
+        Assert.AreEqual(1, secondPlayer.Deck.Count);
+        CollectionAssert.AreEquivalent(
+            originalSecondPlayerCardInstanceIds,
+            secondPlayer.Hand
+                .Concat(secondPlayer.Deck)
+                .Select(card => card.InstanceId)
+                .ToList());
     }
 
     [TestMethod]
     public void DeclarePassInActionStep_RequiresPriorityPlayer()
     {
-        var state = CreateState(phase: GamePhase.ActionStep);
-        state.PriorityPlayerId = "p1";
+        var instance = CreateInstance(phase: GamePhase.ActionStep, activePlayerId: "p1", priorityPlayerId: "p1");
 
-        var ex = Assert.ThrowsException<InvalidOperationException>(() => service.DeclarePassInActionStep(state, "p2"));
+        var ex = Assert.ThrowsException<InvalidOperationException>(() => service.DeclarePassInActionStep(instance, "p2"));
         Assert.AreEqual("Only the priority player can declare pass.", ex.Message);
     }
 
     [TestMethod]
     public void DeclarePassInActionStep_FirstPass_SwapsPriority()
     {
-        var state = CreateState(phase: GamePhase.ActionStep);
-        state.PriorityPlayerId = "p1";
+        var instance = CreateInstance(phase: GamePhase.ActionStep, activePlayerId: "p1", priorityPlayerId: "p1");
 
-        var advancedToResolution = service.DeclarePassInActionStep(state, "p1");
+        var advancedToResolution = service.DeclarePassInActionStep(instance, "p1");
 
         Assert.IsFalse(advancedToResolution);
-        Assert.AreEqual("p2", state.PriorityPlayerId);
-        Assert.AreEqual(1, state.ConsecutivePasses);
-        Assert.AreEqual(GamePhase.ActionStep, state.Phase);
+        Assert.AreEqual("p2", instance.State.PriorityPlayerId);
+        Assert.AreEqual(1, instance.State.ConsecutivePasses);
+        Assert.AreEqual(GamePhase.ActionStep, instance.State.Phase);
     }
 
     [TestMethod]
     public void DeclarePassInActionStep_TwoPasses_AdvancesToAttackResolution()
     {
-        var state = CreateState(phase: GamePhase.ActionStep);
-        state.PriorityPlayerId = "p1";
+        var instance = CreateInstance(phase: GamePhase.ActionStep, activePlayerId: "p1", priorityPlayerId: "p1");
 
-        service.DeclarePassInActionStep(state, "p1");
-        var advancedToResolution = service.DeclarePassInActionStep(state, "p2");
+        service.DeclarePassInActionStep(instance, "p1");
+        var advancedToResolution = service.DeclarePassInActionStep(instance, "p2");
 
         Assert.IsTrue(advancedToResolution);
-        Assert.AreEqual(GamePhase.AttackResolution, state.Phase);
-        Assert.AreEqual(string.Empty, state.PriorityPlayerId);
-        Assert.AreEqual(0, state.ConsecutivePasses);
+        Assert.AreEqual(GamePhase.AttackResolution, instance.State.Phase);
+        Assert.AreEqual(string.Empty, instance.State.PriorityPlayerId);
+        Assert.AreEqual(0, instance.State.ConsecutivePasses);
     }
 
     [TestMethod]
     public void DeclareActionInActionStep_ResetsPasses_AndSwapsPriority()
     {
-        var state = CreateState(phase: GamePhase.ActionStep);
-        state.PriorityPlayerId = "p1";
-        state.ConsecutivePasses = 1;
+        var instance = CreateInstance(phase: GamePhase.ActionStep, activePlayerId: "p1", priorityPlayerId: "p1");
+        instance.State.ConsecutivePasses = 1;
 
-        service.DeclareActionInActionStep(state, "p1");
+        service.DeclareActionInActionStep(instance, "p1");
 
-        Assert.AreEqual(0, state.ConsecutivePasses);
-        Assert.AreEqual("p2", state.PriorityPlayerId);
-        Assert.AreEqual(GamePhase.ActionStep, state.Phase);
+        Assert.AreEqual(0, instance.State.ConsecutivePasses);
+        Assert.AreEqual("p2", instance.State.PriorityPlayerId);
+        Assert.AreEqual(GamePhase.ActionStep, instance.State.Phase);
     }
 
     [TestMethod]
     public void CompleteEndStep_AdvancesTurn_ChangesActivePlayer_AndResetsRoundState()
     {
-        var state = CreateState(phase: GamePhase.EndStep);
-        state.PriorityPlayerId = "p2";
-        state.ConsecutivePasses = 1;
+        var instance = CreateInstance(phase: GamePhase.EndStep, activePlayerId: "p1", priorityPlayerId: "p2");
+        instance.State.ConsecutivePasses = 1;
 
-        var wrapped = service.CompleteEndStep(state);
+        var wrapped = service.CompleteEndStep(instance);
 
         Assert.IsTrue(wrapped);
-        Assert.AreEqual(2, state.TurnNumber);
-        Assert.AreEqual("p2", state.ActivePlayerId);
-        Assert.AreEqual(GamePhase.StartOfMainPhase, state.Phase);
-        Assert.AreEqual(string.Empty, state.PriorityPlayerId);
-        Assert.AreEqual(0, state.ConsecutivePasses);
+        Assert.AreEqual(2, instance.State.TurnNumber);
+        Assert.AreEqual("p2", instance.State.ActivePlayerId);
+        Assert.AreEqual(GamePhase.StartOfMainPhase, instance.State.Phase);
+        Assert.AreEqual(string.Empty, instance.State.PriorityPlayerId);
+        Assert.AreEqual(0, instance.State.ConsecutivePasses);
     }
 
     [TestMethod]
     public void AdvancePhase_AppliesSkipDirective_WhenNextPhaseMatches()
     {
-        var state = CreateState(phase: GamePhase.Draw);
-        service.EnqueueSkipPhase(state, GamePhase.SetResource);
+        var instance = CreateInstance(phase: GamePhase.DrawPhase, activePlayerId: "p1");
+        service.EnqueueSkipPhase(instance, GamePhase.RefreshPhase);
 
-        service.AdvancePhase(state);
+        service.AdvancePhase(instance);
 
-        Assert.AreEqual(GamePhase.MainPhase, state.Phase);
-        Assert.AreEqual(0, state.PhaseDirectives.Count);
+        Assert.AreEqual(GamePhase.MainPhase, instance.State.Phase);
+        Assert.AreEqual(0, instance.State.PhaseDirectives.Count);
     }
 
     [TestMethod]
     public void AdvancePhase_LeavesSkipDirectiveQueued_WhenNextPhaseDoesNotMatch()
     {
-        var state = CreateState(phase: GamePhase.Draw);
-        service.EnqueueSkipPhase(state, GamePhase.MainPhase);
+        var instance = CreateInstance(phase: GamePhase.DrawPhase, activePlayerId: "p1");
+        service.EnqueueSkipPhase(instance, GamePhase.MainPhase);
 
-        service.AdvancePhase(state);
+        service.AdvancePhase(instance);
 
-        Assert.AreEqual(GamePhase.SetResource, state.Phase);
-        Assert.AreEqual(1, state.PhaseDirectives.Count);
+        Assert.AreEqual(GamePhase.RefreshPhase, instance.State.Phase);
+        Assert.AreEqual(1, instance.State.PhaseDirectives.Count);
     }
 
     [TestMethod]
     public void AdvancePhase_AppliesJumpDirective()
     {
-        var state = CreateState(phase: GamePhase.Draw);
-        service.EnqueueJumpToPhase(state, GamePhase.ActionStep);
+        var instance = CreateInstance(phase: GamePhase.DrawPhase, activePlayerId: "p1");
+        service.EnqueueJumpToPhase(instance, GamePhase.ActionStep);
 
-        service.AdvancePhase(state);
+        service.AdvancePhase(instance);
 
-        Assert.AreEqual(GamePhase.ActionStep, state.Phase);
-        Assert.AreEqual("p1", state.PriorityPlayerId);
-        Assert.AreEqual(0, state.ConsecutivePasses);
-        Assert.AreEqual(0, state.PhaseDirectives.Count);
+        Assert.AreEqual(GamePhase.ActionStep, instance.State.Phase);
+        Assert.AreEqual("p1", instance.State.PriorityPlayerId);
+        Assert.AreEqual(0, instance.State.ConsecutivePasses);
+        Assert.AreEqual(0, instance.State.PhaseDirectives.Count);
     }
 
     [TestMethod]
     public void AdvancePhase_AppliesDirectivesInQueueOrder()
     {
-        var state = CreateState(phase: GamePhase.Draw);
-        service.EnqueueJumpToPhase(state, GamePhase.MainPhase);
-        service.EnqueueSkipPhase(state, GamePhase.AttackDeclaration);
+        var instance = CreateInstance(phase: GamePhase.DrawPhase, activePlayerId: "p1");
+        service.EnqueueJumpToPhase(instance, GamePhase.MainPhase);
+        service.EnqueueSkipPhase(instance, GamePhase.AttackDeclaration);
 
-        service.AdvancePhase(state);
+        service.AdvancePhase(instance);
 
-        Assert.AreEqual(GamePhase.MainPhase, state.Phase);
-        Assert.AreEqual(1, state.PhaseDirectives.Count);
+        Assert.AreEqual(GamePhase.MainPhase, instance.State.Phase);
+        Assert.AreEqual(1, instance.State.PhaseDirectives.Count);
     }
 
     [TestMethod]
     public void AdvancePhase_UsesInsertedPhaseBeforeDefaultFlow()
     {
-        var state = CreateState(phase: GamePhase.Draw);
-        state.InsertPhase(GamePhase.BlockerDeclaration);
+        var instance = CreateInstance(phase: GamePhase.DrawPhase, activePlayerId: "p1");
+        instance.State.InsertPhase(GamePhase.BlockerDeclaration);
 
-        service.AdvancePhase(state);
+        service.AdvancePhase(instance);
 
-        Assert.AreEqual(GamePhase.BlockerDeclaration, state.Phase);
-        Assert.AreEqual(0, state.InsertedPhases.Count);
+        Assert.AreEqual(GamePhase.BlockerDeclaration, instance.State.Phase);
+        Assert.AreEqual(0, instance.State.InsertedPhases.Count);
     }
 
     [TestMethod]
     public void AdvancePhase_UsesInsertedPhaseBeforeDirectives()
     {
-        var state = CreateState(phase: GamePhase.Draw);
-        service.EnqueueJumpToPhase(state, GamePhase.MainPhase);
-        state.InsertPhase(GamePhase.SetResource);
+        var instance = CreateInstance(phase: GamePhase.DrawPhase, activePlayerId: "p1");
+        service.EnqueueJumpToPhase(instance, GamePhase.MainPhase);
+        instance.State.InsertPhase(GamePhase.RefreshPhase);
 
-        service.AdvancePhase(state);
+        service.AdvancePhase(instance);
 
-        Assert.AreEqual(GamePhase.SetResource, state.Phase);
-        Assert.AreEqual(1, state.PhaseDirectives.Count);
+        Assert.AreEqual(GamePhase.RefreshPhase, instance.State.Phase);
+        Assert.AreEqual(1, instance.State.PhaseDirectives.Count);
     }
 
     [TestMethod]
@@ -200,12 +261,12 @@ public sealed class GamePhaseServiceTests
 
         service.AdvancePhase(instance);
 
-        Assert.AreEqual(GamePhase.Draw, instance.State.Phase);
+        Assert.AreEqual(GamePhase.DrawPhase, instance.State.Phase);
         var entry = instance.ActionLog.Last();
         Assert.AreEqual("phase_started", entry.ActionType);
         Assert.AreEqual("p1", entry.PlayerId);
         Assert.AreEqual("StartOfMainPhase", entry.Metadata["fromPhase"]);
-        Assert.AreEqual("Draw", entry.Metadata["toPhase"]);
+        Assert.AreEqual("DrawPhase", entry.Metadata["toPhase"]);
     }
 
     [TestMethod]
@@ -241,5 +302,41 @@ public sealed class GamePhaseServiceTests
         state.PriorityPlayerId = priorityPlayerId;
 
         return new GameInstance(state);
+    }
+
+    private static List<CardInstance> CreateDeckCards(string playerId, string cardPrefix, int count)
+    {
+        var cards = new List<CardInstance>(capacity: count);
+
+        for (var index = 1; index <= count; index++)
+        {
+            cards.Add(new CardInstance
+            {
+                CardDefinitionId = $"{cardPrefix}-{index}",
+                OwnerPlayerId = playerId,
+                ControllerPlayerId = playerId
+            });
+        }
+
+        return cards;
+    }
+
+    private static void SeedDefinitions(GameState state, string cardPrefix, int count)
+    {
+        for (var index = 1; index <= count; index++)
+        {
+            var definitionId = $"{cardPrefix}-{index}";
+            state.CardDefinitions[definitionId] = new Card
+            {
+                Id = definitionId,
+                DisplayName = definitionId,
+                Name = [definitionId],
+                Type = CardType.Character,
+                Description = string.Empty,
+                Traits = [],
+                Conditions = [],
+                Effects = []
+            };
+        }
     }
 }

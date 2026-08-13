@@ -9,7 +9,7 @@ public sealed class InMemoryGameInstanceRegistryTests
 {
     private readonly InMemoryGameInstanceRegistry registry = new(
         new GameInstanceFactory(),
-        new global::ProjectHiddenVillage.Server.Engine.GamePhaseService());
+        new global::ProjectHiddenVillage.Server.Engine.GamePhaseService(new global::ProjectHiddenVillage.Server.Engine.GamePhaseStateService()));
 
     [TestMethod]
     public void Create_StoresGame_AndTryGetReturnsIt()
@@ -30,7 +30,7 @@ public sealed class InMemoryGameInstanceRegistryTests
     }
 
     [TestMethod]
-    public void Join_AddsPlayer_AndAssignsStartingPlayer()
+    public void Join_AddsPlayer_AndEnqueuesStartingPlayerPrompt()
     {
         var game = registry.Create(
             players:
@@ -42,10 +42,14 @@ public sealed class InMemoryGameInstanceRegistryTests
         registry.Join(game.Id, new Player { Id = "p2", Deck = ["card-1"] }, new FixedIndexRandom(1));
 
         Assert.AreEqual(2, game.State.Players.Count);
-        Assert.IsNull(game.GetPendingPrompt());
         Assert.AreEqual("p2", game.State.ActivePlayerId);
+        var prompt = game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual("p2", prompt.RequestedPlayerId);
+        CollectionAssert.AreEqual(new[] { "goFirst", "goSecond" }, prompt.Options);
         Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "player_joined" && entry.PlayerId == "p2"));
         Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "starting_player_assigned" && entry.PlayerId == "p2"));
+        Assert.IsTrue(game.ActionLog.Any(entry => entry.ActionType == "starting_player_prompted" && entry.PlayerId == "p2"));
     }
 
     [TestMethod]
@@ -60,15 +64,9 @@ public sealed class InMemoryGameInstanceRegistryTests
             cardDefinitions: BuildDefinitions("card-1"),
             random: new FixedIndexRandom(0));
 
-        var prompt = new GamePrompt
-        {
-            RequestedPlayerId = "p1",
-            Type = GamePromptType.ChooseStartingPlayer,
-            Options = ["p1", "p2"]
-        };
-        game.EnqueuePrompt(prompt);
+        var prompt = game.GetPendingPrompt()!;
 
-        registry.ResolvePrompt(game.Id, prompt.RequestedPlayerId, "p2");
+        registry.ResolvePrompt(game.Id, prompt.RequestedPlayerId, "goSecond");
 
         Assert.AreEqual("p2", game.State.ActivePlayerId);
         Assert.IsNull(game.GetPendingPrompt());

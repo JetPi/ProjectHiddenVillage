@@ -228,7 +228,7 @@ public sealed class GamesServiceGetCardsForGameTests
     {
         return new InMemoryGameInstanceRegistry(
             new GameInstanceFactory(),
-            new global::ProjectHiddenVillage.Server.Engine.GamePhaseService());
+            new global::ProjectHiddenVillage.Server.Engine.GamePhaseService(new global::ProjectHiddenVillage.Server.Engine.GamePhaseStateService()));
     }
 
     private static GameInstanceEntity CreatePersistedGameInstance(

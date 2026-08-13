@@ -1,228 +1,76 @@
-using ProjectHiddenVillage.Server;
+using ProjectHiddenVillage.Server.Engine.Interfaces;
 
 namespace ProjectHiddenVillage.Server.Engine;
 
-public sealed class GamePhaseService
+public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
 {
-    public bool AdvancePhase(GameInstance instance)
+    private static readonly IReadOnlyDictionary<GamePhase, Action<GameInstance>> PhaseEntryPromptHandlers =
+        new Dictionary<GamePhase, Action<GameInstance>>
+        {
+            [GamePhase.Mulligan] = EnsureMulliganPrompt
+        };
+
+    private readonly IGamePhaseStateService phaseStateService = phaseStateService ?? throw new ArgumentNullException(nameof(phaseStateService));
+
+    public GamePhaseData AdvancePhase(GameInstance instance)
     {
         ArgumentNullException.ThrowIfNull(instance);
 
         var previousPhase = instance.State.Phase;
-        var advancedToEndOfWindow = AdvancePhase(instance.State);
+        var phaseData = phaseStateService.AdvancePhase(instance.State);
         var activePlayerId = instance.State.ActivePlayerId;
 
-        instance.AddActionLogEntry(
+        if (PhaseEntryPromptHandlers.TryGetValue(instance.State.Phase, out var promptHandler))
+        {
+            promptHandler(instance);
+        }
+
+        LogAction(
+            instance,
             actionType: "phase_started",
-            message: $"{DescribePlayer(activePlayerId)} started {instance.State.Phase}.",
             playerId: activePlayerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["fromPhase"] = previousPhase.ToString(),
-                ["toPhase"] = instance.State.Phase.ToString(),
-                ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+            previousPhase: previousPhase);
 
-        return advancedToEndOfWindow;
-    }
-
-    public GamePhase GetNextPhase(GamePhase currentPhase)
-    {
-        return currentPhase switch
-        {
-            GamePhase.StartOfMainPhase => GamePhase.Draw,
-            GamePhase.Draw => GamePhase.SetResource,
-            GamePhase.SetResource => GamePhase.MainPhase,
-            GamePhase.MainPhase => GamePhase.AttackDeclaration,
-            GamePhase.AttackDeclaration => GamePhase.BlockerDeclaration,
-            GamePhase.BlockerDeclaration => GamePhase.ActionStep,
-            GamePhase.ActionStep => GamePhase.AttackResolution,
-            GamePhase.AttackResolution => GamePhase.BattleEndStep,
-            GamePhase.BattleEndStep => GamePhase.MainPhase,
-            GamePhase.EndStep => GamePhase.StartOfMainPhase,
-            _ => throw new ArgumentOutOfRangeException(nameof(currentPhase), currentPhase, "Unknown game phase.")
-        };
-    }
-
-    public bool AdvancePhase(GameState state)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-
-        if (state.Phase == GamePhase.EndStep)
-        {
-            throw new InvalidOperationException("Use CompleteEndStep to advance from EndStep.");
-        }
-
-        if (state.InsertedPhases.Count > 0)
-        {
-            state.Phase = state.InsertedPhases.Dequeue();
-        }
-        else
-        {
-            var defaultNextPhase = GetNextPhase(state.Phase);
-            state.Phase = ResolveNextPhaseWithDirectives(state, defaultNextPhase);
-        }
-
-        if (state.Phase == GamePhase.ActionStep)
-        {
-            state.PriorityPlayerId = state.ActivePlayerId;
-            state.ConsecutivePasses = 0;
-        }
-
-        return false;
-    }
-
-    public void EnqueueSkipPhase(GameState state, GamePhase phaseToSkip)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-
-        state.PhaseDirectives.Enqueue(new PhaseDirective
-        {
-            Type = PhaseDirectiveType.SkipPhase,
-            Phase = phaseToSkip
-        });
-    }
-
-    public void EnqueueJumpToPhase(GameState state, GamePhase targetPhase)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-
-        state.PhaseDirectives.Enqueue(new PhaseDirective
-        {
-            Type = PhaseDirectiveType.JumpToPhase,
-            Phase = targetPhase
-        });
-    }
-
-    public bool DeclarePassInActionStep(GameState state, string playerId)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-
-        if (state.Phase != GamePhase.ActionStep)
-        {
-            throw new InvalidOperationException("Pass declarations are only valid during ActionStep.");
-        }
-
-        if (!string.Equals(state.PriorityPlayerId, playerId, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("Only the priority player can declare pass.");
-        }
-
-        state.ConsecutivePasses++;
-
-        if (state.ConsecutivePasses >= 2)
-        {
-            state.Phase = GamePhase.AttackResolution;
-            ClearPlayerPriority(state);
-            ClearConsecutivePasses(state);
-            return true;
-        }
-
-        SwapPlayerInPriority(state, playerId);
-        return false;
+        return phaseData;
     }
 
     public bool DeclarePassInActionStep(GameInstance instance, string playerId)
     {
         ArgumentNullException.ThrowIfNull(instance);
 
-        var advancedToResolution = DeclarePassInActionStep(instance.State, playerId);
+        var advancedToResolution = phaseStateService.DeclarePassInActionStep(instance.State, playerId);
 
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "action_step_pass_declared",
-            message: $"{playerId} declared pass in ActionStep.",
             playerId: playerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["advancedToAttackResolution"] = advancedToResolution.ToString(),
-                ["nextPriorityPlayerId"] = instance.State.PriorityPlayerId,
-                ["consecutivePasses"] = instance.State.ConsecutivePasses.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+            advancedToAttackResolution: advancedToResolution);
 
         return advancedToResolution;
-    }
-
-    public void DeclareActionInActionStep(GameState state, string playerId)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-
-        if (state.Phase != GamePhase.ActionStep)
-        {
-            throw new InvalidOperationException("Actions are only valid during ActionStep.");
-        }
-
-        if (!string.Equals(state.PriorityPlayerId, playerId, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("Only the priority player can declare an action.");
-        }
-
-        ClearConsecutivePasses(state);
-        SwapPlayerInPriority(state, playerId);
     }
 
     public void DeclareActionInActionStep(GameInstance instance, string playerId)
     {
         ArgumentNullException.ThrowIfNull(instance);
 
-        DeclareActionInActionStep(instance.State, playerId);
+        phaseStateService.DeclareActionInActionStep(instance.State, playerId);
 
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "action_step_action_declared",
-            message: $"{playerId} declared an action in ActionStep.",
-            playerId: playerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["nextPriorityPlayerId"] = instance.State.PriorityPlayerId,
-                ["consecutivePasses"] = instance.State.ConsecutivePasses.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
-    }
-
-    public void DeclareEndStep(GameState state)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-
-        if (state.Phase != GamePhase.MainPhase)
-        {
-            throw new InvalidOperationException("End step can only be declared from MainPhase.");
-        }
-
-        state.Phase = GamePhase.EndStep;
+            playerId: playerId);
     }
 
     public void DeclareEndStep(GameInstance instance)
     {
         ArgumentNullException.ThrowIfNull(instance);
 
-        DeclareEndStep(instance.State);
+        phaseStateService.DeclareEndStep(instance.State);
 
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "end_step_declared",
-            message: $"{DescribePlayer(instance.State.ActivePlayerId)} declared EndStep.",
-            playerId: instance.State.ActivePlayerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["phase"] = instance.State.Phase.ToString(),
-                ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
-    }
-
-    public bool CompleteEndStep(GameState state)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-
-        if (state.Phase != GamePhase.EndStep)
-        {
-            throw new InvalidOperationException("CompleteEndStep can only be used while in EndStep.");
-        }
-
-        state.Phase = GamePhase.StartOfMainPhase;
-        var nextActivePlayerId = ChangeActivePlayer(state);
-        var nextPlayer = state.Players.Single(player => string.Equals(player.PlayerId, nextActivePlayerId, StringComparison.Ordinal));
-        nextPlayer.TurnCount++;
-        ClearPlayerPriority(state);
-        ClearConsecutivePasses(state);
-        state.TurnNumber++;
-        return true;
+            playerId: instance.State.ActivePlayerId);
     }
 
     public bool CompleteEndStep(GameInstance instance)
@@ -230,82 +78,64 @@ public sealed class GamePhaseService
         ArgumentNullException.ThrowIfNull(instance);
 
         var previousActivePlayerId = instance.State.ActivePlayerId;
-        var wrapped = CompleteEndStep(instance.State);
+        var wrapped = phaseStateService.CompleteEndStep(instance.State);
 
-        instance.AddActionLogEntry(
+        LogAction(
+            instance,
             actionType: "turn_started",
-            message: $"Turn {instance.State.TurnNumber} started for {instance.State.ActivePlayerId}.",
             playerId: instance.State.ActivePlayerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["previousActivePlayerId"] = previousActivePlayerId,
-                ["phase"] = instance.State.Phase.ToString(),
-                ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            });
+            previousActivePlayerId: previousActivePlayerId);
 
         return wrapped;
     }
 
-
-    private GamePhase ResolveNextPhaseWithDirectives(GameState state, GamePhase defaultNextPhase)
+    public GamePhase GetNextPhase(GamePhase currentPhase)
     {
-        var resolvedPhase = defaultNextPhase;
-        var guardCounter = 0;
+        return phaseStateService.GetNextPhase(currentPhase);
+    }
 
-        while (state.PhaseDirectives.Count > 0)
+    public void EnqueueSkipPhase(GameInstance instance, GamePhase phaseToSkip)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        phaseStateService.EnqueueSkipPhase(instance.State, phaseToSkip);
+    }
+
+    public void EnqueueJumpToPhase(GameInstance instance, GamePhase targetPhase)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        phaseStateService.EnqueueJumpToPhase(instance.State, targetPhase);
+    }
+
+    private static string DescribePlayer(string playerId)
+    {
+        return string.IsNullOrWhiteSpace(playerId) ? "System" : playerId;
+    }
+
+    private static void EnsureMulliganPrompt(GameInstance instance)
+    {
+        if (instance.State.Players.Count < 2)
         {
-            guardCounter++;
-
-            if (guardCounter > 32)
-            {
-                throw new InvalidOperationException("Phase directive processing exceeded safe iteration limit.");
-            }
-
-            var directive = state.PhaseDirectives.Peek();
-
-            if (directive.Type == PhaseDirectiveType.SkipPhase)
-            {
-                if (directive.Phase != resolvedPhase)
-                {
-                    break;
-                }
-
-                state.PhaseDirectives.Dequeue();
-                resolvedPhase = GetNextPhase(resolvedPhase);
-                continue;
-            }
-
-            if (directive.Type == PhaseDirectiveType.JumpToPhase)
-            {
-                state.PhaseDirectives.Dequeue();
-                resolvedPhase = directive.Phase;
-                continue;
-            }
-
-            throw new InvalidOperationException($"Unknown phase directive type '{directive.Type}'.");
+            return;
         }
 
-        return resolvedPhase;
-    }
+        if (instance.PendingPrompts.Any(prompt => prompt.Type == GamePromptType.Mulligan))
+        {
+            return;
+        }
 
-    private static void ClearConsecutivePasses(GameState state)
-    {
-        state.ConsecutivePasses = 0;
-    }
+        var secondPlayerId = GetNextPlayerId(instance.State, instance.State.ActivePlayerId);
 
-    private static void ClearPlayerPriority(GameState state)
-    {
-        state.PriorityPlayerId = string.Empty;
-    }
+        instance.EnqueuePrompt(new GamePrompt
+        {
+            RequestedPlayerId = secondPlayerId,
+            Type = GamePromptType.Mulligan,
+            Options = ["mulligan", "noMulligan"]
+        });
 
-    private static string ChangeActivePlayer(GameState state)
-    {
-        return state.ActivePlayerId = GetNextPlayerId(state, state.ActivePlayerId);
-    }
-
-    private static string SwapPlayerInPriority(GameState state, string playerId)
-    {
-        return state.PriorityPlayerId = GetNextPlayerId(state, playerId);
+        LogAction(
+            instance,
+            actionType: "mulligan_prompted",
+            playerId: secondPlayerId);
     }
 
     private static string GetNextPlayerId(GameState state, string currentPlayerId)
@@ -327,9 +157,70 @@ public sealed class GamePhaseService
         return state.Players[nextIndex].PlayerId;
     }
 
-    private static string DescribePlayer(string playerId)
+    private static void LogAction(
+        GameInstance instance,
+        string actionType,
+        string? playerId = null,
+        GamePhase? previousPhase = null,
+        bool? advancedToAttackResolution = null,
+        string? previousActivePlayerId = null)
     {
-        return string.IsNullOrWhiteSpace(playerId) ? "System" : playerId;
+        var message = actionType switch
+        {
+            "phase_started" => $"{DescribePlayer(playerId ?? string.Empty)} started {instance.State.Phase}.",
+            "action_step_pass_declared" => $"{playerId} declared pass in ActionStep.",
+            "action_step_action_declared" => $"{playerId} declared an action in ActionStep.",
+            "end_step_declared" => $"{DescribePlayer(instance.State.ActivePlayerId)} declared EndStep.",
+            "turn_started" => $"Turn {instance.State.TurnNumber} started for {instance.State.ActivePlayerId}.",
+            "mulligan_prompted" => $"{playerId} can choose mulligan.",
+            _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
+        };
+
+        var metadata = actionType switch
+        {
+            "phase_started" => CreateMetadata(
+                ("fromPhase", (previousPhase ?? throw new InvalidOperationException("Previous phase is required.")).ToString()),
+                ("toPhase", instance.State.Phase.ToString()),
+                ("turnNumber", ToInvariant(instance.State.TurnNumber))),
+            "action_step_pass_declared" => CreateMetadata(
+                ("advancedToAttackResolution", (advancedToAttackResolution ?? throw new InvalidOperationException("Pass resolution flag is required.")).ToString()),
+                ("nextPriorityPlayerId", instance.State.PriorityPlayerId),
+                ("consecutivePasses", ToInvariant(instance.State.ConsecutivePasses))),
+            "action_step_action_declared" => CreateMetadata(
+                ("nextPriorityPlayerId", instance.State.PriorityPlayerId),
+                ("consecutivePasses", ToInvariant(instance.State.ConsecutivePasses))),
+            "end_step_declared" => CreateMetadata(
+                ("phase", instance.State.Phase.ToString()),
+                ("turnNumber", ToInvariant(instance.State.TurnNumber))),
+            "turn_started" => CreateMetadata(
+                ("previousActivePlayerId", previousActivePlayerId ?? throw new InvalidOperationException("Previous active player id is required.")),
+                ("phase", instance.State.Phase.ToString()),
+                ("turnNumber", ToInvariant(instance.State.TurnNumber))),
+            "mulligan_prompted" => CreateMetadata(
+                ("promptType", nameof(GamePromptType.Mulligan)),
+                ("phase", instance.State.Phase.ToString()),
+                ("turnNumber", ToInvariant(instance.State.TurnNumber))),
+            _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
+        };
+
+        instance.AddActionLogEntry(actionType, message, playerId, metadata);
+    }
+
+    private static IReadOnlyDictionary<string, string> CreateMetadata(params (string Key, string Value)[] entries)
+    {
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var (key, value) in entries)
+        {
+            metadata[key] = value;
+        }
+
+        return metadata;
+    }
+
+    private static string ToInvariant(int value)
+    {
+        return value.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
 }

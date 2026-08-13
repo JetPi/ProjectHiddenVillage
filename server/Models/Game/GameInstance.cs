@@ -2,6 +2,19 @@ namespace ProjectHiddenVillage.Server;
 
 public sealed class GameInstance
 {
+    private static readonly IReadOnlyDictionary<GamePromptType, PromptTemplate> PromptTemplates =
+        new Dictionary<GamePromptType, PromptTemplate>
+        {
+            [GamePromptType.ChooseStartingPlayer] = new(
+                RequiresOptions: true,
+                ResolveChooseStartingPlayerPrompt,
+                ValidateChooseStartingPlayerPrompt),
+            [GamePromptType.Mulligan] = new(
+                RequiresOptions: true,
+                ResolveMulliganPrompt,
+                ValidateMulliganPrompt)
+        };
+
     public GameInstance(GameState state, IEnumerable<GamePrompt>? pendingPrompts = null, DateTimeOffset? createdAtUtc = null)
     {
         State = state ?? throw new ArgumentNullException(nameof(state));
@@ -70,6 +83,11 @@ public sealed class GameInstance
     {
         ArgumentNullException.ThrowIfNull(prompt);
 
+        if (!PromptTemplates.TryGetValue(prompt.Type, out var promptTemplate))
+        {
+            throw new InvalidOperationException($"Unsupported prompt type '{prompt.Type}'.");
+        }
+
         if (string.IsNullOrWhiteSpace(prompt.RequestedPlayerId))
         {
             throw new InvalidOperationException("Prompt RequestedPlayerId is required.");
@@ -81,9 +99,9 @@ public sealed class GameInstance
                 $"Prompt requested player '{prompt.RequestedPlayerId}' was not found in game players.");
         }
 
-        if (prompt.Type == GamePromptType.ChooseStartingPlayer && prompt.Options.Count == 0)
+        if (promptTemplate.RequiresOptions && prompt.Options.Count == 0)
         {
-            throw new InvalidOperationException("ChooseStartingPlayer prompt requires at least one option.");
+            throw new InvalidOperationException($"{prompt.Type} prompt requires at least one option.");
         }
 
         PendingPrompts.Enqueue(prompt);
@@ -113,33 +131,9 @@ public sealed class GameInstance
             throw new InvalidOperationException("Selected option is not valid for this prompt.");
         }
 
-        if (prompt.Type == GamePromptType.ChooseStartingPlayer)
+        if (PromptTemplates.TryGetValue(prompt.Type, out var promptTemplate))
         {
-            State.ActivePlayerId = selectedOption;
-            var startingPlayer = State.Players.Single(player => string.Equals(player.PlayerId, selectedOption, StringComparison.Ordinal));
-            startingPlayer.TurnCount++;
-            PendingPrompts.Dequeue();
-            AddActionLogEntry(
-                actionType: "prompt_resolved",
-                message: $"{requestedPlayerId} selected {selectedOption} as starting player.",
-                playerId: requestedPlayerId,
-                metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["promptType"] = nameof(GamePromptType.ChooseStartingPlayer),
-                    ["selectedPlayerId"] = selectedOption
-                });
-
-            AddActionLogEntry(
-                actionType: "phase_started",
-                message: $"{selectedOption} starts turn {State.TurnNumber} in {State.Phase}.",
-                playerId: selectedOption,
-                metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["phase"] = State.Phase.ToString(),
-                    ["turnNumber"] = State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
-                });
-
-            ValidateInvariants();
+            promptTemplate.Resolve(this, requestedPlayerId, selectedOption);
             return;
         }
 
@@ -294,29 +288,242 @@ public sealed class GameInstance
                     $"Pending prompt requested player '{prompt.RequestedPlayerId}' was not found in game players.");
             }
 
-            if (prompt.Type == GamePromptType.ChooseStartingPlayer)
+            if (PromptTemplates.TryGetValue(prompt.Type, out var promptTemplate))
             {
-                if (prompt.Options.Count == 0)
-                {
-                    throw new InvalidOperationException("ChooseStartingPlayer prompt requires at least one option.");
-                }
+                promptTemplate.Validate(this, prompt, playerIds);
+                continue;
+            }
 
-                if (State.Players.Count < 2)
-                {
-                    throw new InvalidOperationException(
-                        "ChooseStartingPlayer prompt requires at least two players in the game.");
-                }
+            throw new InvalidOperationException($"Unsupported prompt type '{prompt.Type}'.");
+        }
+    }
 
-                foreach (var option in prompt.Options)
-                {
-                    if (!playerIds.Contains(option))
-                    {
-                        throw new InvalidOperationException(
-                            $"ChooseStartingPlayer option '{option}' was not found in game players.");
-                    }
-                }
+    private static void ResolveChooseStartingPlayerPrompt(GameInstance instance, string requestedPlayerId, string selectedOption)
+    {
+        var startingPlayerId = ResolveStartingPlayerFromPromptOption(instance.State, requestedPlayerId, selectedOption);
+        instance.State.ActivePlayerId = startingPlayerId;
+
+        var startingPlayer = instance.State.Players.Single(player => string.Equals(player.PlayerId, startingPlayerId, StringComparison.Ordinal));
+        startingPlayer.TurnCount++;
+
+        instance.PendingPrompts.Dequeue();
+
+        LogAction(
+            instance,
+            actionType: "prompt_resolved",
+            playerId: requestedPlayerId,
+            promptType: GamePromptType.ChooseStartingPlayer,
+            selectedOption: selectedOption,
+            selectedPlayerId: startingPlayerId);
+
+        LogAction(
+            instance,
+            actionType: "phase_started",
+            playerId: startingPlayerId);
+
+        instance.ValidateInvariants();
+    }
+
+    private static void ValidateChooseStartingPlayerPrompt(GameInstance instance, GamePrompt prompt, HashSet<string> _)
+    {
+        if (prompt.Options.Count == 0)
+        {
+            throw new InvalidOperationException("ChooseStartingPlayer prompt requires at least one option.");
+        }
+
+        if (instance.State.Players.Count < 2)
+        {
+            throw new InvalidOperationException(
+                "ChooseStartingPlayer prompt requires at least two players in the game.");
+        }
+
+        var validOptions = new HashSet<string>(StringComparer.Ordinal) { "goFirst", "goSecond" };
+
+        foreach (var option in prompt.Options)
+        {
+            if (!validOptions.Contains(option))
+            {
+                throw new InvalidOperationException(
+                    $"ChooseStartingPlayer option '{option}' is not supported.");
             }
         }
+    }
+
+    private static string ResolveStartingPlayerFromPromptOption(GameState state, string requestedPlayerId, string selectedOption)
+    {
+        if (string.Equals(selectedOption, "goFirst", StringComparison.Ordinal))
+        {
+            return requestedPlayerId;
+        }
+
+        if (string.Equals(selectedOption, "goSecond", StringComparison.Ordinal))
+        {
+            var requestedIndex = state.Players.FindIndex(player =>
+                string.Equals(player.PlayerId, requestedPlayerId, StringComparison.Ordinal));
+
+            if (requestedIndex < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Requested player '{requestedPlayerId}' was not found in turn order.");
+            }
+
+            var nextIndex = (requestedIndex + 1) % state.Players.Count;
+            return state.Players[nextIndex].PlayerId;
+        }
+
+        throw new InvalidOperationException("Selected option is not valid for this prompt.");
+    }
+
+    private static void ResolveMulliganPrompt(GameInstance instance, string requestedPlayerId, string selectedOption)
+    {
+        var player = instance.State.Players.SingleOrDefault(entry =>
+            string.Equals(entry.PlayerId, requestedPlayerId, StringComparison.Ordinal));
+
+        if (player is null)
+        {
+            throw new InvalidOperationException(
+                $"Requested player '{requestedPlayerId}' was not found in game players.");
+        }
+
+        if (string.Equals(selectedOption, "mulligan", StringComparison.Ordinal))
+        {
+            var returnedCards = player.Hand.ToList();
+            player.Hand.Clear();
+            player.Deck.AddRange(returnedCards);
+            GameDeckShuffle.Shuffle(player.Deck);
+
+            var drawCount = Math.Min(5, player.Deck.Count);
+            if (drawCount > 0)
+            {
+                var redrawnCards = player.Deck.Take(drawCount).ToList();
+                player.Deck.RemoveRange(0, drawCount);
+                player.Hand.AddRange(redrawnCards);
+            }
+        }
+
+        instance.PendingPrompts.Dequeue();
+        LogAction(
+            instance,
+            actionType: "prompt_resolved",
+            playerId: requestedPlayerId,
+            promptType: GamePromptType.Mulligan,
+            selectedOption: selectedOption);
+
+        instance.ValidateInvariants();
+    }
+
+    private static void ValidateMulliganPrompt(GameInstance _, GamePrompt prompt, HashSet<string> __)
+    {
+        if (prompt.Options.Count == 0)
+        {
+            throw new InvalidOperationException("Mulligan prompt requires at least one option.");
+        }
+
+        var validOptions = new HashSet<string>(StringComparer.Ordinal) { "mulligan", "noMulligan" };
+
+        foreach (var option in prompt.Options)
+        {
+            if (!validOptions.Contains(option))
+            {
+                throw new InvalidOperationException(
+                    $"Mulligan option '{option}' is not supported.");
+            }
+        }
+    }
+
+    private sealed record PromptTemplate(
+        bool RequiresOptions,
+        Action<GameInstance, string, string> Resolve,
+        Action<GameInstance, GamePrompt, HashSet<string>> Validate);
+
+    private static void LogAction(
+        GameInstance instance,
+        string actionType,
+        string? playerId = null,
+        GamePromptType? promptType = null,
+        string? selectedOption = null,
+        string? selectedPlayerId = null)
+    {
+        var message = actionType switch
+        {
+            "prompt_resolved" => BuildPromptResolvedMessage(
+                promptType ?? throw new InvalidOperationException("Prompt type is required."),
+                playerId ?? throw new InvalidOperationException("Player id is required for prompt resolution."),
+                selectedOption ?? throw new InvalidOperationException("Selected option is required for prompt resolution."),
+                selectedPlayerId),
+            "phase_started" => $"{playerId} starts turn {instance.State.TurnNumber} in {instance.State.Phase}.",
+            _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
+        };
+
+        var metadata = actionType switch
+        {
+            "prompt_resolved" => BuildPromptResolvedMetadata(
+                promptType ?? throw new InvalidOperationException("Prompt type is required."),
+                selectedOption ?? throw new InvalidOperationException("Selected option is required for prompt resolution."),
+                selectedPlayerId),
+            "phase_started" => CreateMetadata(
+                ("phase", instance.State.Phase.ToString()),
+                ("turnNumber", ToInvariant(instance.State.TurnNumber))),
+            _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
+        };
+
+        instance.AddActionLogEntry(actionType, message, playerId, metadata);
+    }
+
+    private static string BuildPromptResolvedMessage(
+        GamePromptType promptType,
+        string requestedPlayerId,
+        string selectedOption,
+        string? selectedPlayerId)
+    {
+        return promptType switch
+        {
+            GamePromptType.ChooseStartingPlayer =>
+                $"{requestedPlayerId} selected {selectedOption} and {selectedPlayerId ?? throw new InvalidOperationException("Selected player id is required.")} will start.",
+            GamePromptType.Mulligan =>
+                $"{requestedPlayerId} selected {selectedOption} for mulligan.",
+            _ => throw new InvalidOperationException($"Unsupported prompt type '{promptType}'.")
+        };
+    }
+
+    private static IReadOnlyDictionary<string, string> BuildPromptResolvedMetadata(
+        GamePromptType promptType,
+        string selectedOption,
+        string? selectedPlayerId)
+    {
+        if (promptType == GamePromptType.ChooseStartingPlayer)
+        {
+            return CreateMetadata(
+                ("promptType", nameof(GamePromptType.ChooseStartingPlayer)),
+                ("selectedOption", selectedOption),
+                ("selectedPlayerId", selectedPlayerId ?? throw new InvalidOperationException("Selected player id is required.")));
+        }
+
+        if (promptType == GamePromptType.Mulligan)
+        {
+            return CreateMetadata(
+                ("promptType", nameof(GamePromptType.Mulligan)),
+                ("selectedOption", selectedOption));
+        }
+
+        throw new InvalidOperationException($"Unsupported prompt type '{promptType}'.");
+    }
+
+    private static IReadOnlyDictionary<string, string> CreateMetadata(params (string Key, string Value)[] entries)
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var (key, value) in entries)
+        {
+            map[key] = value;
+        }
+
+        return map;
+    }
+
+    private static string ToInvariant(int value)
+    {
+        return value.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private void ValidatePlayerCardInstances(PlayerState player, HashSet<string> playerIds)

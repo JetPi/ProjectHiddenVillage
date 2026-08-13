@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Data.Entities;
@@ -92,35 +91,7 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 
 	public List<CardInstance> DeckShuffle(List<CardInstance> deck, Random? random = null)
 	{
-		if (deck is null)
-		{
-			throw new ArgumentNullException(nameof(deck));
-		}
-
-		var bottomDeck = deck.Count - 1;
-
-		if (deck.Count <= 1)
-		{
-			return deck;
-		}
-
-		if (random is not null)
-		{
-			for (var i = bottomDeck; i > topDeck; i--)
-			{
-				var j = random.Next(i + 1);
-				(deck[i], deck[j]) = (deck[j], deck[i]);
-			}
-
-			return deck;
-		}
-
-		for (var i = bottomDeck; i > topDeck; i--)
-		{
-			var j = RandomNumberGenerator.GetInt32(i + 1);
-			(deck[i], deck[j]) = (deck[j], deck[i]);
-		}
-
+		GameDeckShuffle.Shuffle(deck, random);
 		return deck;
 	}
 

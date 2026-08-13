@@ -33,6 +33,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddSingleton(_ => new GameInstanceFactory());
+builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.Interfaces.IGamePhaseStateService, ProjectHiddenVillage.Server.Engine.GamePhaseStateService>();
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.GamePhaseService>();
 builder.Services.AddSingleton<InMemoryGameInstanceRegistry>();
 builder.Services.AddScoped<IGameEffectHandlingService, GameEffectHandlingService>();
