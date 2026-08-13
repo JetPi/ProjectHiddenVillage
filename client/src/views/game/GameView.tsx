@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLoaderData } from 'react-router-dom'
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { PageShell } from '../../components/layout/PageShell'
@@ -12,12 +12,14 @@ import { LeaderCard } from '../../components/ui/LeaderCard'
 import { useAuthSessionStore } from '../../state/authSession'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
-import { buildLeaderCardFrameClass } from './utils/functions'
+import { buildLeaderCardFrameClass, mapActionToHubIntent } from './utils/functions'
+import { toPromptPresentation } from './utils/promptPresentation'
 import type { IGameLoaderData } from './types/routeData'
 import type { IGameActionOptionResponse } from '../../services/api/types/game'
 import { useCardCatalogPreload } from './hooks/useGameViewEffects'
 import { useDerivedGameViewState } from './hooks/useDerivedGameViewState'
 import { useGameHubState } from './hooks/useGameHubState'
+import { GamePromptOverlay } from './components/GamePromptOverlay'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
@@ -25,8 +27,20 @@ import {
   LEADER_CARD_IMAGE_CLASS,
 } from './utils/contants'
 
+
 export function GameView() {
+  const AUTO_SIGNAL_PHASES = new Set([
+    'DrawInitialHand',
+    'RefreshPhase',
+    'StartOfMainPhase',
+    'DrawPhase',
+    'AttackDeclaration',
+    'AttackResolution',
+    'BattleEndStep',
+  ])
+
   const { outerRef: outerZoneRef, innerRef: boardZoneRef } = useAlignedSplit()
+  const lastAutoSignalKeyRef = useRef('')
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const authUserId = useAuthSessionStore((state) => state.session?.userId)
   
@@ -62,33 +76,46 @@ export function GameView() {
   }, [gameState])
 
   const canResolvePrompt = gameState.pendingPrompt?.isAwaitingRequestingPlayer ?? false
+  const promptPresentation = toPromptPresentation(gameState.pendingPrompt)
+  const shouldShowPromptOverlay =
+    promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
+
+  useEffect(() => {
+    if (!isConnected || isActionPending || gameState.pendingPrompt) {
+      return
+    }
+
+    if (!AUTO_SIGNAL_PHASES.has(gameState.phase)) {
+      return
+    }
+
+    const phaseSnapshotKey = `${gameState.turnNumber}:${gameState.phase}:${gameState.activePlayerId}`
+    if (lastAutoSignalKeyRef.current === phaseSnapshotKey) {
+      return
+    }
+
+    lastAutoSignalKeyRef.current = phaseSnapshotKey
+
+    const timerId = window.setTimeout(() => {
+      void submitHubIntent({ intent: 'advance-phase' })
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timerId)
+    }
+  }, [gameState.activePlayerId, gameState.pendingPrompt, gameState.phase, gameState.turnNumber, isActionPending, isConnected, submitHubIntent])
+
+  const mappedAvailableActions = shouldShowPromptOverlay
+    ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:'))
+    : gameState.availableActions
 
   function submitMappedAction(action: IGameActionOptionResponse): void {
-    if (action.actionId.startsWith('resolve-prompt:')) {
-      if (!canResolvePrompt) {
-        return
-      }
-
-      void submitHubIntent({
-        intent: 'resolve-prompt',
-        selectedOption: action.label,
-      })
+    const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
+    if (!intentRequest) {
       return
     }
 
-    if (action.actionId === 'declare-action') {
-      void submitHubIntent({ intent: 'declare-action' })
-      return
-    }
-
-    if (action.actionId === 'pass-turn') {
-      void submitHubIntent({ intent: 'pass-turn' })
-      return
-    }
-
-    if (action.actionId === 'advance-phase') {
-      void submitHubIntent({ intent: 'advance-phase' })
-    }
+    void submitHubIntent(intentRequest)
   }
 
   return (
@@ -235,13 +262,6 @@ export function GameView() {
 
             <div className="grid grid-cols-[1fr_1.5rem] gap-1">
               <div className="flex flex-col justify-start gap-1 rounded-xl p-1">
-                {gameState.pendingPrompt ? (
-                  <span className="text-[10px] font-semibold text-[var(--text-muted)]">
-                    {gameState.pendingPrompt.isAwaitingRequestingPlayer
-                      ? `${gameState.pendingPrompt.type} (${gameState.pendingPrompt.options.join(', ')})`
-                      : `Waiting on opponent...`}
-                  </span>
-                ) : null}
                 {connectionError ? (
                   <span className="text-[10px] font-semibold text-[var(--text-danger)]">{connectionError}</span>
                 ) : null}
@@ -249,7 +269,7 @@ export function GameView() {
                   <span className="text-[10px] font-semibold text-[var(--text-danger)]">{actionError}</span>
                 ) : null}
                 <div className="flex h-6 flex-wrap items-center justify-start gap-1.5">
-                  {gameState.availableActions.map((action) => {
+                  {mappedAvailableActions.map((action) => {
                     return (
                       <AppButton
                         key={action.actionId}
@@ -277,6 +297,19 @@ export function GameView() {
             </div>
           </div>
         </Panel>
+
+        <GamePromptOverlay
+          isOpen={shouldShowPromptOverlay}
+          prompt={promptPresentation}
+          isConnected={isConnected}
+          isActionPending={isActionPending}
+          onResolve={(selectedOption) => {
+            void submitHubIntent({
+              intent: 'resolve-prompt',
+              selectedOption,
+            })
+          }}
+        />
 
       </div>
     </PageShell>

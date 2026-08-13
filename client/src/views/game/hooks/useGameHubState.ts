@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { HubConnection, HubConnectionState } from '@microsoft/signalr'
 import {
   advancePhase,
+  completeEndStep,
   connectGameHub,
   createGameHubConnection,
+  declareEndStep,
   declareActionInActionStep,
   declarePassInActionStep,
   disconnectGameHub,
@@ -157,6 +159,10 @@ function useGameHubState(
           result = await declarePassInActionStep(currentConnection, gameId, authUserId ?? '')
         } else if (request.intent === 'declare-action') {
           result = await declareActionInActionStep(currentConnection, gameId, authUserId ?? '')
+        } else if (request.intent === 'declare-end-step') {
+          result = await declareEndStep(currentConnection, gameId)
+        } else if (request.intent === 'complete-end-step') {
+          result = await completeEndStep(currentConnection, gameId)
         } else if (request.intent === 'resolve-prompt') {
           result = await resolvePrompt(currentConnection, gameId, authUserId ?? '', request.selectedOption)
         } else {

@@ -97,6 +97,20 @@ async function advancePhase(
   return invokeHubStateMethod(connection, 'AdvancePhase', gameId)
 }
 
+async function declareEndStep(
+  connection: HubConnection,
+  gameId: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  return invokeHubStateMethod(connection, 'DeclareEndStep', gameId)
+}
+
+async function completeEndStep(
+  connection: HubConnection,
+  gameId: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  return invokeHubStateMethod(connection, 'CompleteEndStep', gameId)
+}
+
 async function declarePassInActionStep(
   connection: HubConnection,
   gameId: string,
@@ -216,6 +230,8 @@ export {
   unsubscribeFromGame,
   getCurrentGameState,
   advancePhase,
+  declareEndStep,
+  completeEndStep,
   resolvePrompt,
   declarePassInActionStep,
   declareActionInActionStep,
