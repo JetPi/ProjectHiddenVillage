@@ -12,7 +12,7 @@ import { LeaderCard } from '../../components/ui/LeaderCard'
 import { useAuthSessionStore } from '../../state/authSession'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
-import { buildLeaderCardFrameClass } from './utils/functions'
+import { buildLeaderCardFrameClass, mapActionToHubIntent } from './utils/functions'
 import { toPromptPresentation } from './utils/promptPresentation'
 import type { IGameLoaderData } from './types/routeData'
 import type { IGameActionOptionResponse } from '../../services/api/types/game'
@@ -26,6 +26,7 @@ import {
   LEADER_CARD_FRAME_CLASS,
   LEADER_CARD_IMAGE_CLASS,
 } from './utils/contants'
+
 
 export function GameView() {
   const AUTO_SIGNAL_PHASES = new Set([
@@ -109,53 +110,12 @@ export function GameView() {
     : gameState.availableActions
 
   function submitMappedAction(action: IGameActionOptionResponse): void {
-    if (action.actionId.startsWith('resolve-prompt:')) {
-      if (!canResolvePrompt) {
-        return
-      }
-
-      const selectedOption = action.actionId.slice('resolve-prompt:'.length)
-
-      void submitHubIntent({
-        intent: 'resolve-prompt',
-        selectedOption,
-      })
+    const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
+    if (!intentRequest) {
       return
     }
 
-    if (action.actionId === 'declare-action') {
-      void submitHubIntent({ intent: 'declare-action' })
-      return
-    }
-
-    if (action.actionId === 'pass-turn') {
-      void submitHubIntent({ intent: 'pass-turn' })
-      return
-    }
-
-    if (action.actionId === 'advance-phase') {
-      void submitHubIntent({ intent: 'advance-phase' })
-      return
-    }
-
-    if (action.actionId === 'declare-end-step' || action.actionId === 'endPhase' || action.actionId === 'turn-end') {
-      void submitHubIntent({ intent: 'declare-end-step' })
-      return
-    }
-
-    if (action.actionId === 'declare-attack' || action.actionId === 'declareAttack') {
-      void submitHubIntent({ intent: 'advance-phase' })
-      return
-    }
-
-    if (action.actionId === 'complete-end-step') {
-      void submitHubIntent({ intent: 'complete-end-step' })
-      return
-    }
-
-    if (action.actionId === 'pass') {
-      void submitHubIntent({ intent: 'pass-turn' })
-    }
+    void submitHubIntent(intentRequest)
   }
 
   return (

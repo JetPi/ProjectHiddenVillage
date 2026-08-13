@@ -1,4 +1,6 @@
 import type { IGamePlayerStateResponse } from '../../../services/api/gameApi'
+import type { IGameActionOptionResponse } from '../../../services/api/types/game'
+import type { ISubmitHubIntentRequest } from '../types/hub'
 import type { IGameLoaderData } from '../types/routeData'
 import type { ICardPreloadPayload, IDerivedGameViewState, IGameCard, ILeaderCardViewModel } from '../types/viewModels'
 
@@ -195,4 +197,47 @@ export {
   buildLeaderCardFrameClass,
   deriveGameViewState,
   buildCardPreloadPayload,
+}
+
+export function mapActionToHubIntent(
+  action: IGameActionOptionResponse,
+  canResolvePrompt: boolean,
+): ISubmitHubIntentRequest | null {
+  if (action.actionId.startsWith('resolve-prompt:')) {
+    if (!canResolvePrompt) {
+      return null
+    }
+
+    const selectedOption = action.actionId.slice('resolve-prompt:'.length)
+    return {
+      intent: 'resolve-prompt',
+      selectedOption,
+    }
+  }
+
+  if (action.actionId === 'declare-action') {
+    return { intent: 'declare-action' }
+  }
+
+  if (action.actionId === 'pass-turn' || action.actionId === 'pass') {
+    return { intent: 'pass-turn' }
+  }
+
+  if (action.actionId === 'advance-phase') {
+    return { intent: 'advance-phase' }
+  }
+
+  if (action.actionId === 'declare-end-step' || action.actionId === 'endPhase' || action.actionId === 'turn-end') {
+    return { intent: 'declare-end-step' }
+  }
+
+  if (action.actionId === 'declare-attack' || action.actionId === 'declareAttack') {
+    return { intent: 'advance-phase' }
+  }
+
+  if (action.actionId === 'complete-end-step') {
+    return { intent: 'complete-end-step' }
+  }
+
+  return null
 }
