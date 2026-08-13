@@ -38,7 +38,7 @@ public sealed class GameInstanceFactory
         {
             GameId = Guid.NewGuid().ToString("N"),
             TurnNumber = 1,
-            Phase = GamePhase.StartOfMainPhase,
+            Phase = GamePhase.ChooseStartingPlayer,
             ActivePlayerId = string.Empty,
             PriorityPlayerId = string.Empty,
             ConsecutivePasses = 0,
@@ -95,26 +95,40 @@ public sealed class GameInstanceFactory
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(instance.State.ActivePlayerId))
+        if (!string.IsNullOrWhiteSpace(instance.State.ActivePlayerId)
+            || instance.PendingPrompts.Any(prompt => prompt.Type == GamePromptType.ChooseStartingPlayer))
         {
             return;
         }
+
         var turnRng = random ?? Random.Shared;
-        var startingPlayerId = instance.State.Players[turnRng.Next(instance.State.Players.Count)].PlayerId;
-        instance.State.ActivePlayerId = startingPlayerId;
-
-        var startingPlayer = instance.State.Players.Single(player =>
-            string.Equals(player.PlayerId, startingPlayerId, StringComparison.Ordinal));
-
-        startingPlayer.TurnCount++;
+        var requestedPlayerId = instance.State.Players[turnRng.Next(instance.State.Players.Count)].PlayerId;
+        instance.State.ActivePlayerId = requestedPlayerId;
 
         instance.AddActionLogEntry(
             actionType: "starting_player_assigned",
-            message: $"Starting player assigned to {startingPlayerId}.",
-            playerId: startingPlayerId,
+            message: $"Starting player candidate auto-assigned to {requestedPlayerId}.",
+            playerId: requestedPlayerId,
             metadata: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ["selectedPlayerId"] = startingPlayerId,
+                ["assignmentType"] = "candidate",
+                ["playerCount"] = instance.State.Players.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            });
+
+        instance.EnqueuePrompt(new GamePrompt
+        {
+            RequestedPlayerId = requestedPlayerId,
+            Type = GamePromptType.ChooseStartingPlayer,
+            Options = ["goFirst", "goSecond"]
+        });
+
+        instance.AddActionLogEntry(
+            actionType: "starting_player_prompted",
+            message: $"{requestedPlayerId} must choose who starts.",
+            playerId: requestedPlayerId,
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["promptType"] = nameof(GamePromptType.ChooseStartingPlayer),
                 ["playerCount"] = instance.State.Players.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
             });
 

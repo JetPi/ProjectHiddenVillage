@@ -115,24 +115,26 @@ public sealed class GameInstance
 
         if (prompt.Type == GamePromptType.ChooseStartingPlayer)
         {
-            State.ActivePlayerId = selectedOption;
-            var startingPlayer = State.Players.Single(player => string.Equals(player.PlayerId, selectedOption, StringComparison.Ordinal));
+            var startingPlayerId = ResolveStartingPlayerFromPromptOption(prompt.RequestedPlayerId, selectedOption);
+            State.ActivePlayerId = startingPlayerId;
+            var startingPlayer = State.Players.Single(player => string.Equals(player.PlayerId, startingPlayerId, StringComparison.Ordinal));
             startingPlayer.TurnCount++;
             PendingPrompts.Dequeue();
             AddActionLogEntry(
                 actionType: "prompt_resolved",
-                message: $"{requestedPlayerId} selected {selectedOption} as starting player.",
+                message: $"{requestedPlayerId} selected {selectedOption} and {startingPlayerId} will start.",
                 playerId: requestedPlayerId,
                 metadata: new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["promptType"] = nameof(GamePromptType.ChooseStartingPlayer),
-                    ["selectedPlayerId"] = selectedOption
+                    ["selectedOption"] = selectedOption,
+                    ["selectedPlayerId"] = startingPlayerId
                 });
 
             AddActionLogEntry(
                 actionType: "phase_started",
-                message: $"{selectedOption} starts turn {State.TurnNumber} in {State.Phase}.",
-                playerId: selectedOption,
+                message: $"{startingPlayerId} starts turn {State.TurnNumber} in {State.Phase}.",
+                playerId: startingPlayerId,
                 metadata: new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["phase"] = State.Phase.ToString(),
@@ -307,16 +309,43 @@ public sealed class GameInstance
                         "ChooseStartingPlayer prompt requires at least two players in the game.");
                 }
 
+                var validOptions = new HashSet<string>(StringComparer.Ordinal) { "goFirst", "goSecond" };
+
                 foreach (var option in prompt.Options)
                 {
-                    if (!playerIds.Contains(option))
+                    if (!validOptions.Contains(option))
                     {
                         throw new InvalidOperationException(
-                            $"ChooseStartingPlayer option '{option}' was not found in game players.");
+                            $"ChooseStartingPlayer option '{option}' is not supported.");
                     }
                 }
             }
         }
+    }
+
+    private string ResolveStartingPlayerFromPromptOption(string requestedPlayerId, string selectedOption)
+    {
+        if (string.Equals(selectedOption, "goFirst", StringComparison.Ordinal))
+        {
+            return requestedPlayerId;
+        }
+
+        if (string.Equals(selectedOption, "goSecond", StringComparison.Ordinal))
+        {
+            var requestedIndex = State.Players.FindIndex(player =>
+                string.Equals(player.PlayerId, requestedPlayerId, StringComparison.Ordinal));
+
+            if (requestedIndex < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Requested player '{requestedPlayerId}' was not found in turn order.");
+            }
+
+            var nextIndex = (requestedIndex + 1) % State.Players.Count;
+            return State.Players[nextIndex].PlayerId;
+        }
+
+        throw new InvalidOperationException("Selected option is not valid for this prompt.");
     }
 
     private void ValidatePlayerCardInstances(PlayerState player, HashSet<string> playerIds)

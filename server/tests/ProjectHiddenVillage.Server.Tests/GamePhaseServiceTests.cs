@@ -47,7 +47,7 @@ public sealed class GamePhaseServiceTests
     }
 
     [TestMethod]
-    public void AdvancePhase_EnteringDrawInitialHand_DrawsTopFiveCardsForEachPlayer()
+    public void AdvancePhase_LeavingDrawInitialHand_DrawsTopFiveCardsForEachPlayer()
     {
         var instance = CreateInstance(phase: GamePhase.ChooseStartingPlayer, activePlayerId: "p1");
 
@@ -55,8 +55,11 @@ public sealed class GamePhaseServiceTests
         instance.State.Players[1].Deck.AddRange(CreateDeckCards("p2", "p2-card", 6));
 
         service.AdvancePhase(instance);
-
         Assert.AreEqual(GamePhase.DrawInitialHand, instance.State.Phase);
+
+        service.AdvancePhase(instance);
+
+        Assert.AreEqual(GamePhase.Mulligan, instance.State.Phase);
         Assert.AreEqual(5, instance.State.Players[0].Hand.Count);
         Assert.AreEqual(1, instance.State.Players[0].Deck.Count);
         Assert.AreEqual("p1-card-1", instance.State.Players[0].Hand[0].CardDefinitionId);

@@ -72,7 +72,7 @@ public sealed class GameStateResponseMapperCardActionsTests
         {
             RequestedPlayerId = requesterId,
             Type = GamePromptType.ChooseStartingPlayer,
-            Options = [requesterId, opponentId]
+            Options = ["goFirst", "goSecond"]
         });
 
         var response = GameStateResponseMapper.ToGameStateResponse(game, requesterId);
