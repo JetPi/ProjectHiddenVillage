@@ -21,7 +21,7 @@ import { toPromptPresentation } from './utils/promptPresentation'
 import type { IGameLoaderData } from './types/routeData'
 import type { IGameActionOptionResponse } from '../../services/api/types/game'
 import type { IGameViewAnimController } from './types/hooks'
-import { useCardCatalogPreload, useHandZoneAnimationEffects } from './hooks/useGameViewEffects'
+import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from './hooks/useGameViewEffects'
 import { useDerivedGameViewState } from './hooks/useDerivedGameViewState'
 import { useGameHubState } from './hooks/useGameHubState'
 import { GamePromptOverlay } from './components/GamePromptOverlay'
@@ -151,53 +151,18 @@ export function GameView() {
     setBottomHandFaceUpByInstanceId,
   })
 
-  useEffect(() => {
-    if (!isConnected || isActionPendingFlag || gameState.pendingPrompt) {
-      return
-    }
-
-    const hasEnabledAdvancePhaseAction = gameState.availableActions.some(
-      (action) => action.actionId === 'advance-phase' && action.isEnabled,
-    )
-    if (!hasEnabledAdvancePhaseAction) {
-      return
-    }
-
-    if (!AUTO_SIGNAL_PHASES.has(gameState.phase)) {
-      return
-    }
-
-    const phaseSnapshotKey = `${gameState.turnNumber}:${gameState.phase}:${gameState.activePlayerId}`
-    if (animControllerRef.current.lastAutoSignalKey === phaseSnapshotKey) {
-      return
-    }
-
-    animControllerRef.current.lastAutoSignalKey = phaseSnapshotKey
-
-    const timerId = window.setTimeout(() => {
-      if (hasPendingPromptFlag || isActionPendingFlag) {
-        return
-      }
-
-      void submitHubIntent({ intent: 'advance-phase' })
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timerId)
-    }
-  }, [
-    animControllerRef,
-    gameState.activePlayerId,
-    gameState.availableActions,
-    gameState.pendingPrompt,
-    gameState.phase,
-    gameState.turnNumber,
-    hasPendingPromptFlag,
-    isActionPendingFlag,
+  useAutoAdvancePhaseEffect({
     isConnected,
+    isActionPendingFlag,
+    hasPendingPromptFlag,
+    availableActions: gameState.availableActions,
+    phase: gameState.phase,
+    turnNumber: gameState.turnNumber,
+    activePlayerId: gameState.activePlayerId,
+    autoSignalPhases: AUTO_SIGNAL_PHASES,
+    animControllerRef,
     submitHubIntent,
-    AUTO_SIGNAL_PHASES,
-  ])
+  })
 
   const mappedAvailableActions = shouldShowPromptOverlay
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:'))

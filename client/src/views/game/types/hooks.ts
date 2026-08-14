@@ -1,6 +1,7 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { ILeaderCardViewModel } from './viewModels'
 import type { IHandZoneSnapshot } from './animations'
+import type { IGameHubActionIntent, ISubmitHubIntentRequest } from './hub'
 
 export type IRevalidatorState = 'idle' | 'loading'
 
@@ -43,4 +44,18 @@ export type IUseHandZoneAnimationEffectsArgs = {
   bottomHandRowRef: RefObject<HTMLDivElement | null>
   animControllerRef: RefObject<IGameViewAnimController>
   setBottomHandFaceUpByInstanceId: Dispatch<SetStateAction<Record<string, boolean>>>
+}
+
+export type IUseAutoAdvancePhaseEffectArgs = {
+  isConnected: boolean
+  isActionPendingFlag: boolean
+  hasPendingPromptFlag: boolean
+  availableActions: Array<{ actionId: string; isEnabled: boolean }>
+  phase: string
+  turnNumber: number
+  activePlayerId: string
+  autoSignalPhases: ReadonlySet<string>
+  animControllerRef: RefObject<IGameViewAnimController>
+  submitHubIntent: (request: ISubmitHubIntentRequest) => Promise<void>
+  advancePhaseIntent?: IGameHubActionIntent
 }

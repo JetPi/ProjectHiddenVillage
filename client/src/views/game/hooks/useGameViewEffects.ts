@@ -6,7 +6,11 @@ import summonCardImage from '../../../assets/SummonCard.webp'
 import cardBackImage from '../../../assets/CardBackside.png'
 import { runDeckToHandAnimation, runHandToPileAnimation } from '../utils/functions'
 import type { IGameLoaderData } from '../types/routeData'
-import type { IRevalidatorState, IUseHandZoneAnimationEffectsArgs } from '../types/hooks'
+import type {
+  IRevalidatorState,
+  IUseAutoAdvancePhaseEffectArgs,
+  IUseHandZoneAnimationEffectsArgs,
+} from '../types/hooks'
 import { buildCardPreloadPayload } from '../utils/functions'
 const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackImage]
 
@@ -269,8 +273,69 @@ function useHandZoneAnimationEffects({
   }, [animControllerRef])
 }
 
+function useAutoAdvancePhaseEffect({
+  isConnected,
+  isActionPendingFlag,
+  hasPendingPromptFlag,
+  availableActions,
+  phase,
+  turnNumber,
+  activePlayerId,
+  autoSignalPhases,
+  animControllerRef,
+  submitHubIntent,
+}: IUseAutoAdvancePhaseEffectArgs): void {
+  useEffect(() => {
+    if (!isConnected || isActionPendingFlag || hasPendingPromptFlag) {
+      return
+    }
+
+    const hasEnabledAdvancePhaseAction = availableActions.some(
+      (action) => action.actionId === 'advance-phase' && action.isEnabled,
+    )
+    if (!hasEnabledAdvancePhaseAction) {
+      return
+    }
+
+    if (!autoSignalPhases.has(phase)) {
+      return
+    }
+
+    const phaseSnapshotKey = `${turnNumber}:${phase}:${activePlayerId}`
+    if (animControllerRef.current.lastAutoSignalKey === phaseSnapshotKey) {
+      return
+    }
+
+    animControllerRef.current.lastAutoSignalKey = phaseSnapshotKey
+
+    const timerId = window.setTimeout(() => {
+      if (hasPendingPromptFlag || isActionPendingFlag) {
+        return
+      }
+
+      void submitHubIntent({ intent: 'advance-phase' })
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timerId)
+    }
+  }, [
+    activePlayerId,
+    animControllerRef,
+    autoSignalPhases,
+    availableActions,
+    hasPendingPromptFlag,
+    isActionPendingFlag,
+    isConnected,
+    phase,
+    submitHubIntent,
+    turnNumber,
+  ])
+}
+
 export {
   useIdleRevalidationPoll,
   useCardCatalogPreload,
   useHandZoneAnimationEffects,
+  useAutoAdvancePhaseEffect,
 }
