@@ -16,7 +16,7 @@ function GamePromptOverlay({
   const columnCount = Math.min(Math.max(prompt.options.length, 1), 3)
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
       <Panel className="w-full max-w-sm p-5">
         <div className="mb-2">
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">{prompt.title}</h2>

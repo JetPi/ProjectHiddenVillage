@@ -8,7 +8,11 @@ function isDeckLabel(label: string): boolean {
   return label.trim().toLowerCase() === 'deck'
 }
 
-export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', gameState }: IPlayPileZoneProps) {
+function isTrashLabel(label: string): boolean {
+  return label.trim().toLowerCase() === 'trash'
+}
+
+export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', gameState, deckCardRef, trashCardRef }: IPlayPileZoneProps) {
   const labeledPileCardClassName =
     'h-full flex items-center justify-center text-center overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]'
   const deckPileCardClassName = 'h-full overflow-hidden rounded-lg'
@@ -16,6 +20,8 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
 
   const currentPlayer = gameState?.currentPlayer
   const opponentPlayer = gameState?.opponentPlayer
+  const deckLabelIndex = labels.findIndex((label) => isDeckLabel(label))
+  const trashLabelIndex = labels.findIndex((label) => isTrashLabel(label))
 
   let deckCount = 0
   let trashCount = 0
@@ -45,6 +51,13 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
           return (
             <PlayCard
               key={`pile-slot-${labelIndex}-${label}`}
+              ref={
+                isDeckLabel(label) && labelIndex === deckLabelIndex
+                  ? deckCardRef
+                  : isTrashLabel(label) && labelIndex === trashLabelIndex
+                    ? trashCardRef
+                    : undefined
+              }
               className={isDeckLabel(label) ? deckPileCardClassName : labeledPileCardClassName}
             >
               <CardOverlayBadge

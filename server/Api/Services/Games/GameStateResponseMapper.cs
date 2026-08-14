@@ -6,6 +6,7 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 public static class GameStateResponseMapper
 {
     private static readonly IGamePhaseStateService PhaseStateService = new GamePhaseStateService();
+    private const string ConcealedCardDefinitionId = "concealed-card";
 
     public static GameStateResponse ToGameStateResponse(GameInstance game, string requestingPlayerId)
     {
@@ -181,12 +182,22 @@ public static class GameStateResponseMapper
                 ? player.Deck.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Deck)) : [],
             DeckCount: player.Deck.Count,
             Hand: isRequestingPlayer
-                ? player.Hand.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Hand, state, pendingPrompt, isRequestingPlayer)) : [],
+                ? player.Hand.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Hand, state, pendingPrompt, isRequestingPlayer))
+                : player.Hand.ConvertAll(ToConcealedCardInstanceResponse),
             HandCount: player.Hand.Count,
             CharacterField: player.Battlefield.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.CharacterField, state, pendingPrompt, isRequestingPlayer)),
             SupportZone: player.SupportZone.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.SupportZone, state, pendingPrompt, isRequestingPlayer)),
             Trash: player.DiscardPile.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Trash)),
             ExileZone: player.ExileZone.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.ExileZone)));
+    }
+
+    private static CardInstanceResponse ToConcealedCardInstanceResponse(CardInstance card)
+    {
+        return new CardInstanceResponse(
+            InstanceId: card.InstanceId,
+            CardDefinitionId: ConcealedCardDefinitionId,
+            OwnerPlayerId: card.OwnerPlayerId,
+            ControllerPlayerId: card.ControllerPlayerId);
     }
 
     private static bool IsSamePlayerId(string? left, string? right)
