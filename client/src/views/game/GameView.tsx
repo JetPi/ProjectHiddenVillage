@@ -20,6 +20,7 @@ import { useCardCatalogPreload } from './hooks/useGameViewEffects'
 import { useDerivedGameViewState } from './hooks/useDerivedGameViewState'
 import { useGameHubState } from './hooks/useGameHubState'
 import { GamePromptOverlay } from './components/GamePromptOverlay'
+import { GamePhaseIndicator } from './components/GamePhaseIndicator'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
@@ -41,6 +42,8 @@ export function GameView() {
 
   const { outerRef: outerZoneRef, innerRef: boardZoneRef } = useAlignedSplit()
   const lastAutoSignalKeyRef = useRef('')
+  const hasPendingPromptRef = useRef(false)
+  const isActionPendingRef = useRef(false)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const authUserId = useAuthSessionStore((state) => state.session?.userId)
   
@@ -55,9 +58,6 @@ export function GameView() {
   } = useGameHubState(joinCode, initialGameState, authUserId)
 
   const players = gameState.players
-  const normalizedAuthUserId = (authUserId ?? '').trim().toLowerCase().replace(/-/g, '')
-  const normalizedActivePlayerId = gameState.activePlayerId.trim().toLowerCase().replace(/-/g, '')
-  const isPlayerTurn = normalizedAuthUserId.length > 0 && normalizedActivePlayerId === normalizedAuthUserId
 
   const derivedGameState = useDerivedGameViewState(gameCards, players, authUserId)
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
@@ -81,7 +81,22 @@ export function GameView() {
     promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
 
   useEffect(() => {
+    hasPendingPromptRef.current = Boolean(gameState.pendingPrompt)
+  }, [gameState.pendingPrompt])
+
+  useEffect(() => {
+    isActionPendingRef.current = isActionPending
+  }, [isActionPending])
+
+  useEffect(() => {
     if (!isConnected || isActionPending || gameState.pendingPrompt) {
+      return
+    }
+
+    const hasEnabledAdvancePhaseAction = gameState.availableActions.some(
+      (action) => action.actionId === 'advance-phase' && action.isEnabled,
+    )
+    if (!hasEnabledAdvancePhaseAction) {
       return
     }
 
@@ -97,13 +112,17 @@ export function GameView() {
     lastAutoSignalKeyRef.current = phaseSnapshotKey
 
     const timerId = window.setTimeout(() => {
+      if (hasPendingPromptRef.current || isActionPendingRef.current) {
+        return
+      }
+
       void submitHubIntent({ intent: 'advance-phase' })
     }, 0)
 
     return () => {
       window.clearTimeout(timerId)
     }
-  }, [gameState.activePlayerId, gameState.pendingPrompt, gameState.phase, gameState.turnNumber, isActionPending, isConnected, submitHubIntent])
+  }, [gameState.activePlayerId, gameState.availableActions, gameState.pendingPrompt, gameState.phase, gameState.turnNumber, isActionPending, isConnected, submitHubIntent])
 
   const mappedAvailableActions = shouldShowPromptOverlay
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:'))
@@ -155,17 +174,7 @@ export function GameView() {
                   </div>
                 </div>
 
-                <div className="grid min-h-0 grid-cols-6">
-                  <div
-                    className={`text-[12px] col-span-6 rounded-md border border-[var(--border-subtle)] py-0.5 text-center font-extrabold leading-none ${
-                      isPlayerTurn
-                        ? 'turn-indicator-orange turn-indicator-text-light-theme'
-                        : 'turn-indicator-blue turn-indicator-text-dark-theme'
-                    }`}
-                  >
-                    {isPlayerTurn ? 'Your turn' : 'Opponent\'s turn'}
-                  </div>
-                </div>
+                <GamePhaseIndicator gameInstance={gameState} authUserId={authUserId} />
 
                 <div className="row-span-2 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-1.5 rounded-xl p-1">
                   <div className="min-h-0">

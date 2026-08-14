@@ -20,7 +20,7 @@ export function PageShell({
 
   return (
     <div
-      className={`relative h-dvh overflow-hidden ${backgroundClasses} transition-colors duration-300 ${compact ? 'px-2 py-2 sm:px-3 sm:py-3 lg:px-4 lg:py-4' : 'px-4 py-8 sm:px-6 lg:px-10'} ${className}`}
+      className={`relative h-dvh overflow-hidden ${backgroundClasses} ${compact ? 'px-2 py-2 sm:px-3 sm:py-3 lg:px-4 lg:py-4' : 'px-4 py-8 sm:px-6 lg:px-10'} ${className}`}
     >
       <div className={`pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,var(--app-overlay-a)_0%,var(--app-overlay-b)_35%,var(--app-overlay-c)_75%,var(--app-overlay-b)_100%)] ${overlayClassName}`} />
       <div className={`relative mx-auto w-full max-w-7xl ${compact ? 'h-full overflow-hidden' : ''}`}>
