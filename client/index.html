@@ -30,12 +30,22 @@
       }
 
       .app-loader-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 999;
         min-height: 100dvh;
         display: grid;
         place-items: center;
         font-family: 'Space Grotesk', sans-serif;
         background: radial-gradient(circle at 20% 20%, #1d4ed8 0%, #0f172a 28%, #090f1f 58%, #05070c 100%);
         color: #ffffff;
+        opacity: 1;
+        transition: opacity 420ms ease;
+      }
+
+      .app-loader-screen.is-hidden {
+        opacity: 0;
+        pointer-events: none;
       }
 
       .app-loader-chip {
@@ -96,14 +106,13 @@
     </script>
   </head>
   <body>
-    <div id="root">
-      <div class="app-loader-screen" role="status" aria-live="polite" aria-busy="true">
-        <div class="app-loader-chip">
-          <span class="app-loader-dot"></span>
-          <span>Loading...</span>
-        </div>
+    <div id="app-boot-loader" class="app-loader-screen" role="status" aria-live="polite" aria-busy="true">
+      <div class="app-loader-chip">
+        <span class="app-loader-dot"></span>
+        <span>Loading...</span>
       </div>
     </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

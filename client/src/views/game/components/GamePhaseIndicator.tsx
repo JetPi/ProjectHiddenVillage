@@ -54,11 +54,13 @@ function GamePhaseIndicator({ gameInstance, authUserId }: IGamePhaseIndicatorPro
   return (
     <div className="grid min-h-0 grid-cols-6">
       <div
-        className={`text-[12px] col-span-6 rounded-md border border-[var(--border-subtle)] py-0.5 text-center font-extrabold leading-none ${
+        className={`text-[12px] col-span-6 rounded-md border border-[var(--border-subtle)] py-0.5 text-center font-extrabold leading-none transition-colors duration-300 ease-out ${
           indicatorThemeClasses
         }`}
       >
-        {phaseValue}
+        <span key={phaseValue} className="phase-indicator-text-swap inline-block">
+          {phaseValue}
+        </span>
       </div>
     </div>
   )

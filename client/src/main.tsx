@@ -7,6 +7,8 @@ import { AppRouter } from './app/AppRouter'
 import { ErrorBoundary } from './components/feedback/ErrorBoundary'
 import { appQueryClient } from './services/queryClient'
 
+const BOOT_LOADER_FADE_MS = 420
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={appQueryClient}>
@@ -17,3 +19,15 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+const bootLoaderElement = document.getElementById('app-boot-loader')
+
+if (bootLoaderElement) {
+  window.requestAnimationFrame(() => {
+    bootLoaderElement.classList.add('is-hidden')
+
+    window.setTimeout(() => {
+      bootLoaderElement.remove()
+    }, BOOT_LOADER_FADE_MS)
+  })
+}
