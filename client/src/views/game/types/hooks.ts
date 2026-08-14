@@ -1,4 +1,6 @@
+import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { ILeaderCardViewModel } from './viewModels'
+import type { IHandZoneSnapshot } from './animations'
 
 export type IRevalidatorState = 'idle' | 'loading'
 
@@ -13,4 +15,32 @@ export type ILeaderCardsViewModel = {
   bottomLeaderCard: ILeaderCardViewModel | null
   topLeaderCardFrameClassName: string
   bottomLeaderCardFrameClassName: string
+}
+
+export type IGameViewAnimController = {
+  lastAutoSignalKey: string
+  pendingDrawAnimationFrameId: number | null
+  pendingDrawTimeoutIds: number[]
+  pendingMulliganDrawReplay: boolean
+  previousHandZoneSnapshot: IHandZoneSnapshot
+}
+
+export type IUseHandZoneAnimationEffectsArgs = {
+  topHandInstanceIds: string[]
+  bottomHandInstanceIds: string[]
+  topDeckCount: number
+  bottomDeckCount: number
+  topTrashCount: number
+  bottomTrashCount: number
+  drawToHandStaggerMs: number
+  drawToHandRevealDelayMs: number
+  handToPileStaggerMs: number
+  topDeckCardRef: RefObject<HTMLDivElement | null>
+  bottomDeckCardRef: RefObject<HTMLDivElement | null>
+  topTrashCardRef: RefObject<HTMLDivElement | null>
+  bottomTrashCardRef: RefObject<HTMLDivElement | null>
+  topHandRowRef: RefObject<HTMLDivElement | null>
+  bottomHandRowRef: RefObject<HTMLDivElement | null>
+  animControllerRef: RefObject<IGameViewAnimController>
+  setBottomHandFaceUpByInstanceId: Dispatch<SetStateAction<Record<string, boolean>>>
 }

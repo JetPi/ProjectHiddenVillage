@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLoaderData } from 'react-router-dom'
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { PageShell } from '../../components/layout/PageShell'
@@ -15,12 +15,12 @@ import { LeaderCard } from '../../components/ui/LeaderCard'
 import { useAuthSessionStore } from '../../state/authSession'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
-import { buildLeaderCardFrameClass, mapActionToHubIntent } from './utils/functions'
+import { buildLeaderCardFrameClass, mapActionToHubIntent, runHandToPileAnimation, waitMillis } from './utils/functions'
 import { toPromptPresentation } from './utils/promptPresentation'
 import type { IGameLoaderData } from './types/routeData'
 import type { IGameActionOptionResponse } from '../../services/api/types/game'
-import type { IDeckToHandAnimationArgs, IHandToPileAnimationArgs, IHandZoneSnapshot } from './types/animations'
-import { useCardCatalogPreload } from './hooks/useGameViewEffects'
+import type { IGameViewAnimController } from './types/hooks'
+import { useCardCatalogPreload, useHandZoneAnimationEffects } from './hooks/useGameViewEffects'
 import { useDerivedGameViewState } from './hooks/useDerivedGameViewState'
 import { useGameHubState } from './hooks/useGameHubState'
 import { GamePromptOverlay } from './components/GamePromptOverlay'
@@ -30,16 +30,15 @@ import {
   GAMEBOARD_COLUMNS_CLASS,
   LEADER_CARD_FRAME_CLASS,
   LEADER_CARD_IMAGE_CLASS,
+  DRAW_TO_HAND_STAGGER_MS,
+  DRAW_TO_HAND_REVEAL_DELAY_MS,
+  HAND_TO_PILE_STAGGER_MS,
+  HAND_TO_PILE_DURATION_MS,
 } from './utils/contants'
 
 
 export function GameView() {
-  const DRAW_TO_HAND_STAGGER_MS = 70
-  const DRAW_TO_HAND_REVEAL_DELAY_MS = 220
-  const HAND_TO_PILE_STAGGER_MS = 60
-  const HAND_TO_PILE_DURATION_MS = 340
-
-  const AUTO_SIGNAL_PHASES = new Set([
+  const AUTO_SIGNAL_PHASES = useMemo(() => new Set([
     'DrawInitialHand',
     'RefreshPhase',
     'StartOfMainPhase',
@@ -47,29 +46,29 @@ export function GameView() {
     'AttackDeclaration',
     'AttackResolution',
     'BattleEndStep',
-  ])
+  ]), [])
 
   const { outerRef: outerZoneRef, innerRef: boardZoneRef } = useAlignedSplit()
-  const lastAutoSignalKeyRef = useRef('')
-  const hasPendingPromptRef = useRef(false)
-  const isActionPendingRef = useRef(false)
   const topDeckCardRef = useRef<HTMLDivElement | null>(null)
   const bottomDeckCardRef = useRef<HTMLDivElement | null>(null)
   const topTrashCardRef = useRef<HTMLDivElement | null>(null)
   const bottomTrashCardRef = useRef<HTMLDivElement | null>(null)
   const topHandRowRef = useRef<HTMLDivElement | null>(null)
   const bottomHandRowRef = useRef<HTMLDivElement | null>(null)
-  const pendingDrawAnimationFrameIdRef = useRef<number | null>(null)
-  const pendingDrawTimeoutIdsRef = useRef<number[]>([])
-  const pendingMulliganDrawReplayRef = useRef(false)
-  const previousHandZoneSnapshotRef = useRef<IHandZoneSnapshot>({
-    topHandInstanceIds: new Set<string>(),
-    bottomHandInstanceIds: new Set<string>(),
-    topDeckCount: 0,
-    bottomDeckCount: 0,
-    topTrashCount: 0,
-    bottomTrashCount: 0,
-    isInitialized: false,
+  const animControllerRef = useRef<IGameViewAnimController>({
+    lastAutoSignalKey: '',
+    pendingDrawAnimationFrameId: null,
+    pendingDrawTimeoutIds: [],
+    pendingMulliganDrawReplay: false,
+    previousHandZoneSnapshot: {
+      topHandInstanceIds: new Set<string>(),
+      bottomHandInstanceIds: new Set<string>(),
+      topDeckCount: 0,
+      bottomDeckCount: 0,
+      topTrashCount: 0,
+      bottomTrashCount: 0,
+      isInitialized: false,
+    },
   })
   const [bottomHandFaceUpByInstanceId, setBottomHandFaceUpByInstanceId] = useState<Record<string, boolean>>({})
   const [isMulliganAnimationPending, setIsMulliganAnimationPending] = useState(false)
@@ -90,8 +89,10 @@ export function GameView() {
 
   const derivedGameState = useDerivedGameViewState(gameCards, players, authUserId)
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
-  const topHandCards = derivedGameState.opponentPlayer?.hand ?? []
-  const bottomHandCards = derivedGameState.currentPlayer?.hand ?? []
+  const topHandCards = useMemo(() => derivedGameState.opponentPlayer?.hand ?? [], [derivedGameState.opponentPlayer?.hand])
+  const bottomHandCards = useMemo(() => derivedGameState.currentPlayer?.hand ?? [], [derivedGameState.currentPlayer?.hand])
+  const topHandInstanceIds = useMemo(() => topHandCards.map((card) => card.instanceId), [topHandCards])
+  const bottomHandInstanceIds = useMemo(() => bottomHandCards.map((card) => card.instanceId), [bottomHandCards])
   const topDeckCount = derivedGameState.opponentPlayer?.deckCount ?? 0
   const bottomDeckCount = derivedGameState.currentPlayer?.deckCount ?? 0
   const topTrashCount = derivedGameState.opponentPlayer?.trash.length ?? 0
@@ -114,191 +115,31 @@ export function GameView() {
   const promptPresentation = toPromptPresentation(gameState.pendingPrompt)
   const shouldShowPromptOverlay =
     promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
+  const hasPendingPromptFlag = Boolean(gameState.pendingPrompt)
+  const isActionPendingFlag = isActionPending
 
-  useEffect(() => {
-    hasPendingPromptRef.current = Boolean(gameState.pendingPrompt)
-  }, [gameState.pendingPrompt])
-
-  useEffect(() => {
-    isActionPendingRef.current = isActionPending
-  }, [isActionPending])
-
-  useEffect(() => {
-    const previousSnapshot = previousHandZoneSnapshotRef.current
-    const nextTopHandInstanceIds = topHandCards.map((card) => card.instanceId)
-    const nextBottomHandInstanceIds = bottomHandCards.map((card) => card.instanceId)
-    const nextTopHandInstanceIdSet = new Set(nextTopHandInstanceIds)
-    const nextBottomHandInstanceIdSet = new Set(nextBottomHandInstanceIds)
-
-    if (previousSnapshot.isInitialized) {
-      const newTopHandCards = nextTopHandInstanceIds.filter((instanceId) => !previousSnapshot.topHandInstanceIds.has(instanceId))
-      const newBottomHandCards = nextBottomHandInstanceIds.filter((instanceId) => !previousSnapshot.bottomHandInstanceIds.has(instanceId))
-      const removedTopHandCards = [...previousSnapshot.topHandInstanceIds].filter((instanceId) => !nextTopHandInstanceIdSet.has(instanceId))
-      const removedBottomHandCards = [...previousSnapshot.bottomHandInstanceIds].filter((instanceId) => !nextBottomHandInstanceIdSet.has(instanceId))
-      const topDeckDecrease = Math.max(previousSnapshot.topDeckCount - topDeckCount, 0)
-      const bottomDeckDecrease = Math.max(previousSnapshot.bottomDeckCount - bottomDeckCount, 0)
-      const topTrashIncrease = Math.max(topTrashCount - previousSnapshot.topTrashCount, 0)
-      const bottomTrashIncrease = Math.max(bottomTrashCount - previousSnapshot.bottomTrashCount, 0)
-      const topDeckToHandCards = newTopHandCards.slice(0, topDeckDecrease)
-      const bottomDeckToHandCards = pendingMulliganDrawReplayRef.current
-        ? nextBottomHandInstanceIds
-        : newBottomHandCards.slice(0, bottomDeckDecrease)
-      const topHandToTrashCards = removedTopHandCards.slice(0, topTrashIncrease)
-      const bottomHandToTrashCards = removedBottomHandCards.slice(0, bottomTrashIncrease)
-
-      if (pendingMulliganDrawReplayRef.current) {
-        pendingMulliganDrawReplayRef.current = false
-      }
-
-      if (topHandToTrashCards.length > 0 || bottomHandToTrashCards.length > 0) {
-        pendingDrawAnimationFrameIdRef.current = window.requestAnimationFrame(() => {
-          topHandToTrashCards.forEach((instanceId, index) => {
-            const movementDelay = index * HAND_TO_PILE_STAGGER_MS
-            const timeoutId = window.setTimeout(() => {
-              runHandToPileAnimation({
-                side: 'top',
-                destination: 'trash',
-                cardInstanceId: instanceId,
-                topDeckCardRef,
-                bottomDeckCardRef,
-                topTrashCardRef,
-                bottomTrashCardRef,
-                topHandRowRef,
-                bottomHandRowRef,
-              })
-            }, movementDelay)
-            pendingDrawTimeoutIdsRef.current.push(timeoutId)
-          })
-
-          bottomHandToTrashCards.forEach((instanceId, index) => {
-            const movementDelay = index * HAND_TO_PILE_STAGGER_MS
-            const timeoutId = window.setTimeout(() => {
-              runHandToPileAnimation({
-                side: 'bottom',
-                destination: 'trash',
-                cardInstanceId: instanceId,
-                topDeckCardRef,
-                bottomDeckCardRef,
-                topTrashCardRef,
-                bottomTrashCardRef,
-                topHandRowRef,
-                bottomHandRowRef,
-              })
-            }, movementDelay)
-            pendingDrawTimeoutIdsRef.current.push(timeoutId)
-          })
-        })
-      }
-
-      if (bottomDeckToHandCards.length > 0) {
-        setBottomHandFaceUpByInstanceId((previousState) => {
-          const nextState: Record<string, boolean> = {}
-
-          for (const instanceId of nextBottomHandInstanceIds) {
-            nextState[instanceId] = previousState[instanceId] ?? true
-          }
-
-          for (const instanceId of bottomDeckToHandCards) {
-            nextState[instanceId] = false
-          }
-
-          return nextState
-        })
-      }
-
-      if (topDeckToHandCards.length > 0 || bottomDeckToHandCards.length > 0) {
-        pendingDrawAnimationFrameIdRef.current = window.requestAnimationFrame(() => {
-          topDeckToHandCards.forEach((instanceId, index) => {
-            const movementDelay = index * DRAW_TO_HAND_STAGGER_MS
-            const timeoutId = window.setTimeout(() => {
-              runDeckToHandAnimation({
-                side: 'top',
-                cardInstanceId: instanceId,
-                topDeckCardRef,
-                bottomDeckCardRef,
-                topHandRowRef,
-                bottomHandRowRef,
-              })
-            }, movementDelay)
-            pendingDrawTimeoutIdsRef.current.push(timeoutId)
-          })
-
-          bottomDeckToHandCards.forEach((instanceId, index) => {
-            const movementDelay = index * DRAW_TO_HAND_STAGGER_MS
-            const movementTimeoutId = window.setTimeout(() => {
-              runDeckToHandAnimation({
-                side: 'bottom',
-                cardInstanceId: instanceId,
-                topDeckCardRef,
-                bottomDeckCardRef,
-                topHandRowRef,
-                bottomHandRowRef,
-              })
-            }, movementDelay)
-
-            const revealTimeoutId = window.setTimeout(() => {
-              setBottomHandFaceUpByInstanceId((previousState) => {
-                if (!(instanceId in previousState)) {
-                  return previousState
-                }
-
-                return {
-                  ...previousState,
-                  [instanceId]: true,
-                }
-              })
-            }, movementDelay + DRAW_TO_HAND_REVEAL_DELAY_MS)
-            pendingDrawTimeoutIdsRef.current.push(movementTimeoutId, revealTimeoutId)
-          })
-        })
-      }
-    }
-
-    setBottomHandFaceUpByInstanceId((previousState) => {
-      const nextState: Record<string, boolean> = {}
-      for (const instanceId of nextBottomHandInstanceIds) {
-        nextState[instanceId] = previousState[instanceId] ?? true
-      }
-
-      return nextState
-    })
-
-    previousHandZoneSnapshotRef.current = {
-      topHandInstanceIds: new Set(nextTopHandInstanceIds),
-      bottomHandInstanceIds: new Set(nextBottomHandInstanceIds),
-      topDeckCount,
-      bottomDeckCount,
-      topTrashCount,
-      bottomTrashCount,
-      isInitialized: true,
-    }
-  }, [
-    bottomDeckCount,
-    bottomHandCards,
-    bottomTrashCount,
-    DRAW_TO_HAND_REVEAL_DELAY_MS,
-    DRAW_TO_HAND_STAGGER_MS,
-    HAND_TO_PILE_STAGGER_MS,
+  useHandZoneAnimationEffects({
+    topHandInstanceIds,
+    bottomHandInstanceIds,
     topDeckCount,
-    topHandCards,
+    bottomDeckCount,
     topTrashCount,
-  ])
+    bottomTrashCount,
+    drawToHandStaggerMs: DRAW_TO_HAND_STAGGER_MS,
+    drawToHandRevealDelayMs: DRAW_TO_HAND_REVEAL_DELAY_MS,
+    handToPileStaggerMs: HAND_TO_PILE_STAGGER_MS,
+    topDeckCardRef,
+    bottomDeckCardRef,
+    topTrashCardRef,
+    bottomTrashCardRef,
+    topHandRowRef,
+    bottomHandRowRef,
+    animControllerRef,
+    setBottomHandFaceUpByInstanceId,
+  })
 
   useEffect(() => {
-    return () => {
-      if (pendingDrawAnimationFrameIdRef.current !== null) {
-        window.cancelAnimationFrame(pendingDrawAnimationFrameIdRef.current)
-      }
-
-      pendingDrawTimeoutIdsRef.current.forEach((timeoutId) => {
-        window.clearTimeout(timeoutId)
-      })
-      pendingDrawTimeoutIdsRef.current = []
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!isConnected || isActionPending || gameState.pendingPrompt) {
+    if (!isConnected || isActionPendingFlag || gameState.pendingPrompt) {
       return
     }
 
@@ -314,14 +155,14 @@ export function GameView() {
     }
 
     const phaseSnapshotKey = `${gameState.turnNumber}:${gameState.phase}:${gameState.activePlayerId}`
-    if (lastAutoSignalKeyRef.current === phaseSnapshotKey) {
+    if (animControllerRef.current.lastAutoSignalKey === phaseSnapshotKey) {
       return
     }
 
-    lastAutoSignalKeyRef.current = phaseSnapshotKey
+    animControllerRef.current.lastAutoSignalKey = phaseSnapshotKey
 
     const timerId = window.setTimeout(() => {
-      if (hasPendingPromptRef.current || isActionPendingRef.current) {
+      if (hasPendingPromptFlag || isActionPendingFlag) {
         return
       }
 
@@ -331,7 +172,19 @@ export function GameView() {
     return () => {
       window.clearTimeout(timerId)
     }
-  }, [gameState.activePlayerId, gameState.availableActions, gameState.pendingPrompt, gameState.phase, gameState.turnNumber, isActionPending, isConnected, submitHubIntent])
+  }, [
+    animControllerRef,
+    gameState.activePlayerId,
+    gameState.availableActions,
+    gameState.pendingPrompt,
+    gameState.phase,
+    gameState.turnNumber,
+    hasPendingPromptFlag,
+    isActionPendingFlag,
+    isConnected,
+    submitHubIntent,
+    AUTO_SIGNAL_PHASES,
+  ])
 
   const mappedAvailableActions = shouldShowPromptOverlay
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:'))
@@ -375,7 +228,7 @@ export function GameView() {
         })
       }, index * HAND_TO_PILE_STAGGER_MS)
 
-      pendingDrawTimeoutIdsRef.current.push(animationTimeoutId)
+      animControllerRef.current.pendingDrawTimeoutIds.push(animationTimeoutId)
     })
 
     const totalHandToPileMs =
@@ -383,7 +236,7 @@ export function GameView() {
         ? (currentBottomHandInstanceIds.length - 1) * HAND_TO_PILE_STAGGER_MS + HAND_TO_PILE_DURATION_MS
         : 0
 
-    pendingMulliganDrawReplayRef.current = true
+    animControllerRef.current.pendingMulliganDrawReplay = true
 
     await waitMillis(totalHandToPileMs)
 
@@ -630,171 +483,3 @@ export function GameView() {
   )
 }
 
-function runHandToPileAnimation({
-  side,
-  destination,
-  cardInstanceId,
-  topDeckCardRef,
-  bottomDeckCardRef,
-  topTrashCardRef,
-  bottomTrashCardRef,
-  topHandRowRef,
-  bottomHandRowRef,
-}: IHandToPileAnimationArgs): void {
-  const sourceHandRowElement = side === 'top' ? topHandRowRef.current : bottomHandRowRef.current
-  const destinationPileElement = destination === 'deck'
-    ? side === 'top'
-      ? topDeckCardRef.current
-      : bottomDeckCardRef.current
-    : side === 'top'
-      ? topTrashCardRef.current
-      : bottomTrashCardRef.current
-
-  if (!sourceHandRowElement || !destinationPileElement) {
-    return
-  }
-
-  const sourceCardElement = sourceHandRowElement.querySelector<HTMLDivElement>(
-    `[data-hand-instance-id="${cardInstanceId}"]`,
-  )
-  if (!sourceCardElement) {
-    return
-  }
-
-  const sourceRect = sourceCardElement.getBoundingClientRect()
-  const destinationRect = destinationPileElement.getBoundingClientRect()
-
-  if (sourceRect.width <= 0 || sourceRect.height <= 0 || destinationRect.width <= 0 || destinationRect.height <= 0) {
-    return
-  }
-
-  const sourceCenterX = sourceRect.left + sourceRect.width / 2
-  const sourceCenterY = sourceRect.top + sourceRect.height / 2
-  const destinationCenterX = destinationRect.left + destinationRect.width / 2
-  const destinationCenterY = destinationRect.top + destinationRect.height / 2
-  const translateX = destinationCenterX - sourceCenterX
-  const translateY = destinationCenterY - sourceCenterY
-
-  const movingCardElement = sourceCardElement.cloneNode(true) as HTMLDivElement
-  movingCardElement.style.position = 'fixed'
-  movingCardElement.style.left = `${sourceCenterX}px`
-  movingCardElement.style.top = `${sourceCenterY}px`
-  movingCardElement.style.width = `${sourceRect.width}px`
-  movingCardElement.style.height = `${sourceRect.height}px`
-  movingCardElement.style.margin = '0'
-  movingCardElement.style.pointerEvents = 'none'
-  movingCardElement.style.zIndex = '220'
-  movingCardElement.style.transform = 'translate(-50%, -50%)'
-  movingCardElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
-
-  document.body.appendChild(movingCardElement)
-
-  const animation = movingCardElement.animate(
-    [
-      {
-        transform: 'translate(-50%, -50%) translate(0px, 0px) scale(1)',
-        opacity: 0.98,
-      },
-      {
-        transform: `translate(-50%, -50%) translate(${translateX}px, ${translateY}px) scale(0.9)`,
-        opacity: 0.92,
-      },
-    ],
-    {
-      duration: 340,
-      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-    },
-  )
-
-  animation.onfinish = () => {
-    movingCardElement.remove()
-  }
-
-  animation.oncancel = () => {
-    movingCardElement.remove()
-  }
-}
-
-async function waitMillis(durationMs: number): Promise<void> {
-  if (durationMs <= 0) {
-    return
-  }
-
-  await new Promise<void>((resolve) => {
-    window.setTimeout(() => {
-      resolve()
-    }, durationMs)
-  })
-}
-
-function runDeckToHandAnimation({
-  side,
-  cardInstanceId,
-  topDeckCardRef,
-  bottomDeckCardRef,
-  topHandRowRef,
-  bottomHandRowRef,
-}: IDeckToHandAnimationArgs): void {
-  const sourceDeckElement = side === 'top' ? topDeckCardRef.current : bottomDeckCardRef.current
-  const destinationHandRowElement = side === 'top' ? topHandRowRef.current : bottomHandRowRef.current
-
-  if (!sourceDeckElement || !destinationHandRowElement) {
-    return
-  }
-
-  const destinationCardElement = destinationHandRowElement.querySelector<HTMLDivElement>(
-    `[data-hand-instance-id="${cardInstanceId}"]`,
-  )
-  const sourceRect = sourceDeckElement.getBoundingClientRect()
-  const destinationRect = (destinationCardElement ?? destinationHandRowElement).getBoundingClientRect()
-
-  if (sourceRect.width <= 0 || sourceRect.height <= 0 || destinationRect.width <= 0 || destinationRect.height <= 0) {
-    return
-  }
-
-  const sourceCenterX = sourceRect.left + sourceRect.width / 2
-  const sourceCenterY = sourceRect.top + sourceRect.height / 2
-  const destinationCenterX = destinationRect.left + destinationRect.width / 2
-  const destinationCenterY = destinationRect.top + destinationRect.height / 2
-  const translateX = destinationCenterX - sourceCenterX
-  const translateY = destinationCenterY - sourceCenterY
-
-  const movingCardElement = sourceDeckElement.cloneNode(true) as HTMLDivElement
-  movingCardElement.style.position = 'fixed'
-  movingCardElement.style.left = `${sourceCenterX}px`
-  movingCardElement.style.top = `${sourceCenterY}px`
-  movingCardElement.style.width = `${sourceRect.width}px`
-  movingCardElement.style.height = `${sourceRect.height}px`
-  movingCardElement.style.margin = '0'
-  movingCardElement.style.pointerEvents = 'none'
-  movingCardElement.style.zIndex = '220'
-  movingCardElement.style.transform = 'translate(-50%, -50%)'
-  movingCardElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
-
-  document.body.appendChild(movingCardElement)
-
-  const animation = movingCardElement.animate(
-    [
-      {
-        transform: 'translate(-50%, -50%) translate(0px, 0px) scale(1)',
-        opacity: 0.97,
-      },
-      {
-        transform: `translate(-50%, -50%) translate(${translateX}px, ${translateY}px) scale(0.92)`,
-        opacity: 0.99,
-      },
-    ],
-    {
-      duration: 420,
-      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-    },
-  )
-
-  animation.onfinish = () => {
-    movingCardElement.remove()
-  }
-
-  animation.oncancel = () => {
-    movingCardElement.remove()
-  }
-}
