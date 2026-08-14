@@ -37,6 +37,20 @@ import { preloadCardsByIds } from '../../services/cardPreloadService'
 const DECK_LINE_PATTERN = /^\s*(\d+)x\s+([A-Za-z0-9-]+)\s*$/
 const STARTER_DECK_FETCH_RETRY_ATTEMPTS = 3
 const STARTER_DECK_FETCH_RETRY_DELAY_MS = 700
+const TITLE_FONT_LOAD_QUERY = '1em "Water Brush"'
+
+function getFontFaceSet(): FontFaceSet | null {
+  if (typeof document === 'undefined' || !('fonts' in document)) {
+    return null
+  }
+
+  const fontSet = document.fonts
+  if (typeof fontSet.check !== 'function' || typeof fontSet.load !== 'function') {
+    return null
+  }
+
+  return fontSet
+}
 
 export function LoginView() {
   const loaderData = useLoaderData() as ILoginLoaderData
@@ -59,6 +73,14 @@ export function LoginView() {
   const [starterDeckRetryToken, setStarterDeckRetryToken] = useState(0)
   const [savedDeckCardIdsByDeckId, setSavedDeckCardIdsByDeckId] = useState<Record<string, string[]>>({})
   const [starterDeckCardIdsByDeckId, setStarterDeckCardIdsByDeckId] = useState<Record<string, string[]>>({})
+  const [isTitleFontReady, setIsTitleFontReady] = useState(() => {
+    const fontSet = getFontFaceSet()
+    if (!fontSet) {
+      return true
+    }
+
+    return fontSet.check(TITLE_FONT_LOAD_QUERY)
+  })
   const hasShownSignupToast = useRef(false)
   const lastAuthToastUsername = useRef<string | null>(null)
   
@@ -84,6 +106,38 @@ export function LoginView() {
   const authSession = useAuthSessionStore((state) => state.session)
   const authUser = authSession ?? actionData?.login?.user ?? null
   const authUsername = authUser?.username ?? ''
+
+  useEffect(() => {
+    if (isTitleFontReady) {
+      return
+    }
+
+    let isCancelled = false
+
+    async function ensureTitleFontLoaded() {
+      const fontSet = getFontFaceSet()
+      if (!fontSet) {
+        if (!isCancelled) {
+          setIsTitleFontReady(true)
+        }
+        return
+      }
+
+      try {
+        await fontSet.load(TITLE_FONT_LOAD_QUERY)
+      } finally {
+        if (!isCancelled) {
+          setIsTitleFontReady(true)
+        }
+      }
+    }
+
+    void ensureTitleFontLoaded()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [isTitleFontReady])
 
   useEffect(() => {
     if (!loaderData.signupSuccess || hasShownSignupToast.current) {
@@ -382,7 +436,11 @@ export function LoginView() {
     <PageShell>
       <div className="grid w-full grid-cols-1 gap-4 px-2 sm:px-4">
         <Panel className="my-2 w-full border-0 bg-transparent px-5 text-center shadow-none">
-          <p className="mt-1 font-['Water_Brush'] text-6xl leading-none tracking-wide text-[var(--text-primary)] sm:text-7xl">
+          <p
+            className={`mt-1 font-['Water_Brush'] text-6xl leading-none tracking-wide text-[var(--text-primary)] transition-opacity duration-150 sm:text-7xl ${
+              isTitleFontReady ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
             Shinobi Tactics
           </p>
           <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)] sm:text-base">

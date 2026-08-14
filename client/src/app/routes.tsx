@@ -9,9 +9,13 @@ import { signInAction, signInLoader } from '../views/login/handlers/signInRouteH
 import { gameAction, gameLoader } from '../views/game/handlers/gameRouteHandlers'
 import { NotFoundView } from '../views/NotFoundView'
 import { Navigate } from 'react-router-dom'
+import { RouteTransitionOverlay } from './RouteTransitionOverlay'
+import { AppHydrateFallback } from './AppHydrateFallback'
 
 export const router = createBrowserRouter([
   {
+    element: <RouteTransitionOverlay />,
+    HydrateFallback: AppHydrateFallback,
     errorElement: <RouteErrorBoundary />,
     children: [
       {

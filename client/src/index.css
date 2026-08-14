@@ -129,7 +129,6 @@ html[data-theme='light'] {
     font-family: var(--font-body);
     color: var(--text-primary);
     background-color: var(--app-bg-end);
-    transition: background-color 300ms ease, color 300ms ease;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -152,12 +151,20 @@ html[data-theme='light'] {
   background-color: #f97316;
 }
 
+.turn-indicator-light-gray {
+  background-color: #a5a6a8;
+}
+
 .turn-indicator-text-dark-theme {
   color: var(--theme-dark-text-primary);
 }
 
 .turn-indicator-text-light-theme {
   color: var(--theme-light-text-primary);
+}
+
+.turn-indicator-text-black {
+  color: #212121;
 }
 
 .turn-band-blue {
@@ -199,4 +206,20 @@ html[data-theme='light'] {
 
 .zone-surface-soft {
   background-color: color-mix(in srgb, var(--surface-muted) 82%, transparent);
+}
+
+.phase-indicator-text-swap {
+  animation: phase-indicator-text-swap 220ms ease-out;
+}
+
+@keyframes phase-indicator-text-swap {
+  from {
+    opacity: 0.35;
+    transform: translateY(1px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
