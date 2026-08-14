@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLoaderData } from 'react-router-dom'
+import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
@@ -55,6 +56,8 @@ export function GameView() {
   const bottomTrashCardRef = useRef<HTMLDivElement | null>(null)
   const topHandRowRef = useRef<HTMLDivElement | null>(null)
   const bottomHandRowRef = useRef<HTMLDivElement | null>(null)
+  const [topHandAutoAnimateRef] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
+  const [bottomHandAutoAnimateRef] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
   const animControllerRef = useRef<IGameViewAnimController>({
     lastAutoSignalKey: '',
     pendingDrawAnimationFrameId: null,
@@ -74,6 +77,16 @@ export function GameView() {
   const [isMulliganAnimationPending, setIsMulliganAnimationPending] = useState(false)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const authUserId = useAuthSessionStore((state) => state.session?.userId)
+
+  const setTopHandRowRefs = useCallback((node: HTMLDivElement | null) => {
+    topHandRowRef.current = node
+    topHandAutoAnimateRef(node)
+  }, [topHandAutoAnimateRef])
+
+  const setBottomHandRowRefs = useCallback((node: HTMLDivElement | null) => {
+    bottomHandRowRef.current = node
+    bottomHandAutoAnimateRef(node)
+  }, [bottomHandAutoAnimateRef])
   
   const { joinCode, gameCards, gameState: initialGameState } = useLoaderData() as IGameLoaderData
   const {
@@ -258,7 +271,7 @@ export function GameView() {
           <div className="grid h-full min-h-0 grid-rows-[1fr_4fr_auto_1fr] gap-1.5 rounded-2xl p-1">
             <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
               <PlayRow className="rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 turn-band-blue">
-                <div ref={topHandRowRef} className="flex h-full min-h-0 flex-wrap items-start gap-1.5 overflow-hidden">
+                <div ref={setTopHandRowRefs} className="flex h-full min-h-0 flex-wrap items-start gap-1.5 overflow-hidden">
                   {topHandCards.map((card) => (
                     <div
                       key={`top-hand-${card.instanceId}`}
@@ -436,7 +449,7 @@ export function GameView() {
 
             <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
               <PlayRow className="overflow-hidden rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 turn-band-orange">
-                <div ref={bottomHandRowRef} className="flex h-full min-h-0 flex-wrap items-start gap-1.5 overflow-hidden">
+                <div ref={setBottomHandRowRefs} className="flex h-full min-h-0 flex-wrap items-start gap-1.5 overflow-hidden">
                   {bottomHandCards.map((card) => (
                     <div
                       key={`bottom-hand-${card.instanceId}`}
