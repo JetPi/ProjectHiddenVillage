@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Outlet, useNavigation } from 'react-router-dom'
-import { BeatLoader } from 'react-spinners'
+import { AppLoadingChip } from '../components/feedback/AppLoadingChip'
 
 const OVERLAY_FADE_OUT_MS = 180
 
@@ -43,10 +43,7 @@ export function RouteTransitionOverlay() {
           aria-hidden="true"
         >
           <div className="grid h-full place-items-center">
-            <div className="flex items-center gap-2.5 rounded-xl border border-white/20 bg-slate-950/70 px-3 py-2 text-[14px] font-semibold tracking-[0.02em] text-white shadow-lg">
-              <BeatLoader size={7} margin={1} color="#fb923c" loading />
-              <span>Loading...</span>
-            </div>
+            <AppLoadingChip />
           </div>
         </div>
       ) : null}

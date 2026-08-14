@@ -29,7 +29,7 @@
         margin: 0;
       }
 
-      .app-boot-loader {
+      .app-loader-screen {
         min-height: 100dvh;
         display: grid;
         place-items: center;
@@ -38,7 +38,7 @@
         color: #ffffff;
       }
 
-      .app-boot-loader__card {
+      .app-loader-chip {
         display: flex;
         align-items: center;
         gap: 10px;
@@ -49,9 +49,12 @@
         font-size: 14px;
         font-weight: 600;
         letter-spacing: 0.02em;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        line-height: 1;
+        white-space: nowrap;
       }
 
-      .app-boot-loader__dot {
+      .app-loader-dot {
         width: 10px;
         height: 10px;
         border-radius: 999px;
@@ -94,9 +97,9 @@
   </head>
   <body>
     <div id="root">
-      <div class="app-boot-loader" role="status" aria-live="polite" aria-busy="true">
-        <div class="app-boot-loader__card">
-          <span class="app-boot-loader__dot"></span>
+      <div class="app-loader-screen" role="status" aria-live="polite" aria-busy="true">
+        <div class="app-loader-chip">
+          <span class="app-loader-dot"></span>
           <span>Loading...</span>
         </div>
       </div>
