@@ -1,9 +1,15 @@
-import type { IGamePlayerStateResponse } from '../../../services/api/gameApi'
+import type { IGameCardInstanceResponse, IGamePlayerStateResponse } from '../../../services/api/gameApi'
 import type { IGameActionOptionResponse } from '../../../services/api/types/game'
 import type { IDeckToHandAnimationArgs, IHandToPileAnimationArgs } from '../types/animations'
 import type { ISubmitHubIntentRequest } from '../types/hub'
 import type { IGameLoaderData } from '../types/routeData'
-import type { ICardPreloadPayload, IDerivedGameViewState, IGameCard, ILeaderCardViewModel } from '../types/viewModels'
+import type {
+  ICardPreloadPayload,
+  IDerivedGameViewState,
+  IGameCard,
+  ILeaderCardViewModel,
+  INonLeaderCardViewModel,
+} from '../types/viewModels'
 
 function normalizePlayerId(value: string): string {
   return value.trim().toLowerCase().replace(/-/g, '')
@@ -139,6 +145,55 @@ function resolveLeaderCard(
   }
 }
 
+function resolveNonLeaderCards(
+  cards: IGameCardInstanceResponse[],
+  cardTypeById: ReadonlyMap<string, string>,
+  cardById: ReadonlyMap<string, IGameCard>,
+): INonLeaderCardViewModel[] {
+  const resolvedCards: INonLeaderCardViewModel[] = []
+
+  for (const card of cards) {
+    const normalizedCardId = card.cardDefinitionId.trim().toLowerCase()
+    if (!normalizedCardId || cardTypeById.get(normalizedCardId) === 'leader') {
+      continue
+    }
+
+    const catalogCard = cardById.get(normalizedCardId)
+    if (!catalogCard) {
+      continue
+    }
+
+    resolvedCards.push({
+      instanceId: card.instanceId,
+      cardDefinitionId: card.cardDefinitionId,
+      ownerPlayerId: card.ownerPlayerId,
+      controllerPlayerId: card.controllerPlayerId,
+      id: catalogCard.id,
+      image: catalogCard.image,
+      displayName: catalogCard.displayName,
+      type: catalogCard.type,
+      isExhausted: card.isExhausted,
+    })
+  }
+
+  return resolvedCards
+}
+
+function resolveCardActionOptionsForInstanceId(
+  availableActions: IGameActionOptionResponse[],
+  cardInstanceId: string,
+): IGameActionOptionResponse[] {
+  const normalizedInstanceId = cardInstanceId.trim().toLowerCase()
+  if (!normalizedInstanceId) {
+    return []
+  }
+
+  return availableActions.filter((action) => {
+    const normalizedActionId = action.actionId.trim().toLowerCase()
+    return normalizedActionId.includes(normalizedInstanceId)
+  })
+}
+
 function buildLeaderCardFrameClass(baseClassName: string, hasCard: boolean): string {
   return `${baseClassName} ${hasCard ? 'border-transparent' : ''}`.trim()
 }
@@ -195,6 +250,8 @@ export {
   resolveCurrentPlayer,
   resolveOpponentPlayer,
   resolveLeaderCard,
+  resolveNonLeaderCards,
+  resolveCardActionOptionsForInstanceId,
   buildLeaderCardFrameClass,
   deriveGameViewState,
   buildCardPreloadPayload,

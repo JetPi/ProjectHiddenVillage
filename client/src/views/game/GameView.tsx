@@ -9,7 +9,13 @@ import { FlippableCard } from '../../components/ui/FlippableCard'
 import { useAuthSessionStore } from '../../state/authSession'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
-import { buildLeaderCardFrameClass, mapActionToHubIntent, runHandToPileAnimation, waitMillis } from './utils/functions'
+import {
+  buildLeaderCardFrameClass,
+  mapActionToHubIntent,
+  resolveCardActionOptionsForInstanceId,
+  runHandToPileAnimation,
+  waitMillis,
+} from './utils/functions'
 import { toPromptPresentation } from './utils/promptPresentation'
 import type { IGameLoaderData } from './types/routeData'
 import type { IGameActionOptionResponse } from '../../services/api/types/game'
@@ -18,6 +24,7 @@ import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationE
 import { useDerivedGameViewState } from './hooks/useDerivedGameViewState'
 import { useGameHubState } from './hooks/useGameHubState'
 import { GameHandRow } from './components/GameHandRow'
+import { NonLeaderCardOverlay } from './components/NonLeaderCardOverlay'
 import { GameZones } from './components/GameZones'
 import { GamePromptOverlay } from './components/GamePromptOverlay'
 import {
@@ -123,8 +130,8 @@ export function GameView() {
   const isActionPendingFlag = isActionPending
 
   const mappedAvailableActions = shouldShowPromptOverlay
-    ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:'))
-    : gameState.availableActions
+    ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:') && action.actionId !== 'declare-attack')
+    : gameState.availableActions.filter((action) => action.actionId !== 'declare-attack')
 
   useHandZoneAnimationEffects({
     topHandInstanceIds,
@@ -218,22 +225,22 @@ export function GameView() {
   }
 
   return (
-    <PageShell compact className="pb-0 sm:pb-0 lg:pb-0">
+    <PageShell compact className="pt-0 pb-0 sm:pt-0 sm:pb-0 lg:pt-0 lg:pb-0">
       <div
         ref={outerZoneRef}
         className={`mx-auto h-full min-h-0 w-full overflow-hidden gap-1.5 rounded-2xl ${GAMEBOARD_MAX_WIDTH_CLASS} ${GAMEBOARD_COLUMNS_CLASS}`}
       >
-        <Panel className="col-span-full h-full min-h-0 border-hidden overflow-hidden bg-transparent pt-2.5 pb-1 px-1.5">
-          <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,4.9fr)_minmax(0,2.3fr)] gap-1.5 rounded-2xl px-1 pt-1 pb-0.5">
+        <Panel className="col-span-full h-full min-h-0 border-hidden overflow-hidden bg-transparent pt-0 pb-0.5 px-1.5">
+          <div className="grid h-full min-h-0 grid-rows-[minmax(0,0.6fr)_minmax(0,6.1fr)_minmax(0,1.85fr)] gap-1 rounded-2xl px-1 pt-0 pb-0">
             <GameHandRow
               cards={topHandCards}
               rowRef={setTopHandRowRefs}
-              rowClassName="h-[200%] -translate-y-1/2"
+              rowClassName="h-[230%] -translate-y-[62%]"
               renderCard={(card) => (
                 <div
                   key={`top-hand-${card.instanceId}`}
                   data-hand-instance-id={card.instanceId}
-                  className="h-full max-h-[64px] aspect-[200/277] shrink-0"
+                  className="h-full aspect-[200/277] shrink-0"
                 >
                   <CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
                 </div>
@@ -270,25 +277,43 @@ export function GameView() {
                 <div
                   key={`bottom-hand-${card.instanceId}`}
                   data-hand-instance-id={card.instanceId}
-                  className="h-full max-h-[64px] aspect-[200/277] shrink-0"
+                  className="h-full aspect-[200/277] shrink-0"
                 >
                   <FlippableCard
                     isFlipped={bottomHandFaceUpByInstanceId[card.instanceId] ?? true}
                     durationMs={340}
                     front={
-                      <CardImage
-                        src={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase())?.image ?? null}
-                        alt={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase())?.displayName ?? 'Hand card'}
-                        loading="lazy"
-                        decoding="async"
-                        className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] object-contain"
-                      />
+                      <div className="group relative h-full w-full overflow-hidden rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]">
+                        <CardImage
+                          src={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase())?.image ?? null}
+                          alt={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase())?.displayName ?? 'Hand card'}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full rounded-md object-contain"
+                        />
+
+                        <NonLeaderCardOverlay
+                          cardName={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase())?.displayName ?? 'Hand card'}
+                          zone="hand"
+                          visibilityMode="hover"
+                          actionOptions={resolveCardActionOptionsForInstanceId(mappedAvailableActions, card.instanceId)}
+                          isConnected={isConnected}
+                          isActionPending={isActionPending}
+                          onSelectActionOption={(actionId) => {
+                            const actionOption = mappedAvailableActions.find((action) => action.actionId === actionId)
+                            if (!actionOption) {
+                              return
+                            }
+
+                            submitMappedAction(actionOption)
+                          }}
+                        />
+                      </div>
                     }
                     back={<CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />}
                   />
                 </div>
               )}
-              footer={`Your hand: ${bottomHandCards.length}`}
             />
           </div>
         </Panel>

@@ -13,9 +13,15 @@ function GameHandRow<TCard>({
   footerClassName,
 }: IGameHandRowProps<TCard>) {
   return (
-    <div className={twMerge('grid min-h-0 grid-cols-[1fr_1.5rem] gap-1', containerClassName)}>
-      <PlayRow className={twMerge('rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5', rowClassName)}>
-        <div ref={rowRef} className={twMerge('flex h-full min-h-0 flex-wrap items-start gap-1.5 overflow-hidden', cardsContainerClassName)}>
+    <div className={twMerge('flex min-h-0 items-stretch gap-1', containerClassName)}>
+      <PlayRow className={twMerge('min-h-0 p-0 m-0 min-w-0 flex flex-1 flex-col rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5', rowClassName)}>
+        <div
+          ref={rowRef}
+          className={twMerge(
+            'flex h-full min-h-0 items-center justify-center gap-px overflow-hidden [&_[data-hand-instance-id]]:h-[100%] [&_[data-hand-instance-id]_*]:outline-none [&_[data-hand-instance-id]_.border]:border-transparent [&_[data-hand-instance-id]_.border]:shadow-none',
+            cardsContainerClassName,
+          )}
+        >
           {cards.map((card, index) => renderCard(card, index))}
         </div>
 
@@ -25,6 +31,8 @@ function GameHandRow<TCard>({
           </div>
         ) : null}
       </PlayRow>
+
+      <div aria-hidden className="w-6 shrink-0" />
     </div>
   )
 }

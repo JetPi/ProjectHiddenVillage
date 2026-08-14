@@ -7,7 +7,7 @@ namespace ProjectHiddenVillage.Server.Tests;
 public sealed class GameStateResponseMapperMainPhaseSignalsTests
 {
     [TestMethod]
-    public void ToGameStateResponse_MainPhase_EmitsTurnEndAndDeclareAttackActions()
+    public void ToGameStateResponse_MainPhase_EmitsTurnEndActionOnly()
     {
         var requesterId = Guid.NewGuid().ToString("N");
         var opponentId = Guid.NewGuid().ToString("N");
@@ -15,9 +15,9 @@ public sealed class GameStateResponseMapperMainPhaseSignalsTests
 
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
 
-        Assert.AreEqual(2, response.AvailableActions.Count);
+        Assert.AreEqual(1, response.AvailableActions.Count);
         Assert.IsTrue(response.AvailableActions.Any(action => action.ActionId == "turn-end" && action.Label == "End Turn"));
-        Assert.IsTrue(response.AvailableActions.Any(action => action.ActionId == "declare-attack" && action.Label == "Declare Attack"));
+        Assert.IsFalse(response.AvailableActions.Any(action => action.ActionId == "declare-attack"));
     }
 
     private static GameState BuildState(

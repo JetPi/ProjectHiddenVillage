@@ -24,6 +24,18 @@ export type ILeaderCardViewModel = {
   recoveryEffect: string
 }
 
+export type INonLeaderCardViewModel = {
+  instanceId: string
+  cardDefinitionId: string
+  ownerPlayerId: string
+  controllerPlayerId: string
+  id: string
+  image: string
+  displayName: string
+  type: string
+  isExhausted: boolean
+}
+
 export type IDerivedGameViewState = {
   cardById: Map<string, IGameCard>
   cardTypeById: Map<string, string>
