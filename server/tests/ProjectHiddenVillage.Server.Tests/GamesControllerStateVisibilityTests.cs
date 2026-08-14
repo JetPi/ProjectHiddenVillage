@@ -66,9 +66,10 @@ public sealed class GamesControllerStateVisibilityTests
         Assert.AreEqual(1, self.HandCount);
 
         Assert.AreEqual(0, opponent.Deck.Count);
-        Assert.AreEqual(0, opponent.Hand.Count);
+        Assert.AreEqual(1, opponent.Hand.Count);
         Assert.AreEqual(1, opponent.DeckCount);
         Assert.AreEqual(1, opponent.HandCount);
+        Assert.AreEqual("concealed-card", opponent.Hand[0].CardDefinitionId);
         Assert.AreEqual(1, opponent.CharacterField.Count);
     }
 

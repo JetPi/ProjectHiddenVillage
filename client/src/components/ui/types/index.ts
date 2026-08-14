@@ -3,6 +3,7 @@ import type {
   HTMLAttributes,
   ImgHTMLAttributes,
   PropsWithChildren,
+  RefObject,
   ReactNode,
 } from 'react'
 import type { ICardCatalogItemResponse } from '../../../types/cardCatalog'
@@ -57,11 +58,24 @@ export type IPlayPileZoneProps = {
   className?: string
   cardBackTone?: ICardBackTone
   gameState?: IDerivedGameViewState | null
+  deckCardRef?: RefObject<HTMLDivElement | null>
+  trashCardRef?: RefObject<HTMLDivElement | null>
 }
 
 export type IPlayCardProps = {
   className?: string
   children?: ReactNode
+}
+
+export type IFlippableCardProps = {
+  isFlipped: boolean
+  front: ReactNode
+  back: ReactNode
+  className?: string
+  innerClassName?: string
+  frontClassName?: string
+  backClassName?: string
+  durationMs?: number
 }
 
 export type ILeaderCardProps = {

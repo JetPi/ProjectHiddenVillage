@@ -1,4 +1,5 @@
 import { twMerge } from 'tailwind-merge'
+import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { PlayCard } from './PlayCard'
 import { CardBack } from './CardBack'
 import type { IPlayPileZoneProps } from './types'
@@ -8,7 +9,12 @@ function isDeckLabel(label: string): boolean {
   return label.trim().toLowerCase() === 'deck'
 }
 
-export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', gameState }: IPlayPileZoneProps) {
+function isTrashLabel(label: string): boolean {
+  return label.trim().toLowerCase() === 'trash'
+}
+
+export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', gameState, deckCardRef, trashCardRef }: IPlayPileZoneProps) {
+  const [pileGridAutoAnimateRef] = useAutoAnimate({ duration: 200, easing: 'ease-out' })
   const labeledPileCardClassName =
     'h-full flex items-center justify-center text-center overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]'
   const deckPileCardClassName = 'h-full overflow-hidden rounded-lg'
@@ -16,6 +22,8 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
 
   const currentPlayer = gameState?.currentPlayer
   const opponentPlayer = gameState?.opponentPlayer
+  const deckLabelIndex = labels.findIndex((label) => isDeckLabel(label))
+  const trashLabelIndex = labels.findIndex((label) => isTrashLabel(label))
 
   let deckCount = 0
   let trashCount = 0
@@ -37,6 +45,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
       )}
     >
       <div
+        ref={pileGridAutoAnimateRef}
         className="grid h-full w-full justify-center justify-items-center gap-0.5"
         style={{ gridTemplateColumns: `repeat(${columnCount}, auto)` }}
       >
@@ -45,6 +54,13 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
           return (
             <PlayCard
               key={`pile-slot-${labelIndex}-${label}`}
+              ref={
+                isDeckLabel(label) && labelIndex === deckLabelIndex
+                  ? deckCardRef
+                  : isTrashLabel(label) && labelIndex === trashLabelIndex
+                    ? trashCardRef
+                    : undefined
+              }
               className={isDeckLabel(label) ? deckPileCardClassName : labeledPileCardClassName}
             >
               <CardOverlayBadge

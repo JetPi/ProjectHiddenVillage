@@ -1,9 +1,13 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLoaderData } from 'react-router-dom'
+import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { PageShell } from '../../components/layout/PageShell'
 import { Panel } from '../../components/ui/Panel'
 import { AppButton } from '../../components/ui/AppButton'
+import { CardBack } from '../../components/ui/CardBack'
+import { CardImage } from '../../components/ui/CardImage'
+import { FlippableCard } from '../../components/ui/FlippableCard'
 import { PlayPileZone } from '../../components/ui/PlayPileZone'
 import { PlayResourceTracker } from '../../components/ui/PlayResourceTracker'
 import { PlayRow } from '../../components/ui/PlayRow'
@@ -12,11 +16,12 @@ import { LeaderCard } from '../../components/ui/LeaderCard'
 import { useAuthSessionStore } from '../../state/authSession'
 import { useThemeStore } from '../../state/themeStore'
 import { useAlignedSplit } from './useAlignedSplit'
-import { buildLeaderCardFrameClass, mapActionToHubIntent } from './utils/functions'
+import { buildLeaderCardFrameClass, mapActionToHubIntent, runHandToPileAnimation, waitMillis } from './utils/functions'
 import { toPromptPresentation } from './utils/promptPresentation'
 import type { IGameLoaderData } from './types/routeData'
 import type { IGameActionOptionResponse } from '../../services/api/types/game'
-import { useCardCatalogPreload } from './hooks/useGameViewEffects'
+import type { IGameViewAnimController } from './types/hooks'
+import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from './hooks/useGameViewEffects'
 import { useDerivedGameViewState } from './hooks/useDerivedGameViewState'
 import { useGameHubState } from './hooks/useGameHubState'
 import { GamePromptOverlay } from './components/GamePromptOverlay'
@@ -26,11 +31,15 @@ import {
   GAMEBOARD_COLUMNS_CLASS,
   LEADER_CARD_FRAME_CLASS,
   LEADER_CARD_IMAGE_CLASS,
+  DRAW_TO_HAND_STAGGER_MS,
+  DRAW_TO_HAND_REVEAL_DELAY_MS,
+  HAND_TO_PILE_STAGGER_MS,
+  HAND_TO_PILE_DURATION_MS,
 } from './utils/contants'
 
 
 export function GameView() {
-  const AUTO_SIGNAL_PHASES = new Set([
+  const AUTO_SIGNAL_PHASES = useMemo(() => new Set([
     'DrawInitialHand',
     'RefreshPhase',
     'StartOfMainPhase',
@@ -38,14 +47,46 @@ export function GameView() {
     'AttackDeclaration',
     'AttackResolution',
     'BattleEndStep',
-  ])
+  ]), [])
 
   const { outerRef: outerZoneRef, innerRef: boardZoneRef } = useAlignedSplit()
-  const lastAutoSignalKeyRef = useRef('')
-  const hasPendingPromptRef = useRef(false)
-  const isActionPendingRef = useRef(false)
+  const topDeckCardRef = useRef<HTMLDivElement | null>(null)
+  const bottomDeckCardRef = useRef<HTMLDivElement | null>(null)
+  const topTrashCardRef = useRef<HTMLDivElement | null>(null)
+  const bottomTrashCardRef = useRef<HTMLDivElement | null>(null)
+  const topHandRowRef = useRef<HTMLDivElement | null>(null)
+  const bottomHandRowRef = useRef<HTMLDivElement | null>(null)
+  const [topHandAutoAnimateRef] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
+  const [bottomHandAutoAnimateRef] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
+  const animControllerRef = useRef<IGameViewAnimController>({
+    lastAutoSignalKey: '',
+    pendingDrawAnimationFrameId: null,
+    pendingDrawTimeoutIds: [],
+    pendingMulliganDrawReplay: false,
+    previousHandZoneSnapshot: {
+      topHandInstanceIds: new Set<string>(),
+      bottomHandInstanceIds: new Set<string>(),
+      topDeckCount: 0,
+      bottomDeckCount: 0,
+      topTrashCount: 0,
+      bottomTrashCount: 0,
+      isInitialized: false,
+    },
+  })
+  const [bottomHandFaceUpByInstanceId, setBottomHandFaceUpByInstanceId] = useState<Record<string, boolean>>({})
+  const [isMulliganAnimationPending, setIsMulliganAnimationPending] = useState(false)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const authUserId = useAuthSessionStore((state) => state.session?.userId)
+
+  const setTopHandRowRefs = useCallback((node: HTMLDivElement | null) => {
+    topHandRowRef.current = node
+    topHandAutoAnimateRef(node)
+  }, [topHandAutoAnimateRef])
+
+  const setBottomHandRowRefs = useCallback((node: HTMLDivElement | null) => {
+    bottomHandRowRef.current = node
+    bottomHandAutoAnimateRef(node)
+  }, [bottomHandAutoAnimateRef])
   
   const { joinCode, gameCards, gameState: initialGameState } = useLoaderData() as IGameLoaderData
   const {
@@ -61,6 +102,14 @@ export function GameView() {
 
   const derivedGameState = useDerivedGameViewState(gameCards, players, authUserId)
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
+  const topHandCards = useMemo(() => derivedGameState.opponentPlayer?.hand ?? [], [derivedGameState.opponentPlayer?.hand])
+  const bottomHandCards = useMemo(() => derivedGameState.currentPlayer?.hand ?? [], [derivedGameState.currentPlayer?.hand])
+  const topHandInstanceIds = useMemo(() => topHandCards.map((card) => card.instanceId), [topHandCards])
+  const bottomHandInstanceIds = useMemo(() => bottomHandCards.map((card) => card.instanceId), [bottomHandCards])
+  const topDeckCount = derivedGameState.opponentPlayer?.deckCount ?? 0
+  const bottomDeckCount = derivedGameState.currentPlayer?.deckCount ?? 0
+  const topTrashCount = derivedGameState.opponentPlayer?.trash.length ?? 0
+  const bottomTrashCount = derivedGameState.currentPlayer?.trash.length ?? 0
 
   const topLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(topLeaderCard))
   const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
@@ -79,50 +128,41 @@ export function GameView() {
   const promptPresentation = toPromptPresentation(gameState.pendingPrompt)
   const shouldShowPromptOverlay =
     promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
+  const hasPendingPromptFlag = Boolean(gameState.pendingPrompt)
+  const isActionPendingFlag = isActionPending
 
-  useEffect(() => {
-    hasPendingPromptRef.current = Boolean(gameState.pendingPrompt)
-  }, [gameState.pendingPrompt])
+  useHandZoneAnimationEffects({
+    topHandInstanceIds,
+    bottomHandInstanceIds,
+    topDeckCount,
+    bottomDeckCount,
+    topTrashCount,
+    bottomTrashCount,
+    drawToHandStaggerMs: DRAW_TO_HAND_STAGGER_MS,
+    drawToHandRevealDelayMs: DRAW_TO_HAND_REVEAL_DELAY_MS,
+    handToPileStaggerMs: HAND_TO_PILE_STAGGER_MS,
+    topDeckCardRef,
+    bottomDeckCardRef,
+    topTrashCardRef,
+    bottomTrashCardRef,
+    topHandRowRef,
+    bottomHandRowRef,
+    animControllerRef,
+    setBottomHandFaceUpByInstanceId,
+  })
 
-  useEffect(() => {
-    isActionPendingRef.current = isActionPending
-  }, [isActionPending])
-
-  useEffect(() => {
-    if (!isConnected || isActionPending || gameState.pendingPrompt) {
-      return
-    }
-
-    const hasEnabledAdvancePhaseAction = gameState.availableActions.some(
-      (action) => action.actionId === 'advance-phase' && action.isEnabled,
-    )
-    if (!hasEnabledAdvancePhaseAction) {
-      return
-    }
-
-    if (!AUTO_SIGNAL_PHASES.has(gameState.phase)) {
-      return
-    }
-
-    const phaseSnapshotKey = `${gameState.turnNumber}:${gameState.phase}:${gameState.activePlayerId}`
-    if (lastAutoSignalKeyRef.current === phaseSnapshotKey) {
-      return
-    }
-
-    lastAutoSignalKeyRef.current = phaseSnapshotKey
-
-    const timerId = window.setTimeout(() => {
-      if (hasPendingPromptRef.current || isActionPendingRef.current) {
-        return
-      }
-
-      void submitHubIntent({ intent: 'advance-phase' })
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timerId)
-    }
-  }, [gameState.activePlayerId, gameState.availableActions, gameState.pendingPrompt, gameState.phase, gameState.turnNumber, isActionPending, isConnected, submitHubIntent])
+  useAutoAdvancePhaseEffect({
+    isConnected,
+    isActionPendingFlag,
+    hasPendingPromptFlag,
+    availableActions: gameState.availableActions,
+    phase: gameState.phase,
+    turnNumber: gameState.turnNumber,
+    activePlayerId: gameState.activePlayerId,
+    autoSignalPhases: AUTO_SIGNAL_PHASES,
+    animControllerRef,
+    submitHubIntent,
+  })
 
   const mappedAvailableActions = shouldShowPromptOverlay
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:'))
@@ -137,6 +177,55 @@ export function GameView() {
     void submitHubIntent(intentRequest)
   }
 
+  async function handlePromptResolve(selectedOption: string): Promise<void> {
+    const isMulliganResolve = promptPresentation?.promptType === 'Mulligan' && selectedOption === 'mulligan'
+
+    if (!isMulliganResolve) {
+      await submitHubIntent({
+        intent: 'resolve-prompt',
+        selectedOption,
+      })
+      return
+    }
+
+    setIsMulliganAnimationPending(true)
+
+    const currentBottomHandInstanceIds = bottomHandCards.map((card) => card.instanceId)
+    currentBottomHandInstanceIds.forEach((instanceId, index) => {
+      const animationTimeoutId = window.setTimeout(() => {
+        runHandToPileAnimation({
+          side: 'bottom',
+          destination: 'deck',
+          cardInstanceId: instanceId,
+          topDeckCardRef,
+          bottomDeckCardRef,
+          topTrashCardRef,
+          bottomTrashCardRef,
+          topHandRowRef,
+          bottomHandRowRef,
+        })
+      }, index * HAND_TO_PILE_STAGGER_MS)
+
+      animControllerRef.current.pendingDrawTimeoutIds.push(animationTimeoutId)
+    })
+
+    const totalHandToPileMs =
+      currentBottomHandInstanceIds.length > 0
+        ? (currentBottomHandInstanceIds.length - 1) * HAND_TO_PILE_STAGGER_MS + HAND_TO_PILE_DURATION_MS
+        : 0
+
+    animControllerRef.current.pendingMulliganDrawReplay = true
+
+    await waitMillis(totalHandToPileMs)
+
+    await submitHubIntent({
+      intent: 'resolve-prompt',
+      selectedOption,
+    })
+
+    setIsMulliganAnimationPending(false)
+  }
+
   return (
     <PageShell compact>
       <div
@@ -147,7 +236,17 @@ export function GameView() {
           <div className="grid h-full min-h-0 grid-rows-[1fr_4fr_auto_1fr] gap-1.5 rounded-2xl p-1">
             <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
               <PlayRow className="rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 turn-band-blue">
-                <div className="flex h-full flex-wrap items-start gap-2" /> 
+                <div ref={setTopHandRowRefs} className="flex h-full min-h-0 flex-wrap items-start gap-1.5 overflow-hidden">
+                  {topHandCards.map((card) => (
+                    <div
+                      key={`top-hand-${card.instanceId}`}
+                      data-hand-instance-id={card.instanceId}
+                      className="h-full max-h-[64px] aspect-[200/277] shrink-0"
+                    >
+                      <CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                    </div>
+                  ))}
+                </div>
               </PlayRow>
             </div>
 
@@ -155,7 +254,14 @@ export function GameView() {
               <div ref={boardZoneRef} className="grid min-h-0 overflow-hidden grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1.5 rounded-2xl border border-dashed border-[var(--border-subtle)] p-2 turn-zone-split">
                 <div className="row-span-2 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-1.5 rounded-xl p-1">
                   <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
-                    <PlayPileZone side="top" labels={['Deck', 'Trash']} cardBackTone="blue" gameState={derivedGameState} />
+                    <PlayPileZone
+                      side="top"
+                      labels={['Deck', 'Trash']}
+                      cardBackTone="blue"
+                      gameState={derivedGameState}
+                      deckCardRef={topDeckCardRef}
+                      trashCardRef={topTrashCardRef}
+                    />
                     <PlayResourceTracker cardClassName="turn-band-blue" reverse />
                   </div>
 
@@ -192,7 +298,14 @@ export function GameView() {
 
                   <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
                     <PlayResourceTracker cardClassName="turn-band-orange-button" />
-                    <PlayPileZone side="bottom" labels={['Trash', 'Deck']} cardBackTone="orange" gameState={derivedGameState} />
+                    <PlayPileZone
+                      side="bottom"
+                      labels={['Trash', 'Deck']}
+                      cardBackTone="orange"
+                      gameState={derivedGameState}
+                      deckCardRef={bottomDeckCardRef}
+                      trashCardRef={bottomTrashCardRef}
+                    />
                   </div>
                 </div>
               </div>
@@ -301,7 +414,33 @@ export function GameView() {
 
             <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
               <PlayRow className="overflow-hidden rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5 turn-band-orange">
-                <div className="flex h-full min-h-0 flex-wrap items-start gap-2" />
+                <div ref={setBottomHandRowRefs} className="flex h-full min-h-0 flex-wrap items-start gap-1.5 overflow-hidden">
+                  {bottomHandCards.map((card) => (
+                    <div
+                      key={`bottom-hand-${card.instanceId}`}
+                      data-hand-instance-id={card.instanceId}
+                      className="h-full max-h-[64px] aspect-[200/277] shrink-0"
+                    >
+                      <FlippableCard
+                        isFlipped={bottomHandFaceUpByInstanceId[card.instanceId] ?? true}
+                        durationMs={340}
+                        front={
+                          <CardImage
+                            src={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase())?.image ?? null}
+                            alt={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase())?.displayName ?? 'Hand card'}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] object-contain"
+                          />
+                        }
+                        back={<CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                  Your hand: {bottomHandCards.length}
+                </div>
               </PlayRow>
             </div>
           </div>
@@ -311,12 +450,9 @@ export function GameView() {
           isOpen={shouldShowPromptOverlay}
           prompt={promptPresentation}
           isConnected={isConnected}
-          isActionPending={isActionPending}
+          isActionPending={isActionPending || isMulliganAnimationPending}
           onResolve={(selectedOption) => {
-            void submitHubIntent({
-              intent: 'resolve-prompt',
-              selectedOption,
-            })
+            void handlePromptResolve(selectedOption)
           }}
         />
 
@@ -324,3 +460,4 @@ export function GameView() {
     </PageShell>
   )
 }
+
