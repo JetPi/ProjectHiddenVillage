@@ -5,10 +5,10 @@
 :root {
   --theme-dark-text-primary: #ffffff;
   --theme-light-text-primary: #0a0a0a;
-  --turn-band-blue: rgba(29, 78, 216, 0.28);
-  --turn-band-orange: rgba(234, 88, 12, 0.24);
-  --turn-band-orange-button-bg: rgba(154, 52, 18, 0.5);
-  --turn-band-orange-button-hover: rgba(124, 45, 18, 0.62);
+  --turn-band-blue: rgba(37, 99, 235, 0.38);
+  --turn-band-orange: rgba(249, 115, 22, 0.34);
+  --turn-band-orange-button-bg: rgba(194, 65, 12, 0.58);
+  --turn-band-orange-button-hover: rgba(154, 52, 18, 0.7);
 
   --app-bg-start: #1d4ed8;
   --app-bg-mid: #0f172a;
@@ -58,10 +58,10 @@
 }
 
 html[data-theme='light'] {
-  --turn-band-blue: rgba(37, 99, 235, 0.2);
-  --turn-band-orange: rgba(234, 88, 12, 0.18);
-  --turn-band-orange-button-bg: rgba(194, 101, 38, 0.24);
-  --turn-band-orange-button-hover: rgba(194, 101, 38, 0.34);
+  --turn-band-blue: rgba(37, 99, 235, 0.28);
+  --turn-band-orange: rgba(249, 115, 22, 0.24);
+  --turn-band-orange-button-bg: rgba(194, 101, 38, 0.34);
+  --turn-band-orange-button-hover: rgba(194, 101, 38, 0.46);
 
   --app-bg-start: #ffffff;
   --app-bg-mid: #eff6ff;
@@ -144,11 +144,11 @@ html[data-theme='light'] {
 }
 
 .turn-indicator-blue {
-  background-color: #2563eb;
+  background-color: #3b82f6;
 }
 
 .turn-indicator-orange {
-  background-color: #f97316;
+  background-color: #fb923c;
 }
 
 .turn-indicator-light-gray {
