@@ -14,7 +14,7 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
             [GamePhase.RefreshPhase] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
             [GamePhase.StartOfMainPhase] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
             [GamePhase.DrawPhase] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
-            [GamePhase.MainPhase] = new(["endPhase", "declareAttack"], true, PhaseAdvanceMode.ManualOnly),
+            [GamePhase.MainPhase] = new(["endPhase"], true, PhaseAdvanceMode.ManualOnly),
             [GamePhase.AttackDeclaration] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
             [GamePhase.BlockerDeclaration] = new([], true, PhaseAdvanceMode.ManualOnly),
             [GamePhase.ActionStep] = new(["pass"], true, PhaseAdvanceMode.ManualOnly),

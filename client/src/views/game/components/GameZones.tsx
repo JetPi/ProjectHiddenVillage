@@ -1,12 +1,16 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { AppButton } from '../../../components/ui/AppButton'
+import { CardImage } from '../../../components/ui/CardImage'
 import { LeaderCard } from '../../../components/ui/LeaderCard'
+import { PlayCard } from '../../../components/ui/PlayCard'
 import { PlayPileZone } from '../../../components/ui/PlayPileZone'
 import { PlayResourceTracker } from '../../../components/ui/PlayResourceTracker'
-import { SupportCardZone } from '../../../components/ui/SupportCardZone'
+import { twMerge } from 'tailwind-merge'
 import type { IGameZonesProps } from '../types/gameZones'
 import { LEADER_CARD_IMAGE_CLASS } from '../utils/contants'
+import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '../utils/functions'
 import { GamePhaseActionRow } from './GamePhaseActionRow'
+import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
 
 function GameZones({
   boardZoneRef,
@@ -28,6 +32,76 @@ function GameZones({
   onPassTurn,
 }: IGameZonesProps) {
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
+  const topSupportCards = resolveNonLeaderCards(
+    derivedGameState.opponentPlayer?.supportZone ?? [],
+    derivedGameState.cardTypeById,
+    derivedGameState.cardById,
+  )
+  const bottomSupportCards = resolveNonLeaderCards(
+    derivedGameState.currentPlayer?.supportZone ?? [],
+    derivedGameState.cardTypeById,
+    derivedGameState.cardById,
+  )
+
+  function renderZoneCardSlots(
+    cards: ReturnType<typeof resolveNonLeaderCards>,
+    zone: 'support',
+    visibilityMode: 'hover',
+  ) {
+    return (
+      <div className="grid min-h-0 w-full overflow-hidden grid-cols-5 justify-items-center gap-1.5">
+        {Array.from({ length: 5 }).map((_, index) => {
+          const card = cards[index]
+
+          if (!card) {
+            return (
+              <PlayCard
+                key={`${zone}-empty-${index}`}
+                className="h-full rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]"
+              />
+            )
+          }
+
+          const actionOptions = resolveCardActionOptionsForInstanceId(availableActions, card.instanceId)
+
+          return (
+            <PlayCard
+              key={`${zone}-${card.instanceId}`}
+              className={twMerge(
+                'group relative h-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)]',
+                card.isExhausted ? 'opacity-80 saturate-75' : '',
+              )}
+            >
+              <CardImage
+                src={card.image}
+                alt={card.displayName}
+                loading="lazy"
+                decoding="async"
+                className="h-[102%] w-[102%] -m-[1%] rounded-none object-contain [image-rendering:auto]"
+              />
+
+              <NonLeaderCardOverlay
+                cardName={card.displayName}
+                zone={zone}
+                visibilityMode={visibilityMode}
+                actionOptions={actionOptions}
+                isConnected={isConnected}
+                isActionPending={isActionPending}
+                onSelectActionOption={(actionId) => {
+                  const selectedAction = actionOptions.find((action) => action.actionId === actionId)
+                  if (!selectedAction) {
+                    return
+                  }
+
+                  onSelectAction(selectedAction)
+                }}
+              />
+            </PlayCard>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
@@ -46,7 +120,7 @@ function GameZones({
           </div>
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
-            <SupportCardZone />
+            {renderZoneCardSlots(topSupportCards, 'support', 'hover')}
             <div className="rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
           </div>
 
@@ -80,7 +154,7 @@ function GameZones({
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
             <div className="rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-            <SupportCardZone />
+            {renderZoneCardSlots(bottomSupportCards, 'support', 'hover')}
           </div>
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
