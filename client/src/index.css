@@ -212,6 +212,10 @@ html[data-theme='light'] {
   animation: phase-indicator-text-swap 220ms ease-out;
 }
 
+.card-preview-slide-in {
+  animation: card-preview-slide-in 220ms ease-out;
+}
+
 @keyframes phase-indicator-text-swap {
   from {
     opacity: 0.35;
@@ -221,5 +225,17 @@ html[data-theme='light'] {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes card-preview-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }

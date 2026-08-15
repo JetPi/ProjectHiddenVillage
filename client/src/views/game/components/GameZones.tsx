@@ -78,7 +78,7 @@ function GameZones({
               />
 
               <NonLeaderCardOverlay
-                cardName={card.displayName}
+                previewCard={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null}
                 zone={zone}
                 visibilityMode={visibilityMode}
                 actionOptions={actionOptions}

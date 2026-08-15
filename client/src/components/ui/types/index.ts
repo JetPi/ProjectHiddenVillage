@@ -98,8 +98,8 @@ export type IPanelProps = PropsWithChildren<{
 
 export type ICardPreviewCardProps = {
   card: ICardCatalogItemResponse
-  className?: string
-  imageLoading?: 'lazy' | 'eager'
+  isOpen: boolean
+  onClose: () => void
 }
 
 export type IAppButtonProps = PropsWithChildren<{
