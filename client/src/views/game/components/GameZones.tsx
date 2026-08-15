@@ -78,7 +78,7 @@ function GameZones({
               />
 
               <NonLeaderCardOverlay
-                cardName={card.displayName}
+                previewCard={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null}
                 zone={zone}
                 visibilityMode={visibilityMode}
                 actionOptions={actionOptions}
@@ -126,6 +126,7 @@ function GameZones({
               className={topLeaderCardFrameClassName}
               imageClassName={LEADER_CARD_IMAGE_CLASS}
               leaderCard={topLeaderCard}
+              previewCard={topLeaderCard ? (derivedGameState.cardById.get(topLeaderCard.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
               showBadgeWhenLifeMissing
             />
           </div>
@@ -146,6 +147,7 @@ function GameZones({
               className={bottomLeaderCardFrameClassName}
               imageClassName={LEADER_CARD_IMAGE_CLASS}
               leaderCard={bottomLeaderCard}
+              previewCard={bottomLeaderCard ? (derivedGameState.cardById.get(bottomLeaderCard.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
             />
           </div>
 

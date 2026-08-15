@@ -270,47 +270,51 @@ export function GameView() {
               cards={bottomHandCards}
               rowRef={setBottomHandRowRefs}
               rowClassName="overflow-hidden"
-              renderCard={(card) => (
-                <div
-                  key={`bottom-hand-${card.instanceId}`}
-                  data-hand-instance-id={card.instanceId}
-                  className="h-full aspect-[200/277] shrink-0"
-                >
-                  <FlippableCard
-                    isFlipped={bottomHandFaceUpByInstanceId[card.instanceId] ?? true}
-                    durationMs={340}
-                    front={
-                      <div className="group relative h-full w-full overflow-hidden rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]">
-                        <CardImage
-                          src={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase())?.image ?? null}
-                          alt={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase())?.displayName ?? 'Hand card'}
-                          loading="lazy"
-                          decoding="async"
-                          className="h-full w-full rounded-md object-contain"
-                        />
+              renderCard={(card) => {
+                const previewCard = derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null
 
-                        <NonLeaderCardOverlay
-                          cardName={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase())?.displayName ?? 'Hand card'}
-                          zone="hand"
-                          visibilityMode="hover"
-                          actionOptions={resolveCardActionOptionsForInstanceId(mappedAvailableActions, card.instanceId)}
-                          isConnected={isConnected}
-                          isActionPending={isActionPending}
-                          onSelectActionOption={(actionId) => {
-                            const actionOption = mappedAvailableActions.find((action) => action.actionId === actionId)
-                            if (!actionOption) {
-                              return
-                            }
+                return (
+                  <div
+                    key={`bottom-hand-${card.instanceId}`}
+                    data-hand-instance-id={card.instanceId}
+                    className="h-full aspect-[200/277] shrink-0"
+                  >
+                    <FlippableCard
+                      isFlipped={bottomHandFaceUpByInstanceId[card.instanceId] ?? true}
+                      durationMs={340}
+                      front={
+                        <div className="group relative h-full w-full overflow-hidden rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]">
+                          <CardImage
+                            src={previewCard?.image ?? null}
+                            alt={previewCard?.displayName ?? 'Hand card'}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full rounded-md object-contain"
+                          />
 
-                            submitMappedAction(actionOption)
-                          }}
-                        />
-                      </div>
-                    }
-                    back={<CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />}
-                  />
-                </div>
-              )}
+                          <NonLeaderCardOverlay
+                            previewCard={previewCard}
+                            zone="hand"
+                            visibilityMode="hover"
+                            actionOptions={resolveCardActionOptionsForInstanceId(mappedAvailableActions, card.instanceId)}
+                            isConnected={isConnected}
+                            isActionPending={isActionPending}
+                            onSelectActionOption={(actionId) => {
+                              const actionOption = mappedAvailableActions.find((action) => action.actionId === actionId)
+                              if (!actionOption) {
+                                return
+                              }
+
+                              submitMappedAction(actionOption)
+                            }}
+                          />
+                        </div>
+                      }
+                      back={<CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />}
+                    />
+                  </div>
+                )
+              }}
             />
           </div>
         </Panel>

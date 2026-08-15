@@ -83,8 +83,10 @@ export type ILeaderCardProps = {
   imageClassName: string
   placeholderLabel?: string
   showBadgeWhenLifeMissing?: boolean
+  previewCard?: ICardCatalogItemResponse | null
   leaderCard: {
     id: string
+    cardDefinitionId: string
     displayName: string
     image: string
     currentLife: number | null
@@ -98,8 +100,8 @@ export type IPanelProps = PropsWithChildren<{
 
 export type ICardPreviewCardProps = {
   card: ICardCatalogItemResponse
-  className?: string
-  imageLoading?: 'lazy' | 'eager'
+  isOpen: boolean
+  onClose: () => void
 }
 
 export type IAppButtonProps = PropsWithChildren<{
