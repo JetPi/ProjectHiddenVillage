@@ -1,4 +1,4 @@
-import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from "../../types/login"
+import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from "@/types/login"
 
 export type ILoginViewStoreState = {
   displayName: string

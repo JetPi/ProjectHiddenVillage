@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { ISessionStoreState } from './types/sessionStore'
+import type { ISessionStoreState } from '@/state/types/sessionStore'
 
 const initialState = {
   displayName: '',

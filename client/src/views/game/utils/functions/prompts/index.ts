@@ -1,4 +1,4 @@
-import type { IPromptPresentation, IPromptPresentationOption, IPromptPresentationSource } from '../types/promptPresentation'
+import type { IPromptPresentation, IPromptPresentationOption, IPromptPresentationSource } from '@/views/game/types/promptPresentation'
 
 const OVERLAY_PROMPT_TYPES = new Set<string>(['ChooseStartingPlayer', 'Mulligan'])
 

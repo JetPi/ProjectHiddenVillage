@@ -1,5 +1,5 @@
 import { twMerge } from 'tailwind-merge'
-import type { IOptionToggleProps } from './types'
+import type { IOptionToggleProps } from '@/components/forms/types'
 
 export function OptionToggle<T extends string>({
   value,

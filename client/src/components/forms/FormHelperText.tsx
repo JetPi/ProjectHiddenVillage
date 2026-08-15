@@ -1,4 +1,4 @@
-import type { IFormHelperTextProps } from './types'
+import type { IFormHelperTextProps } from '@/components/forms/types'
 
 export function FormHelperText({ className = '', children, ...helperProps }: IFormHelperTextProps) {
   return (

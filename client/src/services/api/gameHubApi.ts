@@ -1,17 +1,17 @@
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
-import { getAuthAccessToken } from '../../state/authSession'
+import { getAuthAccessToken } from '@/state/authSession'
 import type {
   ICreateGameForUserRequest,
   IGameInstanceResponse,
   IGameStateResponse,
   IJoinGameAsPlayerRequest,
-} from './types/game'
+} from '@/services/api/types/game'
 import type {
   IGameStateInvalidatedHandler,
   IHubOperationResult,
   IPlayerPhaseActionRequest,
   IResolvePromptRequest,
-} from './types/gameHub'
+} from '@/services/api/types/gameHub'
 
 const EVENT_GAME_STATE_INVALIDATED = 'GameStateInvalidated'
 const HUB_ENDPOINT_PATH = '/hubs/games'

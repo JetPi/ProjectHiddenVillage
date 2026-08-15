@@ -1,14 +1,14 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { ICardCatalogItemResponse } from '../../types/cardCatalog'
-import { fetchCardCatalogByIdsSparseCached } from '../api/cardCatalogApi'
-import { fetchGameCards } from '../api/gameApi'
-import { DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '../queryClient'
+import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
+import { fetchCardCatalogByIdsSparseCached } from '@/services/api/cardCatalogApi'
+import { fetchGameCards } from '@/services/api/gameApi'
+import { DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '@/services/queryClient'
 import type {
   IUseCardCatalogByIdsQueryOptions,
   IUseGameCardMapByIdResult,
   IUseGameCardsQueryOptions,
-} from './types/cardQueries'
+} from '@/services/queries/types/cardQueries'
 
 function normalizeCardIds(cardIds: string[]): string[] {
   const uniqueCardIds = new Map<string, string>()

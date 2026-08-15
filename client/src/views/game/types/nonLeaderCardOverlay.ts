@@ -1,4 +1,4 @@
-import type { IGameActionOptionResponse } from '../../../services/api/types/game'
+import type { IGameActionOptionResponse } from '@/services/api/types/game'
 
 export type ICardOverlayVisibilityMode = 'hover' | 'mixed'
 

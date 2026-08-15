@@ -1,5 +1,5 @@
 import { twMerge } from 'tailwind-merge'
-import type { IFormLabelProps } from './types'
+import type { IFormLabelProps } from '@/components/forms/types'
 
 export function FormLabel({ className = '', children, ...labelProps }: IFormLabelProps) {
   return (

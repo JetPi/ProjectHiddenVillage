@@ -1,4 +1,4 @@
-import type { IAuthSession } from '../../../state/types/authSession'
+import type { IAuthSession } from '@/state/types/authSession'
 
 export type ILoginResponse = {
   id: string

@@ -1,4 +1,4 @@
-import type { IGameStateResponse } from '../../services/api/types/game'
+import type { IGameStateResponse } from '@/services/api/types/game'
 
 export type IGameHubStoreState = {
   activeGameId: string | null

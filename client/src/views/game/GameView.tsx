@@ -1,32 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLoaderData } from 'react-router-dom'
 import { useAutoAnimate } from '@formkit/auto-animate/react'
-import { PageShell } from '../../components/layout/PageShell'
-import { Panel } from '../../components/ui/Panel'
-import { CardBack } from '../../components/ui/CardBack'
-import { CardImage } from '../../components/ui/CardImage'
-import { FlippableCard } from '../../components/ui/FlippableCard'
-import { useAuthSessionStore } from '../../state/authSession'
-import { useThemeStore } from '../../state/themeStore'
-import { useAlignedSplit } from './useAlignedSplit'
+import { PageShell } from '@/components/layout/PageShell'
+import { Panel } from '@/components/ui'
+import { useAuthSessionStore } from '@/state/authSession'
+import { useThemeStore } from '@/state/themeStore'
+import { useAlignedSplit } from '@/views/game/useAlignedSplit'
 import {
   buildLeaderCardFrameClass,
-  mapActionToHubIntent,
-  resolveCardActionOptionsForInstanceId,
-  runHandToPileAnimation,
-  waitMillis,
-} from './utils/functions'
-import { toPromptPresentation } from './utils/promptPresentation'
-import type { IGameLoaderData } from './types/routeData'
-import type { IGameActionOptionResponse } from '../../services/api/types/game'
-import type { IGameViewAnimController } from './types/hooks'
-import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from './hooks/useGameViewEffects'
-import { useDerivedGameViewState } from './hooks/useDerivedGameViewState'
-import { useGameHubState } from './hooks/useGameHubState'
-import { GameHandRow } from './components/GameHandRow'
-import { NonLeaderCardOverlay } from './components/NonLeaderCardOverlay'
-import { GameZones } from './components/GameZones'
-import { GamePromptOverlay } from './components/GamePromptOverlay'
+} from '@/views/game/utils/functions'
+import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
+import type { IGameLoaderData } from '@/views/game/types/routeData'
+import type { IGameActionOptionResponse } from '@/services/api/types/game'
+import type { IGameViewAnimController } from '@/views/game/types/hooks'
+import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from '@/views/game/hooks/useGameViewEffects'
+import { useDerivedGameViewState } from '@/views/game/hooks/useDerivedGameViewState'
+import { useGameHubState } from '@/views/game/hooks/useGameHubState'
+import { GameHandRow } from '@/views/game/components/GameHandRow'
+import { NonLeaderCardOverlay } from '@/views/game/components/NonLeaderCardOverlay'
+import { GameZones } from '@/views/game/components/GameZones'
+import { GamePromptOverlay } from '@/views/game/components/GamePromptOverlay'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
@@ -35,7 +28,11 @@ import {
   DRAW_TO_HAND_REVEAL_DELAY_MS,
   HAND_TO_PILE_STAGGER_MS,
   HAND_TO_PILE_DURATION_MS,
-} from './utils/contants'
+} from '@/views/game/utils/contants'
+import { mapActionToHubIntent } from '@/views/game/utils/functions/gameState'
+import { runHandToPileAnimation, waitMillis } from '@/views/game/utils/functions/animations'
+import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions/cards'
+import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 
 
 export function GameView() {

@@ -1,7 +1,7 @@
 import type { RefObject } from 'react'
-import type { IGameStateResponse } from '../../../services/api/gameApi'
-import type { IGameActionOptionResponse } from '../../../services/api/types/game'
-import type { IDerivedGameViewState } from './viewModels'
+import type { IGameStateResponse } from '@/services/api/gameApi'
+import type { IGameActionOptionResponse } from '@/services/api/types/game'
+import type { IDerivedGameViewState } from '@/views/game/types/viewModels'
 
 export type IGameZonesProps = {
   boardZoneRef: RefObject<HTMLDivElement | null>

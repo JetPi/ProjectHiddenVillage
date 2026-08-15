@@ -1,4 +1,4 @@
-import type { ICardCatalogItemResponse } from '../../../types/cardCatalog'
+import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 
 export type IUseCardCatalogByIdsQueryOptions = {
   enabled?: boolean

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from '../types/login'
-import type { ILoginViewStoreState } from './types/loginViewStore'
+import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from '@/types/login'
+import type { ILoginViewStoreState } from '@/state/types/loginViewStore'
 
 const initialGameCodeByMode: Record<IGameCodeEntryMode, string> = {
   quickmatch: 'casual',

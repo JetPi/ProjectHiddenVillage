@@ -1,5 +1,5 @@
 import { forwardRef } from 'react'
-import type { IFormCheckboxFieldProps, IFormCheckboxProps } from './types'
+import type { IFormCheckboxFieldProps, IFormCheckboxProps } from '@/components/forms/types'
 
 export const FormCheckbox = forwardRef<HTMLInputElement, IFormCheckboxProps>(function FormCheckbox(
   { className = '', ...checkboxProps },

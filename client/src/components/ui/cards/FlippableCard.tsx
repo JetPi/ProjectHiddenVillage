@@ -1,5 +1,5 @@
 import { twMerge } from 'tailwind-merge'
-import type { IFlippableCardProps } from './types'
+import type { IFlippableCardProps } from '@/components/ui/types'
 
 export function FlippableCard({
   isFlipped,

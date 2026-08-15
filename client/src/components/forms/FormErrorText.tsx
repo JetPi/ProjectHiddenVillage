@@ -1,4 +1,4 @@
-import type { IFormErrorTextProps } from './types'
+import type { IFormErrorTextProps } from '@/components/forms/types'
 
 export function FormErrorText({ className = '', children, ...errorProps }: IFormErrorTextProps) {
   return (

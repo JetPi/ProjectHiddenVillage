@@ -1,13 +1,13 @@
-import { api } from './httpClient'
+import { api } from '@/services/api/httpClient'
 import axios from 'axios'
-import type { ICardCatalogItemResponse } from '../../types/cardCatalog'
+import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import type {
   ICreateGameForUserRequest,
   IGameInstanceResponse,
   IGameStateResponse,
   IJoinGameAsPlayerRequest,
-} from './types/game'
-import { createGameForUserViaHub, joinGameAsPlayerViaHub } from './gameHubApi'
+} from '@/services/api/types/game'
+import { createGameForUserViaHub, joinGameAsPlayerViaHub } from '@/services/api/gameHubApi'
 
 export type {
   ICreateGameForUserRequest,
@@ -17,7 +17,7 @@ export type {
   IGamePlayerStateResponse,
   IGameStateResponse,
   IJoinGameAsPlayerRequest,
-} from './types/game'
+} from '@/services/api/types/game'
 
 export async function createGameForUser(request: ICreateGameForUserRequest): Promise<IGameInstanceResponse> {
   try {

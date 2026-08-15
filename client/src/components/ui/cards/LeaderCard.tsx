@@ -1,7 +1,7 @@
-import { CardImage } from './CardImage'
-import { CardOverlayBadge } from './CardOverlayBadge'
-import { PlayCard } from './PlayCard'
-import type { ILeaderCardProps } from './types'
+import { CardImage } from '@/components/ui/cards/CardImage'
+import { CardOverlayBadge } from '@/components/ui/cards/CardOverlayBadge'
+import { PlayCard } from '@/components/ui/game/PlayCard'
+import type { ILeaderCardProps } from '@/components/ui/types'
 
 export function LeaderCard({
   className,

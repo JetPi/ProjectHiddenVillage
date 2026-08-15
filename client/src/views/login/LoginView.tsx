@@ -4,11 +4,10 @@ import {
   deckOptionsModeOptions,
   gameCodeFieldConfigByMode,
   gameCodeModeOptions,
-} from './configs/LoginView'
+} from '@/views/login/configs/LoginView'
 import { Link, useActionData, useLoaderData, useNavigate, useNavigation } from 'react-router-dom'
-import { PageShell } from '../../components/layout/PageShell'
-import { Panel } from '../../components/ui/Panel'
-import { AppButton } from '../../components/ui/AppButton'
+import { PageShell } from '@/components/layout/PageShell'
+import { AppButton, Panel } from '@/components/ui'
 import {
   AdaptiveFormField,
   Form,
@@ -19,20 +18,20 @@ import {
   FormInput,
   FormTextarea,
   OptionToggle,
-} from '../../components/forms'
+} from '@/components/forms'
 import { Lightbulb, LogIn, X } from 'lucide-react'
-import { showAppInfoToast, showAppSuccessToast } from '../../components/feedback/appToastNotifications'
-import { clearAuthSession, useAuthSessionStore } from '../../state/authSession'
-import { useSessionStore } from '../../state/sessionStore'
-import { useThemeStore } from '../../state/themeStore'
-import { useLoginViewModel } from './model/useLoginViewModel'
-import type { ILoginActionData, ILoginLoaderData } from './types/routeHandlers'
-import { createGameForUser, joinGameAsPlayer } from '../../services/api/gameApi'
-import { getApiErrorMessage } from '../utils/getApiErrorMessage'
-import { createUserDeck, fetchDecks } from '../../services/api/deckApi'
-import { validateDeckCardsPayload } from './utils/validateDeckCardsPayload'
-import type { IDeckResponse } from '../../types/deck'
-import { preloadCardsByIds } from '../../services/cardPreloadService'
+import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
+import { clearAuthSession, useAuthSessionStore } from '@/state/authSession'
+import { useSessionStore } from '@/state/sessionStore'
+import { useThemeStore } from '@/state/themeStore'
+import { useLoginViewModel } from '@/views/login/model/useLoginViewModel'
+import type { ILoginActionData, ILoginLoaderData } from '@/views/login/types/routeHandlers'
+import { createGameForUser, joinGameAsPlayer } from '@/services/api/gameApi'
+import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
+import { createUserDeck, fetchDecks } from '@/services/api/deckApi'
+import { validateDeckCardsPayload } from '@/views/login/utils/validateDeckCardsPayload'
+import type { IDeckResponse } from '@/types/deck'
+import { preloadCardsByIds } from '@/services/cardPreloadService'
 
 const DECK_LINE_PATTERN = /^\s*(\d+)x\s+([A-Za-z0-9-]+)\s*$/
 const STARTER_DECK_FETCH_RETRY_ATTEMPTS = 3

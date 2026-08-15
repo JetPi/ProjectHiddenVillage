@@ -1,6 +1,6 @@
 import { forwardRef } from 'react'
 import { twMerge } from 'tailwind-merge'
-import type { IPlayCardProps } from './types'
+import type { IPlayCardProps } from '@/components/ui/types'
 
 export const PlayCard = forwardRef<HTMLDivElement, IPlayCardProps>(function PlayCard(
   { className, children },

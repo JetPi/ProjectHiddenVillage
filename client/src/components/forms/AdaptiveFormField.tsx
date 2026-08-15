@@ -1,7 +1,7 @@
-import { FormInput } from './FormInput'
-import { FormSelect } from './FormSelect'
-import { FormTextarea } from './FormTextarea'
-import type { IAdaptiveFormFieldProps } from './types'
+import { FormInput } from '@/components/forms/FormInput'
+import { FormSelect } from '@/components/forms/FormSelect'
+import { FormTextarea } from '@/components/forms/FormTextarea'
+import type { IAdaptiveFormFieldProps } from '@/components/forms/types'
 
 export function AdaptiveFormField({
   id,

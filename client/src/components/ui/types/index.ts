@@ -6,8 +6,8 @@ import type {
   RefObject,
   ReactNode,
 } from 'react'
-import type { ICardCatalogItemResponse } from '../../../types/cardCatalog'
-import type { IDerivedGameViewState } from '../../../views/game/types/viewModels'
+import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
+import type { IDerivedGameViewState } from '@/views/game/types/viewModels'
 
 export type ICardOverlayBadgeProps = {
   value: number

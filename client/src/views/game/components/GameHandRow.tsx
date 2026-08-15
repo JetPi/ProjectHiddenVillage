@@ -1,6 +1,6 @@
 import { twMerge } from 'tailwind-merge'
-import { PlayRow } from '../../../components/ui/PlayRow'
-import type { IGameHandRowProps } from '../types/gameHandRow'
+import { PlayRow } from '@/components/ui/game'
+import type { IGameHandRowProps } from '@/views/game/types/gameHandRow'
 
 function GameHandRow<TCard>({
   cards,

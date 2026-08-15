@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useId, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { twMerge } from 'tailwind-merge'
-import type { ICardCatalogItemResponse } from '../../types/cardCatalog'
-import { CardImage } from './CardImage'
-import type { ICardPreviewCardProps } from './types'
+import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
+import { CardImage } from '@/components/ui/cards/CardImage'
+import type { ICardPreviewCardProps } from '@/components/ui/types'
 
 function getPrimaryName(card: ICardCatalogItemResponse): string {
     if (card.displayName.trim()) {

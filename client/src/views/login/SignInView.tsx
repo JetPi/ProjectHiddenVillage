@@ -1,7 +1,6 @@
 import { Link, useActionData, useNavigation } from 'react-router-dom'
-import { PageShell } from '../../components/layout/PageShell'
-import { Panel } from '../../components/ui/Panel'
-import { AppButton } from '../../components/ui/AppButton'
+import { PageShell } from '@/components/layout/PageShell'
+import { AppButton, Panel } from '@/components/ui'
 import {
   Form,
   FormActions,
@@ -9,8 +8,8 @@ import {
   FormField,
   FormInput,
   FormLabel,
-} from '../../components/forms'
-import type { ISignUpActionData } from './types/routeHandlers'
+} from '@/components/forms'
+import type { ISignUpActionData } from '@/views/login/types/routeHandlers'
 
 export function SignInView() {
   const actionData = useActionData() as ISignUpActionData | undefined

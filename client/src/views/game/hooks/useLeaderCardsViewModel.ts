@@ -1,8 +1,8 @@
-import type { IGamePlayerStateResponse } from '../../../services/api/gameApi'
-import type { IGameLoaderData } from '../types/routeData'
-import type { ILeaderCardsViewModel } from '../types/hooks'
-import { buildLeaderCardFrameClass } from '../utils/functions'
-import { useDerivedGameViewState } from './useDerivedGameViewState'
+import type { IGamePlayerStateResponse } from '@/services/api/gameApi'
+import type { IGameLoaderData } from '@/views/game/types/routeData'
+import type { ILeaderCardsViewModel } from '@/views/game/types/hooks'
+import { buildLeaderCardFrameClass } from '@/views/game/utils/functions'
+import { useDerivedGameViewState } from '@/views/game/hooks/useDerivedGameViewState'
 
 function useLeaderCardsViewModel(
   gameCards: IGameLoaderData['gameCards'],
