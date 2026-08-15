@@ -1,5 +1,5 @@
-import type { ICardCatalogItemResponse } from '../../../types/cardCatalog'
-import type { IGamePlayerStateResponse } from '../../../services/api/gameApi'
+import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
+import type { IGamePlayerStateResponse } from '@/services/api/gameApi'
 
 export type IGameCard = ICardCatalogItemResponse
 

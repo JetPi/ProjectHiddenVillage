@@ -1,4 +1,4 @@
-import { AppLoadingChip } from '../components/feedback/AppLoadingChip'
+import { AppLoadingChip } from '@/components/feedback/AppLoadingChip'
 
 export function AppHydrateFallback() {
   return (

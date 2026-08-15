@@ -1,16 +1,9 @@
 import { createBrowserRouter } from 'react-router-dom'
-import { LoginView } from '../views/login/LoginView'
-import { SignInView } from '../views/login/SignInView'
-import { GameView } from '../views/game/GameView'
-import { RouteErrorBoundary } from '../components/feedback/RouteErrorBoundary'
-import { AuthRouteErrorBoundary } from '../components/feedback/AuthRouteErrorBoundary'
-import { loginAction, loginLoader } from '../views/login/handlers/loginRouteHandlers'
-import { signInAction, signInLoader } from '../views/login/handlers/signInRouteHandlers'
-import { gameAction, gameLoader } from '../views/game/handlers/gameRouteHandlers'
-import { NotFoundView } from '../views/NotFoundView'
+import { RouteErrorBoundary } from '@/components/feedback/RouteErrorBoundary'
+import { AuthRouteErrorBoundary } from '@/components/feedback/AuthRouteErrorBoundary'
 import { Navigate } from 'react-router-dom'
-import { RouteTransitionOverlay } from './RouteTransitionOverlay'
-import { AppHydrateFallback } from './AppHydrateFallback'
+import { RouteTransitionOverlay } from '@/app/RouteTransitionOverlay'
+import { AppHydrateFallback } from '@/app/AppHydrateFallback'
 
 export const router = createBrowserRouter([
   {
@@ -20,15 +13,33 @@ export const router = createBrowserRouter([
     children: [
       {
         path: '/',
-        element: <LoginView />,
-        loader: loginLoader,
-        action: loginAction,
+        lazy: async () => {
+          const [{ LoginView }, { loginAction, loginLoader }] = await Promise.all([
+            import('@/views/login/LoginView'),
+            import('@/views/login/handlers/loginRouteHandlers'),
+          ])
+
+          return {
+            Component: LoginView,
+            loader: loginLoader,
+            action: loginAction,
+          }
+        },
       },
       {
         path: '/game/:joinCode',
-        element: <GameView />,
-        loader: gameLoader,
-        action: gameAction,
+        lazy: async () => {
+          const [{ GameView }, { gameAction, gameLoader }] = await Promise.all([
+            import('@/views/game/GameView'),
+            import('@/views/game/handlers/gameRouteHandlers'),
+          ])
+
+          return {
+            Component: GameView,
+            loader: gameLoader,
+            action: gameAction,
+          }
+        },
       },
       {
         path: '/game',
@@ -36,14 +47,29 @@ export const router = createBrowserRouter([
       },
       {
         path: '/sign-in',
-        element: <SignInView />,
-        loader: signInLoader,
-        action: signInAction,
+        lazy: async () => {
+          const [{ SignInView }, { signInAction, signInLoader }] = await Promise.all([
+            import('@/views/login/SignInView'),
+            import('@/views/login/handlers/signInRouteHandlers'),
+          ])
+
+          return {
+            Component: SignInView,
+            loader: signInLoader,
+            action: signInAction,
+          }
+        },
         errorElement: <AuthRouteErrorBoundary />,
       },
       {
         path: '*',
-        element: <NotFoundView />,
+        lazy: async () => {
+          const { NotFoundView } = await import('@/views/NotFoundView')
+
+          return {
+            Component: NotFoundView,
+          }
+        },
       },
     ],
   },

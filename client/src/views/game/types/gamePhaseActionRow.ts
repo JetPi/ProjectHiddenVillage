@@ -1,4 +1,4 @@
-import type { IGameActionOptionResponse, IGameStateResponse } from '../../../services/api/types/game'
+import type { IGameActionOptionResponse, IGameStateResponse } from '@/services/api/types/game'
 
 export type IGamePhaseActionRowProps = {
   gameInstance: IGameStateResponse

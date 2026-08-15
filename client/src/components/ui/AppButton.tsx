@@ -1,5 +1,5 @@
 import { twMerge } from 'tailwind-merge'
-import type { IAppButtonProps } from './types'
+import type { IAppButtonProps } from '@/components/ui/types'
 
 export function AppButton({
   variant = 'primary',

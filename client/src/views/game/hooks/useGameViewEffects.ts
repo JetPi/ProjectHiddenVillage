@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { preloadCardsByIds } from '../../../services/cardPreloadService'
-import { preloadImageSources } from '../../../services/imagePreloadCache'
-import chakraCardImage from '../../../assets/ChakraCard.webp'
-import summonCardImage from '../../../assets/SummonCard.webp'
-import cardBackImage from '../../../assets/CardBackside.png'
-import { runDeckToHandAnimation, runHandToPileAnimation } from '../utils/functions'
-import type { IGameLoaderData } from '../types/routeData'
+import { preloadCardsByIds } from '@/services/cardPreloadService'
+import { preloadImageSources } from '@/services/imagePreloadCache'
+import chakraCardImage from '@/assets/ChakraCard.webp'
+import summonCardImage from '@/assets/SummonCard.webp'
+import cardBackImage from '@/assets/CardBackside.webp'
+import type { IGameLoaderData } from '@/views/game/types/routeData'
 import type {
   IRevalidatorState,
   IUseAutoAdvancePhaseEffectArgs,
   IUseHandZoneAnimationEffectsArgs,
-} from '../types/hooks'
-import { buildCardPreloadPayload } from '../utils/functions'
+} from '@/views/game/types/hooks'
+import { buildCardPreloadPayload } from '@/views/game/utils/functions/gameState'
+import { runDeckToHandAnimation, runHandToPileAnimation } from '@/views/game/utils/functions/animations'
 const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackImage]
 
 function useIdleRevalidationPoll(

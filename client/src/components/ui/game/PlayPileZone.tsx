@@ -1,9 +1,9 @@
 import { twMerge } from 'tailwind-merge'
 import { useAutoAnimate } from '@formkit/auto-animate/react'
-import { PlayCard } from './PlayCard'
-import { CardBack } from './CardBack'
-import type { IPlayPileZoneProps } from './types'
-import { CardOverlayBadge } from './CardOverlayBadge'
+import { PlayCard } from '@/components/ui/game/PlayCard'
+import { CardBack } from '@/components/ui/cards/CardBack'
+import { CardOverlayBadge } from '@/components/ui/cards/CardOverlayBadge'
+import type { IPlayPileZoneProps } from '@/components/ui/types'
 
 function isDeckLabel(label: string): boolean {
   return label.trim().toLowerCase() === 'deck'

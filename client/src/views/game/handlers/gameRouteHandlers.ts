@@ -2,10 +2,10 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router-dom'
 import {
   fetchGameCards,
   fetchGameState,
-} from '../../../services/api/gameApi'
-import { readAuthSession } from '../../../state/authSession'
-import { getApiErrorMessage } from '../../utils/getApiErrorMessage'
-import type { IGameActionData, IGameLoaderData } from '../types/routeData'
+} from '@/services/api/gameApi'
+import { readAuthSession } from '@/state/authSession'
+import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
+import type { IGameActionData, IGameLoaderData } from '@/views/game/types/routeData'
 
 function resolveJoinCode(params: LoaderFunctionArgs['params']): string {
   const joinCode = params.joinCode?.trim() ?? ''

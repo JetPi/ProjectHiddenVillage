@@ -1,7 +1,7 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react'
-import type { ILeaderCardViewModel } from './viewModels'
-import type { IHandZoneSnapshot } from './animations'
-import type { IGameHubActionIntent, ISubmitHubIntentRequest } from './hub'
+import type { ILeaderCardViewModel } from '@/views/game/types/viewModels'
+import type { IHandZoneSnapshot } from '@/views/game/types/animations'
+import type { IGameHubActionIntent, ISubmitHubIntentRequest } from '@/views/game/types/hub'
 
 export type IRevalidatorState = 'idle' | 'loading'
 

@@ -1,14 +1,14 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router-dom'
-import { api } from '../../../services/api/httpClient'
-import type { IAuthSession } from '../../../state/authSession'
-import { persistAuthSession } from '../../../state/authSession'
-import { getApiErrorMessage } from '../../utils/getApiErrorMessage'
+import { api } from '@/services/api/httpClient'
+import type { IAuthSession } from '@/state/authSession'
+import { persistAuthSession } from '@/state/authSession'
+import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import type {
   ILoginActionData,
   ILoginApiRequest,
   ILoginLoaderData,
   ILoginResponse,
-} from '../types/routeHandlers'
+} from '@/views/login/types/routeHandlers'
 
 export async function loginLoader({ request }: LoaderFunctionArgs): Promise<ILoginLoaderData> {
   const url = new URL(request.url)

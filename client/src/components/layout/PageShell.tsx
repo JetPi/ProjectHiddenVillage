@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { useThemeStore } from '../../state/themeStore'
-import type { IPageShellProps } from './types'
+import { useThemeStore } from '@/state/themeStore'
+import type { IPageShellProps } from '@/components/layout/types'
 
 export function PageShell({
   children,

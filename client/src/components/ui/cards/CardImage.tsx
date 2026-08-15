@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ImgHTMLAttributes } from 'react'
 import { twMerge } from 'tailwind-merge'
-import { preloadImageSource } from '../../services/imagePreloadCache'
-import type { ICardImageProps } from './types'
+import type { ICardImageProps } from '@/components/ui/types'
+import { preloadImageSource } from '@/services/imagePreloadCache'
 
 const fallbackSvg = encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="500" viewBox="0 0 360 500">

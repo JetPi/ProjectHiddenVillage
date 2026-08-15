@@ -1,4 +1,4 @@
-import { useLoginViewStore } from '../../../state/loginViewStore'
+import { useLoginViewStore } from '@/state/loginViewStore'
 import { useShallow } from 'zustand/react/shallow'
 
 export function useLoginViewModel() {

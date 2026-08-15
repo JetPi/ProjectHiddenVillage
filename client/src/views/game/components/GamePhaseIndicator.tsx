@@ -1,5 +1,5 @@
-import type { IGameStateResponse } from '../../../services/api/gameApi'
-import type { IGamePhaseIndicatorProps } from '../types/gamePhaseIndicator'
+import type { IGameStateResponse } from '@/services/api/gameApi'
+import type { IGamePhaseIndicatorProps } from '@/views/game/types/gamePhaseIndicator'
 
 function normalizeId(value: string | undefined): string {
   return (value ?? '').trim().toLowerCase().replace(/-/g, '')
@@ -38,18 +38,12 @@ function getPhaseValue(gameInstance: IGameStateResponse, authUserId?: string): s
 function GamePhaseIndicator({ gameInstance, authUserId }: IGamePhaseIndicatorProps) {
   const phaseValue = getPhaseValue(gameInstance, authUserId)
 
-  let indicatorThemeClasses = 'turn-indicator-blue turn-indicator-text-dark-theme'
-  switch (phaseValue) {
-    case PhaseValues['w-for-players']:
-      indicatorThemeClasses = 'turn-indicator-light-gray turn-indicator-text-black'
-      break
-    case PhaseValues['player-turn']:
-      indicatorThemeClasses = 'turn-indicator-orange turn-indicator-text-light-theme'
-      break
-    default:
-      indicatorThemeClasses = 'turn-indicator-blue turn-indicator-text-dark-theme'
-      break
-  }
+  const indicatorThemeClasses =
+    phaseValue === PhaseValues['w-for-players']
+      ? 'turn-indicator-light-gray turn-indicator-text-black'
+      : phaseValue === PhaseValues['player-turn']
+        ? 'turn-indicator-orange turn-indicator-text-light-theme'
+        : 'turn-indicator-blue turn-indicator-text-dark-theme'
 
   return (
     <div className="grid min-h-0 grid-cols-6">

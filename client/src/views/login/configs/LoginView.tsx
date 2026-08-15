@@ -1,6 +1,6 @@
-import type { IToggleOption } from '../../../components/forms'
-import type { IAdaptiveFieldConfig } from '../../../components/forms'
-import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from '../../../types/login'
+import type { IToggleOption } from '@/components/forms'
+import type { IAdaptiveFieldConfig } from '@/components/forms'
+import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from '@/types/login'
 
 export const deckOptionsModeOptions: readonly IToggleOption<IDeckOptionsEntryMode>[] = [
   { value: 'import', label: 'Import' },

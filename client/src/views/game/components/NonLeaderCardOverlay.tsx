@@ -1,7 +1,7 @@
 import { Eye, EyeOff } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { twMerge } from 'tailwind-merge'
-import type { INonLeaderCardOverlayProps } from '../types/nonLeaderCardOverlay'
+import type { INonLeaderCardOverlayProps } from '@/views/game/types/nonLeaderCardOverlay'
 
 function NonLeaderCardOverlay({
   zone,

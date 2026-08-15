@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { IThemeMode, IThemeStoreState } from './types/themeStore'
+import type { IThemeMode, IThemeStoreState } from '@/state/types/themeStore'
 
 function applyTheme(theme: IThemeMode) {
   document.documentElement.dataset.theme = theme

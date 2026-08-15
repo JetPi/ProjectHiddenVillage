@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
-import { PageShell } from '../components/layout/PageShell'
-import { Panel } from '../components/ui/Panel'
+import { PageShell } from '@/components/layout/PageShell'
+import { Panel } from '@/components/ui'
 
 export function NotFoundView() {
   return (

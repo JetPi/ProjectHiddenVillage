@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { IGameHubStoreState } from './types/gameHubStore'
+import type { IGameHubStoreState } from '@/state/types/gameHubStore'
 
 const initialState = {
   activeGameId: null,

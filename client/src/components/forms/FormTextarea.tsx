@@ -1,5 +1,5 @@
 import { forwardRef } from 'react'
-import type { IFormTextareaProps } from './types'
+import type { IFormTextareaProps } from '@/components/forms/types'
 
 export const FormTextarea = forwardRef<HTMLTextAreaElement, IFormTextareaProps>(function FormTextarea(
   { className = '', rows = 4, ...textareaProps },

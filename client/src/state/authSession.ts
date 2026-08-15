@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { IAuthSession, IAuthSessionStoreState } from './types/authSession'
+import type { IAuthSession, IAuthSessionStoreState } from '@/state/types/authSession'
 
 const AUTH_SESSION_STORAGE_KEY = 'phv-auth-session'
 

@@ -1,9 +1,9 @@
-import { PlayCard } from './PlayCard'
+import { PlayCard } from '@/components/ui/game/PlayCard'
 import { twMerge } from 'tailwind-merge'
-import { CardImage } from './CardImage'
-import chakraCardImage from '../../assets/ChakraCard.webp'
-import summonCardImage from '../../assets/SummonCard.webp'
-import type { IPlayResourceTrackerProps } from './types'
+import chakraCardImage from '@/assets/ChakraCard.webp'
+import summonCardImage from '@/assets/SummonCard.webp'
+import type { IPlayResourceTrackerProps } from '@/components/ui/types'
+import { CardImage } from '@/components/ui/cards/CardImage'
 
 const SMALL_RESOURCE_CARD_SLOTS = 6
 const RESOURCE_CARD_FRAME_CLASS = 'h-full max-h-full overflow-hidden rounded-sm border border-[var(--border-subtle)] bg-[var(--surface-muted)]'

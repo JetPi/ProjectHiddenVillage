@@ -1,7 +1,7 @@
-import { api } from './httpClient'
-import type { ICardCatalogItemResponse, IPagedResponse } from '../../types/cardCatalog'
-import { appQueryClient, DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '../queryClient'
-import type { ICardCatalogPageQuery } from './types/cardCatalog'
+import { api } from '@/services/api/httpClient'
+import type { ICardCatalogItemResponse, IPagedResponse } from '@/types/cardCatalog'
+import { appQueryClient, DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '@/services/queryClient'
+import type { ICardCatalogPageQuery } from '@/services/api/types/cardCatalog'
 
 const CARD_CATALOG_CACHE_TTL_MS = DEFAULT_CARD_CATALOG_STALE_TIME_MS
 

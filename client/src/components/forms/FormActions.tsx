@@ -1,5 +1,5 @@
 import { twMerge } from 'tailwind-merge'
-import type { IFormActionsProps } from './types'
+import type { IFormActionsProps } from '@/components/forms/types'
 
 export function FormActions({ className = '', children, ...actionsProps }: IFormActionsProps) {
   return (

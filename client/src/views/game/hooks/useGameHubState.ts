@@ -15,10 +15,10 @@ import {
   subscribeToGame,
   unsubscribeFromGame,
   type IHubOperationResult,
-} from '../../../services/api/gameHubApi'
-import type { IGameStateResponse } from '../../../services/api/gameApi'
-import { useGameHubStore } from '../../../state/gameHubStore'
-import type { ISubmitHubIntentRequest, IUseGameHubStateResult } from '../types/hub'
+} from '@/services/api/gameHubApi'
+import type { IGameStateResponse } from '@/services/api/gameApi'
+import { useGameHubStore } from '@/state/gameHubStore'
+import type { ISubmitHubIntentRequest, IUseGameHubStateResult } from '@/views/game/types/hub'
 
 function resolveHubErrorMessage(result: IHubOperationResult<IGameStateResponse>): string {
   if (result.errorDescription) {

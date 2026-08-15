@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { twMerge } from 'tailwind-merge'
-import type { IFormSelectProps } from './types'
+import type { IFormSelectProps } from '@/components/forms/types'
 
 export function FormSelect({
   id,

@@ -1,6 +1,6 @@
 import { toast } from 'sonner'
-import { AppToast } from './AppToast'
-import type { IAppToastOptions, IAppToastTone } from './types'
+import { AppToast } from '@/components/feedback/AppToast'
+import type { IAppToastOptions, IAppToastTone } from '@/components/feedback/types'
 
 function showAppToast(tone: IAppToastTone, message: string, options: IAppToastOptions = {}) {
   return toast.custom(

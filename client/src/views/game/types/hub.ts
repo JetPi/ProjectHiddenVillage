@@ -1,4 +1,4 @@
-import type { IGameStateResponse } from '../../../services/api/gameApi'
+import type { IGameStateResponse } from '@/services/api/gameApi'
 
 export type IGameHubActionIntent =
   | 'pass-turn'

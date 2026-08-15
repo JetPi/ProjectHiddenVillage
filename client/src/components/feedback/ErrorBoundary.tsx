@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo } from 'react'
-import type { IErrorBoundaryProps, IErrorBoundaryState } from './types'
+import type { IErrorBoundaryProps, IErrorBoundaryState } from '@/components/feedback/types'
 
 const initialState: IErrorBoundaryState = {
   hasError: false,

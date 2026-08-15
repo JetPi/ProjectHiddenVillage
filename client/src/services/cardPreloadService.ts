@@ -1,7 +1,7 @@
 import {
   fetchCardCatalogByIdsSparseCached,
-} from './api/cardCatalogApi'
-import { preloadImageSources } from './imagePreloadCache'
+} from '@/services/api/cardCatalogApi'
+import { preloadImageSources } from '@/services/imagePreloadCache'
 
 const FIXED_CARD_IDS = ['C-001', 'S-001']
 

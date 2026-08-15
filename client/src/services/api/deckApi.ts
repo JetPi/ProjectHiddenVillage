@@ -1,6 +1,6 @@
-import { api } from './httpClient'
-import type { IDeckResponse } from '../../types/deck'
-import type { ICreateDeckRequest, IFetchDecksQuery } from './types/deck'
+import { api } from '@/services/api/httpClient'
+import type { IDeckResponse } from '@/types/deck'
+import type { ICreateDeckRequest, IFetchDecksQuery } from '@/services/api/types/deck'
 
 const DECK_TYPE_USER = 1
 

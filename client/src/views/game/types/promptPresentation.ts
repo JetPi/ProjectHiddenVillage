@@ -1,4 +1,4 @@
-import type { IPendingPromptResponse } from '../../../services/api/types/game'
+import type { IPendingPromptResponse } from '@/services/api/types/game'
 
 export type IPromptPresentationOption = {
   value: string

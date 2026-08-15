@@ -1,4 +1,4 @@
-import type { IDeckCardsValidationResult } from '../types/deckValidation'
+import type { IDeckCardsValidationResult } from '@/views/login/types/deckValidation'
 
 const DECK_LINE_PATTERN = /^\s*(\d+)x\s+([A-Za-z0-9-]+)\s*$/
 

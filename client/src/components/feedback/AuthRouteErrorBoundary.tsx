@@ -1,6 +1,6 @@
 import { Link, isRouteErrorResponse, useRouteError } from 'react-router-dom'
-import { PageShell } from '../layout/PageShell'
-import { Panel } from '../ui/Panel'
+import { PageShell } from '@/components/layout/PageShell'
+import { Panel } from '@/components/ui/Panel'
 
 function getErrorTitle(error: unknown): string {
   if (isRouteErrorResponse(error)) {

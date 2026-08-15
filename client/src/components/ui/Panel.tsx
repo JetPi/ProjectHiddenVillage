@@ -1,4 +1,4 @@
-import type { IPanelProps } from './types'
+import type { IPanelProps } from '@/components/ui/types'
 
 export function Panel({ className = '', children, ...sectionProps }: IPanelProps) {
   return (
