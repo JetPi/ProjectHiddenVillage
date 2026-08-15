@@ -65,7 +65,13 @@ export function CardPreviewCard({
             ? descriptionLines.map((line, index) => (
                   <Fragment key={`description-line-${index}`}>
                       {index > 0 ? <br /> : null}
-                      {renderDescriptionLineWithKeywordPills(line, index, handleKeywordMouseEnter, handleKeywordMouseLeave)}
+                      {renderDescriptionLineWithKeywordPills(
+                          line,
+                          index,
+                          handleKeywordMouseEnter,
+                          handleKeywordMouseLeave,
+                          card.supportCost,
+                      )}
                   </Fragment>
               ))
             : 'No card description provided yet.'

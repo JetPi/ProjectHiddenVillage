@@ -4,6 +4,7 @@ import {
   DESCRIPTION_BOLD_PHRASES,
   DESCRIPTION_KEYWORD_PILL_CLASS_BY_COLOR,
   DESCRIPTION_KEYWORDS_BY_COLOR,
+  KEYWORD_DESCRIPTION_VARIANTS,
   KEYWORD_DESCRIPTIONS,
   type DescriptionKeywordColor,
 } from '@/components/ui/cards/constants'
@@ -14,6 +15,7 @@ function renderDescriptionLineWithKeywordPills(
   lineIndex: number,
   onKeywordMouseEnter: (event: React.MouseEvent<HTMLSpanElement>, keyword: string) => void,
   onKeywordMouseLeave: () => void,
+  supportCost: number | null,
 ): ReactNode {
   const initialMatches = Array.from(line.matchAll(/\[([^\]]+)\]/g))
   const lineKeywords = initialMatches.map((match) => match[1]?.trim() ?? '').filter(Boolean)
@@ -68,6 +70,11 @@ function renderDescriptionLineWithKeywordPills(
         onMouseLeave={onKeywordMouseLeave}
       >
         {keyword || fullMatch}
+        {normalizeDescriptionKeyword(keyword) === 'support' && typeof supportCost === 'number' ? (
+          <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-black px-1 text-[0.7rem] font-bold leading-none text-white">
+            {supportCost}
+          </span>
+        ) : null}
       </span>,
     )
 
@@ -114,17 +121,25 @@ function resolveKeywordDescription(keyword: string): string | null {
   return KEYWORD_DESCRIPTIONS[normalizedKeyword as keyof typeof KEYWORD_DESCRIPTIONS] ?? null
 }
 
+function resolveKeywordDescriptionVariants(keyword: string): string[] {
+  const normalizedKeyword = normalizeDescriptionKeyword(keyword)
+  const variants = KEYWORD_DESCRIPTION_VARIANTS[normalizedKeyword as keyof typeof KEYWORD_DESCRIPTION_VARIANTS]
+  return variants ?? []
+}
+
 function stripKeywordDescriptionText(line: string, keywords: string[]): string {
   let nextLine = line
 
   for (const keyword of keywords) {
-    const keywordDescription = resolveKeywordDescription(keyword)
-    if (!keywordDescription) {
+    const keywordDescriptionVariants = resolveKeywordDescriptionVariants(keyword)
+    if (keywordDescriptionVariants.length === 0) {
       continue
     }
 
-    const keywordDescriptionPattern = new RegExp(escapeRegExp(keywordDescription), 'gi')
-    nextLine = nextLine.replace(keywordDescriptionPattern, '')
+    for (const keywordDescription of keywordDescriptionVariants) {
+      const keywordDescriptionPattern = new RegExp(escapeRegExp(keywordDescription), 'gi')
+      nextLine = nextLine.replace(keywordDescriptionPattern, '')
+    }
   }
 
   nextLine = nextLine.replace(/\(\s*\)/g, '')

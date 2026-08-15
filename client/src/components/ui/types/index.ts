@@ -83,8 +83,10 @@ export type ILeaderCardProps = {
   imageClassName: string
   placeholderLabel?: string
   showBadgeWhenLifeMissing?: boolean
+  previewCard?: ICardCatalogItemResponse | null
   leaderCard: {
     id: string
+    cardDefinitionId: string
     displayName: string
     image: string
     currentLife: number | null
