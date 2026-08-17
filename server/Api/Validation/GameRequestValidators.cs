@@ -171,7 +171,7 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                 effect.RuleFor(value => value.Id)
                     .NotEmpty().WithMessage("Effect id is required.");
 
-                effect.RuleFor(value => value.Kind)
+                effect.RuleFor(value => value.EffectType)
                     .NotEqual(EffectKind.Unknown)
                     .WithMessage("Effect kind must be specified.");
 
@@ -179,12 +179,13 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                     .NotEqual(EffectTiming.Unspecified)
                     .WithMessage("Effect timing must be specified.");
 
-                effect.RuleFor(value => value.Args)
-                    .NotNull().WithMessage("Effect args are required.");
+                effect.RuleFor(value => value.ChakraCost)
+                    .GreaterThanOrEqualTo(0)
+                    .When(value => value.ChakraCost.HasValue)
+                    .WithMessage("Effect chakra cost cannot be negative.");
 
-                effect.RuleForEach(value => value.Args)
-                    .Must(arg => !string.IsNullOrWhiteSpace(arg.Key) && !string.IsNullOrWhiteSpace(arg.Value))
-                    .WithMessage("Effect args must include non-empty keys and values.");
+                effect.RuleFor(value => value.ContextRules)
+                    .NotNull().WithMessage("Effect context rules are required.");
             });
     }
 

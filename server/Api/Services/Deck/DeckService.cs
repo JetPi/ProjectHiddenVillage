@@ -247,9 +247,13 @@ public sealed partial class DeckService : IDeckService
                 Effects: effects
                         .ConvertAll(effect => new CardCatalogEffectResponse(
                                 Id: effect.Id,
-                                Kind: ToReadableEffectKind(effect.Kind),
+                        EffectType: ToReadableEffectKind(effect.EffectType),
                                 Timing: ToReadableEffectTiming(effect.Timing),
-                                Args: effect.Args))
+                        TargetRange: ToReadableEffectTargetRange(effect.TargetRange),
+                        IsOptional: effect.IsOptional,
+                        ChakraCost: effect.ChakraCost,
+                        GlobalRestrictions: ToReadableEffectRestrictions(effect.GlobalRestrictions),
+                        ContextRules: effect.ContextRules))
 ,
                 Life: entry.Life,
                 Health: entry.Health,
@@ -297,6 +301,16 @@ public sealed partial class DeckService : IDeckService
     private static string ToReadableEffectTiming(EffectTiming timing)
     {
         return SplitPascalCase(timing.ToString());
+    }
+
+    private static string ToReadableEffectTargetRange(EffectTargetRange targetRange)
+    {
+        return SplitPascalCase(targetRange.ToString());
+    }
+
+    private static string ToReadableEffectRestrictions(EffectRestrictions restrictions)
+    {
+        return SplitPascalCase(restrictions.ToString());
     }
 
     private static string SplitPascalCase(string value)

@@ -28,9 +28,13 @@ public sealed record CardCatalogConditionResponse(
 
 public sealed record CardCatalogEffectResponse(
     string Id,
-    string Kind,
+    string EffectType,
     string Timing,
-    IReadOnlyDictionary<string, string> Args);
+    string TargetRange,
+    bool IsOptional,
+    int? ChakraCost,
+    string GlobalRestrictions,
+    IReadOnlyList<EffectContextRuleSet> ContextRules);
 
 public sealed record UpdateCardEffectsRequest(
     IReadOnlyList<ConditionSpec>? Conditions,

@@ -132,9 +132,13 @@ public sealed class CardMappingServiceTests
                 new()
                 {
                     Id = "old-effect",
-                    Kind = EffectKind.FlipCardDown,
+                    EffectType = EffectKind.Support,
                     Timing = EffectTiming.ActivateMain,
-                    Args = new Dictionary<string, string> { ["amount"] = "1000" }
+                    TargetRange = EffectTargetRange.Opponent,
+                    IsOptional = false,
+                    ChakraCost = 1,
+                    GlobalRestrictions = EffectRestrictions.None,
+                    ContextRules = []
                 }
             }),
             SupportEffect = "old support",
@@ -151,9 +155,13 @@ public sealed class CardMappingServiceTests
                 new EffectSpec
                 {
                     Id = "new-effect",
-                    Kind = EffectKind.FlipCardDown,
+                    EffectType = EffectKind.Support,
                     Timing = EffectTiming.ActivateMain,
-                    Args = new Dictionary<string, string> { ["amount"] = "2000" }
+                    TargetRange = EffectTargetRange.Opponent,
+                    IsOptional = false,
+                    ChakraCost = 2,
+                    GlobalRestrictions = EffectRestrictions.None,
+                    ContextRules = []
                 }
             ],
             Description: "new description",
@@ -185,9 +193,13 @@ public sealed class CardMappingServiceTests
                     new EffectSpec
                     {
                         Id = "effect",
-                        Kind = EffectKind.FlipCardDown,
+                        EffectType = EffectKind.Support,
                         Timing = EffectTiming.ActivateMain,
-                        Args = new Dictionary<string, string> { ["amount"] = "500" }
+                        TargetRange = EffectTargetRange.Opponent,
+                        IsOptional = false,
+                        ChakraCost = 1,
+                        GlobalRestrictions = EffectRestrictions.None,
+                        ContextRules = []
                     }
                 ],
                 Description: null,
