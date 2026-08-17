@@ -134,3 +134,65 @@ public sealed class UserLoginDtoValidator : AbstractValidator<UserLoginDto>
             .NotEmpty().WithMessage("Password is required.");
     }
 }
+
+public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<UpdateCardEffectsRequest>
+{
+    public UpdateCardEffectsRequestValidator()
+    {
+        RuleFor(request => request)
+            .Must(HasAnyPatchableField)
+            .WithMessage("At least one patchable field is required.");
+
+        RuleFor(request => request.Conditions)
+            .Must(conditions => conditions is null || conditions.Count > 0)
+            .WithMessage("Conditions must include at least one entry when provided.");
+
+        RuleFor(request => request.Effects)
+            .Must(effects => effects is null || effects.Count > 0)
+            .WithMessage("Effects must include at least one entry when provided.");
+
+        RuleForEach(request => request.Conditions ?? Array.Empty<ConditionSpec>())
+            .ChildRules(condition =>
+            {
+                condition.RuleFor(value => value.Id)
+                    .NotEmpty().WithMessage("Condition id is required.");
+
+                condition.RuleFor(value => value.Args)
+                    .NotNull().WithMessage("Condition args are required.");
+
+                condition.RuleForEach(value => value.Args)
+                    .Must(arg => !string.IsNullOrWhiteSpace(arg.Key) && !string.IsNullOrWhiteSpace(arg.Value))
+                    .WithMessage("Condition args must include non-empty keys and values.");
+            });
+
+        RuleForEach(request => request.Effects ?? Array.Empty<EffectSpec>())
+            .ChildRules(effect =>
+            {
+                effect.RuleFor(value => value.Id)
+                    .NotEmpty().WithMessage("Effect id is required.");
+
+                effect.RuleFor(value => value.Kind)
+                    .NotEqual(EffectKind.Unknown)
+                    .WithMessage("Effect kind must be specified.");
+
+                effect.RuleFor(value => value.Timing)
+                    .NotEqual(EffectTiming.Unspecified)
+                    .WithMessage("Effect timing must be specified.");
+
+                effect.RuleFor(value => value.Args)
+                    .NotNull().WithMessage("Effect args are required.");
+
+                effect.RuleForEach(value => value.Args)
+                    .Must(arg => !string.IsNullOrWhiteSpace(arg.Key) && !string.IsNullOrWhiteSpace(arg.Value))
+                    .WithMessage("Effect args must include non-empty keys and values.");
+            });
+    }
+
+    private static bool HasAnyPatchableField(UpdateCardEffectsRequest request)
+    {
+        return request.Conditions is not null
+            || request.Effects is not null
+            || request.Description is not null
+            || request.SupportEffect is not null;
+    }
+}

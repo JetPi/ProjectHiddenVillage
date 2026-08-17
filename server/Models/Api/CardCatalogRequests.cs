@@ -31,3 +31,9 @@ public sealed record CardCatalogEffectResponse(
     string Kind,
     string Timing,
     IReadOnlyDictionary<string, string> Args);
+
+public sealed record UpdateCardEffectsRequest(
+    IReadOnlyList<ConditionSpec>? Conditions,
+    IReadOnlyList<EffectSpec>? Effects,
+    string? Description,
+    string? SupportEffect);

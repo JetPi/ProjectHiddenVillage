@@ -9,4 +9,6 @@ public interface ICardMappingService
     Task<ErrorOr<PagedResponse<CardCatalogItemResponse>>> GetCardCatalog(int page = 1, int pageSize = 100, string? sort = null);
 
     Task<ErrorOr<List<CardCatalogItemResponse>>> GetCardCatalogByIds(IReadOnlyList<string>? cardIds);
+
+    Task<ErrorOr<CardCatalogItemResponse>> UpdateCardEffectsByCardId(string cardId, UpdateCardEffectsRequest request);
 }

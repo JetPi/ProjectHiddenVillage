@@ -170,6 +170,71 @@ public sealed class CardMappingService : ICardMappingService
         return orderedItems;
     }
 
+    public async Task<ErrorOr<CardCatalogItemResponse>> UpdateCardEffectsByCardId(string cardId, UpdateCardEffectsRequest request)
+    {
+        if (request is null)
+        {
+            return Error.Validation(
+                code: "Card.CatalogEffects.RequestRequired",
+                description: "Request payload is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(cardId))
+        {
+            return Error.Validation(
+                code: "Card.CatalogEffects.CardIdRequired",
+                description: "Card id is required.");
+        }
+
+        var normalizedCardId = cardId.Trim();
+        var normalizedCardIdUpper = normalizedCardId.ToUpperInvariant();
+
+        var entry = await dbContext.CardCatalogEntries
+            .SingleOrDefaultAsync(existing => existing.CardId.ToUpper() == normalizedCardIdUpper);
+
+        if (entry is null)
+        {
+            return Error.NotFound(
+                code: "Card.CatalogEffects.NotFound",
+                description: $"Card '{normalizedCardId}' was not found.");
+        }
+
+        if (request.Conditions is not null)
+        {
+            entry.ConditionsJson = Serialize(request.Conditions);
+        }
+
+        if (request.Effects is not null)
+        {
+            entry.EffectsJson = Serialize(request.Effects);
+        }
+
+        if (request.Description is not null)
+        {
+            entry.Description = request.Description;
+        }
+
+        if (request.SupportEffect is not null)
+        {
+            entry.SupportEffect = request.SupportEffect;
+        }
+
+        entry.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return Error.Failure(
+                code: "Card.CatalogEffects.PersistFailed",
+                description: "Card effects update could not be persisted.");
+        }
+
+        return ToCatalogResponse(entry);
+    }
+
     private static CardCatalogEntry ToNewEntry(Card card)
     {
         var now = DateTimeOffset.UtcNow;
