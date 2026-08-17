@@ -9,10 +9,18 @@ namespace ProjectHiddenVillage.Server;
 public sealed class AuthTokenService : IAuthTokenService
 {
     private readonly JwtOptions jwtOptions;
+    private readonly HashSet<string> cardCatalogAdminEmails;
 
-    public AuthTokenService(IOptions<JwtOptions> jwtOptions)
+    public AuthTokenService(IOptions<JwtOptions> jwtOptions, IConfiguration configuration)
     {
         this.jwtOptions = jwtOptions.Value;
+        cardCatalogAdminEmails = configuration
+            .GetSection("Authorization:CardCatalogAdmins:Emails")
+            .Get<string[]>()
+            ?.Where(email => !string.IsNullOrWhiteSpace(email))
+            .Select(email => email.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ?? [];
     }
 
     public AuthTokenResult CreateToken(Guid userId, string username, string email)
@@ -30,13 +38,20 @@ public sealed class AuthTokenService : IAuthTokenService
         var now = DateTimeOffset.UtcNow;
         var expiresAt = now.AddMinutes(jwtOptions.AccessTokenLifetimeMinutes);
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, email),
             new Claim("username", username),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        if (cardCatalogAdminEmails.Contains(email))
+        {
+            claims.Add(new Claim(
+                AuthorizationPolicies.CardCatalogAdminClaimType,
+                AuthorizationPolicies.CardCatalogAdminClaimValue));
+        }
 
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key));
         var signingCredentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);

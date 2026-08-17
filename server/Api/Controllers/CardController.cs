@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using ProjectHiddenVillage.Server.Api.Interfaces.Card;
 
 namespace ProjectHiddenVillage.Server;
@@ -54,6 +55,26 @@ public sealed class CardController : ApiControllerBase
         if (result.IsError)
         {
             return ProblemFromErrors<List<CardCatalogItemResponse>>(result.Errors);
+        }
+
+        return Ok(result.Value);
+    }
+
+    [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
+    [HttpPatch("catalog/{cardId}/effects")]
+    [ProducesResponseType(typeof(CardCatalogItemResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CardCatalogItemResponse>> UpdateCardEffectsByCardId(
+        string cardId,
+        [FromBody] UpdateCardEffectsRequest request)
+    {
+        var result = await cardMappingService.UpdateCardEffectsByCardId(cardId, request);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<CardCatalogItemResponse>(result.Errors);
         }
 
         return Ok(result.Value);

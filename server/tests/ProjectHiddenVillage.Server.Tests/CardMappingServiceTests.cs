@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Entities;
+using System.Text.Json;
 
 namespace ProjectHiddenVillage.Server.Tests;
 
@@ -106,6 +107,124 @@ public sealed class CardMappingServiceTests
         Assert.AreEqual(9, persisted.Power);
         Assert.AreEqual("Old description", persisted.Description);
         Assert.AreEqual("[\"Old Trait\"]", persisted.TraitsJson);
+    }
+
+    [TestMethod]
+    public async Task UpdateCardEffectsByCardId_UpdatesProvidedFields_Only()
+    {
+        await using var dbContext = CreateDbContext();
+        var originalUpdatedAt = DateTimeOffset.UtcNow.AddMinutes(-10);
+        dbContext.CardCatalogEntries.Add(new CardCatalogEntry
+        {
+            CardId = "N-001",
+            Image = "https://example.com/n-001.webp",
+            OriginalId = "N-001",
+            DisplayName = "Naruto",
+            Type = CardType.Leader,
+            Color = CardColor.Red,
+            Description = "old description",
+            ConditionsJson = JsonSerializer.Serialize(new List<ConditionSpec>
+            {
+                new() { Id = "old-condition", Args = new Dictionary<string, string> { ["zone"] = "hand" } }
+            }),
+            EffectsJson = JsonSerializer.Serialize(new List<EffectSpec>
+            {
+                new()
+                {
+                    Id = "old-effect",
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.ActivateMain,
+                    TargetRange = EffectTargetRange.Opponent,
+                    IsOptional = false,
+                    ChakraCost = 1,
+                    GlobalRestrictions = EffectRestrictions.None,
+                    ContextRules = []
+                }
+            }),
+            SupportEffect = "old support",
+            CreatedAtUtc = DateTimeOffset.UtcNow.AddDays(-1),
+            UpdatedAtUtc = originalUpdatedAt
+        });
+        await dbContext.SaveChangesAsync();
+
+        var service = new CardMappingService(dbContext);
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "new-effect",
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.ActivateMain,
+                    TargetRange = EffectTargetRange.Opponent,
+                    IsOptional = false,
+                    ChakraCost = 2,
+                    GlobalRestrictions = EffectRestrictions.None,
+                    ContextRules = []
+                }
+            ],
+            Description: "new description",
+            SupportEffect: null);
+
+        var result = await service.UpdateCardEffectsByCardId(" n-001 ", request);
+
+        Assert.IsFalse(result.IsError);
+        var persisted = await dbContext.CardCatalogEntries.SingleAsync(entry => entry.CardId == "N-001");
+        Assert.AreEqual("new description", persisted.Description);
+        Assert.AreEqual("old support", persisted.SupportEffect);
+        StringAssert.Contains(persisted.EffectsJson, "new-effect");
+        StringAssert.Contains(persisted.ConditionsJson, "old-condition");
+        Assert.IsTrue(persisted.UpdatedAtUtc > originalUpdatedAt);
+    }
+
+    [TestMethod]
+    public async Task UpdateCardEffectsByCardId_ReturnsNotFound_WhenCardIsMissing()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new CardMappingService(dbContext);
+
+        var result = await service.UpdateCardEffectsByCardId(
+            "MISSING-001",
+            new UpdateCardEffectsRequest(
+                Conditions: null,
+                Effects:
+                [
+                    new EffectSpec
+                    {
+                        Id = "effect",
+                        EffectType = EffectKind.Support,
+                        Timing = EffectTiming.ActivateMain,
+                        TargetRange = EffectTargetRange.Opponent,
+                        IsOptional = false,
+                        ChakraCost = 1,
+                        GlobalRestrictions = EffectRestrictions.None,
+                        ContextRules = []
+                    }
+                ],
+                Description: null,
+                SupportEffect: null));
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Card.CatalogEffects.NotFound", result.FirstError.Code);
+    }
+
+    [TestMethod]
+    public async Task UpdateCardEffectsByCardId_ReturnsValidation_WhenCardIdIsBlank()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new CardMappingService(dbContext);
+
+        var result = await service.UpdateCardEffectsByCardId(
+            "   ",
+            new UpdateCardEffectsRequest(
+                Conditions: null,
+                Effects: null,
+                Description: "desc",
+                SupportEffect: null));
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Card.CatalogEffects.CardIdRequired", result.FirstError.Code);
     }
 
     private static ApplicationDbContext CreateDbContext()

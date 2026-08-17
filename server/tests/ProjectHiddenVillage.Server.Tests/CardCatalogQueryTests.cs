@@ -35,12 +35,13 @@ public sealed class CardCatalogQueryTests
                     new()
                     {
                         Id = "effect-1",
-                        Kind = EffectKind.FlipCardDown,
+                        EffectType = EffectKind.Support,
                         Timing = EffectTiming.ActivateMain,
-                        Args = new Dictionary<string, string>
-                        {
-                            ["target"] = "opponent"
-                        }
+                        TargetRange = EffectTargetRange.Opponent,
+                        IsOptional = false,
+                        ChakraCost = 1,
+                        GlobalRestrictions = EffectRestrictions.None,
+                        ContextRules = []
                     }
                 }),
                 CreatedAtUtc = DateTimeOffset.UtcNow,
@@ -83,7 +84,7 @@ public sealed class CardCatalogQueryTests
         Assert.AreEqual("EX Character", item.Type);
         Assert.AreEqual("Blue", item.Color);
         Assert.AreEqual(1, item.Effects.Count);
-        Assert.AreEqual("Flip Card Down", item.Effects[0].Kind);
+        Assert.AreEqual("Support", item.Effects[0].EffectType);
         Assert.AreEqual("Activate Main", item.Effects[0].Timing);
     }
 

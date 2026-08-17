@@ -37,6 +37,10 @@ builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.Interfaces.IGam
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.GamePhaseService>();
 builder.Services.AddSingleton<InMemoryGameInstanceRegistry>();
 builder.Services.AddScoped<IGameEffectHandlingService, GameEffectHandlingService>();
+builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.NoopGameCardEffect>();
+builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameEffectTargetSpecification, ProjectHiddenVillage.Server.Api.Services.Games.AllowAllTargetsSpecification>();
+builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffectRegistry, ProjectHiddenVillage.Server.Api.Services.Games.GameCardEffectRegistry>();
+builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameEffectTargetSpecificationRegistry, ProjectHiddenVillage.Server.Api.Services.Games.GameEffectTargetSpecificationRegistry>();
 builder.Services.AddScoped<IGameRuntimeDeckService, GameRuntimeDeckService>();
 builder.Services.AddScoped<IGamePhaseHandlingService, GamePhaseHandlingService>();
 builder.Services.AddScoped<IGameInstanceService, GameInstanceService>();
@@ -121,7 +125,16 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AuthorizationPolicies.CardCatalogAdmin, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireClaim(
+            AuthorizationPolicies.CardCatalogAdminClaimType,
+            AuthorizationPolicies.CardCatalogAdminClaimValue);
+    });
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>

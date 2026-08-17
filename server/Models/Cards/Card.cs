@@ -30,6 +30,8 @@ public class Card
 
     public int Power { get; set; }
 
+    public bool CannotBeNormalSummoned { get; set; } = false;
+
     public List<ConditionSpec> Conditions { get; set; } = [];
 
     public List<EffectSpec> Effects { get; set; } = [];
