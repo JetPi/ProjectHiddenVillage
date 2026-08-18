@@ -69,57 +69,8 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
 
     private static bool RequirementIsSatisfied(ZoneAmountRequirement requirement, IReadOnlyList<Card> zoneCards)
     {
-        var matchCount = zoneCards.Count(card => CardMatchesRestriction(card, requirement.Restriction));
+        var matchCount = zoneCards.Count(card => ZoneCardRestrictionMatcher.Matches(card, requirement.Restriction));
         return ComparisonMatches(requirement.Comparison, requirement.Amount, matchCount);
-    }
-
-    private static bool CardMatchesRestriction(Card cardDefinition, ZoneCardRestriction restriction)
-    {
-        var hasNameSelector = restriction.HasName?.Any() is true;
-        var hasTraitSelector = restriction.HasTrait?.Any() is true;
-        var hasTypeSelector = restriction.HasType?.Any() is true;
-        var hasColorSelector = restriction.HasColor?.Any() is true;
-
-        var noSelectorsProvided = !hasNameSelector && !hasTraitSelector && !hasTypeSelector && !hasColorSelector;
-        if (noSelectorsProvided)
-        {
-            return true;
-        }
-
-        var nameMatches = !hasNameSelector || restriction.HasName!.Any(requiredName =>
-            string.Equals(cardDefinition.DisplayName, requiredName, StringComparison.OrdinalIgnoreCase)
-            || cardDefinition.Name.Any(name => string.Equals(name, requiredName, StringComparison.OrdinalIgnoreCase)));
-
-        var traitMatches = !hasTraitSelector || restriction.HasTrait!.Any(requiredTrait =>
-            cardDefinition.Traits.Any(cardTrait => string.Equals(cardTrait, requiredTrait, StringComparison.OrdinalIgnoreCase)));
-
-        var typeMatches = !hasTypeSelector || restriction.HasType!.Contains(cardDefinition.Type);
-        var colorMatches = !hasColorSelector || restriction.HasColor!.Contains(cardDefinition.Color);
-
-        if (restriction.MatchMode == ZoneRestrictionMatchMode.All)
-        {
-            return nameMatches && traitMatches && typeMatches && colorMatches;
-        }
-
-        var positiveChecks = new List<bool>(4);
-        if (hasNameSelector)
-        {
-            positiveChecks.Add(nameMatches);
-        }
-        if (hasTraitSelector)
-        {
-            positiveChecks.Add(traitMatches);
-        }
-        if (hasTypeSelector)
-        {
-            positiveChecks.Add(typeMatches);
-        }
-        if (hasColorSelector)
-        {
-            positiveChecks.Add(colorMatches);
-        }
-
-        return positiveChecks.Any(check => check);
     }
 
     private static bool ComparisonMatches(ZoneAmountComparison comparison, int targetAmount, int actualCount)
@@ -138,7 +89,7 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
         var candidateIndexesPerRequirement = requirements
             .Select(requirement => zoneCards
                 .Select((card, index) => (card, index))
-                .Where(tuple => CardMatchesRestriction(tuple.card, requirement.Restriction))
+                .Where(tuple => ZoneCardRestrictionMatcher.Matches(tuple.card, requirement.Restriction))
                 .Select(tuple => tuple.index)
                 .ToArray())
             .ToArray();

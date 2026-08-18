@@ -37,6 +37,7 @@ builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.Interfaces.IGam
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.GamePhaseService>();
 builder.Services.AddSingleton<InMemoryGameInstanceRegistry>();
 builder.Services.AddScoped<IGameEffectContextConditionEvaluator, EffectContextConditionEvaluator>();
+builder.Services.AddScoped<IGameEffectTargetResolver, EffectTargetResolver>();
 builder.Services.AddScoped<IGameEffectHandlingService, GameEffectHandlingService>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.NoopGameCardEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.DestroyCardEffect>();

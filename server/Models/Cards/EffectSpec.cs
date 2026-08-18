@@ -19,4 +19,6 @@ public sealed class EffectSpec
     public EffectRestrictions GlobalRestrictions { get; set; } = EffectRestrictions.None;
 
     public IReadOnlyList<EffectContextRuleSet> ContextRules { get; set; } = [];
+
+    public EffectTargetRuleSet TargetRules { get; set; } = new();
 }

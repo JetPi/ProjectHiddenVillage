@@ -6,10 +6,14 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 public sealed class DestroyCardEffect : IGameCardEffect
 {
     private readonly IGameEffectContextConditionEvaluator conditionEvaluator;
+    private readonly IGameEffectTargetResolver targetResolver;
 
-    public DestroyCardEffect(IGameEffectContextConditionEvaluator conditionEvaluator)
+    public DestroyCardEffect(
+        IGameEffectContextConditionEvaluator conditionEvaluator,
+        IGameEffectTargetResolver targetResolver)
     {
         this.conditionEvaluator = conditionEvaluator;
+        this.targetResolver = targetResolver;
     }
 
     public const string EffectKey = "DestroyCard";
@@ -18,8 +22,7 @@ public sealed class DestroyCardEffect : IGameCardEffect
 
     public bool CanExecute(GameCardEffectContext context)
     {
-        var cardDestroyEffect = context.SourceCardDefinition.Effects.FindAll(eff => eff.RuntimeEffectType == RuntimeEffects.DestroyCard).FirstOrDefault();
-
+        var cardDestroyEffect = ResolveDestroyEffect(context);
         if (cardDestroyEffect is null)
         {
             return false;
@@ -47,6 +50,12 @@ public sealed class DestroyCardEffect : IGameCardEffect
         return true;
     }
 
+    private static EffectSpec? ResolveDestroyEffect(GameCardEffectContext context)
+    {
+        return context.SourceCardDefinition.Effects
+            .FirstOrDefault(eff => eff.RuntimeEffectType == RuntimeEffects.DestroyCard);
+    }
+
     public bool CheckConditionsAgainstInstance(EffectContextCondition condition, PlayerState playerState, GameState gameState)
     {
         return conditionEvaluator.IsConditionSatisfied(condition, playerState, gameState);
@@ -54,7 +63,18 @@ public sealed class DestroyCardEffect : IGameCardEffect
 
     public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
     {
-        return [];
+        var cardDestroyEffect = ResolveDestroyEffect(context);
+        if (cardDestroyEffect is null)
+        {
+            return [];
+        }
+
+        if (!CanExecute(context))
+        {
+            return [];
+        }
+
+        return targetResolver.ResolveTargets(context, cardDestroyEffect);
     }
 
     public ErrorOr<Success> Execute(GameCardEffectContext context)

@@ -186,6 +186,9 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
                 effect.RuleFor(value => value.ContextRules)
                     .NotNull().WithMessage("Effect context rules are required.");
+
+                effect.RuleFor(value => value.TargetRules)
+                    .NotNull().WithMessage("Effect target rules are required.");
             });
     }
 

@@ -7,7 +7,7 @@ namespace ProjectHiddenVillage.Server.Tests;
 [TestClass]
 public sealed class DestroyCardEffectTests
 {
-    private readonly DestroyCardEffect effect = new(new EffectContextConditionEvaluator());
+    private readonly DestroyCardEffect effect = new(new EffectContextConditionEvaluator(), new EffectTargetResolver());
 
     [TestMethod]
     public void CheckConditionsAgainstInstance_AllRequirements_Minimum_RequiresEveryRequirement()

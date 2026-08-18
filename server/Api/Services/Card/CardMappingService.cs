@@ -310,7 +310,8 @@ public sealed class CardMappingService : ICardMappingService
                     IsOptional: effect.IsOptional,
                     ChakraCost: effect.ChakraCost,
                     GlobalRestrictions: ToReadableEffectRestrictions(effect.GlobalRestrictions),
-                    ContextRules: effect.ContextRules))
+                    ContextRules: effect.ContextRules,
+                    TargetRules: effect.TargetRules))
                 .ToList(),
             Life: entry.Life,
             Health: entry.Health,
