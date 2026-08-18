@@ -4,6 +4,8 @@ public sealed class EffectSpec
 {
     public string Id { get; set; } = string.Empty;
 
+    public RuntimeEffects RuntimeEffectType;
+
     public EffectKind EffectType { get; set; } = EffectKind.Unknown;
 
     public EffectTiming Timing { get; set; } = EffectTiming.Unspecified;
