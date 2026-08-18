@@ -5,6 +5,13 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
 public sealed class DestroyCardEffect : IGameCardEffect
 {
+    private readonly IGameEffectContextConditionEvaluator conditionEvaluator;
+
+    public DestroyCardEffect(IGameEffectContextConditionEvaluator conditionEvaluator)
+    {
+        this.conditionEvaluator = conditionEvaluator;
+    }
+
     public const string EffectKey = "DestroyCard";
 
     public string EffectTypeKey => EffectKey;
@@ -27,111 +34,22 @@ public sealed class DestroyCardEffect : IGameCardEffect
         var playerConditions = cardConditions.Select(ruleSet => ruleSet.Player).Where(playerCondition => playerCondition is not null).ToList();
         var opponentConditions = cardConditions.Select(ruleSet => ruleSet.Opponent).Where(opponentCondition => opponentCondition is not null).ToList();
 
-        if (playerConditions.Any())
+        if (playerConditions.Any() && !playerConditions.All(condition => CheckConditionsAgainstInstance(condition!, requestingPlayerState, gameState)))
         {
-            foreach (var condition in playerConditions)
-            {
-                return CheckConditionsAgainstInstance(condition!, requestingPlayerState, gameState);
-            }
+            return false;
         }
 
-        if (opponentConditions.Any())
+        if (opponentConditions.Any() && !opponentConditions.All(condition => CheckConditionsAgainstInstance(condition!, opposingPlayerState, gameState)))
         {
-            foreach (var condition in opponentConditions)
-            {
-                return CheckConditionsAgainstInstance(condition!, opposingPlayerState, gameState);
-            }
+            return false;
         }
 
-
-        return context is not null;
+        return true;
     }
 
     public bool CheckConditionsAgainstInstance(EffectContextCondition condition, PlayerState playerState, GameState gameState)
     {
-        if (condition.InZone != null)
-        {
-            var zoneToCheck = condition.InZone.Value;
-
-            var zoneInstance = GetZoneByEnum(zoneToCheck!, playerState);
-
-            if (condition.InZoneAmount is not null)
-            {
-                var checkVal = zoneInstance.FindAll(cardInstance => CheckTraits(condition.InZoneAmount, gameState.CardDefinitions[cardInstance.CardDefinitionId]));
-                return condition.InZoneAmount.Amount == checkVal.Count;
-            }
-            if (condition.InZoneAmountMin is not null)
-            {
-                var checkVal = zoneInstance.FindAll(cardInstance => CheckTraits(condition.InZoneAmountMin, gameState.CardDefinitions[cardInstance.CardDefinitionId]));
-                return condition.InZoneAmountMin.Amount <= checkVal.Count;
-            }
-            if (condition.InZoneAmountMax is not null)
-            {
-                var checkVal = zoneInstance.FindAll(cardInstance => CheckTraits(condition.InZoneAmountMax, gameState.CardDefinitions[cardInstance.CardDefinitionId]));
-                return condition.InZoneAmountMax.Amount >= checkVal.Count;
-            }
-
-        }
-        return true;
-    }
-
-    public bool CheckTraits(ZoneAmountRestriction zoneRestriction, Card cardDefinition)
-    {
-        if (zoneRestriction.HasName?.Any() is true)
-        {
-            foreach (var name in zoneRestriction.HasName)
-            {
-                if (cardDefinition.Name.Contains(name))
-                {
-                    return true;
-                }
-            }
-        }
-        if (zoneRestriction.HasTrait?.Any() is true)
-        {
-            foreach (var trait in zoneRestriction.HasTrait)
-            {
-                if (cardDefinition.Traits.Contains(trait))
-                {
-                    return true;
-                }
-            }
-        }
-        if (zoneRestriction.HasColor?.Any() is true)
-        {
-            foreach (var color in zoneRestriction.HasColor)
-            {
-                if (cardDefinition.Color == color)
-                {
-                    return true;
-                }
-            }
-        }
-        if (zoneRestriction.HasType?.Any() is true)
-        {
-            foreach (var type in zoneRestriction.HasType)
-            {
-                if (cardDefinition.Type == type)
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    public List<CardInstance> GetZoneByEnum(PlayerZone zone, PlayerState playerInstance)
-    {
-        return zone switch
-        {
-            PlayerZone.CharacterField => playerInstance.Battlefield,
-            PlayerZone.Deck => playerInstance.Deck,
-            PlayerZone.Trash => playerInstance.DiscardPile,
-            PlayerZone.Hand => playerInstance.Hand,
-            PlayerZone.SupportZone => playerInstance.SupportZone,
-            PlayerZone.ExileZone => playerInstance.ExileZone,
-            _ => throw new ArgumentOutOfRangeException()
-        };
+        return conditionEvaluator.IsConditionSatisfied(condition, playerState, gameState);
     }
 
     public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
