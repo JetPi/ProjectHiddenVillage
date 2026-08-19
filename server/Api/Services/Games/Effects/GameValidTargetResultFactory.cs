@@ -6,9 +6,7 @@ public sealed class GameValidTargetResultFactory : IGameValidTargetResultFactory
 {
     public ValidTargetResult Create(GameEffectTargetReference target, GameState gameState)
     {
-        var cardZone = TryParseZone(target.Zone, out var parsedZone)
-            ? parsedZone
-            : PlayerZone.Hand;
+        var cardZone = target.Zone;
 
         var cardName = ResolveCardName(target, cardZone, gameState);
         var executeMessage = string.IsNullOrWhiteSpace(target.SlotId)
@@ -23,11 +21,6 @@ public sealed class GameValidTargetResultFactory : IGameValidTargetResultFactory
             SlotId = target.SlotId ?? string.Empty,
             ExecuteMessage = executeMessage,
         };
-    }
-
-    private static bool TryParseZone(string zone, out PlayerZone parsedZone)
-    {
-        return Enum.TryParse(zone, ignoreCase: true, out parsedZone);
     }
 
     private static string ResolveCardName(GameEffectTargetReference target, PlayerZone cardZone, GameState gameState)

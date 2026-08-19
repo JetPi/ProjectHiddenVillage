@@ -60,7 +60,7 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
 
                 candidates.Add(new GameEffectTargetReference(
                     PlayerId: targetPlayer.PlayerId,
-                    Zone: rule.InZone.ToString(),
+                    Zone: rule.InZone,
                     CardInstanceId: cardInstance.InstanceId));
             }
         }

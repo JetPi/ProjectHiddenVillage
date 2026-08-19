@@ -22,7 +22,7 @@ public sealed class NoopGameCardEffect : IGameCardEffect
         return [];
     }
 
-    public ErrorOr<Success> Execute(GameCardEffectContext context)
+    public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
     {
         return Result.Success;
     }

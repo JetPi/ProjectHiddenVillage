@@ -10,5 +10,5 @@ public interface IGameCardEffect
 
     IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context);
 
-    ErrorOr<Success> Execute(GameCardEffectContext context);
+    ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets);
 }

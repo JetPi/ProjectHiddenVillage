@@ -55,8 +55,24 @@ public sealed class DestroyCardEffect : IGameCardEffect
         return targetResolver.ResolveTargets(context, effectSpec);
     }
 
-    public ErrorOr<Success> Execute(GameCardEffectContext context)
+    public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
     {
+        foreach (var target in selectedTargets)
+        {
+            var sourceZone = target.Zone;
+            var sourcePlayer = context.Game.State.Players.Find(player => player.PlayerId == target.PlayerId)!;
+
+            var sourcePlayerZone = PlayerZoneCardAccessor.GetCards(sourceZone, sourcePlayer);
+            var cardInstance = sourcePlayerZone.First(card => card.InstanceId == target.CardInstanceId);
+
+            sourcePlayerZone.Remove(cardInstance);
+
+            var ownerPlayer = context.Game.State.Players.Find(player => player.PlayerId == cardInstance.OwnerPlayerId)!;
+
+            var ownerTrashZone = PlayerZoneCardAccessor.GetCards(PlayerZone.Trash, ownerPlayer);
+            ownerTrashZone.Add(cardInstance);
+        }
+
         return Result.Success;
     }
 }
