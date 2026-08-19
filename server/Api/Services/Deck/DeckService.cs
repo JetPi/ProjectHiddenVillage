@@ -253,6 +253,7 @@ public sealed partial class DeckService : IDeckService
                         IsOptional: effect.IsOptional,
                         ChakraCost: effect.ChakraCost,
                         GlobalRestrictions: ToReadableEffectRestrictions(effect.GlobalRestrictions),
+                    AttributeModifications: effect.AttributeModifications,
                     ContextRules: effect.ContextRules,
                     TargetRules: effect.TargetRules))
 ,

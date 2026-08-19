@@ -224,6 +224,7 @@ public static class GameStateResponseMapper
         bool isRequestingPlayer = false)
     {
         var definition = cardDefinitions[card.CardDefinitionId];
+        var resolvedPower = card.PowerOverride ?? definition.Power;
         var maxHealth = definition is CharacterCard characterDefinition
             ? characterDefinition.Health
             : 0;
@@ -248,7 +249,7 @@ public static class GameStateResponseMapper
                     Health: maxHealth,
                     MaxHealth: maxHealth,
                     Damage: definition.Damage,
-                    Power: definition.Power)
+                    Power: resolvedPower)
                 {
                     AvailableActions = cardActions
                 },
@@ -267,7 +268,7 @@ public static class GameStateResponseMapper
                             Health: maxHealth,
                             MaxHealth: maxHealth,
                             Damage: definition.Damage,
-                            Power: definition.Power)
+                            Power: resolvedPower)
                         {
                             AvailableActions = cardActions
                         }

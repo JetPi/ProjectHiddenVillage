@@ -12,4 +12,7 @@ public sealed class CardInstance
     public string ControllerPlayerId { get; set; } = string.Empty;
 
     public bool IsExhausted { get; set; }
+
+    // Null means card uses its base definition power.
+    public int? PowerOverride { get; set; }
 }

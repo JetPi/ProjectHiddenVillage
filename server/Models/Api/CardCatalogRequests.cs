@@ -34,6 +34,7 @@ public sealed record CardCatalogEffectResponse(
     bool IsOptional,
     int? ChakraCost,
     string GlobalRestrictions,
+    IReadOnlyList<AttributeModificationSpec> AttributeModifications,
     IReadOnlyList<EffectContextRuleSet> ContextRules,
     EffectTargetRuleSet TargetRules);
 
