@@ -45,6 +45,9 @@ builder.Services.AddScoped<IGameEffectConditionDiagnostics, GameEffectConditionD
 builder.Services.AddScoped<IGameEffectHandlingService, GameEffectHandlingService>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.NoopGameCardEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.DestroyCardEffect>();
+builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.NegateCardEffect>();
+builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.SummonCardEffect>();
+builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.TributeSummonCardEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameEffectTargetSpecification, ProjectHiddenVillage.Server.Api.Services.Games.AllowAllTargetsSpecification>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffectRegistry, ProjectHiddenVillage.Server.Api.Services.Games.GameCardEffectRegistry>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameEffectTargetSpecificationRegistry, ProjectHiddenVillage.Server.Api.Services.Games.GameEffectTargetSpecificationRegistry>();

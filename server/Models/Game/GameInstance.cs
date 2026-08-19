@@ -231,9 +231,9 @@ public sealed class GameInstance
             throw new InvalidOperationException("PriorityPlayerId must be set during ActionStep.");
         }
 
-        foreach (var stackCard in State.EffectResolutionStack)
+        foreach (var stackEntry in State.EffectResolutionStack)
         {
-            ValidateCardInstance(stackCard, playerIds);
+            ValidateEffectResolutionStackEntry(stackEntry, playerIds);
         }
 
         foreach (var entry in ActionLog)
@@ -649,6 +649,37 @@ public sealed class GameInstance
         {
             throw new InvalidOperationException(
                 $"Card instance '{instance.InstanceId}' has unknown controller '{instance.ControllerPlayerId}'.");
+        }
+    }
+
+    private static void ValidateEffectResolutionStackEntry(EffectResolutionStackEntry entry, HashSet<string> playerIds)
+    {
+        if (entry is null)
+        {
+            throw new InvalidOperationException("Effect resolution stack entries cannot be null.");
+        }
+
+        if (string.IsNullOrWhiteSpace(entry.EntryId))
+        {
+            throw new InvalidOperationException("Effect resolution stack entries must have a non-empty EntryId.");
+        }
+
+        if (string.IsNullOrWhiteSpace(entry.SourceCardInstanceId))
+        {
+            throw new InvalidOperationException(
+                $"Effect resolution stack entry '{entry.EntryId}' is missing SourceCardInstanceId.");
+        }
+
+        if (string.IsNullOrWhiteSpace(entry.EffectTypeKey))
+        {
+            throw new InvalidOperationException(
+                $"Effect resolution stack entry '{entry.EntryId}' is missing EffectTypeKey.");
+        }
+
+        if (!playerIds.Contains(entry.SourcePlayerId))
+        {
+            throw new InvalidOperationException(
+                $"Effect resolution stack entry '{entry.EntryId}' has unknown source player '{entry.SourcePlayerId}'.");
         }
     }
 }
