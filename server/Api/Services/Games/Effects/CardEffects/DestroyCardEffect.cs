@@ -22,24 +22,18 @@ public sealed class DestroyCardEffect : IGameCardEffect
 
     public CanExecuteResult CanExecute(GameCardEffectContext context)
     {
-        _ = EvaluateCanExecute(context, includeValidTargets: true, out var result, out _);
-        return result;
+        return EvaluateCanExecute(context, includeValidTargets: true);
     }
 
-    private bool EvaluateCanExecute(
-        GameCardEffectContext context,
-        bool includeValidTargets,
-        out CanExecuteResult result,
-        out IReadOnlyList<GameEffectTargetReference> validTargets)
+    private CanExecuteResult EvaluateCanExecute(GameCardEffectContext context, bool includeValidTargets)
     {
-        result = new CanExecuteResult();
-        validTargets = [];
+        var result = new CanExecuteResult();
 
         var cardDestroyEffect = ResolveDestroyEffect(context);
         if (cardDestroyEffect is null)
         {
             result.FailedConditions.Add("DestroyCard effect is not defined on the source card.");
-            return false;
+            return result;
         }
 
         var requestingPlayer = context.ActingPlayer;
@@ -76,19 +70,16 @@ public sealed class DestroyCardEffect : IGameCardEffect
         result.CanExecute = result.FailedConditions.Count == 0;
         if (!result.CanExecute)
         {
-            return false;
+            return result;
         }
 
         if (includeValidTargets)
         {
-            validTargets = targetResolver.ResolveTargets(context, cardDestroyEffect);
-            result.ValidTargets.AddRange(validTargets.Select(FormatTarget));
-            return true;
+            var validTargets = targetResolver.ResolveTargets(context, cardDestroyEffect);
+            result.ValidTargets.AddRange(validTargets.Select(target => ToValidTargetResult(target, gameState)));
         }
 
-        validTargets = targetResolver.ResolveTargets(context, cardDestroyEffect);
-
-        return true;
+        return result;
     }
 
     private CanExecuteResult GetOrEvaluateConditionResult(
@@ -182,14 +173,53 @@ public sealed class DestroyCardEffect : IGameCardEffect
         return string.Join(joinKeyword, details);
     }
 
-    private static string FormatTarget(GameEffectTargetReference target)
+    private static ValidTargetResult ToValidTargetResult(GameEffectTargetReference target, GameState gameState)
     {
-        if (string.IsNullOrWhiteSpace(target.SlotId))
+        var cardZone = TryParseZone(target.Zone, out var parsedZone)
+            ? parsedZone
+            : PlayerZone.Hand;
+
+        var cardName = ResolveCardName(target, cardZone, gameState);
+        var executeMessage = string.IsNullOrWhiteSpace(target.SlotId)
+            ? $"Player {target.PlayerId} -> {target.Zone} -> card {target.CardInstanceId}"
+            : $"Player {target.PlayerId} -> {target.Zone} -> card {target.CardInstanceId} (slot {target.SlotId})";
+
+        return new ValidTargetResult
         {
-            return $"Player {target.PlayerId} -> {target.Zone} -> card {target.CardInstanceId}";
+            CardName = cardName,
+            CardZone = cardZone,
+            CardInstanceId = target.CardInstanceId,
+            SlotId = target.SlotId ?? string.Empty,
+            ExecuteMessage = executeMessage,
+        };
+    }
+
+    private static bool TryParseZone(string zone, out PlayerZone parsedZone)
+    {
+        return Enum.TryParse(zone, ignoreCase: true, out parsedZone);
+    }
+
+    private static string ResolveCardName(GameEffectTargetReference target, PlayerZone cardZone, GameState gameState)
+    {
+        var targetPlayer = gameState.Players.Find(player => string.Equals(player.PlayerId, target.PlayerId, StringComparison.Ordinal));
+        if (targetPlayer is null)
+        {
+            return string.Empty;
         }
 
-        return $"Player {target.PlayerId} -> {target.Zone} -> card {target.CardInstanceId} (slot {target.SlotId})";
+        var zoneCards = PlayerZoneCardAccessor.GetCards(cardZone, targetPlayer);
+        var targetCardInstance = zoneCards.Find(card => string.Equals(card.InstanceId, target.CardInstanceId, StringComparison.Ordinal));
+        if (targetCardInstance is null)
+        {
+            return string.Empty;
+        }
+
+        if (!gameState.CardDefinitions.TryGetValue(targetCardInstance.CardDefinitionId, out var cardDefinition))
+        {
+            return string.Empty;
+        }
+
+        return cardDefinition.DisplayName;
     }
 
     public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
@@ -200,12 +230,13 @@ public sealed class DestroyCardEffect : IGameCardEffect
             return [];
         }
 
-        if (!EvaluateCanExecute(context, includeValidTargets: false, out _, out var validTargets))
+        var canExecuteResult = EvaluateCanExecute(context, includeValidTargets: false);
+        if (!canExecuteResult.CanExecute)
         {
             return [];
         }
 
-        return validTargets;
+        return targetResolver.ResolveTargets(context, cardDestroyEffect);
     }
 
     public ErrorOr<Success> Execute(GameCardEffectContext context)

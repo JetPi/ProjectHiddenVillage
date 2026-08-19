@@ -4,7 +4,16 @@ public class CanExecuteResult
 {
     public bool CanExecute { get; set; } = false;
     public List<string> FailedConditions { get; set; } = [];
-    public List<string> ValidTargets{ get; set; } = [];
+    public List<ValidTargetResult> ValidTargets { get; set; } = [];
+}
+
+public class ValidTargetResult
+{
+    public string CardName { get; set; } = string.Empty;
+    public PlayerZone CardZone { get; set; }
+    public string CardInstanceId { get; set; } = string.Empty;
+    public string SlotId { get; set; } = string.Empty;
+    public string ExecuteMessage { get; set; } = string.Empty;
 }
 
 public sealed class EffectSpec

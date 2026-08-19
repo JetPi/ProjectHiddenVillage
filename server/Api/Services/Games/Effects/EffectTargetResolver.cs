@@ -45,7 +45,7 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
 
         foreach (var targetPlayer in targetPlayers)
         {
-            var zoneCards = GetZoneByEnum(rule.InZone, targetPlayer);
+            var zoneCards = PlayerZoneCardAccessor.GetCards(rule.InZone, targetPlayer);
             foreach (var cardInstance in zoneCards)
             {
                 if (!gameState.CardDefinitions.TryGetValue(cardInstance.CardDefinitionId, out var cardDefinition))
@@ -125,17 +125,4 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
         return string.Join("|", candidate.PlayerId, candidate.Zone, candidate.CardInstanceId);
     }
 
-    private static List<CardInstance> GetZoneByEnum(PlayerZone zone, PlayerState playerInstance)
-    {
-        return zone switch
-        {
-            PlayerZone.CharacterField => playerInstance.Battlefield,
-            PlayerZone.Deck => playerInstance.Deck,
-            PlayerZone.Trash => playerInstance.DiscardPile,
-            PlayerZone.Hand => playerInstance.Hand,
-            PlayerZone.SupportZone => playerInstance.SupportZone,
-            PlayerZone.ExileZone => playerInstance.ExileZone,
-            _ => throw new ArgumentOutOfRangeException(nameof(zone), zone, null)
-        };
-    }
 }

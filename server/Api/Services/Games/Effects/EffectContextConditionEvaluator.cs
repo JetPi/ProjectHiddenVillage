@@ -11,7 +11,7 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
             return true;
         }
 
-        var zoneInstance = GetZoneByEnum(condition.InZone.Value, playerState);
+        var zoneInstance = PlayerZoneCardAccessor.GetCards(condition.InZone.Value, playerState);
 
         if (condition.InZoneRequirements is null || !condition.InZoneRequirements.Requirements.Any())
         {
@@ -30,20 +30,6 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
         }
 
         return EvaluateZoneRequirements(condition.InZoneRequirements, zoneCards);
-    }
-
-    private static List<CardInstance> GetZoneByEnum(PlayerZone zone, PlayerState playerInstance)
-    {
-        return zone switch
-        {
-            PlayerZone.CharacterField => playerInstance.Battlefield,
-            PlayerZone.Deck => playerInstance.Deck,
-            PlayerZone.Trash => playerInstance.DiscardPile,
-            PlayerZone.Hand => playerInstance.Hand,
-            PlayerZone.SupportZone => playerInstance.SupportZone,
-            PlayerZone.ExileZone => playerInstance.ExileZone,
-            _ => throw new ArgumentOutOfRangeException(nameof(zone), zone, null)
-        };
     }
 
     private static bool EvaluateZoneRequirements(ZoneRequirementSet requirementSet, IReadOnlyList<Card> zoneCards)
