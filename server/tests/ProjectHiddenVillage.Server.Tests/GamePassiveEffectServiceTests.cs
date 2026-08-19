@@ -19,8 +19,7 @@ public sealed class GamePassiveEffectServiceTests
 
         var game = CreateGameWithPassiveSource(passiveEffect);
         var service = new GamePassiveEffectService(
-            canExecuteEvaluator: new StubCanExecuteEvaluator(["passive-1"]),
-            effectRegistry: new StubEffectRegistry([DestroyCardEffect.EffectKey]));
+            canExecuteEvaluator: new StubCanExecuteEvaluator(["passive-1"]));
 
         var result = service.EvaluateAndEnqueue(
             game,
@@ -62,8 +61,7 @@ public sealed class GamePassiveEffectServiceTests
         });
 
         var service = new GamePassiveEffectService(
-            canExecuteEvaluator: new StubCanExecuteEvaluator([]),
-            effectRegistry: new StubEffectRegistry([DestroyCardEffect.EffectKey]));
+            canExecuteEvaluator: new StubCanExecuteEvaluator([]));
 
         var result = service.EvaluateAndEnqueue(
             game,
@@ -91,8 +89,7 @@ public sealed class GamePassiveEffectServiceTests
 
         var game = CreateGameWithPassiveSource(passiveEffect);
         var service = new GamePassiveEffectService(
-            canExecuteEvaluator: new StubCanExecuteEvaluator(["passive-3"]),
-            effectRegistry: new StubEffectRegistry([DestroyCardEffect.EffectKey]));
+            canExecuteEvaluator: new StubCanExecuteEvaluator(["passive-3"]));
 
         var result = service.EvaluateAndEnqueue(
             game,
@@ -145,8 +142,7 @@ public sealed class GamePassiveEffectServiceTests
 
         var game = CreateGameWithPassiveSource(passiveEffect, targetCard);
         var service = new GamePassiveEffectService(
-            canExecuteEvaluator: new StubCanExecuteEvaluator(["passive-4"]),
-            effectRegistry: new StubEffectRegistry([DestroyCardEffect.EffectKey]));
+            canExecuteEvaluator: new StubCanExecuteEvaluator(["passive-4"]));
 
         var mutationEvent = CreateMutationEvent(GameMutationKind.CardStatChanged);
         mutationEvent.AffectedCardInstanceIds = ["target-1"];
@@ -296,20 +292,4 @@ public sealed class GamePassiveEffectServiceTests
         }
     }
 
-    private sealed class StubEffectRegistry(IEnumerable<string> resolvableEffectKeys) : IGameCardEffectRegistry
-    {
-        private readonly HashSet<string> resolvableEffectKeys = new(resolvableEffectKeys, StringComparer.Ordinal);
-
-        public bool TryResolve(string effectTypeKey, out IGameCardEffect? effect)
-        {
-            if (resolvableEffectKeys.Contains(effectTypeKey))
-            {
-                effect = new NoopGameCardEffect();
-                return true;
-            }
-
-            effect = null;
-            return false;
-        }
-    }
 }

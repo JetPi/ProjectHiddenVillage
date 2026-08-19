@@ -4,14 +4,23 @@ using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
 public sealed class GamePassiveEffectService(
-    IGameEffectCanExecuteEvaluator canExecuteEvaluator,
-    IGameCardEffectRegistry effectRegistry) : IGamePassiveEffectService
+    IGameEffectCanExecuteEvaluator canExecuteEvaluator) : IGamePassiveEffectService
 {
     private static readonly IReadOnlyDictionary<string, string> EmptyArguments =
         new Dictionary<string, string>(StringComparer.Ordinal);
 
+    private static readonly HashSet<string> SupportedConsequenceEffectKeys =
+    [
+        DestroyCardEffect.EffectKey,
+        NegateCardEffect.EffectKey,
+        SummonCardEffect.EffectKey,
+        TributeSummonCardEffect.EffectKey,
+        ModifyAttributeEffect.EffectKey,
+        GainKeywordEffect.EffectKey,
+        NoopGameCardEffect.EffectKey,
+    ];
+
     private readonly IGameEffectCanExecuteEvaluator canExecuteEvaluator = canExecuteEvaluator;
-    private readonly IGameCardEffectRegistry effectRegistry = effectRegistry;
 
     public ErrorOr<PassiveEvaluationResult> EvaluateAndEnqueue(
         GameInstance game,
@@ -143,7 +152,7 @@ public sealed class GamePassiveEffectService(
             }
 
             var trimmedEffectTypeKey = consequence.ConsequenceEffectTypeKey.Trim();
-            if (!effectRegistry.TryResolve(trimmedEffectTypeKey, out _))
+            if (!SupportedConsequenceEffectKeys.Contains(trimmedEffectTypeKey))
             {
                 continue;
             }
