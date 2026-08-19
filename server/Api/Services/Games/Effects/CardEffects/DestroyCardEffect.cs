@@ -3,22 +3,14 @@ using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
-public sealed class DestroyCardEffect : IGameCardEffect
+public sealed class DestroyCardEffect(
+    IGameRuntimeEffectSpecResolver effectSpecResolver,
+    IGameEffectCanExecuteEvaluator canExecuteEvaluator,
+    IGameEffectTargetResolver targetResolver) : IGameCardEffect
 {
-    private readonly IGameRuntimeEffectSpecResolver effectSpecResolver;
-    private readonly IGameEffectCanExecuteEvaluator canExecuteEvaluator;
-    private readonly IGameEffectTargetResolver targetResolver;
-
-    public DestroyCardEffect(
-        IGameRuntimeEffectSpecResolver effectSpecResolver,
-        IGameEffectCanExecuteEvaluator canExecuteEvaluator,
-        IGameEffectTargetResolver targetResolver)
-    {
-        this.effectSpecResolver = effectSpecResolver;
-        this.canExecuteEvaluator = canExecuteEvaluator;
-        this.targetResolver = targetResolver;
-    }
-
+    private readonly IGameRuntimeEffectSpecResolver effectSpecResolver = effectSpecResolver;
+    private readonly IGameEffectCanExecuteEvaluator canExecuteEvaluator = canExecuteEvaluator;
+    private readonly IGameEffectTargetResolver targetResolver = targetResolver;
     public const string EffectKey = "DestroyCard";
 
     public string EffectTypeKey => EffectKey;
