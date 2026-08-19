@@ -33,9 +33,11 @@ public enum AttributeModificationOperation
 public enum EffectAttributeType
 {
     CardPower,
+    CardHealth,
+    CardDamage,
     LeaderPower,
-    LeaderCurrentLife,
-    LeaderTotalLife
+    LeaderDamage,
+    LeaderCurrentLife
 }
 
 public sealed class AttributeModificationSpec

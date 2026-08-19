@@ -60,20 +60,7 @@ public sealed class ModifyAttributeEffect(
 
 	public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
 	{
-		var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.ChangeValues);
-		if (effectSpec is null)
-		{
-			return Error.Validation(
-				code: "Game.Effect.ChangeValues.MissingSpec",
-				description: "ChangeValues effect is not defined on the source card.");
-		}
-
-		if (effectSpec.AttributeModifications.Count == 0)
-		{
-			return Error.Validation(
-				code: "Game.Effect.ChangeValues.EmptyModifications",
-				description: "ChangeValues requires at least one attribute modification.");
-		}
+		var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.ChangeValues)!;
 
 		if (RequiresTargetSelection(effectSpec) && selectedTargets.Count == 0)
 		{
@@ -120,13 +107,6 @@ public sealed class ModifyAttributeEffect(
 		IReadOnlyList<GameEffectTargetReference> selectedTargets,
 		AttributeModificationSpec modification)
 	{
-		if (modification.Attribute != EffectAttributeType.CardPower)
-		{
-			return Error.Validation(
-				code: "Game.Effect.ChangeValues.InvalidSelectedTargetAttribute",
-				description: $"Attribute '{modification.Attribute}' cannot be applied to selected card targets.");
-		}
-
 		foreach (var target in selectedTargets.Where(target => !target.IsEffectResolutionStackTarget))
 		{
 			var targetPlayer = context.Game.State.Players.FirstOrDefault(player =>
@@ -157,9 +137,41 @@ public sealed class ModifyAttributeEffect(
 					description: $"Card definition '{targetCard.CardDefinitionId}' was not found.");
 			}
 
-			var currentValue = targetCard.PowerOverride ?? definition.Power;
-			var updatedValue = ApplyOperation(currentValue, modification.Operation, modification.Value);
-			targetCard.PowerOverride = Clamp(updatedValue, modification, defaultMin: 0);
+			switch (modification.Attribute)
+			{
+				case EffectAttributeType.CardPower:
+				{
+					var currentValue = targetCard.PowerOverride ?? definition.Power;
+					var updatedValue = ApplyOperation(currentValue, modification.Operation, modification.Value);
+					targetCard.PowerOverride = Clamp(updatedValue, modification, defaultMin: 0);
+					break;
+				}
+
+				case EffectAttributeType.CardDamage:
+				{
+					var currentValue = targetCard.DamageOverride ?? definition.Damage;
+					var updatedValue = ApplyOperation(currentValue, modification.Operation, modification.Value);
+					targetCard.DamageOverride = Clamp(updatedValue, modification, defaultMin: 0);
+					break;
+				}
+
+				case EffectAttributeType.CardHealth:
+				{
+					var baseHealth = definition is CharacterCard characterDefinition
+						? characterDefinition.Health
+						: 0;
+
+					var currentValue = targetCard.HealthOverride ?? baseHealth;
+					var updatedValue = ApplyOperation(currentValue, modification.Operation, modification.Value);
+					targetCard.HealthOverride = Clamp(updatedValue, modification, defaultMin: 0);
+					break;
+				}
+
+				default:
+					return Error.Validation(
+						code: "Game.Effect.ChangeValues.InvalidSelectedTargetAttribute",
+						description: $"Attribute '{modification.Attribute}' cannot be applied to selected card targets.");
+			}
 		}
 
 		return Result.Success;
@@ -182,6 +194,13 @@ public sealed class ModifyAttributeEffect(
 		{
 			switch (modification.Attribute)
 			{
+				case EffectAttributeType.LeaderDamage:
+				{
+					var updatedDamage = ApplyOperation(leader.Damage, modification.Operation, modification.Value);
+					leader.Damage = Clamp(updatedDamage, modification, defaultMin: 0);
+					break;
+				}
+
 				case EffectAttributeType.LeaderPower:
 				{
 					var updatedPower = ApplyOperation(leader.Power, modification.Operation, modification.Value);
@@ -193,15 +212,7 @@ public sealed class ModifyAttributeEffect(
 				{
 					var updatedCurrentLife = ApplyOperation(leader.CurrentLife, modification.Operation, modification.Value);
 					var clampedCurrentLife = Clamp(updatedCurrentLife, modification, defaultMin: 0);
-					leader.CurrentLife = Math.Min(clampedCurrentLife, leader.TotalLife);
-					break;
-				}
-
-				case EffectAttributeType.LeaderTotalLife:
-				{
-					var updatedTotalLife = ApplyOperation(leader.TotalLife, modification.Operation, modification.Value);
-					leader.TotalLife = Clamp(updatedTotalLife, modification, defaultMin: 0);
-					leader.CurrentLife = Math.Min(leader.CurrentLife, leader.TotalLife);
+					leader.CurrentLife = clampedCurrentLife;
 					break;
 				}
 

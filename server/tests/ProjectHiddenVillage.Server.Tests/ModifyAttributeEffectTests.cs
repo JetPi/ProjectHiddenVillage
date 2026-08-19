@@ -81,7 +81,7 @@ public sealed class ModifyAttributeEffectTests
     }
 
     [TestMethod]
-    public void Execute_LeaderCurrentLife_Add_ClampsToTotalLife()
+    public void Execute_LeaderCurrentLife_Add_UpdatesLeaderLife()
     {
         var effectSpec = new EffectSpec
         {
@@ -108,7 +108,110 @@ public sealed class ModifyAttributeEffectTests
         var result = effect.Execute(context, []);
 
         Assert.IsFalse(result.IsError);
-        Assert.AreEqual(5, actingLeader.CurrentLife);
+        Assert.AreEqual(7, actingLeader.CurrentLife);
+    }
+
+    [TestMethod]
+    public void Execute_SelectedTargetCardDamage_Subtract_UpdatesDamageOverride()
+    {
+        var targetCard = new CardInstance
+        {
+            InstanceId = "card-instance-1",
+            CardDefinitionId = "char-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2"
+        };
+
+        var effectSpec = new EffectSpec
+        {
+            RuntimeEffectType = RuntimeEffects.ChangeValues,
+            AttributeModifications =
+            [
+                new AttributeModificationSpec
+                {
+                    TargetType = AttributeModificationTargetType.SelectedTargets,
+                    Attribute = EffectAttributeType.CardDamage,
+                    Operation = AttributeModificationOperation.Subtract,
+                    Value = 1
+                }
+            ]
+        };
+
+        var context = CreateContext(effectSpec, targetCard, playerTwoCurrentLife: 6, playerTwoTotalLife: 6);
+        var effect = CreateEffect(effectSpec);
+
+        var result = effect.Execute(
+            context,
+            [new GameEffectTargetReference("p2", PlayerZone.CharacterField, "card-instance-1")]);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(0, targetCard.DamageOverride);
+    }
+
+    [TestMethod]
+    public void Execute_SelectedTargetCardHealth_Set_UpdatesHealthOverride()
+    {
+        var targetCard = new CardInstance
+        {
+            InstanceId = "card-instance-1",
+            CardDefinitionId = "char-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2"
+        };
+
+        var effectSpec = new EffectSpec
+        {
+            RuntimeEffectType = RuntimeEffects.ChangeValues,
+            AttributeModifications =
+            [
+                new AttributeModificationSpec
+                {
+                    TargetType = AttributeModificationTargetType.SelectedTargets,
+                    Attribute = EffectAttributeType.CardHealth,
+                    Operation = AttributeModificationOperation.Set,
+                    Value = 9
+                }
+            ]
+        };
+
+        var context = CreateContext(effectSpec, targetCard, playerTwoCurrentLife: 6, playerTwoTotalLife: 6);
+        var effect = CreateEffect(effectSpec);
+
+        var result = effect.Execute(
+            context,
+            [new GameEffectTargetReference("p2", PlayerZone.CharacterField, "card-instance-1")]);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(9, targetCard.HealthOverride);
+    }
+
+    [TestMethod]
+    public void Execute_OpponentLeaderDamage_Add_UpdatesLeaderDamage()
+    {
+        var effectSpec = new EffectSpec
+        {
+            RuntimeEffectType = RuntimeEffects.ChangeValues,
+            AttributeModifications =
+            [
+                new AttributeModificationSpec
+                {
+                    TargetType = AttributeModificationTargetType.Leader,
+                    TargetPlayerScope = TargetPlayerScope.Opponent,
+                    Attribute = EffectAttributeType.LeaderDamage,
+                    Operation = AttributeModificationOperation.Add,
+                    Value = 3
+                }
+            ]
+        };
+
+        var context = CreateContext(effectSpec, targetCard: null, playerTwoCurrentLife: 6, playerTwoTotalLife: 6);
+        var effect = CreateEffect(effectSpec);
+
+        var result = effect.Execute(context, []);
+
+        Assert.IsFalse(result.IsError);
+        var opponentLeader = context.Game.State.Players.First(player => player.PlayerId == "p2").LeaderCardInstance!;
+        Assert.AreEqual(3, opponentLeader.Damage);
     }
 
     private static ModifyAttributeEffect CreateEffect(EffectSpec effectSpec)
