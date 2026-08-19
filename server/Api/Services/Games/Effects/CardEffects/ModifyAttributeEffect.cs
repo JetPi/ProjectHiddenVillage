@@ -6,11 +6,13 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 public sealed class ModifyAttributeEffect(
 	IGameRuntimeEffectSpecResolver effectSpecResolver,
 	IGameEffectCanExecuteEvaluator canExecuteEvaluator,
-	IGameEffectTargetResolver targetResolver) : IGameCardEffect
+	IGameEffectTargetResolver targetResolver,
+	IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null) : IGameCardEffect
 {
 	private readonly IGameRuntimeEffectSpecResolver effectSpecResolver = effectSpecResolver;
 	private readonly IGameEffectCanExecuteEvaluator canExecuteEvaluator = canExecuteEvaluator;
 	private readonly IGameEffectTargetResolver targetResolver = targetResolver;
+	private readonly IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = reactiveEffectOrchestrator;
 
 	public const string EffectKey = "ChangeValues";
 
@@ -61,6 +63,8 @@ public sealed class ModifyAttributeEffect(
 	public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
 	{
 		var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.ChangeValues)!;
+		var affectsCards = false;
+		var affectsLeaders = false;
 
 		if (RequiresTargetSelection(effectSpec) && selectedTargets.Count == 0)
 		{
@@ -71,6 +75,9 @@ public sealed class ModifyAttributeEffect(
 
 		foreach (var modification in effectSpec.AttributeModifications)
 		{
+			affectsCards |= modification.TargetType == AttributeModificationTargetType.SelectedTargets;
+			affectsLeaders |= modification.TargetType == AttributeModificationTargetType.Leader;
+
 			var applyResult = ApplyModification(context, selectedTargets, modification);
 			if (applyResult.IsError)
 			{
@@ -78,7 +85,110 @@ public sealed class ModifyAttributeEffect(
 			}
 		}
 
+		var affectedCardInstanceIds = selectedTargets
+			.Where(target => !target.IsEffectResolutionStackTarget)
+			.Select(target => target.CardInstanceId)
+			.Where(cardInstanceId => !string.IsNullOrWhiteSpace(cardInstanceId))
+			.Distinct(StringComparer.Ordinal)
+			.ToList();
+
+		var affectedPlayerIds = new HashSet<string>(StringComparer.Ordinal)
+		{
+			context.ActingPlayer.Id,
+		};
+
+		foreach (var targetPlayerId in selectedTargets
+			.Where(target => !target.IsEffectResolutionStackTarget)
+			.Select(target => target.PlayerId)
+			.Where(playerId => !string.IsNullOrWhiteSpace(playerId)))
+		{
+			affectedPlayerIds.Add(targetPlayerId);
+		}
+
+		if (affectsLeaders)
+		{
+			foreach (var playerId in ResolveAffectedLeaderPlayerIds(context, effectSpec))
+			{
+				affectedPlayerIds.Add(playerId);
+			}
+		}
+
+		if (affectsCards || affectsLeaders)
+		{
+			var mutationKind = affectsCards
+				? GameMutationKind.CardStatChanged
+				: GameMutationKind.LeaderStatChanged;
+
+			var mutationResult = EmitMutation(
+				context,
+				mutationKind,
+				affectedCardInstanceIds,
+				affectedPlayerIds);
+
+			if (mutationResult.IsError)
+			{
+				return mutationResult.Errors;
+			}
+		}
+
 		return Result.Success;
+	}
+
+	private ErrorOr<Success> EmitMutation(
+		GameCardEffectContext context,
+		GameMutationKind mutationKind,
+		IReadOnlyCollection<string> affectedCardInstanceIds,
+		IReadOnlyCollection<string> affectedPlayerIds)
+	{
+		if (context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.SkipReactiveOrchestrationArgument, out var skipValue)
+			&& bool.TryParse(skipValue, out var shouldSkip)
+			&& shouldSkip)
+		{
+			return Result.Success;
+		}
+
+		if (reactiveEffectOrchestrator is null)
+		{
+			return Result.Success;
+		}
+
+		var mutationEvent = new GameMutationEvent
+		{
+			Kind = mutationKind,
+			GameId = context.Game.State.GameId,
+			ActingPlayerId = context.ActingPlayer.Id,
+			TurnNumber = context.Game.State.TurnNumber,
+			Phase = context.Game.State.Phase,
+			AffectedCardInstanceIds = affectedCardInstanceIds.ToList(),
+			AffectedPlayerIds = affectedPlayerIds.ToList(),
+		};
+
+		var orchestrationResult = reactiveEffectOrchestrator.ApplyPostMutationEffects(context.Game, mutationEvent, context.ActingPlayer.Id);
+		return orchestrationResult.IsError ? orchestrationResult.Errors : Result.Success;
+	}
+
+	private static IReadOnlyList<string> ResolveAffectedLeaderPlayerIds(GameCardEffectContext context, EffectSpec effectSpec)
+	{
+		var playerIds = new HashSet<string>(StringComparer.Ordinal);
+
+		foreach (var modification in effectSpec.AttributeModifications)
+		{
+			if (modification.TargetType != AttributeModificationTargetType.Leader)
+			{
+				continue;
+			}
+
+			var targetLeaders = ResolveLeaderTargets(context, modification.TargetPlayerScope);
+			foreach (var leader in targetLeaders)
+			{
+				if (!string.IsNullOrWhiteSpace(leader.ControllerPlayerId))
+				{
+					playerIds.Add(leader.ControllerPlayerId);
+				}
+			}
+		}
+
+		return playerIds.ToList();
 	}
 
 	private static bool RequiresTargetSelection(EffectSpec effectSpec)

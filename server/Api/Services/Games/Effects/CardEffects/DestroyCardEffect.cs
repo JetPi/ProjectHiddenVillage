@@ -6,11 +6,13 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 public sealed class DestroyCardEffect(
     IGameRuntimeEffectSpecResolver effectSpecResolver,
     IGameEffectCanExecuteEvaluator canExecuteEvaluator,
-    IGameEffectTargetResolver targetResolver) : IGameCardEffect
+    IGameEffectTargetResolver targetResolver,
+    IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null) : IGameCardEffect
 {
     private readonly IGameRuntimeEffectSpecResolver effectSpecResolver = effectSpecResolver;
     private readonly IGameEffectCanExecuteEvaluator canExecuteEvaluator = canExecuteEvaluator;
     private readonly IGameEffectTargetResolver targetResolver = targetResolver;
+    private readonly IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = reactiveEffectOrchestrator;
     public const string EffectKey = "DestroyCard";
 
     public string EffectTypeKey => EffectKey;
@@ -49,6 +51,12 @@ public sealed class DestroyCardEffect(
 
     public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
     {
+        var affectedCardInstanceIds = new HashSet<string>(StringComparer.Ordinal);
+        var affectedPlayerIds = new HashSet<string>(StringComparer.Ordinal)
+        {
+            context.ActingPlayer.Id,
+        };
+
         foreach (var target in selectedTargets)
         {
             var sourceZone = target.Zone;
@@ -63,8 +71,56 @@ public sealed class DestroyCardEffect(
 
             var ownerTrashZone = PlayerZoneCardAccessor.GetCards(PlayerZone.Trash, ownerPlayer);
             ownerTrashZone.Add(cardInstance);
+
+            affectedCardInstanceIds.Add(cardInstance.InstanceId);
+            affectedPlayerIds.Add(sourcePlayer.PlayerId);
+            affectedPlayerIds.Add(ownerPlayer.PlayerId);
+        }
+
+        var mutationResult = EmitMutation(
+            context,
+            GameMutationKind.CardMovedZone,
+            affectedCardInstanceIds,
+            affectedPlayerIds);
+
+        if (mutationResult.IsError)
+        {
+            return mutationResult.Errors;
         }
 
         return Result.Success;
+    }
+
+    private ErrorOr<Success> EmitMutation(
+        GameCardEffectContext context,
+        GameMutationKind mutationKind,
+        IReadOnlyCollection<string> affectedCardInstanceIds,
+        IReadOnlyCollection<string> affectedPlayerIds)
+    {
+        if (context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.SkipReactiveOrchestrationArgument, out var skipValue)
+            && bool.TryParse(skipValue, out var shouldSkip)
+            && shouldSkip)
+        {
+            return Result.Success;
+        }
+
+        if (reactiveEffectOrchestrator is null)
+        {
+            return Result.Success;
+        }
+
+        var mutationEvent = new GameMutationEvent
+        {
+            Kind = mutationKind,
+            GameId = context.Game.State.GameId,
+            ActingPlayerId = context.ActingPlayer.Id,
+            TurnNumber = context.Game.State.TurnNumber,
+            Phase = context.Game.State.Phase,
+            AffectedCardInstanceIds = affectedCardInstanceIds.ToList(),
+            AffectedPlayerIds = affectedPlayerIds.ToList(),
+        };
+
+        var orchestrationResult = reactiveEffectOrchestrator.ApplyPostMutationEffects(context.Game, mutationEvent, context.ActingPlayer.Id);
+        return orchestrationResult.IsError ? orchestrationResult.Errors : Result.Success;
     }
 }

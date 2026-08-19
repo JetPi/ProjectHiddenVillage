@@ -42,6 +42,9 @@ builder.Services.AddScoped<IGameRuntimeEffectSpecResolver, GameRuntimeEffectSpec
 builder.Services.AddScoped<IGameEffectCanExecuteEvaluator, GameEffectCanExecuteEvaluator>();
 builder.Services.AddScoped<IGameValidTargetResultFactory, GameValidTargetResultFactory>();
 builder.Services.AddScoped<IGameEffectConditionDiagnostics, GameEffectConditionDiagnostics>();
+builder.Services.AddScoped<IGamePassiveEffectService, GamePassiveEffectService>();
+builder.Services.AddScoped<IGameEffectChainResolver, GameEffectChainResolver>();
+builder.Services.AddScoped<IGameReactiveEffectOrchestrator, GameReactiveEffectOrchestrator>();
 builder.Services.AddScoped<IGameEffectHandlingService, GameEffectHandlingService>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.NoopGameCardEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.DestroyCardEffect>();

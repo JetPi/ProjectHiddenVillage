@@ -6,13 +6,15 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 public sealed class TributeSummonCardEffect(
     IGameRuntimeEffectSpecResolver effectSpecResolver,
     IGameEffectCanExecuteEvaluator canExecuteEvaluator,
-    IGameEffectTargetResolver targetResolver) : IGameCardEffect
+    IGameEffectTargetResolver targetResolver,
+    IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null) : IGameCardEffect
 {
     private const string SummonTargetIdArgumentKey = "summonTargetId";
 
     private readonly IGameRuntimeEffectSpecResolver effectSpecResolver = effectSpecResolver;
     private readonly IGameEffectCanExecuteEvaluator canExecuteEvaluator = canExecuteEvaluator;
     private readonly IGameEffectTargetResolver targetResolver = targetResolver;
+    private readonly IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = reactiveEffectOrchestrator;
 
     public const string EffectKey = "Tribute";
 
@@ -60,6 +62,11 @@ public sealed class TributeSummonCardEffect(
 
         var summonTarget = summonTargetResult.Value;
         var tributeTargets = selectedTargets.Where(target => target != summonTarget);
+        var affectedCardInstanceIds = new HashSet<string>(StringComparer.Ordinal);
+        var affectedPlayerIds = new HashSet<string>(StringComparer.Ordinal)
+        {
+            context.ActingPlayer.Id,
+        };
 
         foreach (var tributeTarget in tributeTargets)
         {
@@ -72,6 +79,10 @@ public sealed class TributeSummonCardEffect(
             var ownerPlayer = context.Game.State.Players.First(player => player.PlayerId == tributeCard.OwnerPlayerId);
             var ownerTrashZone = PlayerZoneCardAccessor.GetCards(PlayerZone.Trash, ownerPlayer);
             ownerTrashZone.Add(tributeCard);
+
+            affectedCardInstanceIds.Add(tributeCard.InstanceId);
+            affectedPlayerIds.Add(tributeSourcePlayer.PlayerId);
+            affectedPlayerIds.Add(ownerPlayer.PlayerId);
         }
 
         var summoningPlayer = context.Game.State.Players.First(player => player.PlayerId == context.ActingPlayer.Id);
@@ -86,7 +97,54 @@ public sealed class TributeSummonCardEffect(
         summonedCard.EnteredFieldTurnNumber = context.Game.State.TurnNumber;
         summoningPlayerField.Add(summonedCard);
 
+        affectedCardInstanceIds.Add(summonedCard.InstanceId);
+        affectedPlayerIds.Add(summonSourcePlayer.PlayerId);
+
+        var mutationResult = EmitMutation(
+            context,
+            GameMutationKind.CardSummoned,
+            affectedCardInstanceIds,
+            affectedPlayerIds);
+
+        if (mutationResult.IsError)
+        {
+            return mutationResult.Errors;
+        }
+
         return Result.Success;
+    }
+
+    private ErrorOr<Success> EmitMutation(
+        GameCardEffectContext context,
+        GameMutationKind mutationKind,
+        IReadOnlyCollection<string> affectedCardInstanceIds,
+        IReadOnlyCollection<string> affectedPlayerIds)
+    {
+        if (context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.SkipReactiveOrchestrationArgument, out var skipValue)
+            && bool.TryParse(skipValue, out var shouldSkip)
+            && shouldSkip)
+        {
+            return Result.Success;
+        }
+
+        if (reactiveEffectOrchestrator is null)
+        {
+            return Result.Success;
+        }
+
+        var mutationEvent = new GameMutationEvent
+        {
+            Kind = mutationKind,
+            GameId = context.Game.State.GameId,
+            ActingPlayerId = context.ActingPlayer.Id,
+            TurnNumber = context.Game.State.TurnNumber,
+            Phase = context.Game.State.Phase,
+            AffectedCardInstanceIds = affectedCardInstanceIds.ToList(),
+            AffectedPlayerIds = affectedPlayerIds.ToList(),
+        };
+
+        var orchestrationResult = reactiveEffectOrchestrator.ApplyPostMutationEffects(context.Game, mutationEvent, context.ActingPlayer.Id);
+        return orchestrationResult.IsError ? orchestrationResult.Errors : Result.Success;
     }
 
     private static ErrorOr<GameEffectTargetReference> ResolveSummonTarget(

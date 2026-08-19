@@ -52,6 +52,53 @@ public enum KeywordModificationOperation
     Remove
 }
 
+public enum PassiveMode
+{
+    None,
+    Continuous,
+    Triggered
+}
+
+public enum PassiveTriggerKind
+{
+    StatsChanged,
+    ZoneChanged,
+    TurnChanged,
+    PhaseChanged,
+    StackResolved,
+    Any
+}
+
+public enum PassiveReevaluationScope
+{
+    SourceCardOnly,
+    SourceController,
+    WholeGame
+}
+
+public enum PassiveConsequenceTargetPolicy
+{
+    SourceCard,
+    TriggerSelectedTargets
+}
+
+public sealed class PassiveReevaluationSpec
+{
+    public IReadOnlyList<PassiveTriggerKind> TriggerKinds { get; set; } = [PassiveTriggerKind.Any];
+
+    public PassiveReevaluationScope Scope { get; set; } = PassiveReevaluationScope.SourceCardOnly;
+}
+
+public sealed class PassiveConsequenceSpec
+{
+    public string ConsequenceEffectTypeKey { get; set; } = string.Empty;
+
+    public PassiveConsequenceTargetPolicy TargetPolicy { get; set; } = PassiveConsequenceTargetPolicy.SourceCard;
+
+    public IReadOnlyDictionary<string, string> ConsequenceArguments { get; set; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+}
+
 public sealed class KeywordModificationSpec
 {
     public KeywordModificationTargetType TargetType { get; set; } = KeywordModificationTargetType.SourceCard;
@@ -97,6 +144,12 @@ public sealed class EffectSpec
     public int? EffectValue { get; set; }
 
     public EffectRestrictions GlobalRestrictions { get; set; } = EffectRestrictions.None;
+
+    public PassiveMode PassiveMode { get; set; } = PassiveMode.None;
+
+    public PassiveReevaluationSpec? PassiveReevaluation { get; set; }
+
+    public IReadOnlyList<PassiveConsequenceSpec> PassiveConsequences { get; set; } = [];
 
     public IReadOnlyList<AttributeModificationSpec> AttributeModifications { get; set; } = [];
 

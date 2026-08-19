@@ -6,11 +6,13 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 public sealed class GainKeywordEffect(
 	IGameRuntimeEffectSpecResolver effectSpecResolver,
 	IGameEffectCanExecuteEvaluator canExecuteEvaluator,
-	IGameEffectTargetResolver targetResolver) : IGameCardEffect
+	IGameEffectTargetResolver targetResolver,
+	IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null) : IGameCardEffect
 {
 	private readonly IGameRuntimeEffectSpecResolver effectSpecResolver = effectSpecResolver;
 	private readonly IGameEffectCanExecuteEvaluator canExecuteEvaluator = canExecuteEvaluator;
 	private readonly IGameEffectTargetResolver targetResolver = targetResolver;
+	private readonly IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = reactiveEffectOrchestrator;
 
 	public const string EffectKey = "GainKeyword";
 
@@ -61,9 +63,30 @@ public sealed class GainKeywordEffect(
 	public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
 	{
 		var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.GainEffect)!;
+		var affectedCardInstanceIds = new HashSet<string>(StringComparer.Ordinal);
+		var affectedPlayerIds = new HashSet<string>(StringComparer.Ordinal)
+		{
+			context.ActingPlayer.Id,
+		};
 
 		foreach (var keywordModification in effectSpec.KeywordModifications)
 		{
+			if (keywordModification.TargetType == KeywordModificationTargetType.SourceCard
+				&& context.SourceCardInstance is not null)
+			{
+				affectedCardInstanceIds.Add(context.SourceCardInstance.InstanceId);
+				affectedPlayerIds.Add(context.SourceCardInstance.ControllerPlayerId);
+			}
+
+			if (keywordModification.TargetType == KeywordModificationTargetType.SelectedTargets)
+			{
+				foreach (var target in selectedTargets.Where(target => !target.IsEffectResolutionStackTarget))
+				{
+					affectedCardInstanceIds.Add(target.CardInstanceId);
+					affectedPlayerIds.Add(target.PlayerId);
+				}
+			}
+
 			var applyResult = ApplyKeywordModification(context, selectedTargets, keywordModification);
 			if (applyResult.IsError)
 			{
@@ -71,7 +94,54 @@ public sealed class GainKeywordEffect(
 			}
 		}
 
+		if (affectedCardInstanceIds.Count > 0)
+		{
+			var mutationResult = EmitMutation(
+				context,
+				GameMutationKind.KeywordChanged,
+				affectedCardInstanceIds,
+				affectedPlayerIds);
+
+			if (mutationResult.IsError)
+			{
+				return mutationResult.Errors;
+			}
+		}
+
 		return Result.Success;
+	}
+
+	private ErrorOr<Success> EmitMutation(
+		GameCardEffectContext context,
+		GameMutationKind mutationKind,
+		IReadOnlyCollection<string> affectedCardInstanceIds,
+		IReadOnlyCollection<string> affectedPlayerIds)
+	{
+		if (context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.SkipReactiveOrchestrationArgument, out var skipValue)
+			&& bool.TryParse(skipValue, out var shouldSkip)
+			&& shouldSkip)
+		{
+			return Result.Success;
+		}
+
+		if (reactiveEffectOrchestrator is null)
+		{
+			return Result.Success;
+		}
+
+		var mutationEvent = new GameMutationEvent
+		{
+			Kind = mutationKind,
+			GameId = context.Game.State.GameId,
+			ActingPlayerId = context.ActingPlayer.Id,
+			TurnNumber = context.Game.State.TurnNumber,
+			Phase = context.Game.State.Phase,
+			AffectedCardInstanceIds = affectedCardInstanceIds.ToList(),
+			AffectedPlayerIds = affectedPlayerIds.ToList(),
+		};
+
+		var orchestrationResult = reactiveEffectOrchestrator.ApplyPostMutationEffects(context.Game, mutationEvent, context.ActingPlayer.Id);
+		return orchestrationResult.IsError ? orchestrationResult.Errors : Result.Success;
 	}
 
 	private static bool RequiresTargetSelection(EffectSpec effectSpec)
