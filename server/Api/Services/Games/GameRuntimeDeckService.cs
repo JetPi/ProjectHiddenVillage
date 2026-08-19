@@ -13,7 +13,7 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 	{
 		var names = DeserializeOrDefault<List<string>>(entry.NameJson, []);
 		var traits = DeserializeOrDefault<List<string>>(entry.TraitsJson, []);
-		var conditions = DeserializeOrDefault<List<ConditionSpec>>(entry.ConditionsJson, []);
+		var conditions = DeserializeConditions(entry.ConditionsJson);
 		var effects = DeserializeOrDefault<List<EffectSpec>>(entry.EffectsJson, []);
 
 		Card card = entry.Type switch
@@ -51,6 +51,43 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 		card.Effects = effects;
 
 		return card;
+	}
+
+	private static List<string> DeserializeConditions(string json)
+	{
+		if (string.IsNullOrWhiteSpace(json))
+		{
+			return [];
+		}
+
+		try
+		{
+			var asStrings = JsonSerializer.Deserialize<List<string>>(json, SerializerOptions);
+			if (asStrings is not null)
+			{
+				return asStrings
+					.Where(condition => !string.IsNullOrWhiteSpace(condition))
+					.Select(condition => condition.Trim())
+					.ToList();
+			}
+		}
+		catch (JsonException)
+		{
+		}
+
+		try
+		{
+			var legacy = JsonSerializer.Deserialize<List<LegacyConditionSpec>>(json, SerializerOptions) ?? [];
+			return legacy
+				.Select(condition => condition.Id)
+				.Where(id => !string.IsNullOrWhiteSpace(id))
+				.Select(id => id.Trim())
+				.ToList();
+		}
+		catch (JsonException)
+		{
+			return [];
+		}
 	}
 
 	public List<CardInstance> ToRuntimeDeck(
@@ -305,4 +342,6 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 			return fallback;
 		}
 	}
+
+	private sealed record LegacyConditionSpec(string Id);
 }

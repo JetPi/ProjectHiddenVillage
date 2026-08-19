@@ -279,7 +279,7 @@ public sealed class CardMappingService : ICardMappingService
     {
         var names = DeserializeOrDefault<List<string>>(entry.NameJson, []);
         var traits = DeserializeOrDefault<List<string>>(entry.TraitsJson, []);
-        var conditions = DeserializeOrDefault<List<ConditionSpec>>(entry.ConditionsJson, []);
+        var conditions = DeserializeConditions(entry.ConditionsJson);
         var effects = DeserializeOrDefault<List<EffectSpec>>(entry.EffectsJson, []);
 
         return new CardCatalogItemResponse(
@@ -296,11 +296,7 @@ public sealed class CardMappingService : ICardMappingService
             Description: entry.Description,
             Damage: entry.Damage,
             Power: entry.Power,
-            Conditions: conditions
-                .Select(condition => new CardCatalogConditionResponse(
-                    Id: condition.Id,
-                    Args: condition.Args))
-                .ToList(),
+            Conditions: conditions,
             Effects: effects
                 .Select(effect => new CardCatalogEffectResponse(
                     Id: effect.Id,
@@ -310,9 +306,13 @@ public sealed class CardMappingService : ICardMappingService
                     IsOptional: effect.IsOptional,
                     ChakraCost: effect.ChakraCost,
                     GlobalRestrictions: ToReadableEffectRestrictions(effect.GlobalRestrictions),
-                    AttributeModifications: effect.AttributeModifications,
-                    ContextRules: effect.ContextRules,
-                    TargetRules: effect.TargetRules))
+                    AttributeModifications: effect.AttributeModifications
+                        .Select(ToAttributeModificationResponse)
+                        .ToList(),
+                    ContextRules: effect.ContextRules
+                        .Select(ToContextRuleResponse)
+                        .ToList(),
+                    TargetRules: ToTargetRuleSetResponse(effect.TargetRules)))
                 .ToList(),
             Life: entry.Life,
             Health: entry.Health,
@@ -482,6 +482,43 @@ public sealed class CardMappingService : ICardMappingService
         }
     }
 
+    private static List<string> DeserializeConditions(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            var asStrings = JsonSerializer.Deserialize<List<string>>(json, SerializerOptions);
+            if (asStrings is not null)
+            {
+                return asStrings
+                    .Where(condition => !string.IsNullOrWhiteSpace(condition))
+                    .Select(condition => condition.Trim())
+                    .ToList();
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        try
+        {
+            var legacy = JsonSerializer.Deserialize<List<LegacyConditionSpec>>(json, SerializerOptions) ?? [];
+            return legacy
+                .Select(condition => condition.Id)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id.Trim())
+                .ToList();
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
     private static string ToReadableCardType(CardType type)
     {
         return type switch
@@ -514,6 +551,91 @@ public sealed class CardMappingService : ICardMappingService
     private static string ToReadableEffectRestrictions(EffectRestrictions restrictions)
     {
         return SplitPascalCase(restrictions.ToString());
+    }
+
+    private static CardCatalogAttributeModificationResponse ToAttributeModificationResponse(AttributeModificationSpec spec)
+    {
+        return new CardCatalogAttributeModificationResponse(
+            TargetType: SplitPascalCase(spec.TargetType.ToString()),
+            TargetPlayerScope: SplitPascalCase(spec.TargetPlayerScope.ToString()),
+            Attribute: SplitPascalCase(spec.Attribute.ToString()),
+            Operation: SplitPascalCase(spec.Operation.ToString()),
+            Value: spec.Value,
+            MinimumValue: spec.MinimumValue,
+            MaximumValue: spec.MaximumValue);
+    }
+
+    private static CardCatalogEffectContextRuleSetResponse ToContextRuleResponse(EffectContextRuleSet rule)
+    {
+        return new CardCatalogEffectContextRuleSetResponse(
+            Player: ToContextConditionResponse(rule.Player),
+            Opponent: ToContextConditionResponse(rule.Opponent));
+    }
+
+    private static CardCatalogEffectContextConditionResponse? ToContextConditionResponse(EffectContextCondition? condition)
+    {
+        if (condition is null)
+        {
+            return null;
+        }
+
+        return new CardCatalogEffectContextConditionResponse(
+            InZone: condition.InZone.HasValue ? SplitPascalCase(condition.InZone.Value.ToString()) : null,
+            InZoneRequirements: ToZoneRequirementSetResponse(condition.InZoneRequirements));
+    }
+
+    private static CardCatalogZoneRequirementSetResponse? ToZoneRequirementSetResponse(ZoneRequirementSet? requirementSet)
+    {
+        if (requirementSet is null)
+        {
+            return null;
+        }
+
+        return new CardCatalogZoneRequirementSetResponse(
+            Requirements: requirementSet.Requirements
+                .Select(ToZoneAmountRequirementResponse)
+                .ToList(),
+            Operator: SplitPascalCase(requirementSet.Operator.ToString()),
+            DistinctCardsAcrossRequirements: requirementSet.DistinctCardsAcrossRequirements);
+    }
+
+    private static CardCatalogZoneAmountRequirementResponse ToZoneAmountRequirementResponse(ZoneAmountRequirement requirement)
+    {
+        return new CardCatalogZoneAmountRequirementResponse(
+            Amount: requirement.Amount,
+            Comparison: SplitPascalCase(requirement.Comparison.ToString()),
+            Restriction: ToZoneCardRestrictionResponse(requirement.Restriction));
+    }
+
+    private static CardCatalogEffectTargetRuleSetResponse ToTargetRuleSetResponse(EffectTargetRuleSet ruleSet)
+    {
+        return new CardCatalogEffectTargetRuleSetResponse(
+            Operator: SplitPascalCase(ruleSet.Operator.ToString()),
+            Rules: ruleSet.Rules
+                .Select(ToTargetRuleResponse)
+                .ToList());
+    }
+
+    private static CardCatalogEffectTargetRuleResponse ToTargetRuleResponse(EffectTargetRule rule)
+    {
+        return new CardCatalogEffectTargetRuleResponse(
+            Scope: SplitPascalCase(rule.Scope.ToString()),
+            InZone: SplitPascalCase(rule.InZone.ToString()),
+            Restriction: ToZoneCardRestrictionResponse(rule.Restriction));
+    }
+
+    private static CardCatalogZoneCardRestrictionResponse ToZoneCardRestrictionResponse(ZoneCardRestriction restriction)
+    {
+        return new CardCatalogZoneCardRestrictionResponse(
+            HasTrait: restriction.HasTrait ?? [],
+            HasName: restriction.HasName ?? [],
+            HasType: (restriction.HasType ?? [])
+                .Select(cardType => SplitPascalCase(cardType.ToString()))
+                .ToList(),
+            HasColor: (restriction.HasColor ?? [])
+                .Select(color => SplitPascalCase(color.ToString()))
+                .ToList(),
+            MatchMode: SplitPascalCase(restriction.MatchMode.ToString()));
     }
 
     private static string SplitPascalCase(string value)
@@ -549,4 +671,6 @@ public sealed class CardMappingService : ICardMappingService
     {
         return JsonSerializer.Serialize(value, SerializerOptions);
     }
+
+    private sealed record LegacyConditionSpec(string Id);
 }

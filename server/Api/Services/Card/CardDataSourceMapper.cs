@@ -157,7 +157,7 @@ public static partial class CardDataSourceMapper
         return withoutBrTags.Trim();
     }
 
-    private static List<ConditionSpec> ExtractConditions(string description)
+    private static List<string> ExtractConditions(string description)
     {
         if (string.IsNullOrWhiteSpace(description))
         {
@@ -169,8 +169,7 @@ public static partial class CardDataSourceMapper
             StringComparer.OrdinalIgnoreCase);
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var seenNamedReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var conditions = new List<ConditionSpec>();
+        var conditions = new List<string>();
 
         foreach (Match match in EffectKeywordRegex().Matches(description))
         {
@@ -182,27 +181,9 @@ public static partial class CardDataSourceMapper
                     continue;
                 }
 
-                conditions.Add(new ConditionSpec
-                {
-                    Id = keyword,
-                    Args = []
-                });
+                conditions.Add(keyword);
                 continue;
             }
-
-            if (!IsNamedCardReferenceKeyword(keyword) || !seenNamedReferences.Add(keyword))
-            {
-                continue;
-            }
-
-            conditions.Add(new ConditionSpec
-            {
-                Id = EffectConditionKeywords.NamedCardReference,
-                Args = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["name"] = keyword
-                }
-            });
         }
 
         return conditions;
@@ -251,23 +232,4 @@ public static partial class CardDataSourceMapper
         return supportEffect.Trim();
     }
 
-    private static bool IsNamedCardReferenceKeyword(string keyword)
-    {
-        if (string.IsNullOrWhiteSpace(keyword))
-        {
-            return false;
-        }
-
-        if (!keyword.Any(char.IsWhiteSpace))
-        {
-            return false;
-        }
-
-        if (keyword.Contains(':', StringComparison.Ordinal) || keyword.Contains('-', StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        return char.IsLetter(keyword[0]);
-    }
 }

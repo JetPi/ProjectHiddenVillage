@@ -32,7 +32,7 @@ public class Card
 
     public bool CannotBeNormalSummoned { get; set; } = false;
 
-    public List<ConditionSpec> Conditions { get; set; } = [];
+    public List<string> Conditions { get; set; } = [];
 
     public List<EffectSpec> Effects { get; set; } = [];
 }

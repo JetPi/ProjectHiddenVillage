@@ -132,6 +132,271 @@ public sealed class GameSequentialEffectExecutorTests
         Assert.AreEqual("second", resolved.Id);
     }
 
+    [TestMethod]
+    public void Execute_UsesSourceCardTarget_WhenEffectConfiguredWithSourceCardTargetSource()
+    {
+        IReadOnlyList<GameEffectTargetReference>? observedTargets = null;
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new InspectingTargetsEffect(
+                SummonCardEffect.EffectKey,
+                targets => observedTargets = targets),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "step-source",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ExecutionTargetSource = EffectExecutionTargetSource.SourceCard,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.IsNotNull(observedTargets);
+        Assert.AreEqual(1, observedTargets.Count);
+        Assert.AreEqual("source-1", observedTargets[0].CardInstanceId);
+        Assert.AreEqual(PlayerZone.CharacterField, observedTargets[0].Zone);
+        Assert.AreEqual("p1", observedTargets[0].PlayerId);
+    }
+
+    [TestMethod]
+    public void Execute_UsesConditionalBranching_ForChoiceDrivenEffects()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(ModifyAttributeEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "option-a",
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ExecutionCondition = new EffectExecutionConditionSpec
+                {
+                    ArgumentKey = "selectedOption",
+                    ExpectedValue = "A",
+                },
+                OnFailureEffectId = "option-b",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "option-b",
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ExecutionCondition = new EffectExecutionConditionSpec
+                {
+                    ArgumentKey = "selectedOption",
+                    ExpectedValue = "B",
+                },
+                ContextRules = []
+            });
+
+        var context = CreateContext(
+            sourceDefinition,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["selectedOption"] = "B",
+            });
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "option-b" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_UsesFallbackBranch_WhenInitialEffectExecutionFails()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new FailingEffect(ModifyAttributeEffect.EffectKey),
+            new RecordingEffect(DestroyCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "initial",
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                OnFailureEffectId = "fallback",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "fallback",
+                RuntimeEffectType = RuntimeEffects.DestroyCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "fallback" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_AtomicChain_DoesNotExecuteAnyStep_WhenLaterStepCannotExecute()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+            new CannotExecuteEffect(ModifyAttributeEffect.EffectKey),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "summon-self",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                OnSuccessEffectId = "double-power",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "double-power",
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(0, observedSpecIds.Count);
+    }
+
+    [TestMethod]
+    public void Execute_AtomicChain_ExecutesAllSteps_WhenWholeChainIsValid()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+            new RecordingEffect(ModifyAttributeEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "summon-self",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                OnSuccessEffectId = "double-power",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "double-power",
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "summon-self", "double-power" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_AtomicChain_IgnoresNonEntryConditions()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+            new RecordingEffect(ModifyAttributeEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "summon-self",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                OnSuccessEffectId = "double-power",
+                ExecutionCondition = new EffectExecutionConditionSpec
+                {
+                    ArgumentKey = "canResolve",
+                    ExpectedValue = "yes",
+                },
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "double-power",
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                ExecutionCondition = new EffectExecutionConditionSpec
+                {
+                    ArgumentKey = "shouldBeIgnored",
+                    ExpectedValue = "never-set",
+                },
+                ContextRules = []
+            });
+
+        var context = CreateContext(
+            sourceDefinition,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["canResolve"] = "yes",
+            });
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "summon-self", "double-power" }, observedSpecIds.ToArray());
+    }
+
     private static GameCardEffectContext CreateContext(
         Card sourceDefinition,
         IReadOnlyDictionary<string, string>? arguments = null)
@@ -248,6 +513,50 @@ public sealed class GameSequentialEffectExecutorTests
             return Error.Validation(
                 code: "Game.Effect.Sequential.StepFailed",
                 description: "Intentional failure for testing fail-fast behavior.");
+        }
+    }
+
+    private sealed class InspectingTargetsEffect(
+        string effectTypeKey,
+        Action<IReadOnlyList<GameEffectTargetReference>> onExecute) : IGameCardEffect
+    {
+        public string EffectTypeKey { get; } = effectTypeKey;
+
+        public CanExecuteResult CanExecute(GameCardEffectContext context)
+        {
+            return new CanExecuteResult { CanExecute = true };
+        }
+
+        public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
+        {
+            return [];
+        }
+
+        public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
+        {
+            onExecute(selectedTargets);
+            return Result.Success;
+        }
+    }
+
+    private sealed class CannotExecuteEffect(string effectTypeKey) : IGameCardEffect
+    {
+        public string EffectTypeKey { get; } = effectTypeKey;
+
+        public CanExecuteResult CanExecute(GameCardEffectContext context)
+        {
+            return new CanExecuteResult { CanExecute = false };
+        }
+
+        public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
+        {
+            return [];
+        }
+
+        public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
+        {
+            Assert.Fail("Execute should not be called when CanExecute is false.");
+            return Result.Success;
         }
     }
 }
