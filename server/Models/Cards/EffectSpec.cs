@@ -16,6 +16,47 @@ public class ValidTargetResult
     public string ExecuteMessage { get; set; } = string.Empty;
 }
 
+public enum AttributeModificationTargetType
+{
+    SelectedTargets,
+    Leader
+}
+
+public enum AttributeModificationOperation
+{
+    Add,
+    Subtract,
+    Multiply,
+    Set
+}
+
+public enum EffectAttributeType
+{
+    CardPower,
+    CardHealth,
+    CardDamage,
+    LeaderPower,
+    LeaderDamage,
+    LeaderCurrentLife
+}
+
+public sealed class AttributeModificationSpec
+{
+    public AttributeModificationTargetType TargetType { get; set; } = AttributeModificationTargetType.SelectedTargets;
+
+    public TargetPlayerScope TargetPlayerScope { get; set; } = TargetPlayerScope.Player;
+
+    public EffectAttributeType Attribute { get; set; } = EffectAttributeType.CardPower;
+
+    public AttributeModificationOperation Operation { get; set; } = AttributeModificationOperation.Add;
+
+    public int Value { get; set; }
+
+    public int? MinimumValue { get; set; }
+
+    public int? MaximumValue { get; set; }
+}
+
 public sealed class EffectSpec
 {
     public string Id { get; set; } = string.Empty;
@@ -35,6 +76,8 @@ public sealed class EffectSpec
     public int? EffectValue { get; set; }
 
     public EffectRestrictions GlobalRestrictions { get; set; } = EffectRestrictions.None;
+
+    public IReadOnlyList<AttributeModificationSpec> AttributeModifications { get; set; } = [];
 
     public IReadOnlyList<EffectContextRuleSet> ContextRules { get; set; } = [];
 

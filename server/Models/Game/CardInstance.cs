@@ -12,4 +12,16 @@ public sealed class CardInstance
     public string ControllerPlayerId { get; set; } = string.Empty;
 
     public bool IsExhausted { get; set; }
+
+    // Null means card uses its base definition power.
+    public int? PowerOverride { get; set; }
+
+    // Null means card uses its base definition damage.
+    public int? DamageOverride { get; set; }
+
+    // Null means card uses its base definition health.
+    public int? HealthOverride { get; set; }
+
+    // Null means current health is derived from effective base health.
+    public int? CurrentHealth { get; set; }
 }

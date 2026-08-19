@@ -224,9 +224,13 @@ public static class GameStateResponseMapper
         bool isRequestingPlayer = false)
     {
         var definition = cardDefinitions[card.CardDefinitionId];
-        var maxHealth = definition is CharacterCard characterDefinition
+        var resolvedPower = card.PowerOverride ?? definition.Power;
+        var resolvedDamage = card.DamageOverride ?? definition.Damage;
+        var baseHealth = definition is CharacterCard characterDefinition
             ? characterDefinition.Health
             : 0;
+        var resolvedBaseHealth = card.HealthOverride ?? baseHealth;
+        var resolvedCurrentHealth = card.CurrentHealth ?? resolvedBaseHealth;
         var cardActions = BuildCardAvailableActions(card, playerZone, state, pendingPrompt, isRequestingPlayer);
 
         return playerZone switch
@@ -245,10 +249,10 @@ public static class GameStateResponseMapper
                     Type: definition.Type,
                     Color: definition.Color,
                     Traits: definition.Traits,
-                    Health: maxHealth,
-                    MaxHealth: maxHealth,
-                    Damage: definition.Damage,
-                    Power: definition.Power)
+                    Health: resolvedCurrentHealth,
+                    MaxHealth: baseHealth,
+                    Damage: resolvedDamage,
+                    Power: resolvedPower)
                 {
                     AvailableActions = cardActions
                 },
@@ -264,10 +268,10 @@ public static class GameStateResponseMapper
                             Type: definition.Type,
                             Color: definition.Color,
                             Traits: definition.Traits,
-                            Health: maxHealth,
-                            MaxHealth: maxHealth,
-                            Damage: definition.Damage,
-                            Power: definition.Power)
+                            Health: resolvedCurrentHealth,
+                            MaxHealth: baseHealth,
+                            Damage: resolvedDamage,
+                            Power: resolvedPower)
                         {
                             AvailableActions = cardActions
                         }
