@@ -161,7 +161,7 @@ public sealed class GamePassiveEffectService(
                 SourceCardInstanceId = passiveSource.SourceCardInstance.InstanceId,
                 EffectTypeKey = trimmedEffectTypeKey,
                 SelectedTargets = ResolveConsequenceTargets(game.State, mutationEvent, passiveSource, consequence).ToList(),
-                Arguments = BuildConsequenceArguments(consequence),
+                Arguments = BuildConsequenceArguments(consequence, mutationEvent, passiveSource),
                 IsNegated = false,
             };
 
@@ -341,11 +341,34 @@ public sealed class GamePassiveEffectService(
         return [];
     }
 
-    private static Dictionary<string, string> BuildConsequenceArguments(PassiveConsequenceSpec consequence)
+    private static Dictionary<string, string> BuildConsequenceArguments(
+        PassiveConsequenceSpec consequence,
+        GameMutationEvent mutationEvent,
+        PassiveSource passiveSource)
     {
-        return new Dictionary<string, string>(
+        var arguments = new Dictionary<string, string>(
             consequence.ConsequenceArguments,
             StringComparer.Ordinal);
+
+        if (consequence.TargetPolicy == PassiveConsequenceTargetPolicy.TriggerSelectedTargets)
+        {
+            var expectedIds = mutationEvent.AffectedCardInstanceIds
+                .Where(cardId => !string.IsNullOrWhiteSpace(cardId))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            if (expectedIds.Length > 0)
+            {
+                arguments[ReactiveEffectExecutionConstants.ExpectedTriggerTargetIdsArgument] = string.Join(",", expectedIds);
+            }
+        }
+        else if (consequence.TargetPolicy == PassiveConsequenceTargetPolicy.SourceCard)
+        {
+            arguments[ReactiveEffectExecutionConstants.ExpectedTriggerTargetIdsArgument] =
+                passiveSource.SourceCardInstance.InstanceId;
+        }
+
+        return arguments;
     }
 
     private sealed record PassiveSource(

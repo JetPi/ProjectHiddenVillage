@@ -122,15 +122,27 @@ public sealed class GameEffectChainResolver : IGameEffectChainResolver
 
                 arguments[ReactiveEffectExecutionConstants.SkipReactiveOrchestrationArgument] = bool.TrueString;
 
+                var targetResolution = ResolveExecutionTargets(game.State, entry.SelectedTargets, arguments);
+                if (options.ConsequenceTargetValidationMode == ConsequenceTargetValidationMode.Strict
+                    && targetResolution.MissingExpectedTargetIds.Count > 0)
+                {
+                    var missingTargets = string.Join(", ", targetResolution.MissingExpectedTargetIds);
+                    return CreateFailureResult(
+                        resolvedEntryIds,
+                        skippedNegatedEntryIds,
+                        entry.EntryId,
+                        $"Strict target validation failed. Missing targets: {missingTargets}.");
+                }
+
                 var context = new GameCardEffectContext(
                     game: game,
                     actingPlayer: new Player { Id = executionPlayerId },
                     sourceCardDefinition: sourceCardDefinition,
                     sourceCardInstance: sourceCardInstance,
                     arguments: arguments,
-                    selectedTargets: entry.SelectedTargets);
+                    selectedTargets: targetResolution.ResolvedTargets);
 
-                var executeResult = effect.Execute(context, entry.SelectedTargets);
+                var executeResult = effect.Execute(context, targetResolution.ResolvedTargets);
                 if (executeResult.IsError)
                 {
                     var firstError = executeResult.Errors.First();
@@ -161,6 +173,96 @@ public sealed class GameEffectChainResolver : IGameEffectChainResolver
         }
 
         return fallbackPlayerId;
+    }
+
+    private static TargetResolutionResult ResolveExecutionTargets(
+        GameState state,
+        IReadOnlyList<GameEffectTargetReference> requestedTargets,
+        IReadOnlyDictionary<string, string> arguments)
+    {
+        var resolvedTargets = new List<GameEffectTargetReference>();
+        var missingExpectedTargetIds = new List<string>();
+
+        foreach (var target in requestedTargets)
+        {
+            var resolvedTarget = TryResolveTargetReference(state, target);
+            if (resolvedTarget is not null)
+            {
+                resolvedTargets.Add(resolvedTarget);
+            }
+        }
+
+        if (arguments.TryGetValue(ReactiveEffectExecutionConstants.ExpectedTriggerTargetIdsArgument, out var expectedTargetsCsv)
+            && !string.IsNullOrWhiteSpace(expectedTargetsCsv))
+        {
+            var expectedTargetIds = expectedTargetsCsv
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            var resolvedTargetIds = new HashSet<string>(
+                resolvedTargets.Select(target => target.CardInstanceId),
+                StringComparer.Ordinal);
+
+            foreach (var expectedTargetId in expectedTargetIds)
+            {
+                if (!resolvedTargetIds.Contains(expectedTargetId))
+                {
+                    missingExpectedTargetIds.Add(expectedTargetId);
+                }
+            }
+        }
+
+        return new TargetResolutionResult(
+            resolvedTargets,
+            missingExpectedTargetIds);
+    }
+
+    private static GameEffectTargetReference? TryResolveTargetReference(GameState state, GameEffectTargetReference requestedTarget)
+    {
+        var requestedPlayer = state.Players.FirstOrDefault(player =>
+            string.Equals(player.PlayerId, requestedTarget.PlayerId, StringComparison.Ordinal));
+
+        if (requestedPlayer is not null)
+        {
+            var requestedZoneCards = PlayerZoneCardAccessor.GetCards(requestedTarget.Zone, requestedPlayer);
+            if (requestedZoneCards.Any(card => string.Equals(card.InstanceId, requestedTarget.CardInstanceId, StringComparison.Ordinal)))
+            {
+                return requestedTarget;
+            }
+        }
+
+        var allZones = new[]
+        {
+            PlayerZone.CharacterField,
+            PlayerZone.SupportZone,
+            PlayerZone.Hand,
+            PlayerZone.Deck,
+            PlayerZone.Trash,
+            PlayerZone.ExileZone,
+        };
+
+        foreach (var player in state.Players.OrderBy(player => player.PlayerId, StringComparer.Ordinal))
+        {
+            foreach (var zone in allZones)
+            {
+                var zoneCards = PlayerZoneCardAccessor.GetCards(zone, player);
+                if (!zoneCards.Any(card => string.Equals(card.InstanceId, requestedTarget.CardInstanceId, StringComparison.Ordinal)))
+                {
+                    continue;
+                }
+
+                return new GameEffectTargetReference(
+                    PlayerId: player.PlayerId,
+                    Zone: zone,
+                    CardInstanceId: requestedTarget.CardInstanceId,
+                    SlotId: requestedTarget.SlotId,
+                    IsEffectResolutionStackTarget: requestedTarget.IsEffectResolutionStackTarget,
+                    EffectResolutionEntryId: requestedTarget.EffectResolutionEntryId);
+            }
+        }
+
+        return null;
     }
 
     private static CardInstance? TryResolveSourceCardInstance(PlayerState sourcePlayer, EffectResolutionStackEntry entry)
@@ -213,4 +315,8 @@ public sealed class GameEffectChainResolver : IGameEffectChainResolver
             FailureReason = failureReason,
         };
     }
+
+    private sealed record TargetResolutionResult(
+        IReadOnlyList<GameEffectTargetReference> ResolvedTargets,
+        IReadOnlyList<string> MissingExpectedTargetIds);
 }

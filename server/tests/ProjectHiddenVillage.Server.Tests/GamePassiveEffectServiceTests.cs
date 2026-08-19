@@ -166,6 +166,8 @@ public sealed class GamePassiveEffectServiceTests
         Assert.AreEqual("p2", stackEntry.SelectedTargets[0].PlayerId);
         Assert.IsTrue(stackEntry.Arguments.ContainsKey("reason"));
         Assert.AreEqual("passive-chain", stackEntry.Arguments["reason"]);
+        Assert.IsTrue(stackEntry.Arguments.ContainsKey(ReactiveEffectExecutionConstants.ExpectedTriggerTargetIdsArgument));
+        Assert.AreEqual("target-1", stackEntry.Arguments[ReactiveEffectExecutionConstants.ExpectedTriggerTargetIdsArgument]);
     }
 
     private static EffectSpec CreatePassiveEffectSpec(

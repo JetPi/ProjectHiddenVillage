@@ -58,6 +58,15 @@ public sealed class PassiveChainResolutionOptions
     public int MaxDepth { get; set; } = 8;
 
     public bool DeduplicateByPassiveKey { get; set; } = true;
+
+    public ConsequenceTargetValidationMode ConsequenceTargetValidationMode { get; set; } =
+        ConsequenceTargetValidationMode.Permissive;
+}
+
+public enum ConsequenceTargetValidationMode
+{
+    Permissive,
+    Strict,
 }
 
 public sealed class PassiveEvaluationResult
