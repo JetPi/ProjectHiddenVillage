@@ -162,6 +162,11 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 			movedCard.ControllerPlayerId = resolvedDestinationPlayerId;
 		}
 
+		if (destinationZone == PlayerZone.CharacterField)
+		{
+			movedCard.EnteredFieldTurnNumber = gameInstance.State.TurnNumber;
+		}
+
 		destinationList.Insert(insertIndex, movedCard);
 		return movedCard;
 	}

@@ -331,7 +331,7 @@ public static class GameStateResponseMapper
             ],
 
             PlayerZone.CharacterField =>
-                card.IsExhausted
+                !CanDeclareBattleAction(card, state)
                     ? []
                     :
                     [
@@ -343,6 +343,38 @@ public static class GameStateResponseMapper
 
             _ => []
         };
+    }
+
+    private static bool CanDeclareBattleAction(CardInstance card, GameState state)
+    {
+        if (card.IsExhausted)
+        {
+            return false;
+        }
+
+        if (!card.EnteredFieldTurnNumber.HasValue || card.EnteredFieldTurnNumber.Value != state.TurnNumber)
+        {
+            return true;
+        }
+
+        return HasRushKeyword(card, state);
+    }
+
+    private static bool HasRushKeyword(CardInstance card, GameState state)
+    {
+        if (card.RuntimeKeywords.Any(keyword =>
+            string.Equals(keyword, EffectConditionKeywords.Rush, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        if (!state.CardDefinitions.TryGetValue(card.CardDefinitionId, out var definition))
+        {
+            return false;
+        }
+
+        return definition.Conditions.Any(condition =>
+            string.Equals(condition.Id, EffectConditionKeywords.Rush, StringComparison.OrdinalIgnoreCase));
     }
 
     private static LeaderCardInstanceResponse ToLeaderCardInstanceResponse(LeaderCardInstanceState? leader)

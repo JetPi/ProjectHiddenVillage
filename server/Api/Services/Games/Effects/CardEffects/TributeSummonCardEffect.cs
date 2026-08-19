@@ -83,6 +83,7 @@ public sealed class TributeSummonCardEffect(
 
         var summoningPlayerField = PlayerZoneCardAccessor.GetCards(PlayerZone.CharacterField, summoningPlayer);
         summonedCard.ControllerPlayerId = summoningPlayer.PlayerId;
+        summonedCard.EnteredFieldTurnNumber = context.Game.State.TurnNumber;
         summoningPlayerField.Add(summonedCard);
 
         return Result.Success;
