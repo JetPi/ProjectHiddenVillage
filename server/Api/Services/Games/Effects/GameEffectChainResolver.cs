@@ -114,18 +114,23 @@ public sealed class GameEffectChainResolver : IGameEffectChainResolver
                 }
 
                 var executionPlayerId = ResolveExecutionPlayerId(game.State, actingPlayerId, entry.SourcePlayerId);
+                var arguments = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var (argumentKey, argumentValue) in entry.Arguments)
+                {
+                    arguments[argumentKey] = argumentValue;
+                }
+
+                arguments[ReactiveEffectExecutionConstants.SkipReactiveOrchestrationArgument] = bool.TrueString;
+
                 var context = new GameCardEffectContext(
                     game: game,
                     actingPlayer: new Player { Id = executionPlayerId },
                     sourceCardDefinition: sourceCardDefinition,
                     sourceCardInstance: sourceCardInstance,
-                    arguments: new Dictionary<string, string>(StringComparer.Ordinal)
-                    {
-                        [ReactiveEffectExecutionConstants.SkipReactiveOrchestrationArgument] = bool.TrueString,
-                    },
-                    selectedTargets: []);
+                    arguments: arguments,
+                    selectedTargets: entry.SelectedTargets);
 
-                var executeResult = effect.Execute(context, []);
+                var executeResult = effect.Execute(context, entry.SelectedTargets);
                 if (executeResult.IsError)
                 {
                     var firstError = executeResult.Errors.First();

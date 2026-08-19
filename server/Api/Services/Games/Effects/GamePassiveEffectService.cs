@@ -83,6 +83,7 @@ public sealed class GamePassiveEffectService(
             {
                 EnqueuePassiveConsequences(
                     game,
+                    mutationEvent,
                     passiveSource,
                     passiveKey,
                     options,
@@ -127,6 +128,7 @@ public sealed class GamePassiveEffectService(
 
     private void EnqueuePassiveConsequences(
         GameInstance game,
+        GameMutationEvent mutationEvent,
         PassiveSource passiveSource,
         string passiveKey,
         PassiveChainResolutionOptions options,
@@ -158,6 +160,8 @@ public sealed class GamePassiveEffectService(
                 SourceZone = passiveSource.SourceZone,
                 SourceCardInstanceId = passiveSource.SourceCardInstance.InstanceId,
                 EffectTypeKey = trimmedEffectTypeKey,
+                SelectedTargets = ResolveConsequenceTargets(game.State, mutationEvent, passiveSource, consequence).ToList(),
+                Arguments = BuildConsequenceArguments(consequence),
                 IsNegated = false,
             };
 
@@ -249,6 +253,99 @@ public sealed class GamePassiveEffectService(
             effect.PassiveMode != PassiveMode.None
             && !string.IsNullOrWhiteSpace(effect.Id)
             && effect.PassiveConsequences.Count > 0);
+    }
+
+    private static IReadOnlyDictionary<string, string> BuildMutationAffectedCardZoneMap(GameState state)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var player in state.Players)
+        {
+            AddZoneMappings(player, PlayerZone.CharacterField, player.Battlefield, result);
+            AddZoneMappings(player, PlayerZone.SupportZone, player.SupportZone, result);
+            AddZoneMappings(player, PlayerZone.Hand, player.Hand, result);
+            AddZoneMappings(player, PlayerZone.Deck, player.Deck, result);
+            AddZoneMappings(player, PlayerZone.Trash, player.DiscardPile, result);
+            AddZoneMappings(player, PlayerZone.ExileZone, player.ExileZone, result);
+        }
+
+        return result;
+    }
+
+    private static void AddZoneMappings(
+        PlayerState player,
+        PlayerZone zone,
+        IReadOnlyList<CardInstance> cards,
+        Dictionary<string, string> map)
+    {
+        foreach (var card in cards)
+        {
+            map[card.InstanceId] = string.Concat(player.PlayerId, "|", zone.ToString());
+        }
+    }
+
+    private static IReadOnlyList<GameEffectTargetReference> ResolveConsequenceTargets(
+        GameState state,
+        GameMutationEvent mutationEvent,
+        PassiveSource passiveSource,
+        PassiveConsequenceSpec consequence)
+    {
+        if (consequence.TargetPolicy == PassiveConsequenceTargetPolicy.SourceCard)
+        {
+            return
+            [
+                new GameEffectTargetReference(
+                    PlayerId: passiveSource.SourceCardInstance.ControllerPlayerId,
+                    Zone: passiveSource.SourceZone,
+                    CardInstanceId: passiveSource.SourceCardInstance.InstanceId)
+            ];
+        }
+
+        if (consequence.TargetPolicy == PassiveConsequenceTargetPolicy.TriggerSelectedTargets)
+        {
+            // Trigger-selected targets come from the mutation event payload and are best-effort resolved by card id.
+            var uniqueTargets = new Dictionary<string, GameEffectTargetReference>(StringComparer.Ordinal);
+            var cardZoneLookup = BuildMutationAffectedCardZoneMap(state);
+
+            foreach (var targetId in mutationEvent.AffectedCardInstanceIds
+                         .Where(targetId => !string.IsNullOrWhiteSpace(targetId)))
+            {
+                if (!cardZoneLookup.TryGetValue(targetId, out var encodedLocation))
+                {
+                    continue;
+                }
+
+                var separatorIndex = encodedLocation.IndexOf('|');
+                if (separatorIndex < 0)
+                {
+                    continue;
+                }
+
+                var playerId = encodedLocation[..separatorIndex];
+                var zoneName = encodedLocation[(separatorIndex + 1)..];
+
+                if (!Enum.TryParse<PlayerZone>(zoneName, out var zone))
+                {
+                    continue;
+                }
+
+                uniqueTargets[targetId] = new GameEffectTargetReference(
+                    PlayerId: playerId,
+                    Zone: zone,
+                    CardInstanceId: targetId);
+            }
+
+            return uniqueTargets.Values.ToList();
+        }
+
+        return [];
+    }
+
+    private static Dictionary<string, string> BuildConsequenceArguments(PassiveConsequenceSpec consequence)
+    {
+        return new Dictionary<string, string>(
+            consequence.ConsequenceArguments,
+            StringComparer.Ordinal);
     }
 
     private sealed record PassiveSource(

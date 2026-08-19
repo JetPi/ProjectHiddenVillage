@@ -12,5 +12,9 @@ public sealed class EffectResolutionStackEntry
 
     public string EffectTypeKey { get; set; } = string.Empty;
 
+    public List<GameEffectTargetReference> SelectedTargets { get; set; } = [];
+
+    public Dictionary<string, string> Arguments { get; set; } = new(StringComparer.Ordinal);
+
     public bool IsNegated { get; set; }
 }

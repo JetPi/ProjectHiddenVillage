@@ -110,6 +110,57 @@ public sealed class GameEffectChainResolverTests
         Assert.AreEqual("a", game.State.EffectResolutionStack[0].EntryId);
     }
 
+    [TestMethod]
+    public void Resolve_PassesTranslatedTargetsAndArguments_ToEffectExecutionContext()
+    {
+        var observedTargets = new List<GameEffectTargetReference>();
+        var observedArguments = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        var resolver = new GameEffectChainResolver(new GameCardEffectRegistry(
+        [
+            new InspectingEffect(
+                effectTypeKey: "Inspect",
+                onExecute: context =>
+                {
+                    observedTargets.AddRange(context.SelectedTargets);
+                    foreach (var (key, value) in context.Arguments)
+                    {
+                        observedArguments[key] = value;
+                    }
+                })
+        ]));
+
+        var game = CreateGameWithStack(
+            new EffectResolutionStackEntry
+            {
+                EntryId = "inspect-entry",
+                SourcePlayerId = "p1",
+                SourceZone = PlayerZone.CharacterField,
+                SourceCardInstanceId = "source-1",
+                EffectTypeKey = "Inspect",
+                SelectedTargets =
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.CharacterField,
+                        CardInstanceId: "target-1")
+                ],
+                Arguments = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["summonTargetId"] = "target-1",
+                }
+            });
+
+        var result = resolver.Resolve(game, actingPlayerId: "p1", new PassiveChainResolutionOptions());
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(1, observedTargets.Count);
+        Assert.AreEqual("target-1", observedTargets[0].CardInstanceId);
+        Assert.IsTrue(observedArguments.ContainsKey("summonTargetId"));
+        Assert.AreEqual("target-1", observedArguments["summonTargetId"]);
+        Assert.IsTrue(observedArguments.ContainsKey(ReactiveEffectExecutionConstants.SkipReactiveOrchestrationArgument));
+    }
+
     private static GameInstance CreateGameWithStack(params EffectResolutionStackEntry[] entries)
     {
         var sourceCardInstance = new CardInstance
@@ -194,6 +245,27 @@ public sealed class GameEffectChainResolverTests
                 && shouldSkip,
                 "Stack-driven effect execution must suppress recursive orchestration.");
 
+            return Result.Success;
+        }
+    }
+
+    private sealed class InspectingEffect(string effectTypeKey, Action<GameCardEffectContext> onExecute) : IGameCardEffect
+    {
+        public string EffectTypeKey { get; } = effectTypeKey;
+
+        public CanExecuteResult CanExecute(GameCardEffectContext context)
+        {
+            return new CanExecuteResult { CanExecute = true };
+        }
+
+        public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
+        {
+            return [];
+        }
+
+        public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
+        {
+            onExecute(context);
             return Result.Success;
         }
     }

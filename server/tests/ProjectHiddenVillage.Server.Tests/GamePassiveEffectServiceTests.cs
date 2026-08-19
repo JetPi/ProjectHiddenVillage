@@ -108,6 +108,66 @@ public sealed class GamePassiveEffectServiceTests
         Assert.IsFalse(game.State.PassiveStates[0].IsActive);
     }
 
+    [TestMethod]
+    public void EvaluateAndEnqueue_TranslatesTriggerTargetsAndArguments_IntoStackEntryPayload()
+    {
+        var passiveEffect = new EffectSpec
+        {
+            Id = "passive-4",
+            RuntimeEffectType = RuntimeEffects.SummonCard,
+            PassiveMode = PassiveMode.Triggered,
+            PassiveReevaluation = new PassiveReevaluationSpec
+            {
+                TriggerKinds = [PassiveTriggerKind.StatsChanged],
+                Scope = PassiveReevaluationScope.SourceCardOnly,
+            },
+            PassiveConsequences =
+            [
+                new PassiveConsequenceSpec
+                {
+                    ConsequenceEffectTypeKey = DestroyCardEffect.EffectKey,
+                    TargetPolicy = PassiveConsequenceTargetPolicy.TriggerSelectedTargets,
+                    ConsequenceArguments = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["reason"] = "passive-chain",
+                    }
+                }
+            ]
+        };
+
+        var targetCard = new CardInstance
+        {
+            InstanceId = "target-1",
+            CardDefinitionId = "target-def",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        };
+
+        var game = CreateGameWithPassiveSource(passiveEffect, targetCard);
+        var service = new GamePassiveEffectService(
+            canExecuteEvaluator: new StubCanExecuteEvaluator(["passive-4"]),
+            effectRegistry: new StubEffectRegistry([DestroyCardEffect.EffectKey]));
+
+        var mutationEvent = CreateMutationEvent(GameMutationKind.CardStatChanged);
+        mutationEvent.AffectedCardInstanceIds = ["target-1"];
+        mutationEvent.AffectedPlayerIds = ["p1", "p2"];
+
+        var result = service.EvaluateAndEnqueue(
+            game,
+            mutationEvent,
+            new PassiveChainResolutionOptions());
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(1, game.State.EffectResolutionStack.Count);
+
+        var stackEntry = game.State.EffectResolutionStack[0];
+        Assert.AreEqual(1, stackEntry.SelectedTargets.Count);
+        Assert.AreEqual("target-1", stackEntry.SelectedTargets[0].CardInstanceId);
+        Assert.AreEqual("p2", stackEntry.SelectedTargets[0].PlayerId);
+        Assert.IsTrue(stackEntry.Arguments.ContainsKey("reason"));
+        Assert.AreEqual("passive-chain", stackEntry.Arguments["reason"]);
+    }
+
     private static EffectSpec CreatePassiveEffectSpec(
         string effectId,
         IReadOnlyList<PassiveTriggerKind> triggerKinds,
@@ -135,7 +195,7 @@ public sealed class GamePassiveEffectServiceTests
         };
     }
 
-    private static GameInstance CreateGameWithPassiveSource(EffectSpec passiveEffectSpec)
+    private static GameInstance CreateGameWithPassiveSource(EffectSpec passiveEffectSpec, CardInstance? optionalOpponentBattlefieldCard = null)
     {
         var playerOne = new PlayerState
         {
@@ -156,6 +216,11 @@ public sealed class GamePassiveEffectServiceTests
         {
             PlayerId = "p2",
         };
+
+        if (optionalOpponentBattlefieldCard is not null)
+        {
+            playerTwo.Battlefield.Add(optionalOpponentBattlefieldCard);
+        }
 
         var cardDefinition = new CharacterCard
         {
@@ -183,6 +248,19 @@ public sealed class GamePassiveEffectServiceTests
             CardDefinitions =
             {
                 ["def-1"] = cardDefinition,
+                ["target-def"] = new CharacterCard
+                {
+                    Id = "target-def",
+                    DisplayName = "Target",
+                    Name = ["Target"],
+                    Type = CardType.Character,
+                    Color = CardColor.Blue,
+                    Traits = ["Ninja"],
+                    Description = string.Empty,
+                    Damage = 1,
+                    Power = 2,
+                    Health = 2,
+                },
             }
         };
 
