@@ -9,9 +9,12 @@ public sealed class NoopGameCardEffect : IGameCardEffect
 
     public string EffectTypeKey => EffectKey;
 
-    public bool CanExecute(GameCardEffectContext context)
+    public CanExecuteResult CanExecute(GameCardEffectContext context)
     {
-        return context is not null;
+        return new CanExecuteResult
+        {
+            CanExecute = context is not null
+        };
     }
 
     public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
@@ -19,7 +22,7 @@ public sealed class NoopGameCardEffect : IGameCardEffect
         return [];
     }
 
-    public ErrorOr<Success> Execute(GameCardEffectContext context)
+    public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
     {
         return Result.Success;
     }

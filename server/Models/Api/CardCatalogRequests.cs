@@ -34,7 +34,8 @@ public sealed record CardCatalogEffectResponse(
     bool IsOptional,
     int? ChakraCost,
     string GlobalRestrictions,
-    IReadOnlyList<EffectContextRuleSet> ContextRules);
+    IReadOnlyList<EffectContextRuleSet> ContextRules,
+    EffectTargetRuleSet TargetRules);
 
 public sealed record UpdateCardEffectsRequest(
     IReadOnlyList<ConditionSpec>? Conditions,

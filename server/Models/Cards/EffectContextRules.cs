@@ -2,9 +2,9 @@ namespace ProjectHiddenVillage.Server;
 
 public sealed class EffectContextRuleSet
 {
-    public IReadOnlyList<EffectContextCondition> Player { get; set; } = [];
+    public EffectContextCondition? Player { get; set; }
 
-    public IReadOnlyList<EffectContextCondition> Opponent { get; set; } = [];
+    public EffectContextCondition? Opponent { get; set; }
 }
 
 public enum RuntimeEffects
@@ -20,24 +20,55 @@ public enum RuntimeEffects
     FreezeCard,
     RevealCard,
     SummonCard,
-    
 }
 
 public sealed class EffectContextCondition
 {
-    public ZoneAmountRestriction? InZoneAmount { get; set; }
+    public PlayerZone? InZone { get; set; }
 
-    public ZoneAmountRestriction? InZoneAmountMin { get; set; }
-
-    public ZoneAmountRestriction? InZoneAmountMax { get; set; }
+    public ZoneRequirementSet? InZoneRequirements { get; set; }
 }
 
-public sealed class ZoneAmountRestriction
+public enum ZoneAmountComparison
+{
+    Exact,
+    Minimum,
+    Maximum,
+}
+
+public enum RequirementGroupOperator
+{
+    All,
+    Any,
+}
+
+public enum ZoneRestrictionMatchMode
+{
+    Any,
+    All,
+}
+
+public sealed class ZoneRequirementSet
+{
+    public IReadOnlyList<ZoneAmountRequirement> Requirements { get; set; } = [];
+    public RequirementGroupOperator Operator { get; set; } = RequirementGroupOperator.All;
+    public bool DistinctCardsAcrossRequirements { get; set; } = false;
+}
+
+public sealed class ZoneAmountRequirement
 {
     public int Amount { get; set; }
-    public PlayerZone Zone { get; set; } = PlayerZone.Hand;
+
+    public ZoneAmountComparison Comparison { get; set; } = ZoneAmountComparison.Exact;
+
+    public ZoneCardRestriction Restriction { get; set; } = new();
+}
+
+public sealed class ZoneCardRestriction
+{
     public IReadOnlyList<string>? HasTrait { get; set; } = [];
     public IReadOnlyList<string>? HasName { get; set; } = [];
-    public IReadOnlyList<string>? HasType { get; set; } = [];
-    public IReadOnlyList<string>? HasColor { get; set; } = [];
+    public IReadOnlyList<CardType>? HasType { get; set; } = [];
+    public IReadOnlyList<CardColor>? HasColor { get; set; } = [];
+    public ZoneRestrictionMatchMode MatchMode { get; set; } = ZoneRestrictionMatchMode.Any;
 }
