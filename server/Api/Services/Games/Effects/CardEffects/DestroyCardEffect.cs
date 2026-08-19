@@ -22,19 +22,31 @@ public sealed class DestroyCardEffect : IGameCardEffect
 
     public CanExecuteResult CanExecute(GameCardEffectContext context)
     {
-        var result = new CanExecuteResult();
+        _ = EvaluateCanExecute(context, includeValidTargets: true, out var result, out _);
+        return result;
+    }
+
+    private bool EvaluateCanExecute(
+        GameCardEffectContext context,
+        bool includeValidTargets,
+        out CanExecuteResult result,
+        out IReadOnlyList<GameEffectTargetReference> validTargets)
+    {
+        result = new CanExecuteResult();
+        validTargets = [];
 
         var cardDestroyEffect = ResolveDestroyEffect(context);
         if (cardDestroyEffect is null)
         {
             result.FailedConditions.Add("DestroyCard effect is not defined on the source card.");
-            return result;
+            return false;
         }
 
         var requestingPlayer = context.ActingPlayer;
         var gameState = context.Game.State;
         var requestingPlayerState = context.Game.State.Players.Find(player => player.PlayerId == requestingPlayer.Id)!;
         var opposingPlayerState = context.Game.State.Players.Find(player => player.PlayerId != requestingPlayer.Id)!;
+        var conditionResultCache = new Dictionary<(PlayerState PlayerState, EffectContextCondition Condition), CanExecuteResult>();
 
         var cardConditions = cardDestroyEffect.ContextRules;
 
@@ -44,21 +56,19 @@ public sealed class DestroyCardEffect : IGameCardEffect
 
             if (conditionRuleSet.Player is not null)
             {
-                var playerConditionResult = CheckConditionsAgainstInstance(conditionRuleSet.Player, requestingPlayerState, gameState);
+                var playerConditionResult = GetOrEvaluateConditionResult(conditionRuleSet.Player, requestingPlayerState, gameState, conditionResultCache);
                 if (!playerConditionResult.CanExecute)
                 {
-                    result.FailedConditions.AddRange(playerConditionResult.FailedConditions.Select(message =>
-                        $"{message}"));
+                    result.FailedConditions.AddRange(playerConditionResult.FailedConditions);
                 }
             }
 
             if (conditionRuleSet.Opponent is not null)
             {
-                var opponentConditionResult = CheckConditionsAgainstInstance(conditionRuleSet.Opponent, opposingPlayerState, gameState);
+                var opponentConditionResult = GetOrEvaluateConditionResult(conditionRuleSet.Opponent, opposingPlayerState, gameState, conditionResultCache);
                 if (!opponentConditionResult.CanExecute)
                 {
-                    result.FailedConditions.AddRange(opponentConditionResult.FailedConditions.Select(message =>
-                        $"{message}"));
+                    result.FailedConditions.AddRange(opponentConditionResult.FailedConditions);
                 }
             }
         }
@@ -66,13 +76,36 @@ public sealed class DestroyCardEffect : IGameCardEffect
         result.CanExecute = result.FailedConditions.Count == 0;
         if (!result.CanExecute)
         {
-            return result;
+            return false;
         }
 
-        var validTargets = targetResolver.ResolveTargets(context, cardDestroyEffect);
-        result.ValidTargets.AddRange(validTargets.Select(FormatTarget));
+        if (includeValidTargets)
+        {
+            validTargets = targetResolver.ResolveTargets(context, cardDestroyEffect);
+            result.ValidTargets.AddRange(validTargets.Select(FormatTarget));
+            return true;
+        }
 
-        return result;
+        validTargets = targetResolver.ResolveTargets(context, cardDestroyEffect);
+
+        return true;
+    }
+
+    private CanExecuteResult GetOrEvaluateConditionResult(
+        EffectContextCondition condition,
+        PlayerState playerState,
+        GameState gameState,
+        Dictionary<(PlayerState PlayerState, EffectContextCondition Condition), CanExecuteResult> conditionResultCache)
+    {
+        var key = (playerState, condition);
+        if (conditionResultCache.TryGetValue(key, out var cachedResult))
+        {
+            return cachedResult;
+        }
+
+        var evaluatedResult = CheckConditionsAgainstInstance(condition, playerState, gameState);
+        conditionResultCache[key] = evaluatedResult;
+        return evaluatedResult;
     }
 
     private static EffectSpec? ResolveDestroyEffect(GameCardEffectContext context)
@@ -83,6 +116,11 @@ public sealed class DestroyCardEffect : IGameCardEffect
 
     public CanExecuteResult CheckConditionsAgainstInstance(EffectContextCondition condition, PlayerState playerState, GameState gameState)
     {
+        if (condition.InZone is null || condition.InZoneRequirements is null || condition.InZoneRequirements.Requirements.Count == 0)
+        {
+            return new CanExecuteResult { CanExecute = true };
+        }
+
         var conditionResult = new CanExecuteResult();
         var isSatisfied = conditionEvaluator.IsConditionSatisfied(condition, playerState, gameState);
 
@@ -93,11 +131,6 @@ public sealed class DestroyCardEffect : IGameCardEffect
         }
 
         var zoneName = condition.InZone?.ToString() ?? "AnyZone";
-        if (condition.InZoneRequirements is null || condition.InZoneRequirements.Requirements.Count == 0)
-        {
-            conditionResult.FailedConditions.Add($"Condition for zone {zoneName} is not satisfied.");
-            return conditionResult;
-        }
 
         var requirementDetails = string.Join(
             ", ",
@@ -167,13 +200,12 @@ public sealed class DestroyCardEffect : IGameCardEffect
             return [];
         }
 
-        var canExecuteResult = CanExecute(context);
-        if (!canExecuteResult.CanExecute)
+        if (!EvaluateCanExecute(context, includeValidTargets: false, out _, out var validTargets))
         {
             return [];
         }
 
-        return targetResolver.ResolveTargets(context, cardDestroyEffect);
+        return validTargets;
     }
 
     public ErrorOr<Success> Execute(GameCardEffectContext context)

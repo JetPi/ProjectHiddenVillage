@@ -54,22 +54,34 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
             return true;
         }
 
+        var matchCountByRestrictionKey = new Dictionary<string, int>(StringComparer.Ordinal);
+        var candidateIndexesByRestrictionKey = new Dictionary<string, int[]>(StringComparer.Ordinal);
+
         if (requirementSet.Operator == RequirementGroupOperator.Any)
         {
-            return requirements.Any(requirement => RequirementIsSatisfied(requirement, zoneCards));
+            return requirements.Any(requirement => RequirementIsSatisfied(requirement, zoneCards, matchCountByRestrictionKey));
         }
 
         if (!requirementSet.DistinctCardsAcrossRequirements)
         {
-            return requirements.All(requirement => RequirementIsSatisfied(requirement, zoneCards));
+            return requirements.All(requirement => RequirementIsSatisfied(requirement, zoneCards, matchCountByRestrictionKey));
         }
 
-        return RequirementsSatisfiedWithDistinctCards(requirements, zoneCards);
+        return RequirementsSatisfiedWithDistinctCards(requirements, zoneCards, candidateIndexesByRestrictionKey);
     }
 
-    private static bool RequirementIsSatisfied(ZoneAmountRequirement requirement, IReadOnlyList<Card> zoneCards)
+    private static bool RequirementIsSatisfied(
+        ZoneAmountRequirement requirement,
+        IReadOnlyList<Card> zoneCards,
+        Dictionary<string, int> matchCountByRestrictionKey)
     {
-        var matchCount = zoneCards.Count(card => ZoneCardRestrictionMatcher.Matches(card, requirement.Restriction));
+        var restrictionKey = BuildRestrictionKey(requirement.Restriction);
+        if (!matchCountByRestrictionKey.TryGetValue(restrictionKey, out var matchCount))
+        {
+            matchCount = zoneCards.Count(card => ZoneCardRestrictionMatcher.Matches(card, requirement.Restriction));
+            matchCountByRestrictionKey[restrictionKey] = matchCount;
+        }
+
         return ComparisonMatches(requirement.Comparison, requirement.Amount, matchCount);
     }
 
@@ -84,14 +96,13 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
         };
     }
 
-    private static bool RequirementsSatisfiedWithDistinctCards(IReadOnlyList<ZoneAmountRequirement> requirements, IReadOnlyList<Card> zoneCards)
+    private static bool RequirementsSatisfiedWithDistinctCards(
+        IReadOnlyList<ZoneAmountRequirement> requirements,
+        IReadOnlyList<Card> zoneCards,
+        Dictionary<string, int[]> candidateIndexesByRestrictionKey)
     {
         var candidateIndexesPerRequirement = requirements
-            .Select(requirement => zoneCards
-                .Select((card, index) => (card, index))
-                .Where(tuple => ZoneCardRestrictionMatcher.Matches(tuple.card, requirement.Restriction))
-                .Select(tuple => tuple.index)
-                .ToArray())
+            .Select(requirement => GetCandidateIndexes(requirement.Restriction, zoneCards, candidateIndexesByRestrictionKey))
             .ToArray();
 
         var orderedRequirementIndexes = Enumerable.Range(0, requirements.Count)
@@ -100,6 +111,35 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
 
         var usedCardIndexes = new HashSet<int>();
         return TrySatisfyDistinctRequirements(requirements, candidateIndexesPerRequirement, orderedRequirementIndexes, usedCardIndexes, 0);
+    }
+
+    private static int[] GetCandidateIndexes(
+        ZoneCardRestriction restriction,
+        IReadOnlyList<Card> zoneCards,
+        Dictionary<string, int[]> candidateIndexesByRestrictionKey)
+    {
+        var restrictionKey = BuildRestrictionKey(restriction);
+        if (candidateIndexesByRestrictionKey.TryGetValue(restrictionKey, out var cachedIndexes))
+        {
+            return cachedIndexes;
+        }
+
+        var candidateIndexes = zoneCards
+            .Select((card, index) => (card, index))
+            .Where(tuple => ZoneCardRestrictionMatcher.Matches(tuple.card, restriction))
+            .Select(tuple => tuple.index)
+            .ToArray();
+
+        candidateIndexesByRestrictionKey[restrictionKey] = candidateIndexes;
+        return candidateIndexes;
+    }
+
+    private static string BuildRestrictionKey(ZoneCardRestriction restriction)
+    {
+        static string Serialize<T>(IReadOnlyList<T>? values)
+            => values is { Count: > 0 } ? string.Join(",", values) : "-";
+
+        return $"mode:{restriction.MatchMode}|name:{Serialize(restriction.HasName)}|trait:{Serialize(restriction.HasTrait)}|type:{Serialize(restriction.HasType)}|color:{Serialize(restriction.HasColor)}";
     }
 
     private static bool TrySatisfyDistinctRequirements(
