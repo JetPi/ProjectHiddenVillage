@@ -26,7 +26,7 @@ public sealed class GameState
 
     public List<PlayerState> Players { get; set; } = [];
 
-    public List<CardInstance> EffectResolutionStack { get; set; } = [];
+    public List<EffectResolutionStackEntry> EffectResolutionStack { get; set; } = [];
 
     public void InsertPhase(GamePhase phase)
     {
