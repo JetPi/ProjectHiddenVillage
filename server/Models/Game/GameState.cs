@@ -28,6 +28,8 @@ public sealed class GameState
 
     public List<EffectResolutionStackEntry> EffectResolutionStack { get; set; } = [];
 
+    public List<PassiveActivationState> PassiveStates { get; set; } = [];
+
     public void InsertPhase(GamePhase phase)
     {
         InsertedPhases.Enqueue(phase);
