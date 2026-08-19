@@ -1,5 +1,12 @@
 namespace ProjectHiddenVillage.Server;
 
+public class CanExecuteResult
+{
+    public bool CanExecute { get; set; } = false;
+    public List<string> FailedConditions { get; set; } = [];
+    public List<string> ValidTargets{ get; set; } = [];
+}
+
 public sealed class EffectSpec
 {
     public string Id { get; set; } = string.Empty;
@@ -15,6 +22,8 @@ public sealed class EffectSpec
     public bool IsOptional { get; set; } = false;
 
      public int? ChakraCost { get; set; }
+
+    public int? EffectValue { get; set; }
 
     public EffectRestrictions GlobalRestrictions { get; set; } = EffectRestrictions.None;
 

@@ -41,9 +41,9 @@ public sealed class DestroyCardEffectTests
             }
         };
 
-        var canExecute = effect.CheckConditionsAgainstInstance(condition, player, state);
+        var result = effect.CheckConditionsAgainstInstance(condition, player, state);
 
-        Assert.IsTrue(canExecute);
+        Assert.IsTrue(result.CanExecute);
     }
 
     [TestMethod]
@@ -77,9 +77,9 @@ public sealed class DestroyCardEffectTests
             }
         };
 
-        var canExecute = effect.CheckConditionsAgainstInstance(condition, player, state);
+        var result = effect.CheckConditionsAgainstInstance(condition, player, state);
 
-        Assert.IsFalse(canExecute);
+        Assert.IsFalse(result.CanExecute);
     }
 
     [TestMethod]
@@ -113,9 +113,9 @@ public sealed class DestroyCardEffectTests
             }
         };
 
-        var canExecute = effect.CheckConditionsAgainstInstance(condition, player, state);
+        var result = effect.CheckConditionsAgainstInstance(condition, player, state);
 
-        Assert.IsTrue(canExecute);
+        Assert.IsTrue(result.CanExecute);
     }
 
     [TestMethod]
@@ -150,9 +150,9 @@ public sealed class DestroyCardEffectTests
             }
         };
 
-        var canExecute = effect.CheckConditionsAgainstInstance(condition, player, state);
+        var result = effect.CheckConditionsAgainstInstance(condition, player, state);
 
-        Assert.IsFalse(canExecute);
+        Assert.IsFalse(result.CanExecute);
     }
 
     private static PlayerState CreatePlayerWithBattlefield(params Card[] cards)

@@ -6,7 +6,7 @@ public interface IGameCardEffect
 {
     string EffectTypeKey { get; }
 
-    bool CanExecute(GameCardEffectContext context);
+    CanExecuteResult CanExecute(GameCardEffectContext context);
 
     IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context);
 
