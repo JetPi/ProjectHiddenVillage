@@ -40,6 +40,27 @@ public enum EffectAttributeType
     LeaderCurrentLife
 }
 
+public enum KeywordModificationTargetType
+{
+    SourceCard,
+    SelectedTargets
+}
+
+public enum KeywordModificationOperation
+{
+    Add,
+    Remove
+}
+
+public sealed class KeywordModificationSpec
+{
+    public KeywordModificationTargetType TargetType { get; set; } = KeywordModificationTargetType.SourceCard;
+
+    public KeywordModificationOperation Operation { get; set; } = KeywordModificationOperation.Add;
+
+    public string Keyword { get; set; } = string.Empty;
+}
+
 public sealed class AttributeModificationSpec
 {
     public AttributeModificationTargetType TargetType { get; set; } = AttributeModificationTargetType.SelectedTargets;
@@ -78,6 +99,8 @@ public sealed class EffectSpec
     public EffectRestrictions GlobalRestrictions { get; set; } = EffectRestrictions.None;
 
     public IReadOnlyList<AttributeModificationSpec> AttributeModifications { get; set; } = [];
+
+    public IReadOnlyList<KeywordModificationSpec> KeywordModifications { get; set; } = [];
 
     public IReadOnlyList<EffectContextRuleSet> ContextRules { get; set; } = [];
 

@@ -61,6 +61,7 @@ public sealed class SummonCardEffect(
 
 			sourceZone.Remove(cardInstance);
 			cardInstance.ControllerPlayerId = summoningPlayer.PlayerId;
+			cardInstance.EnteredFieldTurnNumber = context.Game.State.TurnNumber;
 			summoningPlayerField.Add(cardInstance);
 		}
 

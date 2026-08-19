@@ -81,6 +81,50 @@ public sealed class GameStateResponseMapperCardActionsTests
         Assert.AreEqual(0, requester.Hand[0].AvailableActions.Count);
     }
 
+    [TestMethod]
+    public void ToGameStateResponse_DoesNotMapBattleAction_ForCardSummonedThisTurnWithoutRush()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var summonedCard = CreateCardInstance("battle-1", "card-battle", requesterId);
+        summonedCard.EnteredFieldTurnNumber = 3;
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [summonedCard]);
+        state.TurnNumber = 3;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(0, requester.CharacterField[0].AvailableActions.Count);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_MapsBattleAction_ForCardSummonedThisTurnWithRuntimeRush()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var summonedCard = CreateCardInstance("battle-1", "card-battle", requesterId);
+        summonedCard.EnteredFieldTurnNumber = 3;
+        summonedCard.RuntimeKeywords.Add(EffectConditionKeywords.Rush);
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [summonedCard]);
+        state.TurnNumber = 3;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.CharacterField[0].AvailableActions.Count);
+        Assert.AreEqual("battle-action:battle-1", requester.CharacterField[0].AvailableActions[0].ActionId);
+    }
+
     private static GameState BuildState(
         string requesterId,
         string opponentId,

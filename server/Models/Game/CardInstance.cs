@@ -24,4 +24,10 @@ public sealed class CardInstance
 
     // Null means current health is derived from effective base health.
     public int? CurrentHealth { get; set; }
+
+    // Runtime keywords granted/removed by effects while in-game.
+    public List<string> RuntimeKeywords { get; set; } = [];
+
+    // Set when a card enters CharacterField to support summon-turn attack rules.
+    public int? EnteredFieldTurnNumber { get; set; }
 }
