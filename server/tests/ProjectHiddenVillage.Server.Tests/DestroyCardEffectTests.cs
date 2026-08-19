@@ -7,7 +7,7 @@ namespace ProjectHiddenVillage.Server.Tests;
 [TestClass]
 public sealed class DestroyCardEffectTests
 {
-    private readonly DestroyCardEffect effect = new(new EffectContextConditionEvaluator(), new EffectTargetResolver());
+    private readonly EffectContextConditionEvaluator conditionEvaluator = new();
 
     [TestMethod]
     public void CheckConditionsAgainstInstance_AllRequirements_Minimum_RequiresEveryRequirement()
@@ -41,9 +41,9 @@ public sealed class DestroyCardEffectTests
             }
         };
 
-        var result = effect.CheckConditionsAgainstInstance(condition, player, state);
+        var isSatisfied = conditionEvaluator.IsConditionSatisfied(condition, player, state);
 
-        Assert.IsTrue(result.CanExecute);
+        Assert.IsTrue(isSatisfied);
     }
 
     [TestMethod]
@@ -77,9 +77,9 @@ public sealed class DestroyCardEffectTests
             }
         };
 
-        var result = effect.CheckConditionsAgainstInstance(condition, player, state);
+        var isSatisfied = conditionEvaluator.IsConditionSatisfied(condition, player, state);
 
-        Assert.IsFalse(result.CanExecute);
+        Assert.IsFalse(isSatisfied);
     }
 
     [TestMethod]
@@ -113,9 +113,9 @@ public sealed class DestroyCardEffectTests
             }
         };
 
-        var result = effect.CheckConditionsAgainstInstance(condition, player, state);
+        var isSatisfied = conditionEvaluator.IsConditionSatisfied(condition, player, state);
 
-        Assert.IsTrue(result.CanExecute);
+        Assert.IsTrue(isSatisfied);
     }
 
     [TestMethod]
@@ -150,9 +150,9 @@ public sealed class DestroyCardEffectTests
             }
         };
 
-        var result = effect.CheckConditionsAgainstInstance(condition, player, state);
+        var isSatisfied = conditionEvaluator.IsConditionSatisfied(condition, player, state);
 
-        Assert.IsFalse(result.CanExecute);
+        Assert.IsFalse(isSatisfied);
     }
 
     private static PlayerState CreatePlayerWithBattlefield(params Card[] cards)
