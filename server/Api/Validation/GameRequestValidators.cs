@@ -151,21 +151,12 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
             .Must(effects => effects is null || effects.Count > 0)
             .WithMessage("Effects must include at least one entry when provided.");
 
-        RuleForEach(request => request.Conditions ?? Array.Empty<ConditionSpec>())
-            .ChildRules(condition =>
-            {
-                condition.RuleFor(value => value.Id)
-                    .NotEmpty().WithMessage("Condition id is required.");
+        RuleForEach(request => request.Conditions)
+            .Must(condition => !string.IsNullOrWhiteSpace(condition))
+            .WithMessage("Condition entries must be non-empty strings.")
+            .When(request => request.Conditions is not null);
 
-                condition.RuleFor(value => value.Args)
-                    .NotNull().WithMessage("Condition args are required.");
-
-                condition.RuleForEach(value => value.Args)
-                    .Must(arg => !string.IsNullOrWhiteSpace(arg.Key) && !string.IsNullOrWhiteSpace(arg.Value))
-                    .WithMessage("Condition args must include non-empty keys and values.");
-            });
-
-        RuleForEach(request => request.Effects ?? Array.Empty<EffectSpec>())
+        RuleForEach(request => request.Effects)
             .ChildRules(effect =>
             {
                 effect.RuleFor(value => value.Id)
@@ -189,7 +180,8 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
                 effect.RuleFor(value => value.TargetRules)
                     .NotNull().WithMessage("Effect target rules are required.");
-            });
+            })
+            .When(request => request.Effects is not null);
     }
 
     private static bool HasAnyPatchableField(UpdateCardEffectsRequest request)

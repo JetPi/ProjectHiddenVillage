@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Net;
 using FluentValidation;
@@ -14,6 +15,7 @@ using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
 using ProjectHiddenVillage.Server.Api.Interfaces.User;
+using ProjectHiddenVillage.Server.Api.Serialization;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Seeding.Development;
 using ProjectHiddenVillage.Server.Data.Entities;
@@ -45,6 +47,7 @@ builder.Services.AddScoped<IGameEffectConditionDiagnostics, GameEffectConditionD
 builder.Services.AddScoped<IGamePassiveEffectService, GamePassiveEffectService>();
 builder.Services.AddScoped<IGameEffectChainResolver, GameEffectChainResolver>();
 builder.Services.AddScoped<IGameReactiveEffectOrchestrator, GameReactiveEffectOrchestrator>();
+builder.Services.AddScoped<IGameSequentialEffectExecutor, GameSequentialEffectExecutor>();
 builder.Services.AddScoped<IGameEffectHandlingService, GameEffectHandlingService>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.NoopGameCardEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.DestroyCardEffect>();
@@ -69,7 +72,12 @@ builder.Services.AddScoped<DevelopmentGameInstanceSeeder>();
 builder.Services.AddScoped<DevelopmentRuntimeGameSeeder>();
 builder.Services.AddSingleton<IAuthTokenService, AuthTokenService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new FlexibleEnumJsonConverterFactory());
+    });
 builder.Services.AddSignalR();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateGameForUserRequestValidator>();
@@ -99,46 +107,87 @@ builder.Services.AddCors(options =>
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 
-var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
-    ?? throw new InvalidOperationException("JWT configuration is missing.");
-
-if (string.IsNullOrWhiteSpace(jwtOptions.Key))
+if (builder.Environment.IsDevelopment())
 {
-    throw new InvalidOperationException("JWT signing key is missing.");
+    builder.Services
+        .AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = DevelopmentAuthenticationHandler.SchemeName;
+            options.DefaultChallengeScheme = DevelopmentAuthenticationHandler.SchemeName;
+        })
+        .AddScheme<AuthenticationSchemeOptions, DevelopmentAuthenticationHandler>(
+            DevelopmentAuthenticationHandler.SchemeName,
+            _ => { });
 }
+else
+{
+    var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
+        ?? throw new InvalidOperationException("JWT configuration is missing.");
 
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+    if (string.IsNullOrWhiteSpace(jwtOptions.Key))
     {
-        options.Events = new JwtBearerEvents
+        throw new InvalidOperationException("JWT signing key is missing.");
+    }
+
+    builder.Services
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
         {
-            OnMessageReceived = context =>
+            options.Events = new JwtBearerEvents
             {
-                var accessToken = context.Request.Query["access_token"];
-                var requestPath = context.HttpContext.Request.Path;
-
-                if (!string.IsNullOrWhiteSpace(accessToken) && requestPath.StartsWithSegments("/hubs/games"))
+                OnMessageReceived = context =>
                 {
-                    context.Token = accessToken;
+                    var accessToken = context.Request.Query["access_token"];
+                    var requestPath = context.HttpContext.Request.Path;
+
+                    if (!string.IsNullOrWhiteSpace(accessToken) && requestPath.StartsWithSegments("/hubs/games"))
+                    {
+                        context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
+                },
+                OnChallenge = async context =>
+                {
+                    context.HandleResponse();
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Response.ContentType = "application/json";
+
+                    var details = string.IsNullOrWhiteSpace(context.ErrorDescription)
+                        ? "Authentication is required to access this endpoint."
+                        : context.ErrorDescription;
+
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        error = "unauthorized",
+                        message = details,
+                    });
+                },
+                OnForbidden = async context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        error = "forbidden",
+                        message = "You are authenticated but do not have permission to access this endpoint.",
+                    });
                 }
+            };
 
-                return Task.CompletedTask;
-            }
-        };
-
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateIssuerSigningKey = true,
-            ValidateLifetime = true,
-            ValidIssuer = jwtOptions.Issuer,
-            ValidAudience = jwtOptions.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
-            ClockSkew = TimeSpan.FromSeconds(30)
-        };
-    });
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateIssuerSigningKey = true,
+                ValidateLifetime = true,
+                ValidIssuer = jwtOptions.Issuer,
+                ValidAudience = jwtOptions.Audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
+                ClockSkew = TimeSpan.FromSeconds(30)
+            };
+        });
+}
 
 builder.Services.AddAuthorization(options =>
 {

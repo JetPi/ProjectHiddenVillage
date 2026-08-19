@@ -1,4 +1,5 @@
 using ErrorOr;
+using Microsoft.Extensions.DependencyInjection;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server.Api.Services.Games;
@@ -7,12 +8,12 @@ public sealed class SummonCardEffect(
 	IGameRuntimeEffectSpecResolver effectSpecResolver,
 	IGameEffectCanExecuteEvaluator canExecuteEvaluator,
 	IGameEffectTargetResolver targetResolver,
-	IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null) : IGameCardEffect
+	IServiceProvider? serviceProvider = null) : IGameCardEffect
 {
 	private readonly IGameRuntimeEffectSpecResolver effectSpecResolver = effectSpecResolver;
 	private readonly IGameEffectCanExecuteEvaluator canExecuteEvaluator = canExecuteEvaluator;
 	private readonly IGameEffectTargetResolver targetResolver = targetResolver;
-	private readonly IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = reactiveEffectOrchestrator;
+	private readonly IServiceProvider? serviceProvider = serviceProvider;
 
 	public const string EffectKey = "SummonCard";
 
@@ -102,6 +103,7 @@ public sealed class SummonCardEffect(
 			return Result.Success;
 		}
 
+		var reactiveEffectOrchestrator = serviceProvider?.GetService<IGameReactiveEffectOrchestrator>();
 		if (reactiveEffectOrchestrator is null)
 		{
 			return Result.Success;

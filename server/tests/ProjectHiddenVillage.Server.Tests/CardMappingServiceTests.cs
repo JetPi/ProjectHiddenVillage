@@ -123,9 +123,9 @@ public sealed class CardMappingServiceTests
             Type = CardType.Leader,
             Color = CardColor.Red,
             Description = "old description",
-            ConditionsJson = JsonSerializer.Serialize(new List<ConditionSpec>
+            ConditionsJson = JsonSerializer.Serialize(new List<string>
             {
-                new() { Id = "old-condition", Args = new Dictionary<string, string> { ["zone"] = "hand" } }
+                "old-condition"
             }),
             EffectsJson = JsonSerializer.Serialize(new List<EffectSpec>
             {

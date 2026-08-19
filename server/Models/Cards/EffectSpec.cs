@@ -82,6 +82,19 @@ public enum PassiveConsequenceTargetPolicy
     TriggerSelectedTargets
 }
 
+public enum EffectExecutionTargetSource
+{
+    SelectedTargets,
+    SourceCard,
+    None,
+}
+
+public enum EffectExecutionFlowMode
+{
+    PerStep,
+    AtomicChain,
+}
+
 public sealed class PassiveReevaluationSpec
 {
     public IReadOnlyList<PassiveTriggerKind> TriggerKinds { get; set; } = [PassiveTriggerKind.Any];
@@ -125,11 +138,22 @@ public sealed class AttributeModificationSpec
     public int? MaximumValue { get; set; }
 }
 
+public sealed class EffectExecutionConditionSpec
+{
+    public string ArgumentKey { get; set; } = string.Empty;
+
+    public string ExpectedValue { get; set; } = string.Empty;
+
+    public bool IgnoreCase { get; set; } = true;
+
+    public bool Negate { get; set; } = false;
+}
+
 public sealed class EffectSpec
 {
     public string Id { get; set; } = string.Empty;
 
-    public RuntimeEffects RuntimeEffectType;
+    public RuntimeEffects RuntimeEffectType { get; set; }
 
     public EffectKind EffectType { get; set; } = EffectKind.Unknown;
 
@@ -146,6 +170,16 @@ public sealed class EffectSpec
     public EffectRestrictions GlobalRestrictions { get; set; } = EffectRestrictions.None;
 
     public PassiveMode PassiveMode { get; set; } = PassiveMode.None;
+
+    public EffectExecutionTargetSource ExecutionTargetSource { get; set; } = EffectExecutionTargetSource.SelectedTargets;
+
+    public EffectExecutionFlowMode ExecutionFlowMode { get; set; } = EffectExecutionFlowMode.PerStep;
+
+    public EffectExecutionConditionSpec? ExecutionCondition { get; set; }
+
+    public string? OnSuccessEffectId { get; set; }
+
+    public string? OnFailureEffectId { get; set; }
 
     public PassiveReevaluationSpec? PassiveReevaluation { get; set; }
 

@@ -49,7 +49,7 @@ public sealed class CardDataSourceMapperTests
         Assert.AreEqual(2, result.Conditions.Count);
         CollectionAssert.AreEqual(
             new List<string> { EffectConditionKeywords.ActivateMain, EffectConditionKeywords.Recovery },
-            result.Conditions.Select(condition => condition.Id).ToList());
+            result.Conditions.ToList());
         Assert.AreEqual("[Activate: Main] Example.", result.MainEffect);
         Assert.IsNotNull(leader);
         Assert.AreEqual("If it is the second turn or later.", leader.RecoveryEffect);
@@ -90,7 +90,7 @@ public sealed class CardDataSourceMapperTests
     }
 
     [TestMethod]
-    public void ToCard_ExtractsSupportName_AndNamedCardReferenceCondition()
+    public void ToCard_ExtractsSupportName_WithoutNamedCardReferenceCondition()
     {
         var source = new CardDataSourceRecord
         {
@@ -115,10 +115,8 @@ public sealed class CardDataSourceMapperTests
         Assert.AreEqual("[8-Trigram] Air Palm", character.SupportName);
         Assert.AreEqual("Choose 1 of your [Naruto Uzumaki]: It gets +2 power this turn.", character.SupportEffect);
         Assert.AreEqual(string.Empty, result.MainEffect);
-        Assert.AreEqual(2, result.Conditions.Count);
-        Assert.AreEqual(EffectConditionKeywords.Support, result.Conditions[0].Id);
-        Assert.AreEqual(EffectConditionKeywords.NamedCardReference, result.Conditions[1].Id);
-        Assert.AreEqual("Naruto Uzumaki", result.Conditions[1].Args["name"]);
+        Assert.AreEqual(1, result.Conditions.Count);
+        Assert.AreEqual(EffectConditionKeywords.Support, result.Conditions[0]);
     }
 
     [TestMethod]

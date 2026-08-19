@@ -374,7 +374,7 @@ public static class GameStateResponseMapper
         }
 
         return definition.Conditions.Any(condition =>
-            string.Equals(condition.Id, EffectConditionKeywords.Rush, StringComparison.OrdinalIgnoreCase));
+            string.Equals(condition, EffectConditionKeywords.Rush, StringComparison.OrdinalIgnoreCase));
     }
 
     private static LeaderCardInstanceResponse ToLeaderCardInstanceResponse(LeaderCardInstanceState? leader)
