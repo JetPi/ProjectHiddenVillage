@@ -14,6 +14,7 @@ using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
 using ProjectHiddenVillage.Server.Api.Interfaces.User;
+using ProjectHiddenVillage.Server.Api.Serialization;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Seeding.Development;
 using ProjectHiddenVillage.Server.Data.Entities;
@@ -45,6 +46,7 @@ builder.Services.AddScoped<IGameEffectConditionDiagnostics, GameEffectConditionD
 builder.Services.AddScoped<IGamePassiveEffectService, GamePassiveEffectService>();
 builder.Services.AddScoped<IGameEffectChainResolver, GameEffectChainResolver>();
 builder.Services.AddScoped<IGameReactiveEffectOrchestrator, GameReactiveEffectOrchestrator>();
+builder.Services.AddScoped<IGameSequentialEffectExecutor, GameSequentialEffectExecutor>();
 builder.Services.AddScoped<IGameEffectHandlingService, GameEffectHandlingService>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.NoopGameCardEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.DestroyCardEffect>();
@@ -69,7 +71,12 @@ builder.Services.AddScoped<DevelopmentGameInstanceSeeder>();
 builder.Services.AddScoped<DevelopmentRuntimeGameSeeder>();
 builder.Services.AddSingleton<IAuthTokenService, AuthTokenService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new FlexibleEnumJsonConverterFactory());
+    });
 builder.Services.AddSignalR();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateGameForUserRequestValidator>();

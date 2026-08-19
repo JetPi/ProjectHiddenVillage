@@ -129,7 +129,7 @@ public sealed class EffectSpec
 {
     public string Id { get; set; } = string.Empty;
 
-    public RuntimeEffects RuntimeEffectType;
+    public RuntimeEffects RuntimeEffectType { get; set; }
 
     public EffectKind EffectType { get; set; } = EffectKind.Unknown;
 
