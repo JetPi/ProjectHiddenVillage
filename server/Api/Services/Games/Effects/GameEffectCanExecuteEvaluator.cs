@@ -85,6 +85,13 @@ public sealed class GameEffectCanExecuteEvaluator : IGameEffectCanExecuteEvaluat
             return result;
         }
 
+        if (!TributeTargetCompositionValidator.TryValidateSelectedTargets(context, effectSpec, context.SelectedTargets, out var tributeCompositionError))
+        {
+            result.CanExecute = false;
+            result.FailedConditions.Add(tributeCompositionError);
+            return result;
+        }
+
         if (includeValidTargets)
         {
             var validTargets = targetResolver.ResolveTargets(context, effectSpec);

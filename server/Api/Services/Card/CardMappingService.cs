@@ -1,6 +1,6 @@
-using ErrorOr;
-using System.Text.Json;
 using System.Text;
+using System.Text.Json;
+using ErrorOr;
 using Microsoft.EntityFrameworkCore;
 using ProjectHiddenVillage.Server.Api.Interfaces.Card;
 using ProjectHiddenVillage.Server.Data;
@@ -304,7 +304,7 @@ public sealed class CardMappingService : ICardMappingService
             Power: entry.Power,
             Conditions: conditions,
             Effects: effects
-                .Select(effect => new CardCatalogEffectResponse(
+                .ConvertAll(effect => new CardCatalogEffectResponse(
                     Id: effect.Id,
                     RuntimeEffectType: ToReadableRuntimeEffect(effect.RuntimeEffectType),
                     EffectType: ToReadableEffectKind(effect.EffectType),
@@ -329,7 +329,7 @@ public sealed class CardMappingService : ICardMappingService
                         .Select(ToContextRuleResponse)
                         .ToList(),
                     TargetRules: ToTargetRuleSetResponse(effect.TargetRules)))
-                .ToList(),
+,
             Life: entry.Life,
             Health: entry.Health,
             CannotBeNormalSummoned: entry.CannotBeNormalSummoned,
@@ -338,13 +338,13 @@ public sealed class CardMappingService : ICardMappingService
             SupportCost: supportCost);
     }
 
-            private static int? ResolveSupportDisplayCost(IReadOnlyList<EffectSpec> effects)
-            {
-            return effects
-                .Where(effect => effect.EffectType == EffectKind.Support && effect.ChakraCost.HasValue)
-                .Select(effect => effect.ChakraCost)
-                .FirstOrDefault();
-            }
+    private static int? ResolveSupportDisplayCost(IReadOnlyList<EffectSpec> effects)
+    {
+        return effects
+            .Where(effect => effect.EffectType == EffectKind.Support && effect.ChakraCost.HasValue)
+            .Select(effect => effect.ChakraCost)
+            .FirstOrDefault();
+    }
 
     private static void ApplySelectiveUpdate(CardCatalogEntry existing, Card mapped, CardDataSourceRecord source)
     {
@@ -670,6 +670,7 @@ public sealed class CardMappingService : ICardMappingService
             ExactTargetCount: ruleSet.ExactTargetCount,
             MinimumTargetCount: ruleSet.MinimumTargetCount,
             MaximumTargetCount: ruleSet.MaximumTargetCount,
+            TributeComposition: ToTributeTargetCompositionResponse(ruleSet.TributeComposition),
             Rules: ruleSet.Rules
                 .Select(ToTargetRuleResponse)
                 .ToList());
@@ -680,21 +681,45 @@ public sealed class CardMappingService : ICardMappingService
         return new CardCatalogEffectTargetRuleResponse(
             Scope: SplitPascalCase(rule.Scope.ToString()),
             InZone: SplitPascalCase(rule.InZone.ToString()),
+            TributeRole: rule.TributeRole.HasValue ? SplitPascalCase(rule.TributeRole.Value.ToString()) : null,
+            ExactSelectedTargetCount: rule.ExactSelectedTargetCount,
+            MinimumSelectedTargetCount: rule.MinimumSelectedTargetCount,
+            MaximumSelectedTargetCount: rule.MaximumSelectedTargetCount,
             Restriction: ToZoneCardRestrictionResponse(rule.Restriction));
     }
 
     private static CardCatalogZoneCardRestrictionResponse ToZoneCardRestrictionResponse(ZoneCardRestriction restriction)
     {
         return new CardCatalogZoneCardRestrictionResponse(
-            HasTrait: restriction.HasTrait ?? [],
-            HasName: restriction.HasName ?? [],
-            HasType: (restriction.HasType ?? [])
-                .Select(cardType => SplitPascalCase(cardType.ToString()))
-                .ToList(),
-            HasColor: (restriction.HasColor ?? [])
-                .Select(color => SplitPascalCase(color.ToString()))
+            Predicates: (restriction.Predicates ?? [])
+                .Select(ToZoneCardPropertyPredicateResponse)
                 .ToList(),
             MatchMode: SplitPascalCase(restriction.MatchMode.ToString()));
+    }
+
+    private static CardCatalogZoneCardPropertyPredicateResponse ToZoneCardPropertyPredicateResponse(ZoneCardPropertyPredicate predicate)
+    {
+        return new CardCatalogZoneCardPropertyPredicateResponse(
+            Property: predicate.Property,
+            Operator: SplitPascalCase(predicate.Operator.ToString()),
+            Value: predicate.Value,
+            Values: predicate.Values ?? [],
+            IgnoreCase: predicate.IgnoreCase);
+    }
+
+    private static CardCatalogTributeTargetCompositionResponse? ToTributeTargetCompositionResponse(TributeTargetComposition? composition)
+    {
+        if (composition is null)
+        {
+            return null;
+        }
+
+        return new CardCatalogTributeTargetCompositionResponse(
+            ExactTributeCount: composition.ExactTributeCount,
+            MinimumTributeCount: composition.MinimumTributeCount,
+            MaximumTributeCount: composition.MaximumTributeCount,
+            RequireSingleSummonTarget: composition.RequireSingleSummonTarget,
+            RequireDistinctSummonAndTributes: composition.RequireDistinctSummonAndTributes);
     }
 
     private static string SplitPascalCase(string value)

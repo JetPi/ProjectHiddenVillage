@@ -55,6 +55,21 @@ public sealed class TributeSummonCardEffect(
 
     public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
     {
+        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.Tribute);
+        if (effectSpec is null)
+        {
+            return Error.Validation(
+                code: "Game.Effect.TributeSummon.MissingEffectSpec",
+                description: "Tribute effect is not defined on the source card.");
+        }
+
+        if (!TributeTargetCompositionValidator.TryValidateSelectedTargets(context, effectSpec, selectedTargets, out var tributeCompositionError))
+        {
+            return Error.Validation(
+                code: "Game.Effect.TributeSummon.InvalidTargetComposition",
+                description: tributeCompositionError);
+        }
+
         var summonTargetResult = ResolveSummonTarget(context, selectedTargets);
         if (summonTargetResult.IsError)
         {

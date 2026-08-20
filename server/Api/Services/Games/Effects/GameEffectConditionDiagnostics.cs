@@ -29,27 +29,10 @@ public sealed class GameEffectConditionDiagnostics : IGameEffectConditionDiagnos
 
     private static string FormatRestriction(ZoneCardRestriction restriction)
     {
-        var details = new List<string>();
-
-        if (restriction.HasName is { Count: > 0 })
-        {
-            details.Add($"name in [{string.Join("|", restriction.HasName)}]");
-        }
-
-        if (restriction.HasTrait is { Count: > 0 })
-        {
-            details.Add($"trait in [{string.Join("|", restriction.HasTrait)}]");
-        }
-
-        if (restriction.HasType is { Count: > 0 })
-        {
-            details.Add($"type in [{string.Join("|", restriction.HasType)}]");
-        }
-
-        if (restriction.HasColor is { Count: > 0 })
-        {
-            details.Add($"color in [{string.Join("|", restriction.HasColor)}]");
-        }
+        var details = (restriction.Predicates ?? [])
+            .Select(FormatPredicate)
+            .Where(detail => !string.IsNullOrWhiteSpace(detail))
+            .ToList();
 
         if (details.Count == 0)
         {
@@ -58,5 +41,17 @@ public sealed class GameEffectConditionDiagnostics : IGameEffectConditionDiagnos
 
         var joinKeyword = restriction.MatchMode == ZoneRestrictionMatchMode.All ? " and " : " or ";
         return string.Join(joinKeyword, details);
+    }
+
+    private static string FormatPredicate(ZoneCardPropertyPredicate predicate)
+    {
+        var property = string.IsNullOrWhiteSpace(predicate.Property) ? "<unknown-property>" : predicate.Property;
+
+        return predicate.Operator switch
+        {
+            ZoneCardPredicateOperator.In => $"{property} in [{string.Join("|", predicate.Values ?? [])}]",
+            ZoneCardPredicateOperator.Contains => $"{property} contains '{predicate.Value}'",
+            _ => $"{property} {predicate.Operator} '{predicate.Value}'",
+        };
     }
 }
