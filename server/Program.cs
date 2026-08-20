@@ -110,11 +110,95 @@ builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptio
 
 if (builder.Environment.IsDevelopment())
 {
+    var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
+        ?? throw new InvalidOperationException("JWT configuration is missing.");
+
+    if (string.IsNullOrWhiteSpace(jwtOptions.Key))
+    {
+        throw new InvalidOperationException("JWT signing key is missing.");
+    }
+
     builder.Services
         .AddAuthentication(options =>
         {
-            options.DefaultAuthenticateScheme = DevelopmentAuthenticationHandler.SchemeName;
-            options.DefaultChallengeScheme = DevelopmentAuthenticationHandler.SchemeName;
+            options.DefaultAuthenticateScheme = "DevelopmentOrJwt";
+            options.DefaultChallengeScheme = "DevelopmentOrJwt";
+        })
+        .AddPolicyScheme("DevelopmentOrJwt", "Use JWT when provided; otherwise use development bypass", options =>
+        {
+            options.ForwardDefaultSelector = context =>
+            {
+                var authorization = context.Request.Headers.Authorization.ToString();
+                if (!string.IsNullOrWhiteSpace(authorization) && authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                {
+                    return JwtBearerDefaults.AuthenticationScheme;
+                }
+
+                var accessToken = context.Request.Query["access_token"];
+                var requestPath = context.Request.Path;
+                if (!string.IsNullOrWhiteSpace(accessToken) && requestPath.StartsWithSegments("/hubs/games"))
+                {
+                    return JwtBearerDefaults.AuthenticationScheme;
+                }
+
+                return DevelopmentAuthenticationHandler.SchemeName;
+            };
+        })
+        .AddJwtBearer(options =>
+        {
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    var requestPath = context.HttpContext.Request.Path;
+
+                    if (!string.IsNullOrWhiteSpace(accessToken) && requestPath.StartsWithSegments("/hubs/games"))
+                    {
+                        context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
+                },
+                OnChallenge = async context =>
+                {
+                    context.HandleResponse();
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Response.ContentType = "application/json";
+
+                    var details = string.IsNullOrWhiteSpace(context.ErrorDescription)
+                        ? "Authentication is required to access this endpoint."
+                        : context.ErrorDescription;
+
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        error = "unauthorized",
+                        message = details,
+                    });
+                },
+                OnForbidden = async context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        error = "forbidden",
+                        message = "You are authenticated but do not have permission to access this endpoint.",
+                    });
+                }
+            };
+
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateIssuerSigningKey = true,
+                ValidateLifetime = true,
+                ValidIssuer = jwtOptions.Issuer,
+                ValidAudience = jwtOptions.Audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
+                ClockSkew = TimeSpan.FromSeconds(30)
+            };
         })
         .AddScheme<AuthenticationSchemeOptions, DevelopmentAuthenticationHandler>(
             DevelopmentAuthenticationHandler.SchemeName,
