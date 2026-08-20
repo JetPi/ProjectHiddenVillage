@@ -224,6 +224,7 @@ public sealed partial class DeckService : IDeckService
         var traits = DeserializeOrDefault<List<string>>(entry.TraitsJson, []);
         var conditions = DeserializeConditions(entry.ConditionsJson);
         var effects = DeserializeOrDefault<List<EffectSpec>>(entry.EffectsJson, []);
+        var supportCost = ResolveSupportDisplayCost(effects);
 
         return new CardCatalogItemResponse(
                 Id: entry.CardId,
@@ -270,7 +271,16 @@ public sealed partial class DeckService : IDeckService
                 Life: entry.Life,
                 Health: entry.Health,
                 SupportName: entry.SupportName,
-                SupportEffect: entry.SupportEffect);
+                SupportEffect: entry.SupportEffect,
+                SupportCost: supportCost);
+    }
+
+    private static int? ResolveSupportDisplayCost(IReadOnlyList<EffectSpec> effects)
+    {
+        return effects
+            .Where(effect => effect.EffectType == EffectKind.Support && effect.ChakraCost.HasValue)
+            .Select(effect => effect.ChakraCost)
+            .FirstOrDefault();
     }
 
     private static T DeserializeOrDefault<T>(string json, T fallback)

@@ -86,6 +86,7 @@ public sealed class CardCatalogQueryTests
         Assert.AreEqual(1, item.Effects.Count);
         Assert.AreEqual("Support", item.Effects[0].EffectType);
         Assert.AreEqual("Activate Main", item.Effects[0].Timing);
+        Assert.AreEqual(1, item.SupportCost);
     }
 
     [TestMethod]

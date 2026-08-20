@@ -3,6 +3,8 @@ using System.Security.Claims;
 using ErrorOr;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
 
@@ -12,10 +14,12 @@ namespace ProjectHiddenVillage.Server;
 [Route("api/[controller]")]
 public sealed class GamesController(
     IGameReadService gameReadService,
-    IGameInstanceService gameInstanceService) : ApiControllerBase
+    IGameInstanceService gameInstanceService,
+    IHubContext<GamesHub>? gamesHubContext = null) : ApiControllerBase
 {
     private readonly IGameReadService gameReadService = gameReadService;
     private readonly IGameInstanceService gameInstanceService = gameInstanceService;
+    private readonly IHubContext<GamesHub>? gamesHubContext = gamesHubContext;
 
     [HttpPost]
     [Authorize]
@@ -77,6 +81,18 @@ public sealed class GamesController(
         if (result.IsError)
         {
             return ProblemFromErrors<GameInstanceResponse>(result.Errors);
+        }
+
+        if (gamesHubContext is not null)
+        {
+            try
+            {
+                await gamesHubContext.Clients.Group(result.Value.Id).SendAsync("GameStateInvalidated", result.Value.Id);
+            }
+            catch
+            {
+                // Best effort only: join should still succeed even if notification fails.
+            }
         }
 
         return Ok(new GameInstanceResponse(result.Value.Id));

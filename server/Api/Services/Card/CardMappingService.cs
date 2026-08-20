@@ -280,6 +280,7 @@ public sealed class CardMappingService : ICardMappingService
         var traits = DeserializeOrDefault<List<string>>(entry.TraitsJson, []);
         var conditions = DeserializeConditions(entry.ConditionsJson);
         var effects = DeserializeOrDefault<List<EffectSpec>>(entry.EffectsJson, []);
+        var supportCost = ResolveSupportDisplayCost(effects);
 
         return new CardCatalogItemResponse(
             Id: entry.CardId,
@@ -326,8 +327,17 @@ public sealed class CardMappingService : ICardMappingService
             Life: entry.Life,
             Health: entry.Health,
             SupportName: entry.SupportName,
-            SupportEffect: entry.SupportEffect);
+                SupportEffect: entry.SupportEffect,
+                SupportCost: supportCost);
     }
+
+            private static int? ResolveSupportDisplayCost(IReadOnlyList<EffectSpec> effects)
+            {
+            return effects
+                .Where(effect => effect.EffectType == EffectKind.Support && effect.ChakraCost.HasValue)
+                .Select(effect => effect.ChakraCost)
+                .FirstOrDefault();
+            }
 
     private static void ApplySelectiveUpdate(CardCatalogEntry existing, Card mapped, CardDataSourceRecord source)
     {

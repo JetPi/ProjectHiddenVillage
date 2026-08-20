@@ -19,7 +19,8 @@ public sealed record CardCatalogItemResponse(
     int? Life,
     int? Health,
     string? SupportName,
-    string? SupportEffect);
+    string? SupportEffect,
+    int? SupportCost);
 
 public sealed record CardCatalogEffectResponse(
     string Id,
