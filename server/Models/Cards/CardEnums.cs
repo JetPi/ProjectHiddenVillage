@@ -14,38 +14,8 @@ public enum CardColor
     Green
 }
 
-public enum EffectKind
+public enum SummonCardFaceState
 {
-    Unknown,
-    Support,
-    Recovery,
-    SummonRequirement,
-    Rush,
-    Activated,
-}
-
-public enum EffectRestrictions
-{
-    None,
-    OncePerTurn
-}
-
-public enum EffectTargetRange
-{
-    Self,
-    Opponent,
-    Any,
-}
-
-public enum EffectTiming
-{
-    Unspecified,
-    ActivateMain,
-    DuringOpponentAttack,
-    SupportActivated,
-    Quick,
-    OnSummon,
-    DuringYourMain,
-    YourTurn,
-    WhenAttacking,
+    FaceUp,
+    FaceDown,
 }

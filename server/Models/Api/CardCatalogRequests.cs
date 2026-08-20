@@ -88,19 +88,35 @@ public sealed record CardCatalogEffectTargetRuleSetResponse(
     int? ExactTargetCount,
     int? MinimumTargetCount,
     int? MaximumTargetCount,
+    CardCatalogTributeTargetCompositionResponse? TributeComposition,
     IReadOnlyList<CardCatalogEffectTargetRuleResponse> Rules);
 
 public sealed record CardCatalogEffectTargetRuleResponse(
     string Scope,
     string InZone,
+    string? TributeRole,
+    int? ExactSelectedTargetCount,
+    int? MinimumSelectedTargetCount,
+    int? MaximumSelectedTargetCount,
     CardCatalogZoneCardRestrictionResponse Restriction);
 
 public sealed record CardCatalogZoneCardRestrictionResponse(
-    IReadOnlyList<string> HasTrait,
-    IReadOnlyList<string> HasName,
-    IReadOnlyList<string> HasType,
-    IReadOnlyList<string> HasColor,
+    IReadOnlyList<CardCatalogZoneCardPropertyPredicateResponse> Predicates,
     string MatchMode);
+
+public sealed record CardCatalogZoneCardPropertyPredicateResponse(
+    string Property,
+    string Operator,
+    string? Value,
+    IReadOnlyList<string> Values,
+    bool IgnoreCase);
+
+public sealed record CardCatalogTributeTargetCompositionResponse(
+    int? ExactTributeCount,
+    int? MinimumTributeCount,
+    int? MaximumTributeCount,
+    bool RequireSingleSummonTarget,
+    bool RequireDistinctSummonAndTributes);
 
 public sealed record UpdateCardEffectsRequest(
     IReadOnlyList<string>? Conditions,

@@ -53,7 +53,7 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
                     continue;
                 }
 
-                if (!ZoneCardRestrictionMatcher.Matches(cardDefinition, rule.Restriction))
+                if (!ZoneCardRestrictionMatcher.Matches(cardDefinition, rule.Restriction, cardInstance))
                 {
                     continue;
                 }

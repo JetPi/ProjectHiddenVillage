@@ -18,7 +18,7 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
             return true;
         }
 
-        var zoneCards = new List<Card>(zoneInstance.Count);
+        var zoneCards = new List<(Card Definition, CardInstance Instance)>(zoneInstance.Count);
         foreach (var cardInstance in zoneInstance)
         {
             if (!gameState.CardDefinitions.TryGetValue(cardInstance.CardDefinitionId, out var cardDefinition))
@@ -26,13 +26,13 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
                 return false;
             }
 
-            zoneCards.Add(cardDefinition);
+            zoneCards.Add((cardDefinition, cardInstance));
         }
 
         return EvaluateZoneRequirements(condition.InZoneRequirements, zoneCards);
     }
 
-    private static bool EvaluateZoneRequirements(ZoneRequirementSet requirementSet, IReadOnlyList<Card> zoneCards)
+    private static bool EvaluateZoneRequirements(ZoneRequirementSet requirementSet, IReadOnlyList<(Card Definition, CardInstance Instance)> zoneCards)
     {
         var requirements = requirementSet.Requirements;
         if (requirements.Count == 0)
@@ -58,13 +58,13 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
 
     private static bool RequirementIsSatisfied(
         ZoneAmountRequirement requirement,
-        IReadOnlyList<Card> zoneCards,
+        IReadOnlyList<(Card Definition, CardInstance Instance)> zoneCards,
         Dictionary<string, int> matchCountByRestrictionKey)
     {
         var restrictionKey = BuildRestrictionKey(requirement.Restriction);
         if (!matchCountByRestrictionKey.TryGetValue(restrictionKey, out var matchCount))
         {
-            matchCount = zoneCards.Count(card => ZoneCardRestrictionMatcher.Matches(card, requirement.Restriction));
+            matchCount = zoneCards.Count(card => ZoneCardRestrictionMatcher.Matches(card.Definition, requirement.Restriction, card.Instance));
             matchCountByRestrictionKey[restrictionKey] = matchCount;
         }
 
@@ -84,7 +84,7 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
 
     private static bool RequirementsSatisfiedWithDistinctCards(
         IReadOnlyList<ZoneAmountRequirement> requirements,
-        IReadOnlyList<Card> zoneCards,
+        IReadOnlyList<(Card Definition, CardInstance Instance)> zoneCards,
         Dictionary<string, int[]> candidateIndexesByRestrictionKey)
     {
         var candidateIndexesPerRequirement = requirements
@@ -101,7 +101,7 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
 
     private static int[] GetCandidateIndexes(
         ZoneCardRestriction restriction,
-        IReadOnlyList<Card> zoneCards,
+        IReadOnlyList<(Card Definition, CardInstance Instance)> zoneCards,
         Dictionary<string, int[]> candidateIndexesByRestrictionKey)
     {
         var restrictionKey = BuildRestrictionKey(restriction);
@@ -112,7 +112,7 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
 
         var candidateIndexes = zoneCards
             .Select((card, index) => (card, index))
-            .Where(tuple => ZoneCardRestrictionMatcher.Matches(tuple.card, restriction))
+            .Where(tuple => ZoneCardRestrictionMatcher.Matches(tuple.card.Definition, restriction, tuple.card.Instance))
             .Select(tuple => tuple.index)
             .ToArray();
 
@@ -122,10 +122,13 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
 
     private static string BuildRestrictionKey(ZoneCardRestriction restriction)
     {
-        static string Serialize<T>(IReadOnlyList<T>? values)
-            => values is { Count: > 0 } ? string.Join(",", values) : "-";
+        static string SerializePredicates(IReadOnlyList<ZoneCardPropertyPredicate>? predicates)
+            => predicates is { Count: > 0 }
+                ? string.Join(",", predicates.Select(predicate =>
+                    $"{predicate.Property}:{predicate.Operator}:{predicate.Value}:{string.Join("/", predicate.Values ?? [])}:{predicate.IgnoreCase}"))
+                : "-";
 
-        return $"mode:{restriction.MatchMode}|name:{Serialize(restriction.HasName)}|trait:{Serialize(restriction.HasTrait)}|type:{Serialize(restriction.HasType)}|color:{Serialize(restriction.HasColor)}";
+        return $"mode:{restriction.MatchMode}|pred:{SerializePredicates(restriction.Predicates)}";
     }
 
     private static bool TrySatisfyDistinctRequirements(

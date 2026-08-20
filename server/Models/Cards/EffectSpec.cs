@@ -1,19 +1,26 @@
 namespace ProjectHiddenVillage.Server;
 
-public class CanExecuteResult
+public enum EffectKind
 {
-    public bool CanExecute { get; set; } = false;
-    public List<string> FailedConditions { get; set; } = [];
-    public List<ValidTargetResult> ValidTargets { get; set; } = [];
+    Unknown,
+    Support,
+    Recovery,
+    SummonRequirement,
+    Rush,
+    Activated,
 }
 
-public class ValidTargetResult
+public enum EffectRestrictions
 {
-    public string CardName { get; set; } = string.Empty;
-    public PlayerZone CardZone { get; set; }
-    public string CardInstanceId { get; set; } = string.Empty;
-    public string SlotId { get; set; } = string.Empty;
-    public string ExecuteMessage { get; set; } = string.Empty;
+    None,
+    OncePerTurn
+}
+
+public enum EffectTargetRange
+{
+    Self,
+    Opponent,
+    Any,
 }
 
 public enum AttributeModificationTargetType
@@ -88,12 +95,6 @@ public enum ChakraAdjustmentOperation
     Recover,
 }
 
-public enum SummonCardFaceState
-{
-    FaceUp,
-    FaceDown,
-}
-
 public enum EffectExecutionTargetSource
 {
     SelectedTargets,
@@ -106,6 +107,36 @@ public enum EffectExecutionFlowMode
     PerStep,
     AtomicChain,
 }
+
+public enum EffectTiming
+{
+    Unspecified,
+    ActivateMain,
+    DuringOpponentAttack,
+    SupportActivated,
+    Quick,
+    OnSummon,
+    DuringYourMain,
+    YourTurn,
+    WhenAttacking,
+}
+
+public class CanExecuteResult
+{
+    public bool CanExecute { get; set; } = false;
+    public List<string> FailedConditions { get; set; } = [];
+    public List<ValidTargetResult> ValidTargets { get; set; } = [];
+}
+
+public class ValidTargetResult
+{
+    public string CardName { get; set; } = string.Empty;
+    public PlayerZone CardZone { get; set; }
+    public string CardInstanceId { get; set; } = string.Empty;
+    public string SlotId { get; set; } = string.Empty;
+    public string ExecuteMessage { get; set; } = string.Empty;
+}
+
 
 public sealed class PassiveReevaluationSpec
 {

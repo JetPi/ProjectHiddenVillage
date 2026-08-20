@@ -56,11 +56,26 @@ public sealed class FlexibleEnumJsonConverterFactoryTests
                   "contextRules": [],
                   "targetRules": {
                     "operator": "any",
+                    "tributeComposition": {
+                      "minimumTributeCount": 1,
+                      "requireSingleSummonTarget": true,
+                      "requireDistinctSummonAndTributes": true
+                    },
                     "rules": [
                       {
                         "scope": "opponent",
                         "inZone": "character field",
+                        "tributeRole": "tribute material",
+                        "minimumSelectedTargetCount": 1,
                         "restriction": {
+                          "predicates": [
+                            {
+                              "property": "power",
+                              "operator": "greater than or equal",
+                              "value": "4",
+                              "ignoreCase": true
+                            }
+                          ],
                           "matchMode": "all"
                         }
                       }
@@ -93,7 +108,11 @@ public sealed class FlexibleEnumJsonConverterFactoryTests
         Assert.AreEqual(EffectAttributeType.CardHealth, effect.AttributeModifications[0].Attribute);
         Assert.AreEqual(KeywordModificationTargetType.SourceCard, effect.KeywordModifications[0].TargetType);
         Assert.AreEqual(RequirementGroupOperator.Any, effect.TargetRules.Operator);
+        Assert.AreEqual(1, effect.TargetRules.TributeComposition!.MinimumTributeCount);
         Assert.AreEqual(PlayerZone.CharacterField, effect.TargetRules.Rules[0].InZone);
+        Assert.AreEqual(TributeTargetRole.TributeMaterial, effect.TargetRules.Rules[0].TributeRole);
+        Assert.AreEqual(1, effect.TargetRules.Rules[0].MinimumSelectedTargetCount);
+        Assert.AreEqual(ZoneCardPredicateOperator.GreaterThanOrEqual, effect.TargetRules.Rules[0].Restriction.Predicates![0].Operator);
         Assert.AreEqual(ZoneRestrictionMatchMode.All, effect.TargetRules.Rules[0].Restriction.MatchMode);
     }
 

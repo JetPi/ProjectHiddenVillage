@@ -32,13 +32,35 @@ public sealed class EffectTargetResolverTests
                     {
                             Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
-                        Restriction = new ZoneCardRestriction { HasName = ["Ino Yamanaka"] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "name",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Ino Yamanaka"]
+                                }
+                            ]
+                        }
                     },
                     new EffectTargetRule
                     {
                             Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
-                        Restriction = new ZoneCardRestriction { HasName = ["Shikamaru Nara", "Choji Akimichi"] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "name",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Shikamaru Nara", "Choji Akimichi"]
+                                }
+                            ]
+                        }
                     }
                 ]
             });
@@ -71,13 +93,35 @@ public sealed class EffectTargetResolverTests
                     {
                         Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
-                        Restriction = new ZoneCardRestriction { HasTrait = ["Team10"] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "traits",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Team10"]
+                                }
+                            ]
+                        }
                     },
                     new EffectTargetRule
                     {
                         Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
-                        Restriction = new ZoneCardRestriction { HasType = [CardType.Character] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "type",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Character"]
+                                }
+                            ]
+                        }
                     }
                 ]
             });
@@ -112,7 +156,18 @@ public sealed class EffectTargetResolverTests
                     {
                             Scope = EffectTargetRange.Opponent,
                         InZone = PlayerZone.CharacterField,
-                        Restriction = new ZoneCardRestriction { HasType = [CardType.Character] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "type",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Character"]
+                                }
+                            ]
+                        }
                     }
                 ]
             });
@@ -121,6 +176,90 @@ public sealed class EffectTargetResolverTests
 
         Assert.AreEqual(2, targets.Count);
         Assert.IsTrue(targets.All(target => target.PlayerId == "p2"));
+    }
+
+    [TestMethod]
+    public void ResolveTargets_PredicateRestriction_UsesRuntimeCardValues()
+    {
+        var (context, effectSpec) = CreateContext(
+            playerFieldCards:
+            [
+                CreateCardOnField("p1-low", "p1", "Low Ninja", powerOverride: 2),
+                CreateCardOnField("p1-high", "p1", "High Ninja", powerOverride: 5)
+            ],
+            opponentFieldCards: [],
+            targetRules: new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "power",
+                                    Operator = ZoneCardPredicateOperator.GreaterThanOrEqual,
+                                    Value = "5"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            });
+
+        var targets = resolver.ResolveTargets(context, effectSpec);
+
+        Assert.AreEqual(1, targets.Count);
+        Assert.AreEqual("p1-high-inst", targets[0].CardInstanceId);
+    }
+
+    [TestMethod]
+    public void ResolveTargets_TypeIn_WithEmptyValues_MatchesAnyType()
+    {
+        var (context, effectSpec) = CreateContext(
+            playerFieldCards:
+            [
+                CreateCardOnField("p1-char", "p1", "Character Card", type: CardType.Character),
+                CreateCardOnField("p1-leader", "p1", "Leader Card", type: CardType.Leader)
+            ],
+            opponentFieldCards: [],
+            targetRules: new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "type",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = []
+                                }
+                            ]
+                        }
+                    }
+                ]
+            });
+
+        var targets = resolver.ResolveTargets(context, effectSpec);
+
+        Assert.AreEqual(2, targets.Count);
+        CollectionAssert.AreEquivalent(
+            new[] { "p1-char-inst", "p1-leader-inst" },
+            targets.Select(target => target.CardInstanceId).ToList());
     }
 
     private static (GameCardEffectContext Context, EffectSpec EffectSpec) CreateContext(
@@ -193,7 +332,9 @@ public sealed class EffectTargetResolverTests
         string cardId,
         string controllerPlayerId,
         string displayName,
-        IReadOnlyList<string>? traits = null)
+        IReadOnlyList<string>? traits = null,
+        int? powerOverride = null,
+        CardType type = CardType.Character)
     {
         var card = new Card
         {
@@ -201,7 +342,7 @@ public sealed class EffectTargetResolverTests
             DisplayName = displayName,
             Name = [displayName],
             Traits = traits?.ToList() ?? [],
-            Type = CardType.Character,
+            Type = type,
             Color = CardColor.Green,
         };
 
@@ -211,6 +352,7 @@ public sealed class EffectTargetResolverTests
             CardDefinitionId = cardId,
             OwnerPlayerId = controllerPlayerId,
             ControllerPlayerId = controllerPlayerId,
+            PowerOverride = powerOverride,
         };
 
         return (card, instance);

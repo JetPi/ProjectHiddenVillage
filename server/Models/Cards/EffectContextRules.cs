@@ -67,9 +67,27 @@ public sealed class ZoneAmountRequirement
 
 public sealed class ZoneCardRestriction
 {
-    public IReadOnlyList<string>? HasTrait { get; set; } = [];
-    public IReadOnlyList<string>? HasName { get; set; } = [];
-    public IReadOnlyList<CardType>? HasType { get; set; } = [];
-    public IReadOnlyList<CardColor>? HasColor { get; set; } = [];
+    public IReadOnlyList<ZoneCardPropertyPredicate>? Predicates { get; set; } = [];
     public ZoneRestrictionMatchMode MatchMode { get; set; } = ZoneRestrictionMatchMode.Any;
+}
+
+public enum ZoneCardPredicateOperator
+{
+    Equals,
+    NotEquals,
+    GreaterThan,
+    GreaterThanOrEqual,
+    LessThan,
+    LessThanOrEqual,
+    Contains,
+    In,
+}
+
+public sealed class ZoneCardPropertyPredicate
+{
+    public string Property { get; set; } = string.Empty;
+    public ZoneCardPredicateOperator Operator { get; set; } = ZoneCardPredicateOperator.Equals;
+    public string? Value { get; set; }
+    public IReadOnlyList<string>? Values { get; set; } = [];
+    public bool IgnoreCase { get; set; } = true;
 }

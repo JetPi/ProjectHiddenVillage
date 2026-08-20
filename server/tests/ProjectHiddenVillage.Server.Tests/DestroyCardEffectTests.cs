@@ -29,13 +29,35 @@ public sealed class DestroyCardEffectTests
                     {
                         Amount = 1,
                         Comparison = ZoneAmountComparison.Minimum,
-                        Restriction = new ZoneCardRestriction { HasName = ["Shikamaru Nara"] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "name",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Shikamaru Nara"]
+                                }
+                            ]
+                        }
                     },
                     new ZoneAmountRequirement
                     {
                         Amount = 1,
                         Comparison = ZoneAmountComparison.Minimum,
-                        Restriction = new ZoneCardRestriction { HasName = ["Choji Akimichi"] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "name",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Choji Akimichi"]
+                                }
+                            ]
+                        }
                     }
                 ]
             }
@@ -65,13 +87,35 @@ public sealed class DestroyCardEffectTests
                     {
                         Amount = 1,
                         Comparison = ZoneAmountComparison.Minimum,
-                        Restriction = new ZoneCardRestriction { HasName = ["Shikamaru Nara"] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "name",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Shikamaru Nara"]
+                                }
+                            ]
+                        }
                     },
                     new ZoneAmountRequirement
                     {
                         Amount = 1,
                         Comparison = ZoneAmountComparison.Minimum,
-                        Restriction = new ZoneCardRestriction { HasName = ["Choji Akimichi"] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "name",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Choji Akimichi"]
+                                }
+                            ]
+                        }
                     }
                 ]
             }
@@ -101,13 +145,35 @@ public sealed class DestroyCardEffectTests
                     {
                         Amount = 1,
                         Comparison = ZoneAmountComparison.Minimum,
-                        Restriction = new ZoneCardRestriction { HasName = ["Choji Akimichi"] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "name",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Choji Akimichi"]
+                                }
+                            ]
+                        }
                     },
                     new ZoneAmountRequirement
                     {
                         Amount = 1,
                         Comparison = ZoneAmountComparison.Minimum,
-                        Restriction = new ZoneCardRestriction { HasName = ["Shikamaru Nara"] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "name",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Shikamaru Nara"]
+                                }
+                            ]
+                        }
                     }
                 ]
             }
@@ -138,13 +204,35 @@ public sealed class DestroyCardEffectTests
                     {
                         Amount = 1,
                         Comparison = ZoneAmountComparison.Minimum,
-                        Restriction = new ZoneCardRestriction { HasName = ["Shikamaru Nara"] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "name",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Shikamaru Nara"]
+                                }
+                            ]
+                        }
                     },
                     new ZoneAmountRequirement
                     {
                         Amount = 1,
                         Comparison = ZoneAmountComparison.Minimum,
-                        Restriction = new ZoneCardRestriction { HasTrait = ["Team10"] }
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = "traits",
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Team10"]
+                                }
+                            ]
+                        }
                     }
                 ]
             }

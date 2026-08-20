@@ -218,8 +218,124 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                         return targetRules.MinimumTargetCount.Value <= targetRules.MaximumTargetCount.Value;
                     })
                     .WithMessage("Minimum target count cannot be greater than maximum target count.");
+
+                effect.RuleForEach(value => value.TargetRules.Rules)
+                    .ChildRules(rule =>
+                    {
+                        rule.RuleFor(value => value.ExactSelectedTargetCount)
+                            .GreaterThanOrEqualTo(0)
+                            .When(value => value.ExactSelectedTargetCount.HasValue)
+                            .WithMessage("Rule exact selected target count cannot be negative.");
+
+                        rule.RuleFor(value => value.MinimumSelectedTargetCount)
+                            .GreaterThanOrEqualTo(0)
+                            .When(value => value.MinimumSelectedTargetCount.HasValue)
+                            .WithMessage("Rule minimum selected target count cannot be negative.");
+
+                        rule.RuleFor(value => value.MaximumSelectedTargetCount)
+                            .GreaterThanOrEqualTo(0)
+                            .When(value => value.MaximumSelectedTargetCount.HasValue)
+                            .WithMessage("Rule maximum selected target count cannot be negative.");
+
+                        rule.RuleFor(value => value)
+                            .Must(value => !value.ExactSelectedTargetCount.HasValue
+                                || (!value.MinimumSelectedTargetCount.HasValue && !value.MaximumSelectedTargetCount.HasValue))
+                            .WithMessage("Rule exact selected target count cannot be combined with minimum or maximum selected target count.");
+
+                        rule.RuleFor(value => value)
+                            .Must(value =>
+                            {
+                                if (!value.MinimumSelectedTargetCount.HasValue || !value.MaximumSelectedTargetCount.HasValue)
+                                {
+                                    return true;
+                                }
+
+                                return value.MinimumSelectedTargetCount.Value <= value.MaximumSelectedTargetCount.Value;
+                            })
+                            .WithMessage("Rule minimum selected target count cannot be greater than maximum selected target count.");
+
+                        rule.RuleForEach(value => value.Restriction.Predicates)
+                            .ChildRules(predicate =>
+                            {
+                                predicate.RuleFor(value => value.Property)
+                                    .NotEmpty().WithMessage("Predicate property is required.");
+
+                                predicate.RuleFor(value => value)
+                                    .Must(value =>
+                                    {
+                                        var hasValue = !string.IsNullOrWhiteSpace(value.Value);
+                                        var hasValues = value.Values is { Count: > 0 };
+                                        var normalizedProperty = NormalizePredicateProperty(value.Property);
+
+                                        return value.Operator switch
+                                        {
+                                            ZoneCardPredicateOperator.In => hasValues || normalizedProperty == "type",
+                                            ZoneCardPredicateOperator.Equals => hasValue,
+                                            ZoneCardPredicateOperator.NotEquals => hasValue,
+                                            ZoneCardPredicateOperator.Contains => hasValue,
+                                            ZoneCardPredicateOperator.GreaterThan => hasValue,
+                                            ZoneCardPredicateOperator.GreaterThanOrEqual => hasValue,
+                                            ZoneCardPredicateOperator.LessThan => hasValue,
+                                            ZoneCardPredicateOperator.LessThanOrEqual => hasValue,
+                                            _ => false,
+                                        };
+                                    })
+                                    .WithMessage("Predicate value payload does not match the selected operator.");
+                            });
+                    });
+
+                effect.RuleFor(value => value.TargetRules.TributeComposition)
+                    .Must(composition => composition is null ||
+                        !composition.ExactTributeCount.HasValue ||
+                        (!composition.MinimumTributeCount.HasValue && !composition.MaximumTributeCount.HasValue))
+                    .WithMessage("Exact tribute count cannot be combined with minimum or maximum tribute count.");
+
+                effect.RuleFor(value => value.TargetRules.TributeComposition)
+                    .Must(composition => composition is null
+                        || !composition.MinimumTributeCount.HasValue
+                        || !composition.MaximumTributeCount.HasValue
+                        || composition.MinimumTributeCount.Value <= composition.MaximumTributeCount.Value)
+                    .WithMessage("Minimum tribute count cannot be greater than maximum tribute count.");
+
+                effect.RuleFor(value => value.TargetRules.TributeComposition)
+                    .Must(composition => composition is null
+                        || (!composition.ExactTributeCount.HasValue || composition.ExactTributeCount.Value >= 0)
+                        && (!composition.MinimumTributeCount.HasValue || composition.MinimumTributeCount.Value >= 0)
+                        && (!composition.MaximumTributeCount.HasValue || composition.MaximumTributeCount.Value >= 0))
+                    .WithMessage("Tribute composition counts cannot be negative.");
+
+                effect.RuleFor(value => value.TargetRules)
+                    .Must(targetRules => targetRules.TributeComposition is null
+                        || targetRules.Rules.Any(rule => rule.TributeRole == TributeTargetRole.SummonCandidate))
+                    .WithMessage("Tribute composition requires at least one summon candidate target rule.");
+
+                effect.RuleFor(value => value.TargetRules)
+                    .Must(targetRules => targetRules.TributeComposition is null
+                        || targetRules.Rules.Any(rule => rule.TributeRole == TributeTargetRole.TributeMaterial))
+                    .WithMessage("Tribute composition requires at least one tribute material target rule.");
+
+                effect.RuleFor(value => value.TargetRules)
+                    .Must(targetRules => targetRules.TributeComposition is not null
+                        || !targetRules.Rules.Any(rule =>
+                            rule.ExactSelectedTargetCount.HasValue
+                            || rule.MinimumSelectedTargetCount.HasValue
+                            || rule.MaximumSelectedTargetCount.HasValue))
+                    .WithMessage("Rule selected target count constraints require tribute composition.");
             })
             .When(request => request.Effects is not null);
+    }
+
+    private static string NormalizePredicateProperty(string property)
+    {
+        if (string.IsNullOrWhiteSpace(property))
+        {
+            return string.Empty;
+        }
+
+        return new string(property
+            .Where(character => char.IsLetterOrDigit(character))
+            .ToArray())
+            .ToLowerInvariant();
     }
 
     private static bool HasAnyPatchableField(UpdateCardEffectsRequest request)

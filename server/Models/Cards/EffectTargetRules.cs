@@ -10,6 +10,8 @@ public sealed class EffectTargetRuleSet
 
     public int? MaximumTargetCount { get; set; }
 
+    public TributeTargetComposition? TributeComposition { get; set; }
+
     public IReadOnlyList<EffectTargetRule> Rules { get; set; } = [];
 }
 
@@ -19,5 +21,28 @@ public sealed class EffectTargetRule
 
     public PlayerZone InZone { get; set; } = PlayerZone.CharacterField;
 
+    public TributeTargetRole? TributeRole { get; set; }
+
+    public int? ExactSelectedTargetCount { get; set; }
+
+    public int? MinimumSelectedTargetCount { get; set; }
+
+    public int? MaximumSelectedTargetCount { get; set; }
+
     public ZoneCardRestriction Restriction { get; set; } = new();
+}
+
+public enum TributeTargetRole
+{
+    TributeMaterial,
+    SummonCandidate,
+}
+
+public sealed class TributeTargetComposition
+{
+    public int? ExactTributeCount { get; set; }
+    public int? MinimumTributeCount { get; set; }
+    public int? MaximumTributeCount { get; set; }
+    public bool RequireSingleSummonTarget { get; set; } = true;
+    public bool RequireDistinctSummonAndTributes { get; set; } = true;
 }
