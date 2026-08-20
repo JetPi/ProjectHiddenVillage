@@ -21,6 +21,7 @@ public enum EffectKind
     Recovery,
     SummonRequirement,
     Rush,
+    Activated,
 }
 
 public enum EffectRestrictions

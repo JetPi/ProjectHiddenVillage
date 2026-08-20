@@ -27,8 +27,7 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 			{
 				Health = entry.Health ?? 0,
 				SupportName = entry.SupportName ?? string.Empty,
-				SupportEffect = entry.SupportEffect ?? string.Empty,
-				SupportCost = entry.SupportCost ?? 0
+				SupportEffect = entry.SupportEffect ?? string.Empty
 			},
 			_ => new Card()
 		};

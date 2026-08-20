@@ -17,6 +17,7 @@ public sealed class GamePassiveEffectService(
         TributeSummonCardEffect.EffectKey,
         ModifyAttributeEffect.EffectKey,
         GainKeywordEffect.EffectKey,
+        AlterResourcesEffect.EffectKey,
         NoopGameCardEffect.EffectKey,
     ];
 

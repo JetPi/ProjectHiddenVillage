@@ -51,6 +51,4 @@ public sealed class CharacterCard : Card
     public string SupportName { get; set; } = string.Empty;
 
     public string SupportEffect { get; set; } = string.Empty;
-
-    public int SupportCost { get; set; }
 }

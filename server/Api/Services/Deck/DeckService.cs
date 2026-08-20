@@ -243,14 +243,24 @@ public sealed partial class DeckService : IDeckService
                 Effects: effects
                         .ConvertAll(effect => new CardCatalogEffectResponse(
                                 Id: effect.Id,
+                        RuntimeEffectType: ToReadableRuntimeEffect(effect.RuntimeEffectType),
                         EffectType: ToReadableEffectKind(effect.EffectType),
                                 Timing: ToReadableEffectTiming(effect.Timing),
                         TargetRange: ToReadableEffectTargetRange(effect.TargetRange),
                         IsOptional: effect.IsOptional,
                         ChakraCost: effect.ChakraCost,
                         GlobalRestrictions: ToReadableEffectRestrictions(effect.GlobalRestrictions),
+                    ExecutionTargetSource: SplitPascalCase(effect.ExecutionTargetSource.ToString()),
+                    ExecutionFlowMode: SplitPascalCase(effect.ExecutionFlowMode.ToString()),
+                    ExecutionCondition: ToExecutionConditionResponse(effect.ExecutionCondition),
                     AttributeModifications: effect.AttributeModifications
                         .Select(ToAttributeModificationResponse)
+                        .ToList(),
+                    ChakraAdjustments: effect.ChakraAdjustments
+                        .Select(ToChakraAdjustmentResponse)
+                        .ToList(),
+                    SummonCardFlips: effect.SummonCardFlips
+                        .Select(ToSummonCardFlipResponse)
                         .ToList(),
                     ContextRules: effect.ContextRules
                         .Select(ToContextRuleResponse)
@@ -260,8 +270,7 @@ public sealed partial class DeckService : IDeckService
                 Life: entry.Life,
                 Health: entry.Health,
                 SupportName: entry.SupportName,
-                SupportEffect: entry.SupportEffect,
-                SupportCost: entry.SupportCost);
+                SupportEffect: entry.SupportEffect);
     }
 
     private static T DeserializeOrDefault<T>(string json, T fallback)
@@ -337,6 +346,11 @@ public sealed partial class DeckService : IDeckService
         return SplitPascalCase(kind.ToString());
     }
 
+    private static string ToReadableRuntimeEffect(RuntimeEffects runtimeEffect)
+    {
+        return SplitPascalCase(runtimeEffect.ToString());
+    }
+
     private static string ToReadableEffectTiming(EffectTiming timing)
     {
         return SplitPascalCase(timing.ToString());
@@ -356,12 +370,41 @@ public sealed partial class DeckService : IDeckService
     {
         return new CardCatalogAttributeModificationResponse(
             TargetType: SplitPascalCase(spec.TargetType.ToString()),
-            TargetPlayerScope: SplitPascalCase(spec.TargetPlayerScope.ToString()),
+            TargetRange: SplitPascalCase(spec.TargetRange.ToString()),
             Attribute: SplitPascalCase(spec.Attribute.ToString()),
             Operation: SplitPascalCase(spec.Operation.ToString()),
             Value: spec.Value,
             MinimumValue: spec.MinimumValue,
             MaximumValue: spec.MaximumValue);
+    }
+
+    private static CardCatalogChakraAdjustmentResponse ToChakraAdjustmentResponse(ChakraAdjustmentSpec spec)
+    {
+        return new CardCatalogChakraAdjustmentResponse(
+            TargetRange: SplitPascalCase(spec.TargetRange.ToString()),
+            Operation: SplitPascalCase(spec.Operation.ToString()),
+            Amount: spec.Amount);
+    }
+
+    private static CardCatalogSummonCardFlipResponse ToSummonCardFlipResponse(SummonCardFlipSpec spec)
+    {
+        return new CardCatalogSummonCardFlipResponse(
+            TargetRange: SplitPascalCase(spec.TargetRange.ToString()),
+            FaceState: SplitPascalCase(spec.FaceState.ToString()));
+    }
+
+    private static CardCatalogEffectExecutionConditionResponse? ToExecutionConditionResponse(EffectExecutionConditionSpec? condition)
+    {
+        if (condition is null)
+        {
+            return null;
+        }
+
+        return new CardCatalogEffectExecutionConditionResponse(
+            ArgumentKey: condition.ArgumentKey,
+            ExpectedValue: condition.ExpectedValue,
+            IgnoreCase: condition.IgnoreCase,
+            Negate: condition.Negate);
     }
 
     private static CardCatalogEffectContextRuleSetResponse ToContextRuleResponse(EffectContextRuleSet rule)
@@ -410,6 +453,9 @@ public sealed partial class DeckService : IDeckService
     {
         return new CardCatalogEffectTargetRuleSetResponse(
             Operator: SplitPascalCase(ruleSet.Operator.ToString()),
+            ExactTargetCount: ruleSet.ExactTargetCount,
+            MinimumTargetCount: ruleSet.MinimumTargetCount,
+            MaximumTargetCount: ruleSet.MaximumTargetCount,
             Rules: ruleSet.Rules
                 .Select(ToTargetRuleResponse)
                 .ToList());

@@ -40,7 +40,7 @@ public sealed class FlexibleEnumJsonConverterFactoryTests
                   "attributeModifications": [
                     {
                       "targetType": "selected targets",
-                      "targetPlayerScope": "any",
+                      "targetRange": "any",
                       "attribute": "card health",
                       "operation": "add",
                       "value": 2
@@ -89,7 +89,7 @@ public sealed class FlexibleEnumJsonConverterFactoryTests
         Assert.AreEqual(PassiveReevaluationScope.SourceCardOnly, effect.PassiveReevaluation.Scope);
         Assert.AreEqual(PassiveConsequenceTargetPolicy.TriggerSelectedTargets, effect.PassiveConsequences[0].TargetPolicy);
         Assert.AreEqual(AttributeModificationTargetType.SelectedTargets, effect.AttributeModifications[0].TargetType);
-        Assert.AreEqual(TargetPlayerScope.Any, effect.AttributeModifications[0].TargetPlayerScope);
+        Assert.AreEqual(EffectTargetRange.Any, effect.AttributeModifications[0].TargetRange);
         Assert.AreEqual(EffectAttributeType.CardHealth, effect.AttributeModifications[0].Attribute);
         Assert.AreEqual(KeywordModificationTargetType.SourceCard, effect.KeywordModifications[0].TargetType);
         Assert.AreEqual(RequirementGroupOperator.Any, effect.TargetRules.Operator);

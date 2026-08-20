@@ -29,8 +29,7 @@ public static partial class CardDataSourceMapper
             {
                 Health = source.Health ?? 0,
                 SupportName = ExtractSupportName(description),
-                SupportEffect = ExtractSupportEffect(description),
-                SupportCost = source.Cost ?? 0
+                SupportEffect = ExtractSupportEffect(description)
             }
         };
 

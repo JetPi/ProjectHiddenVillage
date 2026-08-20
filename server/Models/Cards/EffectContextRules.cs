@@ -13,6 +13,7 @@ public enum RuntimeEffects
     NegateEffect,
     GainEffect,
     ChangeValues,
+    AlterResources,
     Tribute,
     SummonSelf,
     MoveCard,

@@ -397,9 +397,191 @@ public sealed class GameSequentialEffectExecutorTests
         CollectionAssert.AreEqual(new[] { "summon-self", "double-power" }, observedSpecIds.ToArray());
     }
 
+    [TestMethod]
+    public void Execute_DoesNotCharge_WhenEffectHasNoChakraCost()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+            new RecordingEffect(ModifyAttributeEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "support-a",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.SupportActivated,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "support-b",
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.SupportActivated,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition, playerOneResource: 5);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(5, context.Game.State.Players[0].ResourcePool);
+        CollectionAssert.AreEqual(new[] { "support-a", "support-b" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_BranchesOnFailure_WhenSupportEffectChakraCostCannotBePaid()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+            new RecordingEffect(DestroyCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "support-main",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.SupportActivated,
+                ChakraCost = 2,
+                TargetRange = EffectTargetRange.Any,
+                OnFailureEffectId = "fallback",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "fallback",
+                RuntimeEffectType = RuntimeEffects.DestroyCard,
+                EffectType = EffectKind.Unknown,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition, playerOneResource: 1);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(1, context.Game.State.Players[0].ResourcePool);
+        CollectionAssert.AreEqual(new[] { "fallback" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_UsesEffectLevelChakraCost_WhenProvidedForSupportEffect()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "support-main",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.SupportActivated,
+                ChakraCost = 1,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition, playerOneResource: 4);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(3, context.Game.State.Players[0].ResourcePool);
+        CollectionAssert.AreEqual(new[] { "support-main" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_UsesEffectLevelChakraCost_WhenProvidedForNonSupportEffect()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "activated-main",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                ChakraCost = 2,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition, playerOneResource: 5);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(3, context.Game.State.Players[0].ResourcePool);
+        CollectionAssert.AreEqual(new[] { "activated-main" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_BranchesOnFailure_WhenNonSupportEffectChakraCostCannotBePaid()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+            new RecordingEffect(DestroyCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "activated-main",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                ChakraCost = 2,
+                TargetRange = EffectTargetRange.Any,
+                OnFailureEffectId = "fallback",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "fallback",
+                RuntimeEffectType = RuntimeEffects.DestroyCard,
+                EffectType = EffectKind.Unknown,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition, playerOneResource: 1);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(1, context.Game.State.Players[0].ResourcePool);
+        CollectionAssert.AreEqual(new[] { "fallback" }, observedSpecIds.ToArray());
+    }
+
     private static GameCardEffectContext CreateContext(
         Card sourceDefinition,
-        IReadOnlyDictionary<string, string>? arguments = null)
+        IReadOnlyDictionary<string, string>? arguments = null,
+        int playerOneResource = 0)
     {
         var sourceCard = new CardInstance
         {
@@ -419,6 +601,7 @@ public sealed class GameSequentialEffectExecutorTests
                 new PlayerState
                 {
                     PlayerId = "p1",
+                    ResourcePool = playerOneResource,
                     Battlefield = [sourceCard],
                 },
                 new PlayerState { PlayerId = "p2" },

@@ -85,9 +85,14 @@ public sealed class GameSequentialEffectExecutor(IGameCardEffectRegistry effectR
                     description: $"Could not resolve effect type '{effectTypeKey}' for runtime effect '{effectSpec.RuntimeEffectType}'.");
             }
 
+            var activationCost = ResolveActivationCost(
+                effectSpec: effectSpec);
+
             var arguments = new Dictionary<string, string>(context.Arguments, StringComparer.Ordinal)
             {
                 [ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument] = effectSpec.Id,
+                [ReactiveEffectExecutionConstants.SupportActivationChakraCostArgument] = activationCost.ToString(),
+                [ReactiveEffectExecutionConstants.EnforceTargetCountArgument] = bool.TrueString,
             };
 
             var selectedTargetsResult = ResolveStepTargets(context, effectSpec);
@@ -106,6 +111,15 @@ public sealed class GameSequentialEffectExecutor(IGameCardEffectRegistry effectR
 
             var canExecuteResult = effect.CanExecute(perEffectContext);
             if (!canExecuteResult.CanExecute)
+            {
+                currentNodeId = branchOnFailure ?? node.SequentialNextNodeId;
+                continue;
+            }
+
+            var activationCostResult = TryApplyActivationCost(
+                context: perEffectContext,
+                chakraCost: activationCost);
+            if (activationCostResult.IsError)
             {
                 currentNodeId = branchOnFailure ?? node.SequentialNextNodeId;
                 continue;
@@ -149,6 +163,14 @@ public sealed class GameSequentialEffectExecutor(IGameCardEffectRegistry effectR
 
         foreach (var step in chain.Steps)
         {
+            var activationCostResult = TryApplyActivationCost(
+                context: step.Context,
+                chakraCost: step.ActivationCost);
+            if (activationCostResult.IsError)
+            {
+                return activationCostResult.Errors;
+            }
+
             var executeResult = step.Effect.Execute(step.Context, step.Context.SelectedTargets);
             if (executeResult.IsError)
             {
@@ -169,6 +191,10 @@ public sealed class GameSequentialEffectExecutor(IGameCardEffectRegistry effectR
         var currentNodeId = startNodeId;
         var traversedInPlan = new HashSet<string>(StringComparer.Ordinal);
         var isFirstNodeInChain = true;
+        var simulatedResourcePoolByPlayer = context.Game.State.Players.ToDictionary(
+            player => player.PlayerId,
+            player => player.ResourcePool,
+            StringComparer.Ordinal);
 
         while (!string.IsNullOrWhiteSpace(currentNodeId))
         {
@@ -230,9 +256,14 @@ public sealed class GameSequentialEffectExecutor(IGameCardEffectRegistry effectR
                     description: $"Could not resolve effect type '{effectTypeKey}' for runtime effect '{effectSpec.RuntimeEffectType}'.");
             }
 
+            var activationCost = ResolveActivationCost(
+                effectSpec: effectSpec);
+
             var arguments = new Dictionary<string, string>(context.Arguments, StringComparer.Ordinal)
             {
                 [ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument] = effectSpec.Id,
+                [ReactiveEffectExecutionConstants.SupportActivationChakraCostArgument] = activationCost.ToString(),
+                [ReactiveEffectExecutionConstants.EnforceTargetCountArgument] = bool.TrueString,
             };
 
             var selectedTargetsResult = ResolveStepTargets(context, effectSpec);
@@ -259,7 +290,20 @@ public sealed class GameSequentialEffectExecutor(IGameCardEffectRegistry effectR
                     NextNodeId: nextNodeId);
             }
 
-            steps.Add(new PlannedExecutionStep(effect, perEffectContext));
+            var preflightResult = TryReserveActivationCost(
+                actingPlayerId: perEffectContext.ActingPlayer.Id,
+                chakraCost: activationCost,
+                simulatedResourcePoolByPlayer: simulatedResourcePoolByPlayer);
+            if (preflightResult.IsError)
+            {
+                var nextNodeId = branchOnFailure ?? node.SequentialNextNodeId;
+                return new AtomicExecutionPlan(
+                    Steps: [],
+                    Aborted: true,
+                    NextNodeId: nextNodeId);
+            }
+
+            steps.Add(new PlannedExecutionStep(effect, perEffectContext, activationCost));
             currentNodeId = branchOnSuccess ?? node.SequentialNextNodeId;
             isFirstNodeInChain = false;
         }
@@ -414,12 +458,76 @@ public sealed class GameSequentialEffectExecutor(IGameCardEffectRegistry effectR
             RuntimeEffects.NegateEffect => NegateCardEffect.EffectKey,
             RuntimeEffects.GainEffect => GainKeywordEffect.EffectKey,
             RuntimeEffects.ChangeValues => ModifyAttributeEffect.EffectKey,
+            RuntimeEffects.AlterResources => AlterResourcesEffect.EffectKey,
             RuntimeEffects.Tribute => TributeSummonCardEffect.EffectKey,
             RuntimeEffects.SummonCard => SummonCardEffect.EffectKey,
             _ => string.Empty,
         };
 
         return !string.IsNullOrWhiteSpace(effectTypeKey);
+    }
+
+    private static int ResolveActivationCost(EffectSpec effectSpec)
+    {
+        return effectSpec.ChakraCost.HasValue
+            ? Math.Max(0, effectSpec.ChakraCost.Value)
+            : 0;
+    }
+
+    private static ErrorOr<Success> TryApplyActivationCost(GameCardEffectContext context, int chakraCost)
+    {
+        if (chakraCost <= 0)
+        {
+            return Result.Success;
+        }
+
+        var player = context.Game.State.Players.FirstOrDefault(entry =>
+            string.Equals(entry.PlayerId, context.ActingPlayer.Id, StringComparison.Ordinal));
+
+        if (player is null)
+        {
+            return Error.NotFound(
+                code: "Game.Effect.Sequential.ActingPlayerNotFound",
+                description: $"Acting player '{context.ActingPlayer.Id}' was not found.");
+        }
+
+        if (player.ResourcePool < chakraCost)
+        {
+            return Error.Validation(
+                code: "Game.Effect.Sequential.InsufficientChakra",
+                description: $"Player '{player.PlayerId}' does not have enough chakra to pay {chakraCost}.");
+        }
+
+        player.ResourcePool -= chakraCost;
+        return Result.Success;
+    }
+
+    private static ErrorOr<Success> TryReserveActivationCost(
+        string actingPlayerId,
+        int chakraCost,
+        Dictionary<string, int> simulatedResourcePoolByPlayer)
+    {
+        if (chakraCost <= 0)
+        {
+            return Result.Success;
+        }
+
+        if (!simulatedResourcePoolByPlayer.TryGetValue(actingPlayerId, out var availableChakra))
+        {
+            return Error.NotFound(
+                code: "Game.Effect.Sequential.ActingPlayerNotFound",
+                description: $"Acting player '{actingPlayerId}' was not found.");
+        }
+
+        if (availableChakra < chakraCost)
+        {
+            return Error.Validation(
+                code: "Game.Effect.Sequential.InsufficientChakra",
+                description: $"Player '{actingPlayerId}' does not have enough chakra to pay {chakraCost}.");
+        }
+
+        simulatedResourcePoolByPlayer[actingPlayerId] = availableChakra - chakraCost;
+        return Result.Success;
     }
 
     private sealed record AtomicChainExecutionResult(string? NextNodeId);
@@ -431,7 +539,8 @@ public sealed class GameSequentialEffectExecutor(IGameCardEffectRegistry effectR
 
     private sealed record PlannedExecutionStep(
         IGameCardEffect Effect,
-        GameCardEffectContext Context);
+        GameCardEffectContext Context,
+        int ActivationCost);
 
     private sealed record ExecutionNode(string NodeId, EffectSpec EffectSpec, string? SequentialNextNodeId);
 }

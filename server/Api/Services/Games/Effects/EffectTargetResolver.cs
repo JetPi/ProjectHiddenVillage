@@ -69,15 +69,15 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
     }
 
     private static IReadOnlyList<PlayerState> ResolveTargetPlayers(
-        TargetPlayerScope scope,
+        EffectTargetRange scope,
         PlayerState actingPlayerState,
         GameState gameState)
     {
         return scope switch
         {
-            TargetPlayerScope.Player => [actingPlayerState],
-            TargetPlayerScope.Opponent => gameState.Players.Where(player => !string.Equals(player.PlayerId, actingPlayerState.PlayerId, StringComparison.Ordinal)).ToList(),
-            TargetPlayerScope.Any => gameState.Players,
+            EffectTargetRange.Self => [actingPlayerState],
+            EffectTargetRange.Opponent => gameState.Players.Where(player => !string.Equals(player.PlayerId, actingPlayerState.PlayerId, StringComparison.Ordinal)).ToList(),
+            EffectTargetRange.Any => gameState.Players,
             _ => [],
         };
     }
