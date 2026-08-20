@@ -227,6 +227,46 @@ public sealed class CardMappingServiceTests
         Assert.AreEqual("Card.CatalogEffects.CardIdRequired", result.FirstError.Code);
     }
 
+    [TestMethod]
+    public async Task UpdateCardEffectsByCardId_UpdatesCannotBeNormalSummoned_WhenProvided()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.CardCatalogEntries.Add(new CardCatalogEntry
+        {
+            CardId = "N-777",
+            Image = "https://example.com/n-777.webp",
+            OriginalId = "N-777",
+            DisplayName = "Restricted",
+            Type = CardType.Character,
+            Color = CardColor.Red,
+            Description = "desc",
+            NameJson = "[\"Restricted\"]",
+            TraitsJson = "[]",
+            ConditionsJson = "[]",
+            EffectsJson = "[]",
+            CannotBeNormalSummoned = false,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var service = new CardMappingService(dbContext);
+        var result = await service.UpdateCardEffectsByCardId(
+            "N-777",
+            new UpdateCardEffectsRequest(
+                Conditions: null,
+                Effects: null,
+                Description: null,
+                SupportEffect: null,
+                CannotBeNormalSummoned: true));
+
+        Assert.IsFalse(result.IsError);
+        Assert.IsTrue(result.Value.CannotBeNormalSummoned);
+
+        var persisted = await dbContext.CardCatalogEntries.SingleAsync(entry => entry.CardId == "N-777");
+        Assert.IsTrue(persisted.CannotBeNormalSummoned);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

@@ -270,6 +270,7 @@ public sealed partial class DeckService : IDeckService
 ,
                 Life: entry.Life,
                 Health: entry.Health,
+                CannotBeNormalSummoned: entry.CannotBeNormalSummoned,
                 SupportName: entry.SupportName,
                 SupportEffect: entry.SupportEffect,
                 SupportCost: supportCost);

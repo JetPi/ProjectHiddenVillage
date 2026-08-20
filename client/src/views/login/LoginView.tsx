@@ -446,6 +446,11 @@ export function LoginView() {
             <span className="block">Make your deck, test against opponents, and seize victory.</span>
             <span className="block">Prepare for official tournament play in a free online <strong>Naruto Card Game</strong> simulator.</span>
           </p>
+          <div className="mt-2">
+            <Link to="/admin/cards" className="text-xs text-[var(--text-secondary)] underline-offset-2 hover:underline">
+              Card Admin
+            </Link>
+          </div>
         </Panel>
         <Panel className="my-2 w-full px-5 pt-3">
           <Form className="mt-0 grid grid-cols-2 items-stretch gap-x-4" onSubmit={handleSubmit}>

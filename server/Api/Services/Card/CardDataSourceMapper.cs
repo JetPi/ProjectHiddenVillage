@@ -47,6 +47,7 @@ public static partial class CardDataSourceMapper
         mapped.MainEffect = ExtractMainEffect(description);
         mapped.Damage = source.Damage ?? 0;
         mapped.Power = power;
+        mapped.CannotBeNormalSummoned = ExtractCannotBeNormalSummoned(description);
         mapped.Conditions = ExtractConditions(description);
         mapped.Effects = [];
 
@@ -229,6 +230,11 @@ public static partial class CardDataSourceMapper
             : afterFirstBr;
 
         return supportEffect.Trim();
+    }
+
+    private static bool ExtractCannotBeNormalSummoned(string description)
+    {
+        return description.Contains("cannot be summoned normally", StringComparison.OrdinalIgnoreCase);
     }
 
 }

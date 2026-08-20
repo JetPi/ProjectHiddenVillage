@@ -18,6 +18,7 @@ public sealed record CardCatalogItemResponse(
     IReadOnlyList<CardCatalogEffectResponse> Effects,
     int? Life,
     int? Health,
+    bool CannotBeNormalSummoned,
     string? SupportName,
     string? SupportEffect,
     int? SupportCost);
@@ -105,4 +106,5 @@ public sealed record UpdateCardEffectsRequest(
     IReadOnlyList<string>? Conditions,
     IReadOnlyList<EffectSpec>? Effects,
     string? Description,
-    string? SupportEffect);
+    string? SupportEffect,
+    bool? CannotBeNormalSummoned = null);
