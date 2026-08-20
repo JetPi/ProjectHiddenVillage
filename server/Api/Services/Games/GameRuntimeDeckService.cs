@@ -46,6 +46,7 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 		card.MainEffect = gameEffectHandlingService.ExtractMainEffect(entry.Description);
 		card.Damage = entry.Damage;
 		card.Power = entry.Power;
+		card.CannotBeNormalSummoned = entry.CannotBeNormalSummoned;
 		card.Conditions = conditions;
 		card.Effects = effects;
 

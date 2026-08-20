@@ -3,3 +3,7 @@ export type ICardCatalogPageQuery = {
   pageSize?: number
   sort?: string
 }
+
+export type IUpdateCardCatalogFlagsRequest = {
+  cannotBeNormalSummoned: boolean
+}

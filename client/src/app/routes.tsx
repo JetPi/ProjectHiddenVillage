@@ -62,6 +62,16 @@ export const router = createBrowserRouter([
         errorElement: <AuthRouteErrorBoundary />,
       },
       {
+        path: '/admin/cards',
+        lazy: async () => {
+          const { CardAdminView } = await import('@/views/admin/CardAdminView')
+
+          return {
+            Component: CardAdminView,
+          }
+        },
+      },
+      {
         path: '*',
         lazy: async () => {
           const { NotFoundView } = await import('@/views/NotFoundView')

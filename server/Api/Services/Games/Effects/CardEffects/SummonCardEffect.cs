@@ -31,7 +31,23 @@ public sealed class SummonCardEffect(
 			};
 		}
 
-		return canExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+		var result = canExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+		if (!result.CanExecute)
+		{
+			return result;
+		}
+
+		result.ValidTargets = result.ValidTargets
+			.Where(target => !IsNormalSummonBlocked(context, target.CardInstanceId))
+			.ToList();
+
+		if (result.ValidTargets.Count == 0)
+		{
+			result.CanExecute = false;
+			result.FailedConditions.Add("No valid summon targets. One or more cards cannot be summoned normally.");
+		}
+
+		return result;
 	}
 
 	public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
@@ -48,11 +64,22 @@ public sealed class SummonCardEffect(
 			return [];
 		}
 
-		return targetResolver.ResolveTargets(context, effectSpec);
+		return targetResolver
+			.ResolveTargets(context, effectSpec)
+			.Where(target => !IsNormalSummonBlocked(context, target.CardInstanceId))
+			.ToList();
 	}
 
 	public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
 	{
+		var blockedTarget = selectedTargets.FirstOrDefault(target => IsNormalSummonBlocked(context, target.CardInstanceId));
+		if (blockedTarget is not null)
+		{
+			return Error.Validation(
+				code: "Game.Effect.SummonCard.CannotBeNormalSummoned",
+				description: $"Card '{blockedTarget.CardInstanceId}' cannot be summoned normally.");
+		}
+
 		var summoningPlayer = context.Game.State.Players.First(player => player.PlayerId == context.ActingPlayer.Id);
 		var summoningPlayerField = PlayerZoneCardAccessor.GetCards(PlayerZone.CharacterField, summoningPlayer);
 		var affectedCardInstanceIds = new HashSet<string>(StringComparer.Ordinal);
@@ -122,5 +149,29 @@ public sealed class SummonCardEffect(
 
 		var orchestrationResult = reactiveEffectOrchestrator.ApplyPostMutationEffects(context.Game, mutationEvent, context.ActingPlayer.Id);
 		return orchestrationResult.IsError ? orchestrationResult.Errors : Result.Success;
+	}
+
+	private static bool IsNormalSummonBlocked(GameCardEffectContext context, string cardInstanceId)
+	{
+		var cardInstance = context.Game.State.Players
+			.SelectMany(player => player.Deck
+				.Concat(player.Hand)
+				.Concat(player.Battlefield)
+				.Concat(player.SupportZone)
+				.Concat(player.DiscardPile)
+				.Concat(player.ExileZone))
+			.FirstOrDefault(card => string.Equals(card.InstanceId, cardInstanceId, StringComparison.Ordinal));
+
+		if (cardInstance is null)
+		{
+			return false;
+		}
+
+		if (!context.Game.State.CardDefinitions.TryGetValue(cardInstance.CardDefinitionId, out var cardDefinition))
+		{
+			return false;
+		}
+
+		return cardDefinition.CannotBeNormalSummoned;
 	}
 }

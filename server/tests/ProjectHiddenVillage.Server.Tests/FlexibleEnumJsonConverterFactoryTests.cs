@@ -133,6 +133,21 @@ public sealed class FlexibleEnumJsonConverterFactoryTests
         Assert.AreEqual(RequirementGroupOperator.Any, request.Effects[0].TargetRules.Operator);
     }
 
+      [TestMethod]
+      public void Deserialize_UpdateCardEffectsRequest_ParsesCannotBeNormalSummoned()
+      {
+        var json = """
+          {
+            "cannotBeNormalSummoned": true
+          }
+          """;
+
+        var request = JsonSerializer.Deserialize<UpdateCardEffectsRequest>(json, CreateOptions());
+
+        Assert.IsNotNull(request);
+        Assert.IsTrue(request.CannotBeNormalSummoned);
+      }
+
     private static JsonSerializerOptions CreateOptions()
     {
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);

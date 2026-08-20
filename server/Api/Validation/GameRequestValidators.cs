@@ -227,6 +227,7 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
         return request.Conditions is not null
             || request.Effects is not null
             || request.Description is not null
-            || request.SupportEffect is not null;
+            || request.SupportEffect is not null
+            || request.CannotBeNormalSummoned.HasValue;
     }
 }

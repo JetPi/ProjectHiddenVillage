@@ -54,6 +54,10 @@ public sealed class CardCatalogEntryConfiguration : IEntityTypeConfiguration<Car
 
         entity.Property(record => record.SupportEffect);
 
+        entity.Property(record => record.CannotBeNormalSummoned)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.Property(record => record.CreatedAtUtc)
             .IsRequired();
 

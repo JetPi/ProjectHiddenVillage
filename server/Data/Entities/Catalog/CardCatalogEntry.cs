@@ -38,6 +38,8 @@ public sealed class CardCatalogEntry
 
     public int? Health { get; set; }
 
+    public bool CannotBeNormalSummoned { get; set; }
+
     public string? SupportName { get; set; }
 
     public string? SupportEffect { get; set; }

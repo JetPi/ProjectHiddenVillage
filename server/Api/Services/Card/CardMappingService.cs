@@ -219,6 +219,11 @@ public sealed class CardMappingService : ICardMappingService
             entry.SupportEffect = request.SupportEffect;
         }
 
+        if (request.CannotBeNormalSummoned.HasValue)
+        {
+            entry.CannotBeNormalSummoned = request.CannotBeNormalSummoned.Value;
+        }
+
         entry.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
         try
@@ -255,6 +260,7 @@ public sealed class CardMappingService : ICardMappingService
             TraitsJson = Serialize(card.Traits),
             ConditionsJson = Serialize(card.Conditions),
             EffectsJson = Serialize(card.Effects),
+            CannotBeNormalSummoned = card.CannotBeNormalSummoned,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
@@ -326,9 +332,10 @@ public sealed class CardMappingService : ICardMappingService
                 .ToList(),
             Life: entry.Life,
             Health: entry.Health,
+            CannotBeNormalSummoned: entry.CannotBeNormalSummoned,
             SupportName: entry.SupportName,
-                SupportEffect: entry.SupportEffect,
-                SupportCost: supportCost);
+            SupportEffect: entry.SupportEffect,
+            SupportCost: supportCost);
     }
 
             private static int? ResolveSupportDisplayCost(IReadOnlyList<EffectSpec> effects)
@@ -382,6 +389,7 @@ public sealed class CardMappingService : ICardMappingService
             existing.Description = mapped.Description;
             existing.ConditionsJson = Serialize(mapped.Conditions);
             existing.EffectsJson = Serialize(mapped.Effects);
+            existing.CannotBeNormalSummoned = mapped.CannotBeNormalSummoned;
 
             if (mapped is CharacterCard characterFromDescription)
             {

@@ -36,6 +36,7 @@ export type ICardCatalogItemResponse = {
   effects: ICardCatalogEffectResponse[]
   life: number | null
   health: number | null
+  cannotBeNormalSummoned: boolean
   supportName: string | null
   supportEffect: string | null
   supportCost: number | null

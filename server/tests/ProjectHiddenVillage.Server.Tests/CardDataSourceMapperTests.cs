@@ -162,4 +162,23 @@ public sealed class CardDataSourceMapperTests
             "[Activate: Main] Flip 1 of your CHAKRA face-down and choose 1 Character: The chosen card gets +3 power during this turn.",
             result.MainEffect);
     }
+
+    [TestMethod]
+    public void ToCard_SetsCannotBeNormalSummoned_WhenDescriptionContainsMarker()
+    {
+        var source = new CardDataSourceRecord
+        {
+            CardNo = "C-321",
+            Name = "Gaara",
+            Image = "https://example.com/C-321.webp",
+            Color = "Red",
+            CategoryData = "CHARACTER",
+            OriginalId = "C-321",
+            Effect = "[Summon Requirements] This card cannot be summoned normally."
+        };
+
+        var result = CardDataSourceMapper.ToCard(source);
+
+        Assert.IsTrue(result.CannotBeNormalSummoned);
+    }
 }
