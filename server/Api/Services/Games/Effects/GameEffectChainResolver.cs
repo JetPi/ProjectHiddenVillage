@@ -113,6 +113,12 @@ public sealed class GameEffectChainResolver : IGameEffectChainResolver
                         $"Card definition '{sourceCardInstance.CardDefinitionId}' was not found.");
                 }
 
+                if (SourceCardEffectSuppression.IsSuppressedWhileOnField(game.State, sourceCardInstance))
+                {
+                    skippedNegatedEntryIds.Add(entry.EntryId);
+                    continue;
+                }
+
                 var executionPlayerId = ResolveExecutionPlayerId(game.State, actingPlayerId, entry.SourcePlayerId);
                 var arguments = new Dictionary<string, string>(StringComparer.Ordinal);
                 foreach (var (argumentKey, argumentValue) in entry.Arguments)

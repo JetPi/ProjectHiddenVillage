@@ -111,6 +111,37 @@ public sealed class GameEffectChainResolverTests
     }
 
     [TestMethod]
+    public void Resolve_SkipsEntries_WhenSourceCardEffectsAreSuppressedWhileOnField()
+    {
+        var executionOrder = new List<string>();
+        var resolver = new GameEffectChainResolver(new GameCardEffectRegistry(
+        [
+            new RecordingEffect("ResolveSuppressed", executionOrder),
+        ]));
+
+        var game = CreateGameWithStack(
+            new EffectResolutionStackEntry
+            {
+                EntryId = "suppressed-entry",
+                SourcePlayerId = "p1",
+                SourceZone = PlayerZone.CharacterField,
+                SourceCardInstanceId = "source-1",
+                EffectTypeKey = "ResolveSuppressed",
+                IsNegated = false,
+            });
+
+        game.State.Players[0].Battlefield[0].EffectsSuppressedWhileOnField = true;
+
+        var result = resolver.Resolve(game, actingPlayerId: "p1", new PassiveChainResolutionOptions());
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(0, result.Value.ResolvedStackEntryIds.Count);
+        CollectionAssert.AreEqual(new[] { "suppressed-entry" }, result.Value.SkippedNegatedEntryIds.ToArray());
+        Assert.AreEqual(0, executionOrder.Count);
+        Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
+    }
+
+    [TestMethod]
     public void Resolve_PassesTranslatedTargetsAndArguments_ToEffectExecutionContext()
     {
         var observedTargets = new List<GameEffectTargetReference>();

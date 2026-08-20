@@ -250,6 +250,8 @@ public sealed class EffectSpec
 
     public IReadOnlyList<SummonCardFlipSpec> SummonCardFlips { get; set; } = [];
 
+    public bool SuppressSummonedTargetsEffectsWhileOnField { get; set; }
+
     public IReadOnlyList<KeywordModificationSpec> KeywordModifications { get; set; } = [];
 
     public IReadOnlyList<EffectContextRuleSet> ContextRules { get; set; } = [];

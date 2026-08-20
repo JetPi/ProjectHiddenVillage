@@ -124,6 +124,11 @@ public sealed class GamePassiveEffectService(
 
     private bool EvaluateIsActive(GameInstance game, PassiveSource passiveSource)
     {
+        if (SourceCardEffectSuppression.IsSuppressedWhileOnField(game.State, passiveSource.SourceCardInstance))
+        {
+            return false;
+        }
+
         var context = new GameCardEffectContext(
             game: game,
             actingPlayer: new Player { Id = passiveSource.SourceCardInstance.ControllerPlayerId },
