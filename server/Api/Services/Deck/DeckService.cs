@@ -253,6 +253,7 @@ public sealed partial class DeckService : IDeckService
                         GlobalRestrictions: ToReadableEffectRestrictions(effect.GlobalRestrictions),
                     ExecutionTargetSource: SplitPascalCase(effect.ExecutionTargetSource.ToString()),
                     ExecutionFlowMode: SplitPascalCase(effect.ExecutionFlowMode.ToString()),
+                    SuppressSummonedTargetsEffectsWhileOnField: effect.SuppressSummonedTargetsEffectsWhileOnField,
                     ExecutionCondition: ToExecutionConditionResponse(effect.ExecutionCondition),
                     AttributeModifications: effect.AttributeModifications
                         .Select(ToAttributeModificationResponse)

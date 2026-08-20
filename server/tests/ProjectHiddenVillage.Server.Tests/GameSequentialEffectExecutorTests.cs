@@ -47,6 +47,35 @@ public sealed class GameSequentialEffectExecutorTests
     }
 
     [TestMethod]
+    public void Execute_SkipsExecution_WhenSourceCardIsSuppressedWhileOnField()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "step-1",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+        context.SourceCardInstance!.EffectsSuppressedWhileOnField = true;
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(0, observedSpecIds.Count);
+    }
+
+    [TestMethod]
     public void Execute_StopsWhenEffectReturnsError()
     {
         var observedSpecIds = new List<string>();

@@ -24,6 +24,7 @@ public sealed class FlexibleEnumJsonConverterFactoryTests
                   "globalRestrictions": "once_per_turn",
                   "passiveMode": "triggered",
                   "executionTargetSource": "source-card",
+                  "suppressSummonedTargetsEffectsWhileOnField": true,
                   "passiveReevaluation": {
                     "triggerKinds": ["stats changed", "any"],
                     "scope": "source_card_only"
@@ -100,6 +101,7 @@ public sealed class FlexibleEnumJsonConverterFactoryTests
         Assert.AreEqual(EffectRestrictions.OncePerTurn, effect.GlobalRestrictions);
         Assert.AreEqual(PassiveMode.Triggered, effect.PassiveMode);
         Assert.AreEqual(EffectExecutionTargetSource.SourceCard, effect.ExecutionTargetSource);
+        Assert.IsTrue(effect.SuppressSummonedTargetsEffectsWhileOnField);
         Assert.AreEqual(PassiveTriggerKind.StatsChanged, effect.PassiveReevaluation!.TriggerKinds[0]);
         Assert.AreEqual(PassiveReevaluationScope.SourceCardOnly, effect.PassiveReevaluation.Scope);
         Assert.AreEqual(PassiveConsequenceTargetPolicy.TriggerSelectedTargets, effect.PassiveConsequences[0].TargetPolicy);

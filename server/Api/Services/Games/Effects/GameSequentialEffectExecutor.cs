@@ -13,6 +13,11 @@ public sealed class GameSequentialEffectExecutor(IGameCardEffectRegistry effectR
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        if (SourceCardEffectSuppression.IsSuppressedWhileOnField(context.Game.State, context.SourceCardInstance))
+        {
+            return Result.Success;
+        }
+
         var nodes = BuildExecutionNodes(context.SourceCardDefinition.Effects);
         if (nodes.Count == 0)
         {

@@ -106,6 +106,43 @@ public sealed class GamePassiveEffectServiceTests
     }
 
     [TestMethod]
+    public void EvaluateAndEnqueue_TreatsSuppressedSourceAsInactive()
+    {
+        var passiveEffect = CreatePassiveEffectSpec(
+            effectId: "passive-suppressed",
+            triggerKinds: [PassiveTriggerKind.StatsChanged],
+            consequenceEffectTypeKey: DestroyCardEffect.EffectKey,
+            mode: PassiveMode.Continuous);
+
+        var game = CreateGameWithPassiveSource(passiveEffect);
+        game.State.Players[0].Battlefield[0].EffectsSuppressedWhileOnField = true;
+        game.State.PassiveStates.Add(new PassiveActivationState
+        {
+            PassiveKey = "card-1:passive-suppressed",
+            SourceCardInstanceId = "card-1",
+            SourcePlayerId = "p1",
+            EffectSpecId = "passive-suppressed",
+            IsActive = true,
+            LastChangedAtTurn = 1,
+            LastChangedAtPhase = GamePhase.MainPhase,
+        });
+
+        var service = new GamePassiveEffectService(
+            canExecuteEvaluator: new StubCanExecuteEvaluator(["passive-suppressed"]));
+
+        var result = service.EvaluateAndEnqueue(
+            game,
+            CreateMutationEvent(GameMutationKind.CardStatChanged),
+            new PassiveChainResolutionOptions());
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(0, result.Value.ActivatedPassiveKeys.Count);
+        Assert.AreEqual(1, result.Value.DeactivatedPassiveKeys.Count);
+        Assert.AreEqual("card-1:passive-suppressed", result.Value.DeactivatedPassiveKeys[0]);
+        Assert.AreEqual(0, result.Value.EnqueuedStackEntryIds.Count);
+    }
+
+    [TestMethod]
     public void EvaluateAndEnqueue_TranslatesTriggerTargetsAndArguments_IntoStackEntryPayload()
     {
         var passiveEffect = new EffectSpec

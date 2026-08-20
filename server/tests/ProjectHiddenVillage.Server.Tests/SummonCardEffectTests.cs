@@ -64,6 +64,29 @@ public sealed class SummonCardEffectTests
         Assert.AreEqual("Game.Effect.SummonCard.CannotBeNormalSummoned", result.FirstError.Code);
     }
 
+    [TestMethod]
+    public void Execute_SetsSuppressionFlagOnSummonedTargets_WhenConfigured()
+    {
+        var effectSpec = CreateSummonEffectSpec();
+        effectSpec.SuppressSummonedTargetsEffectsWhileOnField = true;
+
+        var context = CreateContext(effectSpec);
+        var effect = new SummonCardEffect(
+            effectSpecResolver: new StubEffectSpecResolver(effectSpec),
+            canExecuteEvaluator: new StubCanExecuteEvaluator([]),
+            targetResolver: new StubTargetResolver([]));
+
+        var result = effect.Execute(context, [new GameEffectTargetReference("p1", PlayerZone.Hand, "allowed-instance")]);
+
+        Assert.IsFalse(result.IsError);
+
+        var summonedCard = context.Game.State.Players[0].Battlefield
+            .FirstOrDefault(card => card.InstanceId == "allowed-instance");
+
+        Assert.IsNotNull(summonedCard);
+        Assert.IsTrue(summonedCard.EffectsSuppressedWhileOnField);
+    }
+
     private static EffectSpec CreateSummonEffectSpec()
     {
         return new EffectSpec

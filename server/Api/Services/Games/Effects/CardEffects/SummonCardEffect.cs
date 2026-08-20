@@ -72,6 +72,10 @@ public sealed class SummonCardEffect(
 
 	public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
 	{
+		var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.SummonCard);
+		var suppressSummonedTargetsEffectsWhileOnField =
+			effectSpec?.SuppressSummonedTargetsEffectsWhileOnField ?? false;
+
 		var blockedTarget = selectedTargets.FirstOrDefault(target => IsNormalSummonBlocked(context, target.CardInstanceId));
 		if (blockedTarget is not null)
 		{
@@ -97,6 +101,7 @@ public sealed class SummonCardEffect(
 			sourceZone.Remove(cardInstance);
 			cardInstance.ControllerPlayerId = summoningPlayer.PlayerId;
 			cardInstance.EnteredFieldTurnNumber = context.Game.State.TurnNumber;
+			cardInstance.EffectsSuppressedWhileOnField = suppressSummonedTargetsEffectsWhileOnField;
 			summoningPlayerField.Add(cardInstance);
 
 			affectedCardInstanceIds.Add(cardInstance.InstanceId);

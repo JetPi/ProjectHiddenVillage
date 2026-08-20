@@ -28,6 +28,9 @@ public sealed class CardInstance
     // Runtime keywords granted/removed by effects while in-game.
     public List<string> RuntimeKeywords { get; set; } = [];
 
+    // When true, this card's effects are suppressed while it remains in CharacterField.
+    public bool EffectsSuppressedWhileOnField { get; set; }
+
     // Set when a card enters CharacterField to support summon-turn attack rules.
     public int? EnteredFieldTurnNumber { get; set; }
 }
