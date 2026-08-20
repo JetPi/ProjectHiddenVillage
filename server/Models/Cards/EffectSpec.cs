@@ -82,6 +82,18 @@ public enum PassiveConsequenceTargetPolicy
     TriggerSelectedTargets
 }
 
+public enum ChakraAdjustmentOperation
+{
+    Pay,
+    Recover,
+}
+
+public enum SummonCardFaceState
+{
+    FaceUp,
+    FaceDown,
+}
+
 public enum EffectExecutionTargetSource
 {
     SelectedTargets,
@@ -125,7 +137,7 @@ public sealed class AttributeModificationSpec
 {
     public AttributeModificationTargetType TargetType { get; set; } = AttributeModificationTargetType.SelectedTargets;
 
-    public TargetPlayerScope TargetPlayerScope { get; set; } = TargetPlayerScope.Player;
+    public EffectTargetRange TargetRange { get; set; } = EffectTargetRange.Self;
 
     public EffectAttributeType Attribute { get; set; } = EffectAttributeType.CardPower;
 
@@ -136,6 +148,22 @@ public sealed class AttributeModificationSpec
     public int? MinimumValue { get; set; }
 
     public int? MaximumValue { get; set; }
+}
+
+public sealed class ChakraAdjustmentSpec
+{
+    public EffectTargetRange TargetRange { get; set; } = EffectTargetRange.Self;
+
+    public ChakraAdjustmentOperation Operation { get; set; } = ChakraAdjustmentOperation.Pay;
+
+    public int Amount { get; set; }
+}
+
+public sealed class SummonCardFlipSpec
+{
+    public EffectTargetRange TargetRange { get; set; } = EffectTargetRange.Self;
+
+    public SummonCardFaceState FaceState { get; set; } = SummonCardFaceState.FaceUp;
 }
 
 public sealed class EffectExecutionConditionSpec
@@ -186,6 +214,10 @@ public sealed class EffectSpec
     public IReadOnlyList<PassiveConsequenceSpec> PassiveConsequences { get; set; } = [];
 
     public IReadOnlyList<AttributeModificationSpec> AttributeModifications { get; set; } = [];
+
+    public IReadOnlyList<ChakraAdjustmentSpec> ChakraAdjustments { get; set; } = [];
+
+    public IReadOnlyList<SummonCardFlipSpec> SummonCardFlips { get; set; } = [];
 
     public IReadOnlyList<KeywordModificationSpec> KeywordModifications { get; set; } = [];
 

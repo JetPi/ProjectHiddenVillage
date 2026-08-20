@@ -30,13 +30,13 @@ public sealed class EffectTargetResolverTests
                 [
                     new EffectTargetRule
                     {
-                        Scope = TargetPlayerScope.Player,
+                            Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
                         Restriction = new ZoneCardRestriction { HasName = ["Ino Yamanaka"] }
                     },
                     new EffectTargetRule
                     {
-                        Scope = TargetPlayerScope.Player,
+                            Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
                         Restriction = new ZoneCardRestriction { HasName = ["Shikamaru Nara", "Choji Akimichi"] }
                     }
@@ -69,13 +69,13 @@ public sealed class EffectTargetResolverTests
                 [
                     new EffectTargetRule
                     {
-                        Scope = TargetPlayerScope.Player,
+                        Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
                         Restriction = new ZoneCardRestriction { HasTrait = ["Team10"] }
                     },
                     new EffectTargetRule
                     {
-                        Scope = TargetPlayerScope.Player,
+                        Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
                         Restriction = new ZoneCardRestriction { HasType = [CardType.Character] }
                     }
@@ -110,7 +110,7 @@ public sealed class EffectTargetResolverTests
                 [
                     new EffectTargetRule
                     {
-                        Scope = TargetPlayerScope.Opponent,
+                            Scope = EffectTargetRange.Opponent,
                         InZone = PlayerZone.CharacterField,
                         Restriction = new ZoneCardRestriction { HasType = [CardType.Character] }
                     }

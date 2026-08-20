@@ -3,6 +3,8 @@ using System.Security.Claims;
 using ErrorOr;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
 
@@ -11,9 +13,90 @@ namespace ProjectHiddenVillage.Server;
 [ApiController]
 [Route("api/[controller]")]
 public sealed class GamesController(
-    IGameReadService gameReadService) : ApiControllerBase
+    IGameReadService gameReadService,
+    IGameInstanceService gameInstanceService,
+    IHubContext<GamesHub>? gamesHubContext = null) : ApiControllerBase
 {
     private readonly IGameReadService gameReadService = gameReadService;
+    private readonly IGameInstanceService gameInstanceService = gameInstanceService;
+    private readonly IHubContext<GamesHub>? gamesHubContext = gamesHubContext;
+
+    [HttpPost]
+    [Authorize]
+    [ProducesResponseType(typeof(GameInstanceResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<GameInstanceResponse>> CreateGame([FromBody] CreateGameForUserRequest request)
+    {
+        var requestingPlayerIdResult = GetRequestingPlayerId();
+        if (requestingPlayerIdResult.IsError)
+        {
+            return ProblemFromErrors<GameInstanceResponse>(requestingPlayerIdResult.Errors);
+        }
+
+        if (request.UserId.ToString("N") != requestingPlayerIdResult.Value)
+        {
+            return ProblemFromErrors<GameInstanceResponse>(
+            [
+                Error.Unauthorized(
+                    code: "Game.CreateForUser.Forbidden",
+                    description: "Authenticated user does not match requested user.")
+            ]);
+        }
+
+        var result = await gameInstanceService.CreateGameForUser(request);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<GameInstanceResponse>(result.Errors);
+        }
+
+        return Ok(new GameInstanceResponse(result.Value.Id));
+    }
+
+    [HttpPost("{gameId}/join")]
+    [Authorize]
+    [ProducesResponseType(typeof(GameInstanceResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<GameInstanceResponse>> JoinGame(string gameId, [FromBody] JoinGameAsPlayer request)
+    {
+        var requestingPlayerIdResult = GetRequestingPlayerId();
+        if (requestingPlayerIdResult.IsError)
+        {
+            return ProblemFromErrors<GameInstanceResponse>(requestingPlayerIdResult.Errors);
+        }
+
+        if (request.UserId.ToString("N") != requestingPlayerIdResult.Value)
+        {
+            return ProblemFromErrors<GameInstanceResponse>(
+            [
+                Error.Unauthorized(
+                    code: "Game.JoinForUser.Forbidden",
+                    description: "Authenticated user does not match requested user.")
+            ]);
+        }
+
+        var result = await gameInstanceService.JoinGameForUser(gameId, request);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<GameInstanceResponse>(result.Errors);
+        }
+
+        if (gamesHubContext is not null)
+        {
+            try
+            {
+                await gamesHubContext.Clients.Group(result.Value.Id).SendAsync("GameStateInvalidated", result.Value.Id);
+            }
+            catch
+            {
+                // Best effort only: join should still succeed even if notification fails.
+            }
+        }
+
+        return Ok(new GameInstanceResponse(result.Value.Id));
+    }
 
     [HttpGet("{gameId}/state")]
     [Authorize]

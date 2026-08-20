@@ -180,6 +180,44 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
                 effect.RuleFor(value => value.TargetRules)
                     .NotNull().WithMessage("Effect target rules are required.");
+
+                effect.RuleFor(value => value.TargetRules.ExactTargetCount)
+                    .GreaterThanOrEqualTo(0)
+                    .When(value => value.TargetRules.ExactTargetCount.HasValue)
+                    .WithMessage("Exact target count cannot be negative.");
+
+                effect.RuleFor(value => value.TargetRules.MinimumTargetCount)
+                    .GreaterThanOrEqualTo(0)
+                    .When(value => value.TargetRules.MinimumTargetCount.HasValue)
+                    .WithMessage("Minimum target count cannot be negative.");
+
+                effect.RuleFor(value => value.TargetRules.MaximumTargetCount)
+                    .GreaterThanOrEqualTo(0)
+                    .When(value => value.TargetRules.MaximumTargetCount.HasValue)
+                    .WithMessage("Maximum target count cannot be negative.");
+
+                effect.RuleFor(value => value.TargetRules)
+                    .Must(targetRules =>
+                        !targetRules.ExactTargetCount.HasValue
+                        || (!targetRules.MinimumTargetCount.HasValue && !targetRules.MaximumTargetCount.HasValue))
+                    .WithMessage("Exact target count cannot be combined with minimum or maximum target count.");
+
+                effect.RuleFor(value => value.TargetRules)
+                    .Must(targetRules =>
+                    {
+                        if (targetRules.ExactTargetCount.HasValue)
+                        {
+                            return true;
+                        }
+
+                        if (!targetRules.MinimumTargetCount.HasValue || !targetRules.MaximumTargetCount.HasValue)
+                        {
+                            return true;
+                        }
+
+                        return targetRules.MinimumTargetCount.Value <= targetRules.MaximumTargetCount.Value;
+                    })
+                    .WithMessage("Minimum target count cannot be greater than maximum target count.");
             })
             .When(request => request.Effects is not null);
     }

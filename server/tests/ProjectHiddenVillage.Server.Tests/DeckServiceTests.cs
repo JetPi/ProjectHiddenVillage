@@ -266,7 +266,6 @@ public sealed class DeckServiceTests
             Health = 6,
             SupportName = "Support",
             SupportEffect = "Effect",
-            SupportCost = 1,
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };

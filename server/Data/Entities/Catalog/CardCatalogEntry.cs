@@ -42,8 +42,6 @@ public sealed class CardCatalogEntry
 
     public string? SupportEffect { get; set; }
 
-    public int? SupportCost { get; set; }
-
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     public DateTimeOffset UpdatedAtUtc { get; set; }

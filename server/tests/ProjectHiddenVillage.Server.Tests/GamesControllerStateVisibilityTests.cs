@@ -124,7 +124,7 @@ public sealed class GamesControllerStateVisibilityTests
 
     private static GamesController BuildController(IGameReadService readService)
     {
-        return new GamesController(readService);
+        return new GamesController(readService, new StubGameInstanceService());
     }
 
     private static DefaultHttpContext CreateHttpContextWithSub(string sub)
@@ -218,6 +218,24 @@ public sealed class GamesControllerStateVisibilityTests
         public ErrorOr<GameInstance> GetById(string gameCode)
         {
             return new GameInstance(gameState);
+        }
+    }
+
+    private sealed class StubGameInstanceService : IGameInstanceService
+    {
+        public Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request, string? preferredGameCode)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<ErrorOr<GameInstance>> JoinGameForUser(string gameCode, JoinGameAsPlayer request)
+        {
+            throw new NotImplementedException();
         }
     }
 

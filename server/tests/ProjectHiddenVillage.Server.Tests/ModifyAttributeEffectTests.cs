@@ -62,7 +62,7 @@ public sealed class ModifyAttributeEffectTests
                 new AttributeModificationSpec
                 {
                     TargetType = AttributeModificationTargetType.Leader,
-                    TargetPlayerScope = TargetPlayerScope.Opponent,
+                    TargetRange = EffectTargetRange.Opponent,
                     Attribute = EffectAttributeType.LeaderCurrentLife,
                     Operation = AttributeModificationOperation.Subtract,
                     Value = 2
@@ -91,7 +91,7 @@ public sealed class ModifyAttributeEffectTests
                 new AttributeModificationSpec
                 {
                     TargetType = AttributeModificationTargetType.Leader,
-                    TargetPlayerScope = TargetPlayerScope.Player,
+                    TargetRange = EffectTargetRange.Self,
                     Attribute = EffectAttributeType.LeaderCurrentLife,
                     Operation = AttributeModificationOperation.Add,
                     Value = 3
@@ -196,7 +196,7 @@ public sealed class ModifyAttributeEffectTests
                 new AttributeModificationSpec
                 {
                     TargetType = AttributeModificationTargetType.Leader,
-                    TargetPlayerScope = TargetPlayerScope.Opponent,
+                    TargetRange = EffectTargetRange.Opponent,
                     Attribute = EffectAttributeType.LeaderDamage,
                     Operation = AttributeModificationOperation.Add,
                     Value = 3

@@ -19,10 +19,27 @@ export type {
   IJoinGameAsPlayerRequest,
 } from '@/services/api/types/game'
 
+function toGameInstanceResponse(payload: unknown): IGameInstanceResponse {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Game response payload is missing.')
+  }
+
+  const candidate = payload as { id?: unknown; gameId?: unknown }
+  if (typeof candidate.id === 'string' && candidate.id.trim().length > 0) {
+    return { id: candidate.id }
+  }
+
+  if (typeof candidate.gameId === 'string' && candidate.gameId.trim().length > 0) {
+    return { id: candidate.gameId }
+  }
+
+  throw new Error('Game response id is missing.')
+}
+
 export async function createGameForUser(request: ICreateGameForUserRequest): Promise<IGameInstanceResponse> {
   try {
-    const { data } = await api.post<IGameInstanceResponse>('/api/games', request)
-    return data
+    const { data } = await api.post<unknown>('/api/games', request)
+    return toGameInstanceResponse(data)
   } catch (error) {
     if (!axios.isAxiosError(error)) {
       throw error
@@ -42,8 +59,8 @@ export async function joinGameAsPlayer(
   request: IJoinGameAsPlayerRequest,
 ): Promise<IGameInstanceResponse> {
   try {
-    const { data } = await api.post<IGameInstanceResponse>(`/api/games/${encodeURIComponent(gameCode)}/join`, request)
-    return data
+    const { data } = await api.post<unknown>(`/api/games/${encodeURIComponent(gameCode)}/join`, request)
+    return toGameInstanceResponse(data)
   } catch (error) {
     if (!axios.isAxiosError(error)) {
       throw error

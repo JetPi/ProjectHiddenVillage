@@ -86,7 +86,6 @@ public sealed class CardDataSourceMapperTests
         Assert.AreEqual(0, result.Power);
         Assert.AreEqual(0, result.Conditions.Count);
         Assert.IsNotNull(character);
-        Assert.AreEqual(2, character.SupportCost);
     }
 
     [TestMethod]

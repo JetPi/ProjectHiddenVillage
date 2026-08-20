@@ -8,6 +8,9 @@ public sealed record JoinGameAsPlayer(
     Guid UserId,
     Guid? DeckId);
 
+public sealed record GameInstanceResponse(
+    string Id);
+
 public sealed record ResolvePromptRequest(
     string RequestedPlayerId,
     string SelectedOption);

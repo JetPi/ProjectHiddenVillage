@@ -7,4 +7,8 @@ public static class ReactiveEffectExecutionConstants
     public const string ExpectedTriggerTargetIdsArgument = "__expectedTriggerTargetIds";
 
     public const string ActiveEffectSpecIdArgument = "__activeEffectSpecId";
+
+    public const string SupportActivationChakraCostArgument = "__supportActivationChakraCost";
+
+    public const string EnforceTargetCountArgument = "__enforceTargetCount";
 }

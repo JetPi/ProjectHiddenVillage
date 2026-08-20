@@ -24,24 +24,45 @@ public sealed record CardCatalogItemResponse(
 
 public sealed record CardCatalogEffectResponse(
     string Id,
+    string RuntimeEffectType,
     string EffectType,
     string Timing,
     string TargetRange,
     bool IsOptional,
     int? ChakraCost,
     string GlobalRestrictions,
+    string ExecutionTargetSource,
+    string ExecutionFlowMode,
+    CardCatalogEffectExecutionConditionResponse? ExecutionCondition,
     IReadOnlyList<CardCatalogAttributeModificationResponse> AttributeModifications,
+    IReadOnlyList<CardCatalogChakraAdjustmentResponse> ChakraAdjustments,
+    IReadOnlyList<CardCatalogSummonCardFlipResponse> SummonCardFlips,
     IReadOnlyList<CardCatalogEffectContextRuleSetResponse> ContextRules,
     CardCatalogEffectTargetRuleSetResponse TargetRules);
 
+public sealed record CardCatalogEffectExecutionConditionResponse(
+    string ArgumentKey,
+    string ExpectedValue,
+    bool IgnoreCase,
+    bool Negate);
+
 public sealed record CardCatalogAttributeModificationResponse(
     string TargetType,
-    string TargetPlayerScope,
+    string TargetRange,
     string Attribute,
     string Operation,
     int Value,
     int? MinimumValue,
     int? MaximumValue);
+
+public sealed record CardCatalogChakraAdjustmentResponse(
+    string TargetRange,
+    string Operation,
+    int Amount);
+
+public sealed record CardCatalogSummonCardFlipResponse(
+    string TargetRange,
+    string FaceState);
 
 public sealed record CardCatalogEffectContextRuleSetResponse(
     CardCatalogEffectContextConditionResponse? Player,
@@ -63,6 +84,9 @@ public sealed record CardCatalogZoneAmountRequirementResponse(
 
 public sealed record CardCatalogEffectTargetRuleSetResponse(
     string Operator,
+    int? ExactTargetCount,
+    int? MinimumTargetCount,
+    int? MaximumTargetCount,
     IReadOnlyList<CardCatalogEffectTargetRuleResponse> Rules);
 
 public sealed record CardCatalogEffectTargetRuleResponse(
