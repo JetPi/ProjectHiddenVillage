@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AppButton } from '@/components/ui'
 import { CardAdminSelectedCardSummary } from './CardAdminSelectedCardSummary'
 import { useCardAdminEffectEditorModel } from '@/views/admin/model/useCardAdminEffectEditorModel'
@@ -448,7 +449,30 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Runtime Effect Type</label>
                     <select
                       value={effect.runtimeEffectType}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, runtimeEffectType: event.target.value }))}
+                      onChange={(event) =>
+                        updateEffectAt(effectIndex, (current) => {
+                          const nextRuntimeEffectType = event.target.value
+                          return {
+                            ...current,
+                            runtimeEffectType: nextRuntimeEffectType,
+                            suppressSummonedTargetsEffectsWhileOnField:
+                              nextRuntimeEffectType === 'Summon Card'
+                                ? current.suppressSummonedTargetsEffectsWhileOnField
+                                : false,
+                            attributeModifications:
+                              nextRuntimeEffectType === 'Change Values'
+                                ? current.attributeModifications
+                                : [],
+                            chakraAdjustments:
+                              nextRuntimeEffectType === 'Alter Resources'
+                                ? current.chakraAdjustments
+                                : [],
+                            summonCardFlips:
+                              nextRuntimeEffectType === 'Alter Resources'
+                                ? current.summonCardFlips
+                                : [],
+                          }
+                        })}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {RUNTIME_EFFECT_OPTIONS.map((option) => (
@@ -557,20 +581,22 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-amber-500/55 bg-[var(--surface-muted)] p-3 sm:grid-cols-2">
-                  <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-                    <input
-                      type="checkbox"
-                      checked={effect.suppressSummonedTargetsEffectsWhileOnField}
-                      onChange={(event) =>
-                        updateEffectAt(effectIndex, (current) => ({
-                          ...current,
-                          suppressSummonedTargetsEffectsWhileOnField: event.target.checked,
-                        }))}
-                    />
-                    Suppress Summoned Effects On Field
-                  </label>
-                </div>
+                {effect.runtimeEffectType === 'Summon Card' ? (
+                  <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-amber-500/55 bg-[var(--surface-muted)] p-3 sm:grid-cols-2">
+                    <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+                      <input
+                        type="checkbox"
+                        checked={effect.suppressSummonedTargetsEffectsWhileOnField}
+                        onChange={(event) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            suppressSummonedTargetsEffectsWhileOnField: event.target.checked,
+                          }))}
+                      />
+                      Suppress Summoned Effects On Field
+                    </label>
+                  </div>
+                ) : null}
 
                 <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-sky-500/55 bg-[var(--surface-muted)] p-3 sm:grid-cols-2">
                   <div className="space-y-1">
@@ -2467,40 +2493,41 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-rose-500/50 bg-[var(--surface-muted)] p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Attribute Modifications</p>
+                {effect.runtimeEffectType === 'Change Values' ? (
+                  <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-rose-500/50 bg-[var(--surface-muted)] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Attribute Modifications</p>
 
-                  <div className="flex justify-end">
-                    <AppButton
-                      type="button"
-                      variant="ghost"
-                      onClick={() =>
-                        updateEffectAt(effectIndex, (current) => ({
-                          ...current,
-                          attributeModifications: [...current.attributeModifications, createDefaultAttributeModification()],
-                        }))}
-                    >
-                      Add Attribute Modification
-                    </AppButton>
-                  </div>
+                    <div className="flex justify-end">
+                      <AppButton
+                        type="button"
+                        variant="ghost"
+                        onClick={() =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            attributeModifications: [...current.attributeModifications, createDefaultAttributeModification()],
+                          }))}
+                      >
+                        Add Attribute Modification
+                      </AppButton>
+                    </div>
 
-                  {effect.attributeModifications.map((attributeModification, attributeIndex) => (
-                    <div key={`attribute-mod-${attributeIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-rose-500/30 bg-[var(--surface)] p-3">
-                      <div className="flex justify-end">
-                        <AppButton
-                          type="button"
-                          variant="ghost"
-                          onClick={() =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              attributeModifications: current.attributeModifications.filter((_, index) => index !== attributeIndex),
-                            }))}
-                        >
-                          Remove
-                        </AppButton>
-                      </div>
+                    {effect.attributeModifications.map((attributeModification, attributeIndex) => (
+                      <div key={`attribute-mod-${attributeIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-rose-500/30 bg-[var(--surface)] p-3">
+                        <div className="flex justify-end">
+                          <AppButton
+                            type="button"
+                            variant="ghost"
+                            onClick={() =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                attributeModifications: current.attributeModifications.filter((_, index) => index !== attributeIndex),
+                              }))}
+                          >
+                            Remove
+                          </AppButton>
+                        </div>
 
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <select
                           value={attributeModification.targetType}
                           onChange={(event) =>
@@ -2599,30 +2626,32 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                             }))}
                           className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                         />
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-lime-500/55 bg-[var(--surface-muted)] p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Chakra Adjustments</p>
-
-                  <div className="flex justify-end">
-                    <AppButton
-                      type="button"
-                      variant="ghost"
-                      onClick={() =>
-                        updateEffectAt(effectIndex, (current) => ({
-                          ...current,
-                          chakraAdjustments: [...current.chakraAdjustments, createDefaultChakraAdjustment()],
-                        }))}
-                    >
-                      Add Chakra Adjustment
-                    </AppButton>
+                    ))}
                   </div>
+                ) : null}
 
-                  {effect.chakraAdjustments.map((chakraAdjustment, chakraIndex) => (
-                    <div key={`chakra-adjustment-${chakraIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-lime-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
+                {effect.runtimeEffectType === 'Alter Resources' ? (
+                  <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-lime-500/55 bg-[var(--surface-muted)] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Chakra Adjustments</p>
+
+                    <div className="flex justify-end">
+                      <AppButton
+                        type="button"
+                        variant="ghost"
+                        onClick={() =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            chakraAdjustments: [...current.chakraAdjustments, createDefaultChakraAdjustment()],
+                          }))}
+                      >
+                        Add Chakra Adjustment
+                      </AppButton>
+                    </div>
+
+                    {effect.chakraAdjustments.map((chakraAdjustment, chakraIndex) => (
+                      <div key={`chakra-adjustment-${chakraIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-lime-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
                       <select
                         value={chakraAdjustment.targetRange}
                         onChange={(event) =>
@@ -2676,29 +2705,31 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                       >
                         Remove
                       </AppButton>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-indigo-500/55 bg-[var(--surface-muted)] p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Summon Card Flips</p>
-
-                  <div className="flex justify-end">
-                    <AppButton
-                      type="button"
-                      variant="ghost"
-                      onClick={() =>
-                        updateEffectAt(effectIndex, (current) => ({
-                          ...current,
-                          summonCardFlips: [...current.summonCardFlips, createDefaultSummonCardFlip()],
-                        }))}
-                    >
-                      Add Summon Flip
-                    </AppButton>
+                      </div>
+                    ))}
                   </div>
+                ) : null}
 
-                  {effect.summonCardFlips.map((summonCardFlip, summonFlipIndex) => (
-                    <div key={`summon-flip-${summonFlipIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-indigo-500/30 bg-[var(--surface)] p-3 sm:grid-cols-3">
+                {effect.runtimeEffectType === 'Alter Resources' ? (
+                  <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-indigo-500/55 bg-[var(--surface-muted)] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Summon Card Flips</p>
+
+                    <div className="flex justify-end">
+                      <AppButton
+                        type="button"
+                        variant="ghost"
+                        onClick={() =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            summonCardFlips: [...current.summonCardFlips, createDefaultSummonCardFlip()],
+                          }))}
+                      >
+                        Add Summon Flip
+                      </AppButton>
+                    </div>
+
+                    {effect.summonCardFlips.map((summonCardFlip, summonFlipIndex) => (
+                      <div key={`summon-flip-${summonFlipIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-indigo-500/30 bg-[var(--surface)] p-3 sm:grid-cols-3">
                       <select
                         value={summonCardFlip.targetRange}
                         onChange={(event) =>
@@ -2740,9 +2771,10 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                       >
                         Remove
                       </AppButton>
-                    </div>
-                  ))}
-                </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ))}
 
@@ -2776,15 +2808,6 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
       <div className="flex flex-wrap items-center gap-2">
         <AppButton
           type="button"
-          onClick={() => {
-            void editorModel.save()
-          }}
-          disabled={isSaveDisabled}
-        >
-          {editorModel.isSaving ? 'Saving...' : 'Save Effects'}
-        </AppButton>
-        <AppButton
-          type="button"
           variant="ghost"
           onClick={editorModel.reset}
           disabled={!editorModel.isDirty || editorModel.isSaving}
@@ -2792,6 +2815,24 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
           Reset
         </AppButton>
       </div>
+
+      {typeof document !== 'undefined'
+        ? createPortal(
+          <div className="fixed bottom-6 right-6 z-50">
+            <AppButton
+              type="button"
+              onClick={() => {
+                void editorModel.save()
+              }}
+              disabled={isSaveDisabled}
+              className="shadow-lg"
+            >
+              {editorModel.isSaving ? 'Saving...' : 'Save Effects'}
+            </AppButton>
+          </div>,
+          document.body,
+        )
+        : null}
     </div>
   )
 }
