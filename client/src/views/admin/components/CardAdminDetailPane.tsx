@@ -497,10 +497,9 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </div>
 
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Chakra Cost</label>
-                      <label className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-                        <span>Has Chakra Cost?</span>
+                      <label className="inline-flex items-center">
                         <span className="relative inline-flex h-5 w-9 items-center">
                           <input
                             type="checkbox"
@@ -517,17 +516,31 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                         </span>
                       </label>
                     </div>
-                    <input
-                      type="number"
-                      value={effect.chakraCost ?? ''}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, chakraCost: parseNullableInteger(event.target.value) }))}
-                      disabled={effect.chakraCost === null}
-                      placeholder={effect.chakraCost === null ? 'Enable the toggle to edit' : ''}
-                      className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)] disabled:cursor-not-allowed"
-                    />
-                    {effect.chakraCost === null ? (
-                      <p className="text-[11px] font-medium italic text-[var(--text-secondary)]">Unavailable while Has Chakra Cost is off.</p>
-                    ) : null}
+
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                      <input
+                        type="number"
+                        value={effect.chakraCost ?? ''}
+                        onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, chakraCost: parseNullableInteger(event.target.value) }))}
+                        disabled={effect.chakraCost === null}
+                        placeholder={effect.chakraCost === null ? 'Enable to edit' : ''}
+                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)] disabled:cursor-not-allowed"
+                      />
+
+                      <label className="inline-flex items-center justify-self-end gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                        <span>Optional</span>
+                        <span className="relative inline-flex h-5 w-9 items-center">
+                          <input
+                            type="checkbox"
+                            checked={effect.isOptional}
+                            onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, isOptional: event.target.checked }))}
+                            className="peer sr-only"
+                          />
+                          <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-amber-500/70" />
+                          <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                        </span>
+                      </label>
+                    </div>
                   </div>
 
                   <div className="space-y-1 md:col-span-3">
@@ -545,15 +558,6 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-amber-500/55 bg-[var(--surface-muted)] p-3 sm:grid-cols-2">
-                  <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-                    <input
-                      type="checkbox"
-                      checked={effect.isOptional}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, isOptional: event.target.checked }))}
-                    />
-                    Optional Effect
-                  </label>
-
                   <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                     <input
                       type="checkbox"
