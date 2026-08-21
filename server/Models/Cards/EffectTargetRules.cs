@@ -32,12 +32,6 @@ public sealed class EffectTargetRule
     public ZoneCardRestriction Restriction { get; set; } = new();
 }
 
-public enum TributeTargetRole
-{
-    TributeMaterial,
-    SummonCandidate,
-}
-
 public sealed class TributeTargetComposition
 {
     public int? ExactTributeCount { get; set; }
