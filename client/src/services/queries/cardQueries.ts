@@ -1,11 +1,17 @@
 import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
+import type { IPagedResponse } from '@/types/cardCatalog'
 import { fetchCardCatalogByIdsSparseCached } from '@/services/api/cardCatalogApi'
+import { fetchCardCatalogPage } from '@/services/api/cardCatalogApi'
 import { fetchGameCards } from '@/services/api/gameApi'
 import { DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '@/services/queryClient'
 import type {
   IUseCardCatalogByIdsQueryOptions,
+  IUseInfiniteCardCatalogQueryOptions,
+  IUseInfiniteCardCatalogQueryParams,
+  IUseCardCatalogPageQueryOptions,
+  IUseCardCatalogPageQueryParams,
   IUseGameCardMapByIdResult,
   IUseGameCardsQueryOptions,
 } from '@/services/queries/types/cardQueries'
@@ -36,10 +42,40 @@ function buildCardIdsKey(cardIds: string[]): string {
     .join('|')
 }
 
+function normalizeCardCatalogPageParams(params: IUseCardCatalogPageQueryParams): Required<IUseCardCatalogPageQueryParams> {
+  const normalizedPage = Number.isFinite(params.page) ? Math.max(1, Math.floor(params.page ?? 1)) : 1
+  const normalizedPageSizeRaw = Number.isFinite(params.pageSize) ? Math.floor(params.pageSize ?? 100) : 100
+  const normalizedPageSize = Math.min(100, Math.max(1, normalizedPageSizeRaw))
+  const normalizedSort = params.sort?.trim() || 'cardId'
+
+  return {
+    page: normalizedPage,
+    pageSize: normalizedPageSize,
+    sort: normalizedSort,
+  }
+}
+
+function normalizeInfiniteCardCatalogParams(
+  params: IUseInfiniteCardCatalogQueryParams,
+): Required<IUseInfiniteCardCatalogQueryParams> {
+  const normalizedPageSizeRaw = Number.isFinite(params.pageSize) ? Math.floor(params.pageSize ?? 100) : 100
+  const normalizedPageSize = Math.min(100, Math.max(1, normalizedPageSizeRaw))
+  const normalizedSort = params.sort?.trim() || 'cardId'
+
+  return {
+    pageSize: normalizedPageSize,
+    sort: normalizedSort,
+  }
+}
+
 export const cardQueryKeys = {
   all: ['cards'] as const,
   byIds: (cardIds: string[]) => ['cards', 'by-ids', buildCardIdsKey(cardIds)] as const,
   gameCards: (joinCode: string) => ['cards', 'game', joinCode.trim().toLowerCase()] as const,
+  catalogPage: (params: Required<IUseCardCatalogPageQueryParams>) =>
+    ['cards', 'catalog', params.page, params.pageSize, params.sort] as const,
+  catalogInfinite: (params: Required<IUseInfiniteCardCatalogQueryParams>) =>
+    ['cards', 'catalog-infinite', params.pageSize, params.sort] as const,
 }
 
 export function useCardCatalogByIdsQuery(
@@ -70,6 +106,54 @@ export function useGameCardsQuery(
     enabled: (options.enabled ?? true) && normalizedJoinCode.length > 0,
     staleTime: staleTimeMs,
     refetchInterval: options.refetchIntervalMs,
+  })
+}
+
+export function useCardCatalogPageQuery(
+  params: IUseCardCatalogPageQueryParams,
+  options: IUseCardCatalogPageQueryOptions = {},
+) {
+  const normalizedParams = useMemo(() => normalizeCardCatalogPageParams(params), [params])
+  const staleTimeMs = options.staleTimeMs ?? DEFAULT_CARD_CATALOG_STALE_TIME_MS
+
+  return useQuery<IPagedResponse<ICardCatalogItemResponse>>({
+    queryKey: cardQueryKeys.catalogPage(normalizedParams),
+    queryFn: () => fetchCardCatalogPage(normalizedParams),
+    enabled: options.enabled ?? true,
+    staleTime: staleTimeMs,
+  })
+}
+
+export function useInfiniteCardCatalogQuery(
+  params: IUseInfiniteCardCatalogQueryParams,
+  options: IUseInfiniteCardCatalogQueryOptions = {},
+) {
+  const normalizedParams = useMemo(() => normalizeInfiniteCardCatalogParams(params), [params])
+  const staleTimeMs = options.staleTimeMs ?? DEFAULT_CARD_CATALOG_STALE_TIME_MS
+
+  return useInfiniteQuery<IPagedResponse<ICardCatalogItemResponse>>({
+    queryKey: cardQueryKeys.catalogInfinite(normalizedParams),
+    queryFn: ({ pageParam }) => {
+      const normalizedPageParam = typeof pageParam === 'number' && Number.isFinite(pageParam)
+        ? Math.max(1, Math.floor(pageParam))
+        : 1
+
+      return fetchCardCatalogPage({
+        page: normalizedPageParam,
+        pageSize: normalizedParams.pageSize,
+        sort: normalizedParams.sort,
+      })
+    },
+    enabled: options.enabled ?? true,
+    staleTime: staleTimeMs,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      if (lastPage.page >= lastPage.totalPages) {
+        return undefined
+      }
+
+      return lastPage.page + 1
+    },
   })
 }
 

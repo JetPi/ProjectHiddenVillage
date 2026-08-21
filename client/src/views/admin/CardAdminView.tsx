@@ -1,35 +1,174 @@
+import { useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
 import { Panel } from '@/components/ui'
+import { useInfiniteCardCatalogQuery } from '@/services/queries/cardQueries'
+import {
+  CardAdminCatalogPane,
+  CardAdminDetailPane,
+  CardAdminFilterPanel,
+} from '@/views/admin/components'
+import { useCardAdminViewModel } from '@/views/admin/model/useCardAdminViewModel'
+import { SORT_OPTIONS } from '@/views/admin/utils/constants'
+import { buildUniqueFilterOptions, normalizeFilterValue } from '@/views/admin/utils/filterNormalization'
 
 export function CardAdminView() {
-  // NOTE(maintainers): Intentionally non-functional placeholder.
-  // User asked to keep this route/file for future card-maintenance tooling,
-  // but disable all live load/update behavior for now.
+  const viewModel = useCardAdminViewModel()
+
+  const catalogPageQuery = useInfiniteCardCatalogQuery(
+    {
+      pageSize: viewModel.pageSize,
+      sort: viewModel.sort,
+    },
+    {
+      enabled: true,
+    },
+  )
+
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
+  const listScrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const {
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+  } = catalogPageQuery
+
+  const allLoadedItems = useMemo(
+    () =>
+      (catalogPageQuery.data?.pages ?? [])
+        .flatMap((pageResult) => pageResult.items)
+        .filter((card, index, cards) => cards.findIndex((entry) => entry.id === card.id) === index),
+    [catalogPageQuery.data?.pages],
+  )
+
+  const typeOptions = useMemo(
+    () => buildUniqueFilterOptions(allLoadedItems.map((card) => card.type)),
+    [allLoadedItems],
+  )
+  const colorOptions = useMemo(
+    () => buildUniqueFilterOptions(allLoadedItems.map((card) => card.color)),
+    [allLoadedItems],
+  )
+
+  const filteredCards = useMemo(() => {
+    const searchTerm = viewModel.searchText.trim().toLowerCase()
+    const typeFilter = viewModel.type
+    const colorFilter = viewModel.color
+
+    return allLoadedItems.filter((card) => {
+      if (typeFilter !== 'all' && normalizeFilterValue(card.type) !== typeFilter) {
+        return false
+      }
+
+      if (colorFilter !== 'all' && normalizeFilterValue(card.color) !== colorFilter) {
+        return false
+      }
+
+      if (!searchTerm) {
+        return true
+      }
+
+      const searchFields = [card.id, card.displayName, card.type, card.color]
+      return searchFields.some((field) => field.toLowerCase().includes(searchTerm))
+    })
+  }, [viewModel.searchText, viewModel.type, viewModel.color, allLoadedItems])
+
+  useEffect(() => {
+    if (!viewModel.selectedCardId) {
+      return
+    }
+
+    const hasSelectedCard = filteredCards.some((card) => card.id === viewModel.selectedCardId)
+    if (!hasSelectedCard) {
+      viewModel.clearSelection()
+    }
+  }, [filteredCards, viewModel])
+
+  useEffect(() => {
+    const sentinelElement = loadMoreSentinelRef.current
+    const listScrollContainer = listScrollContainerRef.current
+    if (!sentinelElement || !hasNextPage) {
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry?.isIntersecting || isFetchingNextPage) {
+          return
+        }
+
+        void fetchNextPage()
+      },
+      {
+        root: listScrollContainer,
+        rootMargin: '300px 0px 300px 0px',
+        threshold: 0.01,
+      },
+    )
+
+    observer.observe(sentinelElement)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
+
+  const selectedCard = useMemo(
+    () => filteredCards.find((card) => card.id === viewModel.selectedCardId) ?? null,
+    [filteredCards, viewModel.selectedCardId],
+  )
 
   return (
-    <PageShell>
-      <div className="mx-auto w-full max-w-2xl px-3">
-        <Panel className="space-y-4 px-5 py-5">
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="text-xl font-bold text-[var(--text-primary)]">Card Admin</h1>
-            <Link to="/" className="text-sm text-[var(--text-secondary)] underline-offset-2 hover:underline">
-              Back to Login
-            </Link>
-          </div>
+    <PageShell
+      compact
+      fullBleed
+      edgeToEdge
+      className="h-dvh overflow-hidden"
+    >
+      <div className="h-full w-full">
+        <div className="grid h-full min-h-0 gap-0 lg:grid-cols-[33%_minmax(0,1fr)]">
+          <aside className="themed-scrollbar flex h-full min-h-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+            <CardAdminFilterPanel
+              searchText={viewModel.searchText}
+              typeValue={viewModel.type}
+              colorValue={viewModel.color}
+              sortValue={viewModel.sort}
+              typeOptions={typeOptions}
+              colorOptions={colorOptions}
+              sortOptions={SORT_OPTIONS}
+              onSearchTextChange={viewModel.setSearchText}
+              onTypeChange={viewModel.setTypeFilter}
+              onColorChange={viewModel.setColorFilter}
+              onSortChange={viewModel.setSort}
+            />
 
-          <p className="text-sm text-[var(--text-secondary)]">
-            This page is intentionally disabled for now.
-          </p>
+            <CardAdminCatalogPane
+              cards={filteredCards}
+              selectedCardId={viewModel.selectedCardId}
+              isLoading={isLoading}
+              isError={isError}
+              isFetchingNextPage={isFetchingNextPage}
+              hasNextPage={hasNextPage ?? false}
+              onSelectCard={viewModel.selectCard}
+              onFetchNextPage={fetchNextPage}
+              listScrollContainerRef={listScrollContainerRef}
+              loadMoreSentinelRef={loadMoreSentinelRef}
+            />
+          </aside>
 
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
-            <p className="text-sm font-semibold text-[var(--text-primary)]">Planned Future Use</p>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              Keep this route as a future admin surface for card updates (including summon restrictions),
-              but do not enable live editing behavior yet.
-            </p>
-          </div>
-        </Panel>
+          <Panel className="themed-scrollbar m-3 h-[calc(100%-1.5rem)] min-h-0 overflow-y-auto px-5 py-5">
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-xl font-bold text-[var(--text-primary)]">Card Admin</h1>
+              <Link to="/" className="text-sm text-[var(--text-secondary)] underline-offset-2 hover:underline">
+                Back to Login
+              </Link>
+            </div>
+            <CardAdminDetailPane selectedCard={selectedCard} />
+          </Panel>
+        </div>
       </div>
     </PageShell>
   )
