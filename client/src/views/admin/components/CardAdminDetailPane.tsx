@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AppButton } from '@/components/ui'
+import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { CardAdminSelectedCardSummary } from './CardAdminSelectedCardSummary'
 import { useCardAdminEffectEditorModel } from '@/views/admin/model/useCardAdminEffectEditorModel'
 import type { ICardAdminDetailEditorProps, ICardAdminDetailPaneProps } from '@/views/admin/types/cardAdminDetailPane'
@@ -2793,18 +2794,6 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
         ) : null}
       </div>
 
-      {editorModel.errors.form ? (
-        <p className="rounded-lg border border-red-400/50 bg-red-500/10 px-3 py-2 text-xs text-red-500">
-          {editorModel.errors.form}
-        </p>
-      ) : null}
-
-      {editorModel.statusMessage ? (
-        <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600">
-          {editorModel.statusMessage}
-        </p>
-      ) : null}
-
       <div className="flex flex-wrap items-center gap-2">
         <AppButton
           type="button"
@@ -2821,8 +2810,20 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
           <div className="fixed bottom-6 right-6 z-50">
             <AppButton
               type="button"
-              onClick={() => {
-                void editorModel.save()
+              onClick={async () => {
+                const result = await editorModel.save()
+                if (result.ok) {
+                  showAppSuccessToast('Card effects saved successfully.', {
+                    id: 'card-admin-save-status',
+                    position: 'top-right',
+                  })
+                  return
+                }
+
+                showAppInfoToast(result.message ?? 'Failed to save effect payload.', {
+                  id: 'card-admin-save-status',
+                  position: 'top-right',
+                })
               }}
               disabled={isSaveDisabled}
               className="shadow-lg"
