@@ -298,34 +298,39 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
   return (
     <div className="mt-3 space-y-4">
-      <CardAdminSelectedCardSummary card={selectedCard} />
-
-      <div className="grid grid-cols-1 gap-3">
-        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]" htmlFor="card-description">
-          Description
-        </label>
-        <textarea
-          id="card-description"
-          value={editorModel.draft.description}
-          onChange={(event) => editorModel.setDescription(event.target.value)}
-          className="min-h-[96px] w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]" htmlFor="support-effect">
-            Support Effect
-          </label>
-          <input
-            id="support-effect"
-            type="text"
-            value={editorModel.draft.supportEffect}
-            onChange={(event) => editorModel.setSupportEffect(event.target.value)}
-            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-          />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="h-full">
+          <CardAdminSelectedCardSummary card={selectedCard} />
         </div>
 
+        <div className="flex h-full flex-col gap-3">
+          <div className="grid grid-cols-1 gap-3">
+            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]" htmlFor="card-description">
+              Description
+            </label>
+            <textarea
+              id="card-description"
+              value={editorModel.draft.description}
+              onChange={(event) => editorModel.setDescription(event.target.value)}
+              className="min-h-[96px] w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+            />
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]" htmlFor="support-effect">
+              Support Effect
+            </label>
+            <textarea
+              id="support-effect"
+              value={editorModel.draft.supportEffect}
+              onChange={(event) => editorModel.setSupportEffect(event.target.value)}
+              className="min-h-[96px] flex-1 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3">
         <label className="flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]">
           <input
             type="checkbox"
