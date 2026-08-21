@@ -24,9 +24,6 @@ export function CardAdminSelectedCardSummary({ card }: ICardAdminSelectedCardSum
         </p>
       </div>
 
-      <div className="rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface)] p-3 text-xs text-[var(--text-secondary)]">
-        Reserved editor space: this pane is intentionally sized to accommodate the upcoming effect composition controls.
-      </div>
     </div>
   )
 }

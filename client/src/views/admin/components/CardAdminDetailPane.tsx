@@ -228,11 +228,6 @@ function toEffectArray(value: string): ICardCatalogEffectRequest[] | null {
 export function CardAdminDetailPane({ selectedCard }: ICardAdminDetailPaneProps) {
   return (
     <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
-      <p className="text-sm font-semibold text-[var(--text-primary)]">Effect Editor Workspace</p>
-      <p className="mt-1 text-xs text-[var(--text-secondary)]">
-        Edit and save card effects payloads from this panel.
-      </p>
-
       {selectedCard ? (
         <CardAdminDetailEditor key={selectedCard.id} selectedCard={selectedCard} />
       ) : (
