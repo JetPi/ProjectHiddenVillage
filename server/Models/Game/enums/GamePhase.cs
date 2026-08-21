@@ -23,3 +23,9 @@ public enum PhaseAdvanceMode
     AutoAdvanceWhenNoPriority,
     AutoAdvanceImmediately
 }
+
+public enum PhaseDirectiveType
+{
+    SkipPhase,
+    JumpToPhase
+}
