@@ -330,23 +330,12 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3">
-        <label className="flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]">
-          <input
-            type="checkbox"
-            checked={editorModel.draft.cannotBeNormalSummoned}
-            onChange={(event) => editorModel.setCannotBeNormalSummoned(event.target.checked)}
-          />
-          Cannot be normal summoned
-        </label>
-      </div>
-
       <div className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3">
         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
           Conditions
         </label>
 
-        <div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <select
             value={conditionToAdd}
             onChange={(event) => {
@@ -367,6 +356,20 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
               <option key={conditionOption} value={conditionOption}>{conditionOption}</option>
             ))}
           </select>
+
+          <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
+            <span>No Normal Summon</span>
+            <span className="relative inline-flex h-5 w-9 items-center">
+              <input
+                type="checkbox"
+                checked={editorModel.draft.cannotBeNormalSummoned}
+                onChange={(event) => editorModel.setCannotBeNormalSummoned(event.target.checked)}
+                className="peer sr-only"
+              />
+              <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-amber-500/70" />
+              <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+            </span>
+          </label>
         </div>
 
         {editorModel.draft.conditions.length > 0 ? (
