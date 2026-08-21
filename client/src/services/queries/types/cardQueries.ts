@@ -1,5 +1,6 @@
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import type { ICardCatalogPageQuery } from '@/services/api/types/cardCatalog'
+import type { IUpdateCardCatalogEffectsRequest } from '@/services/api/types/cardCatalog'
 
 export type IUseCardCatalogByIdsQueryOptions = {
   enabled?: boolean
@@ -29,4 +30,9 @@ export type IUseGameCardsQueryOptions = {
 export type IUseGameCardMapByIdResult = {
   cardsById: Map<string, ICardCatalogItemResponse>
   getCardById: (cardId: string | null | undefined) => ICardCatalogItemResponse | undefined
+}
+
+export type IUpdateCardCatalogEffectsMutationVariables = {
+  cardId: string
+  payload: IUpdateCardCatalogEffectsRequest
 }

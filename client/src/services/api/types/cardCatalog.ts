@@ -4,6 +4,120 @@ export type ICardCatalogPageQuery = {
   sort?: string
 }
 
-export type IUpdateCardCatalogFlagsRequest = {
-  cannotBeNormalSummoned: boolean
+export type ICardCatalogEffectExecutionConditionRequest = {
+  argumentKey: string
+  expectedValue: string
+  ignoreCase: boolean
+  negate: boolean
+}
+
+export type ICardCatalogZoneCardPropertyPredicateRequest = {
+  property: string
+  operator: string
+  value: string | null
+  values: string[]
+  ignoreCase: boolean
+}
+
+export type ICardCatalogZoneCardRestrictionRequest = {
+  predicates: ICardCatalogZoneCardPropertyPredicateRequest[]
+  matchMode: string
+}
+
+export type ICardCatalogZoneAmountRequirementRequest = {
+  amount: number
+  comparison: string
+  restriction: ICardCatalogZoneCardRestrictionRequest
+}
+
+export type ICardCatalogZoneRequirementSetRequest = {
+  requirements: ICardCatalogZoneAmountRequirementRequest[]
+  operator: string
+  distinctCardsAcrossRequirements: boolean
+}
+
+export type ICardCatalogEffectContextConditionRequest = {
+  inZone: string | null
+  inZoneRequirements: ICardCatalogZoneRequirementSetRequest | null
+}
+
+export type ICardCatalogEffectContextRuleSetRequest = {
+  player: ICardCatalogEffectContextConditionRequest | null
+  opponent: ICardCatalogEffectContextConditionRequest | null
+}
+
+export type ICardCatalogAttributeModificationRequest = {
+  targetType: string
+  targetRange: string
+  attribute: string
+  operation: string
+  value: number
+  minimumValue: number | null
+  maximumValue: number | null
+}
+
+export type ICardCatalogChakraAdjustmentRequest = {
+  targetRange: string
+  operation: string
+  amount: number
+}
+
+export type ICardCatalogSummonCardFlipRequest = {
+  targetRange: string
+  faceState: string
+}
+
+export type ICardCatalogTributeTargetCompositionRequest = {
+  exactTributeCount: number | null
+  minimumTributeCount: number | null
+  maximumTributeCount: number | null
+  requireSingleSummonTarget: boolean
+  requireDistinctSummonAndTributes: boolean
+}
+
+export type ICardCatalogEffectTargetRuleRequest = {
+  scope: string
+  inZone: string
+  tributeRole: string | null
+  exactSelectedTargetCount: number | null
+  minimumSelectedTargetCount: number | null
+  maximumSelectedTargetCount: number | null
+  restriction: ICardCatalogZoneCardRestrictionRequest
+}
+
+export type ICardCatalogEffectTargetRuleSetRequest = {
+  operator: string
+  exactTargetCount: number | null
+  minimumTargetCount: number | null
+  maximumTargetCount: number | null
+  tributeComposition: ICardCatalogTributeTargetCompositionRequest | null
+  rules: ICardCatalogEffectTargetRuleRequest[]
+}
+
+export type ICardCatalogEffectRequest = {
+  id: string
+  runtimeEffectType: string
+  effectType: string
+  timing: string
+  targetRange: string
+  isOptional: boolean
+  chakraCost: number | null
+  globalRestrictions: string
+  executionTargetSource: string
+  executionFlowMode: string
+  suppressSummonedTargetsEffectsWhileOnField: boolean
+  executionCondition: ICardCatalogEffectExecutionConditionRequest | null
+  attributeModifications: ICardCatalogAttributeModificationRequest[]
+  chakraAdjustments: ICardCatalogChakraAdjustmentRequest[]
+  summonCardFlips: ICardCatalogSummonCardFlipRequest[]
+  contextRules: ICardCatalogEffectContextRuleSetRequest[]
+  targetRules: ICardCatalogEffectTargetRuleSetRequest
+}
+
+export type IUpdateCardCatalogEffectsRequest = {
+  conditions?: string[]
+  effects?: ICardCatalogEffectRequest[]
+  description?: string
+  supportEffect?: string
+  cannotBeNormalSummoned?: boolean
 }

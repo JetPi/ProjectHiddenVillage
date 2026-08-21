@@ -7,15 +7,117 @@ export type IPagedResponse<TItem> = {
 }
 
 export type ICardCatalogConditionResponse = {
-  id: string
-  args: Record<string, string>
+  [key: string]: unknown
+}
+
+export type ICardCatalogEffectExecutionConditionResponse = {
+  argumentKey: string
+  expectedValue: string
+  ignoreCase: boolean
+  negate: boolean
+}
+
+export type ICardCatalogZoneCardPropertyPredicateResponse = {
+  property: string
+  operator: string
+  value: string | null
+  values: string[]
+  ignoreCase: boolean
+}
+
+export type ICardCatalogZoneCardRestrictionResponse = {
+  predicates: ICardCatalogZoneCardPropertyPredicateResponse[]
+  matchMode: string
+}
+
+export type ICardCatalogZoneAmountRequirementResponse = {
+  amount: number
+  comparison: string
+  restriction: ICardCatalogZoneCardRestrictionResponse
+}
+
+export type ICardCatalogZoneRequirementSetResponse = {
+  requirements: ICardCatalogZoneAmountRequirementResponse[]
+  operator: string
+  distinctCardsAcrossRequirements: boolean
+}
+
+export type ICardCatalogEffectContextConditionResponse = {
+  inZone: string | null
+  inZoneRequirements: ICardCatalogZoneRequirementSetResponse | null
+}
+
+export type ICardCatalogEffectContextRuleSetResponse = {
+  player: ICardCatalogEffectContextConditionResponse | null
+  opponent: ICardCatalogEffectContextConditionResponse | null
+}
+
+export type ICardCatalogAttributeModificationResponse = {
+  targetType: string
+  targetRange: string
+  attribute: string
+  operation: string
+  value: number
+  minimumValue: number | null
+  maximumValue: number | null
+}
+
+export type ICardCatalogChakraAdjustmentResponse = {
+  targetRange: string
+  operation: string
+  amount: number
+}
+
+export type ICardCatalogSummonCardFlipResponse = {
+  targetRange: string
+  faceState: string
+}
+
+export type ICardCatalogTributeTargetCompositionResponse = {
+  exactTributeCount: number | null
+  minimumTributeCount: number | null
+  maximumTributeCount: number | null
+  requireSingleSummonTarget: boolean
+  requireDistinctSummonAndTributes: boolean
+}
+
+export type ICardCatalogEffectTargetRuleResponse = {
+  scope: string
+  inZone: string
+  tributeRole: string | null
+  exactSelectedTargetCount: number | null
+  minimumSelectedTargetCount: number | null
+  maximumSelectedTargetCount: number | null
+  restriction: ICardCatalogZoneCardRestrictionResponse
+}
+
+export type ICardCatalogEffectTargetRuleSetResponse = {
+  operator: string
+  exactTargetCount: number | null
+  minimumTargetCount: number | null
+  maximumTargetCount: number | null
+  tributeComposition: ICardCatalogTributeTargetCompositionResponse | null
+  rules: ICardCatalogEffectTargetRuleResponse[]
 }
 
 export type ICardCatalogEffectResponse = {
   id: string
-  kind: string
+  runtimeEffectType: string
+  effectType: string
   timing: string
-  args: Record<string, string>
+  targetRange: string
+  isOptional: boolean
+  chakraCost: number | null
+  globalRestrictions: string
+  executionTargetSource: string
+  executionFlowMode: string
+  suppressSummonedTargetsEffectsWhileOnField: boolean
+  executionCondition: ICardCatalogEffectExecutionConditionResponse | null
+  attributeModifications: ICardCatalogAttributeModificationResponse[]
+  chakraAdjustments: ICardCatalogChakraAdjustmentResponse[]
+  summonCardFlips: ICardCatalogSummonCardFlipResponse[]
+  contextRules: ICardCatalogEffectContextRuleSetResponse[]
+  targetRules: ICardCatalogEffectTargetRuleSetResponse
 }
 
 export type ICardCatalogItemResponse = {
