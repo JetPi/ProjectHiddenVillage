@@ -13,7 +13,7 @@ import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog
 
 const EMPTY_VALIDATION_ERRORS: ICardAdminEffectEditorValidationErrors = {
   form: null,
-  conditionsText: null,
+  conditions: null,
   effectsText: null,
 }
 
@@ -21,7 +21,7 @@ const EMPTY_DRAFT: ICardAdminEffectEditorDraft = {
   description: '',
   supportEffect: '',
   cannotBeNormalSummoned: false,
-  conditionsText: '[]',
+  conditions: [],
   effectsText: '[]',
 }
 
@@ -38,7 +38,7 @@ function toEditorDraft(card: ICardAdminEffectEditorHydrationSource | null): ICar
     description: card.description,
     supportEffect: card.supportEffect ?? '',
     cannotBeNormalSummoned: card.cannotBeNormalSummoned,
-    conditionsText: toPrettyJson(card.conditions),
+    conditions: [...card.conditions],
     effectsText: toPrettyJson(card.effects),
   }
 }
@@ -70,14 +70,7 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
     ...EMPTY_VALIDATION_ERRORS,
   }
 
-  let parsedConditions: unknown
   let parsedEffects: unknown
-
-  try {
-    parsedConditions = JSON.parse(draft.conditionsText)
-  } catch {
-    nextErrors.conditionsText = 'Conditions must be valid JSON.'
-  }
 
   try {
     parsedEffects = JSON.parse(draft.effectsText)
@@ -85,15 +78,15 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
     nextErrors.effectsText = 'Effects must be valid JSON.'
   }
 
-  if (nextErrors.conditionsText || nextErrors.effectsText) {
+  if (nextErrors.effectsText) {
     return {
       payload: null,
       errors: nextErrors,
     }
   }
 
-  if (!Array.isArray(parsedConditions) || !parsedConditions.every((entry) => typeof entry === 'string')) {
-    nextErrors.conditionsText = 'Conditions must be a JSON array of strings.'
+  if (!Array.isArray(draft.conditions) || !draft.conditions.every((entry) => typeof entry === 'string')) {
+    nextErrors.conditions = 'Conditions must be a list of strings.'
   }
 
   if (!Array.isArray(parsedEffects) || parsedEffects.length === 0) {
@@ -102,14 +95,16 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
     nextErrors.effectsText = 'Each effect must include id, effectType, timing, contextRules, and targetRules.'
   }
 
-  if (nextErrors.conditionsText || nextErrors.effectsText) {
+  if (nextErrors.conditions || nextErrors.effectsText) {
     return {
       payload: null,
       errors: nextErrors,
     }
   }
 
-  const normalizedConditions = parsedConditions as string[]
+  const normalizedConditions = draft.conditions
+    .map((entry) => entry.trim())
+    .filter((entry, index, all) => entry.length > 0 && all.indexOf(entry) === index)
   const normalizedEffects = parsedEffects as ICardCatalogEffectRequest[]
 
   return {
@@ -160,8 +155,51 @@ export function useCardAdminEffectEditorModel(
     setDraft((current) => ({ ...current, cannotBeNormalSummoned: value }))
   }, [])
 
-  const setConditionsText = useCallback((value: string) => {
-    setDraft((current) => ({ ...current, conditionsText: value }))
+  const toggleCondition = useCallback((value: string) => {
+    const normalizedValue = value.trim()
+    if (!normalizedValue) {
+      return
+    }
+
+    setDraft((current) => {
+      const hasCondition = current.conditions.includes(normalizedValue)
+      return {
+        ...current,
+        conditions: hasCondition
+          ? current.conditions.filter((entry) => entry !== normalizedValue)
+          : [...current.conditions, normalizedValue],
+      }
+    })
+  }, [])
+
+  const addCondition = useCallback((value: string) => {
+    const normalizedValue = value.trim()
+    if (!normalizedValue) {
+      return
+    }
+
+    setDraft((current) => {
+      if (current.conditions.includes(normalizedValue)) {
+        return current
+      }
+
+      return {
+        ...current,
+        conditions: [...current.conditions, normalizedValue],
+      }
+    })
+  }, [])
+
+  const removeCondition = useCallback((value: string) => {
+    const normalizedValue = value.trim()
+    if (!normalizedValue) {
+      return
+    }
+
+    setDraft((current) => ({
+      ...current,
+      conditions: current.conditions.filter((entry) => entry !== normalizedValue),
+    }))
   }, [])
 
   const setEffectsText = useCallback((value: string) => {
@@ -192,7 +230,7 @@ export function useCardAdminEffectEditorModel(
           description: draft.description,
           supportEffect: draft.supportEffect,
           cannotBeNormalSummoned: draft.cannotBeNormalSummoned,
-          conditions: parsed.payload.conditions,
+          conditions: parsed.payload.conditions.length > 0 ? parsed.payload.conditions : undefined,
           effects: parsed.payload.effects,
         },
       })
@@ -231,7 +269,9 @@ export function useCardAdminEffectEditorModel(
     setDescription,
     setSupportEffect,
     setCannotBeNormalSummoned,
-    setConditionsText,
+    toggleCondition,
+    addCondition,
+    removeCondition,
     setEffectsText,
     reset,
     save,

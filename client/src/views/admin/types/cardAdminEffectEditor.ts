@@ -5,13 +5,13 @@ export type ICardAdminEffectEditorDraft = {
   description: string
   supportEffect: string
   cannotBeNormalSummoned: boolean
-  conditionsText: string
+  conditions: string[]
   effectsText: string
 }
 
 export type ICardAdminEffectEditorValidationErrors = {
   form: string | null
-  conditionsText: string | null
+  conditions: string | null
   effectsText: string | null
 }
 
@@ -29,7 +29,9 @@ export type ICardAdminEffectEditorModel = {
   setDescription: (value: string) => void
   setSupportEffect: (value: string) => void
   setCannotBeNormalSummoned: (value: boolean) => void
-  setConditionsText: (value: string) => void
+  toggleCondition: (value: string) => void
+  addCondition: (value: string) => void
+  removeCondition: (value: string) => void
   setEffectsText: (value: string) => void
   reset: () => void
   save: () => Promise<ICardAdminEffectEditorSaveResult>

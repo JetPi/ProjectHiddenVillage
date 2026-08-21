@@ -6,10 +6,6 @@ export type IPagedResponse<TItem> = {
   items: TItem[]
 }
 
-export type ICardCatalogConditionResponse = {
-  [key: string]: unknown
-}
-
 export type ICardCatalogEffectExecutionConditionResponse = {
   argumentKey: string
   expectedValue: string
@@ -134,7 +130,7 @@ export type ICardCatalogItemResponse = {
   description: string
   damage: number
   power: number
-  conditions: ICardCatalogConditionResponse[]
+  conditions: string[]
   effects: ICardCatalogEffectResponse[]
   life: number | null
   health: number | null
