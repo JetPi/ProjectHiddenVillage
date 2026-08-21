@@ -352,7 +352,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
         {parsedEffects ? (
           <div className="space-y-4">
             {parsedEffects.map((effect, effectIndex) => (
-              <div key={`${effect.id}-${effectIndex}`} className="space-y-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-3">
+              <div key={`${effect.id}-${effectIndex}`} className="space-y-3 rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-slate-400/55 bg-[var(--surface)] p-3 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-[var(--text-primary)]">Effect #{effectIndex + 1}</p>
                   <AppButton
@@ -452,7 +452,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-amber-500/55 bg-[var(--surface-muted)] p-3 sm:grid-cols-2">
                   <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                     <input
                       type="checkbox"
@@ -476,7 +476,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </label>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-sky-500/55 bg-[var(--surface-muted)] p-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Execution Target Source</label>
                     <select
@@ -585,7 +585,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   ) : null}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-emerald-500/55 bg-[var(--surface-muted)] p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Rules</p>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -785,7 +785,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                     </div>
                   ) : null}
 
-                  <div className="space-y-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3">
+                  <div className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/35 bg-[var(--surface-muted)] p-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Rule Rows</p>
                       <AppButton
@@ -805,7 +805,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                     </div>
 
                     {effect.targetRules.rules.map((targetRule, targetRuleIndex) => (
-                      <div key={`target-rule-${targetRuleIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+                      <div key={`target-rule-${targetRuleIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/30 bg-[var(--surface)] p-3">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-xs font-semibold text-[var(--text-primary)]">Rule #{targetRuleIndex + 1}</p>
                           <AppButton
@@ -981,7 +981,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                           </div>
                         </div>
 
-                        <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-2">
+                        <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/25 bg-[var(--surface-muted)] p-2">
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-xs font-semibold text-[var(--text-secondary)]">Predicates</p>
                             <AppButton
@@ -1010,7 +1010,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                           </div>
 
                           {targetRule.restriction.predicates.map((predicate, predicateIndex) => (
-                            <div key={`predicate-${predicateIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-2 sm:grid-cols-2">
+                            <div key={`predicate-${predicateIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/20 bg-[var(--surface)] p-2 sm:grid-cols-2">
                               <input
                                 type="text"
                                 placeholder="property"
@@ -1186,7 +1186,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-cyan-500/55 bg-[var(--surface-muted)] p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Context Rules</p>
 
                   <div className="flex justify-end">
@@ -1204,7 +1204,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </div>
 
                   {effect.contextRules.map((contextRule, contextRuleIndex) => (
-                    <div key={`context-rule-${contextRuleIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3">
+                    <div key={`context-rule-${contextRuleIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/35 bg-[var(--surface-muted)] p-3">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-semibold text-[var(--text-primary)]">Context #{contextRuleIndex + 1}</p>
                         <AppButton
@@ -1221,7 +1221,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                       </div>
 
                       <div className="grid grid-cols-1 gap-3">
-                        <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+                        <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/30 bg-[var(--surface)] p-3">
                           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                             <input
                               type="checkbox"
@@ -1294,7 +1294,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                               </label>
 
                               {contextRule.player.inZoneRequirements ? (
-                                <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-2">
+                                <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/25 bg-[var(--surface-muted)] p-2">
                                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                     <div className="space-y-1">
                                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Requirement Operator</label>
@@ -1384,7 +1384,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                   </div>
 
                                   {contextRule.player.inZoneRequirements.requirements.map((requirement, requirementIndex) => (
-                                    <div key={`player-requirement-${requirementIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-2">
+                                    <div key={`player-requirement-${requirementIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/20 bg-[var(--surface)] p-2">
                                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
                                         <input
                                           type="number"
@@ -1509,7 +1509,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                         </AppButton>
                                       </div>
 
-                                      <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-2">
+                                      <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/20 bg-[var(--surface-muted)] p-2">
                                         <div className="flex items-center justify-between gap-2">
                                           <p className="text-xs font-semibold text-[var(--text-secondary)]">Predicates</p>
                                           <AppButton
@@ -1549,7 +1549,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                         </div>
 
                                         {requirement.restriction.predicates.map((predicate, predicateIndex) => (
-                                          <div key={`player-requirement-predicate-${predicateIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-2 sm:grid-cols-3">
+                                          <div key={`player-requirement-predicate-${predicateIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/15 bg-[var(--surface)] p-2 sm:grid-cols-3">
                                             <input
                                               type="text"
                                               placeholder="property"
@@ -1794,7 +1794,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                           ) : null}
                         </div>
 
-                        <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+                        <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/30 bg-[var(--surface)] p-3">
                           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                             <input
                               type="checkbox"
@@ -1867,7 +1867,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                               </label>
 
                               {contextRule.opponent.inZoneRequirements ? (
-                                <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-2">
+                                <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/25 bg-[var(--surface-muted)] p-2">
                                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                     <div className="space-y-1">
                                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Requirement Operator</label>
@@ -1957,7 +1957,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                   </div>
 
                                   {contextRule.opponent.inZoneRequirements.requirements.map((requirement, requirementIndex) => (
-                                    <div key={`opponent-requirement-${requirementIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-2">
+                                    <div key={`opponent-requirement-${requirementIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/20 bg-[var(--surface)] p-2">
                                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
                                         <input
                                           type="number"
@@ -2082,7 +2082,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                         </AppButton>
                                       </div>
 
-                                      <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-2">
+                                      <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/20 bg-[var(--surface-muted)] p-2">
                                         <div className="flex items-center justify-between gap-2">
                                           <p className="text-xs font-semibold text-[var(--text-secondary)]">Predicates</p>
                                           <AppButton
@@ -2122,7 +2122,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                         </div>
 
                                         {requirement.restriction.predicates.map((predicate, predicateIndex) => (
-                                          <div key={`opponent-requirement-predicate-${predicateIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-2 sm:grid-cols-3">
+                                          <div key={`opponent-requirement-predicate-${predicateIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/15 bg-[var(--surface)] p-2 sm:grid-cols-3">
                                             <input
                                               type="text"
                                               placeholder="property"
@@ -2371,7 +2371,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-rose-500/50 bg-[var(--surface-muted)] p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Attribute Modifications</p>
 
                   <div className="flex justify-end">
@@ -2389,7 +2389,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </div>
 
                   {effect.attributeModifications.map((attributeModification, attributeIndex) => (
-                    <div key={`attribute-mod-${attributeIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3">
+                    <div key={`attribute-mod-${attributeIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-rose-500/30 bg-[var(--surface)] p-3">
                       <div className="flex justify-end">
                         <AppButton
                           type="button"
@@ -2508,7 +2508,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-lime-500/55 bg-[var(--surface-muted)] p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Chakra Adjustments</p>
 
                   <div className="flex justify-end">
@@ -2526,7 +2526,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </div>
 
                   {effect.chakraAdjustments.map((chakraAdjustment, chakraIndex) => (
-                    <div key={`chakra-adjustment-${chakraIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3 sm:grid-cols-4">
+                    <div key={`chakra-adjustment-${chakraIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-lime-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
                       <select
                         value={chakraAdjustment.targetRange}
                         onChange={(event) =>
@@ -2584,7 +2584,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+                <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-indigo-500/55 bg-[var(--surface-muted)] p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Summon Card Flips</p>
 
                   <div className="flex justify-end">
@@ -2602,7 +2602,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </div>
 
                   {effect.summonCardFlips.map((summonCardFlip, summonFlipIndex) => (
-                    <div key={`summon-flip-${summonFlipIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3 sm:grid-cols-3">
+                    <div key={`summon-flip-${summonFlipIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-indigo-500/30 bg-[var(--surface)] p-3 sm:grid-cols-3">
                       <select
                         value={summonCardFlip.targetRange}
                         onChange={(event) =>
