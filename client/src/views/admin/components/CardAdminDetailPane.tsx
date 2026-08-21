@@ -433,7 +433,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </AppButton>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">ID</label>
                     <input
@@ -506,7 +506,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                     />
                   </div>
 
-                  <div className="space-y-1 sm:col-span-2">
+                  <div className="space-y-1 md:col-span-3">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Global Restrictions</label>
                     <select
                       value={effect.globalRestrictions}
