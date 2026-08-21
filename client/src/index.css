@@ -38,6 +38,10 @@
   --button-primary-hover: #f59e63;
   --button-primary-text: #0a0a0a;
 
+  --scrollbar-track: color-mix(in srgb, var(--surface-muted) 84%, transparent);
+  --scrollbar-thumb: color-mix(in srgb, var(--button-primary-bg) 58%, var(--surface) 42%);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--button-primary-hover) 70%, var(--surface) 30%);
+
   --stat-pill-pow-bg: rgba(251, 113, 133, 0.2);
   --stat-pill-pow-border: #fb7185;
   --stat-pill-pow-text: #ffe4e6;
@@ -90,6 +94,10 @@ html[data-theme='light'] {
   --button-primary-bg: #2667cf;
   --button-primary-hover: #3272e1;
   --button-primary-text: #ffffff;
+
+  --scrollbar-track: color-mix(in srgb, var(--surface-muted) 90%, transparent);
+  --scrollbar-thumb: color-mix(in srgb, var(--button-primary-bg) 56%, white 44%);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--button-primary-hover) 62%, white 38%);
 
   --stat-pill-pow-bg: #ffe4e6;
   --stat-pill-pow-border: #fb7185;
@@ -238,4 +246,34 @@ html[data-theme='light'] {
     opacity: 1;
     transform: translateX(0);
   }
+}
+
+.themed-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.themed-scrollbar::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.themed-scrollbar::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 999px;
+}
+
+.themed-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.themed-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+.themed-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
 }
