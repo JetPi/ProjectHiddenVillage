@@ -1,7 +1,7 @@
 import { api } from '@/services/api/httpClient'
 import type { ICardCatalogItemResponse, IPagedResponse } from '@/types/cardCatalog'
 import { appQueryClient, DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '@/services/queryClient'
-import type { ICardCatalogPageQuery, IUpdateCardCatalogFlagsRequest } from '@/services/api/types/cardCatalog'
+import type { ICardCatalogPageQuery, IUpdateCardCatalogEffectsRequest } from '@/services/api/types/cardCatalog'
 
 const CARD_CATALOG_CACHE_TTL_MS = DEFAULT_CARD_CATALOG_STALE_TIME_MS
 
@@ -93,15 +93,13 @@ export async function fetchCardCatalogByIds(cardIds: string[]): Promise<ICardCat
   return data
 }
 
-export async function updateCardCatalogFlags(
+export async function updateCardCatalogEffects(
   cardId: string,
-  request: IUpdateCardCatalogFlagsRequest,
+  request: IUpdateCardCatalogEffectsRequest,
 ): Promise<ICardCatalogItemResponse> {
   const { data } = await api.patch<ICardCatalogItemResponse>(
     `/api/card/catalog/${encodeURIComponent(cardId)}/effects`,
-    {
-      cannotBeNormalSummoned: request.cannotBeNormalSummoned,
-    },
+    request,
   )
 
   appQueryClient.setQueryData(getCardCatalogByIdQueryKey(cardId), data)
@@ -207,5 +205,5 @@ export async function fetchCardCatalogByIdsSparseCached(
 
 export type {
   ICardCatalogPageQuery,
-  IUpdateCardCatalogFlagsRequest,
+  IUpdateCardCatalogEffectsRequest,
 }

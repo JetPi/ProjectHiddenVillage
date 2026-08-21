@@ -1,15 +1,17 @@
 import { useMemo } from 'react'
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import type { IPagedResponse } from '@/types/cardCatalog'
 import { fetchCardCatalogByIdsSparseCached } from '@/services/api/cardCatalogApi'
 import { fetchCardCatalogPage } from '@/services/api/cardCatalogApi'
 import { fetchGameCards } from '@/services/api/gameApi'
+import { updateCardCatalogEffects } from '@/services/api/cardCatalogApi'
 import { DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '@/services/queryClient'
 import type {
   IUseCardCatalogByIdsQueryOptions,
   IUseInfiniteCardCatalogQueryOptions,
   IUseInfiniteCardCatalogQueryParams,
+  IUpdateCardCatalogEffectsMutationVariables,
   IUseCardCatalogPageQueryOptions,
   IUseCardCatalogPageQueryParams,
   IUseGameCardMapByIdResult,
@@ -191,4 +193,21 @@ export function useGameCardMapById(
     cardsById,
     getCardById,
   }
+}
+
+export function useUpdateCardCatalogEffectsMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation<ICardCatalogItemResponse, Error, IUpdateCardCatalogEffectsMutationVariables>({
+    mutationFn: ({ cardId, payload }) => updateCardCatalogEffects(cardId, payload),
+    onSuccess: async (updatedCard) => {
+      const normalizedId = updatedCard.id.trim().toLowerCase()
+      queryClient.setQueryData(['card-catalog', 'by-id', normalizedId], updatedCard)
+
+      await queryClient.invalidateQueries({
+        queryKey: ['cards', 'catalog-infinite'],
+        exact: false,
+      })
+    },
+  })
 }

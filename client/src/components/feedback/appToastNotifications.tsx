@@ -8,7 +8,7 @@ function showAppToast(tone: IAppToastTone, message: string, options: IAppToastOp
     {
       id: options.id,
       duration: options.duration ?? 3200,
-      position: 'bottom-right',
+      position: options.position ?? 'bottom-right',
     },
   )
 }

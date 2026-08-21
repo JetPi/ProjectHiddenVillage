@@ -1,44 +1,53 @@
-import { CardImage } from '@/components/ui/cards'
 import type { ICardAdminSelectedCardSummaryProps } from '@/views/admin/types/cardAdminSelectedCardSummary'
-import { CARD_ART_IMAGE_CLASS } from '@/components/ui/cards'
 
 export function CardAdminSelectedCardSummary({ card }: ICardAdminSelectedCardSummaryProps) {
+  const formatValue = (value: string | number | null | undefined): string => {
+    if (value === null || value === undefined) {
+      return '-'
+    }
+
+    if (typeof value === 'string' && value.trim().length === 0) {
+      return '-'
+    }
+
+    return String(value)
+  }
+
+  const statRows = [
+    ['ID', formatValue(card.id)],
+    ['Type', formatValue(card.type)],
+    ['Color', formatValue(card.color)],
+    ['Power', formatValue(card.power)],
+    ['Damage', formatValue(card.damage)],
+    card.life !== null && card.life !== undefined
+      ? ['Life', formatValue(card.life)]
+      : ['Health', formatValue(card.health)],
+  ]
+
   return (
-    <div className="mt-3 space-y-4 text-sm text-[var(--text-secondary)]">
-      <div className="aspect-[5/7] max-w-[280px] overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)]">
-        <CardImage
-          src={card.image}
-          alt={`${card.displayName} selected card art`}
-          loading="lazy"
-          decoding="async"
-          className={CARD_ART_IMAGE_CLASS}
-          fallbackLabel={card.displayName}
-        />
+    <div className="flex h-full flex-col justify-evenly rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-3 text-sm text-[var(--text-secondary)]">
+      <div className="flex items-stretch gap-2">
+        <div className="min-w-0 flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Name</p>
+          <p className="truncate text-sm font-semibold text-[var(--text-primary)]" title={card.displayName}>{card.displayName}</p>
+        </div>
+
+        <div className="w-fit shrink-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Support Cost</p>
+          <p className="mt-0.5 text-right text-sm font-semibold tabular-nums text-[var(--text-primary)]">{formatValue(card.supportCost)}</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <p>
-          <span className="font-semibold text-[var(--text-primary)]">ID:</span> {card.id}
-        </p>
-        <p>
-          <span className="font-semibold text-[var(--text-primary)]">Type:</span> {card.type}
-        </p>
-        <p className="sm:col-span-2">
-          <span className="font-semibold text-[var(--text-primary)]">Name:</span> {card.displayName}
-        </p>
-        <p>
-          <span className="font-semibold text-[var(--text-primary)]">Color:</span> {card.color}
-        </p>
-        <p>
-          <span className="font-semibold text-[var(--text-primary)]">Power / Damage:</span> {card.power} / {card.damage}
-        </p>
-        <p>
-          <span className="font-semibold text-[var(--text-primary)]">Effects:</span> {card.effects.length}
-        </p>
-      </div>
-
-      <div className="rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface)] p-3 text-xs text-[var(--text-secondary)]">
-        Reserved editor space: this pane is intentionally sized to accommodate the upcoming effect composition controls.
+      <div className="grid grid-cols-3 gap-2">
+        {statRows.map(([label, value]) => (
+          <div
+            key={label}
+            className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{label}</p>
+            <p className="mt-0.5 text-sm font-medium text-[var(--text-primary)]">{value}</p>
+          </div>
+        ))}
       </div>
     </div>
   )
