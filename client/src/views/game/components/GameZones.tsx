@@ -74,7 +74,7 @@ function GameZones({
                 alt={card.displayName}
                 loading="lazy"
                 decoding="async"
-                className="h-[102%] w-[102%] -m-[1%] rounded-none object-contain [image-rendering:auto]"
+                className={LEADER_CARD_IMAGE_CLASS}
               />
 
               <NonLeaderCardOverlay
