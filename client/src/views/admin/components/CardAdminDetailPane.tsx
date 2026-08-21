@@ -497,13 +497,37 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Chakra Cost</label>
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Chakra Cost</label>
+                      <label className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                        <span>Has Chakra Cost?</span>
+                        <span className="relative inline-flex h-5 w-9 items-center">
+                          <input
+                            type="checkbox"
+                            checked={effect.chakraCost !== null}
+                            onChange={(event) =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                chakraCost: event.target.checked ? current.chakraCost ?? 0 : null,
+                              }))}
+                            className="peer sr-only"
+                          />
+                          <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-amber-500/70" />
+                          <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                        </span>
+                      </label>
+                    </div>
                     <input
                       type="number"
                       value={effect.chakraCost ?? ''}
                       onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, chakraCost: parseNullableInteger(event.target.value) }))}
-                      className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                      disabled={effect.chakraCost === null}
+                      placeholder={effect.chakraCost === null ? 'Enable the toggle to edit' : ''}
+                      className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)] disabled:cursor-not-allowed"
                     />
+                    {effect.chakraCost === null ? (
+                      <p className="text-[11px] font-medium italic text-[var(--text-secondary)]">Unavailable while Has Chakra Cost is off.</p>
+                    ) : null}
                   </div>
 
                   <div className="space-y-1 md:col-span-3">
