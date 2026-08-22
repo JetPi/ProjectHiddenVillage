@@ -35,7 +35,7 @@ public sealed class DestroyCardEffectTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Shikamaru Nara"]
                                 }
@@ -52,7 +52,7 @@ public sealed class DestroyCardEffectTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Choji Akimichi"]
                                 }
@@ -93,7 +93,7 @@ public sealed class DestroyCardEffectTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Shikamaru Nara"]
                                 }
@@ -110,7 +110,7 @@ public sealed class DestroyCardEffectTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Choji Akimichi"]
                                 }
@@ -151,7 +151,7 @@ public sealed class DestroyCardEffectTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Choji Akimichi"]
                                 }
@@ -168,7 +168,7 @@ public sealed class DestroyCardEffectTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Shikamaru Nara"]
                                 }
@@ -210,7 +210,7 @@ public sealed class DestroyCardEffectTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Shikamaru Nara"]
                                 }
@@ -227,7 +227,7 @@ public sealed class DestroyCardEffectTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "traits",
+                                    Property = ZoneCardProperty.Trait,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Team10"]
                                 }

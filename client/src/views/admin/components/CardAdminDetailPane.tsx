@@ -2,13 +2,16 @@ import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AppButton } from '@/components/ui'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
+import { CountConstraintField } from './CountConstraintField'
 import { CardAdminSelectedCardSummary } from './CardAdminSelectedCardSummary'
 import { useCardAdminEffectEditorModel } from '@/views/admin/model/useCardAdminEffectEditorModel'
 import type { ICardAdminDetailEditorProps, ICardAdminDetailPaneProps } from '@/views/admin/types/cardAdminDetailPane'
+import type { ICountConstraintMode } from '@/views/admin/types/countConstraintField'
 import type {
   ICardCatalogAttributeModificationRequest,
   ICardCatalogChakraAdjustmentRequest,
   ICardCatalogEffectContextRuleSetRequest,
+  ICardCatalogPredicateProperty,
   ICardCatalogEffectRequest,
   ICardCatalogEffectTargetRuleRequest,
   ICardCatalogSummonCardFlipRequest,
@@ -70,7 +73,6 @@ const ATTRIBUTE_TYPE_OPTIONS = [
 const CHAKRA_OPERATION_OPTIONS = ['Pay', 'Recover'] as const
 const FACE_STATE_OPTIONS = ['Face Up', 'Face Down'] as const
 const MATCH_MODE_OPTIONS = ['Any', 'All'] as const
-const ZONE_COMPARISON_OPTIONS = ['Exact', 'Minimum', 'Maximum'] as const
 const PREDICATE_OPERATOR_OPTIONS = [
   'Equals',
   'Not Equals',
@@ -81,6 +83,24 @@ const PREDICATE_OPERATOR_OPTIONS = [
   'Contains',
   'In',
 ] as const
+const PREDICATE_PROPERTY_OPTIONS: ReadonlyArray<ICardCatalogPredicateProperty> = [
+  'Self',
+  'Id',
+  'Original Id',
+  'Display Name',
+  'Name',
+  'Trait',
+  'Type',
+  'Color',
+  'Power',
+  'Damage',
+  'Health',
+  'Current Health',
+  'Owner Player Id',
+  'Controller Player Id',
+  'Is Exhausted',
+  'Cannot Be Normal Summoned',
+]
 
 const CONDITION_OPTIONS = [
   'isSecondTurnOrLater',
@@ -136,7 +156,7 @@ function createDefaultEffect(): ICardCatalogEffectRequest {
 
 function createDefaultPredicate(): ICardCatalogZoneCardPropertyPredicateRequest {
   return {
-    property: 'type',
+    property: 'Type',
     operator: 'Equals',
     value: '',
     values: [],
@@ -226,6 +246,138 @@ function parseNullableInteger(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function getPredicateEntries(predicate: ICardCatalogZoneCardPropertyPredicateRequest): string[] {
+  const normalizedSingleValue = predicate.value?.trim()
+  const normalizedArrayValues = predicate.values
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+
+  if (normalizedArrayValues.length > 0 && normalizedSingleValue) {
+    return [normalizedSingleValue, ...normalizedArrayValues]
+  }
+
+  if (normalizedArrayValues.length > 0) {
+    return normalizedArrayValues
+  }
+
+  return normalizedSingleValue ? [normalizedSingleValue] : []
+}
+
+function appendPredicateEntries(
+  predicate: ICardCatalogZoneCardPropertyPredicateRequest,
+  rawInput: string,
+): ICardCatalogZoneCardPropertyPredicateRequest {
+  const nextEntries = rawInput
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+
+  if (nextEntries.length === 0) {
+    return predicate
+  }
+
+  const mergedEntries = [...getPredicateEntries(predicate), ...nextEntries]
+
+  if (mergedEntries.length === 1) {
+    return {
+      ...predicate,
+      value: mergedEntries[0],
+      values: [],
+    }
+  }
+
+  return {
+    ...predicate,
+    value: null,
+    values: mergedEntries,
+  }
+}
+
+function removePredicateEntryAt(
+  predicate: ICardCatalogZoneCardPropertyPredicateRequest,
+  entryIndex: number,
+): ICardCatalogZoneCardPropertyPredicateRequest {
+  const remainingEntries = getPredicateEntries(predicate).filter((_, index) => index !== entryIndex)
+
+  if (remainingEntries.length === 0) {
+    return {
+      ...predicate,
+      value: null,
+      values: [],
+    }
+  }
+
+  if (remainingEntries.length === 1) {
+    return {
+      ...predicate,
+      value: remainingEntries[0],
+      values: [],
+    }
+  }
+
+  return {
+    ...predicate,
+    value: null,
+    values: remainingEntries,
+  }
+}
+
+function resolveCountConstraintMode(
+  exactCount: number | null,
+  minimumCount: number | null,
+  maximumCount: number | null,
+): ICountConstraintMode {
+  if (exactCount !== null) {
+    return 'Exact'
+  }
+
+  if (minimumCount !== null) {
+    return 'Minimum'
+  }
+
+  if (maximumCount !== null) {
+    return 'Maximum'
+  }
+
+  return 'Exact'
+}
+
+function resolveCountConstraintValue(
+  mode: ICountConstraintMode,
+  exactCount: number | null,
+  minimumCount: number | null,
+  maximumCount: number | null,
+): number | null {
+  if (mode === 'Exact') {
+    return exactCount
+  }
+
+  if (mode === 'Minimum') {
+    return minimumCount
+  }
+
+  return maximumCount
+}
+
+function resolveAttributeValueConstraintMode(
+  minimumValue: number | null,
+  maximumValue: number | null,
+): ICountConstraintMode {
+  if (minimumValue !== null) {
+    return 'Minimum'
+  }
+
+  if (maximumValue !== null) {
+    return 'Maximum'
+  }
+
+  return 'Exact'
+}
+
+function isSummonOrTributeRuntimeEffect(runtimeEffectType: string): boolean {
+  return runtimeEffectType === 'Tribute' || runtimeEffectType.startsWith('Summon')
+}
+
 function toPrettyJson(value: unknown): string {
   return JSON.stringify(value, null, 2)
 }
@@ -254,6 +406,7 @@ export function CardAdminDetailPane({ selectedCard }: ICardAdminDetailPaneProps)
 function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
   const editorModel = useCardAdminEffectEditorModel(selectedCard)
   const [conditionToAdd, setConditionToAdd] = useState('')
+  const [collapsedEffects, setCollapsedEffects] = useState<Set<number>>(new Set())
 
   const isSaveDisabled = editorModel.isSaving
   const parsedEffects = useMemo(
@@ -291,11 +444,49 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
     const nextEffects = parsedEffects.filter((_, index) => index !== effectIndex)
     updateEffects(nextEffects)
+
+    setCollapsedEffects((current) => {
+      const next = new Set<number>()
+      current.forEach((index) => {
+        if (index < effectIndex) {
+          next.add(index)
+          return
+        }
+
+        if (index > effectIndex) {
+          next.add(index - 1)
+        }
+      })
+
+      return next
+    })
   }
 
   const addEffect = () => {
-    const nextEffects = parsedEffects ? [...parsedEffects, createDefaultEffect()] : [createDefaultEffect()]
+    const nextEffects = parsedEffects ? [createDefaultEffect(), ...parsedEffects] : [createDefaultEffect()]
     updateEffects(nextEffects)
+
+    setCollapsedEffects((current) => {
+      const next = new Set<number>()
+      current.forEach((index) => {
+        next.add(index + 1)
+      })
+
+      return next
+    })
+  }
+
+  const toggleEffectCollapsedAt = (effectIndex: number) => {
+    setCollapsedEffects((current) => {
+      const next = new Set(current)
+      if (next.has(effectIndex)) {
+        next.delete(effectIndex)
+      } else {
+        next.add(effectIndex)
+      }
+
+      return next
+    })
   }
 
   return (
@@ -401,10 +592,6 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
       </div>
 
       <div className="grid grid-cols-1 gap-2">
-        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]" htmlFor="effects-json">
-          Effects Editor
-        </label>
-
         {hasEffectParseError ? (
           <div className="space-y-2 rounded-lg border border-red-400/50 bg-red-500/10 p-3">
             <p className="text-xs text-red-500">
@@ -421,20 +608,52 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
         {parsedEffects ? (
           <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Effects</p>
+              <AppButton
+                type="button"
+                variant="ghost"
+                onClick={addEffect}
+              >
+                Add Effect
+              </AppButton>
+            </div>
+
             {parsedEffects.map((effect, effectIndex) => (
-              <div key={`${effect.id}-${effectIndex}`} className="space-y-3 rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-slate-400/55 bg-[var(--surface)] p-3 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-[var(--text-primary)]">Effect #{effectIndex + 1}</p>
-                  <AppButton
-                    type="button"
-                    variant="ghost"
-                    disabled={parsedEffects.length <= 1}
-                    onClick={() => removeEffectAt(effectIndex)}
-                  >
-                    Remove Effect
-                  </AppButton>
+              <div key={`effect-${effectIndex}`} className="space-y-3 rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-slate-400/55 bg-[var(--surface)] p-3 shadow-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-[var(--text-primary)]">{effect.id.trim().length > 0 ? effect.id.trim() : `Effect ${effectIndex + 1}`}</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleEffectCollapsedAt(effectIndex)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
+                      aria-label={collapsedEffects.has(effectIndex) ? 'Expand effect' : 'Collapse effect'}
+                      title={collapsedEffects.has(effectIndex) ? 'Expand' : 'Collapse'}
+                    >
+                      <svg
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        aria-hidden="true"
+                        className={`h-4 w-4 transition-transform duration-200 ${collapsedEffects.has(effectIndex) ? '' : 'rotate-180'}`}
+                      >
+                        <path d="M5 8l5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={parsedEffects.length <= 1}
+                      onClick={() => removeEffectAt(effectIndex)}
+                      className="px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Remove Effect"
+                    >
+                      X
+                    </button>
+                  </div>
                 </div>
 
+                {!collapsedEffects.has(effectIndex) ? (
+                  <>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">ID</label>
@@ -453,6 +672,9 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                       onChange={(event) =>
                         updateEffectAt(effectIndex, (current) => {
                           const nextRuntimeEffectType = event.target.value
+                          const isTributeEffect = nextRuntimeEffectType === 'Tribute'
+                          const supportsTributeRole = isSummonOrTributeRuntimeEffect(nextRuntimeEffectType)
+
                           return {
                             ...current,
                             runtimeEffectType: nextRuntimeEffectType,
@@ -472,6 +694,17 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                               nextRuntimeEffectType === 'Alter Resources'
                                 ? current.summonCardFlips
                                 : [],
+                            targetRules: {
+                              ...current.targetRules,
+                              tributeComposition: isTributeEffect
+                                ? current.targetRules.tributeComposition
+                                : null,
+                              rules: current.targetRules.rules.map((rule) => (
+                                supportsTributeRole
+                                  ? rule
+                                  : { ...rule, tributeRole: null }
+                              )),
+                            },
                           }
                         })}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
@@ -711,7 +944,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                 <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-emerald-500/55 bg-[var(--surface-muted)] p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Rules</p>
 
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3">
                     <div className="space-y-1">
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Rule Operator</label>
                       <select
@@ -728,142 +961,154 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                         ))}
                       </select>
                     </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Exact Target Count</label>
-                      <input
-                        type="number"
-                        value={effect.targetRules.exactTargetCount ?? ''}
-                        onChange={(event) =>
-                          updateEffectAt(effectIndex, (current) => ({
-                            ...current,
-                            targetRules: { ...current.targetRules, exactTargetCount: parseNullableInteger(event.target.value) },
-                          }))}
-                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Minimum Target Count</label>
-                      <input
-                        type="number"
-                        value={effect.targetRules.minimumTargetCount ?? ''}
-                        onChange={(event) =>
-                          updateEffectAt(effectIndex, (current) => ({
-                            ...current,
-                            targetRules: { ...current.targetRules, minimumTargetCount: parseNullableInteger(event.target.value) },
-                          }))}
-                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Maximum Target Count</label>
-                      <input
-                        type="number"
-                        value={effect.targetRules.maximumTargetCount ?? ''}
-                        onChange={(event) =>
-                          updateEffectAt(effectIndex, (current) => ({
-                            ...current,
-                            targetRules: { ...current.targetRules, maximumTargetCount: parseNullableInteger(event.target.value) },
-                          }))}
-                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                      />
-                    </div>
                   </div>
 
-                  <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-                    <input
-                      type="checkbox"
-                      checked={effect.targetRules.tributeComposition !== null}
-                      onChange={(event) =>
-                        updateEffectAt(effectIndex, (current) => ({
-                          ...current,
-                          targetRules: {
-                            ...current.targetRules,
-                            tributeComposition: event.target.checked
-                              ? {
-                                exactTributeCount: null,
-                                minimumTributeCount: null,
-                                maximumTributeCount: null,
-                                requireSingleSummonTarget: true,
-                                requireDistinctSummonAndTributes: true,
+                  {effect.runtimeEffectType === 'Tribute' ? (
+                    <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+                      <input
+                        type="checkbox"
+                        checked={effect.targetRules.tributeComposition !== null}
+                        onChange={(event) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              tributeComposition: event.target.checked
+                                ? {
+                                  exactTributeCount: null,
+                                  minimumTributeCount: null,
+                                  maximumTributeCount: null,
+                                  requireSingleSummonTarget: true,
+                                  requireDistinctSummonAndTributes: true,
+                                }
+                                : null,
+                            },
+                          }))}
+                      />
+                      Tribute Composition Enabled
+                    </label>
+                  ) : null}
+
+                  <div className={`grid grid-cols-1 gap-3 ${effect.runtimeEffectType === 'Tribute' && effect.targetRules.tributeComposition ? 'sm:grid-cols-2' : ''}`}>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Count</label>
+                      <CountConstraintField
+                        mode={resolveCountConstraintMode(
+                          effect.targetRules.exactTargetCount,
+                          effect.targetRules.minimumTargetCount,
+                          effect.targetRules.maximumTargetCount,
+                        )}
+                        value={resolveCountConstraintValue(
+                          resolveCountConstraintMode(
+                            effect.targetRules.exactTargetCount,
+                            effect.targetRules.minimumTargetCount,
+                            effect.targetRules.maximumTargetCount,
+                          ),
+                          effect.targetRules.exactTargetCount,
+                          effect.targetRules.minimumTargetCount,
+                          effect.targetRules.maximumTargetCount,
+                        )}
+                        onModeChange={(selectedMode) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              exactTargetCount: selectedMode === 'Exact' ? current.targetRules.exactTargetCount : null,
+                              minimumTargetCount: selectedMode === 'Minimum' ? current.targetRules.minimumTargetCount : null,
+                              maximumTargetCount: selectedMode === 'Maximum' ? current.targetRules.maximumTargetCount : null,
+                            },
+                          }))}
+                        onValueChange={(parsedValue) =>
+                          updateEffectAt(effectIndex, (current) => {
+                            const selectedMode = resolveCountConstraintMode(
+                              current.targetRules.exactTargetCount,
+                              current.targetRules.minimumTargetCount,
+                              current.targetRules.maximumTargetCount,
+                            )
+
+                            return {
+                              ...current,
+                              targetRules: {
+                                ...current.targetRules,
+                                exactTargetCount: selectedMode === 'Exact' ? parsedValue : null,
+                                minimumTargetCount: selectedMode === 'Minimum' ? parsedValue : null,
+                                maximumTargetCount: selectedMode === 'Maximum' ? parsedValue : null,
+                              },
+                            }
+                          })}
+                      />
+                    </div>
+
+                    {effect.runtimeEffectType === 'Tribute' && effect.targetRules.tributeComposition ? (
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Tribute Count</label>
+                        <CountConstraintField
+                          mode={resolveCountConstraintMode(
+                            effect.targetRules.tributeComposition.exactTributeCount,
+                            effect.targetRules.tributeComposition.minimumTributeCount,
+                            effect.targetRules.tributeComposition.maximumTributeCount,
+                          )}
+                          value={resolveCountConstraintValue(
+                            resolveCountConstraintMode(
+                              effect.targetRules.tributeComposition.exactTributeCount,
+                              effect.targetRules.tributeComposition.minimumTributeCount,
+                              effect.targetRules.tributeComposition.maximumTributeCount,
+                            ),
+                            effect.targetRules.tributeComposition.exactTributeCount,
+                            effect.targetRules.tributeComposition.minimumTributeCount,
+                            effect.targetRules.tributeComposition.maximumTributeCount,
+                          )}
+                          onModeChange={(selectedMode) =>
+                            updateEffectAt(effectIndex, (current) => {
+                              if (!current.targetRules.tributeComposition) {
+                                return current
                               }
-                              : null,
-                          },
-                        }))}
-                    />
-                    Tribute Composition Enabled
-                  </label>
 
-                  {effect.targetRules.tributeComposition ? (
+                              return {
+                                ...current,
+                                targetRules: {
+                                  ...current.targetRules,
+                                  tributeComposition: {
+                                    ...current.targetRules.tributeComposition,
+                                    exactTributeCount: selectedMode === 'Exact' ? current.targetRules.tributeComposition.exactTributeCount : null,
+                                    minimumTributeCount: selectedMode === 'Minimum' ? current.targetRules.tributeComposition.minimumTributeCount : null,
+                                    maximumTributeCount: selectedMode === 'Maximum' ? current.targetRules.tributeComposition.maximumTributeCount : null,
+                                  },
+                                },
+                              }
+                            })}
+                          onValueChange={(parsedValue) =>
+                            updateEffectAt(effectIndex, (current) => {
+                              if (!current.targetRules.tributeComposition) {
+                                return current
+                              }
+
+                              const selectedMode = resolveCountConstraintMode(
+                                current.targetRules.tributeComposition.exactTributeCount,
+                                current.targetRules.tributeComposition.minimumTributeCount,
+                                current.targetRules.tributeComposition.maximumTributeCount,
+                              )
+
+                              return {
+                                ...current,
+                                targetRules: {
+                                  ...current.targetRules,
+                                  tributeComposition: {
+                                    ...current.targetRules.tributeComposition,
+                                    exactTributeCount: selectedMode === 'Exact' ? parsedValue : null,
+                                    minimumTributeCount: selectedMode === 'Minimum' ? parsedValue : null,
+                                    maximumTributeCount: selectedMode === 'Maximum' ? parsedValue : null,
+                                  },
+                                },
+                              }
+                            })}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {effect.runtimeEffectType === 'Tribute' && effect.targetRules.tributeComposition ? (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Exact Tribute Count</label>
-                        <input
-                          type="number"
-                          value={effect.targetRules.tributeComposition.exactTributeCount ?? ''}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              targetRules: current.targetRules.tributeComposition
-                                ? {
-                                  ...current.targetRules,
-                                  tributeComposition: {
-                                    ...current.targetRules.tributeComposition,
-                                    exactTributeCount: parseNullableInteger(event.target.value),
-                                  },
-                                }
-                                : current.targetRules,
-                            }))}
-                          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Min Tribute Count</label>
-                        <input
-                          type="number"
-                          value={effect.targetRules.tributeComposition.minimumTributeCount ?? ''}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              targetRules: current.targetRules.tributeComposition
-                                ? {
-                                  ...current.targetRules,
-                                  tributeComposition: {
-                                    ...current.targetRules.tributeComposition,
-                                    minimumTributeCount: parseNullableInteger(event.target.value),
-                                  },
-                                }
-                                : current.targetRules,
-                            }))}
-                          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Max Tribute Count</label>
-                        <input
-                          type="number"
-                          value={effect.targetRules.tributeComposition.maximumTributeCount ?? ''}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              targetRules: current.targetRules.tributeComposition
-                                ? {
-                                  ...current.targetRules,
-                                  tributeComposition: {
-                                    ...current.targetRules.tributeComposition,
-                                    maximumTributeCount: parseNullableInteger(event.target.value),
-                                  },
-                                }
-                                : current.targetRules,
-                            }))}
-                          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                        />
-                      </div>
-
                       <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                         <input
                           type="checkbox"
@@ -919,7 +1164,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                             ...current,
                             targetRules: {
                               ...current.targetRules,
-                              rules: [...current.targetRules.rules, createDefaultTargetRule()],
+                              rules: [createDefaultTargetRule(), ...current.targetRules.rules],
                             },
                           }))}
                       >
@@ -927,7 +1172,72 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                       </AppButton>
                     </div>
 
-                    {effect.targetRules.rules.map((targetRule, targetRuleIndex) => (
+                    {effect.targetRules.rules.map((targetRule, targetRuleIndex) => {
+                      const showsTributeRole = isSummonOrTributeRuntimeEffect(effect.runtimeEffectType)
+                      const selectedCountField = (
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Selected Count</label>
+                          <CountConstraintField
+                            mode={resolveCountConstraintMode(
+                              targetRule.exactSelectedTargetCount,
+                              targetRule.minimumSelectedTargetCount,
+                              targetRule.maximumSelectedTargetCount,
+                            )}
+                            value={resolveCountConstraintValue(
+                              resolveCountConstraintMode(
+                                targetRule.exactSelectedTargetCount,
+                                targetRule.minimumSelectedTargetCount,
+                                targetRule.maximumSelectedTargetCount,
+                              ),
+                              targetRule.exactSelectedTargetCount,
+                              targetRule.minimumSelectedTargetCount,
+                              targetRule.maximumSelectedTargetCount,
+                            )}
+                            onModeChange={(selectedMode) =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                targetRules: {
+                                  ...current.targetRules,
+                                  rules: current.targetRules.rules.map((rule, index) =>
+                                    index === targetRuleIndex
+                                      ? {
+                                        ...rule,
+                                        exactSelectedTargetCount: selectedMode === 'Exact' ? rule.exactSelectedTargetCount : null,
+                                        minimumSelectedTargetCount: selectedMode === 'Minimum' ? rule.minimumSelectedTargetCount : null,
+                                        maximumSelectedTargetCount: selectedMode === 'Maximum' ? rule.maximumSelectedTargetCount : null,
+                                      }
+                                      : rule),
+                                },
+                              }))}
+                            onValueChange={(parsedValue) =>
+                              updateEffectAt(effectIndex, (current) => {
+                                const selectedMode = resolveCountConstraintMode(
+                                  targetRule.exactSelectedTargetCount,
+                                  targetRule.minimumSelectedTargetCount,
+                                  targetRule.maximumSelectedTargetCount,
+                                )
+
+                                return {
+                                  ...current,
+                                  targetRules: {
+                                    ...current.targetRules,
+                                    rules: current.targetRules.rules.map((rule, index) =>
+                                      index === targetRuleIndex
+                                        ? {
+                                          ...rule,
+                                          exactSelectedTargetCount: selectedMode === 'Exact' ? parsedValue : null,
+                                          minimumSelectedTargetCount: selectedMode === 'Minimum' ? parsedValue : null,
+                                          maximumSelectedTargetCount: selectedMode === 'Maximum' ? parsedValue : null,
+                                        }
+                                        : rule),
+                                  },
+                                }
+                              })}
+                          />
+                        </div>
+                      )
+
+                      return (
                       <div key={`target-rule-${targetRuleIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/30 bg-[var(--surface)] p-3">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-xs font-semibold text-[var(--text-primary)]">Rule #{targetRuleIndex + 1}</p>
@@ -948,133 +1258,81 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                         </div>
 
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Scope</label>
-                            <select
-                              value={targetRule.scope}
-                              onChange={(event) =>
-                                updateEffectAt(effectIndex, (current) => ({
-                                  ...current,
-                                  targetRules: {
-                                    ...current.targetRules,
-                                    rules: current.targetRules.rules.map((rule, index) =>
-                                      index === targetRuleIndex ? { ...rule, scope: event.target.value } : rule),
-                                  },
-                                }))}
-                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                            >
-                              {TARGET_RANGE_OPTIONS.map((option) => (
-                                <option key={option} value={option}>{option}</option>
-                              ))}
-                            </select>
+                          <div className="sm:col-span-2">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Scope</label>
+                                <select
+                                  value={targetRule.scope}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      targetRules: {
+                                        ...current.targetRules,
+                                        rules: current.targetRules.rules.map((rule, index) =>
+                                          index === targetRuleIndex ? { ...rule, scope: event.target.value } : rule),
+                                      },
+                                    }))}
+                                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                >
+                                  {TARGET_RANGE_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>{option}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Zone</label>
+                                <select
+                                  value={targetRule.inZone}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      targetRules: {
+                                        ...current.targetRules,
+                                        rules: current.targetRules.rules.map((rule, index) =>
+                                          index === targetRuleIndex ? { ...rule, inZone: event.target.value } : rule),
+                                      },
+                                    }))}
+                                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                >
+                                  {PLAYER_ZONE_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>{option}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {showsTributeRole ? (
+                                <div className="space-y-1">
+                                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Tribute Role</label>
+                                  <select
+                                    value={targetRule.tributeRole ?? ''}
+                                    onChange={(event) =>
+                                      updateEffectAt(effectIndex, (current) => ({
+                                        ...current,
+                                        targetRules: {
+                                          ...current.targetRules,
+                                          rules: current.targetRules.rules.map((rule, index) =>
+                                            index === targetRuleIndex
+                                              ? { ...rule, tributeRole: event.target.value || null }
+                                              : rule),
+                                        },
+                                      }))}
+                                    className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                  >
+                                    <option value="">None</option>
+                                    {TRIBUTE_ROLE_OPTIONS.map((option) => (
+                                      <option key={option} value={option}>{option}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ) : selectedCountField}
+                            </div>
                           </div>
 
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Zone</label>
-                            <select
-                              value={targetRule.inZone}
-                              onChange={(event) =>
-                                updateEffectAt(effectIndex, (current) => ({
-                                  ...current,
-                                  targetRules: {
-                                    ...current.targetRules,
-                                    rules: current.targetRules.rules.map((rule, index) =>
-                                      index === targetRuleIndex ? { ...rule, inZone: event.target.value } : rule),
-                                  },
-                                }))}
-                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                            >
-                              {PLAYER_ZONE_OPTIONS.map((option) => (
-                                <option key={option} value={option}>{option}</option>
-                              ))}
-                            </select>
-                          </div>
+                          {showsTributeRole ? selectedCountField : null}
 
                           <div className="space-y-1 sm:col-span-2">
-                            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Tribute Role</label>
-                            <select
-                              value={targetRule.tributeRole ?? ''}
-                              onChange={(event) =>
-                                updateEffectAt(effectIndex, (current) => ({
-                                  ...current,
-                                  targetRules: {
-                                    ...current.targetRules,
-                                    rules: current.targetRules.rules.map((rule, index) =>
-                                      index === targetRuleIndex
-                                        ? { ...rule, tributeRole: event.target.value || null }
-                                        : rule),
-                                  },
-                                }))}
-                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                            >
-                              <option value="">None</option>
-                              {TRIBUTE_ROLE_OPTIONS.map((option) => (
-                                <option key={option} value={option}>{option}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Exact Selected</label>
-                            <input
-                              type="number"
-                              value={targetRule.exactSelectedTargetCount ?? ''}
-                              onChange={(event) =>
-                                updateEffectAt(effectIndex, (current) => ({
-                                  ...current,
-                                  targetRules: {
-                                    ...current.targetRules,
-                                    rules: current.targetRules.rules.map((rule, index) =>
-                                      index === targetRuleIndex
-                                        ? { ...rule, exactSelectedTargetCount: parseNullableInteger(event.target.value) }
-                                        : rule),
-                                  },
-                                }))}
-                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Min Selected</label>
-                            <input
-                              type="number"
-                              value={targetRule.minimumSelectedTargetCount ?? ''}
-                              onChange={(event) =>
-                                updateEffectAt(effectIndex, (current) => ({
-                                  ...current,
-                                  targetRules: {
-                                    ...current.targetRules,
-                                    rules: current.targetRules.rules.map((rule, index) =>
-                                      index === targetRuleIndex
-                                        ? { ...rule, minimumSelectedTargetCount: parseNullableInteger(event.target.value) }
-                                        : rule),
-                                  },
-                                }))}
-                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Max Selected</label>
-                            <input
-                              type="number"
-                              value={targetRule.maximumSelectedTargetCount ?? ''}
-                              onChange={(event) =>
-                                updateEffectAt(effectIndex, (current) => ({
-                                  ...current,
-                                  targetRules: {
-                                    ...current.targetRules,
-                                    rules: current.targetRules.rules.map((rule, index) =>
-                                      index === targetRuleIndex
-                                        ? { ...rule, maximumSelectedTargetCount: parseNullableInteger(event.target.value) }
-                                        : rule),
-                                  },
-                                }))}
-                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
                             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Restriction Match Mode</label>
                             <select
                               value={targetRule.restriction.matchMode}
@@ -1121,7 +1379,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                           ...rule,
                                           restriction: {
                                             ...rule.restriction,
-                                            predicates: [...rule.restriction.predicates, createDefaultPredicate()],
+                                            predicates: [createDefaultPredicate(), ...rule.restriction.predicates],
                                           },
                                         }
                                         : rule),
@@ -1132,11 +1390,13 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                             </AppButton>
                           </div>
 
-                          {targetRule.restriction.predicates.map((predicate, predicateIndex) => (
-                            <div key={`predicate-${predicateIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/20 bg-[var(--surface)] p-2 sm:grid-cols-2">
-                              <input
-                                type="text"
-                                placeholder="property"
+                          {targetRule.restriction.predicates.map((predicate, predicateIndex) => {
+                            const predicateEntries = getPredicateEntries(predicate)
+
+                            return (
+                            <div key={`predicate-${predicateIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/20 bg-[var(--surface)] p-2">
+                              <div className="flex flex-wrap items-start gap-2">
+                              <select
                                 value={predicate.property}
                                 onChange={(event) =>
                                   updateEffectAt(effectIndex, (current) => ({
@@ -1151,15 +1411,19 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                               ...rule.restriction,
                                               predicates: rule.restriction.predicates.map((row, rowIndex) =>
                                                 rowIndex === predicateIndex
-                                                  ? { ...row, property: event.target.value }
+                                                  ? { ...row, property: event.target.value as ICardCatalogPredicateProperty }
                                                   : row),
                                             },
                                           }
                                           : rule),
                                     },
                                   }))}
-                                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                              />
+                                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[11rem]"
+                              >
+                                {PREDICATE_PROPERTY_OPTIONS.map((option) => (
+                                  <option key={option} value={option}>{option}</option>
+                                ))}
+                              </select>
 
                               <select
                                 value={predicate.operator}
@@ -1183,78 +1447,29 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                           : rule),
                                     },
                                   }))}
-                                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[10rem]"
                               >
                                 {PREDICATE_OPERATOR_OPTIONS.map((option) => (
                                   <option key={option} value={option}>{option}</option>
                                 ))}
                               </select>
 
-                              <input
-                                type="text"
-                                placeholder="single value"
-                                value={predicate.value ?? ''}
-                                onChange={(event) =>
-                                  updateEffectAt(effectIndex, (current) => ({
-                                    ...current,
-                                    targetRules: {
-                                      ...current.targetRules,
-                                      rules: current.targetRules.rules.map((rule, index) =>
-                                        index === targetRuleIndex
-                                          ? {
-                                            ...rule,
-                                            restriction: {
-                                              ...rule.restriction,
-                                              predicates: rule.restriction.predicates.map((row, rowIndex) =>
-                                                rowIndex === predicateIndex
-                                                  ? { ...row, value: event.target.value }
-                                                  : row),
-                                            },
-                                          }
-                                          : rule),
-                                    },
-                                  }))}
-                                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                              />
-
-                              <input
-                                type="text"
-                                placeholder="values csv"
-                                value={predicate.values.join(', ')}
-                                onChange={(event) =>
-                                  updateEffectAt(effectIndex, (current) => ({
-                                    ...current,
-                                    targetRules: {
-                                      ...current.targetRules,
-                                      rules: current.targetRules.rules.map((rule, index) =>
-                                        index === targetRuleIndex
-                                          ? {
-                                            ...rule,
-                                            restriction: {
-                                              ...rule.restriction,
-                                              predicates: rule.restriction.predicates.map((row, rowIndex) =>
-                                                rowIndex === predicateIndex
-                                                  ? {
-                                                    ...row,
-                                                    values: event.target.value
-                                                      .split(',')
-                                                      .map((value) => value.trim())
-                                                      .filter((value) => value.length > 0),
-                                                  }
-                                                  : row),
-                                            },
-                                          }
-                                          : rule),
-                                    },
-                                  }))}
-                                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                              />
-
-                              <label className="flex items-center gap-2 text-xs text-[var(--text-primary)]">
+                              <div className="min-w-[14rem] flex-1">
                                 <input
-                                  type="checkbox"
-                                  checked={predicate.ignoreCase}
-                                  onChange={(event) =>
+                                  type="text"
+                                  placeholder={
+                                    predicateEntries.length > 0
+                                      ? `Add value (current: ${predicateEntries.join(', ')})`
+                                      : 'Add value and press Enter'
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key !== 'Enter') {
+                                      return
+                                    }
+
+                                    event.preventDefault()
+                                    const inputValue = event.currentTarget.value
+
                                     updateEffectAt(effectIndex, (current) => ({
                                       ...current,
                                       targetRules: {
@@ -1267,45 +1482,127 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                 ...rule.restriction,
                                                 predicates: rule.restriction.predicates.map((row, rowIndex) =>
                                                   rowIndex === predicateIndex
-                                                    ? { ...row, ignoreCase: event.target.checked }
+                                                    ? appendPredicateEntries(row, inputValue)
                                                     : row),
                                               },
                                             }
                                             : rule),
                                       },
-                                    }))}
-                                />
-                                Ignore Case
-                              </label>
+                                    }))
 
-                              <AppButton
-                                type="button"
-                                variant="ghost"
-                                onClick={() =>
-                                  updateEffectAt(effectIndex, (current) => ({
-                                    ...current,
-                                    targetRules: {
-                                      ...current.targetRules,
-                                      rules: current.targetRules.rules.map((rule, index) =>
-                                        index === targetRuleIndex
-                                          ? {
-                                            ...rule,
-                                            restriction: {
-                                              ...rule.restriction,
-                                              predicates: rule.restriction.predicates.filter((_, rowIndex) => rowIndex !== predicateIndex),
+                                    event.currentTarget.value = ''
+                                  }}
+                                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                />
+                              </div>
+                              </div>
+
+                              {predicateEntries.length > 0 ? (
+                                <div className="w-full flex flex-wrap gap-2">
+                                  {predicateEntries.map((entry, entryIndex) => (
+                                    <div
+                                      key={`${entry}-${entryIndex}`}
+                                      className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
+                                    >
+                                      <span>{entry}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          updateEffectAt(effectIndex, (current) => ({
+                                            ...current,
+                                            targetRules: {
+                                              ...current.targetRules,
+                                              rules: current.targetRules.rules.map((rule, index) =>
+                                                index === targetRuleIndex
+                                                  ? {
+                                                    ...rule,
+                                                    restriction: {
+                                                      ...rule.restriction,
+                                                      predicates: rule.restriction.predicates.map((row, rowIndex) =>
+                                                        rowIndex === predicateIndex
+                                                          ? removePredicateEntryAt(row, entryIndex)
+                                                          : row),
+                                                    },
+                                                  }
+                                                  : rule),
                                             },
-                                          }
-                                          : rule),
-                                    },
-                                  }))}
-                              >
-                                Remove Predicate
-                              </AppButton>
+                                          }))
+                                        }
+                                        className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                                        aria-label={`Remove ${entry}`}
+                                      >
+                                        X
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
+
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
+                                  <span>Ignore Case</span>
+                                  <span className="relative inline-flex h-5 w-9 items-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={predicate.ignoreCase}
+                                      onChange={(event) =>
+                                        updateEffectAt(effectIndex, (current) => ({
+                                          ...current,
+                                          targetRules: {
+                                            ...current.targetRules,
+                                            rules: current.targetRules.rules.map((rule, index) =>
+                                              index === targetRuleIndex
+                                                ? {
+                                                  ...rule,
+                                                  restriction: {
+                                                    ...rule.restriction,
+                                                    predicates: rule.restriction.predicates.map((row, rowIndex) =>
+                                                      rowIndex === predicateIndex
+                                                        ? { ...row, ignoreCase: event.target.checked }
+                                                        : row),
+                                                  },
+                                                }
+                                                : rule),
+                                          },
+                                        }))}
+                                      className="peer sr-only"
+                                    />
+                                    <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-emerald-500/70" />
+                                    <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                                  </span>
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      targetRules: {
+                                        ...current.targetRules,
+                                        rules: current.targetRules.rules.map((rule, index) =>
+                                          index === targetRuleIndex
+                                            ? {
+                                              ...rule,
+                                              restriction: {
+                                                ...rule.restriction,
+                                                predicates: rule.restriction.predicates.filter((_, rowIndex) => rowIndex !== predicateIndex),
+                                              },
+                                            }
+                                            : rule),
+                                      },
+                                    }))}
+                                    className="self-end px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                    aria-label="Remove Predicate"
+                                >
+                                    X
+                                  </button>
+                              </div>
                             </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -1319,7 +1616,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                       onClick={() =>
                         updateEffectAt(effectIndex, (current) => ({
                           ...current,
-                          contextRules: [...current.contextRules, createDefaultContextRule()],
+                          contextRules: [createDefaultContextRule(), ...current.contextRules],
                         }))}
                     >
                       Add Context Rule
@@ -1494,7 +1791,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                     ...row.player,
                                                     inZoneRequirements: {
                                                       ...row.player.inZoneRequirements,
-                                                      requirements: [...row.player.inZoneRequirements.requirements, createDefaultZoneAmountRequirement()],
+                                                      requirements: [createDefaultZoneAmountRequirement(), ...row.player.inZoneRequirements.requirements],
                                                     },
                                                   }
                                                   : row.player,
@@ -1509,10 +1806,11 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                   {contextRule.player.inZoneRequirements.requirements.map((requirement, requirementIndex) => (
                                     <div key={`player-requirement-${requirementIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/20 bg-[var(--surface)] p-2">
                                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
-                                        <input
-                                          type="number"
+                                        <CountConstraintField
+                                          className="sm:col-span-2 grid grid-cols-1 gap-2 sm:grid-cols-2"
+                                          mode={requirement.comparison as ICountConstraintMode}
                                           value={requirement.amount}
-                                          onChange={(event) =>
+                                          onModeChange={(selectedMode) =>
                                             updateEffectAt(effectIndex, (current) => ({
                                               ...current,
                                               contextRules: current.contextRules.map((row, index) =>
@@ -1526,7 +1824,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                           ...row.player.inZoneRequirements,
                                                           requirements: row.player.inZoneRequirements.requirements.map((entry, entryIndex) =>
                                                             entryIndex === requirementIndex
-                                                              ? { ...entry, amount: Number.parseInt(event.target.value || '0', 10) }
+                                                              ? { ...entry, comparison: selectedMode }
                                                               : entry),
                                                         },
                                                       }
@@ -1534,39 +1832,29 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                   }
                                                   : row),
                                             }))}
-                                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                          onValueChange={(parsedValue) =>
+                                            updateEffectAt(effectIndex, (current) => ({
+                                              ...current,
+                                              contextRules: current.contextRules.map((row, index) =>
+                                                index === contextRuleIndex
+                                                  ? {
+                                                    ...row,
+                                                    player: row.player?.inZoneRequirements
+                                                      ? {
+                                                        ...row.player,
+                                                        inZoneRequirements: {
+                                                          ...row.player.inZoneRequirements,
+                                                          requirements: row.player.inZoneRequirements.requirements.map((entry, entryIndex) =>
+                                                            entryIndex === requirementIndex
+                                                              ? { ...entry, amount: parsedValue ?? 0 }
+                                                              : entry),
+                                                        },
+                                                      }
+                                                      : row.player,
+                                                  }
+                                                  : row),
+                                            }))}
                                         />
-
-                                        <select
-                                          value={requirement.comparison}
-                                          onChange={(event) =>
-                                            updateEffectAt(effectIndex, (current) => ({
-                                              ...current,
-                                              contextRules: current.contextRules.map((row, index) =>
-                                                index === contextRuleIndex
-                                                  ? {
-                                                    ...row,
-                                                    player: row.player?.inZoneRequirements
-                                                      ? {
-                                                        ...row.player,
-                                                        inZoneRequirements: {
-                                                          ...row.player.inZoneRequirements,
-                                                          requirements: row.player.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                                            entryIndex === requirementIndex
-                                                              ? { ...entry, comparison: event.target.value }
-                                                              : entry),
-                                                        },
-                                                      }
-                                                      : row.player,
-                                                  }
-                                                  : row),
-                                            }))}
-                                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                                        >
-                                          {ZONE_COMPARISON_OPTIONS.map((option) => (
-                                            <option key={option} value={option}>{option}</option>
-                                          ))}
-                                        </select>
 
                                         <select
                                           value={requirement.restriction.matchMode}
@@ -1656,7 +1944,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                                   ...entry,
                                                                   restriction: {
                                                                     ...entry.restriction,
-                                                                    predicates: [...entry.restriction.predicates, createDefaultPredicate()],
+                                                                    predicates: [createDefaultPredicate(), ...entry.restriction.predicates],
                                                                   },
                                                                 }
                                                                 : entry),
@@ -1671,11 +1959,13 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                           </AppButton>
                                         </div>
 
-                                        {requirement.restriction.predicates.map((predicate, predicateIndex) => (
-                                          <div key={`player-requirement-predicate-${predicateIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/15 bg-[var(--surface)] p-2 sm:grid-cols-3">
-                                            <input
-                                              type="text"
-                                              placeholder="property"
+                                        {requirement.restriction.predicates.map((predicate, predicateIndex) => {
+                                          const predicateEntries = getPredicateEntries(predicate)
+
+                                          return (
+                                          <div key={`player-requirement-predicate-${predicateIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/15 bg-[var(--surface)] p-2">
+                                            <div className="flex flex-wrap items-start gap-2">
+                                            <select
                                               value={predicate.property}
                                               onChange={(event) =>
                                                 updateEffectAt(effectIndex, (current) => ({
@@ -1697,7 +1987,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                                       ...entry.restriction,
                                                                       predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
                                                                         rowPredicateIndex === predicateIndex
-                                                                          ? { ...rowPredicate, property: event.target.value }
+                                                                          ? { ...rowPredicate, property: event.target.value as ICardCatalogPredicateProperty }
                                                                           : rowPredicate),
                                                                     },
                                                                   }
@@ -1708,8 +1998,12 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                       }
                                                       : row),
                                                 }))}
-                                              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                                            />
+                                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[11rem]"
+                                            >
+                                              {PREDICATE_PROPERTY_OPTIONS.map((option) => (
+                                                <option key={option} value={option}>{option}</option>
+                                              ))}
+                                            </select>
 
                                             <select
                                               value={predicate.operator}
@@ -1744,100 +2038,29 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                       }
                                                       : row),
                                                 }))}
-                                              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[10rem]"
                                             >
                                               {PREDICATE_OPERATOR_OPTIONS.map((option) => (
                                                 <option key={option} value={option}>{option}</option>
                                               ))}
                                             </select>
 
-                                            <input
-                                              type="text"
-                                              placeholder="value"
-                                              value={predicate.value ?? ''}
-                                              onChange={(event) =>
-                                                updateEffectAt(effectIndex, (current) => ({
-                                                  ...current,
-                                                  contextRules: current.contextRules.map((row, index) =>
-                                                    index === contextRuleIndex
-                                                      ? {
-                                                        ...row,
-                                                        player: row.player?.inZoneRequirements
-                                                          ? {
-                                                            ...row.player,
-                                                            inZoneRequirements: {
-                                                              ...row.player.inZoneRequirements,
-                                                              requirements: row.player.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                                                entryIndex === requirementIndex
-                                                                  ? {
-                                                                    ...entry,
-                                                                    restriction: {
-                                                                      ...entry.restriction,
-                                                                      predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
-                                                                        rowPredicateIndex === predicateIndex
-                                                                          ? { ...rowPredicate, value: event.target.value }
-                                                                          : rowPredicate),
-                                                                    },
-                                                                  }
-                                                                  : entry),
-                                                            },
-                                                          }
-                                                          : row.player,
-                                                      }
-                                                      : row),
-                                                }))}
-                                              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                                            />
-
-                                            <input
-                                              type="text"
-                                              placeholder="values csv"
-                                              value={predicate.values.join(', ')}
-                                              onChange={(event) =>
-                                                updateEffectAt(effectIndex, (current) => ({
-                                                  ...current,
-                                                  contextRules: current.contextRules.map((row, index) =>
-                                                    index === contextRuleIndex
-                                                      ? {
-                                                        ...row,
-                                                        player: row.player?.inZoneRequirements
-                                                          ? {
-                                                            ...row.player,
-                                                            inZoneRequirements: {
-                                                              ...row.player.inZoneRequirements,
-                                                              requirements: row.player.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                                                entryIndex === requirementIndex
-                                                                  ? {
-                                                                    ...entry,
-                                                                    restriction: {
-                                                                      ...entry.restriction,
-                                                                      predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
-                                                                        rowPredicateIndex === predicateIndex
-                                                                          ? {
-                                                                            ...rowPredicate,
-                                                                            values: event.target.value
-                                                                              .split(',')
-                                                                              .map((value) => value.trim())
-                                                                              .filter((value) => value.length > 0),
-                                                                          }
-                                                                          : rowPredicate),
-                                                                    },
-                                                                  }
-                                                                  : entry),
-                                                            },
-                                                          }
-                                                          : row.player,
-                                                      }
-                                                      : row),
-                                                }))}
-                                              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                                            />
-
-                                            <label className="flex items-center gap-2 text-xs text-[var(--text-primary)]">
+                                            <div className="min-w-[14rem] flex-1">
                                               <input
-                                                type="checkbox"
-                                                checked={predicate.ignoreCase}
-                                                onChange={(event) =>
+                                                type="text"
+                                                placeholder={
+                                                  predicateEntries.length > 0
+                                                    ? `Add value (current: ${predicateEntries.join(', ')})`
+                                                    : 'Add value and press Enter'
+                                                }
+                                                onKeyDown={(event) => {
+                                                  if (event.key !== 'Enter') {
+                                                    return
+                                                  }
+
+                                                  event.preventDefault()
+                                                  const inputValue = event.currentTarget.value
+
                                                   updateEffectAt(effectIndex, (current) => ({
                                                     ...current,
                                                     contextRules: current.contextRules.map((row, index) =>
@@ -1857,7 +2080,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                                         ...entry.restriction,
                                                                         predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
                                                                           rowPredicateIndex === predicateIndex
-                                                                            ? { ...rowPredicate, ignoreCase: event.target.checked }
+                                                                            ? appendPredicateEntries(rowPredicate, inputValue)
                                                                             : rowPredicate),
                                                                       },
                                                                     }
@@ -1867,47 +2090,150 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                             : row.player,
                                                         }
                                                         : row),
-                                                  }))}
-                                              />
-                                              Ignore Case
-                                            </label>
+                                                  }))
 
-                                            <AppButton
-                                              type="button"
-                                              variant="ghost"
-                                              onClick={() =>
-                                                updateEffectAt(effectIndex, (current) => ({
-                                                  ...current,
-                                                  contextRules: current.contextRules.map((row, index) =>
-                                                    index === contextRuleIndex
-                                                      ? {
-                                                        ...row,
-                                                        player: row.player?.inZoneRequirements
-                                                          ? {
-                                                            ...row.player,
-                                                            inZoneRequirements: {
-                                                              ...row.player.inZoneRequirements,
-                                                              requirements: row.player.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                                                entryIndex === requirementIndex
+                                                  event.currentTarget.value = ''
+                                                }}
+                                                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                              />
+                                            </div>
+                                            </div>
+
+                                            {predicateEntries.length > 0 ? (
+                                              <div className="w-full flex flex-wrap gap-2">
+                                                {predicateEntries.map((entry, entryIndex) => (
+                                                  <div
+                                                    key={`${entry}-${entryIndex}`}
+                                                    className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
+                                                  >
+                                                    <span>{entry}</span>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() =>
+                                                        updateEffectAt(effectIndex, (current) => ({
+                                                          ...current,
+                                                          contextRules: current.contextRules.map((row, index) =>
+                                                            index === contextRuleIndex
+                                                              ? {
+                                                                ...row,
+                                                                player: row.player?.inZoneRequirements
                                                                   ? {
-                                                                    ...entry,
-                                                                    restriction: {
-                                                                      ...entry.restriction,
-                                                                      predicates: entry.restriction.predicates.filter((_, rowPredicateIndex) => rowPredicateIndex !== predicateIndex),
+                                                                    ...row.player,
+                                                                    inZoneRequirements: {
+                                                                      ...row.player.inZoneRequirements,
+                                                                      requirements: row.player.inZoneRequirements.requirements.map((requirementEntry, requirementEntryIndex) =>
+                                                                        requirementEntryIndex === requirementIndex
+                                                                          ? {
+                                                                            ...requirementEntry,
+                                                                            restriction: {
+                                                                              ...requirementEntry.restriction,
+                                                                              predicates: requirementEntry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
+                                                                                rowPredicateIndex === predicateIndex
+                                                                                  ? removePredicateEntryAt(rowPredicate, entryIndex)
+                                                                                  : rowPredicate),
+                                                                            },
+                                                                          }
+                                                                          : requirementEntry),
                                                                     },
                                                                   }
-                                                                  : entry),
-                                                            },
-                                                          }
-                                                          : row.player,
+                                                                  : row.player,
+                                                              }
+                                                              : row),
+                                                        }))
                                                       }
-                                                      : row),
-                                                }))}
-                                            >
-                                              Remove Predicate
-                                            </AppButton>
+                                                      className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                                                      aria-label={`Remove ${entry}`}
+                                                    >
+                                                      X
+                                                    </button>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ) : null}
+
+                                            <div className="flex flex-wrap items-start justify-between gap-2">
+                                              <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
+                                                <span>Ignore Case</span>
+                                                <span className="relative inline-flex h-5 w-9 items-center">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={predicate.ignoreCase}
+                                                    onChange={(event) =>
+                                                      updateEffectAt(effectIndex, (current) => ({
+                                                        ...current,
+                                                        contextRules: current.contextRules.map((row, index) =>
+                                                          index === contextRuleIndex
+                                                            ? {
+                                                              ...row,
+                                                              player: row.player?.inZoneRequirements
+                                                                ? {
+                                                                  ...row.player,
+                                                                  inZoneRequirements: {
+                                                                    ...row.player.inZoneRequirements,
+                                                                    requirements: row.player.inZoneRequirements.requirements.map((entry, entryIndex) =>
+                                                                      entryIndex === requirementIndex
+                                                                        ? {
+                                                                          ...entry,
+                                                                          restriction: {
+                                                                            ...entry.restriction,
+                                                                            predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
+                                                                              rowPredicateIndex === predicateIndex
+                                                                                ? { ...rowPredicate, ignoreCase: event.target.checked }
+                                                                                : rowPredicate),
+                                                                          },
+                                                                        }
+                                                                        : entry),
+                                                                  },
+                                                                }
+                                                                : row.player,
+                                                            }
+                                                            : row),
+                                                      }))}
+                                                    className="peer sr-only"
+                                                  />
+                                                  <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-cyan-500/70" />
+                                                  <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                                                </span>
+                                              </label>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  updateEffectAt(effectIndex, (current) => ({
+                                                    ...current,
+                                                    contextRules: current.contextRules.map((row, index) =>
+                                                      index === contextRuleIndex
+                                                        ? {
+                                                          ...row,
+                                                          player: row.player?.inZoneRequirements
+                                                            ? {
+                                                              ...row.player,
+                                                              inZoneRequirements: {
+                                                                ...row.player.inZoneRequirements,
+                                                                requirements: row.player.inZoneRequirements.requirements.map((entry, entryIndex) =>
+                                                                  entryIndex === requirementIndex
+                                                                    ? {
+                                                                      ...entry,
+                                                                      restriction: {
+                                                                        ...entry.restriction,
+                                                                        predicates: entry.restriction.predicates.filter((_, rowPredicateIndex) => rowPredicateIndex !== predicateIndex),
+                                                                      },
+                                                                    }
+                                                                    : entry),
+                                                              },
+                                                            }
+                                                            : row.player,
+                                                        }
+                                                        : row),
+                                                  }))}
+                                                className="self-end px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                                aria-label="Remove Predicate"
+                                              >
+                                                X
+                                              </button>
+                                            </div>
                                           </div>
-                                        ))}
+                                          )
+                                        })}
                                       </div>
                                     </div>
                                   ))}
@@ -2067,7 +2393,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                     ...row.opponent,
                                                     inZoneRequirements: {
                                                       ...row.opponent.inZoneRequirements,
-                                                      requirements: [...row.opponent.inZoneRequirements.requirements, createDefaultZoneAmountRequirement()],
+                                                      requirements: [createDefaultZoneAmountRequirement(), ...row.opponent.inZoneRequirements.requirements],
                                                     },
                                                   }
                                                   : row.opponent,
@@ -2082,10 +2408,11 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                   {contextRule.opponent.inZoneRequirements.requirements.map((requirement, requirementIndex) => (
                                     <div key={`opponent-requirement-${requirementIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/20 bg-[var(--surface)] p-2">
                                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
-                                        <input
-                                          type="number"
+                                        <CountConstraintField
+                                          className="sm:col-span-2 grid grid-cols-1 gap-2 sm:grid-cols-2"
+                                          mode={requirement.comparison as ICountConstraintMode}
                                           value={requirement.amount}
-                                          onChange={(event) =>
+                                          onModeChange={(selectedMode) =>
                                             updateEffectAt(effectIndex, (current) => ({
                                               ...current,
                                               contextRules: current.contextRules.map((row, index) =>
@@ -2099,7 +2426,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                           ...row.opponent.inZoneRequirements,
                                                           requirements: row.opponent.inZoneRequirements.requirements.map((entry, entryIndex) =>
                                                             entryIndex === requirementIndex
-                                                              ? { ...entry, amount: Number.parseInt(event.target.value || '0', 10) }
+                                                              ? { ...entry, comparison: selectedMode }
                                                               : entry),
                                                         },
                                                       }
@@ -2107,39 +2434,29 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                   }
                                                   : row),
                                             }))}
-                                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                          onValueChange={(parsedValue) =>
+                                            updateEffectAt(effectIndex, (current) => ({
+                                              ...current,
+                                              contextRules: current.contextRules.map((row, index) =>
+                                                index === contextRuleIndex
+                                                  ? {
+                                                    ...row,
+                                                    opponent: row.opponent?.inZoneRequirements
+                                                      ? {
+                                                        ...row.opponent,
+                                                        inZoneRequirements: {
+                                                          ...row.opponent.inZoneRequirements,
+                                                          requirements: row.opponent.inZoneRequirements.requirements.map((entry, entryIndex) =>
+                                                            entryIndex === requirementIndex
+                                                              ? { ...entry, amount: parsedValue ?? 0 }
+                                                              : entry),
+                                                        },
+                                                      }
+                                                      : row.opponent,
+                                                  }
+                                                  : row),
+                                            }))}
                                         />
-
-                                        <select
-                                          value={requirement.comparison}
-                                          onChange={(event) =>
-                                            updateEffectAt(effectIndex, (current) => ({
-                                              ...current,
-                                              contextRules: current.contextRules.map((row, index) =>
-                                                index === contextRuleIndex
-                                                  ? {
-                                                    ...row,
-                                                    opponent: row.opponent?.inZoneRequirements
-                                                      ? {
-                                                        ...row.opponent,
-                                                        inZoneRequirements: {
-                                                          ...row.opponent.inZoneRequirements,
-                                                          requirements: row.opponent.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                                            entryIndex === requirementIndex
-                                                              ? { ...entry, comparison: event.target.value }
-                                                              : entry),
-                                                        },
-                                                      }
-                                                      : row.opponent,
-                                                  }
-                                                  : row),
-                                            }))}
-                                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                                        >
-                                          {ZONE_COMPARISON_OPTIONS.map((option) => (
-                                            <option key={option} value={option}>{option}</option>
-                                          ))}
-                                        </select>
 
                                         <select
                                           value={requirement.restriction.matchMode}
@@ -2229,7 +2546,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                                   ...entry,
                                                                   restriction: {
                                                                     ...entry.restriction,
-                                                                    predicates: [...entry.restriction.predicates, createDefaultPredicate()],
+                                                                    predicates: [createDefaultPredicate(), ...entry.restriction.predicates],
                                                                   },
                                                                 }
                                                                 : entry),
@@ -2244,11 +2561,13 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                           </AppButton>
                                         </div>
 
-                                        {requirement.restriction.predicates.map((predicate, predicateIndex) => (
-                                          <div key={`opponent-requirement-predicate-${predicateIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/15 bg-[var(--surface)] p-2 sm:grid-cols-3">
-                                            <input
-                                              type="text"
-                                              placeholder="property"
+                                        {requirement.restriction.predicates.map((predicate, predicateIndex) => {
+                                          const predicateEntries = getPredicateEntries(predicate)
+
+                                          return (
+                                          <div key={`opponent-requirement-predicate-${predicateIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/15 bg-[var(--surface)] p-2">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                            <select
                                               value={predicate.property}
                                               onChange={(event) =>
                                                 updateEffectAt(effectIndex, (current) => ({
@@ -2270,7 +2589,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                                       ...entry.restriction,
                                                                       predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
                                                                         rowPredicateIndex === predicateIndex
-                                                                          ? { ...rowPredicate, property: event.target.value }
+                                                                          ? { ...rowPredicate, property: event.target.value as ICardCatalogPredicateProperty }
                                                                           : rowPredicate),
                                                                     },
                                                                   }
@@ -2281,8 +2600,12 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                       }
                                                       : row),
                                                 }))}
-                                              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                                            />
+                                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[11rem]"
+                                            >
+                                              {PREDICATE_PROPERTY_OPTIONS.map((option) => (
+                                                <option key={option} value={option}>{option}</option>
+                                              ))}
+                                            </select>
 
                                             <select
                                               value={predicate.operator}
@@ -2317,100 +2640,29 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                       }
                                                       : row),
                                                 }))}
-                                              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[10rem]"
                                             >
                                               {PREDICATE_OPERATOR_OPTIONS.map((option) => (
                                                 <option key={option} value={option}>{option}</option>
                                               ))}
                                             </select>
 
-                                            <input
-                                              type="text"
-                                              placeholder="value"
-                                              value={predicate.value ?? ''}
-                                              onChange={(event) =>
-                                                updateEffectAt(effectIndex, (current) => ({
-                                                  ...current,
-                                                  contextRules: current.contextRules.map((row, index) =>
-                                                    index === contextRuleIndex
-                                                      ? {
-                                                        ...row,
-                                                        opponent: row.opponent?.inZoneRequirements
-                                                          ? {
-                                                            ...row.opponent,
-                                                            inZoneRequirements: {
-                                                              ...row.opponent.inZoneRequirements,
-                                                              requirements: row.opponent.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                                                entryIndex === requirementIndex
-                                                                  ? {
-                                                                    ...entry,
-                                                                    restriction: {
-                                                                      ...entry.restriction,
-                                                                      predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
-                                                                        rowPredicateIndex === predicateIndex
-                                                                          ? { ...rowPredicate, value: event.target.value }
-                                                                          : rowPredicate),
-                                                                    },
-                                                                  }
-                                                                  : entry),
-                                                            },
-                                                          }
-                                                          : row.opponent,
-                                                      }
-                                                      : row),
-                                                }))}
-                                              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                                            />
-
-                                            <input
-                                              type="text"
-                                              placeholder="values csv"
-                                              value={predicate.values.join(', ')}
-                                              onChange={(event) =>
-                                                updateEffectAt(effectIndex, (current) => ({
-                                                  ...current,
-                                                  contextRules: current.contextRules.map((row, index) =>
-                                                    index === contextRuleIndex
-                                                      ? {
-                                                        ...row,
-                                                        opponent: row.opponent?.inZoneRequirements
-                                                          ? {
-                                                            ...row.opponent,
-                                                            inZoneRequirements: {
-                                                              ...row.opponent.inZoneRequirements,
-                                                              requirements: row.opponent.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                                                entryIndex === requirementIndex
-                                                                  ? {
-                                                                    ...entry,
-                                                                    restriction: {
-                                                                      ...entry.restriction,
-                                                                      predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
-                                                                        rowPredicateIndex === predicateIndex
-                                                                          ? {
-                                                                            ...rowPredicate,
-                                                                            values: event.target.value
-                                                                              .split(',')
-                                                                              .map((value) => value.trim())
-                                                                              .filter((value) => value.length > 0),
-                                                                          }
-                                                                          : rowPredicate),
-                                                                    },
-                                                                  }
-                                                                  : entry),
-                                                            },
-                                                          }
-                                                          : row.opponent,
-                                                      }
-                                                      : row),
-                                                }))}
-                                              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                                            />
-
-                                            <label className="flex items-center gap-2 text-xs text-[var(--text-primary)]">
+                                            <div className="min-w-[14rem] flex-1">
                                               <input
-                                                type="checkbox"
-                                                checked={predicate.ignoreCase}
-                                                onChange={(event) =>
+                                                type="text"
+                                                placeholder={
+                                                  predicateEntries.length > 0
+                                                    ? `Add value (current: ${predicateEntries.join(', ')})`
+                                                    : 'Add value and press Enter'
+                                                }
+                                                onKeyDown={(event) => {
+                                                  if (event.key !== 'Enter') {
+                                                    return
+                                                  }
+
+                                                  event.preventDefault()
+                                                  const inputValue = event.currentTarget.value
+
                                                   updateEffectAt(effectIndex, (current) => ({
                                                     ...current,
                                                     contextRules: current.contextRules.map((row, index) =>
@@ -2430,7 +2682,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                                         ...entry.restriction,
                                                                         predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
                                                                           rowPredicateIndex === predicateIndex
-                                                                            ? { ...rowPredicate, ignoreCase: event.target.checked }
+                                                                            ? appendPredicateEntries(rowPredicate, inputValue)
                                                                             : rowPredicate),
                                                                       },
                                                                     }
@@ -2440,47 +2692,150 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                             : row.opponent,
                                                         }
                                                         : row),
-                                                  }))}
-                                              />
-                                              Ignore Case
-                                            </label>
+                                                  }))
 
-                                            <AppButton
-                                              type="button"
-                                              variant="ghost"
-                                              onClick={() =>
-                                                updateEffectAt(effectIndex, (current) => ({
-                                                  ...current,
-                                                  contextRules: current.contextRules.map((row, index) =>
-                                                    index === contextRuleIndex
-                                                      ? {
-                                                        ...row,
-                                                        opponent: row.opponent?.inZoneRequirements
-                                                          ? {
-                                                            ...row.opponent,
-                                                            inZoneRequirements: {
-                                                              ...row.opponent.inZoneRequirements,
-                                                              requirements: row.opponent.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                                                entryIndex === requirementIndex
+                                                  event.currentTarget.value = ''
+                                                }}
+                                                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                              />
+                                            </div>
+                                            </div>
+
+                                            {predicateEntries.length > 0 ? (
+                                              <div className="w-full flex flex-wrap gap-2">
+                                                {predicateEntries.map((entry, entryIndex) => (
+                                                  <div
+                                                    key={`${entry}-${entryIndex}`}
+                                                    className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
+                                                  >
+                                                    <span>{entry}</span>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() =>
+                                                        updateEffectAt(effectIndex, (current) => ({
+                                                          ...current,
+                                                          contextRules: current.contextRules.map((row, index) =>
+                                                            index === contextRuleIndex
+                                                              ? {
+                                                                ...row,
+                                                                opponent: row.opponent?.inZoneRequirements
                                                                   ? {
-                                                                    ...entry,
-                                                                    restriction: {
-                                                                      ...entry.restriction,
-                                                                      predicates: entry.restriction.predicates.filter((_, rowPredicateIndex) => rowPredicateIndex !== predicateIndex),
+                                                                    ...row.opponent,
+                                                                    inZoneRequirements: {
+                                                                      ...row.opponent.inZoneRequirements,
+                                                                      requirements: row.opponent.inZoneRequirements.requirements.map((requirementEntry, requirementEntryIndex) =>
+                                                                        requirementEntryIndex === requirementIndex
+                                                                          ? {
+                                                                            ...requirementEntry,
+                                                                            restriction: {
+                                                                              ...requirementEntry.restriction,
+                                                                              predicates: requirementEntry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
+                                                                                rowPredicateIndex === predicateIndex
+                                                                                  ? removePredicateEntryAt(rowPredicate, entryIndex)
+                                                                                  : rowPredicate),
+                                                                            },
+                                                                          }
+                                                                          : requirementEntry),
                                                                     },
                                                                   }
-                                                                  : entry),
-                                                            },
-                                                          }
-                                                          : row.opponent,
+                                                                  : row.opponent,
+                                                              }
+                                                              : row),
+                                                        }))
                                                       }
-                                                      : row),
-                                                }))}
-                                            >
-                                              Remove Predicate
-                                            </AppButton>
+                                                      className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                                                      aria-label={`Remove ${entry}`}
+                                                    >
+                                                      X
+                                                    </button>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ) : null}
+
+                                            <div className="flex flex-wrap items-start justify-between gap-2">
+                                              <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
+                                                <span>Ignore Case</span>
+                                                <span className="relative inline-flex h-5 w-9 items-center">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={predicate.ignoreCase}
+                                                    onChange={(event) =>
+                                                      updateEffectAt(effectIndex, (current) => ({
+                                                        ...current,
+                                                        contextRules: current.contextRules.map((row, index) =>
+                                                          index === contextRuleIndex
+                                                            ? {
+                                                              ...row,
+                                                              opponent: row.opponent?.inZoneRequirements
+                                                                ? {
+                                                                  ...row.opponent,
+                                                                  inZoneRequirements: {
+                                                                    ...row.opponent.inZoneRequirements,
+                                                                    requirements: row.opponent.inZoneRequirements.requirements.map((entry, entryIndex) =>
+                                                                      entryIndex === requirementIndex
+                                                                        ? {
+                                                                          ...entry,
+                                                                          restriction: {
+                                                                            ...entry.restriction,
+                                                                            predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
+                                                                              rowPredicateIndex === predicateIndex
+                                                                                ? { ...rowPredicate, ignoreCase: event.target.checked }
+                                                                                : rowPredicate),
+                                                                          },
+                                                                        }
+                                                                        : entry),
+                                                                  },
+                                                                }
+                                                                : row.opponent,
+                                                            }
+                                                            : row),
+                                                      }))}
+                                                    className="peer sr-only"
+                                                  />
+                                                  <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-cyan-500/70" />
+                                                  <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                                                </span>
+                                              </label>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  updateEffectAt(effectIndex, (current) => ({
+                                                    ...current,
+                                                    contextRules: current.contextRules.map((row, index) =>
+                                                      index === contextRuleIndex
+                                                        ? {
+                                                          ...row,
+                                                          opponent: row.opponent?.inZoneRequirements
+                                                            ? {
+                                                              ...row.opponent,
+                                                              inZoneRequirements: {
+                                                                ...row.opponent.inZoneRequirements,
+                                                                requirements: row.opponent.inZoneRequirements.requirements.map((entry, entryIndex) =>
+                                                                  entryIndex === requirementIndex
+                                                                    ? {
+                                                                      ...entry,
+                                                                      restriction: {
+                                                                        ...entry.restriction,
+                                                                        predicates: entry.restriction.predicates.filter((_, rowPredicateIndex) => rowPredicateIndex !== predicateIndex),
+                                                                      },
+                                                                    }
+                                                                    : entry),
+                                                              },
+                                                            }
+                                                            : row.opponent,
+                                                        }
+                                                        : row),
+                                                  }))}
+                                                className="self-end px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                                aria-label="Remove Predicate"
+                                              >
+                                                X
+                                              </button>
+                                            </div>
                                           </div>
-                                        ))}
+                                          )
+                                        })}
                                       </div>
                                     </div>
                                   ))}
@@ -2528,105 +2883,155 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                           </AppButton>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <select
-                          value={attributeModification.targetType}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              attributeModifications: current.attributeModifications.map((row, index) =>
-                                index === attributeIndex ? { ...row, targetType: event.target.value } : row),
-                            }))}
-                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                        >
-                          {TARGET_TYPE_OPTIONS.map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
-                        </select>
+                        <div className="grid grid-cols-1 gap-y-3 sm:grid-cols-4 sm:gap-x-2">
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Type</label>
+                            <select
+                              value={attributeModification.targetType}
+                              onChange={(event) =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  attributeModifications: current.attributeModifications.map((row, index) =>
+                                    index === attributeIndex ? { ...row, targetType: event.target.value } : row),
+                                }))}
+                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                            >
+                              {TARGET_TYPE_OPTIONS.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+                          </div>
 
-                        <select
-                          value={attributeModification.targetRange}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              attributeModifications: current.attributeModifications.map((row, index) =>
-                                index === attributeIndex ? { ...row, targetRange: event.target.value } : row),
-                            }))}
-                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                        >
-                          {TARGET_RANGE_OPTIONS.map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
-                        </select>
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Range</label>
+                            <select
+                              value={attributeModification.targetRange}
+                              onChange={(event) =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  attributeModifications: current.attributeModifications.map((row, index) =>
+                                    index === attributeIndex ? { ...row, targetRange: event.target.value } : row),
+                                }))}
+                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                            >
+                              {TARGET_RANGE_OPTIONS.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+                          </div>
 
-                        <select
-                          value={attributeModification.attribute}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              attributeModifications: current.attributeModifications.map((row, index) =>
-                                index === attributeIndex ? { ...row, attribute: event.target.value } : row),
-                            }))}
-                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                        >
-                          {ATTRIBUTE_TYPE_OPTIONS.map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
-                        </select>
+                          <div className="space-y-1 sm:col-span-2">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Affected Property</label>
+                            <select
+                              value={attributeModification.attribute}
+                              onChange={(event) =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  attributeModifications: current.attributeModifications.map((row, index) =>
+                                    index === attributeIndex ? { ...row, attribute: event.target.value } : row),
+                                }))}
+                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                            >
+                              {ATTRIBUTE_TYPE_OPTIONS.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+                          </div>
 
-                        <select
-                          value={attributeModification.operation}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              attributeModifications: current.attributeModifications.map((row, index) =>
-                                index === attributeIndex ? { ...row, operation: event.target.value } : row),
-                            }))}
-                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                        >
-                          {ATTRIBUTE_OPERATION_OPTIONS.map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
-                        </select>
+                          <CountConstraintField
+                            className="sm:col-span-4 grid grid-cols-1 gap-2 sm:grid-cols-4"
+                            selectClassName="w-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                            inputClassName="w-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                            modeLabel="Value Mode"
+                            valueLabel="Value"
+                            placeholder="Value"
+                            mode={resolveAttributeValueConstraintMode(
+                              attributeModification.minimumValue,
+                              attributeModification.maximumValue,
+                            )}
+                            value={resolveCountConstraintValue(
+                              resolveAttributeValueConstraintMode(
+                                attributeModification.minimumValue,
+                                attributeModification.maximumValue,
+                              ),
+                              attributeModification.value,
+                              attributeModification.minimumValue,
+                              attributeModification.maximumValue,
+                            )}
+                            trailingContent={(
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Operation</label>
+                                <select
+                                  value={attributeModification.operation}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      attributeModifications: current.attributeModifications.map((row, index) =>
+                                        index === attributeIndex ? { ...row, operation: event.target.value } : row),
+                                    }))}
+                                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                >
+                                  {ATTRIBUTE_OPERATION_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>{option}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                            onModeChange={(selectedMode) =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                attributeModifications: current.attributeModifications.map((row, index) => {
+                                  if (index !== attributeIndex) {
+                                    return row
+                                  }
 
-                        <input
-                          type="number"
-                          placeholder="Value"
-                          value={attributeModification.value}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              attributeModifications: current.attributeModifications.map((row, index) =>
-                                index === attributeIndex ? { ...row, value: Number.parseInt(event.target.value || '0', 10) } : row),
-                            }))}
-                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                        />
+                                  if (selectedMode === 'Exact') {
+                                    return {
+                                      ...row,
+                                      minimumValue: null,
+                                      maximumValue: null,
+                                    }
+                                  }
 
-                        <input
-                          type="number"
-                          placeholder="Minimum"
-                          value={attributeModification.minimumValue ?? ''}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              attributeModifications: current.attributeModifications.map((row, index) =>
-                                index === attributeIndex ? { ...row, minimumValue: parseNullableInteger(event.target.value) } : row),
-                            }))}
-                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                        />
+                                  const seedValue = row.minimumValue ?? row.maximumValue ?? row.value
 
-                        <input
-                          type="number"
-                          placeholder="Maximum"
-                          value={attributeModification.maximumValue ?? ''}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              attributeModifications: current.attributeModifications.map((row, index) =>
-                                index === attributeIndex ? { ...row, maximumValue: parseNullableInteger(event.target.value) } : row),
-                            }))}
-                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                        />
+                                  return {
+                                    ...row,
+                                    minimumValue: selectedMode === 'Minimum' ? seedValue : null,
+                                    maximumValue: selectedMode === 'Maximum' ? seedValue : null,
+                                  }
+                                }),
+                              }))}
+                            onValueChange={(parsedValue) =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                attributeModifications: current.attributeModifications.map((row, index) => {
+                                  if (index !== attributeIndex) {
+                                    return row
+                                  }
+
+                                  const selectedMode = resolveAttributeValueConstraintMode(
+                                    row.minimumValue,
+                                    row.maximumValue,
+                                  )
+
+                                  if (selectedMode === 'Exact') {
+                                    return {
+                                      ...row,
+                                      value: parsedValue ?? 0,
+                                      minimumValue: null,
+                                      maximumValue: null,
+                                    }
+                                  }
+
+                                  return {
+                                    ...row,
+                                    minimumValue: selectedMode === 'Minimum' ? parsedValue : null,
+                                    maximumValue: selectedMode === 'Maximum' ? parsedValue : null,
+                                  }
+                                }),
+                              }))}
+                          />
                         </div>
                       </div>
                     ))}
@@ -2776,16 +3181,11 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                     ))}
                   </div>
                 ) : null}
+                  </>
+                ) : null}
               </div>
             ))}
 
-            <AppButton
-              type="button"
-              variant="ghost"
-              onClick={addEffect}
-            >
-              Add Effect
-            </AppButton>
           </div>
         ) : null}
 

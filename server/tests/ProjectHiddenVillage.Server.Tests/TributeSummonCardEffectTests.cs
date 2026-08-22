@@ -49,7 +49,7 @@ public sealed class TributeSummonCardEffectTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Ninja A"]
                                 }
@@ -67,7 +67,7 @@ public sealed class TributeSummonCardEffectTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Ninja A"]
                                 }

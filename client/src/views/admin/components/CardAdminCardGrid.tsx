@@ -3,7 +3,7 @@ import type { ICardAdminCardGridProps } from '@/views/admin/types/cardAdminCardG
 
 export function CardAdminCardGrid({ cards, selectedCardId, onSelectCard }: ICardAdminCardGridProps) {
   return (
-    <ul className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
+    <ul className="grid gap-3 p-3 [grid-template-columns:repeat(auto-fit,minmax(10.5rem,1fr))]">
       {cards.map((card) => {
         const isSelected = card.id === selectedCardId
 

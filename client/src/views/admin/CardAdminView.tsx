@@ -129,7 +129,7 @@ export function CardAdminView() {
       className="h-dvh overflow-hidden"
     >
       <div className="h-full w-full">
-        <div className="grid h-full min-h-0 gap-0 lg:grid-cols-[33%_minmax(0,1fr)]">
+        <div className="grid h-full min-h-0 gap-0 [grid-template-columns:minmax(22rem,38rem)_minmax(40rem,1fr)] max-[62rem]:[grid-template-columns:22rem_minmax(0,1fr)]">
           <aside className="themed-scrollbar flex h-full min-h-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
             <CardAdminFilterPanel
               searchText={viewModel.searchText}

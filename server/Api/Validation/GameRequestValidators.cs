@@ -257,21 +257,17 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                         rule.RuleForEach(value => value.Restriction.Predicates)
                             .ChildRules(predicate =>
                             {
-                                predicate.RuleFor(value => value.Property)
-                                    .NotEmpty().WithMessage("Predicate property is required.");
-
                                 predicate.RuleFor(value => value)
                                     .Must(value =>
                                     {
                                         var hasValue = !string.IsNullOrWhiteSpace(value.Value);
                                         var hasValues = value.Values is { Count: > 0 };
-                                        var normalizedProperty = NormalizePredicateProperty(value.Property);
 
                                         return value.Operator switch
                                         {
-                                            ZoneCardPredicateOperator.In => hasValues || normalizedProperty == "type",
-                                            ZoneCardPredicateOperator.Equals => hasValue,
-                                            ZoneCardPredicateOperator.NotEquals => hasValue,
+                                            ZoneCardPredicateOperator.In => hasValues || value.Property == ZoneCardProperty.Type,
+                                            ZoneCardPredicateOperator.Equals => hasValue || value.Property == ZoneCardProperty.Self,
+                                            ZoneCardPredicateOperator.NotEquals => hasValue || value.Property == ZoneCardProperty.Self,
                                             ZoneCardPredicateOperator.Contains => hasValue,
                                             ZoneCardPredicateOperator.GreaterThan => hasValue,
                                             ZoneCardPredicateOperator.GreaterThanOrEqual => hasValue,
@@ -314,28 +310,16 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                         || targetRules.Rules.Any(rule => rule.TributeRole == TributeTargetRole.TributeMaterial))
                     .WithMessage("Tribute composition requires at least one tribute material target rule.");
 
-                effect.RuleFor(value => value.TargetRules)
-                    .Must(targetRules => targetRules.TributeComposition is not null
-                        || !targetRules.Rules.Any(rule =>
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType != RuntimeEffects.Tribute
+                        || value.TargetRules.TributeComposition is not null
+                        || !value.TargetRules.Rules.Any(rule =>
                             rule.ExactSelectedTargetCount.HasValue
                             || rule.MinimumSelectedTargetCount.HasValue
                             || rule.MaximumSelectedTargetCount.HasValue))
                     .WithMessage("Rule selected target count constraints require tribute composition.");
             })
             .When(request => request.Effects is not null);
-    }
-
-    private static string NormalizePredicateProperty(string property)
-    {
-        if (string.IsNullOrWhiteSpace(property))
-        {
-            return string.Empty;
-        }
-
-        return new string(property
-            .Where(character => char.IsLetterOrDigit(character))
-            .ToArray())
-            .ToLowerInvariant();
     }
 
     private static bool HasAnyPatchableField(UpdateCardEffectsRequest request)

@@ -498,7 +498,7 @@ public sealed partial class DeckService : IDeckService
     private static CardCatalogZoneCardPropertyPredicateResponse ToZoneCardPropertyPredicateResponse(ZoneCardPropertyPredicate predicate)
     {
         return new CardCatalogZoneCardPropertyPredicateResponse(
-            Property: predicate.Property,
+            Property: SplitPascalCase(predicate.Property.ToString()),
             Operator: SplitPascalCase(predicate.Operator.ToString()),
             Value: predicate.Value,
             Values: predicate.Values ?? [],
