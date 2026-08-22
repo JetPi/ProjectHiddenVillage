@@ -55,7 +55,8 @@ public sealed class UserController : ApiControllerBase
 		var tokenResult = authTokenService.CreateToken(
 			userResult.Value.Id,
 			userResult.Value.Username,
-			userResult.Value.Email);
+			userResult.Value.Email,
+			userResult.Value.IsCardCatalogAdmin);
 
 		return Ok(new LoginResponse(
 			Id: userResult.Value.Id,

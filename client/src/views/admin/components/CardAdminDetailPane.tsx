@@ -255,7 +255,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
   const editorModel = useCardAdminEffectEditorModel(selectedCard)
   const [conditionToAdd, setConditionToAdd] = useState('')
 
-  const isSaveDisabled = editorModel.isSaving || !editorModel.isDirty
+  const isSaveDisabled = editorModel.isSaving
   const parsedEffects = useMemo(
     () => toEffectArray(editorModel.draft.effectsText),
     [editorModel.draft.effectsText],
@@ -2807,10 +2807,24 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
       {typeof document !== 'undefined'
         ? createPortal(
-          <div className="fixed bottom-6 right-6 z-50">
+          <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+            {editorModel.isDirty ? (
+              <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                Unsaved Changes
+              </span>
+            ) : null}
+
             <AppButton
               type="button"
               onClick={async () => {
+                if (!editorModel.isDirty) {
+                  showAppInfoToast('No changes to save.', {
+                    id: 'card-admin-save-status',
+                    position: 'top-right',
+                  })
+                  return
+                }
+
                 const result = await editorModel.save()
                 if (result.ok) {
                   showAppSuccessToast('Card effects saved successfully.', {

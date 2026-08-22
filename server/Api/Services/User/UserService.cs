@@ -125,7 +125,7 @@ public sealed class UserService : IUserService
             .OrderBy(record => record.Email)
             .Skip((normalizedPage - 1) * normalizedPageSize)
             .Take(normalizedPageSize)
-            .Select(record => new UserResponse(record.Id, record.Username, record.Email))
+            .Select(record => new UserResponse(record.Id, record.Username, record.Email, record.IsCardCatalogAdmin))
             .ToListAsync();
 
         return new PagedResponse<UserResponse>(
@@ -150,6 +150,6 @@ public sealed class UserService : IUserService
     private static UserResponse ToResponse(User user)
     {
         ArgumentNullException.ThrowIfNull(user);
-        return new UserResponse(user.Id, user.Username, user.Email);
+        return new UserResponse(user.Id, user.Username, user.Email, user.IsCardCatalogAdmin);
     }
 }

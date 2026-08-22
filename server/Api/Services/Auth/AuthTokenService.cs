@@ -9,21 +9,13 @@ namespace ProjectHiddenVillage.Server;
 public sealed class AuthTokenService : IAuthTokenService
 {
     private readonly JwtOptions jwtOptions;
-    private readonly HashSet<string> cardCatalogAdminEmails;
 
-    public AuthTokenService(IOptions<JwtOptions> jwtOptions, IConfiguration configuration)
+    public AuthTokenService(IOptions<JwtOptions> jwtOptions)
     {
         this.jwtOptions = jwtOptions.Value;
-        cardCatalogAdminEmails = configuration
-            .GetSection("Authorization:CardCatalogAdmins:Emails")
-            .Get<string[]>()
-            ?.Where(email => !string.IsNullOrWhiteSpace(email))
-            .Select(email => email.Trim())
-            .ToHashSet(StringComparer.OrdinalIgnoreCase)
-            ?? [];
     }
 
-    public AuthTokenResult CreateToken(Guid userId, string username, string email)
+    public AuthTokenResult CreateToken(Guid userId, string username, string email, bool isCardCatalogAdmin)
     {
         if (string.IsNullOrWhiteSpace(username))
         {
@@ -46,7 +38,7 @@ public sealed class AuthTokenService : IAuthTokenService
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
-        if (cardCatalogAdminEmails.Contains(email))
+        if (isCardCatalogAdmin)
         {
             claims.Add(new Claim(
                 AuthorizationPolicies.CardCatalogAdminClaimType,

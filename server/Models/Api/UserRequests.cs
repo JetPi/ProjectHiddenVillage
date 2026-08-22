@@ -3,7 +3,8 @@ namespace ProjectHiddenVillage.Server;
 public sealed record UserResponse(
     Guid Id,
     string Username,
-    string Email);
+    string Email,
+    bool IsCardCatalogAdmin);
 
 public sealed record LoginResponse(
     Guid Id,
