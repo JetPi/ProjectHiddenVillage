@@ -197,6 +197,62 @@ public sealed class GameSequentialEffectExecutorTests
     }
 
     [TestMethod]
+    public void Execute_AutoSelectsAllValidTargets_WhenEffectTargetRulesEnableAutoSelectAll()
+    {
+        IReadOnlyList<GameEffectTargetReference>? observedTargets = null;
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new InspectingTargetsEffect(
+                DestroyCardEffect.EffectKey,
+                targets => observedTargets = targets),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "step-auto-all",
+                RuntimeEffectType = RuntimeEffects.DestroyCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Opponent,
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet
+                {
+                    AutoSelectAllValidTargets = true,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Opponent,
+                            InZone = PlayerZone.CharacterField,
+                            Restriction = new ZoneCardRestriction
+                            {
+                                Predicates = []
+                            }
+                        }
+                    ]
+                }
+            });
+
+        var context = CreateContext(
+            sourceDefinition,
+            playerTwoFieldCards:
+            [
+                CreateCardOnField("opponent-card", "opponent-card-inst", "p2", "Opponent Card")
+            ]);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.IsNotNull(observedTargets);
+        Assert.AreEqual(1, observedTargets.Count);
+        Assert.AreEqual("opponent-card-inst", observedTargets[0].CardInstanceId);
+        Assert.AreEqual("p2", observedTargets[0].PlayerId);
+        Assert.AreEqual(PlayerZone.CharacterField, observedTargets[0].Zone);
+    }
+
+    [TestMethod]
     public void Execute_UsesConditionalBranching_ForChoiceDrivenEffects()
     {
         var observedSpecIds = new List<string>();
@@ -610,7 +666,10 @@ public sealed class GameSequentialEffectExecutorTests
     private static GameCardEffectContext CreateContext(
         Card sourceDefinition,
         IReadOnlyDictionary<string, string>? arguments = null,
-        int playerOneResource = 0)
+        int playerOneResource = 0,
+        IReadOnlyList<(Card Card, CardInstance Instance)>? playerOneFieldCards = null,
+        IReadOnlyList<(Card Card, CardInstance Instance)>? playerTwoFieldCards = null,
+        IReadOnlyList<GameEffectTargetReference>? selectedTargets = null)
     {
         var sourceCard = new CardInstance
         {
@@ -631,15 +690,29 @@ public sealed class GameSequentialEffectExecutorTests
                 {
                     PlayerId = "p1",
                     ResourcePool = playerOneResource,
-                    Battlefield = [sourceCard],
+                    Battlefield = [sourceCard, ..(playerOneFieldCards?.Select(entry => entry.Instance) ?? [])],
                 },
-                new PlayerState { PlayerId = "p2" },
+                new PlayerState
+                {
+                    PlayerId = "p2",
+                    Battlefield = [..(playerTwoFieldCards?.Select(entry => entry.Instance) ?? [])],
+                },
             ],
             CardDefinitions =
             {
                 ["source-def"] = sourceDefinition,
             }
         };
+
+        foreach (var (card, _) in playerOneFieldCards ?? [])
+        {
+            state.CardDefinitions[card.Id] = card;
+        }
+
+        foreach (var (card, _) in playerTwoFieldCards ?? [])
+        {
+            state.CardDefinitions[card.Id] = card;
+        }
 
         var game = new GameInstance(state);
 
@@ -655,7 +728,37 @@ public sealed class GameSequentialEffectExecutorTests
             sourceCardDefinition: sourceDefinition,
             sourceCardInstance: sourceCard,
             arguments: arguments ?? new Dictionary<string, string>(StringComparer.Ordinal),
-            selectedTargets: []);
+            selectedTargets: selectedTargets ?? []);
+    }
+
+    private static (Card Card, CardInstance Instance) CreateCardOnField(
+        string cardDefinitionId,
+        string instanceId,
+        string controllerPlayerId,
+        string displayName)
+    {
+        var card = new CharacterCard
+        {
+            Id = cardDefinitionId,
+            DisplayName = displayName,
+            Name = [displayName],
+            Type = CardType.Character,
+            Color = CardColor.Green,
+            Traits = ["Ninja"],
+            Power = 2,
+            Damage = 1,
+            Health = 2,
+        };
+
+        var instance = new CardInstance
+        {
+            InstanceId = instanceId,
+            CardDefinitionId = cardDefinitionId,
+            OwnerPlayerId = controllerPlayerId,
+            ControllerPlayerId = controllerPlayerId,
+        };
+
+        return (card, instance);
     }
 
     private static CharacterCard CreateSourceDefinition(params EffectSpec[] effects)

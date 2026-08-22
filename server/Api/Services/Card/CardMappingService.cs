@@ -799,6 +799,7 @@ public sealed class CardMappingService : ICardMappingService
             ExactTargetCount: ruleSet.ExactTargetCount,
             MinimumTargetCount: ruleSet.MinimumTargetCount,
             MaximumTargetCount: ruleSet.MaximumTargetCount,
+            AutoSelectAllValidTargets: ruleSet.AutoSelectAllValidTargets,
             TributeComposition: ToTributeTargetCompositionResponse(ruleSet.TributeComposition),
             Rules: ruleSet.Rules
                 .Select(ToTargetRuleResponse)

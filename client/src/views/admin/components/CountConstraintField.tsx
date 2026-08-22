@@ -43,10 +43,17 @@ export function CountConstraintField({
       <option value="Exact">Exact</option>
       <option value="Minimum">Minimum</option>
       <option value="Maximum">Maximum</option>
+      <option value="All">All</option>
     </select>
   )
 
-  const valueControl = (
+  const valueControl = mode === 'All'
+    ? (
+      <div className={resolvedInputClassName} style={{ minWidth: '6.5rem' }}>
+        All in zone
+      </div>
+    )
+    : (
     <input
       type="number"
       min={min}
@@ -58,7 +65,7 @@ export function CountConstraintField({
       className={resolvedInputClassName}
       style={{ width: `${valueCharacters + 6}ch`, minWidth: '6.5rem' }}
     />
-  )
+    )
 
   return (
     <div className={className ?? (trailingContent ? 'grid w-fit grid-cols-1 gap-2 sm:grid-cols-4' : 'grid w-fit grid-cols-1 gap-2 sm:grid-cols-2')}>

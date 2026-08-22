@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type ICountConstraintMode = 'Exact' | 'Minimum' | 'Maximum'
+export type ICountConstraintMode = 'Exact' | 'Minimum' | 'Maximum' | 'All'
 
 export type ICountConstraintFieldProps = {
   mode: ICountConstraintMode

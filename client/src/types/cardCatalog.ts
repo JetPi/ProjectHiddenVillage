@@ -110,6 +110,7 @@ export type ICardCatalogEffectTargetRuleSetResponse = {
   exactTargetCount: number | null
   minimumTargetCount: number | null
   maximumTargetCount: number | null
+  autoSelectAllValidTargets: boolean
   tributeComposition: ICardCatalogTributeTargetCompositionResponse | null
   rules: ICardCatalogEffectTargetRuleResponse[]
 }

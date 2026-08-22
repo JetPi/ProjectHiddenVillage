@@ -486,6 +486,7 @@ public sealed partial class DeckService : IDeckService
             ExactTargetCount: ruleSet.ExactTargetCount,
             MinimumTargetCount: ruleSet.MinimumTargetCount,
             MaximumTargetCount: ruleSet.MaximumTargetCount,
+            AutoSelectAllValidTargets: ruleSet.AutoSelectAllValidTargets,
             TributeComposition: ToTributeTargetCompositionResponse(ruleSet.TributeComposition),
             Rules: ruleSet.Rules
                 .Select(ToTargetRuleResponse)

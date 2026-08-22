@@ -148,6 +148,7 @@ function createDefaultEffect(): ICardCatalogEffectRequest {
       exactTargetCount: null,
       minimumTargetCount: null,
       maximumTargetCount: null,
+      autoSelectAllValidTargets: false,
       tributeComposition: null,
       rules: [],
     },
@@ -326,7 +327,12 @@ function resolveCountConstraintMode(
   exactCount: number | null,
   minimumCount: number | null,
   maximumCount: number | null,
+  autoSelectAllValidTargets = false,
 ): ICountConstraintMode {
+  if (autoSelectAllValidTargets) {
+    return 'All'
+  }
+
   if (exactCount !== null) {
     return 'Exact'
   }
@@ -348,6 +354,10 @@ function resolveCountConstraintValue(
   minimumCount: number | null,
   maximumCount: number | null,
 ): number | null {
+  if (mode === 'All') {
+    return null
+  }
+
   if (mode === 'Exact') {
     return exactCount
   }
@@ -406,7 +416,9 @@ export function CardAdminDetailPane({ selectedCard }: ICardAdminDetailPaneProps)
 function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
   const editorModel = useCardAdminEffectEditorModel(selectedCard)
   const [conditionToAdd, setConditionToAdd] = useState('')
-  const [collapsedEffects, setCollapsedEffects] = useState<Set<number>>(new Set())
+  const [collapsedEffects, setCollapsedEffects] = useState<Set<number>>(
+    () => new Set(selectedCard.effects.map((_, index) => index)),
+  )
 
   const isSaveDisabled = editorModel.isSaving
   const parsedEffects = useMemo(
@@ -467,6 +479,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
     setCollapsedEffects((current) => {
       const next = new Set<number>()
+      next.add(0)
       current.forEach((index) => {
         next.add(index + 1)
       })
@@ -1005,33 +1018,49 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                           effect.targetRules.exactTargetCount,
                           effect.targetRules.minimumTargetCount,
                           effect.targetRules.maximumTargetCount,
+                          effect.targetRules.autoSelectAllValidTargets ?? false,
                         )}
                         value={resolveCountConstraintValue(
                           resolveCountConstraintMode(
                             effect.targetRules.exactTargetCount,
                             effect.targetRules.minimumTargetCount,
                             effect.targetRules.maximumTargetCount,
+                            effect.targetRules.autoSelectAllValidTargets ?? false,
                           ),
                           effect.targetRules.exactTargetCount,
                           effect.targetRules.minimumTargetCount,
                           effect.targetRules.maximumTargetCount,
                         )}
                         onModeChange={(selectedMode) =>
-                          updateEffectAt(effectIndex, (current) => ({
-                            ...current,
-                            targetRules: {
-                              ...current.targetRules,
-                              exactTargetCount: selectedMode === 'Exact' ? current.targetRules.exactTargetCount : null,
-                              minimumTargetCount: selectedMode === 'Minimum' ? current.targetRules.minimumTargetCount : null,
-                              maximumTargetCount: selectedMode === 'Maximum' ? current.targetRules.maximumTargetCount : null,
-                            },
-                          }))}
+                          updateEffectAt(effectIndex, (current) => {
+                            const isAllMode = selectedMode === 'All'
+
+                            return {
+                              ...current,
+                              targetRules: {
+                                ...current.targetRules,
+                                autoSelectAllValidTargets: isAllMode,
+                                exactTargetCount: selectedMode === 'Exact' ? current.targetRules.exactTargetCount : null,
+                                minimumTargetCount: selectedMode === 'Minimum' ? current.targetRules.minimumTargetCount : null,
+                                maximumTargetCount: selectedMode === 'Maximum' ? current.targetRules.maximumTargetCount : null,
+                                rules: isAllMode
+                                  ? current.targetRules.rules.map((rule) => ({
+                                    ...rule,
+                                    exactSelectedTargetCount: null,
+                                    minimumSelectedTargetCount: null,
+                                    maximumSelectedTargetCount: null,
+                                  }))
+                                  : current.targetRules.rules,
+                              },
+                            }
+                          })}
                         onValueChange={(parsedValue) =>
                           updateEffectAt(effectIndex, (current) => {
                             const selectedMode = resolveCountConstraintMode(
                               current.targetRules.exactTargetCount,
                               current.targetRules.minimumTargetCount,
                               current.targetRules.maximumTargetCount,
+                              current.targetRules.autoSelectAllValidTargets ?? false,
                             )
 
                             return {
@@ -1182,6 +1211,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
                     {effect.targetRules.rules.map((targetRule, targetRuleIndex) => {
                       const showsTributeRole = isSummonOrTributeRuntimeEffect(effect.runtimeEffectType)
+                      const shouldShowSelectedCountField = !effect.targetRules.autoSelectAllValidTargets
                       const selectedCountField = (
                         <div className="space-y-1">
                           <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Selected Count</label>
@@ -1334,11 +1364,11 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                     ))}
                                   </select>
                                 </div>
-                              ) : selectedCountField}
+                              ) : shouldShowSelectedCountField ? selectedCountField : null}
                             </div>
                           </div>
 
-                          {showsTributeRole ? selectedCountField : null}
+                          {showsTributeRole && shouldShowSelectedCountField ? selectedCountField : null}
 
                           <div className="space-y-1 sm:col-span-2">
                             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Restriction Match Mode</label>

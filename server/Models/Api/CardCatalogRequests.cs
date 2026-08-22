@@ -89,6 +89,7 @@ public sealed record CardCatalogEffectTargetRuleSetResponse(
     int? ExactTargetCount,
     int? MinimumTargetCount,
     int? MaximumTargetCount,
+    bool AutoSelectAllValidTargets,
     CardCatalogTributeTargetCompositionResponse? TributeComposition,
     IReadOnlyList<CardCatalogEffectTargetRuleResponse> Rules);
 
