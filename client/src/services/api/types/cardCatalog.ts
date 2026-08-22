@@ -27,6 +27,7 @@ export type ICardCatalogPredicateProperty =
   | 'Owner Player Id'
   | 'Controller Player Id'
   | 'Is Exhausted'
+  | 'Is Rested'
   | 'Cannot Be Normal Summoned'
 
 export type ICardCatalogZoneCardPropertyPredicateRequest = {

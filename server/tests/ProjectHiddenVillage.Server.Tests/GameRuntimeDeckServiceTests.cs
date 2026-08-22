@@ -83,6 +83,28 @@ public sealed class GameRuntimeDeckServiceTests
     }
 
     [TestMethod]
+    public void MoveCardToZone_MoveToCharacterField_SetsCardUpright()
+    {
+        var game = CreateGame();
+        var player = game.State.Players.Single();
+        game.State.TurnNumber = 4;
+
+        var handCard = CreateInstance("hand-rested", "card-1", "p1");
+        handCard.IsRested = true;
+        player.Hand.Add(handCard);
+
+        var moved = service.MoveCardToZone(
+            game,
+            playerId: "p1",
+            sourceZone: PlayerZone.Hand,
+            destinationZone: PlayerZone.CharacterField,
+            cardInstanceId: handCard.InstanceId);
+
+        Assert.IsFalse(moved.IsRested);
+        Assert.AreEqual(4, moved.EnteredFieldTurnNumber);
+    }
+
+    [TestMethod]
     public void DrawCardFromDeck_MovesTopCardToHand()
     {
         var game = CreateGame();
@@ -254,5 +276,36 @@ public sealed class GameRuntimeDeckServiceTests
 
         Assert.ThrowsException<InvalidOperationException>(() =>
             service.ToRuntimeDeck(["SM-001"], definitions, "p1"));
+    }
+
+    [TestMethod]
+    public void ToRuntimeDeck_InitializesCardsAsUpright()
+    {
+        var definitions = new Dictionary<string, Card>(StringComparer.Ordinal)
+        {
+            ["CH-001"] = new Card
+            {
+                Id = "CH-001",
+                DisplayName = "Character",
+                Name = ["Character"],
+                Type = CardType.Character,
+                Color = CardColor.Blue,
+                Traits = []
+            },
+            ["EX-001"] = new Card
+            {
+                Id = "EX-001",
+                DisplayName = "ExCharacter",
+                Name = ["ExCharacter"],
+                Type = CardType.ExCharacter,
+                Color = CardColor.Green,
+                Traits = []
+            }
+        };
+
+        var runtimeDeck = service.ToRuntimeDeck(["CH-001", "EX-001"], definitions, "p1");
+
+        Assert.AreEqual(2, runtimeDeck.Count);
+        Assert.IsTrue(runtimeDeck.All(card => !card.IsRested));
     }
 }

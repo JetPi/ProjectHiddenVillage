@@ -204,9 +204,28 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
     {
         switch (state.Phase)
         {
+            case GamePhase.RefreshPhase:
+                OnEnterRefreshPhase(state);
+                break;
             case GamePhase.ActionStep:
                 OnEnterActionStep(state);
                 break;
+        }
+    }
+
+    private static void OnEnterRefreshPhase(GameState state)
+    {
+        var activePlayer = state.Players.SingleOrDefault(player =>
+            string.Equals(player.PlayerId, state.ActivePlayerId, StringComparison.Ordinal));
+
+        if (activePlayer is null)
+        {
+            return;
+        }
+
+        foreach (var card in activePlayer.Battlefield)
+        {
+            card.IsRested = false;
         }
     }
 

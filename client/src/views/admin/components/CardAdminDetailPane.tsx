@@ -99,6 +99,7 @@ const PREDICATE_PROPERTY_OPTIONS: ReadonlyArray<ICardCatalogPredicateProperty> =
   'Owner Player Id',
   'Controller Player Id',
   'Is Exhausted',
+  'Is Rested',
   'Cannot Be Normal Summoned',
 ]
 

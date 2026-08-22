@@ -14,6 +14,7 @@ export type IGameCardInstanceResponse = {
   ownerPlayerId: string
   controllerPlayerId: string
   isExhausted: boolean
+  isRested: boolean
 }
 
 export type IGameLeaderCardInstanceResponse = {
