@@ -267,6 +267,79 @@ public sealed class CardMappingServiceTests
         Assert.IsTrue(persisted.CannotBeNormalSummoned);
     }
 
+    [TestMethod]
+    public async Task UpdateCardEffectsByCardId_UpdatesTypeColorAndStats_WithTypeDrivenLifeHealth()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.CardCatalogEntries.Add(new CardCatalogEntry
+        {
+            CardId = "N-808",
+            Image = "https://example.com/n-808.webp",
+            OriginalId = "N-808",
+            DisplayName = "Editable",
+            Type = CardType.Character,
+            Color = CardColor.Red,
+            Description = "desc",
+            Damage = 1,
+            Power = 2,
+            Health = 4,
+            Life = null,
+            NameJson = "[\"Editable\"]",
+            TraitsJson = "[]",
+            ConditionsJson = "[]",
+            EffectsJson = "[]",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var service = new CardMappingService(dbContext);
+
+        var firstUpdate = await service.UpdateCardEffectsByCardId(
+            "N-808",
+            new UpdateCardEffectsRequest(
+                Conditions: null,
+                Effects: null,
+                Description: null,
+                SupportEffect: null,
+                CannotBeNormalSummoned: null,
+                Type: "Leader",
+                Color: "N/A",
+                Power: 7,
+                Damage: 3,
+                Life: 6,
+                Health: null));
+
+        Assert.IsFalse(firstUpdate.IsError);
+        Assert.AreEqual("Leader", firstUpdate.Value.Type);
+        Assert.AreEqual("N/A", firstUpdate.Value.Color);
+        Assert.AreEqual(7, firstUpdate.Value.Power);
+        Assert.AreEqual(3, firstUpdate.Value.Damage);
+        Assert.AreEqual(6, firstUpdate.Value.Life);
+        Assert.IsNull(firstUpdate.Value.Health);
+
+        var secondUpdate = await service.UpdateCardEffectsByCardId(
+            "N-808",
+            new UpdateCardEffectsRequest(
+                Conditions: null,
+                Effects: null,
+                Description: null,
+                SupportEffect: null,
+                CannotBeNormalSummoned: null,
+                Type: "Summon",
+                Color: "Blue",
+                Power: null,
+                Damage: null,
+                Life: null,
+                Health: 9));
+
+        Assert.IsFalse(secondUpdate.IsError);
+        Assert.AreEqual("Summon", secondUpdate.Value.Type);
+        Assert.AreEqual("Blue", secondUpdate.Value.Color);
+        Assert.IsNull(secondUpdate.Value.Life);
+        Assert.AreEqual(9, secondUpdate.Value.Health);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

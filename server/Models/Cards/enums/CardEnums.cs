@@ -4,14 +4,17 @@ public enum CardType
 {
     Leader,
     Character,
-    ExCharacter
+    ExCharacter,
+    Chakra,
+    Summon
 }
 
 public enum CardColor
 {
     Red,
     Blue,
-    Green
+    Green,
+    NotApplicable
 }
 
 public enum SummonCardFaceState

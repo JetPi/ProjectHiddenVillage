@@ -29,7 +29,7 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 				SupportName = entry.SupportName ?? string.Empty,
 				SupportEffect = entry.SupportEffect ?? string.Empty
 			},
-			_ => new Card()
+			_ => throw new InvalidOperationException($"Card type '{entry.Type}' cannot be instantiated as a runtime card.")
 		};
 
 		card.Id = entry.CardId;
@@ -110,18 +110,34 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 			throw new ArgumentNullException(nameof(cardDefinitions));
 		}
 
-		var filteredCardDefinitionIds = cardDefinitionIds.Where(cardDefinitionId =>
-			cardDefinitions.TryGetValue(cardDefinitionId, out var definition)
-			&& definition.Type != CardType.Leader);
+		var rawDeck = new List<CardInstance>();
 
-		var rawDeck = filteredCardDefinitionIds.Select(cardDefinitionId => new CardInstance
+		foreach (var cardDefinitionId in cardDefinitionIds)
 		{
-			InstanceId = Guid.NewGuid().ToString("N"),
-			CardDefinitionId = cardDefinitionId,
-			OwnerPlayerId = playerId,
-			ControllerPlayerId = playerId,
-			IsExhausted = false
-		}).ToList();
+			if (!cardDefinitions.TryGetValue(cardDefinitionId, out var definition))
+			{
+				continue;
+			}
+
+			if (definition.Type == CardType.Leader)
+			{
+				continue;
+			}
+
+			if (definition.Type is not (CardType.Character or CardType.ExCharacter))
+			{
+				throw new InvalidOperationException($"Card '{cardDefinitionId}' has non-instantiable type '{definition.Type}'.");
+			}
+
+			rawDeck.Add(new CardInstance
+			{
+				InstanceId = Guid.NewGuid().ToString("N"),
+				CardDefinitionId = cardDefinitionId,
+				OwnerPlayerId = playerId,
+				ControllerPlayerId = playerId,
+				IsExhausted = false
+			});
+		}
 
 		return DeckShuffle(rawDeck);
 	}

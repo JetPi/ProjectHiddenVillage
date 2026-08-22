@@ -124,4 +124,10 @@ public sealed record UpdateCardEffectsRequest(
     IReadOnlyList<EffectSpec>? Effects,
     string? Description,
     string? SupportEffect,
-    bool? CannotBeNormalSummoned = null);
+    bool? CannotBeNormalSummoned = null,
+    string? Type = null,
+    string? Color = null,
+    int? Power = null,
+    int? Damage = null,
+    int? Life = null,
+    int? Health = null);

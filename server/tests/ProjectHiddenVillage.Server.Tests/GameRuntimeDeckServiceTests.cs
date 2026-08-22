@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProjectHiddenVillage.Server.Api.Services.Games;
+using ProjectHiddenVillage.Server.Data.Entities;
 
 namespace ProjectHiddenVillage.Server.Tests;
 
@@ -212,5 +213,46 @@ public sealed class GameRuntimeDeckServiceTests
             ControllerPlayerId = playerId,
             IsExhausted = false
         };
+    }
+
+    [TestMethod]
+    public void ToRuntimeCard_WhenTypeIsChakra_ThrowsInvalidOperationException()
+    {
+        var entry = new CardCatalogEntry
+        {
+            CardId = "CH-001",
+            Image = "https://example.com/ch-001.webp",
+            OriginalId = "CH-001",
+            DisplayName = "Chakra",
+            Type = CardType.Chakra,
+            Color = CardColor.NotApplicable,
+            Description = "desc",
+            NameJson = "[]",
+            TraitsJson = "[]",
+            ConditionsJson = "[]",
+            EffectsJson = "[]"
+        };
+
+        Assert.ThrowsException<InvalidOperationException>(() => service.ToRuntimeCard(entry));
+    }
+
+    [TestMethod]
+    public void ToRuntimeDeck_WhenDeckContainsSummonCard_ThrowsInvalidOperationException()
+    {
+        var definitions = new Dictionary<string, Card>(StringComparer.Ordinal)
+        {
+            ["SM-001"] = new Card
+            {
+                Id = "SM-001",
+                DisplayName = "Summon",
+                Name = ["Summon"],
+                Type = CardType.Summon,
+                Color = CardColor.NotApplicable,
+                Traits = []
+            }
+        };
+
+        Assert.ThrowsException<InvalidOperationException>(() =>
+            service.ToRuntimeDeck(["SM-001"], definitions, "p1"));
     }
 }

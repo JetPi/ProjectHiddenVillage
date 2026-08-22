@@ -181,4 +181,42 @@ public sealed class CardDataSourceMapperTests
 
         Assert.IsTrue(result.CannotBeNormalSummoned);
     }
+
+    [TestMethod]
+    public void ToCard_MapsChakraCategory_AndNaColor()
+    {
+        var source = new CardDataSourceRecord
+        {
+            CardNo = "CH-001",
+            Name = "Chakra Test",
+            Image = "https://example.com/ch-001.webp",
+            Color = "N/A",
+            CategoryData = "CHAKRA",
+            OriginalId = "CH-001",
+        };
+
+        var result = CardDataSourceMapper.ToCard(source);
+
+        Assert.AreEqual(CardType.Chakra, result.Type);
+        Assert.AreEqual(CardColor.NotApplicable, result.Color);
+    }
+
+    [TestMethod]
+    public void ToCard_MapsSummonCategory_AndUnknownColorFallbackToNa()
+    {
+        var source = new CardDataSourceRecord
+        {
+            CardNo = "SM-001",
+            Name = "Summon Test",
+            Image = "https://example.com/sm-001.webp",
+            Color = "UnlistedColor",
+            CategoryData = "SUMMON",
+            OriginalId = "SM-001",
+        };
+
+        var result = CardDataSourceMapper.ToCard(source);
+
+        Assert.AreEqual(CardType.Summon, result.Type);
+        Assert.AreEqual(CardColor.NotApplicable, result.Color);
+    }
 }

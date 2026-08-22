@@ -87,6 +87,27 @@ public sealed class SummonCardEffectTests
         Assert.IsTrue(summonedCard.EffectsSuppressedWhileOnField);
     }
 
+    [TestMethod]
+    public void Execute_ReturnsValidationError_WhenCardTypeIsNonInstantiable()
+    {
+        var effectSpec = CreateSummonEffectSpec();
+        var blockedTarget = new GameEffectTargetReference("p1", PlayerZone.Hand, "blocked-instance");
+
+        var context = CreateContext(effectSpec);
+        context.Game.State.CardDefinitions["blocked-card"].Type = CardType.Chakra;
+        context.Game.State.CardDefinitions["blocked-card"].CannotBeNormalSummoned = false;
+
+        var effect = new SummonCardEffect(
+            effectSpecResolver: new StubEffectSpecResolver(effectSpec),
+            canExecuteEvaluator: new StubCanExecuteEvaluator([]),
+            targetResolver: new StubTargetResolver([]));
+
+        var result = effect.Execute(context, [blockedTarget]);
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Game.Effect.SummonCard.UnsupportedCardType", result.FirstError.Code);
+    }
+
     private static EffectSpec CreateSummonEffectSpec()
     {
         return new EffectSpec

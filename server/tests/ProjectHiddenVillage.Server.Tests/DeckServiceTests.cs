@@ -104,6 +104,52 @@ public sealed class DeckServiceTests
     }
 
     [TestMethod]
+    public async Task CreateDeck_ReturnsValidationError_WhenDeckContainsChakraOrSummonCards()
+    {
+        await using var dbContext = CreateDbContext();
+
+        dbContext.CardCatalogEntries.AddRange(
+            new CardCatalogEntry
+            {
+                CardId = "N-100",
+                DisplayName = "Playable",
+                Type = CardType.Character,
+                Color = CardColor.Red,
+                Description = "desc",
+                NameJson = "[]",
+                TraitsJson = "[]",
+                ConditionsJson = "[]",
+                EffectsJson = "[]",
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            },
+            new CardCatalogEntry
+            {
+                CardId = "N-101",
+                DisplayName = "Chakra",
+                Type = CardType.Chakra,
+                Color = CardColor.NotApplicable,
+                Description = "desc",
+                NameJson = "[]",
+                TraitsJson = "[]",
+                ConditionsJson = "[]",
+                EffectsJson = "[]",
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            });
+
+        await dbContext.SaveChangesAsync();
+
+        var service = new DeckService(dbContext);
+        var result = await service.CreateDeck(new CreateDeckRequest(
+            Type: DeckType.Public,
+            Cards: "1x N-100\n1x N-101"));
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Deck.Create.UnsupportedCardType", result.FirstError.Code);
+    }
+
+    [TestMethod]
     public async Task GetDeck_ReturnsDeckWithResolvedCardIds()
     {
         await using var dbContext = CreateDbContext();

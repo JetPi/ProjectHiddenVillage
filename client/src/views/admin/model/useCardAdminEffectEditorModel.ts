@@ -18,11 +18,21 @@ const EMPTY_VALIDATION_ERRORS: ICardAdminEffectEditorValidationErrors = {
 }
 
 const EMPTY_DRAFT: ICardAdminEffectEditorDraft = {
+  type: 'Character',
+  color: 'N/A',
+  power: 0,
+  damage: 0,
+  life: null,
+  health: 0,
   description: '',
   supportEffect: '',
   cannotBeNormalSummoned: false,
   conditions: [],
   effectsText: '[]',
+}
+
+function isLeaderType(cardType: string): boolean {
+  return cardType.trim().toLowerCase() === 'leader'
 }
 
 function toPrettyJson(value: unknown): string {
@@ -35,6 +45,12 @@ function toEditorDraft(card: ICardAdminEffectEditorHydrationSource | null): ICar
   }
 
   return {
+    type: card.type,
+    color: card.color,
+    power: card.power,
+    damage: card.damage,
+    life: card.life,
+    health: card.health,
     description: card.description,
     supportEffect: card.supportEffect ?? '',
     cannotBeNormalSummoned: card.cannotBeNormalSummoned,
@@ -89,8 +105,8 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
     nextErrors.conditions = 'Conditions must be a list of strings.'
   }
 
-  if (!Array.isArray(parsedEffects) || parsedEffects.length === 0) {
-    nextErrors.effectsText = 'Effects must be a non-empty JSON array.'
+  if (!Array.isArray(parsedEffects)) {
+    nextErrors.effectsText = 'Effects must be a JSON array.'
   } else if (!parsedEffects.every((entry) => isCardCatalogEffectRequest(entry))) {
     nextErrors.effectsText = 'Each effect must include id, effectType, timing, contextRules, and targetRules.'
   }
@@ -195,6 +211,46 @@ export function useCardAdminEffectEditorModel(
     setDraft((current) => ({ ...current, description: value }))
   }, [])
 
+  const setType = useCallback((value: string) => {
+    setDraft((current) => {
+      if (isLeaderType(value)) {
+        return {
+          ...current,
+          type: value,
+          life: current.life ?? current.health ?? 0,
+          health: null,
+        }
+      }
+
+      return {
+        ...current,
+        type: value,
+        health: current.health ?? current.life ?? 0,
+        life: null,
+      }
+    })
+  }, [])
+
+  const setColor = useCallback((value: string) => {
+    setDraft((current) => ({ ...current, color: value }))
+  }, [])
+
+  const setPower = useCallback((value: number) => {
+    setDraft((current) => ({ ...current, power: value }))
+  }, [])
+
+  const setDamage = useCallback((value: number) => {
+    setDraft((current) => ({ ...current, damage: value }))
+  }, [])
+
+  const setLife = useCallback((value: number | null) => {
+    setDraft((current) => ({ ...current, life: value }))
+  }, [])
+
+  const setHealth = useCallback((value: number | null) => {
+    setDraft((current) => ({ ...current, health: value }))
+  }, [])
+
   const setSupportEffect = useCallback((value: string) => {
     setDraft((current) => ({ ...current, supportEffect: value }))
   }, [])
@@ -275,6 +331,12 @@ export function useCardAdminEffectEditorModel(
       const updatedCard = await mutation.mutateAsync({
         cardId: selectedCard.id,
         payload: {
+          type: draft.type,
+          color: draft.color,
+          power: draft.power,
+          damage: draft.damage,
+          life: isLeaderType(draft.type) ? (draft.life ?? 0) : undefined,
+          health: isLeaderType(draft.type) ? undefined : (draft.health ?? 0),
           description: draft.description,
           supportEffect: draft.supportEffect,
           cannotBeNormalSummoned: draft.cannotBeNormalSummoned,
@@ -314,6 +376,12 @@ export function useCardAdminEffectEditorModel(
     isDirty,
     isSaving: mutation.isPending,
     statusMessage,
+    setType,
+    setColor,
+    setPower,
+    setDamage,
+    setLife,
+    setHealth,
     setDescription,
     setSupportEffect,
     setCannotBeNormalSummoned,

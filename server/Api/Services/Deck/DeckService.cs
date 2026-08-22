@@ -67,7 +67,7 @@ public sealed partial class DeckService : IDeckService
         var cardCatalogEntries = await dbContext.CardCatalogEntries
                 .AsNoTracking()
                 .Where(entry => requestedCardIds.Contains(entry.CardId.ToUpper()))
-                .Select(entry => new { entry.Id, entry.CardId })
+            .Select(entry => new { entry.Id, entry.CardId, entry.Type })
                 .ToListAsync();
 
         var cardCatalogById = cardCatalogEntries
@@ -87,6 +87,20 @@ public sealed partial class DeckService : IDeckService
             return Error.Validation(
                     code: "Deck.Create.UnknownCardIds",
                     description: $"Unknown card id(s): {string.Join(", ", missingCardIds)}.");
+        }
+
+        var prohibitedCardIds = cardCatalogEntries
+            .Where(entry => entry.Type is CardType.Chakra or CardType.Summon)
+            .Select(entry => entry.CardId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(card => card, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (prohibitedCardIds.Count > 0)
+        {
+            return Error.Validation(
+                    code: "Deck.Create.UnsupportedCardType",
+                    description: $"Decks cannot include Chakra or Summon cards: {string.Join(", ", prohibitedCardIds)}.");
         }
 
         var deck = new Deck
@@ -350,7 +364,11 @@ public sealed partial class DeckService : IDeckService
 
     private static string ToReadableCardColor(CardColor color)
     {
-        return SplitPascalCase(color.ToString());
+        return color switch
+        {
+            CardColor.NotApplicable => "N/A",
+            _ => SplitPascalCase(color.ToString())
+        };
     }
 
     private static string ToReadableEffectKind(EffectKind kind)
