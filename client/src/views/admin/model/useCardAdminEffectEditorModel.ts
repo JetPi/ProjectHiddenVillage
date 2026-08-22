@@ -121,9 +121,57 @@ function getErrorMessage(error: unknown): string {
     return 'Failed to save effect payload.'
   }
 
-  const responseMessage = error.response?.data?.detail as string | undefined
-  if (responseMessage && responseMessage.trim().length > 0) {
-    return responseMessage
+  const payload = error.response?.data
+
+  if (typeof payload === 'string' && payload.trim().length > 0) {
+    return payload
+  }
+
+  if (payload && typeof payload === 'object') {
+    const detail = 'detail' in payload && typeof payload.detail === 'string'
+      ? payload.detail.trim()
+      : ''
+    const title = 'title' in payload && typeof payload.title === 'string'
+      ? payload.title.trim()
+      : ''
+
+    const toFriendlyPath = (path: string): string => {
+      return path
+        .replace(/\[(\d+)\]/g, ' $1')
+        .replace(/\./g, ' > ')
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/\s+/g, ' ')
+        .trim()
+    }
+
+    const errors = 'errors' in payload && payload.errors && typeof payload.errors === 'object'
+      ? Object.entries(payload.errors as Record<string, unknown>)
+      : []
+
+    const validationLines = errors.flatMap(([path, messages]) => {
+      if (!Array.isArray(messages)) {
+        return []
+      }
+
+      return messages
+        .filter((message): message is string => typeof message === 'string' && message.trim().length > 0)
+        .map((message) => `- ${toFriendlyPath(path)}: ${message.trim()}`)
+    })
+
+    if (validationLines.length > 0) {
+      const lines = [title || 'Validation failed while saving.', '']
+      lines.push(...validationLines)
+
+      return lines.join('\n')
+    }
+
+    if (detail.length > 0) {
+      return detail
+    }
+
+    if (title.length > 0) {
+      return title
+    }
   }
 
   return error.message || 'Failed to save effect payload.'

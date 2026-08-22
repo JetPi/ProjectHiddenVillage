@@ -20,7 +20,7 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
         }
 
         var perRuleCandidates = effectSpec.TargetRules.Rules
-            .Select(rule => ResolveRuleCandidates(rule, actingPlayerState, gameState))
+            .Select(rule => ResolveRuleCandidates(rule, actingPlayerState, gameState, context.SourceCardInstance))
             .ToList();
 
         if (perRuleCandidates.Count == 0)
@@ -38,7 +38,8 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
     private static IReadOnlyList<GameEffectTargetReference> ResolveRuleCandidates(
         EffectTargetRule rule,
         PlayerState actingPlayerState,
-        GameState gameState)
+        GameState gameState,
+        CardInstance? sourceCardInstance)
     {
         var targetPlayers = ResolveTargetPlayers(rule.Scope, actingPlayerState, gameState);
         var candidates = new List<GameEffectTargetReference>();
@@ -53,7 +54,7 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
                     continue;
                 }
 
-                if (!ZoneCardRestrictionMatcher.Matches(cardDefinition, rule.Restriction, cardInstance))
+                if (!ZoneCardRestrictionMatcher.Matches(cardDefinition, rule.Restriction, cardInstance, sourceCardInstance))
                 {
                     continue;
                 }

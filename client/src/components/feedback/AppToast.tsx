@@ -21,7 +21,7 @@ export function AppToast({ tone, message, onClose }: IAppToastProps) {
         <span className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${badgeClassName}`}>
           {toneIcon(tone)}
         </span>
-        <p className="flex-1 pt-0.5 text-sm leading-5 text-[var(--text-secondary)]">{message}</p>
+        <p className="flex-1 whitespace-pre-line pt-0.5 text-sm leading-5 text-[var(--text-secondary)]">{message}</p>
         <button
           type="button"
           onClick={onClose}

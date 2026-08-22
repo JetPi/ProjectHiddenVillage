@@ -11,8 +11,26 @@ export type ICardCatalogEffectExecutionConditionRequest = {
   negate: boolean
 }
 
+export type ICardCatalogPredicateProperty =
+  | 'Self'
+  | 'Id'
+  | 'Original Id'
+  | 'Display Name'
+  | 'Name'
+  | 'Trait'
+  | 'Type'
+  | 'Color'
+  | 'Power'
+  | 'Damage'
+  | 'Health'
+  | 'Current Health'
+  | 'Owner Player Id'
+  | 'Controller Player Id'
+  | 'Is Exhausted'
+  | 'Cannot Be Normal Summoned'
+
 export type ICardCatalogZoneCardPropertyPredicateRequest = {
-  property: string
+  property: ICardCatalogPredicateProperty
   operator: string
   value: string | null
   values: string[]

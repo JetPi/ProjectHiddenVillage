@@ -33,12 +33,12 @@ internal static class TributeTargetCompositionValidator
         {
             var targetKey = BuildTargetKey(target);
 
-            if (TargetMatchesAnyRoleRule(target, TributeTargetRole.SummonCandidate, effectSpec.TargetRules.Rules, actingPlayerState, gameState))
+            if (TargetMatchesAnyRoleRule(target, TributeTargetRole.SummonCandidate, effectSpec.TargetRules.Rules, actingPlayerState, gameState, context.SourceCardInstance))
             {
                 summonCandidateKeys.Add(targetKey);
             }
 
-            if (TargetMatchesAnyRoleRule(target, TributeTargetRole.TributeMaterial, effectSpec.TargetRules.Rules, actingPlayerState, gameState))
+            if (TargetMatchesAnyRoleRule(target, TributeTargetRole.TributeMaterial, effectSpec.TargetRules.Rules, actingPlayerState, gameState, context.SourceCardInstance))
             {
                 tributeMaterialKeys.Add(targetKey);
             }
@@ -61,7 +61,13 @@ internal static class TributeTargetCompositionValidator
             return false;
         }
 
-        if (!TryValidatePerRuleSelectedTargetCounts(selectedTargets, effectSpec.TargetRules.Rules, actingPlayerState, gameState, out failure))
+        if (!TryValidatePerRuleSelectedTargetCounts(
+            selectedTargets,
+            effectSpec.TargetRules.Rules,
+            actingPlayerState,
+            gameState,
+            context.SourceCardInstance,
+            out failure))
         {
             return false;
         }
@@ -74,6 +80,7 @@ internal static class TributeTargetCompositionValidator
         IReadOnlyList<EffectTargetRule> rules,
         PlayerState actingPlayerState,
         GameState gameState,
+        CardInstance? sourceCardInstance,
         out string failure)
     {
         failure = string.Empty;
@@ -89,7 +96,7 @@ internal static class TributeTargetCompositionValidator
             }
 
             var matchingCount = selectedTargets.Count(target =>
-                TargetMatchesRule(target, rule, actingPlayerState, gameState));
+                TargetMatchesRule(target, rule, actingPlayerState, gameState, sourceCardInstance));
 
             if (!IsRuleSelectedCountValid(rule, matchingCount, out var countFailure))
             {
@@ -136,7 +143,8 @@ internal static class TributeTargetCompositionValidator
         TributeTargetRole role,
         IReadOnlyList<EffectTargetRule> rules,
         PlayerState actingPlayerState,
-        GameState gameState)
+        GameState gameState,
+        CardInstance? sourceCardInstance)
     {
         foreach (var rule in rules)
         {
@@ -145,7 +153,7 @@ internal static class TributeTargetCompositionValidator
                 continue;
             }
 
-            if (TargetMatchesRule(target, rule, actingPlayerState, gameState))
+            if (TargetMatchesRule(target, rule, actingPlayerState, gameState, sourceCardInstance))
             {
                 return true;
             }
@@ -158,7 +166,8 @@ internal static class TributeTargetCompositionValidator
         GameEffectTargetReference target,
         EffectTargetRule rule,
         PlayerState actingPlayerState,
-        GameState gameState)
+        GameState gameState,
+        CardInstance? sourceCardInstance)
     {
         if (target.Zone != rule.InZone)
         {
@@ -192,7 +201,7 @@ internal static class TributeTargetCompositionValidator
             return false;
         }
 
-        return ZoneCardRestrictionMatcher.Matches(cardDefinition, rule.Restriction, cardInstance);
+        return ZoneCardRestrictionMatcher.Matches(cardDefinition, rule.Restriction, cardInstance, sourceCardInstance);
     }
 
     private static bool ScopeAllowsTargetPlayer(EffectTargetRange scope, string actingPlayerId, string targetPlayerId)

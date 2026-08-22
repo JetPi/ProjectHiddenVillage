@@ -36,7 +36,7 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                                     [
                                         new ZoneCardPropertyPredicate
                                         {
-                                            Property = "type",
+                                            Property = ZoneCardProperty.Type,
                                             Operator = ZoneCardPredicateOperator.In,
                                             Values = []
                                         }
@@ -54,7 +54,7 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                                     [
                                         new ZoneCardPropertyPredicate
                                         {
-                                            Property = "type",
+                                            Property = ZoneCardProperty.Type,
                                             Operator = ZoneCardPredicateOperator.In,
                                             Values = ["Character"]
                                         }
@@ -68,6 +68,81 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                             RequireSingleSummonTarget = true,
                             RequireDistinctSummonAndTributes = true
                         }
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_AllowsSelectedTargetCountWithoutTributeComposition_ForNonTributeRuntimeEffect()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-summon-card-selected-count",
+                    RuntimeEffectType = RuntimeEffects.SummonCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.OnSummon,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Operator = RequirementGroupOperator.Any,
+                        ExactTargetCount = 1,
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Self,
+                                InZone = PlayerZone.Trash,
+                                TributeRole = TributeTargetRole.SummonCandidate,
+                                ExactSelectedTargetCount = 1,
+                                Restriction = new ZoneCardRestriction
+                                {
+                                    Predicates =
+                                    [
+                                        new ZoneCardPropertyPredicate
+                                        {
+                                            Property = ZoneCardProperty.Name,
+                                            Operator = ZoneCardPredicateOperator.Equals,
+                                            Value = "Naruto Uzumaki"
+                                        }
+                                    ]
+                                }
+                            },
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Self,
+                                InZone = PlayerZone.Deck,
+                                TributeRole = TributeTargetRole.SummonCandidate,
+                                ExactSelectedTargetCount = 1,
+                                Restriction = new ZoneCardRestriction
+                                {
+                                    Predicates =
+                                    [
+                                        new ZoneCardPropertyPredicate
+                                        {
+                                            Property = ZoneCardProperty.Name,
+                                            Operator = ZoneCardPredicateOperator.Equals,
+                                            Value = "Naruto Uzumaki"
+                                        }
+                                    ],
+                                    MatchMode = ZoneRestrictionMatchMode.All
+                                }
+                            }
+                        ],
+                        TributeComposition = null,
                     }
                 }
             ],

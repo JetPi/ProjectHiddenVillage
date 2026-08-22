@@ -38,7 +38,7 @@ public sealed class EffectTargetResolverTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Ino Yamanaka"]
                                 }
@@ -55,7 +55,7 @@ public sealed class EffectTargetResolverTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Shikamaru Nara", "Choji Akimichi"]
                                 }
@@ -99,7 +99,7 @@ public sealed class EffectTargetResolverTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "traits",
+                                    Property = ZoneCardProperty.Trait,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Team10"]
                                 }
@@ -116,7 +116,7 @@ public sealed class EffectTargetResolverTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "type",
+                                    Property = ZoneCardProperty.Type,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Character"]
                                 }
@@ -162,7 +162,7 @@ public sealed class EffectTargetResolverTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "type",
+                                    Property = ZoneCardProperty.Type,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Character"]
                                 }
@@ -203,7 +203,7 @@ public sealed class EffectTargetResolverTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "power",
+                                    Property = ZoneCardProperty.Power,
                                     Operator = ZoneCardPredicateOperator.GreaterThanOrEqual,
                                     Value = "5"
                                 }
@@ -244,7 +244,7 @@ public sealed class EffectTargetResolverTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "type",
+                                    Property = ZoneCardProperty.Type,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = []
                                 }

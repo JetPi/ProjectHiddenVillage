@@ -221,7 +221,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Ninja A"]
                                 }
@@ -239,7 +239,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Ninja A", "Ninja B"]
                                 }
@@ -303,7 +303,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Ninja A"]
                                 }
@@ -321,7 +321,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Ninja B"]
                                 }
@@ -359,6 +359,85 @@ public sealed class GameEffectCanExecuteEvaluatorTests
     }
 
     [TestMethod]
+    public void Evaluate_ReturnsCannotExecute_WhenSummonCandidateMustBeSelfButDifferentInstanceIsSelected()
+    {
+        var evaluator = CreateEvaluator();
+        var effectSpec = new EffectSpec
+        {
+            RuntimeEffectType = RuntimeEffects.Tribute,
+            ContextRules = [],
+            TargetRules = new EffectTargetRuleSet
+            {
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        TributeRole = TributeTargetRole.SummonCandidate,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Self,
+                                    Operator = ZoneCardPredicateOperator.Equals,
+                                }
+                            ]
+                        }
+                    },
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        TributeRole = TributeTargetRole.TributeMaterial,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Name,
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Ninja B"]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                TributeComposition = new TributeTargetComposition
+                {
+                    ExactTributeCount = 1,
+                    RequireSingleSummonTarget = true,
+                    RequireDistinctSummonAndTributes = true,
+                }
+            }
+        };
+
+        var context = CreateContext(
+            playerOneResource: 0,
+            selectedTargets:
+            [
+                new("p1", PlayerZone.CharacterField, "ninja-a-inst"),
+                new("p1", PlayerZone.CharacterField, "ninja-b-inst"),
+            ],
+            arguments: new Dictionary<string, string>(StringComparer.Ordinal),
+            playerOneFieldCards:
+            [
+                CreateCardOnField("ninja-a", "ninja-a-inst", "p1", "Ninja A"),
+                CreateCardOnField("ninja-b", "ninja-b-inst", "p1", "Ninja B"),
+            ]);
+
+        var result = evaluator.Evaluate(context, effectSpec, includeValidTargets: false);
+
+        Assert.IsFalse(result.CanExecute);
+        Assert.IsTrue(result.FailedConditions.Any(message =>
+            message.Contains("summon candidate", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("exactly one", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [TestMethod]
     public void Evaluate_ReturnsCannotExecute_WhenPerRuleSelectedCountRequirementFails()
     {
         var evaluator = CreateEvaluator();
@@ -381,7 +460,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Summon Target"]
                                 }
@@ -400,13 +479,13 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "type",
+                                    Property = ZoneCardProperty.Type,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Character"]
                                 },
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.NotEquals,
                                     Value = "Summon Target"
                                 }
@@ -425,7 +504,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "power",
+                                    Property = ZoneCardProperty.Power,
                                     Operator = ZoneCardPredicateOperator.GreaterThanOrEqual,
                                     Value = "10"
                                 }
@@ -489,7 +568,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Summon Target"]
                                 }
@@ -508,13 +587,13 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "type",
+                                    Property = ZoneCardProperty.Type,
                                     Operator = ZoneCardPredicateOperator.In,
                                     Values = ["Character"]
                                 },
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "name",
+                                    Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.NotEquals,
                                     Value = "Summon Target"
                                 }
@@ -533,7 +612,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                             [
                                 new ZoneCardPropertyPredicate
                                 {
-                                    Property = "power",
+                                    Property = ZoneCardProperty.Power,
                                     Operator = ZoneCardPredicateOperator.GreaterThanOrEqual,
                                     Value = "10"
                                 }

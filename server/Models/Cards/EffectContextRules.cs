@@ -83,9 +83,29 @@ public enum ZoneCardPredicateOperator
     In,
 }
 
+public enum ZoneCardProperty
+{
+    Self,
+    Id,
+    OriginalId,
+    DisplayName,
+    Name,
+    Trait,
+    Type,
+    Color,
+    Power,
+    Damage,
+    Health,
+    CurrentHealth,
+    OwnerPlayerId,
+    ControllerPlayerId,
+    IsExhausted,
+    CannotBeNormalSummoned,
+}
+
 public sealed class ZoneCardPropertyPredicate
 {
-    public string Property { get; set; } = string.Empty;
+    public ZoneCardProperty Property { get; set; } = ZoneCardProperty.Type;
     public ZoneCardPredicateOperator Operator { get; set; } = ZoneCardPredicateOperator.Equals;
     public string? Value { get; set; }
     public IReadOnlyList<string>? Values { get; set; } = [];

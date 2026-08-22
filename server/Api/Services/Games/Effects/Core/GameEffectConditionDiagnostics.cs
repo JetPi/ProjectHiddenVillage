@@ -45,7 +45,7 @@ public sealed class GameEffectConditionDiagnostics : IGameEffectConditionDiagnos
 
     private static string FormatPredicate(ZoneCardPropertyPredicate predicate)
     {
-        var property = string.IsNullOrWhiteSpace(predicate.Property) ? "<unknown-property>" : predicate.Property;
+        var property = predicate.Property.ToString();
 
         return predicate.Operator switch
         {
