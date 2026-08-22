@@ -15,12 +15,14 @@ public sealed class DevelopmentUserSeeder
             UserId: SeedUserOneId,
             Username: "test-user-1",
             Email: "test-user-1@hiddenvillage.local",
-            Password: "TestUser1!"),
+            Password: "TestUser1!",
+            IsCardCatalogAdmin: true),
         new SeedUserDefinition(
             UserId: SeedUserTwoId,
             Username: "test-user-2",
             Email: "test-user-2@hiddenvillage.local",
-            Password: "TestUser2!")
+            Password: "TestUser2!",
+            IsCardCatalogAdmin: false)
     ];
 
     private readonly ApplicationDbContext dbContext;
@@ -41,13 +43,45 @@ public sealed class DevelopmentUserSeeder
     {
         foreach (var seedUser in SeedUsers)
         {
-            var existsById = await dbContext.Users
-                .AsNoTracking()
-                .AnyAsync(user => user.Id == seedUser.UserId, cancellationToken);
+            var existingById = await dbContext.Users
+                .SingleOrDefaultAsync(user => user.Id == seedUser.UserId, cancellationToken);
 
-            if (existsById)
+            if (existingById is not null)
             {
-                logger.LogInformation("Skipping seed user {UserId} because it already exists.", seedUser.UserId);
+                var wasUpdated = false;
+
+                if (!string.Equals(existingById.Username, seedUser.Username, StringComparison.Ordinal))
+                {
+                    existingById.Username = seedUser.Username;
+                    wasUpdated = true;
+                }
+
+                if (!string.Equals(existingById.Email, seedUser.Email, StringComparison.OrdinalIgnoreCase))
+                {
+                    existingById.Email = seedUser.Email;
+                    wasUpdated = true;
+                }
+
+                if (existingById.IsCardCatalogAdmin != seedUser.IsCardCatalogAdmin)
+                {
+                    existingById.IsCardCatalogAdmin = seedUser.IsCardCatalogAdmin;
+                    wasUpdated = true;
+                }
+
+                if (wasUpdated)
+                {
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    logger.LogInformation(
+                        "Updated seed user {UserId} ({Email}); IsCardCatalogAdmin={IsCardCatalogAdmin}.",
+                        existingById.Id,
+                        existingById.Email,
+                        existingById.IsCardCatalogAdmin);
+                }
+                else
+                {
+                    logger.LogInformation("Seed user {UserId} already up to date.", seedUser.UserId);
+                }
+
                 continue;
             }
 
@@ -68,7 +102,8 @@ public sealed class DevelopmentUserSeeder
             {
                 Id = seedUser.UserId,
                 Username = seedUser.Username,
-                Email = seedUser.Email
+                Email = seedUser.Email,
+                IsCardCatalogAdmin = seedUser.IsCardCatalogAdmin,
             };
 
             user.PasswordHash = passwordHasher.HashPassword(user, seedUser.Password);
@@ -84,5 +119,6 @@ public sealed class DevelopmentUserSeeder
         Guid UserId,
         string Username,
         string Email,
-        string Password);
+        string Password,
+        bool IsCardCatalogAdmin);
 }

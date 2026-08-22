@@ -2,5 +2,5 @@ namespace ProjectHiddenVillage.Server.Api.Interfaces.Auth;
 
 public interface IAuthTokenService
 {
-    AuthTokenResult CreateToken(Guid userId, string username, string email);
+    AuthTokenResult CreateToken(Guid userId, string username, string email, bool isCardCatalogAdmin);
 }

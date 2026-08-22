@@ -19,6 +19,10 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasMaxLength(512);
 
+        entity.Property(record => record.IsCardCatalogAdmin)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.HasIndex(record => record.Email)
             .IsUnique();
     }

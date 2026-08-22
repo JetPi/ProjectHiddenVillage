@@ -8,6 +8,8 @@ public sealed class User
 
     public string Username { get; set; } = string.Empty;
 
+    public bool IsCardCatalogAdmin { get; set; }
+
     public string PasswordHash { get; set; } = string.Empty;
 
     public List<Deck> Decks { get; set; } = [];
