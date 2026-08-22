@@ -2,6 +2,12 @@ import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import type { ICardCatalogEffectRequest, IUpdateCardCatalogEffectsRequest } from '@/services/api/types/cardCatalog'
 
 export type ICardAdminEffectEditorDraft = {
+  type: string
+  color: string
+  power: number
+  damage: number
+  life: number | null
+  health: number | null
   description: string
   supportEffect: string
   cannotBeNormalSummoned: boolean
@@ -29,6 +35,12 @@ export type ICardAdminEffectEditorModel = {
   setDescription: (value: string) => void
   setSupportEffect: (value: string) => void
   setCannotBeNormalSummoned: (value: boolean) => void
+  setType: (value: string) => void
+  setColor: (value: string) => void
+  setPower: (value: number) => void
+  setDamage: (value: number) => void
+  setLife: (value: number | null) => void
+  setHealth: (value: number | null) => void
   toggleCondition: (value: string) => void
   addCondition: (value: string) => void
   removeCondition: (value: string) => void
@@ -39,7 +51,18 @@ export type ICardAdminEffectEditorModel = {
 
 export type ICardAdminEffectEditorHydrationSource = Pick<
   ICardCatalogItemResponse,
-  'id' | 'description' | 'supportEffect' | 'cannotBeNormalSummoned' | 'conditions' | 'effects'
+  | 'id'
+  | 'type'
+  | 'color'
+  | 'power'
+  | 'damage'
+  | 'life'
+  | 'health'
+  | 'description'
+  | 'supportEffect'
+  | 'cannotBeNormalSummoned'
+  | 'conditions'
+  | 'effects'
 >
 
 export type IParsedCardAdminEffectsPayload = {

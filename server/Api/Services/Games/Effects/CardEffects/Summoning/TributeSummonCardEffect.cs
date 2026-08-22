@@ -77,6 +77,24 @@ public sealed class TributeSummonCardEffect(
         }
 
         var summonTarget = summonTargetResult.Value;
+        var summonTargetCard = TryGetCardDefinition(context, summonTarget.CardInstanceId);
+        if (summonTargetCard is not null)
+        {
+            if (summonTargetCard.Type is CardType.Chakra or CardType.Summon)
+            {
+                return Error.Validation(
+                    code: "Game.Effect.TributeSummon.UnsupportedCardType",
+                    description: $"Card '{summonTarget.CardInstanceId}' cannot be tribute summoned because its type is '{summonTargetCard.Type}'.");
+            }
+
+            if (summonTargetCard.CannotBeNormalSummoned)
+            {
+                return Error.Validation(
+                    code: "Game.Effect.TributeSummon.CannotBeNormalSummoned",
+                    description: $"Card '{summonTarget.CardInstanceId}' cannot be tribute summoned normally.");
+            }
+        }
+
         var tributeTargets = selectedTargets.Where(target => target != summonTarget);
         var affectedCardInstanceIds = new HashSet<string>(StringComparer.Ordinal);
         var affectedPlayerIds = new HashSet<string>(StringComparer.Ordinal)
@@ -220,5 +238,26 @@ public sealed class TributeSummonCardEffect(
         return Error.Validation(
             code: "Game.Effect.TributeSummon.AmbiguousSummonTarget",
             description: "Could not infer summon target from selected targets. Provide summonTargetId argument.");
+    }
+
+    private static Card? TryGetCardDefinition(GameCardEffectContext context, string cardInstanceId)
+    {
+        var cardInstance = context.Game.State.Players
+            .SelectMany(player => player.Deck
+                .Concat(player.Hand)
+                .Concat(player.Battlefield)
+                .Concat(player.SupportZone)
+                .Concat(player.DiscardPile)
+                .Concat(player.ExileZone))
+            .FirstOrDefault(card => string.Equals(card.InstanceId, cardInstanceId, StringComparison.Ordinal));
+
+        if (cardInstance is null)
+        {
+            return null;
+        }
+
+        return context.Game.State.CardDefinitions.TryGetValue(cardInstance.CardDefinitionId, out var cardDefinition)
+            ? cardDefinition
+            : null;
     }
 }

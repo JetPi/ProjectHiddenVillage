@@ -154,4 +154,71 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
 
         Assert.IsTrue(result.IsValid);
     }
+
+    [TestMethod]
+    public void Validate_AllowsCoreCardFieldPatch_WhenTypeColorAndHealthAreValid()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects: null,
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null,
+            Type: "Summon",
+            Color: "N/A",
+            Power: 2,
+            Damage: 1,
+            Life: null,
+            Health: 4);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenLifeAndHealthAreBothProvided()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects: null,
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null,
+            Type: "Leader",
+            Color: "Red",
+            Power: 1,
+            Damage: 1,
+            Life: 5,
+            Health: 2);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Life and Health cannot both be provided", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_AllowsEmptyEffectsArray_WhenProvided()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects: [],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null,
+            Type: null,
+            Color: null,
+            Power: null,
+            Damage: null,
+            Life: null,
+            Health: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
 }

@@ -5,8 +5,8 @@ export type ICardAdminViewStoreState = ICardAdminViewState & {
   setPageSize: (value: number) => void
   setSort: (value: string) => void
   setSearchText: (value: string) => void
-  setTypeFilter: (value: string) => void
-  setColorFilter: (value: string) => void
+  setTypeFilter: (value: string[]) => void
+  setColorFilter: (value: string[]) => void
   selectCard: (cardId: string) => void
   clearSelection: () => void
 }

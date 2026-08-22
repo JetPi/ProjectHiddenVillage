@@ -16,8 +16,8 @@ export type ICardAdminServerParams = {
 
 export type ICardAdminLocalFilters = {
   searchText: string
-  type: string
-  color: string
+  type: string[]
+  color: string[]
 }
 
 export type ICardAdminSelectionState = {
@@ -31,8 +31,8 @@ export type ICardAdminViewActions = {
   setPageSize: (value: number) => void
   setSort: (value: string) => void
   setSearchText: (value: string) => void
-  setTypeFilter: (value: string) => void
-  setColorFilter: (value: string) => void
+  setTypeFilter: (value: string[]) => void
+  setColorFilter: (value: string[]) => void
   selectCard: (cardId: string) => void
   clearSelection: () => void
 }

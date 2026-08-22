@@ -138,4 +138,10 @@ export type IUpdateCardCatalogEffectsRequest = {
   description?: string
   supportEffect?: string
   cannotBeNormalSummoned?: boolean
+  type?: string
+  color?: string
+  power?: number
+  damage?: number
+  life?: number
+  health?: number
 }

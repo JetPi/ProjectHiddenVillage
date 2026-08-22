@@ -147,9 +147,61 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
             .Must(conditions => conditions is null || conditions.Count > 0)
             .WithMessage("Conditions must include at least one entry when provided.");
 
-        RuleFor(request => request.Effects)
-            .Must(effects => effects is null || effects.Count > 0)
-            .WithMessage("Effects must include at least one entry when provided.");
+        RuleFor(request => request.Type)
+            .Must(type => type is null || TryParseCardType(type, out _))
+            .WithMessage("Type must be one of Leader, Character, EX Character, Chakra, or Summon.");
+
+        RuleFor(request => request.Color)
+            .Must(color => color is null || TryParseCardColor(color, out _))
+            .WithMessage("Color must be one of Red, Blue, Green, or N/A.");
+
+        RuleFor(request => request.Power)
+            .GreaterThanOrEqualTo(0)
+            .When(request => request.Power.HasValue)
+            .WithMessage("Power cannot be negative.");
+
+        RuleFor(request => request.Damage)
+            .GreaterThanOrEqualTo(0)
+            .When(request => request.Damage.HasValue)
+            .WithMessage("Damage cannot be negative.");
+
+        RuleFor(request => request.Life)
+            .GreaterThanOrEqualTo(0)
+            .When(request => request.Life.HasValue)
+            .WithMessage("Life cannot be negative.");
+
+        RuleFor(request => request.Health)
+            .GreaterThanOrEqualTo(0)
+            .When(request => request.Health.HasValue)
+            .WithMessage("Health cannot be negative.");
+
+        RuleFor(request => request)
+            .Must(request => !(request.Life.HasValue && request.Health.HasValue))
+            .WithMessage("Life and Health cannot both be provided in the same patch.");
+
+        RuleFor(request => request)
+            .Must(request =>
+            {
+                if (request.Type is null || !TryParseCardType(request.Type, out var parsedType))
+                {
+                    return true;
+                }
+
+                return parsedType == CardType.Leader || !request.Life.HasValue;
+            })
+            .WithMessage("Life can only be patched when Type is Leader.");
+
+        RuleFor(request => request)
+            .Must(request =>
+            {
+                if (request.Type is null || !TryParseCardType(request.Type, out var parsedType))
+                {
+                    return true;
+                }
+
+                return parsedType != CardType.Leader || !request.Health.HasValue;
+            })
+            .WithMessage("Health can only be patched for non-Leader card types.");
 
         RuleForEach(request => request.Conditions)
             .Must(condition => !string.IsNullOrWhiteSpace(condition))
@@ -328,6 +380,79 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
             || request.Effects is not null
             || request.Description is not null
             || request.SupportEffect is not null
-            || request.CannotBeNormalSummoned.HasValue;
+            || request.CannotBeNormalSummoned.HasValue
+            || request.Type is not null
+            || request.Color is not null
+            || request.Power.HasValue
+            || request.Damage.HasValue
+            || request.Life.HasValue
+            || request.Health.HasValue;
+    }
+
+    private static bool TryParseCardType(string value, out CardType parsedType)
+    {
+        var normalized = NormalizeCardEnumValue(value);
+
+        if (string.Equals(normalized, "EXCHARACTER", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedType = CardType.ExCharacter;
+            return true;
+        }
+
+        if (string.Equals(normalized, "LEADER", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedType = CardType.Leader;
+            return true;
+        }
+
+        if (string.Equals(normalized, "CHARACTER", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedType = CardType.Character;
+            return true;
+        }
+
+        if (string.Equals(normalized, "CHAKRA", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedType = CardType.Chakra;
+            return true;
+        }
+
+        if (string.Equals(normalized, "SUMMON", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedType = CardType.Summon;
+            return true;
+        }
+
+        parsedType = default;
+        return false;
+    }
+
+    private static bool TryParseCardColor(string value, out CardColor parsedColor)
+    {
+        var normalized = NormalizeCardEnumValue(value);
+
+        if (string.Equals(normalized, "NA", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "NOTAPPLICABLE", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedColor = CardColor.NotApplicable;
+            return true;
+        }
+
+        if (Enum.TryParse<CardColor>(normalized, ignoreCase: true, out var parsed))
+        {
+            parsedColor = parsed;
+            return true;
+        }
+
+        parsedColor = default;
+        return false;
+    }
+
+    private static string NormalizeCardEnumValue(string value)
+    {
+        return value.Trim()
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("-", string.Empty, StringComparison.Ordinal)
+            .Replace("/", string.Empty, StringComparison.Ordinal);
     }
 }

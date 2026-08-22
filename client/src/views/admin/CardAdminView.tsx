@@ -54,15 +54,17 @@ export function CardAdminView() {
 
   const filteredCards = useMemo(() => {
     const searchTerm = viewModel.searchText.trim().toLowerCase()
-    const typeFilter = viewModel.type
-    const colorFilter = viewModel.color
+    const typeFilters = viewModel.type
+    const colorFilters = viewModel.color
 
     return allLoadedItems.filter((card) => {
-      if (typeFilter !== 'all' && normalizeFilterValue(card.type) !== typeFilter) {
+      const normalizedType = normalizeFilterValue(card.type)
+      if (typeFilters.length > 0 && !typeFilters.includes(normalizedType)) {
         return false
       }
 
-      if (colorFilter !== 'all' && normalizeFilterValue(card.color) !== colorFilter) {
+      const normalizedColor = normalizeFilterValue(card.color)
+      if (colorFilters.length > 0 && !colorFilters.includes(normalizedColor)) {
         return false
       }
 
@@ -133,8 +135,8 @@ export function CardAdminView() {
           <aside className="themed-scrollbar flex h-full min-h-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
             <CardAdminFilterPanel
               searchText={viewModel.searchText}
-              typeValue={viewModel.type}
-              colorValue={viewModel.color}
+              typeValues={viewModel.type}
+              colorValues={viewModel.color}
               sortValue={viewModel.sort}
               typeOptions={typeOptions}
               colorOptions={colorOptions}

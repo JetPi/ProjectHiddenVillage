@@ -5,14 +5,14 @@ import type {
 
 export type ICardAdminFilterPanelProps = {
   searchText: string
-  typeValue: string
-  colorValue: string
+  typeValues: string[]
+  colorValues: string[]
   sortValue: string
   typeOptions: ICardAdminFilterOption[]
   colorOptions: ICardAdminFilterOption[]
   sortOptions: readonly ICardAdminSortOption[]
   onSearchTextChange: (value: string) => void
-  onTypeChange: (value: string) => void
-  onColorChange: (value: string) => void
+  onTypeChange: (value: string[]) => void
+  onColorChange: (value: string[]) => void
   onSortChange: (value: string) => void
 }

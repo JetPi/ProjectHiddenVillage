@@ -423,7 +423,6 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
     () => allConditionOptions.filter((condition) => !editorModel.draft.conditions.includes(condition)),
     [allConditionOptions, editorModel.draft.conditions],
   )
-
   const updateEffects = (nextEffects: ICardCatalogEffectRequest[]) => {
     editorModel.setEffectsText(toPrettyJson(nextEffects))
   }
@@ -493,7 +492,16 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
     <div className="mt-3 space-y-4">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="h-full">
-          <CardAdminSelectedCardSummary card={selectedCard} />
+          <CardAdminSelectedCardSummary
+            card={selectedCard}
+            draft={editorModel.draft}
+            onTypeChange={editorModel.setType}
+            onColorChange={editorModel.setColor}
+            onPowerChange={editorModel.setPower}
+            onDamageChange={editorModel.setDamage}
+            onLifeChange={editorModel.setLife}
+            onHealthChange={editorModel.setHealth}
+          />
         </div>
 
         <div className="flex h-full flex-col gap-3">
@@ -3227,14 +3235,14 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
                 const result = await editorModel.save()
                 if (result.ok) {
-                  showAppSuccessToast('Card effects saved successfully.', {
+                  showAppSuccessToast('Card saved successfully.', {
                     id: 'card-admin-save-status',
                     position: 'top-right',
                   })
                   return
                 }
 
-                showAppInfoToast(result.message ?? 'Failed to save effect payload.', {
+                showAppInfoToast(result.message ?? 'Failed to save card payload.', {
                   id: 'card-admin-save-status',
                   position: 'top-right',
                 })
@@ -3242,7 +3250,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
               disabled={isSaveDisabled}
               className="shadow-lg"
             >
-              {editorModel.isSaving ? 'Saving...' : 'Save Effects'}
+              {editorModel.isSaving ? 'Saving...' : 'Save Card'}
             </AppButton>
           </div>,
           document.body,

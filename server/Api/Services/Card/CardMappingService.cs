@@ -224,6 +224,52 @@ public sealed class CardMappingService : ICardMappingService
             entry.CannotBeNormalSummoned = request.CannotBeNormalSummoned.Value;
         }
 
+        if (request.Type is not null)
+        {
+            if (!TryParsePatchCardType(request.Type, out var parsedType))
+            {
+                return Error.Validation(
+                    code: "Card.CatalogEffects.InvalidType",
+                    description: $"Card type '{request.Type}' is not valid.");
+            }
+
+            entry.Type = parsedType;
+        }
+
+        if (request.Color is not null)
+        {
+            if (!TryParsePatchCardColor(request.Color, out var parsedColor))
+            {
+                return Error.Validation(
+                    code: "Card.CatalogEffects.InvalidColor",
+                    description: $"Card color '{request.Color}' is not valid.");
+            }
+
+            entry.Color = parsedColor;
+        }
+
+        if (request.Power.HasValue)
+        {
+            entry.Power = request.Power.Value;
+        }
+
+        if (request.Damage.HasValue)
+        {
+            entry.Damage = request.Damage.Value;
+        }
+
+        if (request.Life.HasValue)
+        {
+            entry.Life = request.Life.Value;
+        }
+
+        if (request.Health.HasValue)
+        {
+            entry.Health = request.Health.Value;
+        }
+
+        NormalizeLifeAndHealthByType(entry);
+
         entry.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
         try
@@ -553,7 +599,89 @@ public sealed class CardMappingService : ICardMappingService
 
     private static string ToReadableCardColor(CardColor color)
     {
-        return SplitPascalCase(color.ToString());
+        return color switch
+        {
+            CardColor.NotApplicable => "N/A",
+            _ => SplitPascalCase(color.ToString())
+        };
+    }
+
+    private static bool TryParsePatchCardType(string value, out CardType parsedType)
+    {
+        var normalized = NormalizeForEnumParsing(value);
+        if (string.Equals(normalized, "EXCHARACTER", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedType = CardType.ExCharacter;
+            return true;
+        }
+
+        if (string.Equals(normalized, "CHAKRA", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedType = CardType.Chakra;
+            return true;
+        }
+
+        if (string.Equals(normalized, "SUMMON", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedType = CardType.Summon;
+            return true;
+        }
+
+        if (string.Equals(normalized, "LEADER", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedType = CardType.Leader;
+            return true;
+        }
+
+        if (string.Equals(normalized, "CHARACTER", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedType = CardType.Character;
+            return true;
+        }
+
+        parsedType = default;
+        return false;
+    }
+
+    private static bool TryParsePatchCardColor(string value, out CardColor parsedColor)
+    {
+        var normalized = NormalizeForEnumParsing(value);
+        if (string.Equals(normalized, "NA", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "NOTAPPLICABLE", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedColor = CardColor.NotApplicable;
+            return true;
+        }
+
+        if (Enum.TryParse<CardColor>(normalized, ignoreCase: true, out var parsed))
+        {
+            parsedColor = parsed;
+            return true;
+        }
+
+        parsedColor = default;
+        return false;
+    }
+
+    private static string NormalizeForEnumParsing(string value)
+    {
+        return value.Trim()
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("-", string.Empty, StringComparison.Ordinal)
+            .Replace("/", string.Empty, StringComparison.Ordinal);
+    }
+
+    private static void NormalizeLifeAndHealthByType(CardCatalogEntry entry)
+    {
+        if (entry.Type == CardType.Leader)
+        {
+            entry.Life ??= entry.Health ?? 0;
+            entry.Health = null;
+            return;
+        }
+
+        entry.Health ??= entry.Life ?? 0;
+        entry.Life = null;
     }
 
     private static string ToReadableEffectKind(EffectKind kind)

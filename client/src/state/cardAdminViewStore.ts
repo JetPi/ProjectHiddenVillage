@@ -6,8 +6,8 @@ const initialState = {
   pageSize: 25,
   sort: 'cardId',
   searchText: '',
-  type: 'all',
-  color: 'all',
+  type: [] as string[],
+  color: [] as string[],
   selectedCardId: null,
 }
 
@@ -21,8 +21,16 @@ export const useCardAdminViewStore = create<ICardAdminViewStoreState>()((set) =>
     }),
   setSort: (value) => set({ sort: value || 'cardId', page: 1 }),
   setSearchText: (value) => set({ searchText: value, page: 1 }),
-  setTypeFilter: (value) => set({ type: value || 'all', page: 1 }),
-  setColorFilter: (value) => set({ color: value || 'all', page: 1 }),
+  setTypeFilter: (value) =>
+    set({
+      type: Array.from(new Set(value.filter((entry) => entry && entry !== 'all'))),
+      page: 1,
+    }),
+  setColorFilter: (value) =>
+    set({
+      color: Array.from(new Set(value.filter((entry) => entry && entry !== 'all'))),
+      page: 1,
+    }),
   selectCard: (cardId) => set({ selectedCardId: cardId }),
   clearSelection: () => set({ selectedCardId: null }),
 }))

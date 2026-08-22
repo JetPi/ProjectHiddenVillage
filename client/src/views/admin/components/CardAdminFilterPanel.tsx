@@ -1,10 +1,11 @@
+import { useState } from 'react'
 import { FormInput, FormLabel, FormSelect } from '@/components/forms'
 import type { ICardAdminFilterPanelProps } from '@/views/admin/types/cardAdminFilterPanel'
 
 export function CardAdminFilterPanel({
   searchText,
-  typeValue,
-  colorValue,
+  typeValues,
+  colorValues,
   sortValue,
   typeOptions,
   colorOptions,
@@ -14,6 +15,17 @@ export function CardAdminFilterPanel({
   onColorChange,
   onSortChange,
 }: ICardAdminFilterPanelProps) {
+  const [pendingTypeSelection, setPendingTypeSelection] = useState('')
+  const [pendingColorSelection, setPendingColorSelection] = useState('')
+
+  const selectableTypeOptions = typeOptions.filter((option) => option.value !== 'all')
+  const selectableColorOptions = colorOptions.filter((option) => option.value !== 'all')
+  const selectedTypeOptions = selectableTypeOptions.filter((option) => typeValues.includes(option.value))
+  const selectedColorOptions = selectableColorOptions.filter((option) => colorValues.includes(option.value))
+
+  const availableTypeOptions = selectableTypeOptions.filter((option) => !typeValues.includes(option.value))
+  const availableColorOptions = selectableColorOptions.filter((option) => !colorValues.includes(option.value))
+
   return (
     <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-2.5">
       <div className="space-y-1">
@@ -30,29 +42,105 @@ export function CardAdminFilterPanel({
       </div>
 
       <div className="space-y-1">
-        <FormLabel htmlFor="card-admin-type-filter" className="text-[10px] tracking-[0.12em]">
+        <FormLabel className="text-[10px] tracking-[0.12em]">
           Type
         </FormLabel>
-        <FormSelect
-          id="card-admin-type-filter"
-          value={typeValue}
-          options={typeOptions}
-          onValueChange={onTypeChange}
-          className="py-2"
-        />
+        <select
+          value={pendingTypeSelection}
+          disabled={availableTypeOptions.length === 0}
+          onChange={(event) => {
+            const nextValue = event.target.value
+            setPendingTypeSelection(nextValue)
+
+            if (!nextValue) {
+              return
+            }
+
+            if (!typeValues.includes(nextValue)) {
+              onTypeChange([...typeValues, nextValue])
+            }
+
+            setPendingTypeSelection('')
+          }}
+          className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--field-bg)] px-4 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--focus-ring)] focus:outline-none disabled:cursor-not-allowed"
+        >
+          <option value="">{availableTypeOptions.length === 0 ? 'All selected' : 'All types'}</option>
+          {availableTypeOptions.length > 0 ? (
+            availableTypeOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))
+          ) : null}
+        </select>
       </div>
 
       <div className="space-y-1">
-        <FormLabel htmlFor="card-admin-color-filter" className="text-[10px] tracking-[0.12em]">
+        <FormLabel className="text-[10px] tracking-[0.12em]">
           Color
         </FormLabel>
-        <FormSelect
-          id="card-admin-color-filter"
-          value={colorValue}
-          options={colorOptions}
-          onValueChange={onColorChange}
-          className="py-2"
-        />
+        <select
+          value={pendingColorSelection}
+          disabled={availableColorOptions.length === 0}
+          onChange={(event) => {
+            const nextValue = event.target.value
+            setPendingColorSelection(nextValue)
+
+            if (!nextValue) {
+              return
+            }
+
+            if (!colorValues.includes(nextValue)) {
+              onColorChange([...colorValues, nextValue])
+            }
+
+            setPendingColorSelection('')
+          }}
+          className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--field-bg)] px-4 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--focus-ring)] focus:outline-none disabled:cursor-not-allowed"
+        >
+          <option value="">{availableColorOptions.length === 0 ? 'All selected' : 'All colors'}</option>
+          {availableColorOptions.length > 0 ? (
+            availableColorOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))
+          ) : null}
+        </select>
+      </div>
+
+      <div className="col-span-3 flex min-h-6 flex-wrap items-center gap-1.5">
+        {selectedTypeOptions.map((option) => (
+          <div
+            key={`type-${option.value}`}
+            className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--text-primary)]"
+          >
+            <span className="text-[var(--text-secondary)]">Type:</span>
+            <span>{option.label}</span>
+            <button
+              type="button"
+              onClick={() => onTypeChange(typeValues.filter((value) => value !== option.value))}
+              className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+              aria-label={`Remove type ${option.label}`}
+            >
+              X
+            </button>
+          </div>
+        ))}
+
+        {selectedColorOptions.map((option) => (
+          <div
+            key={`color-${option.value}`}
+            className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--text-primary)]"
+          >
+            <span className="text-[var(--text-secondary)]">Color:</span>
+            <span>{option.label}</span>
+            <button
+              type="button"
+              onClick={() => onColorChange(colorValues.filter((value) => value !== option.value))}
+              className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+              aria-label={`Remove color ${option.label}`}
+            >
+              X
+            </button>
+          </div>
+        ))}
       </div>
 
       <div className="col-span-3 space-y-1">

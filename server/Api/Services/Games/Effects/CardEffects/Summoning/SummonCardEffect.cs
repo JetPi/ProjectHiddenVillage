@@ -38,7 +38,7 @@ public sealed class SummonCardEffect(
 		}
 
 		result.ValidTargets = result.ValidTargets
-			.Where(target => !IsNormalSummonBlocked(context, target.CardInstanceId))
+			.Where(target => !IsSummonBlocked(context, target.CardInstanceId))
 			.ToList();
 
 		if (result.ValidTargets.Count == 0)
@@ -66,7 +66,7 @@ public sealed class SummonCardEffect(
 
 		return targetResolver
 			.ResolveTargets(context, effectSpec)
-			.Where(target => !IsNormalSummonBlocked(context, target.CardInstanceId))
+			.Where(target => !IsSummonBlocked(context, target.CardInstanceId))
 			.ToList();
 	}
 
@@ -76,11 +76,12 @@ public sealed class SummonCardEffect(
 		var suppressSummonedTargetsEffectsWhileOnField =
 			effectSpec?.SuppressSummonedTargetsEffectsWhileOnField ?? false;
 
-		var blockedTarget = selectedTargets.FirstOrDefault(target => IsNormalSummonBlocked(context, target.CardInstanceId));
+		var blockedTarget = selectedTargets.FirstOrDefault(target => IsSummonBlocked(context, target.CardInstanceId));
 		if (blockedTarget is not null)
 		{
+			var blockCode = ResolveSummonBlockCode(context, blockedTarget.CardInstanceId);
 			return Error.Validation(
-				code: "Game.Effect.SummonCard.CannotBeNormalSummoned",
+				code: blockCode,
 				description: $"Card '{blockedTarget.CardInstanceId}' cannot be summoned normally.");
 		}
 
@@ -156,7 +157,7 @@ public sealed class SummonCardEffect(
 		return orchestrationResult.IsError ? orchestrationResult.Errors : Result.Success;
 	}
 
-	private static bool IsNormalSummonBlocked(GameCardEffectContext context, string cardInstanceId)
+	private static bool IsSummonBlocked(GameCardEffectContext context, string cardInstanceId)
 	{
 		var cardInstance = context.Game.State.Players
 			.SelectMany(player => player.Deck
@@ -177,6 +178,37 @@ public sealed class SummonCardEffect(
 			return false;
 		}
 
+		if (cardDefinition.Type is CardType.Chakra or CardType.Summon)
+		{
+			return true;
+		}
+
 		return cardDefinition.CannotBeNormalSummoned;
+	}
+
+	private static string ResolveSummonBlockCode(GameCardEffectContext context, string cardInstanceId)
+	{
+		var cardInstance = context.Game.State.Players
+			.SelectMany(player => player.Deck
+				.Concat(player.Hand)
+				.Concat(player.Battlefield)
+				.Concat(player.SupportZone)
+				.Concat(player.DiscardPile)
+				.Concat(player.ExileZone))
+			.FirstOrDefault(card => string.Equals(card.InstanceId, cardInstanceId, StringComparison.Ordinal));
+
+		if (cardInstance is null)
+		{
+			return "Game.Effect.SummonCard.CannotBeNormalSummoned";
+		}
+
+		if (!context.Game.State.CardDefinitions.TryGetValue(cardInstance.CardDefinitionId, out var cardDefinition))
+		{
+			return "Game.Effect.SummonCard.CannotBeNormalSummoned";
+		}
+
+		return cardDefinition.Type is CardType.Chakra or CardType.Summon
+			? "Game.Effect.SummonCard.UnsupportedCardType"
+			: "Game.Effect.SummonCard.CannotBeNormalSummoned";
 	}
 }

@@ -82,6 +82,16 @@ public static partial class CardDataSourceMapper
             return CardType.Leader;
         }
 
+        if (normalized.Contains("CHAKRA", StringComparison.Ordinal))
+        {
+            return CardType.Chakra;
+        }
+
+        if (normalized.Contains("SUMMON", StringComparison.Ordinal))
+        {
+            return CardType.Summon;
+        }
+
         if (normalized.Contains("EX", StringComparison.Ordinal))
         {
             return CardType.ExCharacter;
@@ -92,10 +102,20 @@ public static partial class CardDataSourceMapper
 
     private static CardColor ParseColor(string? color)
     {
-        var normalized = NormalizeRequired(color);
+        var normalized = NormalizeRequired(color)
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("-", string.Empty, StringComparison.Ordinal)
+            .Replace("/", string.Empty, StringComparison.Ordinal);
+
+        if (string.Equals(normalized, "NA", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "NOTAPPLICABLE", StringComparison.OrdinalIgnoreCase))
+        {
+            return CardColor.NotApplicable;
+        }
+
         return Enum.TryParse<CardColor>(normalized, ignoreCase: true, out var parsed)
             ? parsed
-            : CardColor.Red;
+            : CardColor.NotApplicable;
     }
 
     private static List<string> ParseTraits(string? trait)

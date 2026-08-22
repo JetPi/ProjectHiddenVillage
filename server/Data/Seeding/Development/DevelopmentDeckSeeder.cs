@@ -96,7 +96,7 @@ public sealed class DevelopmentDeckSeeder
             var catalogEntries = await dbContext.CardCatalogEntries
                 .AsNoTracking()
                 .Where(entry => requestedCardIds.Contains(entry.CardId.ToUpper()))
-                .Select(entry => new { entry.Id, entry.CardId })
+                .Select(entry => new { entry.Id, entry.CardId, entry.Type })
                 .ToListAsync(cancellationToken);
 
             var catalogByCardId = catalogEntries.ToDictionary(
@@ -115,6 +115,22 @@ public sealed class DevelopmentDeckSeeder
                     "Skipping seed deck {DeckId}. Unknown card id(s): {MissingCardIds}",
                     seedDeck.DeckId,
                     string.Join(", ", missingCardIds));
+                continue;
+            }
+
+            var prohibitedCardIds = catalogEntries
+                .Where(entry => entry.Type is CardType.Chakra or CardType.Summon)
+                .Select(entry => entry.CardId)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(cardId => cardId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (prohibitedCardIds.Count > 0)
+            {
+                logger.LogWarning(
+                    "Skipping seed deck {DeckId}. Non-deckable card type(s) found for card id(s): {CardIds}",
+                    seedDeck.DeckId,
+                    string.Join(", ", prohibitedCardIds));
                 continue;
             }
 
