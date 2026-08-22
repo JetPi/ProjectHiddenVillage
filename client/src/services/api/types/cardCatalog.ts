@@ -11,6 +11,23 @@ export type ICardCatalogEffectExecutionConditionRequest = {
   negate: boolean
 }
 
+export type ICardCatalogPassiveReevaluationRequest = {
+  triggerKinds: string[]
+  scope: string
+}
+
+export type ICardCatalogPassiveConsequenceRequest = {
+  consequenceEffectTypeKey: string
+  targetPolicy: string
+  consequenceArguments?: Record<string, string>
+}
+
+export type ICardCatalogKeywordModificationRequest = {
+  targetType: string
+  operation: string
+  keyword: string
+}
+
 export type ICardCatalogPredicateProperty =
   | 'Self'
   | 'Id'
@@ -119,6 +136,10 @@ export type ICardCatalogEffectRequest = {
   runtimeEffectType: string
   effectType: string
   timing: string
+  passiveMode: string
+  passiveReevaluation: ICardCatalogPassiveReevaluationRequest | null
+  passiveConsequences: ICardCatalogPassiveConsequenceRequest[]
+  keywordModifications: ICardCatalogKeywordModificationRequest[]
   targetRange: string
   isOptional: boolean
   chakraCost: number | null

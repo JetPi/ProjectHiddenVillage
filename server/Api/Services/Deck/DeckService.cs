@@ -261,6 +261,14 @@ public sealed partial class DeckService : IDeckService
                         RuntimeEffectType: ToReadableRuntimeEffect(effect.RuntimeEffectType),
                         EffectType: ToReadableEffectKind(effect.EffectType),
                                 Timing: ToReadableEffectTiming(effect.Timing),
+                        PassiveMode: SplitPascalCase(effect.PassiveMode.ToString()),
+                        PassiveReevaluation: ToPassiveReevaluationResponse(effect.PassiveReevaluation),
+                        PassiveConsequences: effect.PassiveConsequences
+                            .Select(ToPassiveConsequenceResponse)
+                            .ToList(),
+                        KeywordModifications: effect.KeywordModifications
+                            .Select(ToKeywordModificationResponse)
+                            .ToList(),
                         TargetRange: ToReadableEffectTargetRange(effect.TargetRange),
                         IsOptional: effect.IsOptional,
                         ChakraCost: effect.ChakraCost,
@@ -435,6 +443,36 @@ public sealed partial class DeckService : IDeckService
             ExpectedValue: condition.ExpectedValue,
             IgnoreCase: condition.IgnoreCase,
             Negate: condition.Negate);
+    }
+
+    private static CardCatalogPassiveReevaluationResponse? ToPassiveReevaluationResponse(PassiveReevaluationSpec? spec)
+    {
+        if (spec is null)
+        {
+            return null;
+        }
+
+        return new CardCatalogPassiveReevaluationResponse(
+            TriggerKinds: spec.TriggerKinds.Select(kind => SplitPascalCase(kind.ToString())).ToList(),
+            Scope: SplitPascalCase(spec.Scope.ToString()));
+    }
+
+    private static CardCatalogPassiveConsequenceResponse ToPassiveConsequenceResponse(PassiveConsequenceSpec spec)
+    {
+        return new CardCatalogPassiveConsequenceResponse(
+            ConsequenceEffectTypeKey: spec.ConsequenceEffectTypeKey,
+            TargetPolicy: SplitPascalCase(spec.TargetPolicy.ToString()),
+            ConsequenceArguments: spec.ConsequenceArguments is null
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : new Dictionary<string, string>(spec.ConsequenceArguments, StringComparer.Ordinal));
+    }
+
+    private static CardCatalogKeywordModificationResponse ToKeywordModificationResponse(KeywordModificationSpec spec)
+    {
+        return new CardCatalogKeywordModificationResponse(
+            TargetType: SplitPascalCase(spec.TargetType.ToString()),
+            Operation: SplitPascalCase(spec.Operation.ToString()),
+            Keyword: spec.Keyword);
     }
 
     private static CardCatalogEffectContextRuleSetResponse ToContextRuleResponse(EffectContextRuleSet rule)

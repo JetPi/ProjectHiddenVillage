@@ -10,6 +10,9 @@ import type { ICountConstraintMode } from '@/views/admin/types/countConstraintFi
 import type {
   ICardCatalogAttributeModificationRequest,
   ICardCatalogChakraAdjustmentRequest,
+  ICardCatalogKeywordModificationRequest,
+  ICardCatalogPassiveConsequenceRequest,
+  ICardCatalogPassiveReevaluationRequest,
   ICardCatalogEffectContextRuleSetRequest,
   ICardCatalogPredicateProperty,
   ICardCatalogEffectRequest,
@@ -52,6 +55,13 @@ const EFFECT_TIMING_OPTIONS = [
   'Your Turn',
   'When Attacking',
 ] as const
+const PASSIVE_MODE_OPTIONS = ['None', 'Continuous', 'Triggered'] as const
+const PASSIVE_SCOPE_OPTIONS = ['Source Card Only', 'Source Controller', 'Whole Game'] as const
+const PASSIVE_TRIGGER_KIND_OPTIONS = ['Any', 'Stats Changed', 'Zone Changed', 'Turn Changed', 'Phase Changed', 'Stack Resolved'] as const
+const PASSIVE_TARGET_POLICY_OPTIONS = ['Source Card', 'Trigger Selected Targets'] as const
+const PASSIVE_CONSEQUENCE_EFFECT_OPTIONS = ['DestroyCard', 'NegateCard', 'SummonCard', 'TributeSummonCard', 'ModifyAttribute', 'GainKeyword', 'AlterResources', 'Noop'] as const
+const KEYWORD_TARGET_TYPE_OPTIONS = ['Source Card', 'Selected Targets'] as const
+const KEYWORD_OPERATION_OPTIONS = ['Add', 'Remove'] as const
 
 const TARGET_RANGE_OPTIONS = ['Self', 'Opponent', 'Any'] as const
 const EXECUTION_TARGET_SOURCE_OPTIONS = ['Selected Targets', 'Source Card', 'None'] as const
@@ -132,6 +142,10 @@ function createDefaultEffect(): ICardCatalogEffectRequest {
     runtimeEffectType: 'Change Values',
     effectType: 'Support',
     timing: 'Quick',
+    passiveMode: 'None',
+    passiveReevaluation: null,
+    passiveConsequences: [],
+    keywordModifications: [],
     targetRange: 'Self',
     isOptional: false,
     chakraCost: null,
@@ -153,6 +167,28 @@ function createDefaultEffect(): ICardCatalogEffectRequest {
       tributeComposition: null,
       rules: [],
     },
+  }
+}
+
+function createDefaultPassiveReevaluation(): ICardCatalogPassiveReevaluationRequest {
+  return {
+    triggerKinds: ['Any'],
+    scope: 'Source Card Only',
+  }
+}
+
+function createDefaultPassiveConsequence(): ICardCatalogPassiveConsequenceRequest {
+  return {
+    consequenceEffectTypeKey: 'GainKeyword',
+    targetPolicy: 'Source Card',
+  }
+}
+
+function createDefaultKeywordModification(): ICardCatalogKeywordModificationRequest {
+  return {
+    targetType: 'Source Card',
+    operation: 'Add',
+    keyword: '',
   }
 }
 
@@ -246,6 +282,43 @@ function parseNullableInteger(value: string): number | null {
 
   const parsed = Number.parseInt(nextValue, 10)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function appendKeywordEntries(
+  keywordModifications: ICardCatalogKeywordModificationRequest[],
+  modificationIndex: number,
+  rawInput: string,
+): ICardCatalogKeywordModificationRequest[] {
+  const nextEntries = rawInput
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+
+  if (nextEntries.length === 0) {
+    return keywordModifications
+  }
+
+  const targetModification = keywordModifications[modificationIndex]
+  if (!targetModification) {
+    return keywordModifications
+  }
+
+  const normalizedKeyword = targetModification.keyword.trim()
+  const prefix = keywordModifications.slice(0, modificationIndex)
+  const suffix = keywordModifications.slice(modificationIndex + 1)
+
+  if (!normalizedKeyword) {
+    const [firstEntry, ...remainingEntries] = nextEntries
+    const injectedRows = [
+      { ...targetModification, keyword: firstEntry },
+      ...remainingEntries.map((entry) => ({ ...targetModification, keyword: entry })),
+    ]
+
+    return [...prefix, ...injectedRows, ...suffix]
+  }
+
+  const appendedRows = nextEntries.map((entry) => ({ ...targetModification, keyword: entry }))
+  return [...prefix, targetModification, ...appendedRows, ...suffix]
 }
 
 function getPredicateEntries(predicate: ICardCatalogZoneCardPropertyPredicateRequest): string[] {
@@ -368,6 +441,29 @@ function resolveCountConstraintValue(
   }
 
   return maximumCount
+}
+
+function resolveCountConstraintSeedValue(
+  exactCount: number | null,
+  minimumCount: number | null,
+  maximumCount: number | null,
+  autoSelectAllValidTargets = false,
+): number {
+  const currentMode = resolveCountConstraintMode(
+    exactCount,
+    minimumCount,
+    maximumCount,
+    autoSelectAllValidTargets,
+  )
+
+  const currentValue = resolveCountConstraintValue(
+    currentMode,
+    exactCount,
+    minimumCount,
+    maximumCount,
+  )
+
+  return currentValue ?? 1
 }
 
 function resolveAttributeValueConstraintMode(
@@ -764,6 +860,34 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </div>
 
                   <div className="space-y-1">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Mode</label>
+                    <select
+                      value={effect.passiveMode}
+                      onChange={(event) =>
+                        updateEffectAt(effectIndex, (current) => {
+                          const nextPassiveMode = event.target.value
+                          const isPassiveEnabled = nextPassiveMode !== 'None'
+
+                          return {
+                            ...current,
+                            passiveMode: nextPassiveMode,
+                            passiveReevaluation: isPassiveEnabled
+                              ? current.passiveReevaluation ?? createDefaultPassiveReevaluation()
+                              : null,
+                            passiveConsequences: isPassiveEnabled
+                              ? (current.passiveConsequences ?? [])
+                              : [],
+                          }
+                        })}
+                      className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                    >
+                      {PASSIVE_MODE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Range</label>
                     <select
                       value={effect.targetRange}
@@ -963,6 +1087,250 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   ) : null}
                 </div>
 
+                {effect.passiveMode !== 'None' ? (
+                  <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-violet-500/55 bg-[var(--surface-muted)] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Settings</p>
+
+                    <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+                      <input
+                        type="checkbox"
+                        checked={effect.passiveReevaluation !== null}
+                        onChange={(event) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            passiveReevaluation: event.target.checked
+                              ? current.passiveReevaluation ?? createDefaultPassiveReevaluation()
+                              : null,
+                          }))}
+                      />
+                      Passive Reevaluation Enabled
+                    </label>
+
+                    {effect.passiveReevaluation ? (
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Reevaluation Scope</label>
+                          <select
+                            value={effect.passiveReevaluation.scope}
+                            onChange={(event) =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                passiveReevaluation: current.passiveReevaluation
+                                  ? { ...current.passiveReevaluation, scope: event.target.value }
+                                  : null,
+                              }))}
+                            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                          >
+                            {PASSIVE_SCOPE_OPTIONS.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Trigger Kind</label>
+                          <select
+                            value={effect.passiveReevaluation.triggerKinds[0] ?? 'Any'}
+                            onChange={(event) =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                passiveReevaluation: current.passiveReevaluation
+                                  ? { ...current.passiveReevaluation, triggerKinds: [event.target.value] }
+                                  : null,
+                              }))}
+                            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                          >
+                            {PASSIVE_TRIGGER_KIND_OPTIONS.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-violet-500/35 bg-[var(--surface)] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Consequences</p>
+                        <AppButton
+                          type="button"
+                          variant="ghost"
+                          onClick={() =>
+                            updateEffectAt(effectIndex, (current) => ({
+                              ...current,
+                              passiveConsequences: [...(current.passiveConsequences ?? []), createDefaultPassiveConsequence()],
+                            }))}
+                        >
+                          Add Consequence
+                        </AppButton>
+                      </div>
+
+                      {(effect.passiveConsequences ?? []).map((consequence, consequenceIndex) => (
+                        <div key={`passive-consequence-${consequenceIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 sm:grid-cols-3">
+                          <select
+                            value={consequence.consequenceEffectTypeKey}
+                            onChange={(event) =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                passiveConsequences: (current.passiveConsequences ?? []).map((row, index) =>
+                                  index === consequenceIndex ? { ...row, consequenceEffectTypeKey: event.target.value } : row),
+                              }))}
+                            className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                          >
+                            {PASSIVE_CONSEQUENCE_EFFECT_OPTIONS.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+
+                          <select
+                            value={consequence.targetPolicy}
+                            onChange={(event) =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                passiveConsequences: (current.passiveConsequences ?? []).map((row, index) =>
+                                  index === consequenceIndex
+                                    ? { ...row, targetPolicy: event.target.value }
+                                    : row),
+                              }))}
+                            className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                          >
+                            {PASSIVE_TARGET_POLICY_OPTIONS.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+
+                          <AppButton
+                            type="button"
+                            variant="ghost"
+                            onClick={() =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                passiveConsequences: (current.passiveConsequences ?? []).filter((_, index) => index !== consequenceIndex),
+                              }))}
+                          >
+                            Remove
+                          </AppButton>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-violet-500/35 bg-[var(--surface)] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Keyword Modifications</p>
+                        <AppButton
+                          type="button"
+                          variant="ghost"
+                          onClick={() =>
+                            updateEffectAt(effectIndex, (current) => ({
+                              ...current,
+                              keywordModifications: [...(current.keywordModifications ?? []), createDefaultKeywordModification()],
+                            }))}
+                        >
+                          Add Keyword Mod
+                        </AppButton>
+                      </div>
+
+                      {(effect.keywordModifications ?? []).map((modification, keywordIndex) => (
+                        <div key={`keyword-mod-${keywordIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                            <select
+                              value={modification.targetType}
+                              onChange={(event) =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  keywordModifications: (current.keywordModifications ?? []).map((row, index) =>
+                                    index === keywordIndex ? { ...row, targetType: event.target.value } : row),
+                                }))}
+                              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                            >
+                              {KEYWORD_TARGET_TYPE_OPTIONS.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+
+                            <select
+                              value={modification.operation}
+                              onChange={(event) =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  keywordModifications: (current.keywordModifications ?? []).map((row, index) =>
+                                    index === keywordIndex ? { ...row, operation: event.target.value } : row),
+                                }))}
+                              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                            >
+                              {KEYWORD_OPERATION_OPTIONS.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+
+                            <AppButton
+                              type="button"
+                              variant="ghost"
+                              onClick={() =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  keywordModifications: (current.keywordModifications ?? []).filter((_, index) => index !== keywordIndex),
+                                }))}
+                            >
+                              Remove
+                            </AppButton>
+                          </div>
+
+                          <input
+                            type="text"
+                            placeholder={
+                              modification.keyword.trim().length > 0
+                                ? `Add keyword (current: ${modification.keyword.trim()})`
+                                : 'Add keyword and press Enter'
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key !== 'Enter') {
+                                return
+                              }
+
+                              event.preventDefault()
+                              const inputValue = event.currentTarget.value
+
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                keywordModifications: appendKeywordEntries(
+                                  current.keywordModifications ?? [],
+                                  keywordIndex,
+                                  inputValue,
+                                ),
+                              }))
+
+                              event.currentTarget.value = ''
+                            }}
+                            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                          />
+
+                          {modification.keyword.trim().length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]">
+                                <span>{modification.keyword.trim()}</span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      keywordModifications: (current.keywordModifications ?? []).map((row, index) =>
+                                        index === keywordIndex ? { ...row, keyword: '' } : row),
+                                    }))
+                                  }
+                                  className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                                  aria-label={`Remove ${modification.keyword.trim()}`}
+                                >
+                                  X
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-emerald-500/55 bg-[var(--surface-muted)] p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Rules</p>
 
@@ -1035,15 +1403,21 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                         onModeChange={(selectedMode) =>
                           updateEffectAt(effectIndex, (current) => {
                             const isAllMode = selectedMode === 'All'
+                            const seedValue = resolveCountConstraintSeedValue(
+                              current.targetRules.exactTargetCount,
+                              current.targetRules.minimumTargetCount,
+                              current.targetRules.maximumTargetCount,
+                              current.targetRules.autoSelectAllValidTargets ?? false,
+                            )
 
                             return {
                               ...current,
                               targetRules: {
                                 ...current.targetRules,
                                 autoSelectAllValidTargets: isAllMode,
-                                exactTargetCount: selectedMode === 'Exact' ? current.targetRules.exactTargetCount : null,
-                                minimumTargetCount: selectedMode === 'Minimum' ? current.targetRules.minimumTargetCount : null,
-                                maximumTargetCount: selectedMode === 'Maximum' ? current.targetRules.maximumTargetCount : null,
+                                exactTargetCount: selectedMode === 'Exact' ? seedValue : null,
+                                minimumTargetCount: selectedMode === 'Minimum' ? seedValue : null,
+                                maximumTargetCount: selectedMode === 'Maximum' ? seedValue : null,
                                 rules: isAllMode
                                   ? current.targetRules.rules.map((rule) => ({
                                     ...rule,
@@ -1102,15 +1476,21 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                 return current
                               }
 
+                              const seedValue = resolveCountConstraintSeedValue(
+                                current.targetRules.tributeComposition.exactTributeCount,
+                                current.targetRules.tributeComposition.minimumTributeCount,
+                                current.targetRules.tributeComposition.maximumTributeCount,
+                              )
+
                               return {
                                 ...current,
                                 targetRules: {
                                   ...current.targetRules,
                                   tributeComposition: {
                                     ...current.targetRules.tributeComposition,
-                                    exactTributeCount: selectedMode === 'Exact' ? current.targetRules.tributeComposition.exactTributeCount : null,
-                                    minimumTributeCount: selectedMode === 'Minimum' ? current.targetRules.tributeComposition.minimumTributeCount : null,
-                                    maximumTributeCount: selectedMode === 'Maximum' ? current.targetRules.tributeComposition.maximumTributeCount : null,
+                                    exactTributeCount: selectedMode === 'Exact' ? seedValue : null,
+                                    minimumTributeCount: selectedMode === 'Minimum' ? seedValue : null,
+                                    maximumTributeCount: selectedMode === 'Maximum' ? seedValue : null,
                                   },
                                 },
                               }
@@ -1239,12 +1619,20 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                   ...current.targetRules,
                                   rules: current.targetRules.rules.map((rule, index) =>
                                     index === targetRuleIndex
-                                      ? {
-                                        ...rule,
-                                        exactSelectedTargetCount: selectedMode === 'Exact' ? rule.exactSelectedTargetCount : null,
-                                        minimumSelectedTargetCount: selectedMode === 'Minimum' ? rule.minimumSelectedTargetCount : null,
-                                        maximumSelectedTargetCount: selectedMode === 'Maximum' ? rule.maximumSelectedTargetCount : null,
-                                      }
+                                      ? (() => {
+                                        const seedValue = resolveCountConstraintSeedValue(
+                                          rule.exactSelectedTargetCount,
+                                          rule.minimumSelectedTargetCount,
+                                          rule.maximumSelectedTargetCount,
+                                        )
+
+                                        return {
+                                          ...rule,
+                                          exactSelectedTargetCount: selectedMode === 'Exact' ? seedValue : null,
+                                          minimumSelectedTargetCount: selectedMode === 'Minimum' ? seedValue : null,
+                                          maximumSelectedTargetCount: selectedMode === 'Maximum' ? seedValue : null,
+                                        }
+                                      })()
                                       : rule),
                                 },
                               }))}

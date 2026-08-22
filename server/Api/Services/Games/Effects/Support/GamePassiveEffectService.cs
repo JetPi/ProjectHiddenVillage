@@ -362,7 +362,7 @@ public sealed class GamePassiveEffectService(
         PassiveSource passiveSource)
     {
         var arguments = new Dictionary<string, string>(
-            consequence.ConsequenceArguments,
+            consequence.ConsequenceArguments ?? EmptyArguments,
             StringComparer.Ordinal);
 
         if (consequence.TargetPolicy == PassiveConsequenceTargetPolicy.TriggerSelectedTargets)
