@@ -300,6 +300,64 @@ public sealed class GameEffectChainResolverTests
         Assert.AreEqual("p2", observedTargets[0].PlayerId);
     }
 
+    [TestMethod]
+    public void Resolve_PermissiveMode_PreservesLeaderTarget()
+    {
+        var observedTargets = new List<GameEffectTargetReference>();
+        var resolver = new GameEffectChainResolver(new GameCardEffectRegistry(
+        [
+            new InspectingEffect(
+                effectTypeKey: "ResolveLeader",
+                onExecute: context => observedTargets.AddRange(context.SelectedTargets)),
+        ]));
+
+        var game = CreateGameWithStack(
+            new EffectResolutionStackEntry
+            {
+                EntryId = "leader-entry",
+                SourcePlayerId = "p1",
+                SourceZone = PlayerZone.CharacterField,
+                SourceCardInstanceId = "source-1",
+                EffectTypeKey = "ResolveLeader",
+                SelectedTargets =
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.Leader,
+                        CardInstanceId: "leader-p2")
+                ]
+            });
+
+        game.State.Players[1].LeaderCardInstance = new LeaderCardInstanceState
+        {
+            InstanceId = "leader-p2",
+            CardDefinitionId = "leader-def",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+            Name = "Leader Two",
+            Color = CardColor.Blue,
+            Traits = [],
+            Damage = 0,
+            Power = 0,
+            TotalLife = 5,
+            CurrentLife = 5,
+            RecoveryEffect = string.Empty,
+        };
+
+        var result = resolver.Resolve(
+            game,
+            actingPlayerId: "p1",
+            new PassiveChainResolutionOptions
+            {
+                ConsequenceTargetValidationMode = ConsequenceTargetValidationMode.Permissive,
+            });
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(1, observedTargets.Count);
+        Assert.AreEqual(PlayerZone.Leader, observedTargets[0].Zone);
+        Assert.AreEqual("leader-p2", observedTargets[0].CardInstanceId);
+    }
+
     private static GameInstance CreateGameWithStack(params EffectResolutionStackEntry[] entries)
     {
         var sourceCardInstance = new CardInstance
@@ -319,6 +377,21 @@ public sealed class GameEffectChainResolverTests
         var playerTwo = new PlayerState
         {
             PlayerId = "p2",
+            LeaderCardInstance = new LeaderCardInstanceState
+            {
+                InstanceId = "leader-p2",
+                CardDefinitionId = "leader-def",
+                OwnerPlayerId = "p2",
+                ControllerPlayerId = "p2",
+                Name = "Leader Two",
+                Color = CardColor.Blue,
+                Traits = [],
+                Damage = 0,
+                Power = 0,
+                TotalLife = 5,
+                CurrentLife = 5,
+                RecoveryEffect = string.Empty,
+            }
         };
 
         var cardDefinition = new CharacterCard
@@ -344,6 +417,20 @@ public sealed class GameEffectChainResolverTests
             CardDefinitions =
             {
                 ["def-1"] = cardDefinition,
+                ["leader-def"] = new LeaderCard
+                {
+                    Id = "leader-def",
+                    DisplayName = "Leader",
+                    Name = ["Leader"],
+                    Type = CardType.Leader,
+                    Color = CardColor.Blue,
+                    Traits = [],
+                    Description = string.Empty,
+                    Damage = 0,
+                    Power = 0,
+                    Life = 5,
+                    Effects = [],
+                },
             },
             EffectResolutionStack = entries.ToList(),
         };

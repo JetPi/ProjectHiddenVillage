@@ -1,5 +1,6 @@
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import type { IGamePlayerStateResponse } from '@/services/api/gameApi'
+import type { IGameActionOptionResponse } from '@/services/api/types/game'
 
 export type IGameCard = ICardCatalogItemResponse
 
@@ -34,6 +35,7 @@ export type INonLeaderCardViewModel = {
   displayName: string
   type: string
   isExhausted: boolean
+  availableActions?: IGameActionOptionResponse[]
   isRested: boolean
 }
 

@@ -231,6 +231,25 @@ public sealed class ModifyAttributeEffect(
                     description: $"Target player '{target.PlayerId}' was not found.");
             }
 
+            if (target.Zone == PlayerZone.Leader)
+            {
+                var leader = targetPlayer.LeaderCardInstance;
+                if (leader is null || !string.Equals(leader.InstanceId, target.CardInstanceId, StringComparison.Ordinal))
+                {
+                    return Error.NotFound(
+                        code: "Game.Effect.ChangeValues.TargetLeaderNotFound",
+                        description: $"Target leader instance '{target.CardInstanceId}' was not found for player '{target.PlayerId}'.");
+                }
+
+                var leaderApplyResult = ApplySelectedTargetLeaderModification(leader, modification);
+                if (leaderApplyResult.IsError)
+                {
+                    return leaderApplyResult.Errors;
+                }
+
+                continue;
+            }
+
             var sourceZone = PlayerZoneCardAccessor.GetCards(target.Zone, targetPlayer);
             var targetCard = sourceZone.FirstOrDefault(card =>
                 string.Equals(card.InstanceId, target.CardInstanceId, StringComparison.Ordinal));
@@ -287,6 +306,37 @@ public sealed class ModifyAttributeEffect(
         }
 
         return Result.Success;
+    }
+
+    private static ErrorOr<Success> ApplySelectedTargetLeaderModification(
+        LeaderCardInstanceState leader,
+        AttributeModificationSpec modification)
+    {
+        switch (modification.Attribute)
+        {
+            case EffectAttributeType.LeaderDamage:
+                {
+                    var updatedDamage = ApplyOperation(leader.Damage, modification.Operation, modification.Value);
+                    leader.Damage = Clamp(updatedDamage, modification, defaultMin: 0);
+                    return Result.Success;
+                }
+            case EffectAttributeType.LeaderPower:
+                {
+                    var updatedPower = ApplyOperation(leader.Power, modification.Operation, modification.Value);
+                    leader.Power = Clamp(updatedPower, modification, defaultMin: 0);
+                    return Result.Success;
+                }
+            case EffectAttributeType.LeaderCurrentLife:
+                {
+                    var updatedCurrentLife = ApplyOperation(leader.CurrentLife, modification.Operation, modification.Value);
+                    leader.CurrentLife = Clamp(updatedCurrentLife, modification, defaultMin: 0);
+                    return Result.Success;
+                }
+            default:
+                return Error.Validation(
+                    code: "Game.Effect.ChangeValues.InvalidSelectedTargetLeaderAttribute",
+                    description: $"Attribute '{modification.Attribute}' cannot be applied to selected leader targets.");
+        }
     }
 
     private static ErrorOr<Success> ApplyToLeaders(

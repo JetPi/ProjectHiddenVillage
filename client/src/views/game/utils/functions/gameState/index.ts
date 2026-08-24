@@ -1,5 +1,6 @@
 import type { IGamePlayerStateResponse } from "@/services/api/gameApi"
 import type { IGameActionOptionResponse } from "@/services/api/types/game"
+import type { IGameCardActionExecutionRequest } from "@/services/api/types/gameHub"
 import type { ISubmitHubIntentRequest } from "@/views/game/types/hub"
 import type { IGameLoaderData } from "@/views/game/types/routeData"
 import type { ICardPreloadPayload, IDerivedGameViewState } from "@/views/game/types/viewModels"
@@ -84,7 +85,26 @@ function buildCardPreloadPayload(gameCards: IGameLoaderData['gameCards']): ICard
 export function mapActionToHubIntent(
   action: IGameActionOptionResponse,
   canResolvePrompt: boolean,
+  selectedTargets?: IGameCardActionExecutionRequest['selectedTargets'],
+  executionArguments?: IGameCardActionExecutionRequest['arguments'],
 ): ISubmitHubIntentRequest | null {
+  if (action.actionId.startsWith('activate-support:')
+    || action.actionId.startsWith('play-card:')
+    || action.actionId.startsWith('battle-action:')) {
+    const delimiterIndex = action.actionId.indexOf(':')
+    if (delimiterIndex < 0 || delimiterIndex === action.actionId.length - 1) {
+      return null
+    }
+
+    return {
+      intent: 'execute-card-action',
+      actionId: action.actionId,
+      sourceCardInstanceId: action.actionId.slice(delimiterIndex + 1),
+      selectedTargets,
+      arguments: executionArguments,
+    }
+  }
+
   if (action.actionId.startsWith('resolve-prompt:')) {
     if (!canResolvePrompt) {
       return null

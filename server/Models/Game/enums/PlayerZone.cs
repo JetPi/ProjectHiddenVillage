@@ -7,5 +7,6 @@ public enum PlayerZone
     Trash = 2,
     ExileZone = 3,
     SupportZone = 4,
-    CharacterField = 5
+    CharacterField = 5,
+    Leader = 6,
 }

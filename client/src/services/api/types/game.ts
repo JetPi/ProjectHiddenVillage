@@ -8,12 +8,20 @@ export type IJoinGameAsPlayerRequest = {
   deckId?: string
 }
 
+export type IGameActionOptionResponse = {
+  actionId: string
+  label: string
+  isEnabled: boolean
+  disabledReason: string | null
+}
+
 export type IGameCardInstanceResponse = {
   instanceId: string
   cardDefinitionId: string
   ownerPlayerId: string
   controllerPlayerId: string
   isExhausted: boolean
+  availableActions?: IGameActionOptionResponse[]
   isRested: boolean
 }
 
@@ -45,13 +53,6 @@ export type IGamePlayerStateResponse = {
   supportZone: IGameCardInstanceResponse[]
   trash: IGameCardInstanceResponse[]
   exileZone: IGameCardInstanceResponse[]
-}
-
-export type IGameActionOptionResponse = {
-  actionId: string
-  label: string
-  isEnabled: boolean
-  disabledReason: string | null
 }
 
 export type IPendingPromptResponse = {

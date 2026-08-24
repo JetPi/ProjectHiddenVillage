@@ -9,6 +9,7 @@ import {
   declareActionInActionStep,
   declarePassInActionStep,
   disconnectGameHub,
+  executeCardAction,
   getCurrentGameState,
   onGameStateInvalidated,
   resolvePrompt,
@@ -198,6 +199,16 @@ function useGameHubState(
           result = await declarePassInActionStep(currentConnection, gameId, authUserId ?? '')
         } else if (request.intent === 'declare-action') {
           result = await declareActionInActionStep(currentConnection, gameId, authUserId ?? '')
+        } else if (request.intent === 'execute-card-action') {
+          result = await executeCardAction(
+            currentConnection,
+            gameId,
+            authUserId ?? '',
+            request.actionId,
+            request.sourceCardInstanceId,
+            request.selectedTargets,
+            request.arguments,
+          )
         } else if (request.intent === 'declare-end-step') {
           result = await declareEndStep(currentConnection, gameId)
         } else if (request.intent === 'complete-end-step') {

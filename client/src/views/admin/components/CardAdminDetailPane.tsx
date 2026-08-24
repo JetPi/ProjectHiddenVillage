@@ -25,12 +25,11 @@ import type {
 const RUNTIME_EFFECT_OPTIONS = [
   'Destroy Card',
   'Negate Effect',
+  'Interrupt Attack',
   'Gain Effect',
   'Change Values',
   'Alter Resources',
   'Tribute',
-  'Summon Self',
-  'Move Card',
   'Search Card',
   'Freeze Card',
   'Reveal Card',
@@ -485,6 +484,10 @@ function isSummonOrTributeRuntimeEffect(runtimeEffectType: string): boolean {
   return runtimeEffectType === 'Tribute' || runtimeEffectType.startsWith('Summon')
 }
 
+function isAttackNegationRuntimeEffect(runtimeEffectType: string): boolean {
+  return runtimeEffectType === 'Interrupt Attack'
+}
+
 function toPrettyJson(value: unknown): string {
   return JSON.stringify(value, null, 2)
 }
@@ -792,6 +795,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                           const nextRuntimeEffectType = event.target.value
                           const isTributeEffect = nextRuntimeEffectType === 'Tribute'
                           const supportsTributeRole = isSummonOrTributeRuntimeEffect(nextRuntimeEffectType)
+                          const hidesTargetCount = isAttackNegationRuntimeEffect(nextRuntimeEffectType)
 
                           return {
                             ...current,
@@ -814,6 +818,9 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                 : [],
                             targetRules: {
                               ...current.targetRules,
+                              exactTargetCount: hidesTargetCount ? null : current.targetRules.exactTargetCount,
+                              minimumTargetCount: hidesTargetCount ? null : current.targetRules.minimumTargetCount,
+                              maximumTargetCount: hidesTargetCount ? null : current.targetRules.maximumTargetCount,
                               tributeComposition: isTributeEffect
                                 ? current.targetRules.tributeComposition
                                 : null,
@@ -1380,76 +1387,78 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   ) : null}
 
                   <div className={`grid grid-cols-1 gap-3 ${effect.runtimeEffectType === 'Tribute' && effect.targetRules.tributeComposition ? 'sm:grid-cols-2' : ''}`}>
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Count</label>
-                      <CountConstraintField
-                        mode={resolveCountConstraintMode(
-                          effect.targetRules.exactTargetCount,
-                          effect.targetRules.minimumTargetCount,
-                          effect.targetRules.maximumTargetCount,
-                          effect.targetRules.autoSelectAllValidTargets ?? false,
-                        )}
-                        value={resolveCountConstraintValue(
-                          resolveCountConstraintMode(
+                    {!isAttackNegationRuntimeEffect(effect.runtimeEffectType) ? (
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Count</label>
+                        <CountConstraintField
+                          mode={resolveCountConstraintMode(
                             effect.targetRules.exactTargetCount,
                             effect.targetRules.minimumTargetCount,
                             effect.targetRules.maximumTargetCount,
                             effect.targetRules.autoSelectAllValidTargets ?? false,
-                          ),
-                          effect.targetRules.exactTargetCount,
-                          effect.targetRules.minimumTargetCount,
-                          effect.targetRules.maximumTargetCount,
-                        )}
-                        onModeChange={(selectedMode) =>
-                          updateEffectAt(effectIndex, (current) => {
-                            const isAllMode = selectedMode === 'All'
-                            const seedValue = resolveCountConstraintSeedValue(
-                              current.targetRules.exactTargetCount,
-                              current.targetRules.minimumTargetCount,
-                              current.targetRules.maximumTargetCount,
-                              current.targetRules.autoSelectAllValidTargets ?? false,
-                            )
+                          )}
+                          value={resolveCountConstraintValue(
+                            resolveCountConstraintMode(
+                              effect.targetRules.exactTargetCount,
+                              effect.targetRules.minimumTargetCount,
+                              effect.targetRules.maximumTargetCount,
+                              effect.targetRules.autoSelectAllValidTargets ?? false,
+                            ),
+                            effect.targetRules.exactTargetCount,
+                            effect.targetRules.minimumTargetCount,
+                            effect.targetRules.maximumTargetCount,
+                          )}
+                          onModeChange={(selectedMode) =>
+                            updateEffectAt(effectIndex, (current) => {
+                              const isAllMode = selectedMode === 'All'
+                              const seedValue = resolveCountConstraintSeedValue(
+                                current.targetRules.exactTargetCount,
+                                current.targetRules.minimumTargetCount,
+                                current.targetRules.maximumTargetCount,
+                                current.targetRules.autoSelectAllValidTargets ?? false,
+                              )
 
-                            return {
-                              ...current,
-                              targetRules: {
-                                ...current.targetRules,
-                                autoSelectAllValidTargets: isAllMode,
-                                exactTargetCount: selectedMode === 'Exact' ? seedValue : null,
-                                minimumTargetCount: selectedMode === 'Minimum' ? seedValue : null,
-                                maximumTargetCount: selectedMode === 'Maximum' ? seedValue : null,
-                                rules: isAllMode
-                                  ? current.targetRules.rules.map((rule) => ({
-                                    ...rule,
-                                    exactSelectedTargetCount: null,
-                                    minimumSelectedTargetCount: null,
-                                    maximumSelectedTargetCount: null,
-                                  }))
-                                  : current.targetRules.rules,
-                              },
-                            }
-                          })}
-                        onValueChange={(parsedValue) =>
-                          updateEffectAt(effectIndex, (current) => {
-                            const selectedMode = resolveCountConstraintMode(
-                              current.targetRules.exactTargetCount,
-                              current.targetRules.minimumTargetCount,
-                              current.targetRules.maximumTargetCount,
-                              current.targetRules.autoSelectAllValidTargets ?? false,
-                            )
+                              return {
+                                ...current,
+                                targetRules: {
+                                  ...current.targetRules,
+                                  autoSelectAllValidTargets: isAllMode,
+                                  exactTargetCount: selectedMode === 'Exact' ? seedValue : null,
+                                  minimumTargetCount: selectedMode === 'Minimum' ? seedValue : null,
+                                  maximumTargetCount: selectedMode === 'Maximum' ? seedValue : null,
+                                  rules: isAllMode
+                                    ? current.targetRules.rules.map((rule) => ({
+                                      ...rule,
+                                      exactSelectedTargetCount: null,
+                                      minimumSelectedTargetCount: null,
+                                      maximumSelectedTargetCount: null,
+                                    }))
+                                    : current.targetRules.rules,
+                                },
+                              }
+                            })}
+                          onValueChange={(parsedValue) =>
+                            updateEffectAt(effectIndex, (current) => {
+                              const selectedMode = resolveCountConstraintMode(
+                                current.targetRules.exactTargetCount,
+                                current.targetRules.minimumTargetCount,
+                                current.targetRules.maximumTargetCount,
+                                current.targetRules.autoSelectAllValidTargets ?? false,
+                              )
 
-                            return {
-                              ...current,
-                              targetRules: {
-                                ...current.targetRules,
-                                exactTargetCount: selectedMode === 'Exact' ? parsedValue : null,
-                                minimumTargetCount: selectedMode === 'Minimum' ? parsedValue : null,
-                                maximumTargetCount: selectedMode === 'Maximum' ? parsedValue : null,
-                              },
-                            }
-                          })}
-                      />
-                    </div>
+                              return {
+                                ...current,
+                                targetRules: {
+                                  ...current.targetRules,
+                                  exactTargetCount: selectedMode === 'Exact' ? parsedValue : null,
+                                  minimumTargetCount: selectedMode === 'Minimum' ? parsedValue : null,
+                                  maximumTargetCount: selectedMode === 'Maximum' ? parsedValue : null,
+                                },
+                              }
+                            })}
+                        />
+                      </div>
+                    ) : null}
 
                     {effect.runtimeEffectType === 'Tribute' && effect.targetRules.tributeComposition ? (
                       <div className="space-y-1">

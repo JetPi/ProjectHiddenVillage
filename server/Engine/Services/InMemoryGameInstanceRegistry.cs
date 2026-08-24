@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server;
 
@@ -178,6 +179,100 @@ public sealed class InMemoryGameInstanceRegistry
         lock (instance)
         {
             phaseService.DeclareActionInActionStep(instance, playerId);
+            instance.ValidateInvariants();
+            return instance;
+        }
+    }
+
+    public GameInstance ExecuteCardAction(
+        string gameId,
+        GameCardActionExecutionRequest request,
+        IGameSequentialEffectExecutor sequentialEffectExecutor)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(sequentialEffectExecutor);
+
+        var instance = GetRequired(gameId);
+
+        lock (instance)
+        {
+            if (instance.State.Phase != GamePhase.ActionStep)
+            {
+                throw new InvalidOperationException("Card actions can only be executed during ActionStep.");
+            }
+
+            if (!string.Equals(instance.State.PriorityPlayerId, request.PlayerId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Only the priority player can execute card actions.");
+            }
+
+            if (instance.GetPendingPrompt() is not null)
+            {
+                throw new InvalidOperationException("Cannot execute card actions while a prompt is pending.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.ActionId))
+            {
+                throw new ArgumentException("ActionId is required.", nameof(request));
+            }
+
+            if (!request.ActionId.StartsWith("activate-support:", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException($"Card action '{request.ActionId}' is not supported yet.");
+            }
+
+            var actionCardInstanceId = request.ActionId["activate-support:".Length..].Trim();
+            if (!string.Equals(actionCardInstanceId, request.SourceCardInstanceId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("ActionId source card does not match SourceCardInstanceId.");
+            }
+
+            var actingPlayer = instance.State.Players.FirstOrDefault(player =>
+                string.Equals(player.PlayerId, request.PlayerId, StringComparison.Ordinal));
+            if (actingPlayer is null)
+            {
+                throw new InvalidOperationException($"Player '{request.PlayerId}' was not found in game.");
+            }
+
+            var sourceCardInstance = actingPlayer.SupportZone.FirstOrDefault(card =>
+                string.Equals(card.InstanceId, request.SourceCardInstanceId, StringComparison.Ordinal));
+            if (sourceCardInstance is null)
+            {
+                throw new InvalidOperationException(
+                    $"Support card instance '{request.SourceCardInstanceId}' was not found for player '{request.PlayerId}'.");
+            }
+
+            if (!instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
+            {
+                throw new InvalidOperationException(
+                    $"Card definition '{sourceCardInstance.CardDefinitionId}' was not found.");
+            }
+
+            var arguments = request.Arguments is null
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : new Dictionary<string, string>(request.Arguments, StringComparer.Ordinal);
+
+            var selectedTargets = request.SelectedTargets ?? [];
+
+            var context = new GameCardEffectContext(
+                game: instance,
+                actingPlayer: new Player { Id = request.PlayerId },
+                sourceCardDefinition: sourceCardDefinition,
+                sourceCardInstance: sourceCardInstance,
+                arguments: arguments,
+                selectedTargets: selectedTargets);
+
+            var executeResult = sequentialEffectExecutor.Execute(context);
+            if (executeResult.IsError)
+            {
+                throw new InvalidOperationException(executeResult.FirstError.Description);
+            }
+
+            if (instance.State.Phase == GamePhase.ActionStep)
+            {
+                phaseService.DeclareActionInActionStep(instance, request.PlayerId);
+            }
+
             instance.ValidateInvariants();
             return instance;
         }

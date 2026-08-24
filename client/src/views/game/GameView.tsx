@@ -296,7 +296,11 @@ export function GameView() {
                             previewCard={previewCard}
                             zone="hand"
                             visibilityMode="hover"
-                            actionOptions={resolveCardActionOptionsForInstanceId(mappedAvailableActions, card.instanceId)}
+                            actionOptions={resolveCardActionOptionsForInstanceId(
+                              mappedAvailableActions,
+                              card.instanceId,
+                              card.availableActions,
+                            )}
                             isConnected={isConnected}
                             isActionPending={isActionPending}
                             onSelectActionOption={(actionId) => {

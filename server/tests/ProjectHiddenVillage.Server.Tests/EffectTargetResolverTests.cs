@@ -303,6 +303,45 @@ public sealed class EffectTargetResolverTests
             targets.Select(target => target.CardInstanceId).ToList());
     }
 
+    [TestMethod]
+    public void ResolveTargets_LeaderZone_WithOpponentScope_ReturnsOpponentLeader()
+    {
+        var (context, effectSpec) = CreateContext(
+            playerFieldCards: [],
+            opponentFieldCards: [],
+            targetRules: new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Opponent,
+                        InZone = PlayerZone.Leader,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Type,
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["Leader"]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            });
+
+        var targets = resolver.ResolveTargets(context, effectSpec);
+
+        Assert.AreEqual(1, targets.Count);
+        Assert.AreEqual("p2", targets[0].PlayerId);
+        Assert.AreEqual(PlayerZone.Leader, targets[0].Zone);
+        Assert.AreEqual("leader-p2", targets[0].CardInstanceId);
+    }
+
     private static (GameCardEffectContext Context, EffectSpec EffectSpec) CreateContext(
         IReadOnlyList<(Card Card, CardInstance Instance)> playerFieldCards,
         IReadOnlyList<(Card Card, CardInstance Instance)> opponentFieldCards,
@@ -336,14 +375,31 @@ public sealed class EffectTargetResolverTests
                 new PlayerState
                 {
                     PlayerId = "p1",
+                    LeaderCardInstance = CreateLeader("leader-p1", "p1"),
                     Battlefield = playerFieldCards.Select(entry => entry.Instance).ToList()
                 },
                 new PlayerState
                 {
                     PlayerId = "p2",
+                    LeaderCardInstance = CreateLeader("leader-p2", "p2"),
                     Battlefield = opponentFieldCards.Select(entry => entry.Instance).ToList()
                 }
             ]
+        };
+
+        state.CardDefinitions["leader-def"] = new LeaderCard
+        {
+            Id = "leader-def",
+            DisplayName = "Leader Definition",
+            Name = ["Leader Definition"],
+            Type = CardType.Leader,
+            Color = CardColor.Green,
+            Traits = [],
+            Description = string.Empty,
+            Damage = 0,
+            Power = 0,
+            Life = 5,
+            Effects = [],
         };
 
         state.CardDefinitions[sourceCard.Id] = sourceCard;
@@ -399,5 +455,24 @@ public sealed class EffectTargetResolverTests
         };
 
         return (card, instance);
+    }
+
+    private static LeaderCardInstanceState CreateLeader(string instanceId, string playerId)
+    {
+        return new LeaderCardInstanceState
+        {
+            InstanceId = instanceId,
+            CardDefinitionId = "leader-def",
+            OwnerPlayerId = playerId,
+            ControllerPlayerId = playerId,
+            Name = $"Leader {playerId}",
+            Color = CardColor.Green,
+            Traits = [],
+            Damage = 0,
+            Power = 0,
+            TotalLife = 5,
+            CurrentLife = 5,
+            RecoveryEffect = string.Empty,
+        };
     }
 }

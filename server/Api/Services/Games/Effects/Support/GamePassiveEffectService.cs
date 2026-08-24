@@ -276,6 +276,11 @@ public sealed class GamePassiveEffectService(
 
         foreach (var player in state.Players)
         {
+            if (player.LeaderCardInstance is not null)
+            {
+                result[player.LeaderCardInstance.InstanceId] = string.Concat(player.PlayerId, "|", PlayerZone.Leader.ToString());
+            }
+
             AddZoneMappings(player, PlayerZone.CharacterField, player.Battlefield, result);
             AddZoneMappings(player, PlayerZone.SupportZone, player.SupportZone, result);
             AddZoneMappings(player, PlayerZone.Hand, player.Hand, result);

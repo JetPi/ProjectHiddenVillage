@@ -273,6 +273,8 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
 
     private GamePhase EnterAttackDeclaration(GameState state)
     {
+        state.HasPendingAttack = true;
+        state.PendingAttackDeclarationId = Guid.NewGuid().ToString("N");
         return ApplyQueuedPhaseDirectives(state, GamePhase.BlockerDeclaration);
     }
 
@@ -293,6 +295,8 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
 
     private GamePhase EnterBattleEndStep(GameState state)
     {
+        state.HasPendingAttack = false;
+        state.PendingAttackDeclarationId = string.Empty;
         return ApplyQueuedPhaseDirectives(state, GamePhase.MainPhase);
     }
 
