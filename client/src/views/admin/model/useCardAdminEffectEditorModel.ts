@@ -78,6 +78,16 @@ function isCardCatalogEffectRequest(value: unknown): value is ICardCatalogEffect
   )
 }
 
+function normalizeEffectForSave(effect: ICardCatalogEffectRequest): ICardCatalogEffectRequest {
+  return {
+    ...effect,
+    passiveConsequences: (effect.passiveConsequences ?? []).map((consequence) => ({
+      consequenceEffectTypeKey: consequence.consequenceEffectTypeKey,
+      targetPolicy: consequence.targetPolicy,
+    })),
+  }
+}
+
 function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
   payload: IParsedCardAdminEffectsPayload | null
   errors: ICardAdminEffectEditorValidationErrors
@@ -121,7 +131,8 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
   const normalizedConditions = draft.conditions
     .map((entry) => entry.trim())
     .filter((entry, index, all) => entry.length > 0 && all.indexOf(entry) === index)
-  const normalizedEffects = parsedEffects as ICardCatalogEffectRequest[]
+  const normalizedEffects = (parsedEffects as ICardCatalogEffectRequest[])
+    .map(normalizeEffectForSave)
 
   return {
     payload: {

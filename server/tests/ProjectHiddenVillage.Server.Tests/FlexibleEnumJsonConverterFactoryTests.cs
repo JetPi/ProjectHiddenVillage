@@ -154,6 +154,45 @@ public sealed class FlexibleEnumJsonConverterFactoryTests
         Assert.AreEqual(RequirementGroupOperator.Any, request.Effects[0].TargetRules.Operator);
     }
 
+    [TestMethod]
+    public void Deserialize_UpdateCardEffectsRequest_AllowsMissingPassiveConsequenceArguments()
+    {
+        var json = """
+            {
+              "effects": [
+                {
+                  "id": "effect-3",
+                  "runtimeEffectType": "destroy-card",
+                  "effectType": "support",
+                  "timing": "quick",
+                  "targetRange": "self",
+                  "globalRestrictions": "none",
+                  "passiveMode": "triggered",
+                  "passiveConsequences": [
+                    {
+                      "consequenceEffectTypeKey": "DestroyCard",
+                      "targetPolicy": "source-card"
+                    }
+                  ],
+                  "contextRules": [],
+                  "targetRules": {
+                    "operator": "any",
+                    "rules": []
+                  }
+                }
+              ]
+            }
+            """;
+
+        var request = JsonSerializer.Deserialize<UpdateCardEffectsRequest>(json, CreateOptions());
+
+        Assert.IsNotNull(request);
+        Assert.IsNotNull(request.Effects);
+        Assert.AreEqual(1, request.Effects.Count);
+        Assert.AreEqual(1, request.Effects[0].PassiveConsequences.Count);
+        Assert.IsNotNull(request.Effects[0].PassiveConsequences[0].ConsequenceArguments);
+    }
+
       [TestMethod]
       public void Deserialize_UpdateCardEffectsRequest_ParsesCannotBeNormalSummoned()
       {

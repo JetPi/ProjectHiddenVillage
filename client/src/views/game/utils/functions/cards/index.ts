@@ -100,6 +100,7 @@ function resolveNonLeaderCards(
       displayName: catalogCard.displayName,
       type: catalogCard.type,
       isExhausted: card.isExhausted,
+      isRested: card.isRested,
     })
   }
 

@@ -73,6 +73,42 @@ public sealed class GameEffectCanExecuteEvaluatorTests
     }
 
     [TestMethod]
+    public void Evaluate_DoesNotRequireManualSelectedTargets_WhenAutoSelectAllValidTargetsIsEnabled()
+    {
+        var evaluator = CreateEvaluator(
+            resolvedTargets:
+            [
+                new GameEffectTargetReference("p2", PlayerZone.CharacterField, "target-1"),
+                new GameEffectTargetReference("p2", PlayerZone.CharacterField, "target-2"),
+            ]);
+
+        var effectSpec = new EffectSpec
+        {
+            RuntimeEffectType = RuntimeEffects.DestroyCard,
+            ContextRules = [],
+            TargetRules = new EffectTargetRuleSet
+            {
+                ExactTargetCount = 2,
+                AutoSelectAllValidTargets = true,
+            }
+        };
+
+        var context = CreateContext(
+            playerOneResource: 0,
+            selectedTargets: [],
+            arguments: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [ReactiveEffectExecutionConstants.EnforceTargetCountArgument] = bool.TrueString,
+            });
+
+        var result = evaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+
+        Assert.IsTrue(result.CanExecute);
+        Assert.AreEqual(0, result.FailedConditions.Count);
+        Assert.AreEqual(2, result.ValidTargets.Count);
+    }
+
+    [TestMethod]
     public void Evaluate_ReturnsCannotExecute_WhenValidTargetPoolIsBelowMinimum()
     {
         var evaluator = CreateEvaluator(

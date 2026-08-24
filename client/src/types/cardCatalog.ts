@@ -13,6 +13,23 @@ export type ICardCatalogEffectExecutionConditionResponse = {
   negate: boolean
 }
 
+export type ICardCatalogPassiveReevaluationResponse = {
+  triggerKinds: string[]
+  scope: string
+}
+
+export type ICardCatalogPassiveConsequenceResponse = {
+  consequenceEffectTypeKey: string
+  targetPolicy: string
+  consequenceArguments: Record<string, string>
+}
+
+export type ICardCatalogKeywordModificationResponse = {
+  targetType: string
+  operation: string
+  keyword: string
+}
+
 export type ICardCatalogPredicateProperty =
   | 'Self'
   | 'Id'
@@ -29,6 +46,7 @@ export type ICardCatalogPredicateProperty =
   | 'Owner Player Id'
   | 'Controller Player Id'
   | 'Is Exhausted'
+  | 'Is Rested'
   | 'Cannot Be Normal Summoned'
 
 export type ICardCatalogZoneCardPropertyPredicateResponse = {
@@ -110,6 +128,7 @@ export type ICardCatalogEffectTargetRuleSetResponse = {
   exactTargetCount: number | null
   minimumTargetCount: number | null
   maximumTargetCount: number | null
+  autoSelectAllValidTargets: boolean
   tributeComposition: ICardCatalogTributeTargetCompositionResponse | null
   rules: ICardCatalogEffectTargetRuleResponse[]
 }
@@ -119,6 +138,10 @@ export type ICardCatalogEffectResponse = {
   runtimeEffectType: string
   effectType: string
   timing: string
+  passiveMode: string
+  passiveReevaluation: ICardCatalogPassiveReevaluationResponse | null
+  passiveConsequences: ICardCatalogPassiveConsequenceResponse[]
+  keywordModifications: ICardCatalogKeywordModificationResponse[]
   targetRange: string
   isOptional: boolean
   chakraCost: number | null

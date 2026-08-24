@@ -28,6 +28,10 @@ public sealed record CardCatalogEffectResponse(
     string RuntimeEffectType,
     string EffectType,
     string Timing,
+    string PassiveMode,
+    CardCatalogPassiveReevaluationResponse? PassiveReevaluation,
+    IReadOnlyList<CardCatalogPassiveConsequenceResponse> PassiveConsequences,
+    IReadOnlyList<CardCatalogKeywordModificationResponse> KeywordModifications,
     string TargetRange,
     bool IsOptional,
     int? ChakraCost,
@@ -41,6 +45,20 @@ public sealed record CardCatalogEffectResponse(
     IReadOnlyList<CardCatalogSummonCardFlipResponse> SummonCardFlips,
     IReadOnlyList<CardCatalogEffectContextRuleSetResponse> ContextRules,
     CardCatalogEffectTargetRuleSetResponse TargetRules);
+
+public sealed record CardCatalogPassiveReevaluationResponse(
+    IReadOnlyList<string> TriggerKinds,
+    string Scope);
+
+public sealed record CardCatalogPassiveConsequenceResponse(
+    string ConsequenceEffectTypeKey,
+    string TargetPolicy,
+    IReadOnlyDictionary<string, string> ConsequenceArguments);
+
+public sealed record CardCatalogKeywordModificationResponse(
+    string TargetType,
+    string Operation,
+    string Keyword);
 
 public sealed record CardCatalogEffectExecutionConditionResponse(
     string ArgumentKey,
@@ -89,6 +107,7 @@ public sealed record CardCatalogEffectTargetRuleSetResponse(
     int? ExactTargetCount,
     int? MinimumTargetCount,
     int? MaximumTargetCount,
+    bool AutoSelectAllValidTargets,
     CardCatalogTributeTargetCompositionResponse? TributeComposition,
     IReadOnlyList<CardCatalogEffectTargetRuleResponse> Rules);
 

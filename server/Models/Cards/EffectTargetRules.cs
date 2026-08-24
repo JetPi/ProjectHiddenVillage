@@ -10,6 +10,8 @@ public sealed class EffectTargetRuleSet
 
     public int? MaximumTargetCount { get; set; }
 
+    public bool AutoSelectAllValidTargets { get; set; }
+
     public TributeTargetComposition? TributeComposition { get; set; }
 
     public IReadOnlyList<EffectTargetRule> Rules { get; set; } = [];

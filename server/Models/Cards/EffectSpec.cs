@@ -30,8 +30,8 @@ public sealed class PassiveConsequenceSpec
 
     public PassiveConsequenceTargetPolicy TargetPolicy { get; set; } = PassiveConsequenceTargetPolicy.SourceCard;
 
-    public IReadOnlyDictionary<string, string> ConsequenceArguments { get; set; } =
-        new Dictionary<string, string>(StringComparer.Ordinal);
+    public IReadOnlyDictionary<string, string>? ConsequenceArguments { get; set; }
+        = new Dictionary<string, string>(StringComparer.Ordinal);
 }
 
 public sealed class KeywordModificationSpec

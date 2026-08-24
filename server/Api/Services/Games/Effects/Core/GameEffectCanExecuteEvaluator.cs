@@ -76,7 +76,7 @@ public sealed class GameEffectCanExecuteEvaluator : IGameEffectCanExecuteEvaluat
             return result;
         }
 
-        var shouldEnforceSelectedTargetCount = ShouldEnforceSelectedTargetCount(context.Arguments);
+        var shouldEnforceSelectedTargetCount = ShouldEnforceSelectedTargetCount(effectSpec.TargetRules, context.Arguments);
         if (shouldEnforceSelectedTargetCount
             && !IsSelectedTargetCountValid(context.SelectedTargets.Count, targetCountBounds, out var selectedTargetCountError))
         {
@@ -170,8 +170,13 @@ public sealed class GameEffectCanExecuteEvaluator : IGameEffectCanExecuteEvaluat
         return true;
     }
 
-    private static bool ShouldEnforceSelectedTargetCount(IReadOnlyDictionary<string, string> arguments)
+    private static bool ShouldEnforceSelectedTargetCount(EffectTargetRuleSet targetRules, IReadOnlyDictionary<string, string> arguments)
     {
+        if (targetRules.AutoSelectAllValidTargets)
+        {
+            return false;
+        }
+
         return arguments.TryGetValue(ReactiveEffectExecutionConstants.EnforceTargetCountArgument, out var rawValue)
             && bool.TryParse(rawValue, out var shouldEnforce)
             && shouldEnforce;

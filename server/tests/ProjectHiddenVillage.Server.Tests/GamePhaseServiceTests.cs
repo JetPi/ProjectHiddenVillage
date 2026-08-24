@@ -270,6 +270,36 @@ public sealed class GamePhaseServiceTests
     }
 
     [TestMethod]
+    public void AdvancePhase_EnteringRefreshPhase_ReadiesOnlyActivePlayerBattlefieldCards()
+    {
+        var instance = CreateInstance(phase: GamePhase.DrawPhase, activePlayerId: "p1");
+
+        instance.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "p1-rested",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = true
+        });
+
+        instance.State.Players[1].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "p2-rested",
+            CardDefinitionId = "card-2",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+            IsRested = true
+        });
+
+        service.AdvancePhase(instance);
+
+        Assert.AreEqual(GamePhase.RefreshPhase, instance.State.Phase);
+        Assert.IsFalse(instance.State.Players[0].Battlefield[0].IsRested);
+        Assert.IsTrue(instance.State.Players[1].Battlefield[0].IsRested);
+    }
+
+    [TestMethod]
     public void DeclarePassInActionStep_GameInstanceOverload_WritesPassLog()
     {
         var instance = CreateInstance(phase: GamePhase.ActionStep, activePlayerId: "p1", priorityPlayerId: "p1");
