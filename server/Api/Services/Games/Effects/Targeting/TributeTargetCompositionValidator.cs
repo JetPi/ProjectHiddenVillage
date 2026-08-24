@@ -187,6 +187,17 @@ internal static class TributeTargetCompositionValidator
             return false;
         }
 
+        if (rule.InZone == PlayerZone.Leader)
+        {
+            var leader = targetPlayerState.LeaderCardInstance;
+            if (leader is null || !string.Equals(leader.InstanceId, target.CardInstanceId, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return LeaderTargetRestrictionMatcher.Matches(leader, rule.Restriction);
+        }
+
         var zoneCards = PlayerZoneCardAccessor.GetCards(rule.InZone, targetPlayerState);
         var cardInstance = zoneCards.FirstOrDefault(card =>
             string.Equals(card.InstanceId, target.CardInstanceId, StringComparison.Ordinal));

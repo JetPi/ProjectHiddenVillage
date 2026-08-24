@@ -31,6 +31,11 @@ public sealed class GameValidTargetResultFactory : IGameValidTargetResultFactory
             return string.Empty;
         }
 
+        if (cardZone == PlayerZone.Leader)
+        {
+            return targetPlayer.LeaderCardInstance?.Name ?? string.Empty;
+        }
+
         var zoneCards = PlayerZoneCardAccessor.GetCards(cardZone, targetPlayer);
         var targetCardInstance = zoneCards.Find(card => string.Equals(card.InstanceId, target.CardInstanceId, StringComparison.Ordinal));
         if (targetCardInstance is null)

@@ -231,6 +231,15 @@ public sealed class GameEffectChainResolver : IGameEffectChainResolver
 
         if (requestedPlayer is not null)
         {
+            if (requestedTarget.Zone == PlayerZone.Leader)
+            {
+                var leader = requestedPlayer.LeaderCardInstance;
+                if (leader is not null && string.Equals(leader.InstanceId, requestedTarget.CardInstanceId, StringComparison.Ordinal))
+                {
+                    return requestedTarget;
+                }
+            }
+
             var requestedZoneCards = PlayerZoneCardAccessor.GetCards(requestedTarget.Zone, requestedPlayer);
             if (requestedZoneCards.Any(card => string.Equals(card.InstanceId, requestedTarget.CardInstanceId, StringComparison.Ordinal)))
             {
@@ -246,6 +255,7 @@ public sealed class GameEffectChainResolver : IGameEffectChainResolver
             PlayerZone.Deck,
             PlayerZone.Trash,
             PlayerZone.ExileZone,
+            PlayerZone.Leader,
         };
 
         foreach (var player in state.Players.OrderBy(player => player.PlayerId, StringComparer.Ordinal))
@@ -290,6 +300,7 @@ public sealed class GameEffectChainResolver : IGameEffectChainResolver
             PlayerZone.Deck,
             PlayerZone.Trash,
             PlayerZone.ExileZone,
+            PlayerZone.Leader,
         };
 
         foreach (var zone in allZones)

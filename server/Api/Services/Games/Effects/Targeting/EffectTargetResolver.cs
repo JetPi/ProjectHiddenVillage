@@ -46,6 +46,27 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
 
         foreach (var targetPlayer in targetPlayers)
         {
+            if (rule.InZone == PlayerZone.Leader)
+            {
+                var leader = targetPlayer.LeaderCardInstance;
+                if (leader is null)
+                {
+                    continue;
+                }
+
+                if (!LeaderTargetRestrictionMatcher.Matches(leader, rule.Restriction))
+                {
+                    continue;
+                }
+
+                candidates.Add(new GameEffectTargetReference(
+                    PlayerId: targetPlayer.PlayerId,
+                    Zone: PlayerZone.Leader,
+                    CardInstanceId: leader.InstanceId));
+
+                continue;
+            }
+
             var zoneCards = PlayerZoneCardAccessor.GetCards(rule.InZone, targetPlayer);
             foreach (var cardInstance in zoneCards)
             {

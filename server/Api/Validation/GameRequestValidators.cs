@@ -310,6 +310,14 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                             .WithMessage("Rule exact selected target count cannot be combined with minimum or maximum selected target count.");
 
                         rule.RuleFor(value => value)
+                            .Must(value => value.TributeRole is null || value.InZone != PlayerZone.Leader)
+                            .WithMessage("Leader zone cannot be used with tribute target roles.");
+
+                        rule.RuleFor(value => value)
+                            .Must(value => !UsesUnsupportedLeaderPredicate(value))
+                            .WithMessage("Leader zone target rules cannot use Health or CurrentHealth predicates. Use life/damage/power leader attributes instead.");
+
+                        rule.RuleFor(value => value)
                             .Must(value =>
                             {
                                 if (!value.MinimumSelectedTargetCount.HasValue || !value.MaximumSelectedTargetCount.HasValue)
@@ -469,5 +477,17 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
             .Replace(" ", string.Empty, StringComparison.Ordinal)
             .Replace("-", string.Empty, StringComparison.Ordinal)
             .Replace("/", string.Empty, StringComparison.Ordinal);
+    }
+
+    private static bool UsesUnsupportedLeaderPredicate(EffectTargetRule rule)
+    {
+        if (rule.InZone != PlayerZone.Leader)
+        {
+            return false;
+        }
+
+        var predicates = rule.Restriction.Predicates ?? [];
+        return predicates.Any(predicate =>
+            predicate.Property is ZoneCardProperty.Health or ZoneCardProperty.CurrentHealth);
     }
 }

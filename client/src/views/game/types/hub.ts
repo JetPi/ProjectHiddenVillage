@@ -1,4 +1,5 @@
 import type { IGameStateResponse } from '@/services/api/gameApi'
+import type { IGameCardActionExecutionRequest } from '@/services/api/types/gameHub'
 
 export type IGameHubActionIntent =
   | 'pass-turn'
@@ -17,6 +18,8 @@ export type ISubmitHubIntentRequest =
       intent: 'execute-card-action'
       actionId: string
       sourceCardInstanceId: string
+      selectedTargets?: IGameCardActionExecutionRequest['selectedTargets']
+      arguments?: IGameCardActionExecutionRequest['arguments']
     }
   | {
       intent: 'resolve-prompt'

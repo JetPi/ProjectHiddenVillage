@@ -174,11 +174,15 @@ async function executeCardAction(
   playerId: string,
   actionId: string,
   sourceCardInstanceId: string,
+  selectedTargets?: IGameCardActionExecutionRequest['selectedTargets'],
+  executionArguments?: IGameCardActionExecutionRequest['arguments'],
 ): Promise<IHubOperationResult<IGameStateResponse>> {
   const payload: IGameCardActionExecutionRequest = {
     playerId: normalizePlayerId(playerId),
     actionId,
     sourceCardInstanceId,
+    selectedTargets,
+    arguments: executionArguments,
   }
 
   const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(

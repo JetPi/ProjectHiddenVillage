@@ -214,6 +214,36 @@ public sealed class ModifyAttributeEffectTests
         Assert.AreEqual(3, opponentLeader.Damage);
     }
 
+    [TestMethod]
+    public void Execute_SelectedTargetLeaderCurrentLife_Subtract_UpdatesLeaderLife()
+    {
+        var effectSpec = new EffectSpec
+        {
+            RuntimeEffectType = RuntimeEffects.ChangeValues,
+            AttributeModifications =
+            [
+                new AttributeModificationSpec
+                {
+                    TargetType = AttributeModificationTargetType.SelectedTargets,
+                    Attribute = EffectAttributeType.LeaderCurrentLife,
+                    Operation = AttributeModificationOperation.Subtract,
+                    Value = 2
+                }
+            ]
+        };
+
+        var context = CreateContext(effectSpec, targetCard: null, playerTwoCurrentLife: 6, playerTwoTotalLife: 6);
+        var effect = CreateEffect(effectSpec);
+
+        var result = effect.Execute(
+            context,
+            [new GameEffectTargetReference("p2", PlayerZone.Leader, "leader-2")]);
+
+        Assert.IsFalse(result.IsError);
+        var opponentLeader = context.Game.State.Players.First(player => player.PlayerId == "p2").LeaderCardInstance!;
+        Assert.AreEqual(4, opponentLeader.CurrentLife);
+    }
+
     private static ModifyAttributeEffect CreateEffect(EffectSpec effectSpec)
     {
         return new ModifyAttributeEffect(

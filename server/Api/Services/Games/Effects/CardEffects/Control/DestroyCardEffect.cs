@@ -60,6 +60,13 @@ public sealed class DestroyCardEffect(
 
         foreach (var target in selectedTargets)
         {
+            if (target.Zone == PlayerZone.Leader)
+            {
+                return Error.Validation(
+                    code: "Game.Effect.DestroyCard.InvalidLeaderTarget",
+                    description: "DestroyCard does not support targeting leaders.");
+            }
+
             var sourceZone = target.Zone;
             var sourcePlayer = context.Game.State.Players.Find(player => player.PlayerId == target.PlayerId)!;
 

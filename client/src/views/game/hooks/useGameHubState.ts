@@ -206,6 +206,8 @@ function useGameHubState(
             authUserId ?? '',
             request.actionId,
             request.sourceCardInstanceId,
+            request.selectedTargets,
+            request.arguments,
           )
         } else if (request.intent === 'declare-end-step') {
           result = await declareEndStep(currentConnection, gameId)
