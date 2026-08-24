@@ -2,7 +2,7 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
 internal static class LeaderTargetRestrictionMatcher
 {
-    public static bool Matches(LeaderCardInstanceState leader, ZoneCardRestriction restriction)
+    public static bool Matches(GameState gameState, LeaderCardInstanceState leader, ZoneCardRestriction restriction)
     {
         var hasPredicateSelector = restriction.Predicates?.Any() is true;
         if (!hasPredicateSelector)
@@ -10,7 +10,7 @@ internal static class LeaderTargetRestrictionMatcher
             return true;
         }
 
-        var predicateMatches = restriction.Predicates!.All(predicate => PredicateMatches(leader, predicate));
+        var predicateMatches = restriction.Predicates!.All(predicate => PredicateMatches(gameState, leader, predicate));
         if (restriction.MatchMode == ZoneRestrictionMatchMode.All)
         {
             return predicateMatches;
@@ -19,9 +19,9 @@ internal static class LeaderTargetRestrictionMatcher
         return predicateMatches;
     }
 
-    private static bool PredicateMatches(LeaderCardInstanceState leader, ZoneCardPropertyPredicate predicate)
+    private static bool PredicateMatches(GameState gameState, LeaderCardInstanceState leader, ZoneCardPropertyPredicate predicate)
     {
-        var propertyValues = ResolvePropertyValues(leader, predicate.Property);
+        var propertyValues = ResolvePropertyValues(gameState, leader, predicate.Property);
         if (propertyValues.Count == 0)
         {
             return false;
@@ -54,8 +54,12 @@ internal static class LeaderTargetRestrictionMatcher
         };
     }
 
-    private static IReadOnlyList<string> ResolvePropertyValues(LeaderCardInstanceState leader, ZoneCardProperty property)
+    private static IReadOnlyList<string> ResolvePropertyValues(GameState gameState, LeaderCardInstanceState leader, ZoneCardProperty property)
     {
+        var effectivePower = CardRuntimeEffectStateService.ResolveEffectiveLeaderPower(gameState, leader);
+        var effectiveDamage = CardRuntimeEffectStateService.ResolveEffectiveLeaderDamage(gameState, leader);
+        var effectiveCurrentLife = CardRuntimeEffectStateService.ResolveEffectiveLeaderCurrentLife(gameState, leader);
+
         return property switch
         {
             ZoneCardProperty.Self => [bool.TrueString],
@@ -66,10 +70,10 @@ internal static class LeaderTargetRestrictionMatcher
             ZoneCardProperty.Trait => leader.Traits,
             ZoneCardProperty.Type => [CardType.Leader.ToString()],
             ZoneCardProperty.Color => [leader.Color.ToString()],
-            ZoneCardProperty.Power => [leader.Power.ToString()],
-            ZoneCardProperty.Damage => [leader.Damage.ToString()],
+            ZoneCardProperty.Power => [effectivePower.ToString()],
+            ZoneCardProperty.Damage => [effectiveDamage.ToString()],
             ZoneCardProperty.Health => [leader.TotalLife.ToString()],
-            ZoneCardProperty.CurrentHealth => [leader.CurrentLife.ToString()],
+            ZoneCardProperty.CurrentHealth => [effectiveCurrentLife.ToString()],
             ZoneCardProperty.OwnerPlayerId => [leader.OwnerPlayerId],
             ZoneCardProperty.ControllerPlayerId => [leader.ControllerPlayerId],
             ZoneCardProperty.IsExhausted => [bool.FalseString],

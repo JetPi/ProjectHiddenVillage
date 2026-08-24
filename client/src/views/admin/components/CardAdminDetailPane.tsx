@@ -54,6 +54,7 @@ const EFFECT_TIMING_OPTIONS = [
   'Your Turn',
   'When Attacking',
 ] as const
+const EFFECT_DURATION_MODE_OPTIONS = ['Instant', 'During This Turn', 'During This Battle', 'Continuous'] as const
 const PASSIVE_MODE_OPTIONS = ['None', 'Continuous', 'Triggered'] as const
 const PASSIVE_SCOPE_OPTIONS = ['Source Card Only', 'Source Controller', 'Whole Game'] as const
 const PASSIVE_TRIGGER_KIND_OPTIONS = ['Any', 'Stats Changed', 'Zone Changed', 'Turn Changed', 'Phase Changed', 'Stack Resolved'] as const
@@ -67,7 +68,7 @@ const EXECUTION_TARGET_SOURCE_OPTIONS = ['Selected Targets', 'Source Card', 'Non
 const EXECUTION_FLOW_MODE_OPTIONS = ['Per Step', 'Atomic Chain'] as const
 const RESTRICTIONS_OPTIONS = ['None', 'Once Per Turn'] as const
 const RULE_OPERATOR_OPTIONS = ['Any', 'All'] as const
-const PLAYER_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone', 'Support Zone', 'Character Field'] as const
+const PLAYER_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone', 'Support Zone', 'Character Field', 'Leader'] as const
 const TRIBUTE_ROLE_OPTIONS = ['Tribute Material', 'Summon Candidate'] as const
 const TARGET_TYPE_OPTIONS = ['Selected Targets', 'Leader'] as const
 const ATTRIBUTE_OPERATION_OPTIONS = ['Add', 'Subtract', 'Multiply', 'Set'] as const
@@ -141,6 +142,7 @@ function createDefaultEffect(): ICardCatalogEffectRequest {
     runtimeEffectType: 'Change Values',
     effectType: 'Support',
     timing: 'Quick',
+    durationMode: 'Instant',
     passiveMode: 'None',
     passiveReevaluation: null,
     passiveConsequences: [],
@@ -867,6 +869,19 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                   </div>
 
                   <div className="space-y-1">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Duration</label>
+                    <select
+                      value={effect.durationMode}
+                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, durationMode: event.target.value }))}
+                      className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                    >
+                      {EFFECT_DURATION_MODE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Mode</label>
                     <select
                       value={effect.passiveMode}
@@ -1219,8 +1234,14 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                         </div>
                       ))}
                     </div>
+                  </div>
+                ) : null}
 
-                    <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-violet-500/35 bg-[var(--surface)] p-3">
+                {effect.runtimeEffectType === 'Gain Effect' ? (
+                  <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-fuchsia-500/55 bg-[var(--surface-muted)] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Gain Effect Settings</p>
+
+                    <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-fuchsia-500/35 bg-[var(--surface)] p-3">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Keyword Modifications</p>
                         <AppButton
@@ -1238,7 +1259,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
                       {(effect.keywordModifications ?? []).map((modification, keywordIndex) => (
                         <div key={`keyword-mod-${keywordIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
-                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
                             <select
                               value={modification.targetType}
                               onChange={(event) =>
@@ -1269,47 +1290,35 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                               ))}
                             </select>
 
-                            <AppButton
-                              type="button"
-                              variant="ghost"
-                              onClick={() =>
+                            <input
+                              type="text"
+                              placeholder={
+                                modification.keyword.trim().length > 0
+                                  ? `Add keyword (current: ${modification.keyword.trim()})`
+                                  : 'Add keyword and press Enter'
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key !== 'Enter') {
+                                  return
+                                }
+
+                                event.preventDefault()
+                                const inputValue = event.currentTarget.value
+
                                 updateEffectAt(effectIndex, (current) => ({
                                   ...current,
-                                  keywordModifications: (current.keywordModifications ?? []).filter((_, index) => index !== keywordIndex),
-                                }))}
-                            >
-                              Remove
-                            </AppButton>
+                                  keywordModifications: appendKeywordEntries(
+                                    current.keywordModifications ?? [],
+                                    keywordIndex,
+                                    inputValue,
+                                  ),
+                                }))
+
+                                event.currentTarget.value = ''
+                              }}
+                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                            />
                           </div>
-
-                          <input
-                            type="text"
-                            placeholder={
-                              modification.keyword.trim().length > 0
-                                ? `Add keyword (current: ${modification.keyword.trim()})`
-                                : 'Add keyword and press Enter'
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key !== 'Enter') {
-                                return
-                              }
-
-                              event.preventDefault()
-                              const inputValue = event.currentTarget.value
-
-                              updateEffectAt(effectIndex, (current) => ({
-                                ...current,
-                                keywordModifications: appendKeywordEntries(
-                                  current.keywordModifications ?? [],
-                                  keywordIndex,
-                                  inputValue,
-                                ),
-                              }))
-
-                              event.currentTarget.value = ''
-                            }}
-                            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                          />
 
                           {modification.keyword.trim().length > 0 ? (
                             <div className="flex flex-wrap gap-2">
@@ -1332,6 +1341,21 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                               </div>
                             </div>
                           ) : null}
+
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  keywordModifications: (current.keywordModifications ?? []).filter((_, index) => index !== keywordIndex),
+                                }))}
+                              className="inline-flex w-fit px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                              aria-label="Remove keyword modification"
+                            >
+                              X
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2183,31 +2207,36 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                       </select>
                                     </div>
 
-                                    <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-                                      <input
-                                        type="checkbox"
-                                        checked={contextRule.player.inZoneRequirements.distinctCardsAcrossRequirements}
-                                        onChange={(event) =>
-                                          updateEffectAt(effectIndex, (current) => ({
-                                            ...current,
-                                            contextRules: current.contextRules.map((row, index) =>
-                                              index === contextRuleIndex
-                                                ? {
-                                                  ...row,
-                                                  player: row.player?.inZoneRequirements
-                                                    ? {
-                                                      ...row.player,
-                                                      inZoneRequirements: {
-                                                        ...row.player.inZoneRequirements,
-                                                        distinctCardsAcrossRequirements: event.target.checked,
-                                                      },
-                                                    }
-                                                    : row.player,
-                                                }
-                                                : row),
-                                          }))}
-                                      />
-                                      Distinct Cards Across Requirements
+                                    <label className="inline-flex h-10 self-end items-center justify-between gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-primary)]">
+                                      <span>Distinct Cards Across Requirements</span>
+                                      <span className="relative inline-flex h-5 w-9 items-center">
+                                        <input
+                                          type="checkbox"
+                                          checked={contextRule.player.inZoneRequirements.distinctCardsAcrossRequirements}
+                                          onChange={(event) =>
+                                            updateEffectAt(effectIndex, (current) => ({
+                                              ...current,
+                                              contextRules: current.contextRules.map((row, index) =>
+                                                index === contextRuleIndex
+                                                  ? {
+                                                    ...row,
+                                                    player: row.player?.inZoneRequirements
+                                                      ? {
+                                                        ...row.player,
+                                                        inZoneRequirements: {
+                                                          ...row.player.inZoneRequirements,
+                                                          distinctCardsAcrossRequirements: event.target.checked,
+                                                        },
+                                                      }
+                                                      : row.player,
+                                                  }
+                                                  : row),
+                                            }))}
+                                          className="peer sr-only"
+                                        />
+                                        <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-cyan-500/70" />
+                                        <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                                      </span>
                                     </label>
                                   </div>
 
@@ -2329,9 +2358,8 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                           ))}
                                         </select>
 
-                                        <AppButton
+                                        <button
                                           type="button"
-                                          variant="ghost"
                                           onClick={() =>
                                             updateEffectAt(effectIndex, (current) => ({
                                               ...current,
@@ -2351,9 +2379,11 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                   }
                                                   : row),
                                             }))}
+                                          className="inline-flex w-fit justify-self-end self-center px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                          aria-label="Remove Requirement"
                                         >
-                                          Remove
-                                        </AppButton>
+                                          X
+                                        </button>
                                       </div>
 
                                       <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/20 bg-[var(--surface-muted)] p-2">
@@ -2785,31 +2815,36 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                       </select>
                                     </div>
 
-                                    <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-                                      <input
-                                        type="checkbox"
-                                        checked={contextRule.opponent.inZoneRequirements.distinctCardsAcrossRequirements}
-                                        onChange={(event) =>
-                                          updateEffectAt(effectIndex, (current) => ({
-                                            ...current,
-                                            contextRules: current.contextRules.map((row, index) =>
-                                              index === contextRuleIndex
-                                                ? {
-                                                  ...row,
-                                                  opponent: row.opponent?.inZoneRequirements
-                                                    ? {
-                                                      ...row.opponent,
-                                                      inZoneRequirements: {
-                                                        ...row.opponent.inZoneRequirements,
-                                                        distinctCardsAcrossRequirements: event.target.checked,
-                                                      },
-                                                    }
-                                                    : row.opponent,
-                                                }
-                                                : row),
-                                          }))}
-                                      />
-                                      Distinct Cards Across Requirements
+                                    <label className="inline-flex h-10 self-end items-center justify-between gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-primary)]">
+                                      <span>Distinct Cards Across Requirements</span>
+                                      <span className="relative inline-flex h-5 w-9 items-center">
+                                        <input
+                                          type="checkbox"
+                                          checked={contextRule.opponent.inZoneRequirements.distinctCardsAcrossRequirements}
+                                          onChange={(event) =>
+                                            updateEffectAt(effectIndex, (current) => ({
+                                              ...current,
+                                              contextRules: current.contextRules.map((row, index) =>
+                                                index === contextRuleIndex
+                                                  ? {
+                                                    ...row,
+                                                    opponent: row.opponent?.inZoneRequirements
+                                                      ? {
+                                                        ...row.opponent,
+                                                        inZoneRequirements: {
+                                                          ...row.opponent.inZoneRequirements,
+                                                          distinctCardsAcrossRequirements: event.target.checked,
+                                                        },
+                                                      }
+                                                      : row.opponent,
+                                                  }
+                                                  : row),
+                                            }))}
+                                          className="peer sr-only"
+                                        />
+                                        <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-cyan-500/70" />
+                                        <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                                      </span>
                                     </label>
                                   </div>
 
@@ -2931,9 +2966,8 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                           ))}
                                         </select>
 
-                                        <AppButton
+                                        <button
                                           type="button"
-                                          variant="ghost"
                                           onClick={() =>
                                             updateEffectAt(effectIndex, (current) => ({
                                               ...current,
@@ -2953,9 +2987,11 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                                   }
                                                   : row),
                                             }))}
+                                          className="inline-flex w-fit justify-self-end self-center px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                          aria-label="Remove Requirement"
                                         >
-                                          Remove
-                                        </AppButton>
+                                          X
+                                        </button>
                                       </div>
 
                                       <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/20 bg-[var(--surface-muted)] p-2">

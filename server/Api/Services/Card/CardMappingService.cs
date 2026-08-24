@@ -355,6 +355,7 @@ public sealed class CardMappingService : ICardMappingService
                     RuntimeEffectType: ToReadableRuntimeEffect(effect.RuntimeEffectType),
                     EffectType: ToReadableEffectKind(effect.EffectType),
                     Timing: ToReadableEffectTiming(effect.Timing),
+                    DurationMode: ToReadableEffectDurationMode(effect.DurationMode),
                     PassiveMode: SplitPascalCase(effect.PassiveMode.ToString()),
                     PassiveReevaluation: ToPassiveReevaluationResponse(effect.PassiveReevaluation),
                     PassiveConsequences: effect.PassiveConsequences
@@ -705,6 +706,11 @@ public sealed class CardMappingService : ICardMappingService
     private static string ToReadableEffectTiming(EffectTiming timing)
     {
         return SplitPascalCase(timing.ToString());
+    }
+
+    private static string ToReadableEffectDurationMode(EffectDurationMode durationMode)
+    {
+        return SplitPascalCase(durationMode.ToString());
     }
 
     private static string ToReadableEffectTargetRange(EffectTargetRange targetRange)

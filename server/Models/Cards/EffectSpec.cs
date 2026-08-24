@@ -97,6 +97,8 @@ public sealed class EffectSpec
 
     public EffectTiming Timing { get; set; } = EffectTiming.Unspecified;
 
+    public EffectDurationMode DurationMode { get; set; } = EffectDurationMode.Instant;
+
     public EffectTargetRange TargetRange { get; set; } = EffectTargetRange.Opponent;
 
     public bool IsOptional { get; set; } = false;

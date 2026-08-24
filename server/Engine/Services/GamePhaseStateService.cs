@@ -171,6 +171,7 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
         }
 
         state.Phase = GamePhase.StartOfMainPhase;
+        RemoveTemporaryCardEffects(state, EffectDurationMode.DuringThisTurn);
         var nextActivePlayerId = ChangeActivePlayer(state);
         var nextPlayer = state.Players.Single(player => string.Equals(player.PlayerId, nextActivePlayerId, StringComparison.Ordinal));
         nextPlayer.TurnCount++;
@@ -210,6 +211,9 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
             case GamePhase.ActionStep:
                 OnEnterActionStep(state);
                 break;
+            case GamePhase.BattleEndStep:
+                OnEnterBattleEndStep(state);
+                break;
         }
     }
 
@@ -233,6 +237,13 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
     {
         state.PriorityPlayerId = state.ActivePlayerId;
         state.ConsecutivePasses = 0;
+    }
+
+    private static void OnEnterBattleEndStep(GameState state)
+    {
+        RemoveTemporaryCardEffects(state, EffectDurationMode.DuringThisBattle);
+        state.HasPendingAttack = false;
+        state.PendingAttackDeclarationId = string.Empty;
     }
 
     private GamePhase EnterChooseStartingPlayer(GameState state)
@@ -295,9 +306,17 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
 
     private GamePhase EnterBattleEndStep(GameState state)
     {
-        state.HasPendingAttack = false;
-        state.PendingAttackDeclarationId = string.Empty;
         return ApplyQueuedPhaseDirectives(state, GamePhase.MainPhase);
+    }
+
+    private static void RemoveTemporaryCardEffects(GameState state, EffectDurationMode durationMode)
+    {
+        if (state.AppliedCardEffects.Count == 0)
+        {
+            return;
+        }
+
+        state.AppliedCardEffects.RemoveAll(effect => effect.DurationMode == durationMode);
     }
 
     private GamePhase ApplyQueuedPhaseDirectives(GameState state, GamePhase defaultNextPhase)

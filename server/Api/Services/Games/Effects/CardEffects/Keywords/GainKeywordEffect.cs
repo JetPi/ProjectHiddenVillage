@@ -88,7 +88,7 @@ public sealed class GainKeywordEffect(
 				}
 			}
 
-			var applyResult = ApplyKeywordModification(context, selectedTargets, keywordModification);
+			var applyResult = ApplyKeywordModification(context, selectedTargets, keywordModification, effectSpec);
 			if (applyResult.IsError)
 			{
 				return applyResult.Errors;
@@ -155,7 +155,8 @@ public sealed class GainKeywordEffect(
 	private static ErrorOr<Success> ApplyKeywordModification(
 		GameCardEffectContext context,
 		IReadOnlyList<GameEffectTargetReference> selectedTargets,
-		KeywordModificationSpec modification)
+		KeywordModificationSpec modification,
+		EffectSpec effectSpec)
 	{
 		if (string.IsNullOrWhiteSpace(modification.Keyword))
 		{
@@ -168,15 +169,20 @@ public sealed class GainKeywordEffect(
 
 		return modification.TargetType switch
 		{
-			KeywordModificationTargetType.SourceCard => ApplyToSourceCard(context.SourceCardInstance, normalizedKeyword, modification.Operation),
-			KeywordModificationTargetType.SelectedTargets => ApplyToSelectedTargets(context, selectedTargets, normalizedKeyword, modification.Operation),
+			KeywordModificationTargetType.SourceCard => ApplyToSourceCard(context, context.SourceCardInstance, normalizedKeyword, modification, effectSpec),
+			KeywordModificationTargetType.SelectedTargets => ApplyToSelectedTargets(context, selectedTargets, normalizedKeyword, modification, effectSpec),
 			_ => Error.Validation(
 				code: "Game.Effect.GainKeyword.UnsupportedTargetType",
 				description: $"Unsupported keyword target type '{modification.TargetType}'.")
 		};
 	}
 
-	private static ErrorOr<Success> ApplyToSourceCard(CardInstance? sourceCardInstance, string keyword, KeywordModificationOperation operation)
+	private static ErrorOr<Success> ApplyToSourceCard(
+		GameCardEffectContext context,
+		CardInstance? sourceCardInstance,
+		string keyword,
+		KeywordModificationSpec modification,
+		EffectSpec effectSpec)
 	{
 		if (sourceCardInstance is null)
 		{
@@ -185,7 +191,20 @@ public sealed class GainKeywordEffect(
 				description: "Source card instance is required for source-card keyword modifications.");
 		}
 
-		ApplyKeywordOperation(sourceCardInstance.RuntimeKeywords, keyword, operation);
+		if (CardRuntimeEffectStateService.IsDurationSupportedForKeywords(effectSpec.DurationMode)
+			&& context.SourceCardInstance is not null)
+		{
+			CardRuntimeEffectStateService.AddTemporaryKeywordEffect(
+				context.Game.State,
+				context.SourceCardInstance,
+				sourceCardInstance,
+				effectSpec.Id,
+				modification,
+				effectSpec.DurationMode);
+			return Result.Success;
+		}
+
+		ApplyKeywordOperation(sourceCardInstance.RuntimeKeywords, keyword, modification.Operation);
 		return Result.Success;
 	}
 
@@ -193,7 +212,8 @@ public sealed class GainKeywordEffect(
 		GameCardEffectContext context,
 		IReadOnlyList<GameEffectTargetReference> selectedTargets,
 		string keyword,
-		KeywordModificationOperation operation)
+		KeywordModificationSpec modification,
+		EffectSpec effectSpec)
 	{
 		foreach (var target in selectedTargets.Where(target => !target.IsEffectResolutionStackTarget))
 		{
@@ -218,7 +238,20 @@ public sealed class GainKeywordEffect(
 					description: $"Target card instance '{target.CardInstanceId}' was not found in {target.Zone}.");
 			}
 
-			ApplyKeywordOperation(targetCard.RuntimeKeywords, keyword, operation);
+			if (CardRuntimeEffectStateService.IsDurationSupportedForKeywords(effectSpec.DurationMode)
+				&& context.SourceCardInstance is not null)
+			{
+				CardRuntimeEffectStateService.AddTemporaryKeywordEffect(
+					context.Game.State,
+					context.SourceCardInstance,
+					targetCard,
+					effectSpec.Id,
+					modification,
+					effectSpec.DurationMode);
+				continue;
+			}
+
+			ApplyKeywordOperation(targetCard.RuntimeKeywords, keyword, modification.Operation);
 		}
 
 		return Result.Success;

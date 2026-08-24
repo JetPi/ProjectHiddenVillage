@@ -79,7 +79,7 @@ public sealed class ModifyAttributeEffect(
             affectsCards |= modification.TargetType == AttributeModificationTargetType.SelectedTargets;
             affectsLeaders |= modification.TargetType == AttributeModificationTargetType.Leader;
 
-            var applyResult = ApplyModification(context, selectedTargets, modification);
+            var applyResult = ApplyModification(context, selectedTargets, modification, effectSpec);
             if (applyResult.IsError)
             {
                 return applyResult.Errors;
@@ -202,12 +202,13 @@ public sealed class ModifyAttributeEffect(
     private static ErrorOr<Success> ApplyModification(
         GameCardEffectContext context,
         IReadOnlyList<GameEffectTargetReference> selectedTargets,
-        AttributeModificationSpec modification)
+        AttributeModificationSpec modification,
+        EffectSpec effectSpec)
     {
         return modification.TargetType switch
         {
-            AttributeModificationTargetType.SelectedTargets => ApplyToSelectedTargets(context, selectedTargets, modification),
-            AttributeModificationTargetType.Leader => ApplyToLeaders(context, modification),
+            AttributeModificationTargetType.SelectedTargets => ApplyToSelectedTargets(context, selectedTargets, modification, effectSpec),
+            AttributeModificationTargetType.Leader => ApplyToLeaders(context, modification, effectSpec),
             _ => Error.Validation(
                 code: "Game.Effect.ChangeValues.UnsupportedTargetType",
                 description: $"Unsupported target type '{modification.TargetType}'.")
@@ -217,7 +218,8 @@ public sealed class ModifyAttributeEffect(
     private static ErrorOr<Success> ApplyToSelectedTargets(
         GameCardEffectContext context,
         IReadOnlyList<GameEffectTargetReference> selectedTargets,
-        AttributeModificationSpec modification)
+        AttributeModificationSpec modification,
+        EffectSpec effectSpec)
     {
         foreach (var target in selectedTargets.Where(target => !target.IsEffectResolutionStackTarget))
         {
@@ -241,7 +243,7 @@ public sealed class ModifyAttributeEffect(
                         description: $"Target leader instance '{target.CardInstanceId}' was not found for player '{target.PlayerId}'.");
                 }
 
-                var leaderApplyResult = ApplySelectedTargetLeaderModification(leader, modification);
+                var leaderApplyResult = ApplySelectedTargetLeaderModification(context, effectSpec, leader, modification);
                 if (leaderApplyResult.IsError)
                 {
                     return leaderApplyResult.Errors;
@@ -272,6 +274,19 @@ public sealed class ModifyAttributeEffect(
             {
                 case EffectAttributeType.CardPower:
                     {
+                        if (CardRuntimeEffectStateService.IsDurationSupportedForAttributes(effectSpec.DurationMode)
+                            && context.SourceCardInstance is not null)
+                        {
+                            CardRuntimeEffectStateService.AddTemporaryAttributeEffect(
+                                context.Game.State,
+                                context.SourceCardInstance,
+                                targetCard,
+                                effectSpec.Id,
+                                modification,
+                                effectSpec.DurationMode);
+                            break;
+                        }
+
                         var currentValue = targetCard.PowerOverride ?? definition.Power;
                         var updatedValue = ApplyOperation(currentValue, modification.Operation, modification.Value);
                         targetCard.PowerOverride = Clamp(updatedValue, modification, defaultMin: 0);
@@ -280,6 +295,19 @@ public sealed class ModifyAttributeEffect(
 
                 case EffectAttributeType.CardDamage:
                     {
+                        if (CardRuntimeEffectStateService.IsDurationSupportedForAttributes(effectSpec.DurationMode)
+                            && context.SourceCardInstance is not null)
+                        {
+                            CardRuntimeEffectStateService.AddTemporaryAttributeEffect(
+                                context.Game.State,
+                                context.SourceCardInstance,
+                                targetCard,
+                                effectSpec.Id,
+                                modification,
+                                effectSpec.DurationMode);
+                            break;
+                        }
+
                         var currentValue = targetCard.DamageOverride ?? definition.Damage;
                         var updatedValue = ApplyOperation(currentValue, modification.Operation, modification.Value);
                         targetCard.DamageOverride = Clamp(updatedValue, modification, defaultMin: 0);
@@ -288,6 +316,19 @@ public sealed class ModifyAttributeEffect(
 
                 case EffectAttributeType.CardHealth:
                     {
+                        if (CardRuntimeEffectStateService.IsDurationSupportedForAttributes(effectSpec.DurationMode)
+                            && context.SourceCardInstance is not null)
+                        {
+                            CardRuntimeEffectStateService.AddTemporaryAttributeEffect(
+                                context.Game.State,
+                                context.SourceCardInstance,
+                                targetCard,
+                                effectSpec.Id,
+                                modification,
+                                effectSpec.DurationMode);
+                            break;
+                        }
+
                         var baseHealth = definition is CharacterCard characterDefinition
                             ? characterDefinition.Health
                             : 0;
@@ -309,9 +350,24 @@ public sealed class ModifyAttributeEffect(
     }
 
     private static ErrorOr<Success> ApplySelectedTargetLeaderModification(
+        GameCardEffectContext context,
+        EffectSpec effectSpec,
         LeaderCardInstanceState leader,
         AttributeModificationSpec modification)
     {
+        if (CardRuntimeEffectStateService.IsDurationSupportedForAttributes(effectSpec.DurationMode)
+            && context.SourceCardInstance is not null)
+        {
+            CardRuntimeEffectStateService.AddTemporaryLeaderAttributeEffect(
+                context.Game.State,
+                context.SourceCardInstance,
+                leader,
+                effectSpec.Id,
+                modification,
+                effectSpec.DurationMode);
+            return Result.Success;
+        }
+
         switch (modification.Attribute)
         {
             case EffectAttributeType.LeaderDamage:
@@ -341,7 +397,8 @@ public sealed class ModifyAttributeEffect(
 
     private static ErrorOr<Success> ApplyToLeaders(
         GameCardEffectContext context,
-        AttributeModificationSpec modification)
+        AttributeModificationSpec modification,
+        EffectSpec effectSpec)
     {
         if (modification.Attribute == EffectAttributeType.CardPower)
         {
@@ -354,6 +411,19 @@ public sealed class ModifyAttributeEffect(
 
         foreach (var leader in targetLeaders)
         {
+            if (CardRuntimeEffectStateService.IsDurationSupportedForAttributes(effectSpec.DurationMode)
+                && context.SourceCardInstance is not null)
+            {
+                CardRuntimeEffectStateService.AddTemporaryLeaderAttributeEffect(
+                    context.Game.State,
+                    context.SourceCardInstance,
+                    leader,
+                    effectSpec.Id,
+                    modification,
+                    effectSpec.DurationMode);
+                continue;
+            }
+
             switch (modification.Attribute)
             {
                 case EffectAttributeType.LeaderDamage:

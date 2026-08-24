@@ -29,10 +29,13 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
             zoneCards.Add((cardDefinition, cardInstance));
         }
 
-        return EvaluateZoneRequirements(condition.InZoneRequirements, zoneCards);
+        return EvaluateZoneRequirements(condition.InZoneRequirements, zoneCards, gameState);
     }
 
-    private static bool EvaluateZoneRequirements(ZoneRequirementSet requirementSet, IReadOnlyList<(Card Definition, CardInstance Instance)> zoneCards)
+    private static bool EvaluateZoneRequirements(
+        ZoneRequirementSet requirementSet,
+        IReadOnlyList<(Card Definition, CardInstance Instance)> zoneCards,
+        GameState gameState)
     {
         var requirements = requirementSet.Requirements;
         if (requirements.Count == 0)
@@ -45,26 +48,27 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
 
         if (requirementSet.Operator == RequirementGroupOperator.Any)
         {
-            return requirements.Any(requirement => RequirementIsSatisfied(requirement, zoneCards, matchCountByRestrictionKey));
+            return requirements.Any(requirement => RequirementIsSatisfied(requirement, zoneCards, gameState, matchCountByRestrictionKey));
         }
 
         if (!requirementSet.DistinctCardsAcrossRequirements)
         {
-            return requirements.All(requirement => RequirementIsSatisfied(requirement, zoneCards, matchCountByRestrictionKey));
+            return requirements.All(requirement => RequirementIsSatisfied(requirement, zoneCards, gameState, matchCountByRestrictionKey));
         }
 
-        return RequirementsSatisfiedWithDistinctCards(requirements, zoneCards, candidateIndexesByRestrictionKey);
+        return RequirementsSatisfiedWithDistinctCards(requirements, zoneCards, gameState, candidateIndexesByRestrictionKey);
     }
 
     private static bool RequirementIsSatisfied(
         ZoneAmountRequirement requirement,
         IReadOnlyList<(Card Definition, CardInstance Instance)> zoneCards,
+        GameState gameState,
         Dictionary<string, int> matchCountByRestrictionKey)
     {
         var restrictionKey = BuildRestrictionKey(requirement.Restriction);
         if (!matchCountByRestrictionKey.TryGetValue(restrictionKey, out var matchCount))
         {
-            matchCount = zoneCards.Count(card => ZoneCardRestrictionMatcher.Matches(card.Definition, requirement.Restriction, card.Instance));
+            matchCount = zoneCards.Count(card => ZoneCardRestrictionMatcher.Matches(gameState, card.Definition, requirement.Restriction, card.Instance));
             matchCountByRestrictionKey[restrictionKey] = matchCount;
         }
 
@@ -85,10 +89,11 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
     private static bool RequirementsSatisfiedWithDistinctCards(
         IReadOnlyList<ZoneAmountRequirement> requirements,
         IReadOnlyList<(Card Definition, CardInstance Instance)> zoneCards,
+        GameState gameState,
         Dictionary<string, int[]> candidateIndexesByRestrictionKey)
     {
         var candidateIndexesPerRequirement = requirements
-            .Select(requirement => GetCandidateIndexes(requirement.Restriction, zoneCards, candidateIndexesByRestrictionKey))
+            .Select(requirement => GetCandidateIndexes(requirement.Restriction, zoneCards, gameState, candidateIndexesByRestrictionKey))
             .ToArray();
 
         var orderedRequirementIndexes = Enumerable.Range(0, requirements.Count)
@@ -102,6 +107,7 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
     private static int[] GetCandidateIndexes(
         ZoneCardRestriction restriction,
         IReadOnlyList<(Card Definition, CardInstance Instance)> zoneCards,
+        GameState gameState,
         Dictionary<string, int[]> candidateIndexesByRestrictionKey)
     {
         var restrictionKey = BuildRestrictionKey(restriction);
@@ -112,7 +118,7 @@ public sealed class EffectContextConditionEvaluator : IGameEffectContextConditio
 
         var candidateIndexes = zoneCards
             .Select((card, index) => (card, index))
-            .Where(tuple => ZoneCardRestrictionMatcher.Matches(tuple.card.Definition, restriction, tuple.card.Instance))
+            .Where(tuple => ZoneCardRestrictionMatcher.Matches(gameState, tuple.card.Definition, restriction, tuple.card.Instance))
             .Select(tuple => tuple.index)
             .ToArray();
 

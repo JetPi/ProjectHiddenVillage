@@ -35,6 +35,20 @@ public static class GameStateResponseMapper
             Phase: state.Phase.ToString(),
             PendingPrompt: ToPendingPromptResponse(pendingPrompt, requestingPlayerId),
             AvailableActions: BuildAvailableActions(state, phaseData, requestingPlayerId, pendingPrompt),
+            ActiveTemporaryEffects: CardRuntimeEffectStateService
+                .BuildTemporaryEffectProjections(state)
+                .Select(effect => new ActiveTemporaryEffectResponse(
+                    EffectId: effect.EffectId,
+                    SourceCardInstanceId: effect.SourceCardInstanceId,
+                    TargetCardInstanceId: effect.TargetCardInstanceId,
+                    ModifierKind: effect.ModifierKind,
+                    DurationMode: effect.DurationMode,
+                    Attribute: effect.Attribute,
+                    Operation: effect.Operation,
+                    Value: effect.Value,
+                    Keyword: effect.Keyword,
+                    AppliedTurnNumber: effect.AppliedTurnNumber))
+                .ToList(),
             Players: state.Players
                 .ConvertAll(player => ToPlayerZonesResponse(player, requestingPlayerId, state, pendingPrompt)));
     }
@@ -177,7 +191,7 @@ public static class GameStateResponseMapper
         return new PlayerZonesResponse(
             PlayerId: player.PlayerId,
             TurnCount: player.TurnCount,
-            Leader: ToLeaderCardInstanceResponse(player.LeaderCardInstance),
+            Leader: ToLeaderCardInstanceResponse(player.LeaderCardInstance, state),
             Deck: isRequestingPlayer
                 ? player.Deck.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Deck)) : [],
             DeckCount: player.Deck.Count,
@@ -224,12 +238,18 @@ public static class GameStateResponseMapper
         bool isRequestingPlayer = false)
     {
         var definition = cardDefinitions[card.CardDefinitionId];
-        var resolvedPower = card.PowerOverride ?? definition.Power;
-        var resolvedDamage = card.DamageOverride ?? definition.Damage;
+        var resolvedPower = state is null
+            ? card.PowerOverride ?? definition.Power
+            : CardRuntimeEffectStateService.ResolveEffectivePower(state, card, definition);
+        var resolvedDamage = state is null
+            ? card.DamageOverride ?? definition.Damage
+            : CardRuntimeEffectStateService.ResolveEffectiveDamage(state, card, definition);
         var baseHealth = definition is CharacterCard characterDefinition
             ? characterDefinition.Health
             : 0;
-        var resolvedBaseHealth = card.HealthOverride ?? baseHealth;
+        var resolvedBaseHealth = state is null
+            ? card.HealthOverride ?? baseHealth
+            : CardRuntimeEffectStateService.ResolveEffectiveHealth(state, card, definition);
         var resolvedCurrentHealth = card.CurrentHealth ?? resolvedBaseHealth;
         var cardActions = BuildCardAvailableActions(card, playerZone, state, pendingPrompt, isRequestingPlayer);
 
@@ -369,7 +389,9 @@ public static class GameStateResponseMapper
 
     private static bool HasRushKeyword(CardInstance card, GameState state)
     {
-        if (card.RuntimeKeywords.Any(keyword =>
+        var effectiveKeywords = CardRuntimeEffectStateService.ResolveEffectiveKeywords(state, card);
+
+        if (effectiveKeywords.Any(keyword =>
             string.Equals(keyword, EffectConditionKeywords.Rush, StringComparison.OrdinalIgnoreCase)))
         {
             return true;
@@ -384,8 +406,12 @@ public static class GameStateResponseMapper
             string.Equals(condition, EffectConditionKeywords.Rush, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static LeaderCardInstanceResponse ToLeaderCardInstanceResponse(LeaderCardInstanceState? leader)
+    private static LeaderCardInstanceResponse ToLeaderCardInstanceResponse(LeaderCardInstanceState? leader, GameState state)
     {
+        var resolvedPower = leader is null ? 0 : CardRuntimeEffectStateService.ResolveEffectiveLeaderPower(state, leader);
+        var resolvedDamage = leader is null ? 0 : CardRuntimeEffectStateService.ResolveEffectiveLeaderDamage(state, leader);
+        var resolvedCurrentLife = leader is null ? 0 : CardRuntimeEffectStateService.ResolveEffectiveLeaderCurrentLife(state, leader);
+
         return new LeaderCardInstanceResponse(
             InstanceId: leader!.InstanceId,
             CardDefinitionId: leader!.CardDefinitionId,
@@ -395,10 +421,10 @@ public static class GameStateResponseMapper
             DisplayName: leader!.Name,
             Color: leader!.Color,
             Traits: leader!.Traits,
-            Damage: leader!.Damage,
-            Power: leader!.Power,
+            Damage: resolvedDamage,
+            Power: resolvedPower,
             TotalLife: leader!.TotalLife,
-            CurrentLife: leader!.CurrentLife,
+            CurrentLife: resolvedCurrentLife,
             RecoveryEffect: leader!.RecoveryEffect);
     }
 }

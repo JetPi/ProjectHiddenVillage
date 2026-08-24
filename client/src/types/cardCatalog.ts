@@ -138,6 +138,7 @@ export type ICardCatalogEffectResponse = {
   runtimeEffectType: string
   effectType: string
   timing: string
+  durationMode: string
   passiveMode: string
   passiveReevaluation: ICardCatalogPassiveReevaluationResponse | null
   passiveConsequences: ICardCatalogPassiveConsequenceResponse[]

@@ -28,6 +28,7 @@ public sealed record CardCatalogEffectResponse(
     string RuntimeEffectType,
     string EffectType,
     string Timing,
+    string DurationMode,
     string PassiveMode,
     CardCatalogPassiveReevaluationResponse? PassiveReevaluation,
     IReadOnlyList<CardCatalogPassiveConsequenceResponse> PassiveConsequences,
