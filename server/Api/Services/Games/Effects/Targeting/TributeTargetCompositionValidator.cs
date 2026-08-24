@@ -195,7 +195,7 @@ internal static class TributeTargetCompositionValidator
                 return false;
             }
 
-            return LeaderTargetRestrictionMatcher.Matches(leader, rule.Restriction);
+            return LeaderTargetRestrictionMatcher.Matches(gameState, leader, rule.Restriction);
         }
 
         var zoneCards = PlayerZoneCardAccessor.GetCards(rule.InZone, targetPlayerState);
@@ -212,7 +212,7 @@ internal static class TributeTargetCompositionValidator
             return false;
         }
 
-        return ZoneCardRestrictionMatcher.Matches(cardDefinition, rule.Restriction, cardInstance, sourceCardInstance);
+        return ZoneCardRestrictionMatcher.Matches(gameState, cardDefinition, rule.Restriction, cardInstance, sourceCardInstance);
     }
 
     private static bool ScopeAllowsTargetPlayer(EffectTargetRange scope, string actingPlayerId, string targetPlayerId)

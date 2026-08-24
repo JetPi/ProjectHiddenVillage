@@ -54,7 +54,7 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
                     continue;
                 }
 
-                if (!LeaderTargetRestrictionMatcher.Matches(leader, rule.Restriction))
+                if (!LeaderTargetRestrictionMatcher.Matches(gameState, leader, rule.Restriction))
                 {
                     continue;
                 }
@@ -75,7 +75,7 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
                     continue;
                 }
 
-                if (!ZoneCardRestrictionMatcher.Matches(cardDefinition, rule.Restriction, cardInstance, sourceCardInstance))
+                if (!ZoneCardRestrictionMatcher.Matches(gameState, cardDefinition, rule.Restriction, cardInstance, sourceCardInstance))
                 {
                     continue;
                 }

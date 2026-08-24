@@ -66,6 +66,14 @@ public enum PassiveMode
     Triggered
 }
 
+public enum EffectDurationMode
+{
+    Instant,
+    DuringThisTurn,
+    DuringThisBattle,
+    Continuous
+}
+
 public enum PassiveTriggerKind
 {
     StatsChanged,

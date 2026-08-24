@@ -30,6 +30,8 @@ public sealed class GameState
 
     public List<PassiveActivationState> PassiveStates { get; set; } = [];
 
+    public List<AppliedCardEffectState> AppliedCardEffects { get; set; } = [];
+
     public bool HasPendingAttack { get; set; }
 
     public string PendingAttackDeclarationId { get; set; } = string.Empty;

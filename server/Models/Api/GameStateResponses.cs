@@ -8,7 +8,20 @@ public sealed record GameStateResponse(
     string Phase,
     PendingPromptResponse? PendingPrompt,
     IReadOnlyList<GameActionOptionResponse> AvailableActions,
+    IReadOnlyList<ActiveTemporaryEffectResponse> ActiveTemporaryEffects,
     IReadOnlyList<PlayerZonesResponse> Players);
+
+public sealed record ActiveTemporaryEffectResponse(
+    string EffectId,
+    string SourceCardInstanceId,
+    string TargetCardInstanceId,
+    string ModifierKind,
+    string DurationMode,
+    string? Attribute,
+    string? Operation,
+    int? Value,
+    string? Keyword,
+    int AppliedTurnNumber);
 
 public sealed record PendingPromptResponse(
     string PromptId,

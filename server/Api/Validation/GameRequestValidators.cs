@@ -237,6 +237,11 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                     .NotEqual(EffectTiming.Unspecified)
                     .WithMessage("Effect timing must be specified.");
 
+                effect.RuleFor(value => value.DurationMode)
+                    .Must(durationMode => durationMode != EffectDurationMode.Continuous
+                        || durationMode == EffectDurationMode.Continuous)
+                    .WithMessage("Effect duration mode is invalid.");
+
                 effect.RuleFor(value => value.ChakraCost)
                     .GreaterThanOrEqualTo(0)
                     .When(value => value.ChakraCost.HasValue)
@@ -401,6 +406,11 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                             || rule.MinimumSelectedTargetCount.HasValue
                             || rule.MaximumSelectedTargetCount.HasValue))
                     .WithMessage("Rule selected target count constraints require tribute composition.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.DurationMode == EffectDurationMode.Instant
+                        || value.RuntimeEffectType is RuntimeEffects.ChangeValues or RuntimeEffects.GainEffect)
+                    .WithMessage("Non-instant duration is currently supported only for Change Values and Gain Effect runtime effects.");
             })
             .When(request => request.Effects is not null);
     }

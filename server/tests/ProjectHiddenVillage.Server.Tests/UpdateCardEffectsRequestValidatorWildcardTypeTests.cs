@@ -19,6 +19,7 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                     RuntimeEffectType = RuntimeEffects.Tribute,
                     EffectType = EffectKind.SummonRequirement,
                     Timing = EffectTiming.OnSummon,
+                    DurationMode = EffectDurationMode.Instant,
                     TargetRange = EffectTargetRange.Self,
                     ContextRules = [],
                     TargetRules = new EffectTargetRuleSet
@@ -94,6 +95,7 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                     RuntimeEffectType = RuntimeEffects.SummonCard,
                     EffectType = EffectKind.Activated,
                     Timing = EffectTiming.OnSummon,
+                    DurationMode = EffectDurationMode.Instant,
                     TargetRange = EffectTargetRange.Self,
                     ContextRules = [],
                     TargetRules = new EffectTargetRuleSet

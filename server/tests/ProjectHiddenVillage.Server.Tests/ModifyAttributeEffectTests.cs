@@ -244,6 +244,83 @@ public sealed class ModifyAttributeEffectTests
         Assert.AreEqual(4, opponentLeader.CurrentLife);
     }
 
+    [TestMethod]
+    public void Execute_SelectedTargetLeaderCurrentLife_WithTurnDuration_AddsTemporaryLeaderModifier()
+    {
+        var effectSpec = new EffectSpec
+        {
+            Id = "effect-turn-leader-life",
+            RuntimeEffectType = RuntimeEffects.ChangeValues,
+            DurationMode = EffectDurationMode.DuringThisTurn,
+            AttributeModifications =
+            [
+                new AttributeModificationSpec
+                {
+                    TargetType = AttributeModificationTargetType.SelectedTargets,
+                    Attribute = EffectAttributeType.LeaderCurrentLife,
+                    Operation = AttributeModificationOperation.Add,
+                    Value = 2
+                }
+            ]
+        };
+
+        var sourceCardInstance = new CardInstance
+        {
+            InstanceId = "source-instance",
+            CardDefinitionId = "source-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1"
+        };
+        var context = CreateContext(effectSpec, targetCard: null, playerTwoCurrentLife: 6, playerTwoTotalLife: 10, sourceCardInstance);
+        var effect = CreateEffect(effectSpec);
+
+        var result = effect.Execute(
+            context,
+            [new GameEffectTargetReference("p2", PlayerZone.Leader, "leader-2")]);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(1, context.Game.State.AppliedCardEffects.Count);
+        Assert.AreEqual("leader-2", context.Game.State.AppliedCardEffects[0].TargetCardInstanceId);
+    }
+
+    [TestMethod]
+    public void Execute_LeaderTargetRange_WithTurnDuration_AddsTemporaryLeaderModifier()
+    {
+        var effectSpec = new EffectSpec
+        {
+            Id = "effect-turn-leader-power",
+            RuntimeEffectType = RuntimeEffects.ChangeValues,
+            DurationMode = EffectDurationMode.DuringThisTurn,
+            AttributeModifications =
+            [
+                new AttributeModificationSpec
+                {
+                    TargetType = AttributeModificationTargetType.Leader,
+                    TargetRange = EffectTargetRange.Opponent,
+                    Attribute = EffectAttributeType.LeaderPower,
+                    Operation = AttributeModificationOperation.Add,
+                    Value = 1
+                }
+            ]
+        };
+
+        var sourceCardInstance = new CardInstance
+        {
+            InstanceId = "source-instance",
+            CardDefinitionId = "source-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1"
+        };
+        var context = CreateContext(effectSpec, targetCard: null, playerTwoCurrentLife: 6, playerTwoTotalLife: 6, sourceCardInstance);
+        var effect = CreateEffect(effectSpec);
+
+        var result = effect.Execute(context, []);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(1, context.Game.State.AppliedCardEffects.Count);
+        Assert.AreEqual("leader-2", context.Game.State.AppliedCardEffects[0].TargetCardInstanceId);
+    }
+
     private static ModifyAttributeEffect CreateEffect(EffectSpec effectSpec)
     {
         return new ModifyAttributeEffect(
@@ -256,7 +333,8 @@ public sealed class ModifyAttributeEffectTests
         EffectSpec effectSpec,
         CardInstance? targetCard,
         int playerTwoCurrentLife,
-        int playerTwoTotalLife)
+        int playerTwoTotalLife,
+        CardInstance? sourceCardInstance = null)
     {
         var playerOne = new PlayerState
         {
@@ -333,7 +411,7 @@ public sealed class ModifyAttributeEffectTests
             game: game,
             actingPlayer: new Player { Id = "p1" },
             sourceCardDefinition: state.CardDefinitions["source-1"],
-            sourceCardInstance: null,
+            sourceCardInstance: sourceCardInstance,
             arguments: new Dictionary<string, string>(),
             selectedTargets: []);
     }

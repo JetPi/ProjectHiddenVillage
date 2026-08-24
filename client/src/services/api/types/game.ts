@@ -15,6 +15,19 @@ export type IGameActionOptionResponse = {
   disabledReason: string | null
 }
 
+export type IActiveTemporaryEffectResponse = {
+  effectId: string
+  sourceCardInstanceId: string
+  targetCardInstanceId: string
+  modifierKind: string
+  durationMode: string
+  attribute: string | null
+  operation: string | null
+  value: number | null
+  keyword: string | null
+  appliedTurnNumber: number
+}
+
 export type IGameCardInstanceResponse = {
   instanceId: string
   cardDefinitionId: string
@@ -70,6 +83,7 @@ export type IGameStateResponse = {
   phase: string
   pendingPrompt: IPendingPromptResponse | null
   availableActions: IGameActionOptionResponse[]
+  activeTemporaryEffects: IActiveTemporaryEffectResponse[]
   players: IGamePlayerStateResponse[]
 }
 

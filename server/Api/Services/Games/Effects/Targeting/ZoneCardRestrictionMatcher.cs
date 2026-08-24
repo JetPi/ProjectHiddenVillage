@@ -3,6 +3,7 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 internal static class ZoneCardRestrictionMatcher
 {
     public static bool Matches(
+        GameState gameState,
         Card cardDefinition,
         ZoneCardRestriction restriction,
         CardInstance? cardInstance = null,
@@ -16,7 +17,7 @@ internal static class ZoneCardRestrictionMatcher
         }
 
         var predicateMatches = restriction.Predicates!.All(predicate =>
-            PredicateMatches(cardDefinition, cardInstance, sourceCardInstance, predicate));
+            PredicateMatches(gameState, cardDefinition, cardInstance, sourceCardInstance, predicate));
 
         if (restriction.MatchMode == ZoneRestrictionMatchMode.All)
         {
@@ -27,12 +28,13 @@ internal static class ZoneCardRestrictionMatcher
     }
 
     private static bool PredicateMatches(
+        GameState gameState,
         Card cardDefinition,
         CardInstance? cardInstance,
         CardInstance? sourceCardInstance,
         ZoneCardPropertyPredicate predicate)
     {
-        var propertyValues = ResolvePropertyValues(cardDefinition, cardInstance, sourceCardInstance, predicate.Property);
+        var propertyValues = ResolvePropertyValues(gameState, cardDefinition, cardInstance, sourceCardInstance, predicate.Property);
         if (propertyValues.Count == 0)
         {
             return false;
@@ -66,13 +68,21 @@ internal static class ZoneCardRestrictionMatcher
     }
 
     private static IReadOnlyList<string> ResolvePropertyValues(
+        GameState gameState,
         Card cardDefinition,
         CardInstance? cardInstance,
         CardInstance? sourceCardInstance,
         ZoneCardProperty property)
     {
-        var effectiveBaseHealth = cardDefinition is CharacterCard characterCard ? characterCard.Health : 0;
-        var effectiveHealth = cardInstance?.HealthOverride ?? effectiveBaseHealth;
+        var effectiveHealth = cardInstance is null
+            ? (cardDefinition is CharacterCard characterCard ? characterCard.Health : 0)
+            : CardRuntimeEffectStateService.ResolveEffectiveHealth(gameState, cardInstance, cardDefinition);
+        var effectivePower = cardInstance is null
+            ? cardDefinition.Power
+            : CardRuntimeEffectStateService.ResolveEffectivePower(gameState, cardInstance, cardDefinition);
+        var effectiveDamage = cardInstance is null
+            ? cardDefinition.Damage
+            : CardRuntimeEffectStateService.ResolveEffectiveDamage(gameState, cardInstance, cardDefinition);
 
         return property switch
         {
@@ -88,8 +98,8 @@ internal static class ZoneCardRestrictionMatcher
             ZoneCardProperty.Trait => cardDefinition.Traits,
             ZoneCardProperty.Type => [cardDefinition.Type.ToString()],
             ZoneCardProperty.Color => [cardDefinition.Color.ToString()],
-            ZoneCardProperty.Power => [(cardInstance?.PowerOverride ?? cardDefinition.Power).ToString()],
-            ZoneCardProperty.Damage => [(cardInstance?.DamageOverride ?? cardDefinition.Damage).ToString()],
+            ZoneCardProperty.Power => [effectivePower.ToString()],
+            ZoneCardProperty.Damage => [effectiveDamage.ToString()],
             ZoneCardProperty.Health => [effectiveHealth.ToString()],
             ZoneCardProperty.CurrentHealth => [(cardInstance?.CurrentHealth ?? effectiveHealth).ToString()],
             ZoneCardProperty.OwnerPlayerId => cardInstance is null ? [] : [cardInstance.OwnerPlayerId],

@@ -73,6 +73,7 @@ function isCardCatalogEffectRequest(value: unknown): value is ICardCatalogEffect
     isNonEmptyString(effect.id)
     && isNonEmptyString(effect.effectType)
     && isNonEmptyString(effect.timing)
+    && isNonEmptyString(effect.durationMode)
     && !!effect.targetRules
     && Array.isArray(effect.contextRules)
   )
