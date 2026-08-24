@@ -16,3 +16,10 @@ public sealed record ResolvePromptRequest(
     string SelectedOption);
 
 public sealed record PlayerPhaseActionRequest(string PlayerId);
+
+public sealed record GameCardActionExecutionRequest(
+    string PlayerId,
+    string ActionId,
+    string SourceCardInstanceId,
+    IReadOnlyList<GameEffectTargetReference>? SelectedTargets = null,
+    IReadOnlyDictionary<string, string>? Arguments = null);

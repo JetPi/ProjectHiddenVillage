@@ -7,6 +7,7 @@ import type {
   IJoinGameAsPlayerRequest,
 } from '@/services/api/types/game'
 import type {
+  IGameCardActionExecutionRequest,
   IGameStateInvalidatedHandler,
   IHubOperationResult,
   IPlayerPhaseActionRequest,
@@ -167,6 +168,28 @@ async function resolvePrompt(
   return result
 }
 
+async function executeCardAction(
+  connection: HubConnection,
+  gameId: string,
+  playerId: string,
+  actionId: string,
+  sourceCardInstanceId: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  const payload: IGameCardActionExecutionRequest = {
+    playerId: normalizePlayerId(playerId),
+    actionId,
+    sourceCardInstanceId,
+  }
+
+  const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(
+    'ExecuteCardAction',
+    gameId,
+    payload,
+  )
+
+  return result
+}
+
 async function createGameForUserViaHub(
   request: ICreateGameForUserRequest,
   preferredGameCode?: string,
@@ -235,6 +258,7 @@ export {
   resolvePrompt,
   declarePassInActionStep,
   declareActionInActionStep,
+  executeCardAction,
   createGameForUserViaHub,
   joinGameAsPlayerViaHub,
 }

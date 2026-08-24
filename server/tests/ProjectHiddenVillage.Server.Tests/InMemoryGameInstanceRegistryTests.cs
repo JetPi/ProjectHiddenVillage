@@ -1,4 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ErrorOr;
+using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Engine;
 using System.Text.RegularExpressions;
 
@@ -204,6 +206,73 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.AreEqual("Game code 'TEST1' is already in use.", ex.Message);
     }
 
+    [TestMethod]
+    public void ExecuteCardAction_ActivateSupport_ExecutesSequentialEffect_AndSwapsPriority()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.ActionStep;
+        game.State.ActivePlayerId = "p1";
+        game.State.PriorityPlayerId = "p2";
+        game.State.Players[1].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        var recordingExecutor = new RecordingSequentialExecutor();
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p2",
+            ActionId: "activate-support:support-1",
+            SourceCardInstanceId: "support-1");
+
+        registry.ExecuteCardAction(game.Id, request, recordingExecutor);
+
+        Assert.AreEqual(1, recordingExecutor.Contexts.Count);
+        Assert.AreEqual("support-1", recordingExecutor.Contexts[0].SourceCardInstance?.InstanceId);
+        Assert.AreEqual("p1", game.State.PriorityPlayerId);
+        Assert.AreEqual(0, game.State.ConsecutivePasses);
+        Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_ThrowsForUnsupportedActionId()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.ActionStep;
+        game.State.ActivePlayerId = "p1";
+        game.State.PriorityPlayerId = "p2";
+
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p2",
+            ActionId: "play-card:hand-1",
+            SourceCardInstanceId: "hand-1");
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor()));
+
+        Assert.AreEqual("Card action 'play-card:hand-1' is not supported yet.", ex.Message);
+    }
+
     private static Dictionary<string, Card> BuildDefinitions(params string[] ids)
     {
         return ids.ToDictionary(
@@ -233,6 +302,17 @@ public sealed class InMemoryGameInstanceRegistryTests
             }
 
             return fixedIndex % maxValue;
+        }
+    }
+
+    private sealed class RecordingSequentialExecutor : IGameSequentialEffectExecutor
+    {
+        public List<GameCardEffectContext> Contexts { get; } = [];
+
+        public ErrorOr<Success> Execute(GameCardEffectContext context)
+        {
+            Contexts.Add(context);
+            return Result.Success;
         }
     }
 }

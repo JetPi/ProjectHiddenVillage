@@ -59,7 +59,11 @@ function GameZones({
             )
           }
 
-          const actionOptions = resolveCardActionOptionsForInstanceId(availableActions, card.instanceId)
+          const actionOptions = resolveCardActionOptionsForInstanceId(
+            availableActions,
+            card.instanceId,
+            card.availableActions,
+          )
 
           return (
             <PlayCard

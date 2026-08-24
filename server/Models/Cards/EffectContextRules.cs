@@ -9,18 +9,17 @@ public sealed class EffectContextRuleSet
 
 public enum RuntimeEffects
 {
-    DestroyCard,
-    NegateEffect,
-    GainEffect,
-    ChangeValues,
-    AlterResources,
-    Tribute,
-    SummonSelf,
-    MoveCard,
-    SearchCard,
-    FreezeCard,
-    RevealCard,
-    SummonCard,
+    DestroyCard = 0,
+    NegateEffect = 1,
+    GainEffect = 2,
+    ChangeValues = 3,
+    AlterResources = 4,
+    Tribute = 5,
+    SearchCard = 8,
+    FreezeCard = 9,
+    RevealCard = 10,
+    SummonCard = 11,
+    InterruptAttack = 12,
 }
 
 public sealed class EffectContextCondition

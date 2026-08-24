@@ -100,6 +100,7 @@ function resolveNonLeaderCards(
       displayName: catalogCard.displayName,
       type: catalogCard.type,
       isExhausted: card.isExhausted,
+      availableActions: card.availableActions,
     })
   }
 
@@ -109,7 +110,12 @@ function resolveNonLeaderCards(
 function resolveCardActionOptionsForInstanceId(
   availableActions: IGameActionOptionResponse[],
   cardInstanceId: string,
+  cardAvailableActions?: IGameActionOptionResponse[],
 ): IGameActionOptionResponse[] {
+  if (cardAvailableActions && cardAvailableActions.length > 0) {
+    return cardAvailableActions
+  }
+
   const normalizedInstanceId = cardInstanceId.trim().toLowerCase()
   if (!normalizedInstanceId) {
     return []

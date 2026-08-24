@@ -3,8 +3,12 @@ using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server;
 
-public sealed class GamePhaseHandlingService(InMemoryGameInstanceRegistry registry) : IGamePhaseHandlingService
+public sealed class GamePhaseHandlingService(
+    InMemoryGameInstanceRegistry registry,
+    IGameSequentialEffectExecutor sequentialEffectExecutor) : IGamePhaseHandlingService
 {
+    private readonly IGameSequentialEffectExecutor sequentialEffectExecutor = sequentialEffectExecutor;
+
     public ErrorOr<GameInstance> ResolvePrompt(string gameId, ResolvePromptRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -34,6 +38,14 @@ public sealed class GamePhaseHandlingService(InMemoryGameInstanceRegistry regist
         return ExecuteRegistryOperation(
             operationName: "Game.DeclareActionInActionStep",
             operation: () => registry.DeclareActionInActionStep(gameId, request.PlayerId));
+    }
+
+    public ErrorOr<GameInstance> ExecuteCardAction(string gameId, GameCardActionExecutionRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ExecuteRegistryOperation(
+            operationName: "Game.ExecuteCardAction",
+            operation: () => registry.ExecuteCardAction(gameId, request, sequentialEffectExecutor));
     }
 
     public ErrorOr<GameInstance> DeclareEndStep(string gameId)

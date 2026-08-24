@@ -461,6 +461,7 @@ public sealed class GameSequentialEffectExecutor(IGameCardEffectRegistry effectR
         {
             RuntimeEffects.DestroyCard => DestroyCardEffect.EffectKey,
             RuntimeEffects.NegateEffect => NegateCardEffect.EffectKey,
+            RuntimeEffects.InterruptAttack => InterruptAttackEffect.EffectKey,
             RuntimeEffects.GainEffect => GainKeywordEffect.EffectKey,
             RuntimeEffects.ChangeValues => ModifyAttributeEffect.EffectKey,
             RuntimeEffects.AlterResources => AlterResourcesEffect.EffectKey,

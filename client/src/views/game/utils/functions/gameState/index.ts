@@ -85,6 +85,21 @@ export function mapActionToHubIntent(
   action: IGameActionOptionResponse,
   canResolvePrompt: boolean,
 ): ISubmitHubIntentRequest | null {
+  if (action.actionId.startsWith('activate-support:')
+    || action.actionId.startsWith('play-card:')
+    || action.actionId.startsWith('battle-action:')) {
+    const delimiterIndex = action.actionId.indexOf(':')
+    if (delimiterIndex < 0 || delimiterIndex === action.actionId.length - 1) {
+      return null
+    }
+
+    return {
+      intent: 'execute-card-action',
+      actionId: action.actionId,
+      sourceCardInstanceId: action.actionId.slice(delimiterIndex + 1),
+    }
+  }
+
   if (action.actionId.startsWith('resolve-prompt:')) {
     if (!canResolvePrompt) {
       return null

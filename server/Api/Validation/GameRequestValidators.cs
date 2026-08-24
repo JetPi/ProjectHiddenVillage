@@ -45,6 +45,21 @@ public sealed class PlayerPhaseActionRequestValidator : AbstractValidator<Player
     }
 }
 
+public sealed class GameCardActionExecutionRequestValidator : AbstractValidator<GameCardActionExecutionRequest>
+{
+    public GameCardActionExecutionRequestValidator()
+    {
+        RuleFor(request => request.PlayerId)
+            .NotEmpty().WithMessage("PlayerId is required.");
+
+        RuleFor(request => request.ActionId)
+            .NotEmpty().WithMessage("ActionId is required.");
+
+        RuleFor(request => request.SourceCardInstanceId)
+            .NotEmpty().WithMessage("SourceCardInstanceId is required.");
+    }
+}
+
 public sealed class PlayerValidator : AbstractValidator<Player>
 {
     public PlayerValidator()

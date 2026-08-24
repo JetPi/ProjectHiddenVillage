@@ -30,6 +30,10 @@ public sealed class GameState
 
     public List<PassiveActivationState> PassiveStates { get; set; } = [];
 
+    public bool HasPendingAttack { get; set; }
+
+    public string PendingAttackDeclarationId { get; set; } = string.Empty;
+
     public void InsertPhase(GamePhase phase)
     {
         InsertedPhases.Enqueue(phase);

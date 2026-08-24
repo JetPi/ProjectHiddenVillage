@@ -3,6 +3,7 @@ import type { IGameStateResponse } from '@/services/api/gameApi'
 export type IGameHubActionIntent =
   | 'pass-turn'
   | 'declare-action'
+  | 'execute-card-action'
   | 'advance-phase'
   | 'declare-end-step'
   | 'complete-end-step'
@@ -11,6 +12,11 @@ export type IGameHubActionIntent =
 export type ISubmitHubIntentRequest =
   | {
       intent: 'pass-turn' | 'declare-action' | 'advance-phase' | 'declare-end-step' | 'complete-end-step'
+    }
+  | {
+      intent: 'execute-card-action'
+      actionId: string
+      sourceCardInstanceId: string
     }
   | {
       intent: 'resolve-prompt'

@@ -74,6 +74,24 @@ public sealed partial class GamesHub
         return await PublishGameMutationResult(result, requesterIdResult.Value);
     }
 
+    public async Task<HubOperationResult<GameStateResponse>> ExecuteCardAction(string gameId, GameCardActionExecutionRequest request)
+    {
+        var requesterIdResult = GetRequestingPlayerId();
+        if (requesterIdResult.IsError)
+        {
+            return HubOperationResult<GameStateResponse>.FromErrors(requesterIdResult.Errors);
+        }
+
+        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        if (gameResult.IsError)
+        {
+            return HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors);
+        }
+
+        var result = gamePhaseHandlingService.ExecuteCardAction(gameId, request);
+        return await PublishGameMutationResult(result, requesterIdResult.Value);
+    }
+
     public async Task<HubOperationResult<GameStateResponse>> DeclareEndStep(string gameId)
     {
         var requesterIdResult = GetRequestingPlayerId();
