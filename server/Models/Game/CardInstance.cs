@@ -13,6 +13,9 @@ public sealed class CardInstance
 
     public bool IsExhausted { get; set; }
 
+    // True when this card is in a rested (sideways) state.
+    public bool IsRested { get; set; }
+
     // Null means card uses its base definition power.
     public int? PowerOverride { get; set; }
 

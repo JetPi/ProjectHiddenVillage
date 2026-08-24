@@ -135,7 +135,8 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 				CardDefinitionId = cardDefinitionId,
 				OwnerPlayerId = playerId,
 				ControllerPlayerId = playerId,
-				IsExhausted = false
+				IsExhausted = false,
+				IsRested = false
 			});
 		}
 
@@ -218,6 +219,7 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 		if (destinationZone == PlayerZone.CharacterField)
 		{
 			movedCard.EnteredFieldTurnNumber = gameInstance.State.TurnNumber;
+			movedCard.IsRested = false;
 		}
 
 		destinationList.Insert(insertIndex, movedCard);

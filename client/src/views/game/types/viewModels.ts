@@ -36,6 +36,7 @@ export type INonLeaderCardViewModel = {
   type: string
   isExhausted: boolean
   availableActions?: IGameActionOptionResponse[]
+  isRested: boolean
 }
 
 export type IDerivedGameViewState = {

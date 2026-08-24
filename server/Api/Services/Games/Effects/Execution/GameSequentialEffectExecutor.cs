@@ -3,11 +3,14 @@ using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
-public sealed class GameSequentialEffectExecutor(IGameCardEffectRegistry effectRegistry) : IGameSequentialEffectExecutor
+public sealed class GameSequentialEffectExecutor(
+    IGameCardEffectRegistry effectRegistry,
+    IGameEffectTargetResolver? targetResolver = null) : IGameSequentialEffectExecutor
 {
     private const int MaxVisitsPerNode = 4;
 
     private readonly IGameCardEffectRegistry effectRegistry = effectRegistry;
+    private readonly IGameEffectTargetResolver targetResolver = targetResolver ?? new EffectTargetResolver();
 
     public ErrorOr<Success> Execute(GameCardEffectContext context)
     {
@@ -373,17 +376,28 @@ public sealed class GameSequentialEffectExecutor(IGameCardEffectRegistry effectR
         return string.IsNullOrWhiteSpace(effectId) ? null : effectId.Trim();
     }
 
-    private static ErrorOr<IReadOnlyList<GameEffectTargetReference>> ResolveStepTargets(GameCardEffectContext context, EffectSpec effectSpec)
+    private ErrorOr<IReadOnlyList<GameEffectTargetReference>> ResolveStepTargets(GameCardEffectContext context, EffectSpec effectSpec)
     {
         return effectSpec.ExecutionTargetSource switch
         {
-            EffectExecutionTargetSource.SelectedTargets => ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(context.SelectedTargets),
+            EffectExecutionTargetSource.SelectedTargets => ResolveSelectedTargets(context, effectSpec),
             EffectExecutionTargetSource.SourceCard => ResolveSourceCardTarget(context),
             EffectExecutionTargetSource.None => ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(Array.Empty<GameEffectTargetReference>()),
             _ => Error.Validation(
                 code: "Game.Effect.Sequential.UnsupportedTargetSource",
                 description: $"Unsupported execution target source '{effectSpec.ExecutionTargetSource}'.")
         };
+    }
+
+    private ErrorOr<IReadOnlyList<GameEffectTargetReference>> ResolveSelectedTargets(GameCardEffectContext context, EffectSpec effectSpec)
+    {
+        if (effectSpec.TargetRules.AutoSelectAllValidTargets)
+        {
+            var resolvedTargets = targetResolver.ResolveTargets(context, effectSpec);
+            return ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(resolvedTargets);
+        }
+
+        return ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(context.SelectedTargets);
     }
 
     private static ErrorOr<IReadOnlyList<GameEffectTargetReference>> ResolveSourceCardTarget(GameCardEffectContext context)

@@ -271,6 +271,14 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
                 effect.RuleFor(value => value.TargetRules)
                     .Must(targetRules =>
+                        !targetRules.AutoSelectAllValidTargets
+                        || (!targetRules.ExactTargetCount.HasValue
+                            && !targetRules.MinimumTargetCount.HasValue
+                            && !targetRules.MaximumTargetCount.HasValue))
+                    .WithMessage("Auto-select all valid targets cannot be combined with exact, minimum, or maximum target count.");
+
+                effect.RuleFor(value => value.TargetRules)
+                    .Must(targetRules =>
                     {
                         if (targetRules.ExactTargetCount.HasValue)
                         {

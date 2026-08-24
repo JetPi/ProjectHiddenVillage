@@ -245,6 +245,7 @@ public static class GameStateResponseMapper
                     OwnerPlayerId: card.OwnerPlayerId,
                     ControllerPlayerId: card.ControllerPlayerId,
                     IsExhausted: card.IsExhausted,
+                    IsRested: card.IsRested,
                     DisplayName: definition.DisplayName,
                     Type: definition.Type,
                     Color: definition.Color,
@@ -264,6 +265,7 @@ public static class GameStateResponseMapper
                             OwnerPlayerId: card.OwnerPlayerId,
                             ControllerPlayerId: card.ControllerPlayerId,
                             IsExhausted: card.IsExhausted,
+                            IsRested: card.IsRested,
                             DisplayName: definition.DisplayName,
                             Type: definition.Type,
                             Color: definition.Color,
@@ -347,6 +349,11 @@ public static class GameStateResponseMapper
 
     private static bool CanDeclareBattleAction(CardInstance card, GameState state)
     {
+        if (card.IsRested)
+        {
+            return false;
+        }
+
         if (card.IsExhausted)
         {
             return false;

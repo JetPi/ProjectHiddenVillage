@@ -125,6 +125,27 @@ public sealed class GameStateResponseMapperCardActionsTests
         Assert.AreEqual("battle-action:battle-1", requester.CharacterField[0].AvailableActions[0].ActionId);
     }
 
+    [TestMethod]
+    public void ToGameStateResponse_DoesNotMapBattleAction_ForRestedCard()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var restedCard = CreateCardInstance("battle-1", "card-battle", requesterId);
+        restedCard.IsRested = true;
+        restedCard.EnteredFieldTurnNumber = null;
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [restedCard]);
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(0, requester.CharacterField[0].AvailableActions.Count);
+    }
+
     private static GameState BuildState(
         string requesterId,
         string opponentId,
@@ -186,7 +207,8 @@ public sealed class GameStateResponseMapperCardActionsTests
             CardDefinitionId = definitionId,
             OwnerPlayerId = playerId,
             ControllerPlayerId = playerId,
-            IsExhausted = false
+            IsExhausted = false,
+            IsRested = false
         };
     }
 

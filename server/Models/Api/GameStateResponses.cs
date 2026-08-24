@@ -70,6 +70,7 @@ public sealed record EnrichedCardInstanceResponse(
     string OwnerPlayerId,
     string ControllerPlayerId,
     bool IsExhausted,
+    bool IsRested,
     string DisplayName,
     CardType Type,
     CardColor Color,

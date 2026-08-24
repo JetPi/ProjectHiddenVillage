@@ -99,6 +99,7 @@ public enum ZoneCardProperty
     OwnerPlayerId,
     ControllerPlayerId,
     IsExhausted,
+    IsRested,
     CannotBeNormalSummoned,
 }
 

@@ -220,6 +220,47 @@ public sealed class EffectTargetResolverTests
     }
 
     [TestMethod]
+    public void ResolveTargets_PredicateRestriction_MatchesIsRestedRuntimeFlag()
+    {
+        var (context, effectSpec) = CreateContext(
+            playerFieldCards:
+            [
+                CreateCardOnField("p1-upright", "p1", "Upright Ninja", isRested: false),
+                CreateCardOnField("p1-rested", "p1", "Rested Ninja", isRested: true)
+            ],
+            opponentFieldCards: [],
+            targetRules: new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.IsRested,
+                                    Operator = ZoneCardPredicateOperator.Equals,
+                                    Value = bool.TrueString
+                                }
+                            ]
+                        }
+                    }
+                ]
+            });
+
+        var targets = resolver.ResolveTargets(context, effectSpec);
+
+        Assert.AreEqual(1, targets.Count);
+        Assert.AreEqual("p1-rested-inst", targets[0].CardInstanceId);
+    }
+
+    [TestMethod]
     public void ResolveTargets_TypeIn_WithEmptyValues_MatchesAnyType()
     {
         var (context, effectSpec) = CreateContext(
@@ -390,6 +431,7 @@ public sealed class EffectTargetResolverTests
         string displayName,
         IReadOnlyList<string>? traits = null,
         int? powerOverride = null,
+        bool isRested = false,
         CardType type = CardType.Character)
     {
         var card = new Card
@@ -409,6 +451,7 @@ public sealed class EffectTargetResolverTests
             OwnerPlayerId = controllerPlayerId,
             ControllerPlayerId = controllerPlayerId,
             PowerOverride = powerOverride,
+            IsRested = isRested,
         };
 
         return (card, instance);
