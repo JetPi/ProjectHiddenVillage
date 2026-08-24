@@ -481,6 +481,7 @@ public sealed class GameSequentialEffectExecutor(
             RuntimeEffects.AlterResources => AlterResourcesEffect.EffectKey,
             RuntimeEffects.Tribute => TributeSummonCardEffect.EffectKey,
             RuntimeEffects.SummonCard => SummonCardEffect.EffectKey,
+            RuntimeEffects.MoveCard => MoveCardEffect.EffectKey,
             _ => string.Empty,
         };
 

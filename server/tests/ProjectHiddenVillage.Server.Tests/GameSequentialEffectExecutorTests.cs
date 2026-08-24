@@ -345,6 +345,34 @@ public sealed class GameSequentialEffectExecutorTests
     }
 
     [TestMethod]
+    public void Execute_ResolvesMoveCardRuntimeEffect()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(MoveCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "move-step",
+                RuntimeEffectType = RuntimeEffects.MoveCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "move-step" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
     public void Execute_AtomicChain_DoesNotExecuteAnyStep_WhenLaterStepCannotExecute()
     {
         var observedSpecIds = new List<string>();

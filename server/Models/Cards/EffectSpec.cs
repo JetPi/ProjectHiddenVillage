@@ -76,6 +76,29 @@ public sealed class SummonCardFlipSpec
     public SummonCardFaceState FaceState { get; set; } = SummonCardFaceState.FaceUp;
 }
 
+public enum MoveCardOperationType
+{
+    Move,
+    Draw,
+}
+
+public sealed class MoveCardActionSpec
+{
+    public MoveCardOperationType Operation { get; set; } = MoveCardOperationType.Move;
+
+    public PlayerZone? SourceZone { get; set; }
+
+    public PlayerZone? DestinationZone { get; set; }
+
+    public int? DrawCount { get; set; }
+
+    public int? DestinationIndex { get; set; }
+
+    public bool AllowCrossPlayer { get; set; } = false;
+
+    public EffectTargetRange DestinationPlayerRange { get; set; } = EffectTargetRange.Self;
+}
+
 public sealed class EffectExecutionConditionSpec
 {
     public string ArgumentKey { get; set; } = string.Empty;
@@ -130,6 +153,8 @@ public sealed class EffectSpec
     public IReadOnlyList<ChakraAdjustmentSpec> ChakraAdjustments { get; set; } = [];
 
     public IReadOnlyList<SummonCardFlipSpec> SummonCardFlips { get; set; } = [];
+
+    public IReadOnlyList<MoveCardActionSpec> MoveCardActions { get; set; } = [];
 
     public bool SuppressSummonedTargetsEffectsWhileOnField { get; set; }
 

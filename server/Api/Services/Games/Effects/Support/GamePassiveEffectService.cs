@@ -18,6 +18,7 @@ public sealed class GamePassiveEffectService(
         ModifyAttributeEffect.EffectKey,
         GainKeywordEffect.EffectKey,
         AlterResourcesEffect.EffectKey,
+        MoveCardEffect.EffectKey,
         NoopGameCardEffect.EffectKey,
     ];
 

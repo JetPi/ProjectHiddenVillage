@@ -381,6 +381,9 @@ public sealed class CardMappingService : ICardMappingService
                     SummonCardFlips: effect.SummonCardFlips
                         .Select(ToSummonCardFlipResponse)
                         .ToList(),
+                    MoveCardActions: effect.MoveCardActions
+                        .Select(ToMoveCardActionResponse)
+                        .ToList(),
                     ContextRules: effect.ContextRules
                         .Select(ToContextRuleResponse)
                         .ToList(),
@@ -748,6 +751,18 @@ public sealed class CardMappingService : ICardMappingService
         return new CardCatalogSummonCardFlipResponse(
             TargetRange: SplitPascalCase(spec.TargetRange.ToString()),
             FaceState: SplitPascalCase(spec.FaceState.ToString()));
+    }
+
+    private static CardCatalogMoveCardActionResponse ToMoveCardActionResponse(MoveCardActionSpec spec)
+    {
+        return new CardCatalogMoveCardActionResponse(
+            Operation: SplitPascalCase(spec.Operation.ToString()),
+            SourceZone: spec.SourceZone.HasValue ? SplitPascalCase(spec.SourceZone.Value.ToString()) : null,
+            DestinationZone: spec.DestinationZone.HasValue ? SplitPascalCase(spec.DestinationZone.Value.ToString()) : null,
+            DrawCount: spec.DrawCount,
+            DestinationIndex: spec.DestinationIndex,
+            AllowCrossPlayer: spec.AllowCrossPlayer,
+            DestinationPlayerRange: SplitPascalCase(spec.DestinationPlayerRange.ToString()));
     }
 
     private static CardCatalogEffectExecutionConditionResponse? ToExecutionConditionResponse(EffectExecutionConditionSpec? condition)

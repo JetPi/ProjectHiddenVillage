@@ -44,6 +44,7 @@ public sealed record CardCatalogEffectResponse(
     IReadOnlyList<CardCatalogAttributeModificationResponse> AttributeModifications,
     IReadOnlyList<CardCatalogChakraAdjustmentResponse> ChakraAdjustments,
     IReadOnlyList<CardCatalogSummonCardFlipResponse> SummonCardFlips,
+    IReadOnlyList<CardCatalogMoveCardActionResponse> MoveCardActions,
     IReadOnlyList<CardCatalogEffectContextRuleSetResponse> ContextRules,
     CardCatalogEffectTargetRuleSetResponse TargetRules);
 
@@ -84,6 +85,15 @@ public sealed record CardCatalogChakraAdjustmentResponse(
 public sealed record CardCatalogSummonCardFlipResponse(
     string TargetRange,
     string FaceState);
+
+public sealed record CardCatalogMoveCardActionResponse(
+    string Operation,
+    string? SourceZone,
+    string? DestinationZone,
+    int? DrawCount,
+    int? DestinationIndex,
+    bool AllowCrossPlayer,
+    string DestinationPlayerRange);
 
 public sealed record CardCatalogEffectContextRuleSetResponse(
     CardCatalogEffectContextConditionResponse? Player,
