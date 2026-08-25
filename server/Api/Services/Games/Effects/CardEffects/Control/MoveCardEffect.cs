@@ -1,6 +1,7 @@
 using ErrorOr;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using System.Security.Cryptography;
 
 namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
@@ -11,15 +12,20 @@ public sealed class MoveCardEffect(
     IGameRuntimeDeckService runtimeDeckService,
     IServiceProvider? serviceProvider = null) : IGameCardEffect
 {
+    private const int TopDeckIndex = 0;
     private const string ModeArgumentKey = "moveCardMode";
     private const string DrawModeValue = "draw";
     private const string MoveModeValue = "move";
     private const string DrawCountArgumentKey = "moveCardDrawCount";
+    private const string MoveCountArgumentKey = "moveCardMoveCount";
     private const string SourceZoneArgumentKey = "moveCardSourceZone";
     private const string DestinationZoneArgumentKey = "moveCardDestinationZone";
     private const string DestinationIndexArgumentKey = "moveCardDestinationIndex";
+    private const string DeckPlacementArgumentKey = "moveCardDeckPlacement";
+    private const string MultiCardOrderingArgumentKey = "moveCardMultiCardOrdering";
     private const string DestinationPlayerIdArgumentKey = "moveCardDestinationPlayerId";
     private const string AllowCrossPlayerArgumentKey = "moveCardAllowCrossPlayer";
+    private const string RandomSeedArgumentKey = "moveCardRandomSeed";
 
     private static readonly HashSet<PlayerZone> SupportedMoveZones =
     [
@@ -183,14 +189,36 @@ public sealed class MoveCardEffect(
 
         var sourceZone = action.SourceZone!.Value;
         var destinationZone = action.DestinationZone!.Value;
-        var destinationIndex = action.DestinationIndex;
+        var orderedTargetsResult = ResolveOrderedTargets(context, selectedTargets, action);
+        if (orderedTargetsResult.IsError)
+        {
+            return orderedTargetsResult.Errors;
+        }
+
+        var orderedTargets = orderedTargetsResult.Value;
+        var moveCount = action.MoveCount ?? orderedTargets.Count;
+        if (moveCount <= 0)
+        {
+            return Error.Validation(
+                code: "Game.Effect.MoveCard.Move.InvalidCount",
+                description: "MoveCard move count must be greater than zero.");
+        }
+
+        if (orderedTargets.Count < moveCount)
+        {
+            return Error.Validation(
+                code: "Game.Effect.MoveCard.Move.InsufficientTargets",
+                description: $"MoveCard move count is '{moveCount}' but only '{orderedTargets.Count}' target(s) were selected.");
+        }
+
+        var targetsToMove = orderedTargets.Take(moveCount).ToList();
         var affectedCardIds = new List<string>();
         var affectedPlayerIds = new HashSet<string>(StringComparer.Ordinal)
         {
             context.ActingPlayer.Id,
         };
 
-        foreach (var target in selectedTargets)
+        foreach (var target in targetsToMove)
         {
             if (target.Zone != sourceZone)
             {
@@ -198,6 +226,8 @@ public sealed class MoveCardEffect(
                     code: "Game.Effect.MoveCard.Move.SourceZoneMismatch",
                     description: $"Target '{target.CardInstanceId}' is in zone '{target.Zone}' but moveCardSourceZone is '{sourceZone}'.");
             }
+
+            var destinationIndex = ResolveDestinationIndex(context.Game.State, context.ActingPlayer.Id, target, action);
 
             var resolvedDestinationPlayerId = ResolveDestinationPlayerId(
                 context.Game.State,
@@ -248,6 +278,102 @@ public sealed class MoveCardEffect(
             affectedPlayerIds);
     }
 
+    private static int? ResolveDestinationIndex(
+        GameState state,
+        string actingPlayerId,
+        GameEffectTargetReference target,
+        MoveCardActionSpec action)
+    {
+        if (action.Operation != MoveCardOperationType.Move)
+        {
+            return action.DestinationIndex;
+        }
+
+        if (action.DestinationZone != PlayerZone.Deck)
+        {
+            return action.DestinationIndex;
+        }
+
+        var placement = action.DeckPlacement ?? MoveCardDeckPlacementType.Top;
+        if (placement == MoveCardDeckPlacementType.Index)
+        {
+            return action.DestinationIndex;
+        }
+
+        var destinationPlayerId = ResolveDestinationPlayerId(
+            state,
+            actingPlayerId: actingPlayerId,
+            sourcePlayerId: target.PlayerId,
+            action);
+
+        var playerState = state.Players.FirstOrDefault(player => string.Equals(player.PlayerId, destinationPlayerId, StringComparison.Ordinal));
+        if (playerState is null)
+        {
+            return TopDeckIndex;
+        }
+
+        return placement switch
+        {
+            MoveCardDeckPlacementType.Top => TopDeckIndex,
+            MoveCardDeckPlacementType.Bottom => playerState.Deck.Count,
+            MoveCardDeckPlacementType.Index => action.DestinationIndex,
+            _ => action.DestinationIndex,
+        };
+    }
+
+    private ErrorOr<IReadOnlyList<GameEffectTargetReference>> ResolveOrderedTargets(
+        GameCardEffectContext context,
+        IReadOnlyList<GameEffectTargetReference> selectedTargets,
+        MoveCardActionSpec action)
+    {
+        var ordering = action.MultiCardOrdering ?? MoveCardMultiCardOrderingType.SelectedOrder;
+        if (ordering == MoveCardMultiCardOrderingType.SelectedOrder || selectedTargets.Count <= 1)
+        {
+            return selectedTargets.ToList();
+        }
+
+        if (ordering != MoveCardMultiCardOrderingType.Random)
+        {
+            return Error.Validation(
+                code: "Game.Effect.MoveCard.Move.InvalidOrdering",
+                description: $"Unsupported multi-card ordering '{ordering}'.");
+        }
+
+        var shuffled = selectedTargets.ToList();
+        var random = CreateDeterministicRandom(context, action);
+        for (var index = shuffled.Count - 1; index > 0; index--)
+        {
+            var swapIndex = random.Next(index + 1);
+            (shuffled[index], shuffled[swapIndex]) = (shuffled[swapIndex], shuffled[index]);
+        }
+
+        return shuffled;
+    }
+
+    private static Random CreateDeterministicRandom(GameCardEffectContext context, MoveCardActionSpec action)
+    {
+        if (context.Arguments.TryGetValue(RandomSeedArgumentKey, out var configuredSeed)
+            && int.TryParse(configuredSeed, out var parsedSeed))
+        {
+            return new Random(parsedSeed);
+        }
+
+        var material = string.Join('|',
+            context.Game.State.GameId,
+            context.Game.State.TurnNumber.ToString(),
+            action.Operation.ToString(),
+            action.SourceZone?.ToString() ?? string.Empty,
+            action.DestinationZone?.ToString() ?? string.Empty,
+            action.DestinationIndex?.ToString() ?? string.Empty,
+            action.DeckPlacement?.ToString() ?? string.Empty,
+            action.MultiCardOrdering?.ToString() ?? string.Empty,
+            context.ActingPlayer.Id);
+
+        var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(material));
+        var seed = BitConverter.ToInt32(hash, 0);
+        return new Random(seed);
+    }
+
     private static ErrorOr<Success> ValidateActions(IReadOnlyList<MoveCardActionSpec> actions)
     {
         foreach (var action in actions)
@@ -284,6 +410,38 @@ public sealed class MoveCardEffect(
                 return Error.Validation(
                     code: "Game.Effect.MoveCard.Move.InvalidDestinationIndex",
                     description: "MoveCard destination index must be non-negative.");
+            }
+
+            if (action.MoveCount.HasValue && action.MoveCount.Value <= 0)
+            {
+                return Error.Validation(
+                    code: "Game.Effect.MoveCard.Move.InvalidCount",
+                    description: "MoveCard move count must be greater than zero.");
+            }
+
+            if (action.DeckPlacement.HasValue && !Enum.IsDefined(action.DeckPlacement.Value))
+            {
+                return Error.Validation(
+                    code: "Game.Effect.MoveCard.Move.InvalidDeckPlacement",
+                    description: "MoveCard deck placement must be Top, Bottom, or Index.");
+            }
+
+            if (action.MultiCardOrdering.HasValue && !Enum.IsDefined(action.MultiCardOrdering.Value))
+            {
+                return Error.Validation(
+                    code: "Game.Effect.MoveCard.Move.InvalidMultiCardOrdering",
+                    description: "MoveCard multi-card ordering must be SelectedOrder or Random.");
+            }
+
+            if (action.DestinationZone == PlayerZone.Deck)
+            {
+                var placement = action.DeckPlacement ?? MoveCardDeckPlacementType.Top;
+                if (placement == MoveCardDeckPlacementType.Index && !action.DestinationIndex.HasValue)
+                {
+                    return Error.Validation(
+                        code: "Game.Effect.MoveCard.Move.MissingDestinationIndex",
+                        description: "MoveCard destination index is required when deck placement is Index.");
+                }
             }
 
             if (action.DestinationPlayerRange is not (EffectTargetRange.Self or EffectTargetRange.Opponent or EffectTargetRange.Any))

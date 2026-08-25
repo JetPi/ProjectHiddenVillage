@@ -91,6 +91,8 @@ const FACE_STATE_OPTIONS = ['Face Up', 'Face Down'] as const
 const MOVE_CARD_OPERATION_OPTIONS = ['Move', 'Draw'] as const
 const MOVE_CARD_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone'] as const
 const MOVE_CARD_DESTINATION_RANGE_OPTIONS = ['Self', 'Opponent', 'Any'] as const
+const MOVE_CARD_DECK_PLACEMENT_OPTIONS = ['Top', 'Bottom', 'Index'] as const
+const MOVE_CARD_MULTI_ORDERING_OPTIONS = ['Selected Order', 'Random'] as const
 const MATCH_MODE_OPTIONS = ['Any', 'All'] as const
 const PREDICATE_OPERATOR_OPTIONS = [
   'Equals',
@@ -293,7 +295,10 @@ function createDefaultMoveCardAction(): ICardCatalogMoveCardActionRequest {
     sourceZone: 'Hand',
     destinationZone: 'Deck',
     drawCount: null,
+    moveCount: 1,
     destinationIndex: 0,
+    deckPlacement: 'Top',
+    multiCardOrdering: 'Selected Order',
     allowCrossPlayer: false,
     destinationPlayerRange: 'Self',
   }
@@ -3806,6 +3811,8 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
                     {effect.moveCardActions.map((moveCardAction, moveCardActionIndex) => {
                       const isDrawAction = moveCardAction.operation === 'Draw'
+                      const isDeckDestination = moveCardAction.destinationZone === 'Deck'
+                      const isIndexPlacement = (moveCardAction.deckPlacement ?? 'Top') === 'Index'
 
                       return (
                         <div key={`move-card-action-${moveCardActionIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
@@ -3827,7 +3834,10 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                       sourceZone: null,
                                       destinationZone: null,
                                       drawCount: row.drawCount ?? 1,
+                                      moveCount: null,
                                       destinationIndex: null,
+                                      deckPlacement: null,
+                                      multiCardOrdering: null,
                                       destinationPlayerRange: 'Self',
                                       allowCrossPlayer: false,
                                     }
@@ -3839,7 +3849,10 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                     sourceZone: row.sourceZone ?? 'Hand',
                                     destinationZone: row.destinationZone ?? 'Deck',
                                     drawCount: null,
+                                    moveCount: row.moveCount ?? 1,
                                     destinationIndex: row.destinationIndex ?? 0,
+                                    deckPlacement: row.deckPlacement ?? 'Top',
+                                    multiCardOrdering: row.multiCardOrdering ?? 'Selected Order',
                                     destinationPlayerRange: row.destinationPlayerRange || 'Self',
                                   }
                                 }),
@@ -3891,7 +3904,18 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                 updateEffectAt(effectIndex, (current) => ({
                                   ...current,
                                   moveCardActions: current.moveCardActions.map((row, index) =>
-                                    index === moveCardActionIndex ? { ...row, destinationZone: event.target.value } : row),
+                                    index === moveCardActionIndex
+                                      ? {
+                                        ...row,
+                                        destinationZone: event.target.value,
+                                        deckPlacement: event.target.value === 'Deck' ? (row.deckPlacement ?? 'Top') : null,
+                                        multiCardOrdering: event.target.value === 'Deck' ? (row.multiCardOrdering ?? 'Selected Order') : null,
+                                        destinationIndex:
+                                          event.target.value === 'Deck'
+                                            ? (row.destinationIndex ?? 0)
+                                            : row.destinationIndex,
+                                      }
+                                      : row),
                                 }))}
                               className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                             >
@@ -3932,20 +3956,87 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
                           {!isDrawAction ? (
                             <>
+                              {isDeckDestination ? (
+                                <select
+                                  value={moveCardAction.deckPlacement ?? 'Top'}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      moveCardActions: current.moveCardActions.map((row, index) => {
+                                        if (index !== moveCardActionIndex) {
+                                          return row
+                                        }
+
+                                        const nextPlacement = event.target.value
+                                        return {
+                                          ...row,
+                                          deckPlacement: nextPlacement,
+                                          destinationIndex:
+                                            nextPlacement === 'Index'
+                                              ? (row.destinationIndex ?? 0)
+                                              : row.destinationIndex,
+                                        }
+                                      }),
+                                    }))}
+                                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                >
+                                  {MOVE_CARD_DECK_PLACEMENT_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>{option}</option>
+                                  ))}
+                                </select>
+                              ) : null}
+
+                              {isDeckDestination ? (
+                                <select
+                                  value={moveCardAction.multiCardOrdering ?? 'Selected Order'}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      moveCardActions: current.moveCardActions.map((row, index) =>
+                                        index === moveCardActionIndex
+                                          ? { ...row, multiCardOrdering: event.target.value }
+                                          : row),
+                                    }))}
+                                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                >
+                                  {MOVE_CARD_MULTI_ORDERING_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>{option}</option>
+                                  ))}
+                                </select>
+                              ) : null}
+
+                              {isDeckDestination && isIndexPlacement ? (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={moveCardAction.destinationIndex ?? 0}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      moveCardActions: current.moveCardActions.map((row, index) =>
+                                        index === moveCardActionIndex
+                                          ? { ...row, destinationIndex: parseNullableInteger(event.target.value) ?? 0 }
+                                          : row),
+                                    }))}
+                                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                  placeholder="Destination index"
+                                />
+                              ) : null}
+
                               <input
                                 type="number"
-                                min={0}
-                                value={moveCardAction.destinationIndex ?? 0}
+                                min={1}
+                                value={moveCardAction.moveCount ?? 1}
                                 onChange={(event) =>
                                   updateEffectAt(effectIndex, (current) => ({
                                     ...current,
                                     moveCardActions: current.moveCardActions.map((row, index) =>
                                       index === moveCardActionIndex
-                                        ? { ...row, destinationIndex: parseNullableInteger(event.target.value) ?? 0 }
+                                        ? { ...row, moveCount: Number.parseInt(event.target.value || '1', 10) }
                                         : row),
                                   }))}
-                                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)] sm:col-span-2"
-                                placeholder="Destination index"
+                                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                placeholder="Move count"
                               />
 
                               <select

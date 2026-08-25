@@ -437,6 +437,12 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
                         action.RuleFor(value => value)
                             .Must(value => value.Operation != MoveCardOperationType.Move
+                                || !value.MoveCount.HasValue
+                                || value.MoveCount.Value > 0)
+                            .WithMessage("MoveCard move actions must use a positive move count when provided.");
+
+                        action.RuleFor(value => value)
+                            .Must(value => value.Operation != MoveCardOperationType.Move
                                 || (value.SourceZone.HasValue && value.DestinationZone.HasValue))
                             .WithMessage("MoveCard move actions require source and destination zones.");
 
@@ -444,6 +450,25 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                             .Must(value => value.Operation != MoveCardOperationType.Move
                                 || (!value.DestinationIndex.HasValue || value.DestinationIndex.Value >= 0))
                             .WithMessage("MoveCard destination index must be non-negative.");
+
+                        action.RuleFor(value => value)
+                            .Must(value => value.Operation != MoveCardOperationType.Move
+                                || !value.DeckPlacement.HasValue
+                                || Enum.IsDefined(value.DeckPlacement.Value))
+                            .WithMessage("MoveCard deck placement must be Top, Bottom, or Index.");
+
+                        action.RuleFor(value => value)
+                            .Must(value => value.Operation != MoveCardOperationType.Move
+                                || !value.MultiCardOrdering.HasValue
+                                || Enum.IsDefined(value.MultiCardOrdering.Value))
+                            .WithMessage("MoveCard multi-card ordering must be SelectedOrder or Random.");
+
+                        action.RuleFor(value => value)
+                            .Must(value => value.Operation != MoveCardOperationType.Move
+                                || value.DestinationZone != PlayerZone.Deck
+                                || (value.DeckPlacement ?? MoveCardDeckPlacementType.Top) != MoveCardDeckPlacementType.Index
+                                || value.DestinationIndex.HasValue)
+                            .WithMessage("MoveCard destination index is required when destination zone is Deck and placement is Index.");
 
                         action.RuleFor(value => value)
                             .Must(value => value.Operation != MoveCardOperationType.Move

@@ -253,7 +253,10 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                             Operation = MoveCardOperationType.Move,
                             SourceZone = PlayerZone.Hand,
                             DestinationZone = PlayerZone.Deck,
+                            MoveCount = 1,
                             DestinationIndex = 0,
+                            DeckPlacement = MoveCardDeckPlacementType.Index,
+                            MultiCardOrdering = MoveCardMultiCardOrderingType.SelectedOrder,
                             AllowCrossPlayer = false,
                             DestinationPlayerRange = EffectTargetRange.Self,
                         }
@@ -314,6 +317,96 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
 
         Assert.IsFalse(result.IsValid);
         Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("MoveCard move actions support only Hand, Deck, Trash, and ExileZone zones.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenDeckPlacementIsIndexWithoutDestinationIndex()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-move-card-index-without-destination-index",
+                    RuntimeEffectType = RuntimeEffects.MoveCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    MoveCardActions =
+                    [
+                        new MoveCardActionSpec
+                        {
+                            Operation = MoveCardOperationType.Move,
+                            SourceZone = PlayerZone.Hand,
+                            DestinationZone = PlayerZone.Deck,
+                            DeckPlacement = MoveCardDeckPlacementType.Index,
+                            DestinationIndex = null,
+                            DestinationPlayerRange = EffectTargetRange.Self,
+                        }
+                    ],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("destination index is required", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenMoveCardMoveCountIsNotPositive()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-move-card-invalid-move-count",
+                    RuntimeEffectType = RuntimeEffects.MoveCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    MoveCardActions =
+                    [
+                        new MoveCardActionSpec
+                        {
+                            Operation = MoveCardOperationType.Move,
+                            SourceZone = PlayerZone.Hand,
+                            DestinationZone = PlayerZone.Deck,
+                            MoveCount = 0,
+                            DeckPlacement = MoveCardDeckPlacementType.Top,
+                            DestinationPlayerRange = EffectTargetRange.Self,
+                        }
+                    ],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("positive move count", StringComparison.OrdinalIgnoreCase)));
     }
 
     [TestMethod]

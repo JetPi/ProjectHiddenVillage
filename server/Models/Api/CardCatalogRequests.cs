@@ -93,7 +93,10 @@ public sealed record CardCatalogMoveCardActionResponse(
     string? SourceZone,
     string? DestinationZone,
     int? DrawCount,
+    int? MoveCount,
     int? DestinationIndex,
+    string? DeckPlacement,
+    string? MultiCardOrdering,
     bool AllowCrossPlayer,
     string DestinationPlayerRange);
 
