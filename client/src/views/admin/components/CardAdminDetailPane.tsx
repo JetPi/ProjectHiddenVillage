@@ -551,7 +551,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
     () => Array.from(new Set(parsedEffects.map((effect) => normalizeEffectId(effect.id)).filter((id) => id.length > 0))),
     [parsedEffects],
   )
-  const linkedEffectRelations = useMemo(() => {
+  const linkedEffectGroups = useMemo(() => {
     const effectIdSet = new Set(effectIdOptions)
 
     return parsedEffects.flatMap((effect) => {
@@ -562,25 +562,21 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
       const onSuccessTarget = normalizeEffectId(effect.onSuccessEffectId)
       const onFailureTarget = normalizeEffectId(effect.onFailureEffectId)
-      const relations = []
-
-      if (onSuccessTarget && effectIdSet.has(onSuccessTarget)) {
-        relations.push({
-          sourceId,
-          targetId: onSuccessTarget,
-          label: 'On Success',
-        })
+      const nextGroup = {
+        sourceId,
+        onSuccessTarget: onSuccessTarget && effectIdSet.has(onSuccessTarget)
+          ? onSuccessTarget
+          : null,
+        onFailureTarget: onFailureTarget && effectIdSet.has(onFailureTarget)
+          ? onFailureTarget
+          : null,
       }
 
-      if (onFailureTarget && effectIdSet.has(onFailureTarget)) {
-        relations.push({
-          sourceId,
-          targetId: onFailureTarget,
-          label: 'On Failure',
-        })
+      if (!nextGroup.onSuccessTarget && !nextGroup.onFailureTarget) {
+        return []
       }
 
-      return relations
+      return [nextGroup]
     })
   }, [effectIdOptions, parsedEffects])
   const updateEffects = (nextEffects: ICardCatalogEffectRequest[]) => {
@@ -771,17 +767,30 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
             <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-sky-500/45 bg-[var(--surface-muted)] p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Interlinked Effects</p>
-              {linkedEffectRelations.length > 0 ? (
+              {linkedEffectGroups.length > 0 ? (
                 <div className="space-y-1">
-                  {linkedEffectRelations.map((relation, relationIndex) => (
+                  {linkedEffectGroups.map((group) => (
                     <div
-                      key={`${relation.sourceId}-${relation.label}-${relation.targetId}-${relationIndex}`}
+                      key={group.sourceId}
                       className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-primary)]"
                     >
-                      <span className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-0.5 font-semibold">{relation.sourceId}</span>
-                      <span className="text-[var(--text-secondary)]">{relation.label}</span>
-                      <span className="text-[var(--text-secondary)]">-&gt;</span>
-                      <span className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-0.5 font-semibold">{relation.targetId}</span>
+                      <span className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-0.5 font-semibold">{group.sourceId}</span>
+
+                      {group.onSuccessTarget ? (
+                        <>
+                          <span className="text-[var(--text-secondary)]">On Success</span>
+                          <span className="text-[var(--text-secondary)]">-&gt;</span>
+                          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-semibold text-emerald-700">{group.onSuccessTarget}</span>
+                        </>
+                      ) : null}
+
+                      {group.onFailureTarget ? (
+                        <>
+                          <span className="text-[var(--text-secondary)]">On Failure</span>
+                          <span className="text-[var(--text-secondary)]">-&gt;</span>
+                          <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 font-semibold text-rose-700">{group.onFailureTarget}</span>
+                        </>
+                      ) : null}
                     </div>
                   ))}
                 </div>
