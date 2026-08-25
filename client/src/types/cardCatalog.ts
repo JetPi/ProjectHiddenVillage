@@ -1,3 +1,5 @@
+import type { ICardCatalogEffectExecutionConditionArgumentKey } from './cardCatalogExecutionCondition'
+
 export type IPagedResponse<TItem> = {
   page: number
   pageSize: number
@@ -7,7 +9,7 @@ export type IPagedResponse<TItem> = {
 }
 
 export type ICardCatalogEffectExecutionConditionResponse = {
-  argumentKey: string
+  argumentKey: ICardCatalogEffectExecutionConditionArgumentKey
   expectedValue: string
   ignoreCase: boolean
   negate: boolean
@@ -105,6 +107,16 @@ export type ICardCatalogSummonCardFlipResponse = {
   faceState: string
 }
 
+export type ICardCatalogMoveCardActionResponse = {
+  operation: string
+  sourceZone: string | null
+  destinationZone: string | null
+  drawCount: number | null
+  destinationIndex: number | null
+  allowCrossPlayer: boolean
+  destinationPlayerRange: string
+}
+
 export type ICardCatalogTributeTargetCompositionResponse = {
   exactTributeCount: number | null
   minimumTributeCount: number | null
@@ -154,6 +166,7 @@ export type ICardCatalogEffectResponse = {
   attributeModifications: ICardCatalogAttributeModificationResponse[]
   chakraAdjustments: ICardCatalogChakraAdjustmentResponse[]
   summonCardFlips: ICardCatalogSummonCardFlipResponse[]
+  moveCardActions: ICardCatalogMoveCardActionResponse[]
   contextRules: ICardCatalogEffectContextRuleSetResponse[]
   targetRules: ICardCatalogEffectTargetRuleSetResponse
 }

@@ -315,4 +315,44 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
         Assert.IsFalse(result.IsValid);
         Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("MoveCard move actions support only Hand, Deck, Trash, and ExileZone zones.", StringComparison.Ordinal)));
     }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenExecutionConditionArgumentKeyIsOutOfRange()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-invalid-execution-condition-key",
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ExecutionCondition = new EffectExecutionConditionSpec
+                    {
+                        ArgumentKey = (EffectExecutionConditionArgumentKey)999,
+                        ExpectedValue = "yes",
+                        IgnoreCase = true,
+                        Negate = false,
+                    },
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Execution condition argument key must be one of:", StringComparison.Ordinal)));
+    }
 }

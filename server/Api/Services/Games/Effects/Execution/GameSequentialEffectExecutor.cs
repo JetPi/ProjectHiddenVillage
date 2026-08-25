@@ -328,12 +328,9 @@ public sealed class GameSequentialEffectExecutor(
             return true;
         }
 
-        if (string.IsNullOrWhiteSpace(condition.ArgumentKey))
-        {
-            return true;
-        }
+        var argumentKey = condition.ArgumentKey.ToWireValue();
 
-        if (!arguments.TryGetValue(condition.ArgumentKey, out var argumentValue))
+        if (!arguments.TryGetValue(argumentKey, out var argumentValue))
         {
             return condition.Negate;
         }

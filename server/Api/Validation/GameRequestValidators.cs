@@ -152,6 +152,11 @@ public sealed class UserLoginDtoValidator : AbstractValidator<UserLoginDto>
 
 public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<UpdateCardEffectsRequest>
 {
+    private static readonly string AllowedExecutionConditionArgumentKeys = string.Join(
+        ", ",
+        Enum.GetValues<EffectExecutionConditionArgumentKey>()
+            .Select(argumentKey => argumentKey.ToWireValue()));
+
     public UpdateCardEffectsRequestValidator()
     {
         RuleFor(request => request)
@@ -241,6 +246,10 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                     .Must(durationMode => durationMode != EffectDurationMode.Continuous
                         || durationMode == EffectDurationMode.Continuous)
                     .WithMessage("Effect duration mode is invalid.");
+
+                effect.RuleFor(value => value.ExecutionCondition)
+                    .Must(condition => condition is null || Enum.IsDefined(condition.ArgumentKey))
+                    .WithMessage($"Execution condition argument key must be one of: {AllowedExecutionConditionArgumentKeys}.");
 
                 effect.RuleFor(value => value.ChakraCost)
                     .GreaterThanOrEqualTo(0)

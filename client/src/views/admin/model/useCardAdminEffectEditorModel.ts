@@ -14,7 +14,7 @@ import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog
 const EMPTY_VALIDATION_ERRORS: ICardAdminEffectEditorValidationErrors = {
   form: null,
   conditions: null,
-  effectsText: null,
+  effects: null,
 }
 
 const EMPTY_DRAFT: ICardAdminEffectEditorDraft = {
@@ -28,15 +28,11 @@ const EMPTY_DRAFT: ICardAdminEffectEditorDraft = {
   supportEffect: '',
   cannotBeNormalSummoned: false,
   conditions: [],
-  effectsText: '[]',
+  effects: [],
 }
 
 function isLeaderType(cardType: string): boolean {
   return cardType.trim().toLowerCase() === 'leader'
-}
-
-function toPrettyJson(value: unknown): string {
-  return JSON.stringify(value, null, 2)
 }
 
 function toEditorDraft(card: ICardAdminEffectEditorHydrationSource | null): ICardAdminEffectEditorDraft {
@@ -55,28 +51,8 @@ function toEditorDraft(card: ICardAdminEffectEditorHydrationSource | null): ICar
     supportEffect: card.supportEffect ?? '',
     cannotBeNormalSummoned: card.cannotBeNormalSummoned,
     conditions: [...card.conditions],
-    effectsText: toPrettyJson(card.effects),
+    effects: card.effects.map((effect) => ({ ...effect })),
   }
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0
-}
-
-function isCardCatalogEffectRequest(value: unknown): value is ICardCatalogEffectRequest {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-
-  const effect = value as Partial<ICardCatalogEffectRequest>
-  return (
-    isNonEmptyString(effect.id)
-    && isNonEmptyString(effect.effectType)
-    && isNonEmptyString(effect.timing)
-    && isNonEmptyString(effect.durationMode)
-    && !!effect.targetRules
-    && Array.isArray(effect.contextRules)
-  )
 }
 
 function normalizeEffectForSave(effect: ICardCatalogEffectRequest): ICardCatalogEffectRequest {
@@ -97,32 +73,23 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
     ...EMPTY_VALIDATION_ERRORS,
   }
 
-  let parsedEffects: unknown
-
-  try {
-    parsedEffects = JSON.parse(draft.effectsText)
-  } catch {
-    nextErrors.effectsText = 'Effects must be valid JSON.'
-  }
-
-  if (nextErrors.effectsText) {
-    return {
-      payload: null,
-      errors: nextErrors,
-    }
-  }
-
   if (!Array.isArray(draft.conditions) || !draft.conditions.every((entry) => typeof entry === 'string')) {
     nextErrors.conditions = 'Conditions must be a list of strings.'
   }
 
-  if (!Array.isArray(parsedEffects)) {
-    nextErrors.effectsText = 'Effects must be a JSON array.'
-  } else if (!parsedEffects.every((entry) => isCardCatalogEffectRequest(entry))) {
-    nextErrors.effectsText = 'Each effect must include id, effectType, timing, contextRules, and targetRules.'
+  if (!Array.isArray(draft.effects)) {
+    nextErrors.effects = 'Effects must be a list.'
+  } else if (!draft.effects.every((effect) =>
+    effect.id.trim().length > 0
+    && effect.effectType.trim().length > 0
+    && effect.timing.trim().length > 0
+    && effect.durationMode.trim().length > 0
+    && Array.isArray(effect.contextRules)
+    && !!effect.targetRules)) {
+    nextErrors.effects = 'Each effect must include id, effectType, timing, contextRules, and targetRules.'
   }
 
-  if (nextErrors.conditions || nextErrors.effectsText) {
+  if (nextErrors.conditions || nextErrors.effects) {
     return {
       payload: null,
       errors: nextErrors,
@@ -132,7 +99,7 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
   const normalizedConditions = draft.conditions
     .map((entry) => entry.trim())
     .filter((entry, index, all) => entry.length > 0 && all.indexOf(entry) === index)
-  const normalizedEffects = (parsedEffects as ICardCatalogEffectRequest[])
+  const normalizedEffects = draft.effects
     .map(normalizeEffectForSave)
 
   return {
@@ -318,8 +285,8 @@ export function useCardAdminEffectEditorModel(
     }))
   }, [])
 
-  const setEffectsText = useCallback((value: string) => {
-    setDraft((current) => ({ ...current, effectsText: value }))
+  const setEffects = useCallback((value: ICardCatalogEffectRequest[]) => {
+    setDraft((current) => ({ ...current, effects: value }))
   }, [])
 
   const reset = useCallback(() => {
@@ -400,7 +367,7 @@ export function useCardAdminEffectEditorModel(
     toggleCondition,
     addCondition,
     removeCondition,
-    setEffectsText,
+    setEffects,
     reset,
     save,
   }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ProjectHiddenVillage.Server.Api.Serialization;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Data.Entities;
 
@@ -7,7 +8,14 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffectHandlingService) : IGameRuntimeDeckService
 {
 	const int topDeck = 0;
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+	private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
+
+	private static JsonSerializerOptions CreateSerializerOptions()
+	{
+		var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+		options.Converters.Add(new FlexibleEnumJsonConverterFactory());
+		return options;
+	}
 
 	public Card ToRuntimeCard(CardCatalogEntry entry)
 	{

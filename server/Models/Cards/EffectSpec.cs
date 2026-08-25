@@ -101,13 +101,48 @@ public sealed class MoveCardActionSpec
 
 public sealed class EffectExecutionConditionSpec
 {
-    public string ArgumentKey { get; set; } = string.Empty;
+    public EffectExecutionConditionArgumentKey ArgumentKey { get; set; } = EffectExecutionConditionArgumentKey.SelectedOption;
 
     public string ExpectedValue { get; set; } = string.Empty;
 
     public bool IgnoreCase { get; set; } = true;
 
     public bool Negate { get; set; } = false;
+}
+
+public enum EffectExecutionConditionArgumentKey
+{
+    IsSecondTurnOrLater,
+    SelectedOption,
+    SummonTargetId,
+    MoveCardMode,
+    MoveCardDrawCount,
+    MoveCardSourceZone,
+    MoveCardDestinationZone,
+    MoveCardDestinationIndex,
+    MoveCardDestinationPlayerId,
+    MoveCardAllowCrossPlayer,
+}
+
+public static class EffectExecutionConditionArgumentKeyExtensions
+{
+    public static string ToWireValue(this EffectExecutionConditionArgumentKey argumentKey)
+    {
+        return argumentKey switch
+        {
+            EffectExecutionConditionArgumentKey.IsSecondTurnOrLater => "isSecondTurnOrLater",
+            EffectExecutionConditionArgumentKey.SelectedOption => "selectedOption",
+            EffectExecutionConditionArgumentKey.SummonTargetId => "summonTargetId",
+            EffectExecutionConditionArgumentKey.MoveCardMode => "moveCardMode",
+            EffectExecutionConditionArgumentKey.MoveCardDrawCount => "moveCardDrawCount",
+            EffectExecutionConditionArgumentKey.MoveCardSourceZone => "moveCardSourceZone",
+            EffectExecutionConditionArgumentKey.MoveCardDestinationZone => "moveCardDestinationZone",
+            EffectExecutionConditionArgumentKey.MoveCardDestinationIndex => "moveCardDestinationIndex",
+            EffectExecutionConditionArgumentKey.MoveCardDestinationPlayerId => "moveCardDestinationPlayerId",
+            EffectExecutionConditionArgumentKey.MoveCardAllowCrossPlayer => "moveCardAllowCrossPlayer",
+            _ => throw new ArgumentOutOfRangeException(nameof(argumentKey), argumentKey, "Unsupported execution condition argument key."),
+        };
+    }
 }
 
 public sealed class EffectSpec
