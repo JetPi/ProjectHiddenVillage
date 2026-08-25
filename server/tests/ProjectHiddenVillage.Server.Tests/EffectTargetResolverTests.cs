@@ -342,6 +342,195 @@ public sealed class EffectTargetResolverTests
         Assert.AreEqual("leader-p2", targets[0].CardInstanceId);
     }
 
+    [TestMethod]
+    public void ResolveTargets_SupportSlotSelector_ReturnsOnlyConfiguredSlot()
+    {
+        var sourceEffect = new EffectSpec
+        {
+            Id = "reveal-support-slot",
+            RuntimeEffectType = RuntimeEffects.RevealCard,
+            EffectType = EffectKind.Support,
+            Timing = EffectTiming.Quick,
+            TargetRange = EffectTargetRange.Self,
+            ContextRules = [],
+            TargetRules = new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.SupportZone,
+                        LocationSelector = new EffectTargetLocationSelector
+                        {
+                            Kind = EffectTargetLocationSelectorKind.SupportSlotIndex,
+                            SupportSlotIndex = 1,
+                        },
+                        Restriction = new ZoneCardRestriction { Predicates = [] }
+                    }
+                ]
+            }
+        };
+
+        var sourceCard = new Card
+        {
+            Id = "source-card",
+            DisplayName = "Source Card",
+            Name = ["Source Card"],
+            Type = CardType.Character,
+            Color = CardColor.Green,
+            Effects = [sourceEffect]
+        };
+
+        var supportA = CreateCardOnField("p1-support-a", "p1", "Support A");
+        var supportB = CreateCardOnField("p1-support-b", "p1", "Support B");
+
+        var state = new GameState
+        {
+            Players =
+            [
+                new PlayerState
+                {
+                    PlayerId = "p1",
+                    LeaderCardInstance = CreateLeader("leader-p1", "p1"),
+                    SupportZone = [supportA.Instance, supportB.Instance]
+                },
+                new PlayerState
+                {
+                    PlayerId = "p2",
+                    LeaderCardInstance = CreateLeader("leader-p2", "p2")
+                }
+            ]
+        };
+
+        state.CardDefinitions["leader-def"] = new LeaderCard
+        {
+            Id = "leader-def",
+            DisplayName = "Leader Definition",
+            Name = ["Leader Definition"],
+            Type = CardType.Leader,
+            Color = CardColor.Green,
+            Traits = [],
+            Description = string.Empty,
+            Damage = 0,
+            Power = 0,
+            Life = 5,
+            Effects = [],
+        };
+        state.CardDefinitions[sourceCard.Id] = sourceCard;
+        state.CardDefinitions[supportA.Card.Id] = supportA.Card;
+        state.CardDefinitions[supportB.Card.Id] = supportB.Card;
+
+        var context = new GameCardEffectContext(
+            game: new GameInstance(state),
+            actingPlayer: new Player { Id = "p1", Name = "P1", DisplayName = "P1" },
+            sourceCardDefinition: sourceCard,
+            sourceCardInstance: null,
+            arguments: new Dictionary<string, string>(),
+            selectedTargets: []);
+
+        var targets = resolver.ResolveTargets(context, sourceEffect);
+
+        Assert.AreEqual(1, targets.Count);
+        Assert.AreEqual("p1-support-b-inst", targets[0].CardInstanceId);
+        Assert.AreEqual("support:1", targets[0].SlotId);
+    }
+
+    [TestMethod]
+    public void ResolveTargets_DeckTopSelector_ReturnsOnlyTopDeckCard()
+    {
+        var sourceEffect = new EffectSpec
+        {
+            Id = "reveal-deck-top",
+            RuntimeEffectType = RuntimeEffects.RevealCard,
+            EffectType = EffectKind.Support,
+            Timing = EffectTiming.Quick,
+            TargetRange = EffectTargetRange.Self,
+            ContextRules = [],
+            TargetRules = new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.Deck,
+                        LocationSelector = new EffectTargetLocationSelector
+                        {
+                            Kind = EffectTargetLocationSelectorKind.DeckTop,
+                        },
+                        Restriction = new ZoneCardRestriction { Predicates = [] }
+                    }
+                ]
+            }
+        };
+
+        var sourceCard = new Card
+        {
+            Id = "source-card",
+            DisplayName = "Source Card",
+            Name = ["Source Card"],
+            Type = CardType.Character,
+            Color = CardColor.Green,
+            Effects = [sourceEffect]
+        };
+
+        var deckTop = CreateCardOnField("p1-deck-top", "p1", "Deck Top");
+        var deckBottom = CreateCardOnField("p1-deck-bottom", "p1", "Deck Bottom");
+
+        var state = new GameState
+        {
+            Players =
+            [
+                new PlayerState
+                {
+                    PlayerId = "p1",
+                    LeaderCardInstance = CreateLeader("leader-p1", "p1"),
+                    Deck = [deckTop.Instance, deckBottom.Instance]
+                },
+                new PlayerState
+                {
+                    PlayerId = "p2",
+                    LeaderCardInstance = CreateLeader("leader-p2", "p2")
+                }
+            ]
+        };
+
+        state.CardDefinitions["leader-def"] = new LeaderCard
+        {
+            Id = "leader-def",
+            DisplayName = "Leader Definition",
+            Name = ["Leader Definition"],
+            Type = CardType.Leader,
+            Color = CardColor.Green,
+            Traits = [],
+            Description = string.Empty,
+            Damage = 0,
+            Power = 0,
+            Life = 5,
+            Effects = [],
+        };
+        state.CardDefinitions[sourceCard.Id] = sourceCard;
+        state.CardDefinitions[deckTop.Card.Id] = deckTop.Card;
+        state.CardDefinitions[deckBottom.Card.Id] = deckBottom.Card;
+
+        var context = new GameCardEffectContext(
+            game: new GameInstance(state),
+            actingPlayer: new Player { Id = "p1", Name = "P1", DisplayName = "P1" },
+            sourceCardDefinition: sourceCard,
+            sourceCardInstance: null,
+            arguments: new Dictionary<string, string>(),
+            selectedTargets: []);
+
+        var targets = resolver.ResolveTargets(context, sourceEffect);
+
+        Assert.AreEqual(1, targets.Count);
+        Assert.AreEqual("p1-deck-top-inst", targets[0].CardInstanceId);
+        Assert.AreEqual("deck:0", targets[0].SlotId);
+    }
+
     private static (GameCardEffectContext Context, EffectSpec EffectSpec) CreateContext(
         IReadOnlyList<(Card Card, CardInstance Instance)> playerFieldCards,
         IReadOnlyList<(Card Card, CardInstance Instance)> opponentFieldCards,

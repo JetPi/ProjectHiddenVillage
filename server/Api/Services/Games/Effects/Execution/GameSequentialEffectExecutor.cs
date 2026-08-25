@@ -73,12 +73,6 @@ public sealed class GameSequentialEffectExecutor(
             var branchOnFailure = NormalizeEffectId(effectSpec.OnFailureEffectId);
             var branchOnSuccess = NormalizeEffectId(effectSpec.OnSuccessEffectId);
 
-            if (!ConditionMatches(effectSpec.ExecutionCondition, context.Arguments))
-            {
-                currentNodeId = branchOnFailure ?? node.SequentialNextNodeId;
-                continue;
-            }
-
             if (!TryResolveEffectKey(effectSpec.RuntimeEffectType, out var effectTypeKey))
             {
                 return Error.Validation(
@@ -117,6 +111,13 @@ public sealed class GameSequentialEffectExecutor(
                 arguments: arguments,
                 selectedTargets: selectedTargetsResult.Value);
 
+            var shouldExecuteBeforeCondition = ShouldExecuteBeforeCondition(effectSpec);
+            if (!shouldExecuteBeforeCondition && !ConditionMatches(effectSpec.ExecutionCondition, perEffectContext.Arguments))
+            {
+                currentNodeId = branchOnFailure ?? node.SequentialNextNodeId;
+                continue;
+            }
+
             var canExecuteResult = effect.CanExecute(perEffectContext);
             if (!canExecuteResult.CanExecute)
             {
@@ -143,6 +144,12 @@ public sealed class GameSequentialEffectExecutor(
                 }
 
                 return executeResult.Errors;
+            }
+
+            if (shouldExecuteBeforeCondition && !ConditionMatches(effectSpec.ExecutionCondition, perEffectContext.Arguments))
+            {
+                currentNodeId = branchOnFailure ?? node.SequentialNextNodeId;
+                continue;
             }
 
             currentNodeId = branchOnSuccess ?? node.SequentialNextNodeId;
@@ -343,6 +350,12 @@ public sealed class GameSequentialEffectExecutor(
         return condition.Negate ? !isMatch : isMatch;
     }
 
+    private static bool ShouldExecuteBeforeCondition(EffectSpec effectSpec)
+    {
+        return effectSpec.RuntimeEffectType == RuntimeEffects.RevealCard
+            && effectSpec.RevealTimingMode == RevealTimingMode.RevealFirst;
+    }
+
     private static List<ExecutionNode> BuildExecutionNodes(IReadOnlyList<EffectSpec> effectSpecs)
     {
         var nodes = new List<ExecutionNode>(effectSpecs.Count);
@@ -479,6 +492,7 @@ public sealed class GameSequentialEffectExecutor(
             RuntimeEffects.Tribute => TributeSummonCardEffect.EffectKey,
             RuntimeEffects.SummonCard => SummonCardEffect.EffectKey,
             RuntimeEffects.MoveCard => MoveCardEffect.EffectKey,
+            RuntimeEffects.RevealCard => RevealCardEffect.EffectKey,
             _ => string.Empty,
         };
 

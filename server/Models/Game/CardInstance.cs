@@ -36,4 +36,10 @@ public sealed class CardInstance
 
     // Set when a card enters CharacterField to support summon-turn attack rules.
     public int? EnteredFieldTurnNumber { get; set; }
+
+    // True when this card's face is currently visible to both players.
+    public bool IsRevealedToBothPlayers { get; set; }
+
+    // Captures the zone where reveal became active; reveal is cleared when card changes zone.
+    public PlayerZone? RevealedInZone { get; set; }
 }

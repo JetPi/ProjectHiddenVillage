@@ -108,6 +108,33 @@ public sealed class SummonCardEffectTests
         Assert.AreEqual("Game.Effect.SummonCard.UnsupportedCardType", result.FirstError.Code);
     }
 
+    [TestMethod]
+    public void Execute_ClearsRevealState_WhenRevealedCardChangesZone()
+    {
+        var effectSpec = CreateSummonEffectSpec();
+        var target = new GameEffectTargetReference("p1", PlayerZone.Hand, "allowed-instance");
+
+        var context = CreateContext(effectSpec);
+        var revealedCard = context.Game.State.Players[0].Hand
+            .First(card => card.InstanceId == "allowed-instance");
+        revealedCard.IsRevealedToBothPlayers = true;
+        revealedCard.RevealedInZone = PlayerZone.Hand;
+
+        var effect = new SummonCardEffect(
+            effectSpecResolver: new StubEffectSpecResolver(effectSpec),
+            canExecuteEvaluator: new StubCanExecuteEvaluator([]),
+            targetResolver: new StubTargetResolver([]));
+
+        var result = effect.Execute(context, [target]);
+
+        Assert.IsFalse(result.IsError);
+
+        var summonedCard = context.Game.State.Players[0].Battlefield
+            .First(card => card.InstanceId == "allowed-instance");
+        Assert.IsFalse(summonedCard.IsRevealedToBothPlayers);
+        Assert.IsNull(summonedCard.RevealedInZone);
+    }
+
     private static EffectSpec CreateSummonEffectSpec()
     {
         return new EffectSpec

@@ -11,4 +11,8 @@ public static class ReactiveEffectExecutionConstants
     public const string SupportActivationChakraCostArgument = "__supportActivationChakraCost";
 
     public const string EnforceTargetCountArgument = "__enforceTargetCount";
+
+    public const string RevealedTargetIdsArgument = "revealedTargetIds";
+
+    public const string RevealedPrimaryTargetIdArgument = "revealedPrimaryTargetId";
 }

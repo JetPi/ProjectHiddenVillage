@@ -72,10 +72,13 @@ const KEYWORD_OPERATION_OPTIONS = ['Add', 'Remove'] as const
 const TARGET_RANGE_OPTIONS = ['Self', 'Opponent', 'Any'] as const
 const EXECUTION_TARGET_SOURCE_OPTIONS = ['Selected Targets', 'Source Card', 'None'] as const
 const EXECUTION_FLOW_MODE_OPTIONS = ['Per Step', 'Atomic Chain'] as const
+const REVEAL_TIMING_MODE_OPTIONS = ['Reveal First', 'Reveal Last'] as const
 const RESTRICTIONS_OPTIONS = ['None', 'Once Per Turn'] as const
 const RULE_OPERATOR_OPTIONS = ['Any', 'All'] as const
 const PLAYER_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone', 'Support Zone', 'Character Field', 'Leader'] as const
+const REVEAL_ZONE_OPTIONS = ['Hand', 'Deck', 'Support Zone'] as const
 const TRIBUTE_ROLE_OPTIONS = ['Tribute Material', 'Summon Candidate'] as const
+const TARGET_LOCATION_SELECTOR_KIND_OPTIONS = ['Any', 'Support Slot Index', 'Deck Top'] as const
 const TARGET_TYPE_OPTIONS = ['Selected Targets', 'Leader'] as const
 const ATTRIBUTE_OPERATION_OPTIONS = ['Add', 'Subtract', 'Multiply', 'Set'] as const
 const ATTRIBUTE_TYPE_OPTIONS = [
@@ -167,6 +170,7 @@ function createDefaultEffect(): ICardCatalogEffectRequest {
     executionTargetSource: 'Selected Targets',
     executionFlowMode: 'Per Step',
     suppressSummonedTargetsEffectsWhileOnField: false,
+    revealTimingMode: 'Reveal Last',
     executionCondition: null,
     attributeModifications: [],
     chakraAdjustments: [],
@@ -244,6 +248,10 @@ function createDefaultTargetRule(): ICardCatalogEffectTargetRuleRequest {
   return {
     scope: 'Self',
     inZone: 'Character Field',
+    locationSelector: {
+      kind: 'Any',
+      supportSlotIndex: null,
+    },
     tributeRole: null,
     exactSelectedTargetCount: null,
     minimumSelectedTargetCount: null,
@@ -517,6 +525,20 @@ function isSummonOrTributeRuntimeEffect(runtimeEffectType: string): boolean {
 
 function isAttackNegationRuntimeEffect(runtimeEffectType: string): boolean {
   return runtimeEffectType === 'Interrupt Attack'
+}
+
+function resolveTargetZoneOptions(runtimeEffectType: string): readonly string[] {
+  if (runtimeEffectType === 'Reveal Card') {
+    return REVEAL_ZONE_OPTIONS
+  }
+
+  return PLAYER_ZONE_OPTIONS
+}
+
+function normalizeRevealRuleZone(zone: string): string {
+  return REVEAL_ZONE_OPTIONS.includes(zone as (typeof REVEAL_ZONE_OPTIONS)[number])
+    ? zone
+    : 'Hand'
 }
 
 function normalizeEffectId(value: string | null | undefined): string {
@@ -872,6 +894,22 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                           const isTributeEffect = nextRuntimeEffectType === 'Tribute'
                           const supportsTributeRole = isSummonOrTributeRuntimeEffect(nextRuntimeEffectType)
                           const hidesTargetCount = isAttackNegationRuntimeEffect(nextRuntimeEffectType)
+                          const shouldEnsureRevealTargetRule = nextRuntimeEffectType === 'Reveal Card'
+                          const nextTargetRules = shouldEnsureRevealTargetRule
+                            && current.targetRules.rules.length === 0
+                            ? [
+                                {
+                                  ...createDefaultTargetRule(),
+                                  inZone: 'Hand',
+                                },
+                              ]
+                            : current.targetRules.rules
+                          const normalizedTargetRules = nextRuntimeEffectType === 'Reveal Card'
+                            ? nextTargetRules.map((rule) => ({
+                                ...rule,
+                                inZone: normalizeRevealRuleZone(rule.inZone),
+                              }))
+                            : nextTargetRules
 
                           return {
                             ...current,
@@ -880,6 +918,10 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                               nextRuntimeEffectType === 'Summon Card'
                                 ? current.suppressSummonedTargetsEffectsWhileOnField
                                 : false,
+                            revealTimingMode:
+                              nextRuntimeEffectType === 'Reveal Card'
+                                ? current.revealTimingMode
+                                : 'Reveal Last',
                             attributeModifications:
                               nextRuntimeEffectType === 'Change Values'
                                 ? current.attributeModifications
@@ -904,7 +946,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                               tributeComposition: isTributeEffect
                                 ? current.targetRules.tributeComposition
                                 : null,
-                              rules: current.targetRules.rules.map((rule) => (
+                              rules: normalizedTargetRules.map((rule) => (
                                 supportsTributeRole
                                   ? rule
                                   : { ...rule, tributeRole: null }
@@ -1075,6 +1117,23 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                       />
                       Suppress Summoned Effects On Field
                     </label>
+                  </div>
+                ) : null}
+
+                {effect.runtimeEffectType === 'Reveal Card' ? (
+                  <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-emerald-500/55 bg-[var(--surface-muted)] p-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Reveal Timing</label>
+                      <select
+                        value={effect.revealTimingMode}
+                        onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, revealTimingMode: event.target.value }))}
+                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                      >
+                        {REVEAL_TIMING_MODE_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 ) : null}
 
@@ -1763,6 +1822,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                     {effect.targetRules.rules.map((targetRule, targetRuleIndex) => {
                       const showsTributeRole = isSummonOrTributeRuntimeEffect(effect.runtimeEffectType)
                       const shouldShowSelectedCountField = !effect.targetRules.autoSelectAllValidTargets
+                      const zoneOptions = resolveTargetZoneOptions(effect.runtimeEffectType)
                       const selectedCountField = (
                         <div className="space-y-1">
                           <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Selected Count</label>
@@ -1888,12 +1948,52 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                       targetRules: {
                                         ...current.targetRules,
                                         rules: current.targetRules.rules.map((rule, index) =>
-                                          index === targetRuleIndex ? { ...rule, inZone: event.target.value } : rule),
+                                          index === targetRuleIndex
+                                            ? {
+                                              ...rule,
+                                              inZone: event.target.value,
+                                              locationSelector: {
+                                                kind: rule.locationSelector?.kind ?? 'Any',
+                                                supportSlotIndex: rule.locationSelector?.supportSlotIndex ?? null,
+                                              },
+                                            }
+                                            : rule),
                                       },
                                     }))}
                                   className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                                 >
-                                  {PLAYER_ZONE_OPTIONS.map((option) => (
+                                  {zoneOptions.map((option) => (
+                                    <option key={option} value={option}>{option}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Location Selector</label>
+                                <select
+                                  value={targetRule.locationSelector?.kind ?? 'Any'}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      targetRules: {
+                                        ...current.targetRules,
+                                        rules: current.targetRules.rules.map((rule, index) =>
+                                          index === targetRuleIndex
+                                            ? {
+                                              ...rule,
+                                              locationSelector: {
+                                                kind: event.target.value,
+                                                supportSlotIndex: event.target.value === 'Support Slot Index'
+                                                  ? (rule.locationSelector?.supportSlotIndex ?? 0)
+                                                  : null,
+                                              },
+                                            }
+                                            : rule),
+                                      },
+                                    }))}
+                                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                >
+                                  {TARGET_LOCATION_SELECTOR_KIND_OPTIONS.map((option) => (
                                     <option key={option} value={option}>{option}</option>
                                   ))}
                                 </select>
@@ -1925,6 +2025,35 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                 </div>
                               ) : shouldShowSelectedCountField ? selectedCountField : null}
                             </div>
+
+                            {targetRule.locationSelector?.kind === 'Support Slot Index' ? (
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Support Slot Index</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={targetRule.locationSelector.supportSlotIndex ?? 0}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      targetRules: {
+                                        ...current.targetRules,
+                                        rules: current.targetRules.rules.map((rule, index) =>
+                                          index === targetRuleIndex
+                                            ? {
+                                              ...rule,
+                                              locationSelector: {
+                                                kind: 'Support Slot Index',
+                                                supportSlotIndex: parseNullableInteger(event.target.value) ?? 0,
+                                              },
+                                            }
+                                            : rule),
+                                      },
+                                    }))}
+                                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                />
+                              </div>
+                            ) : null}
                           </div>
 
                           {showsTributeRole && shouldShowSelectedCountField ? selectedCountField : null}

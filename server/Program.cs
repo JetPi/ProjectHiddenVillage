@@ -59,6 +59,7 @@ builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGame
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.GainKeywordEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.AlterResourcesEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.MoveCardEffect>();
+builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.RevealCardEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameEffectTargetSpecification, ProjectHiddenVillage.Server.Api.Services.Games.AllowAllTargetsSpecification>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffectRegistry, ProjectHiddenVillage.Server.Api.Services.Games.GameCardEffectRegistry>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameEffectTargetSpecificationRegistry, ProjectHiddenVillage.Server.Api.Services.Games.GameEffectTargetSpecificationRegistry>();

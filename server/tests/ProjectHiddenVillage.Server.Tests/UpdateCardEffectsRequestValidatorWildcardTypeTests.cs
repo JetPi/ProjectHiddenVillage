@@ -450,6 +450,84 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
     }
 
     [TestMethod]
+    public void Validate_ReturnsError_WhenNonRevealRuntimeEffectSetsRevealTimingModeToRevealFirst()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-invalid-reveal-timing-mode",
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    RevealTimingMode = RevealTimingMode.RevealFirst,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Reveal timing mode can be changed only for Reveal Card runtime effects.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_AllowsRevealTimingModeForRevealRuntimeEffect()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-valid-reveal-timing-mode",
+                    RuntimeEffectType = RuntimeEffects.RevealCard,
+                    RevealTimingMode = RevealTimingMode.RevealFirst,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.Quick,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Any,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Any,
+                                InZone = PlayerZone.Hand,
+                                Restriction = new ZoneCardRestriction
+                                {
+                                    Predicates = []
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
     public void Validate_AllowsBranchTargets_WhenEffectIdsExist()
     {
         var validator = new UpdateCardEffectsRequestValidator();

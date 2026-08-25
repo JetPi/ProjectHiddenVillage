@@ -68,8 +68,10 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
             }
 
             var zoneCards = PlayerZoneCardAccessor.GetCards(rule.InZone, targetPlayer);
-            foreach (var cardInstance in zoneCards)
+            for (var index = 0; index < zoneCards.Count; index++)
             {
+                var cardInstance = zoneCards[index];
+
                 if (!gameState.CardDefinitions.TryGetValue(cardInstance.CardDefinitionId, out var cardDefinition))
                 {
                     continue;
@@ -80,10 +82,16 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
                     continue;
                 }
 
+                if (!MatchesLocationSelector(rule, index, zoneCards.Count))
+                {
+                    continue;
+                }
+
                 candidates.Add(new GameEffectTargetReference(
                     PlayerId: targetPlayer.PlayerId,
                     Zone: rule.InZone,
-                    CardInstanceId: cardInstance.InstanceId));
+                    CardInstanceId: cardInstance.InstanceId,
+                    SlotId: ResolveSlotId(rule.InZone, index)));
             }
         }
 
@@ -144,7 +152,39 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
 
     private static string GetCandidateKey(GameEffectTargetReference candidate)
     {
-        return string.Join("|", candidate.PlayerId, candidate.Zone, candidate.CardInstanceId);
+        return string.Join("|", candidate.PlayerId, candidate.Zone, candidate.CardInstanceId, candidate.SlotId ?? string.Empty);
+    }
+
+    private static bool MatchesLocationSelector(EffectTargetRule rule, int index, int zoneCount)
+    {
+        var selector = rule.LocationSelector;
+        if (selector is null || selector.Kind == EffectTargetLocationSelectorKind.Any)
+        {
+            return true;
+        }
+
+        return selector.Kind switch
+        {
+            EffectTargetLocationSelectorKind.SupportSlotIndex =>
+                rule.InZone == PlayerZone.SupportZone
+                && selector.SupportSlotIndex.HasValue
+                && selector.SupportSlotIndex.Value == index,
+            EffectTargetLocationSelectorKind.DeckTop =>
+                rule.InZone == PlayerZone.Deck
+                && zoneCount > 0
+                && index == 0,
+            _ => false,
+        };
+    }
+
+    private static string ResolveSlotId(PlayerZone zone, int index)
+    {
+        return zone switch
+        {
+            PlayerZone.SupportZone => $"support:{index}",
+            PlayerZone.Deck => $"deck:{index}",
+            _ => string.Empty,
+        };
     }
 
 }

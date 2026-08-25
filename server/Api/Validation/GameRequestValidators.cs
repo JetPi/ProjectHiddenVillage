@@ -252,6 +252,11 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                     .Must(condition => condition is null || Enum.IsDefined(condition.ArgumentKey))
                     .WithMessage($"Execution condition argument key must be one of: {AllowedExecutionConditionArgumentKeys}.");
 
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType == RuntimeEffects.RevealCard
+                        || value.RevealTimingMode == RevealTimingMode.RevealLast)
+                    .WithMessage("Reveal timing mode can be changed only for Reveal Card runtime effects.");
+
                 effect.RuleFor(value => value.ChakraCost)
                     .GreaterThanOrEqualTo(0)
                     .When(value => value.ChakraCost.HasValue)
@@ -339,6 +344,10 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                         rule.RuleFor(value => value)
                             .Must(value => !UsesUnsupportedLeaderPredicate(value))
                             .WithMessage("Leader zone target rules cannot use Health or CurrentHealth predicates. Use life/damage/power leader attributes instead.");
+
+                        rule.RuleFor(value => value)
+                            .Must(HasValidLocationSelector)
+                            .WithMessage("Target rule location selector is invalid for the selected zone.");
 
                         rule.RuleFor(value => value)
                             .Must(value =>
@@ -697,5 +706,25 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
         recursionStack.Remove(nodeId);
         return false;
+    }
+
+    private static bool HasValidLocationSelector(EffectTargetRule rule)
+    {
+        var selector = rule.LocationSelector;
+        if (selector is null || selector.Kind == EffectTargetLocationSelectorKind.Any)
+        {
+            return true;
+        }
+
+        return selector.Kind switch
+        {
+            EffectTargetLocationSelectorKind.SupportSlotIndex =>
+                rule.InZone == PlayerZone.SupportZone
+                && selector.SupportSlotIndex.HasValue
+                && selector.SupportSlotIndex.Value >= 0,
+            EffectTargetLocationSelectorKind.DeckTop =>
+                rule.InZone == PlayerZone.Deck,
+            _ => false,
+        };
     }
 }

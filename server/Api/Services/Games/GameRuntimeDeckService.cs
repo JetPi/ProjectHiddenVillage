@@ -205,6 +205,12 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 		var movedCard = sourceList[sourceIndex];
 		sourceList.RemoveAt(sourceIndex);
 
+		if (movedCard.IsRevealedToBothPlayers && movedCard.RevealedInZone != destinationZone)
+		{
+			movedCard.IsRevealedToBothPlayers = false;
+			movedCard.RevealedInZone = null;
+		}
+
 		var insertIndex = destinationIndex ?? topDeck;
 		if (ReferenceEquals(sourceList, destinationList) && destinationIndex.HasValue && destinationIndex.Value > sourceIndex)
 		{

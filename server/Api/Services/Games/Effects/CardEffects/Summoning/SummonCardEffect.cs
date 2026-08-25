@@ -100,6 +100,11 @@ public sealed class SummonCardEffect(
 			var cardInstance = sourceZone.First(card => card.InstanceId == target.CardInstanceId);
 
 			sourceZone.Remove(cardInstance);
+			if (cardInstance.IsRevealedToBothPlayers)
+			{
+				cardInstance.IsRevealedToBothPlayers = false;
+				cardInstance.RevealedInZone = null;
+			}
 			cardInstance.ControllerPlayerId = summoningPlayer.PlayerId;
 			cardInstance.EnteredFieldTurnNumber = context.Game.State.TurnNumber;
 			cardInstance.EffectsSuppressedWhileOnField = suppressSummonedTargetsEffectsWhileOnField;

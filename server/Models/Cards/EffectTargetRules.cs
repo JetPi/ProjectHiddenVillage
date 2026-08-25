@@ -23,6 +23,8 @@ public sealed class EffectTargetRule
 
     public PlayerZone InZone { get; set; } = PlayerZone.CharacterField;
 
+    public EffectTargetLocationSelector LocationSelector { get; set; } = new();
+
     public TributeTargetRole? TributeRole { get; set; }
 
     public int? ExactSelectedTargetCount { get; set; }
@@ -32,6 +34,20 @@ public sealed class EffectTargetRule
     public int? MaximumSelectedTargetCount { get; set; }
 
     public ZoneCardRestriction Restriction { get; set; } = new();
+}
+
+public sealed class EffectTargetLocationSelector
+{
+    public EffectTargetLocationSelectorKind Kind { get; set; } = EffectTargetLocationSelectorKind.Any;
+
+    public int? SupportSlotIndex { get; set; }
+}
+
+public enum EffectTargetLocationSelectorKind
+{
+    Any,
+    SupportSlotIndex,
+    DeckTop,
 }
 
 public sealed class TributeTargetComposition

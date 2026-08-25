@@ -373,6 +373,134 @@ public sealed class GameSequentialEffectExecutorTests
     }
 
     [TestMethod]
+    public void Execute_ResolvesRevealCardRuntimeEffect()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(RevealCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "reveal-step" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_RevealFirst_ExecutesThenBranchesOnFailure_WhenConditionDoesNotMatch()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(RevealCardEffect.EffectKey, observedSpecIds),
+            new RecordingEffect(DestroyCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                RevealTimingMode = RevealTimingMode.RevealFirst,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ExecutionCondition = new EffectExecutionConditionSpec
+                {
+                    ArgumentKey = EffectExecutionConditionArgumentKey.SelectedOption,
+                    ExpectedValue = "B",
+                },
+                OnFailureEffectId = "fallback",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "fallback",
+                RuntimeEffectType = RuntimeEffects.DestroyCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(
+            sourceDefinition,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["selectedOption"] = "A",
+            });
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "reveal-step", "fallback" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_RevealLast_BranchesOnFailureWithoutExecuting_WhenConditionDoesNotMatch()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(RevealCardEffect.EffectKey, observedSpecIds),
+            new RecordingEffect(DestroyCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                RevealTimingMode = RevealTimingMode.RevealLast,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ExecutionCondition = new EffectExecutionConditionSpec
+                {
+                    ArgumentKey = EffectExecutionConditionArgumentKey.SelectedOption,
+                    ExpectedValue = "B",
+                },
+                OnFailureEffectId = "fallback",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "fallback",
+                RuntimeEffectType = RuntimeEffects.DestroyCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(
+            sourceDefinition,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["selectedOption"] = "A",
+            });
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "fallback" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
     public void Execute_AtomicChain_DoesNotExecuteAnyStep_WhenLaterStepCannotExecute()
     {
         var observedSpecIds = new List<string>();
