@@ -1,5 +1,6 @@
 using FluentValidation;
 using ProjectHiddenVillage.Server.Data.DTOs;
+using System.Collections.Generic;
 
 namespace ProjectHiddenVillage.Server;
 
@@ -456,6 +457,18 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                     });
             })
             .When(request => request.Effects is not null);
+
+        RuleFor(request => request.Effects)
+            .Must(effects => effects is null || HasUniqueEffectIds(effects))
+            .WithMessage("Effect ids must be unique.");
+
+        RuleFor(request => request.Effects)
+            .Must(effects => effects is null || HasValidBranchTargets(effects))
+            .WithMessage("OnSuccessEffectId and OnFailureEffectId must reference existing effect ids and cannot self-reference.");
+
+        RuleFor(request => request.Effects)
+            .Must(effects => effects is null || !HasBranchCycle(effects))
+            .WithMessage("Effect branch graph cannot contain cycles.");
     }
 
     private static bool HasAnyPatchableField(UpdateCardEffectsRequest request)
@@ -555,5 +568,109 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
     private static bool IsSupportedMoveCardZone(PlayerZone? zone)
     {
         return zone is null or PlayerZone.Hand or PlayerZone.Deck or PlayerZone.Trash or PlayerZone.ExileZone;
+    }
+
+    private static bool HasUniqueEffectIds(IReadOnlyList<EffectSpec> effects)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var effect in effects)
+        {
+            var id = effect.Id?.Trim() ?? string.Empty;
+            if (!seen.Add(id))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasValidBranchTargets(IReadOnlyList<EffectSpec> effects)
+    {
+        var validIds = effects
+            .Select(effect => effect.Id.Trim())
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var effect in effects)
+        {
+            var sourceId = effect.Id.Trim();
+            var onSuccess = effect.OnSuccessEffectId?.Trim();
+            var onFailure = effect.OnFailureEffectId?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(onSuccess))
+            {
+                if (!validIds.Contains(onSuccess) || string.Equals(sourceId, onSuccess, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(onFailure))
+            {
+                if (!validIds.Contains(onFailure) || string.Equals(sourceId, onFailure, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasBranchCycle(IReadOnlyList<EffectSpec> effects)
+    {
+        var branchEdgesById = effects.ToDictionary(
+            effect => effect.Id.Trim(),
+            effect => new[]
+            {
+                effect.OnSuccessEffectId?.Trim(),
+                effect.OnFailureEffectId?.Trim(),
+            }
+                .Where(target => !string.IsNullOrWhiteSpace(target))
+                .Cast<string>()
+                .ToArray(),
+            StringComparer.Ordinal);
+
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var recursionStack = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var nodeId in branchEdgesById.Keys)
+        {
+            if (DetectCycle(nodeId, branchEdgesById, visited, recursionStack))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool DetectCycle(
+        string nodeId,
+        IReadOnlyDictionary<string, string[]> branchEdgesById,
+        HashSet<string> visited,
+        HashSet<string> recursionStack)
+    {
+        if (!visited.Add(nodeId))
+        {
+            return recursionStack.Contains(nodeId);
+        }
+
+        recursionStack.Add(nodeId);
+
+        if (branchEdgesById.TryGetValue(nodeId, out var targets))
+        {
+            foreach (var targetId in targets)
+            {
+                if (DetectCycle(targetId, branchEdgesById, visited, recursionStack))
+                {
+                    return true;
+                }
+            }
+        }
+
+        recursionStack.Remove(nodeId);
+        return false;
     }
 }

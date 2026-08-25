@@ -25,6 +25,8 @@ public sealed record CardCatalogItemResponse(
 
 public sealed record CardCatalogEffectResponse(
     string Id,
+    string? OnSuccessEffectId,
+    string? OnFailureEffectId,
     string RuntimeEffectType,
     string EffectType,
     string Timing,

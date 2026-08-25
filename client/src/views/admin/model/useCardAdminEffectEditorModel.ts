@@ -15,6 +15,7 @@ const EMPTY_VALIDATION_ERRORS: ICardAdminEffectEditorValidationErrors = {
   form: null,
   conditions: null,
   effects: null,
+  effectBranches: {},
 }
 
 const EMPTY_DRAFT: ICardAdminEffectEditorDraft = {
@@ -56,8 +57,13 @@ function toEditorDraft(card: ICardAdminEffectEditorHydrationSource | null): ICar
 }
 
 function normalizeEffectForSave(effect: ICardCatalogEffectRequest): ICardCatalogEffectRequest {
+  const normalizedOnSuccess = effect.onSuccessEffectId?.trim() ?? ''
+  const normalizedOnFailure = effect.onFailureEffectId?.trim() ?? ''
+
   return {
     ...effect,
+    onSuccessEffectId: normalizedOnSuccess.length > 0 ? normalizedOnSuccess : null,
+    onFailureEffectId: normalizedOnFailure.length > 0 ? normalizedOnFailure : null,
     passiveConsequences: (effect.passiveConsequences ?? []).map((consequence) => ({
       consequenceEffectTypeKey: consequence.consequenceEffectTypeKey,
       targetPolicy: consequence.targetPolicy,
@@ -87,6 +93,67 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
     && Array.isArray(effect.contextRules)
     && !!effect.targetRules)) {
     nextErrors.effects = 'Each effect must include id, effectType, timing, contextRules, and targetRules.'
+  } else {
+    const normalizedIds = draft.effects.map((effect) => effect.id.trim())
+    const validIds = new Set(
+      normalizedIds
+        .filter((value) => value.length > 0),
+    )
+
+    const duplicateIds = new Set<string>()
+    const seenIds = new Set<string>()
+    normalizedIds.forEach((id) => {
+      if (!id) {
+        return
+      }
+
+      if (seenIds.has(id)) {
+        duplicateIds.add(id)
+        return
+      }
+
+      seenIds.add(id)
+    })
+
+    const effectBranchErrors: Record<number, string[]> = {}
+    draft.effects.forEach((effect, index) => {
+      const effectErrors: string[] = []
+      const effectId = effect.id.trim()
+
+      if (effectId && duplicateIds.has(effectId)) {
+        effectErrors.push(`Effect id '${effectId}' must be unique.`)
+      }
+
+      const branchTargets = [
+        { label: 'On Success', target: effect.onSuccessEffectId },
+        { label: 'On Failure', target: effect.onFailureEffectId },
+      ]
+
+      branchTargets.forEach(({ label, target }) => {
+        const normalizedTarget = target?.trim() ?? ''
+        if (!normalizedTarget) {
+          return
+        }
+
+        if (!validIds.has(normalizedTarget)) {
+          effectErrors.push(`${label} target '${normalizedTarget}' does not match any effect id.`)
+          return
+        }
+
+        if (effectId && normalizedTarget === effectId) {
+          effectErrors.push(`${label} target cannot reference the same effect id '${effectId}'.`)
+        }
+      })
+
+      if (effectErrors.length > 0) {
+        effectBranchErrors[index] = effectErrors
+      }
+    })
+
+    if (Object.keys(effectBranchErrors).length > 0) {
+      nextErrors.effects = 'Fix effect branch validation errors before saving.'
+      nextErrors.effectBranches = effectBranchErrors
+    }
   }
 
   if (nextErrors.conditions || nextErrors.effects) {

@@ -19,6 +19,7 @@ export type ICardAdminEffectEditorValidationErrors = {
   form: string | null
   conditions: string | null
   effects: string | null
+  effectBranches: Record<number, string[]>
 }
 
 export type ICardAdminEffectEditorSaveResult = {

@@ -266,6 +266,8 @@ public sealed partial class DeckService : IDeckService
                 Effects: effects
                         .ConvertAll(effect => new CardCatalogEffectResponse(
                                 Id: effect.Id,
+                    OnSuccessEffectId: effect.OnSuccessEffectId,
+                    OnFailureEffectId: effect.OnFailureEffectId,
                         RuntimeEffectType: ToReadableRuntimeEffect(effect.RuntimeEffectType),
                         EffectType: ToReadableEffectKind(effect.EffectType),
                                 Timing: ToReadableEffectTiming(effect.Timing),

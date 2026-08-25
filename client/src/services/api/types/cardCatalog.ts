@@ -145,6 +145,8 @@ export type ICardCatalogEffectTargetRuleSetRequest = {
 
 export type ICardCatalogEffectRequest = {
   id: string
+  onSuccessEffectId?: string | null
+  onFailureEffectId?: string | null
   runtimeEffectType: string
   effectType: string
   timing: string
