@@ -223,4 +223,136 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
 
         Assert.IsTrue(result.IsValid);
     }
+
+    [TestMethod]
+    public void Validate_AllowsMoveCardRules_WhenMoveActionsAreWellFormed()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-move-card-valid",
+                    RuntimeEffectType = RuntimeEffects.MoveCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    MoveCardActions =
+                    [
+                        new MoveCardActionSpec
+                        {
+                            Operation = MoveCardOperationType.Draw,
+                            DrawCount = 2,
+                        },
+                        new MoveCardActionSpec
+                        {
+                            Operation = MoveCardOperationType.Move,
+                            SourceZone = PlayerZone.Hand,
+                            DestinationZone = PlayerZone.Deck,
+                            DestinationIndex = 0,
+                            AllowCrossPlayer = false,
+                            DestinationPlayerRange = EffectTargetRange.Self,
+                        }
+                    ],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenMoveCardRuleHasUnsupportedZone()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-move-card-invalid-zone",
+                    RuntimeEffectType = RuntimeEffects.MoveCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    MoveCardActions =
+                    [
+                        new MoveCardActionSpec
+                        {
+                            Operation = MoveCardOperationType.Move,
+                            SourceZone = PlayerZone.Hand,
+                            DestinationZone = PlayerZone.CharacterField,
+                            DestinationPlayerRange = EffectTargetRange.Self,
+                        }
+                    ],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("MoveCard move actions support only Hand, Deck, Trash, and ExileZone zones.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenExecutionConditionArgumentKeyIsOutOfRange()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-invalid-execution-condition-key",
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ExecutionCondition = new EffectExecutionConditionSpec
+                    {
+                        ArgumentKey = (EffectExecutionConditionArgumentKey)999,
+                        ExpectedValue = "yes",
+                        IgnoreCase = true,
+                        Negate = false,
+                    },
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Execution condition argument key must be one of:", StringComparison.Ordinal)));
+    }
 }

@@ -193,6 +193,36 @@ public sealed class FlexibleEnumJsonConverterFactoryTests
         Assert.IsNotNull(request.Effects[0].PassiveConsequences[0].ConsequenceArguments);
     }
 
+    [TestMethod]
+    public void Deserialize_UpdateCardEffectsRequest_ParsesMoveCardRuntimeEffect()
+    {
+        var json = """
+            {
+              "effects": [
+                {
+                  "id": "effect-move",
+                  "runtimeEffectType": "move-card",
+                  "effectType": "support",
+                  "timing": "quick",
+                  "targetRange": "self",
+                  "contextRules": [],
+                  "targetRules": {
+                    "operator": "all",
+                    "rules": []
+                  }
+                }
+              ]
+            }
+            """;
+
+        var request = JsonSerializer.Deserialize<UpdateCardEffectsRequest>(json, CreateOptions());
+
+        Assert.IsNotNull(request);
+        Assert.IsNotNull(request.Effects);
+        Assert.AreEqual(1, request.Effects.Count);
+        Assert.AreEqual(RuntimeEffects.MoveCard, request.Effects[0].RuntimeEffectType);
+    }
+
       [TestMethod]
       public void Deserialize_UpdateCardEffectsRequest_ParsesCannotBeNormalSummoned()
       {

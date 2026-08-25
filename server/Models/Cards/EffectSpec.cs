@@ -76,15 +76,73 @@ public sealed class SummonCardFlipSpec
     public SummonCardFaceState FaceState { get; set; } = SummonCardFaceState.FaceUp;
 }
 
+public enum MoveCardOperationType
+{
+    Move,
+    Draw,
+}
+
+public sealed class MoveCardActionSpec
+{
+    public MoveCardOperationType Operation { get; set; } = MoveCardOperationType.Move;
+
+    public PlayerZone? SourceZone { get; set; }
+
+    public PlayerZone? DestinationZone { get; set; }
+
+    public int? DrawCount { get; set; }
+
+    public int? DestinationIndex { get; set; }
+
+    public bool AllowCrossPlayer { get; set; } = false;
+
+    public EffectTargetRange DestinationPlayerRange { get; set; } = EffectTargetRange.Self;
+}
+
 public sealed class EffectExecutionConditionSpec
 {
-    public string ArgumentKey { get; set; } = string.Empty;
+    public EffectExecutionConditionArgumentKey ArgumentKey { get; set; } = EffectExecutionConditionArgumentKey.SelectedOption;
 
     public string ExpectedValue { get; set; } = string.Empty;
 
     public bool IgnoreCase { get; set; } = true;
 
     public bool Negate { get; set; } = false;
+}
+
+public enum EffectExecutionConditionArgumentKey
+{
+    IsSecondTurnOrLater,
+    SelectedOption,
+    SummonTargetId,
+    MoveCardMode,
+    MoveCardDrawCount,
+    MoveCardSourceZone,
+    MoveCardDestinationZone,
+    MoveCardDestinationIndex,
+    MoveCardDestinationPlayerId,
+    MoveCardAllowCrossPlayer,
+}
+
+public static class EffectExecutionConditionArgumentKeyExtensions
+{
+    public static string ToWireValue(this EffectExecutionConditionArgumentKey argumentKey)
+    {
+        return argumentKey switch
+        {
+            EffectExecutionConditionArgumentKey.IsSecondTurnOrLater => "isSecondTurnOrLater",
+            EffectExecutionConditionArgumentKey.SelectedOption => "selectedOption",
+            EffectExecutionConditionArgumentKey.SummonTargetId => "summonTargetId",
+            EffectExecutionConditionArgumentKey.MoveCardMode => "moveCardMode",
+            EffectExecutionConditionArgumentKey.MoveCardDrawCount => "moveCardDrawCount",
+            EffectExecutionConditionArgumentKey.MoveCardSourceZone => "moveCardSourceZone",
+            EffectExecutionConditionArgumentKey.MoveCardDestinationZone => "moveCardDestinationZone",
+            EffectExecutionConditionArgumentKey.MoveCardDestinationIndex => "moveCardDestinationIndex",
+            EffectExecutionConditionArgumentKey.MoveCardDestinationPlayerId => "moveCardDestinationPlayerId",
+            EffectExecutionConditionArgumentKey.MoveCardAllowCrossPlayer => "moveCardAllowCrossPlayer",
+            _ => throw new ArgumentOutOfRangeException(nameof(argumentKey), argumentKey, "Unsupported execution condition argument key."),
+        };
+    }
 }
 
 public sealed class EffectSpec
@@ -130,6 +188,8 @@ public sealed class EffectSpec
     public IReadOnlyList<ChakraAdjustmentSpec> ChakraAdjustments { get; set; } = [];
 
     public IReadOnlyList<SummonCardFlipSpec> SummonCardFlips { get; set; } = [];
+
+    public IReadOnlyList<MoveCardActionSpec> MoveCardActions { get; set; } = [];
 
     public bool SuppressSummonedTargetsEffectsWhileOnField { get; set; }
 

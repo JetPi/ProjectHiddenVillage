@@ -328,12 +328,9 @@ public sealed class GameSequentialEffectExecutor(
             return true;
         }
 
-        if (string.IsNullOrWhiteSpace(condition.ArgumentKey))
-        {
-            return true;
-        }
+        var argumentKey = condition.ArgumentKey.ToWireValue();
 
-        if (!arguments.TryGetValue(condition.ArgumentKey, out var argumentValue))
+        if (!arguments.TryGetValue(argumentKey, out var argumentValue))
         {
             return condition.Negate;
         }
@@ -481,6 +478,7 @@ public sealed class GameSequentialEffectExecutor(
             RuntimeEffects.AlterResources => AlterResourcesEffect.EffectKey,
             RuntimeEffects.Tribute => TributeSummonCardEffect.EffectKey,
             RuntimeEffects.SummonCard => SummonCardEffect.EffectKey,
+            RuntimeEffects.MoveCard => MoveCardEffect.EffectKey,
             _ => string.Empty,
         };
 

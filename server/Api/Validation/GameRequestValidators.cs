@@ -152,6 +152,11 @@ public sealed class UserLoginDtoValidator : AbstractValidator<UserLoginDto>
 
 public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<UpdateCardEffectsRequest>
 {
+    private static readonly string AllowedExecutionConditionArgumentKeys = string.Join(
+        ", ",
+        Enum.GetValues<EffectExecutionConditionArgumentKey>()
+            .Select(argumentKey => argumentKey.ToWireValue()));
+
     public UpdateCardEffectsRequestValidator()
     {
         RuleFor(request => request)
@@ -241,6 +246,10 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                     .Must(durationMode => durationMode != EffectDurationMode.Continuous
                         || durationMode == EffectDurationMode.Continuous)
                     .WithMessage("Effect duration mode is invalid.");
+
+                effect.RuleFor(value => value.ExecutionCondition)
+                    .Must(condition => condition is null || Enum.IsDefined(condition.ArgumentKey))
+                    .WithMessage($"Execution condition argument key must be one of: {AllowedExecutionConditionArgumentKeys}.");
 
                 effect.RuleFor(value => value.ChakraCost)
                     .GreaterThanOrEqualTo(0)
@@ -411,6 +420,40 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                     .Must(value => value.DurationMode == EffectDurationMode.Instant
                         || value.RuntimeEffectType is RuntimeEffects.ChangeValues or RuntimeEffects.GainEffect)
                     .WithMessage("Non-instant duration is currently supported only for Change Values and Gain Effect runtime effects.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType != RuntimeEffects.MoveCard || value.MoveCardActions.Count > 0)
+                    .WithMessage("MoveCard runtime effects require at least one move-card action.");
+
+                effect.RuleForEach(value => value.MoveCardActions)
+                    .ChildRules(action =>
+                    {
+                        action.RuleFor(value => value)
+                            .Must(value => value.Operation != MoveCardOperationType.Draw
+                                || !value.DrawCount.HasValue
+                                || value.DrawCount.Value > 0)
+                            .WithMessage("MoveCard draw actions must use a positive draw count when provided.");
+
+                        action.RuleFor(value => value)
+                            .Must(value => value.Operation != MoveCardOperationType.Move
+                                || (value.SourceZone.HasValue && value.DestinationZone.HasValue))
+                            .WithMessage("MoveCard move actions require source and destination zones.");
+
+                        action.RuleFor(value => value)
+                            .Must(value => value.Operation != MoveCardOperationType.Move
+                                || (!value.DestinationIndex.HasValue || value.DestinationIndex.Value >= 0))
+                            .WithMessage("MoveCard destination index must be non-negative.");
+
+                        action.RuleFor(value => value)
+                            .Must(value => value.Operation != MoveCardOperationType.Move
+                                || (IsSupportedMoveCardZone(value.SourceZone)
+                                    && IsSupportedMoveCardZone(value.DestinationZone)))
+                            .WithMessage("MoveCard move actions support only Hand, Deck, Trash, and ExileZone zones.");
+
+                        action.RuleFor(value => value.DestinationPlayerRange)
+                            .Must(range => range is EffectTargetRange.Self or EffectTargetRange.Opponent or EffectTargetRange.Any)
+                            .WithMessage("MoveCard destination player range must be Self, Opponent, or Any.");
+                    });
             })
             .When(request => request.Effects is not null);
     }
@@ -507,5 +550,10 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
         var predicates = rule.Restriction.Predicates ?? [];
         return predicates.Any(predicate =>
             predicate.Property is ZoneCardProperty.Health or ZoneCardProperty.CurrentHealth);
+    }
+
+    private static bool IsSupportedMoveCardZone(PlayerZone? zone)
+    {
+        return zone is null or PlayerZone.Hand or PlayerZone.Deck or PlayerZone.Trash or PlayerZone.ExileZone;
     }
 }

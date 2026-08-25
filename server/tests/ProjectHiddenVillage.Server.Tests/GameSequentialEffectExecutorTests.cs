@@ -271,7 +271,7 @@ public sealed class GameSequentialEffectExecutorTests
                 TargetRange = EffectTargetRange.Any,
                 ExecutionCondition = new EffectExecutionConditionSpec
                 {
-                    ArgumentKey = "selectedOption",
+                    ArgumentKey = EffectExecutionConditionArgumentKey.SelectedOption,
                     ExpectedValue = "A",
                 },
                 OnFailureEffectId = "option-b",
@@ -286,7 +286,7 @@ public sealed class GameSequentialEffectExecutorTests
                 TargetRange = EffectTargetRange.Any,
                 ExecutionCondition = new EffectExecutionConditionSpec
                 {
-                    ArgumentKey = "selectedOption",
+                    ArgumentKey = EffectExecutionConditionArgumentKey.SelectedOption,
                     ExpectedValue = "B",
                 },
                 ContextRules = []
@@ -342,6 +342,34 @@ public sealed class GameSequentialEffectExecutorTests
 
         Assert.IsFalse(result.IsError);
         CollectionAssert.AreEqual(new[] { "fallback" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_ResolvesMoveCardRuntimeEffect()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(MoveCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "move-step",
+                RuntimeEffectType = RuntimeEffects.MoveCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "move-step" }, observedSpecIds.ToArray());
     }
 
     [TestMethod]
@@ -448,7 +476,7 @@ public sealed class GameSequentialEffectExecutorTests
                 OnSuccessEffectId = "double-power",
                 ExecutionCondition = new EffectExecutionConditionSpec
                 {
-                    ArgumentKey = "canResolve",
+                    ArgumentKey = EffectExecutionConditionArgumentKey.SelectedOption,
                     ExpectedValue = "yes",
                 },
                 ContextRules = []
@@ -463,7 +491,7 @@ public sealed class GameSequentialEffectExecutorTests
                 ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
                 ExecutionCondition = new EffectExecutionConditionSpec
                 {
-                    ArgumentKey = "shouldBeIgnored",
+                    ArgumentKey = EffectExecutionConditionArgumentKey.SelectedOption,
                     ExpectedValue = "never-set",
                 },
                 ContextRules = []
@@ -473,7 +501,7 @@ public sealed class GameSequentialEffectExecutorTests
             sourceDefinition,
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ["canResolve"] = "yes",
+                ["selectedOption"] = "yes",
             });
 
         var result = executor.Execute(context);

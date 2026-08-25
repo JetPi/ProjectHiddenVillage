@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using ErrorOr;
 using Microsoft.EntityFrameworkCore;
+using ProjectHiddenVillage.Server.Api.Serialization;
 using ProjectHiddenVillage.Server.Api.Interfaces.Card;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Entities;
@@ -10,7 +11,7 @@ namespace ProjectHiddenVillage.Server;
 
 public sealed class CardMappingService : ICardMappingService
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
     private static readonly HashSet<string> AllowedCatalogSortFields =
     [
         "cardId",
@@ -28,6 +29,13 @@ public sealed class CardMappingService : ICardMappingService
     public CardMappingService(ApplicationDbContext dbContext)
     {
         this.dbContext = dbContext;
+    }
+
+    private static JsonSerializerOptions CreateSerializerOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new FlexibleEnumJsonConverterFactory());
+        return options;
     }
 
     public async Task<ErrorOr<List<Card>>> MapCards(IReadOnlyList<CardDataSourceRecord> sourceCards)
@@ -380,6 +388,9 @@ public sealed class CardMappingService : ICardMappingService
                         .ToList(),
                     SummonCardFlips: effect.SummonCardFlips
                         .Select(ToSummonCardFlipResponse)
+                        .ToList(),
+                    MoveCardActions: effect.MoveCardActions
+                        .Select(ToMoveCardActionResponse)
                         .ToList(),
                     ContextRules: effect.ContextRules
                         .Select(ToContextRuleResponse)
@@ -750,6 +761,18 @@ public sealed class CardMappingService : ICardMappingService
             FaceState: SplitPascalCase(spec.FaceState.ToString()));
     }
 
+    private static CardCatalogMoveCardActionResponse ToMoveCardActionResponse(MoveCardActionSpec spec)
+    {
+        return new CardCatalogMoveCardActionResponse(
+            Operation: SplitPascalCase(spec.Operation.ToString()),
+            SourceZone: spec.SourceZone.HasValue ? SplitPascalCase(spec.SourceZone.Value.ToString()) : null,
+            DestinationZone: spec.DestinationZone.HasValue ? SplitPascalCase(spec.DestinationZone.Value.ToString()) : null,
+            DrawCount: spec.DrawCount,
+            DestinationIndex: spec.DestinationIndex,
+            AllowCrossPlayer: spec.AllowCrossPlayer,
+            DestinationPlayerRange: SplitPascalCase(spec.DestinationPlayerRange.ToString()));
+    }
+
     private static CardCatalogEffectExecutionConditionResponse? ToExecutionConditionResponse(EffectExecutionConditionSpec? condition)
     {
         if (condition is null)
@@ -758,7 +781,7 @@ public sealed class CardMappingService : ICardMappingService
         }
 
         return new CardCatalogEffectExecutionConditionResponse(
-            ArgumentKey: condition.ArgumentKey,
+            ArgumentKey: condition.ArgumentKey.ToWireValue(),
             ExpectedValue: condition.ExpectedValue,
             IgnoreCase: condition.IgnoreCase,
             Negate: condition.Negate);

@@ -20,6 +20,7 @@ public enum RuntimeEffects
     RevealCard = 10,
     SummonCard = 11,
     InterruptAttack = 12,
+    MoveCard = 13,
 }
 
 public sealed class EffectContextCondition

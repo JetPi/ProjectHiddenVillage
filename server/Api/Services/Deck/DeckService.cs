@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using ErrorOr;
 using Microsoft.EntityFrameworkCore;
+using ProjectHiddenVillage.Server.Api.Serialization;
 using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.DTOs;
@@ -12,7 +13,7 @@ namespace ProjectHiddenVillage.Server;
 
 public sealed partial class DeckService : IDeckService
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
 
     [GeneratedRegex(@"^\s*(\d+)x\s+([A-Za-z0-9\-]+)\s*$", RegexOptions.CultureInvariant)]
     private static partial Regex DeckLinePattern();
@@ -22,6 +23,13 @@ public sealed partial class DeckService : IDeckService
     public DeckService(ApplicationDbContext dbContext)
     {
         this.dbContext = dbContext;
+    }
+
+    private static JsonSerializerOptions CreateSerializerOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new FlexibleEnumJsonConverterFactory());
+        return options;
     }
 
     public async Task<ErrorOr<string>> CreateDeck(CreateDeckRequest request)
@@ -287,6 +295,9 @@ public sealed partial class DeckService : IDeckService
                     SummonCardFlips: effect.SummonCardFlips
                         .Select(ToSummonCardFlipResponse)
                         .ToList(),
+                    MoveCardActions: effect.MoveCardActions
+                        .Select(ToMoveCardActionResponse)
+                        .ToList(),
                     ContextRules: effect.ContextRules
                         .Select(ToContextRuleResponse)
                         .ToList(),
@@ -437,6 +448,18 @@ public sealed partial class DeckService : IDeckService
             FaceState: SplitPascalCase(spec.FaceState.ToString()));
     }
 
+    private static CardCatalogMoveCardActionResponse ToMoveCardActionResponse(MoveCardActionSpec spec)
+    {
+        return new CardCatalogMoveCardActionResponse(
+            Operation: SplitPascalCase(spec.Operation.ToString()),
+            SourceZone: spec.SourceZone.HasValue ? SplitPascalCase(spec.SourceZone.Value.ToString()) : null,
+            DestinationZone: spec.DestinationZone.HasValue ? SplitPascalCase(spec.DestinationZone.Value.ToString()) : null,
+            DrawCount: spec.DrawCount,
+            DestinationIndex: spec.DestinationIndex,
+            AllowCrossPlayer: spec.AllowCrossPlayer,
+            DestinationPlayerRange: SplitPascalCase(spec.DestinationPlayerRange.ToString()));
+    }
+
     private static CardCatalogEffectExecutionConditionResponse? ToExecutionConditionResponse(EffectExecutionConditionSpec? condition)
     {
         if (condition is null)
@@ -445,7 +468,7 @@ public sealed partial class DeckService : IDeckService
         }
 
         return new CardCatalogEffectExecutionConditionResponse(
-            ArgumentKey: condition.ArgumentKey,
+            ArgumentKey: condition.ArgumentKey.ToWireValue(),
             ExpectedValue: condition.ExpectedValue,
             IgnoreCase: condition.IgnoreCase,
             Negate: condition.Negate);
