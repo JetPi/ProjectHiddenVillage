@@ -112,7 +112,10 @@ export type ICardCatalogMoveCardActionResponse = {
   sourceZone: string | null
   destinationZone: string | null
   drawCount: number | null
+  moveCount: number | null
   destinationIndex: number | null
+  deckPlacement: string | null
+  multiCardOrdering: string | null
   allowCrossPlayer: boolean
   destinationPlayerRange: string
 }
@@ -147,6 +150,8 @@ export type ICardCatalogEffectTargetRuleSetResponse = {
 
 export type ICardCatalogEffectResponse = {
   id: string
+  onSuccessEffectId: string | null
+  onFailureEffectId: string | null
   runtimeEffectType: string
   effectType: string
   timing: string

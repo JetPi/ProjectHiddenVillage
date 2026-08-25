@@ -4,9 +4,12 @@ export const CARD_CATALOG_EXECUTION_CONDITION_ARGUMENT_KEY_OPTIONS = [
   'summonTargetId',
   'moveCardMode',
   'moveCardDrawCount',
+  'moveCardMoveCount',
   'moveCardSourceZone',
   'moveCardDestinationZone',
   'moveCardDestinationIndex',
+  'moveCardDeckPlacement',
+  'moveCardMultiCardOrdering',
   'moveCardDestinationPlayerId',
   'moveCardAllowCrossPlayer',
 ] as const

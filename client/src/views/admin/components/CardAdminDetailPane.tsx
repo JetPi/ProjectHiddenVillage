@@ -91,6 +91,8 @@ const FACE_STATE_OPTIONS = ['Face Up', 'Face Down'] as const
 const MOVE_CARD_OPERATION_OPTIONS = ['Move', 'Draw'] as const
 const MOVE_CARD_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone'] as const
 const MOVE_CARD_DESTINATION_RANGE_OPTIONS = ['Self', 'Opponent', 'Any'] as const
+const MOVE_CARD_DECK_PLACEMENT_OPTIONS = ['Top', 'Bottom', 'Index'] as const
+const MOVE_CARD_MULTI_ORDERING_OPTIONS = ['Selected Order', 'Random'] as const
 const MATCH_MODE_OPTIONS = ['Any', 'All'] as const
 const PREDICATE_OPERATOR_OPTIONS = [
   'Equals',
@@ -148,6 +150,8 @@ function renderEmptySelectionState(message: string) {
 function createDefaultEffect(): ICardCatalogEffectRequest {
   return {
     id: 'new-effect',
+    onSuccessEffectId: null,
+    onFailureEffectId: null,
     runtimeEffectType: 'Change Values',
     effectType: 'Support',
     timing: 'Quick',
@@ -291,7 +295,10 @@ function createDefaultMoveCardAction(): ICardCatalogMoveCardActionRequest {
     sourceZone: 'Hand',
     destinationZone: 'Deck',
     drawCount: null,
+    moveCount: 1,
     destinationIndex: 0,
+    deckPlacement: 'Top',
+    multiCardOrdering: 'Selected Order',
     allowCrossPlayer: false,
     destinationPlayerRange: 'Self',
   }
@@ -512,6 +519,10 @@ function isAttackNegationRuntimeEffect(runtimeEffectType: string): boolean {
   return runtimeEffectType === 'Interrupt Attack'
 }
 
+function normalizeEffectId(value: string | null | undefined): string {
+  return value?.trim() ?? ''
+}
+
 export function CardAdminDetailPane({ selectedCard }: ICardAdminDetailPaneProps) {
   return (
     <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
@@ -541,6 +552,38 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
     () => allConditionOptions.filter((condition) => !editorModel.draft.conditions.includes(condition)),
     [allConditionOptions, editorModel.draft.conditions],
   )
+  const effectIdOptions = useMemo(
+    () => Array.from(new Set(parsedEffects.map((effect) => normalizeEffectId(effect.id)).filter((id) => id.length > 0))),
+    [parsedEffects],
+  )
+  const linkedEffectGroups = useMemo(() => {
+    const effectIdSet = new Set(effectIdOptions)
+
+    return parsedEffects.flatMap((effect) => {
+      const sourceId = normalizeEffectId(effect.id)
+      if (!sourceId) {
+        return []
+      }
+
+      const onSuccessTarget = normalizeEffectId(effect.onSuccessEffectId)
+      const onFailureTarget = normalizeEffectId(effect.onFailureEffectId)
+      const nextGroup = {
+        sourceId,
+        onSuccessTarget: onSuccessTarget && effectIdSet.has(onSuccessTarget)
+          ? onSuccessTarget
+          : null,
+        onFailureTarget: onFailureTarget && effectIdSet.has(onFailureTarget)
+          ? onFailureTarget
+          : null,
+      }
+
+      if (!nextGroup.onSuccessTarget && !nextGroup.onFailureTarget) {
+        return []
+      }
+
+      return [nextGroup]
+    })
+  }, [effectIdOptions, parsedEffects])
   const updateEffects = (nextEffects: ICardCatalogEffectRequest[]) => {
     editorModel.setEffects(nextEffects)
   }
@@ -727,10 +770,56 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
               </AppButton>
             </div>
 
+            <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-sky-500/45 bg-[var(--surface-muted)] p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Interlinked Effects</p>
+              {linkedEffectGroups.length > 0 ? (
+                <div className="space-y-1">
+                  {linkedEffectGroups.map((group) => (
+                    <div
+                      key={group.sourceId}
+                      className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-primary)]"
+                    >
+                      <span className="rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-0.5 font-semibold">{group.sourceId}</span>
+
+                      {group.onSuccessTarget ? (
+                        <>
+                          <span className="text-[var(--text-secondary)]">On Success</span>
+                          <span className="text-[var(--text-secondary)]">-&gt;</span>
+                          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-semibold text-emerald-700">{group.onSuccessTarget}</span>
+                        </>
+                      ) : null}
+
+                      {group.onFailureTarget ? (
+                        <>
+                          <span className="text-[var(--text-secondary)]">On Failure</span>
+                          <span className="text-[var(--text-secondary)]">-&gt;</span>
+                          <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 font-semibold text-rose-700">{group.onFailureTarget}</span>
+                        </>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--text-secondary)]">No linked effects are currently configured.</p>
+              )}
+            </div>
+
             {parsedEffects.map((effect, effectIndex) => (
               <div key={`effect-${effectIndex}`} className="space-y-3 rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-slate-400/55 bg-[var(--surface)] p-3 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-[var(--text-primary)]">{effect.id.trim().length > 0 ? effect.id.trim() : `Effect ${effectIndex + 1}`}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-semibold text-[var(--text-primary)]">{effect.id.trim().length > 0 ? effect.id.trim() : `Effect ${effectIndex + 1}`}</p>
+                    {normalizeEffectId(effect.onSuccessEffectId) ? (
+                      <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                        On Success: {normalizeEffectId(effect.onSuccessEffectId)}
+                      </span>
+                    ) : null}
+                    {normalizeEffectId(effect.onFailureEffectId) ? (
+                      <span className="inline-flex items-center rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700">
+                        On Failure: {normalizeEffectId(effect.onFailureEffectId)}
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -1016,6 +1105,46 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                     </select>
                   </div>
 
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">On Success</label>
+                    <select
+                      value={effect.onSuccessEffectId ?? ''}
+                      onChange={(event) =>
+                        updateEffectAt(effectIndex, (current) => ({
+                          ...current,
+                          onSuccessEffectId: event.target.value.trim().length > 0 ? event.target.value : null,
+                        }))}
+                      className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                    >
+                      <option value="">None</option>
+                      {effectIdOptions
+                        .filter((id) => id !== normalizeEffectId(effect.id))
+                        .map((idOption) => (
+                          <option key={idOption} value={idOption}>{idOption}</option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">On Failure</label>
+                    <select
+                      value={effect.onFailureEffectId ?? ''}
+                      onChange={(event) =>
+                        updateEffectAt(effectIndex, (current) => ({
+                          ...current,
+                          onFailureEffectId: event.target.value.trim().length > 0 ? event.target.value : null,
+                        }))}
+                      className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                    >
+                      <option value="">None</option>
+                      {effectIdOptions
+                        .filter((id) => id !== normalizeEffectId(effect.id))
+                        .map((idOption) => (
+                          <option key={idOption} value={idOption}>{idOption}</option>
+                        ))}
+                    </select>
+                  </div>
+
                   <label className="flex items-center gap-2 text-sm text-[var(--text-primary)] sm:col-span-2">
                     <input
                       type="checkbox"
@@ -1106,6 +1235,14 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                         Negate Condition
                       </label>
                     </>
+                  ) : null}
+
+                  {editorModel.errors.effectBranches[effectIndex]?.length ? (
+                    <div className="space-y-1 sm:col-span-2">
+                      {editorModel.errors.effectBranches[effectIndex].map((error) => (
+                        <p key={`${effectIndex}-${error}`} className="text-xs text-red-500">{error}</p>
+                      ))}
+                    </div>
                   ) : null}
                 </div>
 
@@ -3674,6 +3811,8 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
                     {effect.moveCardActions.map((moveCardAction, moveCardActionIndex) => {
                       const isDrawAction = moveCardAction.operation === 'Draw'
+                      const isDeckDestination = moveCardAction.destinationZone === 'Deck'
+                      const isIndexPlacement = (moveCardAction.deckPlacement ?? 'Top') === 'Index'
 
                       return (
                         <div key={`move-card-action-${moveCardActionIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
@@ -3695,7 +3834,10 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                       sourceZone: null,
                                       destinationZone: null,
                                       drawCount: row.drawCount ?? 1,
+                                      moveCount: null,
                                       destinationIndex: null,
+                                      deckPlacement: null,
+                                      multiCardOrdering: null,
                                       destinationPlayerRange: 'Self',
                                       allowCrossPlayer: false,
                                     }
@@ -3707,7 +3849,10 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                     sourceZone: row.sourceZone ?? 'Hand',
                                     destinationZone: row.destinationZone ?? 'Deck',
                                     drawCount: null,
+                                    moveCount: row.moveCount ?? 1,
                                     destinationIndex: row.destinationIndex ?? 0,
+                                    deckPlacement: row.deckPlacement ?? 'Top',
+                                    multiCardOrdering: row.multiCardOrdering ?? 'Selected Order',
                                     destinationPlayerRange: row.destinationPlayerRange || 'Self',
                                   }
                                 }),
@@ -3759,7 +3904,18 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                 updateEffectAt(effectIndex, (current) => ({
                                   ...current,
                                   moveCardActions: current.moveCardActions.map((row, index) =>
-                                    index === moveCardActionIndex ? { ...row, destinationZone: event.target.value } : row),
+                                    index === moveCardActionIndex
+                                      ? {
+                                        ...row,
+                                        destinationZone: event.target.value,
+                                        deckPlacement: event.target.value === 'Deck' ? (row.deckPlacement ?? 'Top') : null,
+                                        multiCardOrdering: event.target.value === 'Deck' ? (row.multiCardOrdering ?? 'Selected Order') : null,
+                                        destinationIndex:
+                                          event.target.value === 'Deck'
+                                            ? (row.destinationIndex ?? 0)
+                                            : row.destinationIndex,
+                                      }
+                                      : row),
                                 }))}
                               className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                             >
@@ -3800,20 +3956,87 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
                           {!isDrawAction ? (
                             <>
+                              {isDeckDestination ? (
+                                <select
+                                  value={moveCardAction.deckPlacement ?? 'Top'}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      moveCardActions: current.moveCardActions.map((row, index) => {
+                                        if (index !== moveCardActionIndex) {
+                                          return row
+                                        }
+
+                                        const nextPlacement = event.target.value
+                                        return {
+                                          ...row,
+                                          deckPlacement: nextPlacement,
+                                          destinationIndex:
+                                            nextPlacement === 'Index'
+                                              ? (row.destinationIndex ?? 0)
+                                              : row.destinationIndex,
+                                        }
+                                      }),
+                                    }))}
+                                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                >
+                                  {MOVE_CARD_DECK_PLACEMENT_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>{option}</option>
+                                  ))}
+                                </select>
+                              ) : null}
+
+                              {isDeckDestination ? (
+                                <select
+                                  value={moveCardAction.multiCardOrdering ?? 'Selected Order'}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      moveCardActions: current.moveCardActions.map((row, index) =>
+                                        index === moveCardActionIndex
+                                          ? { ...row, multiCardOrdering: event.target.value }
+                                          : row),
+                                    }))}
+                                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                >
+                                  {MOVE_CARD_MULTI_ORDERING_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>{option}</option>
+                                  ))}
+                                </select>
+                              ) : null}
+
+                              {isDeckDestination && isIndexPlacement ? (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={moveCardAction.destinationIndex ?? 0}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      moveCardActions: current.moveCardActions.map((row, index) =>
+                                        index === moveCardActionIndex
+                                          ? { ...row, destinationIndex: parseNullableInteger(event.target.value) ?? 0 }
+                                          : row),
+                                    }))}
+                                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                  placeholder="Destination index"
+                                />
+                              ) : null}
+
                               <input
                                 type="number"
-                                min={0}
-                                value={moveCardAction.destinationIndex ?? 0}
+                                min={1}
+                                value={moveCardAction.moveCount ?? 1}
                                 onChange={(event) =>
                                   updateEffectAt(effectIndex, (current) => ({
                                     ...current,
                                     moveCardActions: current.moveCardActions.map((row, index) =>
                                       index === moveCardActionIndex
-                                        ? { ...row, destinationIndex: parseNullableInteger(event.target.value) ?? 0 }
+                                        ? { ...row, moveCount: Number.parseInt(event.target.value || '1', 10) }
                                         : row),
                                   }))}
-                                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)] sm:col-span-2"
-                                placeholder="Destination index"
+                                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                placeholder="Move count"
                               />
 
                               <select

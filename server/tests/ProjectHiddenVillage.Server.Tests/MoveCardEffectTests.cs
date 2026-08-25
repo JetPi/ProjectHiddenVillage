@@ -24,7 +24,7 @@ public sealed class MoveCardEffectTests
         Assert.IsFalse(result.IsError);
 
         var player = context.Game.State.Players.First(player => player.PlayerId == "p1");
-        Assert.AreEqual(3, player.Hand.Count);
+        Assert.AreEqual(4, player.Hand.Count);
         Assert.AreEqual(0, player.Deck.Count);
         var handIds = player.Hand.Select(card => card.InstanceId).ToHashSet(StringComparer.Ordinal);
         Assert.IsTrue(handIds.Contains("deck-1"));
@@ -54,9 +54,110 @@ public sealed class MoveCardEffectTests
         Assert.IsFalse(result.IsError);
 
         var player = context.Game.State.Players.First(entry => entry.PlayerId == "p1");
-        Assert.AreEqual(0, player.Hand.Count);
+        Assert.AreEqual(1, player.Hand.Count);
         Assert.AreEqual(3, player.Deck.Count);
         Assert.AreEqual("hand-1", player.Deck[0].InstanceId);
+    }
+
+    [TestMethod]
+    public void Execute_MoveMode_MovesSelectedTargetToDeckBottom_WhenPlacementIsBottom()
+    {
+        var effectSpec = CreateMoveCardEffectSpec(
+            new MoveCardActionSpec
+            {
+                Operation = MoveCardOperationType.Move,
+                SourceZone = PlayerZone.Hand,
+                DestinationZone = PlayerZone.Deck,
+                DeckPlacement = MoveCardDeckPlacementType.Bottom,
+                DestinationPlayerRange = EffectTargetRange.Self,
+            });
+        var context = CreateContext(effectSpec, selectedTargets:
+        [
+            new GameEffectTargetReference("p1", PlayerZone.Hand, "hand-1")
+        ]);
+
+        var effect = CreateEffect(effectSpec);
+        var result = effect.Execute(context, context.SelectedTargets);
+
+        Assert.IsFalse(result.IsError);
+
+        var player = context.Game.State.Players.First(entry => entry.PlayerId == "p1");
+        Assert.AreEqual(1, player.Hand.Count);
+        Assert.AreEqual(3, player.Deck.Count);
+        Assert.AreEqual("hand-1", player.Deck[2].InstanceId);
+    }
+
+    [TestMethod]
+    public void Execute_MoveMode_ShufflesSelectedTargets_WhenOrderingIsRandomAndSeedIsProvided()
+    {
+        var effectSpec = CreateMoveCardEffectSpec(
+            new MoveCardActionSpec
+            {
+                Operation = MoveCardOperationType.Move,
+                SourceZone = PlayerZone.Hand,
+                DestinationZone = PlayerZone.Deck,
+                DeckPlacement = MoveCardDeckPlacementType.Bottom,
+                MultiCardOrdering = MoveCardMultiCardOrderingType.Random,
+                DestinationPlayerRange = EffectTargetRange.Self,
+            });
+
+        var context = CreateContext(
+            effectSpec,
+            selectedTargets:
+            [
+                new GameEffectTargetReference("p1", PlayerZone.Hand, "hand-1"),
+                new GameEffectTargetReference("p1", PlayerZone.Hand, "hand-2")
+            ],
+            arguments: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["moveCardRandomSeed"] = "21",
+            });
+
+        var effect = CreateEffect(effectSpec);
+        var result = effect.Execute(context, context.SelectedTargets);
+
+        Assert.IsFalse(result.IsError);
+
+        var player = context.Game.State.Players.First(entry => entry.PlayerId == "p1");
+        Assert.AreEqual(0, player.Hand.Count);
+        Assert.AreEqual(4, player.Deck.Count);
+        Assert.AreEqual("hand-1", player.Deck[2].InstanceId);
+        Assert.AreEqual("hand-2", player.Deck[3].InstanceId);
+    }
+
+    [TestMethod]
+    public void Execute_MoveMode_MovesOnlyConfiguredMoveCount()
+    {
+        var effectSpec = CreateMoveCardEffectSpec(
+            new MoveCardActionSpec
+            {
+                Operation = MoveCardOperationType.Move,
+                SourceZone = PlayerZone.Hand,
+                DestinationZone = PlayerZone.Deck,
+                MoveCount = 1,
+                DeckPlacement = MoveCardDeckPlacementType.Bottom,
+                MultiCardOrdering = MoveCardMultiCardOrderingType.SelectedOrder,
+                DestinationPlayerRange = EffectTargetRange.Self,
+            });
+
+        var context = CreateContext(
+            effectSpec,
+            selectedTargets:
+            [
+                new GameEffectTargetReference("p1", PlayerZone.Hand, "hand-1"),
+                new GameEffectTargetReference("p1", PlayerZone.Hand, "hand-2")
+            ]);
+
+        var effect = CreateEffect(effectSpec);
+        var result = effect.Execute(context, context.SelectedTargets);
+
+        Assert.IsFalse(result.IsError);
+
+        var player = context.Game.State.Players.First(entry => entry.PlayerId == "p1");
+        Assert.AreEqual(1, player.Hand.Count);
+        Assert.AreEqual("hand-2", player.Hand[0].InstanceId);
+        Assert.AreEqual(3, player.Deck.Count);
+        Assert.AreEqual("hand-1", player.Deck[2].InstanceId);
     }
 
     [TestMethod]
@@ -86,7 +187,7 @@ public sealed class MoveCardEffectTests
         var sourcePlayer = context.Game.State.Players.First(player => player.PlayerId == "p1");
         var destinationPlayer = context.Game.State.Players.First(player => player.PlayerId == "p2");
 
-        Assert.AreEqual(0, sourcePlayer.Hand.Count);
+        Assert.AreEqual(1, sourcePlayer.Hand.Count);
         Assert.AreEqual(1, destinationPlayer.DiscardPile.Count);
         Assert.AreEqual("hand-1", destinationPlayer.DiscardPile[0].InstanceId);
         Assert.AreEqual("p2", destinationPlayer.DiscardPile[0].ControllerPlayerId);
@@ -210,6 +311,13 @@ public sealed class MoveCardEffectTests
                         {
                             InstanceId = "hand-1",
                             CardDefinitionId = "card-1",
+                            OwnerPlayerId = "p1",
+                            ControllerPlayerId = "p1",
+                        },
+                        new CardInstance
+                        {
+                            InstanceId = "hand-2",
+                            CardDefinitionId = "card-2",
                             OwnerPlayerId = "p1",
                             ControllerPlayerId = "p1",
                         }

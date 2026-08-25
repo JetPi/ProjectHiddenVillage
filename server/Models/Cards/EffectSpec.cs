@@ -82,6 +82,19 @@ public enum MoveCardOperationType
     Draw,
 }
 
+public enum MoveCardDeckPlacementType
+{
+    Top,
+    Bottom,
+    Index,
+}
+
+public enum MoveCardMultiCardOrderingType
+{
+    SelectedOrder,
+    Random,
+}
+
 public sealed class MoveCardActionSpec
 {
     public MoveCardOperationType Operation { get; set; } = MoveCardOperationType.Move;
@@ -92,7 +105,13 @@ public sealed class MoveCardActionSpec
 
     public int? DrawCount { get; set; }
 
+    public int? MoveCount { get; set; }
+
     public int? DestinationIndex { get; set; }
+
+    public MoveCardDeckPlacementType? DeckPlacement { get; set; }
+
+    public MoveCardMultiCardOrderingType? MultiCardOrdering { get; set; }
 
     public bool AllowCrossPlayer { get; set; } = false;
 
@@ -117,9 +136,12 @@ public enum EffectExecutionConditionArgumentKey
     SummonTargetId,
     MoveCardMode,
     MoveCardDrawCount,
+    MoveCardMoveCount,
     MoveCardSourceZone,
     MoveCardDestinationZone,
     MoveCardDestinationIndex,
+    MoveCardDeckPlacement,
+    MoveCardMultiCardOrdering,
     MoveCardDestinationPlayerId,
     MoveCardAllowCrossPlayer,
 }
@@ -135,9 +157,12 @@ public static class EffectExecutionConditionArgumentKeyExtensions
             EffectExecutionConditionArgumentKey.SummonTargetId => "summonTargetId",
             EffectExecutionConditionArgumentKey.MoveCardMode => "moveCardMode",
             EffectExecutionConditionArgumentKey.MoveCardDrawCount => "moveCardDrawCount",
+            EffectExecutionConditionArgumentKey.MoveCardMoveCount => "moveCardMoveCount",
             EffectExecutionConditionArgumentKey.MoveCardSourceZone => "moveCardSourceZone",
             EffectExecutionConditionArgumentKey.MoveCardDestinationZone => "moveCardDestinationZone",
             EffectExecutionConditionArgumentKey.MoveCardDestinationIndex => "moveCardDestinationIndex",
+            EffectExecutionConditionArgumentKey.MoveCardDeckPlacement => "moveCardDeckPlacement",
+            EffectExecutionConditionArgumentKey.MoveCardMultiCardOrdering => "moveCardMultiCardOrdering",
             EffectExecutionConditionArgumentKey.MoveCardDestinationPlayerId => "moveCardDestinationPlayerId",
             EffectExecutionConditionArgumentKey.MoveCardAllowCrossPlayer => "moveCardAllowCrossPlayer",
             _ => throw new ArgumentOutOfRangeException(nameof(argumentKey), argumentKey, "Unsupported execution condition argument key."),

@@ -360,6 +360,8 @@ public sealed class CardMappingService : ICardMappingService
             Effects: effects
                 .ConvertAll(effect => new CardCatalogEffectResponse(
                     Id: effect.Id,
+                    OnSuccessEffectId: effect.OnSuccessEffectId,
+                    OnFailureEffectId: effect.OnFailureEffectId,
                     RuntimeEffectType: ToReadableRuntimeEffect(effect.RuntimeEffectType),
                     EffectType: ToReadableEffectKind(effect.EffectType),
                     Timing: ToReadableEffectTiming(effect.Timing),
@@ -768,7 +770,10 @@ public sealed class CardMappingService : ICardMappingService
             SourceZone: spec.SourceZone.HasValue ? SplitPascalCase(spec.SourceZone.Value.ToString()) : null,
             DestinationZone: spec.DestinationZone.HasValue ? SplitPascalCase(spec.DestinationZone.Value.ToString()) : null,
             DrawCount: spec.DrawCount,
+            MoveCount: spec.MoveCount,
             DestinationIndex: spec.DestinationIndex,
+            DeckPlacement: spec.DeckPlacement.HasValue ? SplitPascalCase(spec.DeckPlacement.Value.ToString()) : null,
+            MultiCardOrdering: spec.MultiCardOrdering.HasValue ? SplitPascalCase(spec.MultiCardOrdering.Value.ToString()) : null,
             AllowCrossPlayer: spec.AllowCrossPlayer,
             DestinationPlayerRange: SplitPascalCase(spec.DestinationPlayerRange.ToString()));
     }

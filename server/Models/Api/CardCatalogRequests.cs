@@ -25,6 +25,8 @@ public sealed record CardCatalogItemResponse(
 
 public sealed record CardCatalogEffectResponse(
     string Id,
+    string? OnSuccessEffectId,
+    string? OnFailureEffectId,
     string RuntimeEffectType,
     string EffectType,
     string Timing,
@@ -91,7 +93,10 @@ public sealed record CardCatalogMoveCardActionResponse(
     string? SourceZone,
     string? DestinationZone,
     int? DrawCount,
+    int? MoveCount,
     int? DestinationIndex,
+    string? DeckPlacement,
+    string? MultiCardOrdering,
     bool AllowCrossPlayer,
     string DestinationPlayerRange);
 

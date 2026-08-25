@@ -253,7 +253,10 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                             Operation = MoveCardOperationType.Move,
                             SourceZone = PlayerZone.Hand,
                             DestinationZone = PlayerZone.Deck,
+                            MoveCount = 1,
                             DestinationIndex = 0,
+                            DeckPlacement = MoveCardDeckPlacementType.Index,
+                            MultiCardOrdering = MoveCardMultiCardOrderingType.SelectedOrder,
                             AllowCrossPlayer = false,
                             DestinationPlayerRange = EffectTargetRange.Self,
                         }
@@ -317,6 +320,96 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
     }
 
     [TestMethod]
+    public void Validate_ReturnsError_WhenDeckPlacementIsIndexWithoutDestinationIndex()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-move-card-index-without-destination-index",
+                    RuntimeEffectType = RuntimeEffects.MoveCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    MoveCardActions =
+                    [
+                        new MoveCardActionSpec
+                        {
+                            Operation = MoveCardOperationType.Move,
+                            SourceZone = PlayerZone.Hand,
+                            DestinationZone = PlayerZone.Deck,
+                            DeckPlacement = MoveCardDeckPlacementType.Index,
+                            DestinationIndex = null,
+                            DestinationPlayerRange = EffectTargetRange.Self,
+                        }
+                    ],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("destination index is required", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenMoveCardMoveCountIsNotPositive()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-move-card-invalid-move-count",
+                    RuntimeEffectType = RuntimeEffects.MoveCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    MoveCardActions =
+                    [
+                        new MoveCardActionSpec
+                        {
+                            Operation = MoveCardOperationType.Move,
+                            SourceZone = PlayerZone.Hand,
+                            DestinationZone = PlayerZone.Deck,
+                            MoveCount = 0,
+                            DeckPlacement = MoveCardDeckPlacementType.Top,
+                            DestinationPlayerRange = EffectTargetRange.Self,
+                        }
+                    ],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("positive move count", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [TestMethod]
     public void Validate_ReturnsError_WhenExecutionConditionArgumentKeyIsOutOfRange()
     {
         var validator = new UpdateCardEffectsRequestValidator();
@@ -354,5 +447,135 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
 
         Assert.IsFalse(result.IsValid);
         Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Execution condition argument key must be one of:", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_AllowsBranchTargets_WhenEffectIdsExist()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "start",
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    OnSuccessEffectId = "next",
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                },
+                new EffectSpec
+                {
+                    Id = "next",
+                    RuntimeEffectType = RuntimeEffects.DestroyCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenBranchTargetDoesNotExist()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "start",
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    OnFailureEffectId = "missing",
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("OnSuccessEffectId and OnFailureEffectId must reference existing effect ids", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenBranchGraphContainsCycle()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "a",
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    OnSuccessEffectId = "b",
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                },
+                new EffectSpec
+                {
+                    Id = "b",
+                    RuntimeEffectType = RuntimeEffects.DestroyCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    OnFailureEffectId = "a",
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Effect branch graph cannot contain cycles.", StringComparison.Ordinal)));
     }
 }
