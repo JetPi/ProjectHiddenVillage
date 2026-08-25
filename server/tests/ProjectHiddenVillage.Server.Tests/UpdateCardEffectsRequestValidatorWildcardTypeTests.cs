@@ -528,6 +528,49 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
     }
 
     [TestMethod]
+    public void Validate_AllowsNonInstantDuration_ForFreezeCardRuntimeEffect()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-freeze-during-opponent-next-turn",
+                    RuntimeEffectType = RuntimeEffects.FreezeCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.OnSummon,
+                    DurationMode = EffectDurationMode.DuringOpponentNextTurn,
+                    TargetRange = EffectTargetRange.Any,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Any,
+                                InZone = PlayerZone.CharacterField,
+                                Restriction = new ZoneCardRestriction
+                                {
+                                    Predicates = []
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
     public void Validate_AllowsBranchTargets_WhenEffectIdsExist()
     {
         var validator = new UpdateCardEffectsRequestValidator();
@@ -740,7 +783,7 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
         var result = validator.Validate(request);
 
         Assert.IsFalse(result.IsValid);
-        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Effects referenced by OnSuccessEffectId or OnFailureEffectId must be marked as entry.", StringComparison.Ordinal)));
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Effects referenced by OnSuccessEffectId or OnFailureEffectId must be marked as subordinate.", StringComparison.Ordinal)));
     }
 
     [TestMethod]

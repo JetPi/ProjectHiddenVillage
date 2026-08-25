@@ -172,6 +172,7 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
 
         state.Phase = GamePhase.StartOfMainPhase;
         RemoveTemporaryCardEffects(state, EffectDurationMode.DuringThisTurn);
+        RemoveOpponentNextTurnEffects(state);
         var nextActivePlayerId = ChangeActivePlayer(state);
         var nextPlayer = state.Players.Single(player => string.Equals(player.PlayerId, nextActivePlayerId, StringComparison.Ordinal));
         nextPlayer.TurnCount++;
@@ -317,6 +318,18 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
         }
 
         state.AppliedCardEffects.RemoveAll(effect => effect.DurationMode == durationMode);
+    }
+
+    private static void RemoveOpponentNextTurnEffects(GameState state)
+    {
+        if (state.AppliedCardEffects.Count == 0)
+        {
+            return;
+        }
+
+        state.AppliedCardEffects.RemoveAll(effect =>
+            effect.DurationMode == EffectDurationMode.DuringOpponentNextTurn
+            && effect.AppliedTurnNumber < state.TurnNumber);
     }
 
     private GamePhase ApplyQueuedPhaseDirectives(GameState state, GamePhase defaultNextPhase)

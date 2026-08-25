@@ -428,8 +428,8 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
                 effect.RuleFor(value => value)
                     .Must(value => value.DurationMode == EffectDurationMode.Instant
-                        || value.RuntimeEffectType is RuntimeEffects.ChangeValues or RuntimeEffects.GainEffect)
-                    .WithMessage("Non-instant duration is currently supported only for Change Values and Gain Effect runtime effects.");
+                        || value.RuntimeEffectType is RuntimeEffects.ChangeValues or RuntimeEffects.GainEffect or RuntimeEffects.FreezeCard)
+                    .WithMessage("Non-instant duration is currently supported only for Change Values, Gain Effect, and Freeze Card runtime effects.");
 
                 effect.RuleFor(value => value)
                     .Must(value => value.RuntimeEffectType != RuntimeEffects.MoveCard || value.MoveCardActions.Count > 0)
@@ -506,7 +506,7 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
         RuleFor(request => request.Effects)
             .Must(effects => effects is null || BranchTargetsMustReferenceEntryEffects(effects))
-            .WithMessage("Effects referenced by OnSuccessEffectId or OnFailureEffectId must be marked as entry.");
+            .WithMessage("Effects referenced by OnSuccessEffectId or OnFailureEffectId must be marked as subordinate.");
     }
 
     private static bool HasAnyPatchableField(UpdateCardEffectsRequest request)

@@ -72,6 +72,8 @@ public sealed class RevealCardEffectTests
         Assert.AreEqual("o-hand", primaryTargetId);
         Assert.IsTrue(context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.RevealedTargetIdsArgument, out var targetIds));
         Assert.AreEqual("o-hand", targetIds);
+        Assert.IsTrue(context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.RevealedPrimaryTargetTraitArgument, out var trait));
+        Assert.AreEqual("Uchiha Clan", trait);
     }
 
     private static EffectSpec CreateRevealEffectSpec(PlayerZone zone)
@@ -125,7 +127,7 @@ public sealed class RevealCardEffectTests
             Name = ["Hidden Hand Card"],
             Type = CardType.Character,
             Color = CardColor.Blue,
-            Traits = [],
+            Traits = ["Uchiha Clan"],
             Damage = 1,
             Power = 1,
             Health = 2,

@@ -133,6 +133,7 @@ public enum EffectExecutionConditionArgumentKey
 {
     IsSecondTurnOrLater,
     SelectedOption,
+    RevealedPrimaryTargetTrait,
     SummonTargetId,
     MoveCardMode,
     MoveCardDrawCount,
@@ -154,6 +155,7 @@ public static class EffectExecutionConditionArgumentKeyExtensions
         {
             EffectExecutionConditionArgumentKey.IsSecondTurnOrLater => "isSecondTurnOrLater",
             EffectExecutionConditionArgumentKey.SelectedOption => "selectedOption",
+            EffectExecutionConditionArgumentKey.RevealedPrimaryTargetTrait => "revealedPrimaryTargetTrait",
             EffectExecutionConditionArgumentKey.SummonTargetId => "summonTargetId",
             EffectExecutionConditionArgumentKey.MoveCardMode => "moveCardMode",
             EffectExecutionConditionArgumentKey.MoveCardDrawCount => "moveCardDrawCount",

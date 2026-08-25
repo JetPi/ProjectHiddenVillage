@@ -175,6 +175,34 @@ public sealed class CardRuntimeEffectDurationTests
         Assert.IsNull(activeEffect.Keyword);
     }
 
+    [TestMethod]
+    public void CompleteEndStep_ExpiresDuringOpponentNextTurnEffects_AfterOneFullTurnCycle()
+    {
+        var state = CreateState();
+        var source = state.Players[0].Battlefield[0];
+        var target = state.Players[1].Battlefield[0];
+
+        state.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = source.InstanceId,
+            EffectSpecId = "effect-opponent-next-turn",
+            TargetCardInstanceId = target.InstanceId,
+            ModifierKind = AppliedCardModifierKind.Keyword,
+            DurationMode = EffectDurationMode.DuringOpponentNextTurn,
+            KeywordOperation = KeywordModificationOperation.Add,
+            Keyword = FreezeCardEffect.CannotAttackKeyword,
+            AppliedTurnNumber = state.TurnNumber,
+        });
+
+        state.Phase = GamePhase.EndStep;
+        phaseStateService.CompleteEndStep(state);
+        Assert.AreEqual(1, state.AppliedCardEffects.Count);
+
+        state.Phase = GamePhase.EndStep;
+        phaseStateService.CompleteEndStep(state);
+        Assert.AreEqual(0, state.AppliedCardEffects.Count);
+    }
+
     private static GameState CreateState()
     {
         var requesterId = "p1";

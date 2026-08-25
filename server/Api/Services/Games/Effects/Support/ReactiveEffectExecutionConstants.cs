@@ -15,4 +15,6 @@ public static class ReactiveEffectExecutionConstants
     public const string RevealedTargetIdsArgument = "revealedTargetIds";
 
     public const string RevealedPrimaryTargetIdArgument = "revealedPrimaryTargetId";
+
+    public const string RevealedPrimaryTargetTraitArgument = "revealedPrimaryTargetTrait";
 }

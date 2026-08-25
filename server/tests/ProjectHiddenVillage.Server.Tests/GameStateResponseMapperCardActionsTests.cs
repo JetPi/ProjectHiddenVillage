@@ -146,6 +146,27 @@ public sealed class GameStateResponseMapperCardActionsTests
         Assert.AreEqual(0, requester.CharacterField[0].AvailableActions.Count);
     }
 
+    [TestMethod]
+    public void ToGameStateResponse_DoesNotMapBattleAction_ForCardWithCannotAttackKeyword()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var frozenCard = CreateCardInstance("battle-1", "card-battle", requesterId);
+        frozenCard.RuntimeKeywords.Add(FreezeCardEffect.CannotAttackKeyword);
+        frozenCard.EnteredFieldTurnNumber = null;
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [frozenCard]);
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(0, requester.CharacterField[0].AvailableActions.Count);
+    }
+
     private static GameState BuildState(
         string requesterId,
         string opponentId,

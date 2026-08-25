@@ -60,7 +60,7 @@ const EFFECT_TIMING_OPTIONS = [
   'Your Turn',
   'When Attacking',
 ] as const
-const EFFECT_DURATION_MODE_OPTIONS = ['Instant', 'During This Turn', 'During This Battle', 'Continuous'] as const
+const EFFECT_DURATION_MODE_OPTIONS = ['Instant', 'During This Turn', 'During Opponent Next Turn', 'During This Battle', 'Continuous'] as const
 const PASSIVE_MODE_OPTIONS = ['None', 'Continuous', 'Triggered'] as const
 const PASSIVE_SCOPE_OPTIONS = ['Source Card Only', 'Source Controller', 'Whole Game'] as const
 const PASSIVE_TRIGGER_KIND_OPTIONS = ['Any', 'Stats Changed', 'Zone Changed', 'Turn Changed', 'Phase Changed', 'Stack Resolved'] as const

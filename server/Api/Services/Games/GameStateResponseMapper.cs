@@ -423,6 +423,13 @@ public static class GameStateResponseMapper
             return false;
         }
 
+        var effectiveKeywords = CardRuntimeEffectStateService.ResolveEffectiveKeywords(state, card);
+        if (effectiveKeywords.Any(keyword =>
+            string.Equals(keyword, FreezeCardEffect.CannotAttackKeyword, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
         if (!card.EnteredFieldTurnNumber.HasValue || card.EnteredFieldTurnNumber.Value != state.TurnNumber)
         {
             return true;

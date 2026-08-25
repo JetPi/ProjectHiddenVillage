@@ -4,7 +4,7 @@ using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
-public sealed class RevealCardEffect(
+public sealed class FreezeCardEffect(
     IGameRuntimeEffectSpecResolver effectSpecResolver,
     IGameEffectCanExecuteEvaluator canExecuteEvaluator,
     IGameEffectTargetResolver targetResolver,
@@ -15,19 +15,20 @@ public sealed class RevealCardEffect(
     private readonly IGameEffectTargetResolver targetResolver = targetResolver;
     private readonly IServiceProvider? serviceProvider = serviceProvider;
 
-    public const string EffectKey = "RevealCard";
+    public const string EffectKey = "FreezeCard";
+    public const string CannotAttackKeyword = "Cannot Attack";
 
     public string EffectTypeKey => EffectKey;
 
     public CanExecuteResult CanExecute(GameCardEffectContext context)
     {
-        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.RevealCard);
+        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.FreezeCard);
         if (effectSpec is null)
         {
             return new CanExecuteResult
             {
                 CanExecute = false,
-                FailedConditions = ["RevealCard effect is not defined on the source card."],
+                FailedConditions = ["FreezeCard effect is not defined on the source card."],
             };
         }
 
@@ -36,7 +37,7 @@ public sealed class RevealCardEffect(
 
     public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
     {
-        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.RevealCard);
+        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.FreezeCard);
         if (effectSpec is null)
         {
             return [];
@@ -53,13 +54,28 @@ public sealed class RevealCardEffect(
 
     public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
     {
-        var affectedCardIds = new HashSet<string>(StringComparer.Ordinal);
+        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.FreezeCard);
+        if (effectSpec is null)
+        {
+            return Error.Validation(
+                code: "Game.Effect.FreezeCard.MissingEffectSpec",
+                description: "FreezeCard effect is not defined on the source card.");
+        }
+
+        if (selectedTargets.Count == 0)
+        {
+            return Error.Validation(
+                code: "Game.Effect.FreezeCard.MissingTargets",
+                description: "FreezeCard requires at least one selected target.");
+        }
+
+        var affectedCardInstanceIds = new HashSet<string>(StringComparer.Ordinal);
         var affectedPlayerIds = new HashSet<string>(StringComparer.Ordinal)
         {
             context.ActingPlayer.Id,
         };
 
-        foreach (var target in selectedTargets)
+        foreach (var target in selectedTargets.Where(target => !target.IsEffectResolutionStackTarget))
         {
             if (target.Zone == PlayerZone.Leader)
             {
@@ -68,68 +84,62 @@ public sealed class RevealCardEffect(
 
             var targetPlayer = context.Game.State.Players.FirstOrDefault(player =>
                 string.Equals(player.PlayerId, target.PlayerId, StringComparison.Ordinal));
+
             if (targetPlayer is null)
             {
-                continue;
+                return Error.NotFound(
+                    code: "Game.Effect.FreezeCard.TargetPlayerNotFound",
+                    description: $"Target player '{target.PlayerId}' was not found.");
             }
 
-            var zoneCards = PlayerZoneCardAccessor.GetCards(target.Zone, targetPlayer);
-            var card = zoneCards.FirstOrDefault(entry =>
-                string.Equals(entry.InstanceId, target.CardInstanceId, StringComparison.Ordinal));
-            if (card is null)
+            var sourceZone = PlayerZoneCardAccessor.GetCards(target.Zone, targetPlayer);
+            var targetCard = sourceZone.FirstOrDefault(card =>
+                string.Equals(card.InstanceId, target.CardInstanceId, StringComparison.Ordinal));
+
+            if (targetCard is null)
             {
-                continue;
+                return Error.NotFound(
+                    code: "Game.Effect.FreezeCard.TargetCardNotFound",
+                    description: $"Target card instance '{target.CardInstanceId}' was not found in {target.Zone}.");
             }
 
-            card.IsRevealedToBothPlayers = true;
-            card.RevealedInZone = target.Zone;
-            affectedCardIds.Add(card.InstanceId);
+            if (CardRuntimeEffectStateService.IsDurationSupportedForKeywords(effectSpec.DurationMode)
+                && context.SourceCardInstance is not null)
+            {
+                CardRuntimeEffectStateService.AddTemporaryKeywordEffect(
+                    context.Game.State,
+                    context.SourceCardInstance,
+                    targetCard,
+                    effectSpec.Id,
+                    new KeywordModificationSpec
+                    {
+                        TargetType = KeywordModificationTargetType.SelectedTargets,
+                        Operation = KeywordModificationOperation.Add,
+                        Keyword = CannotAttackKeyword,
+                    },
+                    effectSpec.DurationMode);
+            }
+            else if (!targetCard.RuntimeKeywords.Any(keyword =>
+                string.Equals(keyword, CannotAttackKeyword, StringComparison.OrdinalIgnoreCase)))
+            {
+                targetCard.RuntimeKeywords.Add(CannotAttackKeyword);
+            }
+
+            affectedCardInstanceIds.Add(targetCard.InstanceId);
             affectedPlayerIds.Add(targetPlayer.PlayerId);
         }
 
-        if (affectedCardIds.Count == 0)
+        if (affectedCardInstanceIds.Count == 0)
         {
             return Error.Validation(
-                code: "Game.Effect.RevealCard.NoTargetsRevealed",
-                description: "No selected targets could be revealed.");
-        }
-
-        // Keep argument handoff available for follow-up effect condition checks.
-        if (context.Arguments is IDictionary<string, string> mutableArguments)
-        {
-            var orderedIds = selectedTargets
-                .Select(target => target.CardInstanceId)
-                .Where(id => affectedCardIds.Contains(id))
-                .ToList();
-
-            mutableArguments[ReactiveEffectExecutionConstants.RevealedTargetIdsArgument] = string.Join(",", orderedIds);
-            mutableArguments[ReactiveEffectExecutionConstants.RevealedPrimaryTargetIdArgument] = orderedIds[0];
-
-            var primaryTarget = selectedTargets.FirstOrDefault(target =>
-                string.Equals(target.CardInstanceId, orderedIds[0], StringComparison.Ordinal));
-            if (primaryTarget is not null)
-            {
-                var primaryPlayer = context.Game.State.Players.FirstOrDefault(player =>
-                    string.Equals(player.PlayerId, primaryTarget.PlayerId, StringComparison.Ordinal));
-                var primaryCard = primaryPlayer is null
-                    ? null
-                    : PlayerZoneCardAccessor
-                        .GetCards(primaryTarget.Zone, primaryPlayer)
-                        .FirstOrDefault(card => string.Equals(card.InstanceId, primaryTarget.CardInstanceId, StringComparison.Ordinal));
-
-                if (primaryCard is not null
-                    && context.Game.State.CardDefinitions.TryGetValue(primaryCard.CardDefinitionId, out var primaryDefinition)
-                    && primaryDefinition.Traits.Count > 0)
-                {
-                    mutableArguments[ReactiveEffectExecutionConstants.RevealedPrimaryTargetTraitArgument] = primaryDefinition.Traits[0];
-                }
-            }
+                code: "Game.Effect.FreezeCard.NoTargetsAffected",
+                description: "FreezeCard did not affect any selected targets.");
         }
 
         var mutationResult = EmitMutation(
             context,
-            GameMutationKind.EffectResolved,
-            affectedCardIds,
+            GameMutationKind.KeywordChanged,
+            affectedCardInstanceIds,
             affectedPlayerIds);
 
         if (mutationResult.IsError)

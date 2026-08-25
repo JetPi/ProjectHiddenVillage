@@ -491,6 +491,34 @@ public sealed class GameSequentialEffectExecutorTests
     }
 
     [TestMethod]
+    public void Execute_ResolvesFreezeCardRuntimeEffect()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(FreezeCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "freeze-step",
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "freeze-step" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
     public void Execute_RevealFirst_ExecutesThenBranchesOnFailure_WhenConditionDoesNotMatch()
     {
         var observedSpecIds = new List<string>();
