@@ -360,6 +360,7 @@ public sealed class CardMappingService : ICardMappingService
             Effects: effects
                 .ConvertAll(effect => new CardCatalogEffectResponse(
                     Id: effect.Id,
+                    IsSubordinate: effect.IsSubordinate,
                     OnSuccessEffectId: effect.OnSuccessEffectId,
                     OnFailureEffectId: effect.OnFailureEffectId,
                     RuntimeEffectType: ToReadableRuntimeEffect(effect.RuntimeEffectType),

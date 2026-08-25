@@ -25,6 +25,7 @@ public sealed record CardCatalogItemResponse(
 
 public sealed record CardCatalogEffectResponse(
     string Id,
+    bool IsSubordinate,
     string? OnSuccessEffectId,
     string? OnFailureEffectId,
     string RuntimeEffectType,

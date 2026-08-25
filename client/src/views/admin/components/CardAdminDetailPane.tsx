@@ -153,6 +153,7 @@ function renderEmptySelectionState(message: string) {
 function createDefaultEffect(): ICardCatalogEffectRequest {
   return {
     id: 'new-effect',
+    isSubordinate: false,
     onSuccessEffectId: null,
     onFailureEffectId: null,
     runtimeEffectType: 'Change Values',
@@ -884,6 +885,22 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                     />
                   </div>
 
+                  <div className="flex items-end">
+                    <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                      <span>is Subordinate</span>
+                      <span className="relative inline-flex h-5 w-9 items-center">
+                        <input
+                          type="checkbox"
+                          checked={effect.isSubordinate}
+                          onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, isSubordinate: event.target.checked }))}
+                          className="peer sr-only"
+                        />
+                        <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-amber-500/70" />
+                        <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                      </span>
+                    </label>
+                  </div>
+
                   <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Runtime Effect Type</label>
                     <select
@@ -914,6 +931,10 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                           return {
                             ...current,
                             runtimeEffectType: nextRuntimeEffectType,
+                            executionTargetSource:
+                              nextRuntimeEffectType === 'Reveal Card'
+                                ? 'Selected Targets'
+                                : current.executionTargetSource,
                             suppressSummonedTargetsEffectsWhileOnField:
                               nextRuntimeEffectType === 'Summon Card'
                                 ? current.suppressSummonedTargetsEffectsWhileOnField
@@ -940,6 +961,10 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                 : [],
                             targetRules: {
                               ...current.targetRules,
+                              autoSelectAllValidTargets:
+                                nextRuntimeEffectType === 'Reveal Card'
+                                  ? true
+                                  : current.targetRules.autoSelectAllValidTargets,
                               exactTargetCount: hidesTargetCount ? null : current.targetRules.exactTargetCount,
                               minimumTargetCount: hidesTargetCount ? null : current.targetRules.minimumTargetCount,
                               maximumTargetCount: hidesTargetCount ? null : current.targetRules.maximumTargetCount,

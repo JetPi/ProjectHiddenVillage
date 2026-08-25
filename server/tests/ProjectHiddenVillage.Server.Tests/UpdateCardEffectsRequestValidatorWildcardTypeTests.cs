@@ -553,6 +553,7 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                 new EffectSpec
                 {
                     Id = "next",
+                    IsSubordinate = true,
                     RuntimeEffectType = RuntimeEffects.DestroyCard,
                     EffectType = EffectKind.Activated,
                     Timing = EffectTiming.ActivateMain,
@@ -655,5 +656,132 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
 
         Assert.IsFalse(result.IsValid);
         Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Effect branch graph cannot contain cycles.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_AllowsMultipleEffectsMarkedAsEntry_WhenTheyAreSubordinate()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "entry-a",
+                    IsSubordinate = true,
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet { Rules = [] }
+                },
+                new EffectSpec
+                {
+                    Id = "entry-b",
+                    IsSubordinate = true,
+                    RuntimeEffectType = RuntimeEffects.DestroyCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet { Rules = [] }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenBranchTargetsReferenceNonEntryEffect()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "non-entry-target",
+                    IsSubordinate = false,
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet { Rules = [] }
+                },
+                new EffectSpec
+                {
+                    Id = "other",
+                    RuntimeEffectType = RuntimeEffects.DestroyCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    OnSuccessEffectId = "non-entry-target",
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet { Rules = [] }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Effects referenced by OnSuccessEffectId or OnFailureEffectId must be marked as entry.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_AllowsBranchTargets_WhenReferencedEffectsAreMarkedAsEntry()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "subordinate",
+                    IsSubordinate = true,
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet { Rules = [] }
+                },
+                new EffectSpec
+                {
+                    Id = "root",
+                    RuntimeEffectType = RuntimeEffects.DestroyCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    OnSuccessEffectId = "subordinate",
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet { Rules = [] }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
     }
 }

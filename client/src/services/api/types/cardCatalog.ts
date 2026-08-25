@@ -154,6 +154,7 @@ export type ICardCatalogEffectTargetRuleSetRequest = {
 
 export type ICardCatalogEffectRequest = {
   id: string
+  isSubordinate: boolean
   onSuccessEffectId?: string | null
   onFailureEffectId?: string | null
   runtimeEffectType: string

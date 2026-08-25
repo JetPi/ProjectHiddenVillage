@@ -174,6 +174,8 @@ public sealed class EffectSpec
 {
     public string Id { get; set; } = string.Empty;
 
+    public bool IsSubordinate { get; set; } = false;
+
     public RuntimeEffects RuntimeEffectType { get; set; }
 
     public EffectKind EffectType { get; set; } = EffectKind.Unknown;

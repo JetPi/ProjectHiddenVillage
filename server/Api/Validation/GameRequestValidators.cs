@@ -503,6 +503,10 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
         RuleFor(request => request.Effects)
             .Must(effects => effects is null || !HasBranchCycle(effects))
             .WithMessage("Effect branch graph cannot contain cycles.");
+
+        RuleFor(request => request.Effects)
+            .Must(effects => effects is null || BranchTargetsMustReferenceEntryEffects(effects))
+            .WithMessage("Effects referenced by OnSuccessEffectId or OnFailureEffectId must be marked as entry.");
     }
 
     private static bool HasAnyPatchableField(UpdateCardEffectsRequest request)
@@ -678,6 +682,35 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
         }
 
         return false;
+    }
+
+    private static bool BranchTargetsMustReferenceEntryEffects(IReadOnlyList<EffectSpec> effects)
+    {
+        var effectById = effects.ToDictionary(
+            effect => effect.Id.Trim(),
+            effect => effect,
+            StringComparer.Ordinal);
+
+        foreach (var effect in effects)
+        {
+            var onSuccess = effect.OnSuccessEffectId?.Trim();
+            if (!string.IsNullOrWhiteSpace(onSuccess)
+                && effectById.TryGetValue(onSuccess, out var successTarget)
+                && !successTarget.IsSubordinate)
+            {
+                return false;
+            }
+
+            var onFailure = effect.OnFailureEffectId?.Trim();
+            if (!string.IsNullOrWhiteSpace(onFailure)
+                && effectById.TryGetValue(onFailure, out var failureTarget)
+                && !failureTarget.IsSubordinate)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool DetectCycle(
