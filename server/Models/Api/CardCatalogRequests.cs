@@ -89,6 +89,7 @@ public sealed record CardCatalogChakraAdjustmentResponse(
     int Amount);
 
 public sealed record CardCatalogSummonCardFlipResponse(
+    string TargetCategory,
     string TargetRange,
     string FaceState);
 

@@ -103,6 +103,7 @@ export type ICardCatalogChakraAdjustmentResponse = {
 }
 
 export type ICardCatalogSummonCardFlipResponse = {
+  targetCategory: string
   targetRange: string
   faceState: string
 }

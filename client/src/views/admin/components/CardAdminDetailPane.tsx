@@ -61,7 +61,7 @@ const EFFECT_TIMING_OPTIONS = [
   'Your Turn',
   'When Attacking',
 ] as const
-const EFFECT_DURATION_MODE_OPTIONS = ['Instant', 'During This Turn', 'During Opponent Next Turn', 'During This Battle', 'Continuous'] as const
+const EFFECT_DURATION_MODE_OPTIONS = ['Instant', 'During This Turn', 'During Opponent Next Turn', 'Until the End of your Next Turn', 'During This Battle', 'Continuous'] as const
 const PASSIVE_MODE_OPTIONS = ['None', 'Continuous', 'Triggered'] as const
 const PASSIVE_SCOPE_OPTIONS = ['Source Card Only', 'Source Controller', 'Whole Game'] as const
 const PASSIVE_TRIGGER_KIND_OPTIONS = ['Any', 'Stats Changed', 'Zone Changed', 'Turn Changed', 'Phase Changed', 'Stack Resolved'] as const
@@ -92,7 +92,7 @@ const ATTRIBUTE_TYPE_OPTIONS = [
 ] as const
 const CHAKRA_OPERATION_OPTIONS = ['Pay', 'Recover'] as const
 const FACE_STATE_OPTIONS = ['Face Up', 'Face Down'] as const
-const FACE_STATE_LOCK_TARGET_CATEGORY_OPTIONS = ['Summon Card', 'Leader', 'Character Field'] as const
+const FACE_STATE_TARGET_CATEGORY_OPTIONS = ['Chakra Card', 'Support Zone Cards'] as const
 const FACE_STATE_LOCK_OPERATION_OPTIONS = ['Cannot Turn Face Up'] as const
 const MOVE_CARD_OPERATION_OPTIONS = ['Move', 'Draw'] as const
 const MOVE_CARD_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone'] as const
@@ -298,6 +298,7 @@ function createDefaultChakraAdjustment(): ICardCatalogChakraAdjustmentRequest {
 
 function createDefaultSummonCardFlip(): ICardCatalogSummonCardFlipRequest {
   return {
+    targetCategory: 'Chakra Card',
     targetRange: 'Self',
     faceState: 'Face Up',
   }
@@ -320,7 +321,7 @@ function createDefaultMoveCardAction(): ICardCatalogMoveCardActionRequest {
 
 function createDefaultFaceStateLock(): ICardCatalogFaceStateLockRequest {
   return {
-    targetCategory: 'Summon Card',
+    targetCategory: 'Chakra Card',
     operation: 'Cannot Turn Face Up',
     targetRange: 'Self',
   }
@@ -4037,7 +4038,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
                 {effect.runtimeEffectType === 'Alter Resources' ? (
                   <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-indigo-500/55 bg-[var(--surface-muted)] p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Summon Card Flips</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Face State Flips</p>
 
                     <div className="flex justify-end">
                       <AppButton
@@ -4049,12 +4050,27 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                             summonCardFlips: [...current.summonCardFlips, createDefaultSummonCardFlip()],
                           }))}
                       >
-                        Add Summon Flip
+                        Add Face State Flip
                       </AppButton>
                     </div>
 
                     {effect.summonCardFlips.map((summonCardFlip, summonFlipIndex) => (
-                      <div key={`summon-flip-${summonFlipIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-indigo-500/30 bg-[var(--surface)] p-3 sm:grid-cols-3">
+                      <div key={`summon-flip-${summonFlipIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-indigo-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
+                      <select
+                        value={summonCardFlip.targetCategory}
+                        onChange={(event) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            summonCardFlips: current.summonCardFlips.map((row, index) =>
+                              index === summonFlipIndex ? { ...row, targetCategory: event.target.value } : row),
+                          }))}
+                        className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                      >
+                        {FACE_STATE_TARGET_CATEGORY_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+
                       <select
                         value={summonCardFlip.targetRange}
                         onChange={(event) =>
@@ -4131,7 +4147,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                             }))}
                           className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                         >
-                          {FACE_STATE_LOCK_TARGET_CATEGORY_OPTIONS.map((option) => (
+                            {FACE_STATE_TARGET_CATEGORY_OPTIONS.map((option) => (
                             <option key={option} value={option}>{option}</option>
                           ))}
                         </select>

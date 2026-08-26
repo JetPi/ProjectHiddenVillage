@@ -80,6 +80,15 @@ public sealed class AlterResourcesEffect(
 
 		foreach (var faceStateLock in effectSpec.FaceStateLocks)
 		{
+			if (!ResolveFaceStateTargetCategory(faceStateLock.TargetCategory).HasValue)
+			{
+				return new CanExecuteResult
+				{
+					CanExecute = false,
+					FailedConditions = ["AlterResources face-state lock target category must be ChakraCard or SupportZoneCards."],
+				};
+			}
+
 			if (faceStateLock.Operation != FaceStateLockOperation.CannotTurnFaceUp)
 			{
 				return new CanExecuteResult
@@ -95,6 +104,18 @@ public sealed class AlterResourcesEffect(
 				{
 					CanExecute = false,
 					FailedConditions = ["AlterResources face-state locks require a temporary duration mode."],
+				};
+			}
+		}
+
+		foreach (var flip in effectSpec.SummonCardFlips)
+		{
+			if (!ResolveFaceStateTargetCategory(flip.TargetCategory).HasValue)
+			{
+				return new CanExecuteResult
+				{
+					CanExecute = false,
+					FailedConditions = ["AlterResources face-state flips support only ChakraCard and SupportZoneCards target categories."],
 				};
 			}
 		}
@@ -155,6 +176,14 @@ public sealed class AlterResourcesEffect(
 		foreach (var flip in effectSpec.SummonCardFlips)
 		{
 			var shouldBeFaceUp = flip.FaceState == SummonCardFaceState.FaceUp;
+			var targetCategory = ResolveFaceStateTargetCategory(flip.TargetCategory);
+
+			if (!targetCategory.HasValue)
+			{
+				return Error.Validation(
+					code: "Game.Effect.AlterResources.UnsupportedFaceStateTargetCategory",
+					description: "AlterResources face-state flips support only ChakraCard and SupportZoneCards target categories.");
+			}
 
 					foreach (var player in ResolveTargetPlayers(context.Game.State, context.ActingPlayer.Id, flip.TargetRange))
 			{
@@ -162,18 +191,18 @@ public sealed class AlterResourcesEffect(
 					&& CardRuntimeEffectStateService.IsFaceUpTransitionBlocked(
 						context.Game.State,
 						player.PlayerId,
-						FaceStateTargetCategory.SummonCard))
+						targetCategory.Value))
 				{
 					return Error.Validation(
-						code: "Game.Effect.FaceStateLock.CannotTurnFaceUp.SummonCard",
-						description: $"Player '{player.PlayerId}' cannot turn Summon Card face-up while a face-state lock is active.");
+						code: "Game.Effect.FaceStateLock.CannotTurnFaceUp",
+						description: $"Player '{player.PlayerId}' cannot turn the selected face-state target category face-up while a face-state lock is active.");
 				}
 
-				if (!TrySetSummonCardFaceState(context.Game.State, player.PlayerId, shouldBeFaceUp))
+				if (!TrySetFaceStateForCategory(context.Game.State, player.PlayerId, targetCategory.Value, shouldBeFaceUp))
 				{
 					return Error.Validation(
-						code: "Game.Effect.AlterResources.UnknownSummonCardOwner",
-						description: $"Could not map player '{player.PlayerId}' to summon-card state.");
+						code: "Game.Effect.AlterResources.FaceStateTargetUnavailable",
+						description: $"Could not resolve a face-state target for player '{player.PlayerId}'.");
 				}
 
 				affectedPlayerIds.Add(player.PlayerId);
@@ -182,6 +211,14 @@ public sealed class AlterResourcesEffect(
 
 		foreach (var faceStateLock in effectSpec.FaceStateLocks)
 		{
+			var targetCategory = ResolveFaceStateTargetCategory(faceStateLock.TargetCategory);
+			if (!targetCategory.HasValue)
+			{
+				return Error.Validation(
+					code: "Game.Effect.AlterResources.UnsupportedFaceStateLockTargetCategory",
+					description: "AlterResources face-state locks support only ChakraCard and SupportZoneCards target categories.");
+			}
+
 			if (faceStateLock.Operation != FaceStateLockOperation.CannotTurnFaceUp)
 			{
 				return Error.Validation(
@@ -209,7 +246,7 @@ public sealed class AlterResourcesEffect(
 					context.Game.State,
 					context.SourceCardInstance,
 					effectSpec.Id,
-					faceStateLock.TargetCategory,
+					targetCategory.Value,
 					faceStateLock.Operation,
 					player.PlayerId,
 					effectSpec.DurationMode);
@@ -261,24 +298,81 @@ public sealed class AlterResourcesEffect(
 		};
 	}
 
-	private static bool TrySetSummonCardFaceState(GameState state, string playerId, bool isFaceUp)
+	private static FaceStateTargetCategory? ResolveFaceStateTargetCategory(FaceStateTargetCategory category)
+	{
+		return category switch
+		{
+			FaceStateTargetCategory.ChakraCard => FaceStateTargetCategory.ChakraCard,
+			FaceStateTargetCategory.SupportZoneCards => FaceStateTargetCategory.SupportZoneCards,
+			FaceStateTargetCategory.SummonCard => FaceStateTargetCategory.ChakraCard,
+			_ => null,
+		};
+	}
+
+	private static bool TrySetFaceStateForCategory(
+		GameState state,
+		string playerId,
+		FaceStateTargetCategory targetCategory,
+		bool isFaceUp)
+	{
+		return targetCategory switch
+		{
+			FaceStateTargetCategory.ChakraCard => TrySetChakraFaceState(state, playerId, isFaceUp),
+			FaceStateTargetCategory.SupportZoneCards => TrySetSupportZoneFaceState(state, playerId, isFaceUp),
+			_ => false,
+		};
+	}
+
+	private static bool TrySetChakraFaceState(GameState state, string playerId, bool isFaceUp)
 	{
 		var index = state.Players.FindIndex(player =>
 			string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
 
-		if (index == 0)
+		var chakraStates = index switch
 		{
-			state.Player1SummonCard = isFaceUp;
+			0 => state.Player1CurrentChakras,
+			1 => state.Player2CurrentChakras,
+			_ => null,
+		};
+
+		if (chakraStates is null)
+		{
+			return false;
+		}
+
+		var sourceState = isFaceUp ? false : true;
+		for (var i = 0; i < chakraStates.Length; i++)
+		{
+			if (chakraStates[i] != sourceState)
+			{
+				continue;
+			}
+
+			chakraStates[i] = isFaceUp;
 			return true;
 		}
 
-		if (index == 1)
+		return true;
+	}
+
+	private static bool TrySetSupportZoneFaceState(GameState state, string playerId, bool isFaceUp)
+	{
+		var player = state.Players.FirstOrDefault(current =>
+			string.Equals(current.PlayerId, playerId, StringComparison.Ordinal));
+
+		if (player is null)
 		{
-			state.Player2SummonCard = isFaceUp;
-			return true;
+			return false;
 		}
 
-		return false;
+		foreach (var card in player.SupportZone)
+		{
+			card.IsFaceUp = isFaceUp;
+			card.IsRevealedToBothPlayers = isFaceUp;
+			card.RevealedInZone = isFaceUp ? PlayerZone.SupportZone : null;
+		}
+
+		return true;
 	}
 
 	private ErrorOr<Success> EmitMutation(GameCardEffectContext context, IReadOnlyCollection<string> affectedPlayerIds)

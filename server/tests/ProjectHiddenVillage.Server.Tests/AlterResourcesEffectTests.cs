@@ -8,7 +8,7 @@ namespace ProjectHiddenVillage.Server.Tests;
 public sealed class AlterResourcesEffectTests
 {
     [TestMethod]
-    public void Execute_PaysChakra_AndFlipsActingPlayerSummonCardFaceDown()
+    public void Execute_PaysChakra_AndFlipsActingPlayerChakraCardFaceDown()
     {
         var effectSpec = new EffectSpec
         {
@@ -39,12 +39,12 @@ public sealed class AlterResourcesEffectTests
 
         Assert.IsFalse(result.IsError);
         Assert.AreEqual(1, context.Game.State.Players[0].ResourcePool);
-        Assert.IsFalse(context.Game.State.Player1SummonCard);
-        Assert.IsTrue(context.Game.State.Player2SummonCard);
+        Assert.AreEqual(5, context.Game.State.Player1CurrentChakras.Count(value => value));
+        Assert.AreEqual(6, context.Game.State.Player2CurrentChakras.Count(value => value));
     }
 
     [TestMethod]
-    public void Execute_RecoversOpponentChakra_AndFlipsOpponentSummonCardFaceUp()
+    public void Execute_RecoversOpponentChakra_AndFlipsOpponentChakraCardFaceUp()
     {
         var effectSpec = new EffectSpec
         {
@@ -69,7 +69,7 @@ public sealed class AlterResourcesEffectTests
         };
 
         var context = CreateContext(effectSpec, playerOneResource: 2, playerTwoResource: 0);
-        context.Game.State.Player2SummonCard = false;
+        context.Game.State.Player2CurrentChakras[0] = false;
 
         var effect = CreateEffect(effectSpec);
         var result = effect.Execute(context, []);
@@ -77,7 +77,7 @@ public sealed class AlterResourcesEffectTests
         Assert.IsFalse(result.IsError);
         Assert.AreEqual(2, context.Game.State.Players[0].ResourcePool);
         Assert.AreEqual(3, context.Game.State.Players[1].ResourcePool);
-        Assert.IsTrue(context.Game.State.Player2SummonCard);
+        Assert.AreEqual(6, context.Game.State.Player2CurrentChakras.Count(value => value));
     }
 
     [TestMethod]
@@ -119,7 +119,7 @@ public sealed class AlterResourcesEffectTests
             [
                 new FaceStateLockSpec
                 {
-                    TargetCategory = FaceStateTargetCategory.SummonCard,
+                            TargetCategory = FaceStateTargetCategory.ChakraCard,
                     Operation = FaceStateLockOperation.CannotTurnFaceUp,
                     TargetRange = EffectTargetRange.Self,
                 }
@@ -144,14 +144,14 @@ public sealed class AlterResourcesEffectTests
 
         var appliedLock = context.Game.State.AppliedCardEffects[0];
         Assert.AreEqual(AppliedCardModifierKind.FaceStateLock, appliedLock.ModifierKind);
-        Assert.AreEqual(FaceStateTargetCategory.SummonCard, appliedLock.FaceStateTargetCategory);
+        Assert.AreEqual(FaceStateTargetCategory.ChakraCard, appliedLock.FaceStateTargetCategory);
         Assert.AreEqual(FaceStateLockOperation.CannotTurnFaceUp, appliedLock.FaceStateLockOperation);
         Assert.AreEqual("p1", appliedLock.TargetPlayerId);
         Assert.AreEqual(EffectDurationMode.DuringOpponentNextTurn, appliedLock.DurationMode);
     }
 
     [TestMethod]
-    public void Execute_Fails_WhenSummonFaceUpIsBlockedByActiveLock()
+    public void Execute_Fails_WhenChakraFaceUpIsBlockedByActiveLock()
     {
         var setupEffectSpec = new EffectSpec
         {
@@ -162,7 +162,7 @@ public sealed class AlterResourcesEffectTests
             [
                 new FaceStateLockSpec
                 {
-                    TargetCategory = FaceStateTargetCategory.SummonCard,
+                            TargetCategory = FaceStateTargetCategory.ChakraCard,
                     Operation = FaceStateLockOperation.CannotTurnFaceUp,
                     TargetRange = EffectTargetRange.Self,
                 }
@@ -199,14 +199,14 @@ public sealed class AlterResourcesEffectTests
 
         var flipContext = CreateContext(flipEffectSpec, playerOneResource: 3, playerTwoResource: 3);
         flipContext.Game.State.AppliedCardEffects = context.Game.State.AppliedCardEffects;
-        flipContext.Game.State.Player1SummonCard = false;
+        flipContext.Game.State.Player1CurrentChakras[0] = false;
 
         var flipEffect = CreateEffect(flipEffectSpec);
         var flipResult = flipEffect.Execute(flipContext, []);
 
         Assert.IsTrue(flipResult.IsError);
         Assert.IsTrue(flipResult.FirstError.Code.Contains("FaceStateLock", StringComparison.Ordinal));
-        Assert.IsFalse(flipContext.Game.State.Player1SummonCard);
+        Assert.IsFalse(flipContext.Game.State.Player1CurrentChakras[0]);
     }
 
     private static AlterResourcesEffect CreateEffect(EffectSpec effectSpec)

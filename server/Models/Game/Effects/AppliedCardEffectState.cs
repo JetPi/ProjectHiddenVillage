@@ -41,5 +41,7 @@ public sealed class AppliedCardEffectState
 
     public string? TargetPlayerId { get; set; }
 
+    public string AppliedByPlayerId { get; set; } = string.Empty;
+
     public int AppliedTurnNumber { get; set; }
 }

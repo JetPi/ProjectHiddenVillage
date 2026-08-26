@@ -71,6 +71,8 @@ public sealed class ChakraAdjustmentSpec
 
 public sealed class SummonCardFlipSpec
 {
+    public FaceStateTargetCategory TargetCategory { get; set; } = FaceStateTargetCategory.ChakraCard;
+
     public EffectTargetRange TargetRange { get; set; } = EffectTargetRange.Self;
 
     public SummonCardFaceState FaceState { get; set; } = SummonCardFaceState.FaceUp;
@@ -78,7 +80,7 @@ public sealed class SummonCardFlipSpec
 
 public sealed class FaceStateLockSpec
 {
-    public FaceStateTargetCategory TargetCategory { get; set; } = FaceStateTargetCategory.SummonCard;
+    public FaceStateTargetCategory TargetCategory { get; set; } = FaceStateTargetCategory.ChakraCard;
 
     public FaceStateLockOperation Operation { get; set; } = FaceStateLockOperation.CannotTurnFaceUp;
 

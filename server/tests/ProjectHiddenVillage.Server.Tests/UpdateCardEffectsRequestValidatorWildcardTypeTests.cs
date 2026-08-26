@@ -590,7 +590,7 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                     [
                         new FaceStateLockSpec
                         {
-                            TargetCategory = FaceStateTargetCategory.SummonCard,
+                            TargetCategory = FaceStateTargetCategory.ChakraCard,
                             Operation = FaceStateLockOperation.CannotTurnFaceUp,
                             TargetRange = EffectTargetRange.Self,
                         }
@@ -631,7 +631,7 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                     [
                         new FaceStateLockSpec
                         {
-                            TargetCategory = FaceStateTargetCategory.SummonCard,
+                            TargetCategory = FaceStateTargetCategory.ChakraCard,
                             Operation = FaceStateLockOperation.CannotTurnFaceUp,
                             TargetRange = EffectTargetRange.Self,
                         }
@@ -674,13 +674,13 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                     [
                         new FaceStateLockSpec
                         {
-                            TargetCategory = FaceStateTargetCategory.Leader,
+                            TargetCategory = FaceStateTargetCategory.SupportZoneCards,
                             Operation = FaceStateLockOperation.CannotTurnFaceUp,
                             TargetRange = EffectTargetRange.Self,
                         },
                         new FaceStateLockSpec
                         {
-                            TargetCategory = FaceStateTargetCategory.Leader,
+                            TargetCategory = FaceStateTargetCategory.SupportZoneCards,
                             Operation = FaceStateLockOperation.CannotTurnFaceUp,
                             TargetRange = EffectTargetRange.Self,
                         }

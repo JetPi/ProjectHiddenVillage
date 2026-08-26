@@ -20,6 +20,10 @@ public sealed class GameState
 
     public Dictionary<string, Card> CardDefinitions { get; set; } = [];
 
+    public bool[] Player1CurrentChakras { get; set; } = [true, true, true, true, true, true];
+
+    public bool[] Player2CurrentChakras { get; set; } = [true, true, true, true, true, true];
+
     public bool Player1SummonCard { get; set; } = true;
 
     public bool Player2SummonCard { get; set; } = true;

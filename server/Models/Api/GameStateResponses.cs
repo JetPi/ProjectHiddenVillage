@@ -56,6 +56,8 @@ public record CardInstanceResponse(
     string OwnerPlayerId,
     string ControllerPlayerId)
 {
+    public bool IsFaceUp { get; init; } = true;
+
     public IReadOnlyList<GameActionOptionResponse> AvailableActions { get; init; } = [];
 }
 

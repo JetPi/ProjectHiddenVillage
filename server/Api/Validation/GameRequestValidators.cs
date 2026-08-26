@@ -442,12 +442,32 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                         || (value.RuntimeEffectType == RuntimeEffects.AlterResources && value.FaceStateLocks.Count > 0))
                     .WithMessage("Non-instant duration is currently supported only for Change Values, Gain Effect, Freeze Card, and Alter Resources face-state lock effects.");
 
+                effect.RuleForEach(value => value.SummonCardFlips)
+                    .ChildRules(flipSpec =>
+                    {
+                        flipSpec.RuleFor(value => value.TargetCategory)
+                            .Must(IsSupportedFaceStateTargetCategory)
+                            .WithMessage("Face-state flip target category must be ChakraCard or SupportZoneCards.");
+
+                        flipSpec.RuleFor(value => value.TargetRange)
+                            .Must(range => range is EffectTargetRange.Self or EffectTargetRange.Opponent or EffectTargetRange.Any)
+                            .WithMessage("Face-state flip target range must be Self, Opponent, or Any.");
+
+                        flipSpec.RuleFor(value => value.FaceState)
+                            .Must(Enum.IsDefined)
+                            .WithMessage("Face-state flip face state is invalid.");
+                    });
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType == RuntimeEffects.AlterResources || value.SummonCardFlips.Count == 0)
+                    .WithMessage("Face-state flips can only be set for Alter Resources runtime effects.");
+
                 effect.RuleForEach(value => value.FaceStateLocks)
                     .ChildRules(lockSpec =>
                     {
                         lockSpec.RuleFor(value => value.TargetCategory)
-                            .Must(Enum.IsDefined)
-                            .WithMessage("Face-state lock target category is invalid.");
+                            .Must(IsSupportedFaceStateTargetCategory)
+                            .WithMessage("Face-state lock target category must be ChakraCard or SupportZoneCards.");
 
                         lockSpec.RuleFor(value => value.Operation)
                             .Must(operation => operation == FaceStateLockOperation.CannotTurnFaceUp)
@@ -659,6 +679,11 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
     private static bool IsSupportedMoveCardZone(PlayerZone? zone)
     {
         return zone is null or PlayerZone.Hand or PlayerZone.Deck or PlayerZone.Trash or PlayerZone.ExileZone;
+    }
+
+    private static bool IsSupportedFaceStateTargetCategory(FaceStateTargetCategory category)
+    {
+        return category is FaceStateTargetCategory.ChakraCard or FaceStateTargetCategory.SupportZoneCards;
     }
 
     private static bool HasUniqueEffectIds(IReadOnlyList<EffectSpec> effects)

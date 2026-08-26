@@ -765,6 +765,7 @@ public sealed class CardMappingService : ICardMappingService
     private static CardCatalogSummonCardFlipResponse ToSummonCardFlipResponse(SummonCardFlipSpec spec)
     {
         return new CardCatalogSummonCardFlipResponse(
+            TargetCategory: SplitPascalCase(spec.TargetCategory.ToString()),
             TargetRange: SplitPascalCase(spec.TargetRange.ToString()),
             FaceState: SplitPascalCase(spec.FaceState.ToString()));
     }
