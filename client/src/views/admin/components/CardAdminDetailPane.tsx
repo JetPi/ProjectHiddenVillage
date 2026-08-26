@@ -172,6 +172,7 @@ function createDefaultEffect(): ICardCatalogEffectRequest {
     executionFlowMode: 'Per Step',
     suppressSummonedTargetsEffectsWhileOnField: false,
     revealTimingMode: 'Reveal Last',
+    revealPostConditionPredicate: null,
     executionCondition: null,
     attributeModifications: [],
     chakraAdjustments: [],
@@ -1159,6 +1160,145 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                         ))}
                       </select>
                     </div>
+
+                    <label className="flex items-center gap-2 text-sm text-[var(--text-primary)] sm:col-span-2">
+                      <input
+                        type="checkbox"
+                        checked={effect.revealPostConditionPredicate !== null}
+                        onChange={(event) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            revealPostConditionPredicate: event.target.checked
+                              ? current.revealPostConditionPredicate ?? createDefaultPredicate()
+                              : null,
+                            revealTimingMode: event.target.checked ? 'Reveal First' : current.revealTimingMode,
+                          }))}
+                      />
+                      Post-Reveal Predicate Enabled
+                    </label>
+
+                    {effect.revealPostConditionPredicate ? (
+                      <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/30 bg-[var(--surface)] p-3 sm:col-span-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Post-Reveal Condition</p>
+
+                        <div className="flex flex-wrap items-start gap-2">
+                          <select
+                            value={effect.revealPostConditionPredicate.property}
+                            onChange={(event) =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                revealPostConditionPredicate: current.revealPostConditionPredicate
+                                  ? {
+                                      ...current.revealPostConditionPredicate,
+                                      property: event.target.value as ICardCatalogPredicateProperty,
+                                    }
+                                  : null,
+                              }))}
+                            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[11rem]"
+                          >
+                            {PREDICATE_PROPERTY_OPTIONS.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+
+                          <select
+                            value={effect.revealPostConditionPredicate.operator}
+                            onChange={(event) =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                revealPostConditionPredicate: current.revealPostConditionPredicate
+                                  ? {
+                                      ...current.revealPostConditionPredicate,
+                                      operator: event.target.value,
+                                    }
+                                  : null,
+                              }))}
+                            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[10rem]"
+                          >
+                            {PREDICATE_OPERATOR_OPTIONS.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+
+                          <div className="min-w-[14rem] flex-1">
+                            <input
+                              type="text"
+                              placeholder={
+                                getPredicateEntries(effect.revealPostConditionPredicate).length > 0
+                                  ? `Add value (current: ${getPredicateEntries(effect.revealPostConditionPredicate).join(', ')})`
+                                  : 'Add value and press Enter'
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key !== 'Enter') {
+                                  return
+                                }
+
+                                event.preventDefault()
+                                const inputValue = event.currentTarget.value
+
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  revealPostConditionPredicate: current.revealPostConditionPredicate
+                                    ? appendPredicateEntries(current.revealPostConditionPredicate, inputValue)
+                                    : null,
+                                }))
+
+                                event.currentTarget.value = ''
+                              }}
+                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                            />
+                          </div>
+                        </div>
+
+                        {getPredicateEntries(effect.revealPostConditionPredicate).length > 0 ? (
+                          <div className="w-full flex flex-wrap gap-2">
+                            {getPredicateEntries(effect.revealPostConditionPredicate).map((entry, entryIndex) => (
+                              <div
+                                key={`${entry}-${entryIndex}`}
+                                className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
+                              >
+                                <span>{entry}</span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      revealPostConditionPredicate: current.revealPostConditionPredicate
+                                        ? removePredicateEntryAt(current.revealPostConditionPredicate, entryIndex)
+                                        : null,
+                                    }))
+                                  }
+                                  className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                                  aria-label={`Remove ${entry}`}
+                                >
+                                  X
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
+                          <span>Ignore Case</span>
+                          <span className="relative inline-flex h-5 w-9 items-center">
+                            <input
+                              type="checkbox"
+                              checked={effect.revealPostConditionPredicate.ignoreCase}
+                              onChange={(event) =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  revealPostConditionPredicate: current.revealPostConditionPredicate
+                                    ? { ...current.revealPostConditionPredicate, ignoreCase: event.target.checked }
+                                    : null,
+                                }))}
+                              className="peer sr-only"
+                            />
+                            <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-emerald-500/70" />
+                            <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                          </span>
+                        </label>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 

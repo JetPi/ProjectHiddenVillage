@@ -104,26 +104,6 @@ public sealed class RevealCardEffect(
 
             mutableArguments[ReactiveEffectExecutionConstants.RevealedTargetIdsArgument] = string.Join(",", orderedIds);
             mutableArguments[ReactiveEffectExecutionConstants.RevealedPrimaryTargetIdArgument] = orderedIds[0];
-
-            var primaryTarget = selectedTargets.FirstOrDefault(target =>
-                string.Equals(target.CardInstanceId, orderedIds[0], StringComparison.Ordinal));
-            if (primaryTarget is not null)
-            {
-                var primaryPlayer = context.Game.State.Players.FirstOrDefault(player =>
-                    string.Equals(player.PlayerId, primaryTarget.PlayerId, StringComparison.Ordinal));
-                var primaryCard = primaryPlayer is null
-                    ? null
-                    : PlayerZoneCardAccessor
-                        .GetCards(primaryTarget.Zone, primaryPlayer)
-                        .FirstOrDefault(card => string.Equals(card.InstanceId, primaryTarget.CardInstanceId, StringComparison.Ordinal));
-
-                if (primaryCard is not null
-                    && context.Game.State.CardDefinitions.TryGetValue(primaryCard.CardDefinitionId, out var primaryDefinition)
-                    && primaryDefinition.Traits.Count > 0)
-                {
-                    mutableArguments[ReactiveEffectExecutionConstants.RevealedPrimaryTargetTraitArgument] = primaryDefinition.Traits[0];
-                }
-            }
         }
 
         var mutationResult = EmitMutation(

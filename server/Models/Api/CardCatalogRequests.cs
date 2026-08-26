@@ -44,6 +44,7 @@ public sealed record CardCatalogEffectResponse(
     string ExecutionFlowMode,
     bool SuppressSummonedTargetsEffectsWhileOnField,
     string RevealTimingMode,
+    CardCatalogZoneCardPropertyPredicateResponse? RevealPostConditionPredicate,
     CardCatalogEffectExecutionConditionResponse? ExecutionCondition,
     IReadOnlyList<CardCatalogAttributeModificationResponse> AttributeModifications,
     IReadOnlyList<CardCatalogChakraAdjustmentResponse> ChakraAdjustments,

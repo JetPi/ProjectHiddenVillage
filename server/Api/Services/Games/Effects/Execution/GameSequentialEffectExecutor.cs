@@ -146,7 +146,9 @@ public sealed class GameSequentialEffectExecutor(
                 return executeResult.Errors;
             }
 
-            if (shouldExecuteBeforeCondition && !ConditionMatches(effectSpec.ExecutionCondition, perEffectContext.Arguments))
+            if (shouldExecuteBeforeCondition
+                && (!ConditionMatches(effectSpec.ExecutionCondition, perEffectContext.Arguments)
+                    || !RevealPostConditionMatches(effectSpec, perEffectContext)))
             {
                 currentNodeId = branchOnFailure;
                 continue;
@@ -348,6 +350,79 @@ public sealed class GameSequentialEffectExecutor(
 
         var isMatch = string.Equals(argumentValue, condition.ExpectedValue, comparison);
         return condition.Negate ? !isMatch : isMatch;
+    }
+
+    private static bool RevealPostConditionMatches(EffectSpec effectSpec, GameCardEffectContext context)
+    {
+        if (effectSpec.RuntimeEffectType != RuntimeEffects.RevealCard || effectSpec.RevealPostConditionPredicate is null)
+        {
+            return true;
+        }
+
+        if (!TryResolveRevealedPrimaryCard(context, out var revealedCardDefinition, out var revealedCardInstance))
+        {
+            return false;
+        }
+
+        return ZoneCardRestrictionMatcher.Matches(
+            gameState: context.Game.State,
+            cardDefinition: revealedCardDefinition,
+            restriction: new ZoneCardRestriction
+            {
+                MatchMode = ZoneRestrictionMatchMode.All,
+                Predicates = [effectSpec.RevealPostConditionPredicate],
+            },
+            cardInstance: revealedCardInstance,
+            sourceCardInstance: context.SourceCardInstance);
+    }
+
+    private static bool TryResolveRevealedPrimaryCard(
+        GameCardEffectContext context,
+        out Card revealedCardDefinition,
+        out CardInstance revealedCardInstance)
+    {
+        revealedCardDefinition = null!;
+        revealedCardInstance = null!;
+
+        if (!context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.RevealedPrimaryTargetIdArgument, out var primaryTargetId)
+            || string.IsNullOrWhiteSpace(primaryTargetId))
+        {
+            return false;
+        }
+
+        foreach (var player in context.Game.State.Players)
+        {
+            var zones = new[]
+            {
+                PlayerZone.Hand,
+                PlayerZone.Deck,
+                PlayerZone.SupportZone,
+                PlayerZone.CharacterField,
+                PlayerZone.Trash,
+                PlayerZone.ExileZone,
+            };
+
+            foreach (var zone in zones)
+            {
+                var cardInstance = PlayerZoneCardAccessor.GetCards(zone, player)
+                    .FirstOrDefault(card => string.Equals(card.InstanceId, primaryTargetId, StringComparison.Ordinal));
+                if (cardInstance is null)
+                {
+                    continue;
+                }
+
+                if (!context.Game.State.CardDefinitions.TryGetValue(cardInstance.CardDefinitionId, out var definition))
+                {
+                    return false;
+                }
+
+                revealedCardDefinition = definition;
+                revealedCardInstance = cardInstance;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool ShouldExecuteBeforeCondition(EffectSpec effectSpec)

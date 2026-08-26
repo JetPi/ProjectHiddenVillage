@@ -257,6 +257,16 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                         || value.RevealTimingMode == RevealTimingMode.RevealLast)
                     .WithMessage("Reveal timing mode can be changed only for Reveal Card runtime effects.");
 
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType == RuntimeEffects.RevealCard
+                        || value.RevealPostConditionPredicate is null)
+                    .WithMessage("Reveal post-condition predicate can only be set for Reveal Card runtime effects.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RevealPostConditionPredicate is null
+                        || value.RevealTimingMode == RevealTimingMode.RevealFirst)
+                    .WithMessage("Reveal post-condition predicate requires Reveal Timing Mode to be Reveal First.");
+
                 effect.RuleFor(value => value.ChakraCost)
                     .GreaterThanOrEqualTo(0)
                     .When(value => value.ChakraCost.HasValue)

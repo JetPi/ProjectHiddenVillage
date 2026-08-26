@@ -175,6 +175,7 @@ export type ICardCatalogEffectResponse = {
   executionFlowMode: string
   suppressSummonedTargetsEffectsWhileOnField: boolean
   revealTimingMode: string
+  revealPostConditionPredicate: ICardCatalogZoneCardPropertyPredicateResponse | null
   executionCondition: ICardCatalogEffectExecutionConditionResponse | null
   attributeModifications: ICardCatalogAttributeModificationResponse[]
   chakraAdjustments: ICardCatalogChakraAdjustmentResponse[]

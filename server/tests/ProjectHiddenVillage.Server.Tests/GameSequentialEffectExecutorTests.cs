@@ -619,6 +619,72 @@ public sealed class GameSequentialEffectExecutorTests
     }
 
     [TestMethod]
+    public void Execute_RevealFirst_ExecutesThenBranchesOnSuccess_WhenPostRevealPredicateMatches()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingRevealEffect(observedSpecIds, "o-hand"),
+            new RecordingEffect(FreezeCardEffect.EffectKey, observedSpecIds),
+            new RecordingEffect(DestroyCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                RevealTimingMode = RevealTimingMode.RevealFirst,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                RevealPostConditionPredicate = new ZoneCardPropertyPredicate
+                {
+                    Property = ZoneCardProperty.Trait,
+                    Operator = ZoneCardPredicateOperator.Equals,
+                    Value = "Uchiha Clan",
+                    IgnoreCase = true,
+                },
+                OnSuccessEffectId = "freeze-step",
+                OnFailureEffectId = "fallback",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "freeze-step",
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "fallback",
+                RuntimeEffectType = RuntimeEffects.DestroyCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var revealedCard = CreateCardOnField("revealed-card", "o-hand", "p2", "Revealed Uchiha");
+        revealedCard.Card.Traits = ["Uchiha Clan"];
+
+        var context = CreateContext(
+            sourceDefinition,
+            playerTwoFieldCards:
+            [
+                revealedCard,
+            ]);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "reveal-step", "freeze-step" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
     public void Execute_AtomicChain_DoesNotExecuteAnyStep_WhenLaterStepCannotExecute()
     {
         var observedSpecIds = new List<string>();
@@ -1110,6 +1176,35 @@ public sealed class GameSequentialEffectExecutorTests
         {
             Assert.IsTrue(context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument, out var activeEffectSpecId));
             observedSpecIds.Add(activeEffectSpecId!);
+            return Result.Success;
+        }
+    }
+
+    private sealed class RecordingRevealEffect(List<string> observedSpecIds, string revealedPrimaryTargetId) : IGameCardEffect
+    {
+        public string EffectTypeKey => RevealCardEffect.EffectKey;
+
+        public CanExecuteResult CanExecute(GameCardEffectContext context)
+        {
+            return new CanExecuteResult { CanExecute = true };
+        }
+
+        public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
+        {
+            return [];
+        }
+
+        public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
+        {
+            Assert.IsTrue(context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument, out var activeEffectSpecId));
+            observedSpecIds.Add(activeEffectSpecId!);
+
+            if (context.Arguments is IDictionary<string, string> mutableArguments)
+            {
+                mutableArguments[ReactiveEffectExecutionConstants.RevealedPrimaryTargetIdArgument] = revealedPrimaryTargetId;
+                mutableArguments[ReactiveEffectExecutionConstants.RevealedTargetIdsArgument] = revealedPrimaryTargetId;
+            }
+
             return Result.Success;
         }
     }

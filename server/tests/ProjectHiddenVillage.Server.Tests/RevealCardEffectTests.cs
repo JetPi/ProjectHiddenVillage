@@ -72,8 +72,6 @@ public sealed class RevealCardEffectTests
         Assert.AreEqual("o-hand", primaryTargetId);
         Assert.IsTrue(context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.RevealedTargetIdsArgument, out var targetIds));
         Assert.AreEqual("o-hand", targetIds);
-        Assert.IsTrue(context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.RevealedPrimaryTargetTraitArgument, out var trait));
-        Assert.AreEqual("Uchiha Clan", trait);
     }
 
     private static EffectSpec CreateRevealEffectSpec(PlayerZone zone)

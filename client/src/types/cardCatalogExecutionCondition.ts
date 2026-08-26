@@ -1,7 +1,6 @@
 export const CARD_CATALOG_EXECUTION_CONDITION_ARGUMENT_KEY_OPTIONS = [
   'isSecondTurnOrLater',
   'selectedOption',
-  'revealedPrimaryTargetTrait',
   'summonTargetId',
   'moveCardMode',
   'moveCardDrawCount',

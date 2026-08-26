@@ -289,6 +289,7 @@ public sealed partial class DeckService : IDeckService
                     ExecutionFlowMode: SplitPascalCase(effect.ExecutionFlowMode.ToString()),
                     SuppressSummonedTargetsEffectsWhileOnField: effect.SuppressSummonedTargetsEffectsWhileOnField,
                     RevealTimingMode: SplitPascalCase(effect.RevealTimingMode.ToString()),
+                    RevealPostConditionPredicate: ToNullableZoneCardPropertyPredicateResponse(effect.RevealPostConditionPredicate),
                     ExecutionCondition: ToExecutionConditionResponse(effect.ExecutionCondition),
                     AttributeModifications: effect.AttributeModifications
                         .Select(ToAttributeModificationResponse)
@@ -479,6 +480,21 @@ public sealed partial class DeckService : IDeckService
             ExpectedValue: condition.ExpectedValue,
             IgnoreCase: condition.IgnoreCase,
             Negate: condition.Negate);
+    }
+
+            private static CardCatalogZoneCardPropertyPredicateResponse? ToNullableZoneCardPropertyPredicateResponse(ZoneCardPropertyPredicate? predicate)
+    {
+        if (predicate is null)
+        {
+            return null;
+        }
+
+        return new CardCatalogZoneCardPropertyPredicateResponse(
+            Property: SplitPascalCase(predicate.Property.ToString()),
+            Operator: SplitPascalCase(predicate.Operator.ToString()),
+            Value: predicate.Value,
+            Values: predicate.Values ?? [],
+            IgnoreCase: predicate.IgnoreCase);
     }
 
     private static CardCatalogPassiveReevaluationResponse? ToPassiveReevaluationResponse(PassiveReevaluationSpec? spec)

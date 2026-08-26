@@ -173,6 +173,7 @@ export type ICardCatalogEffectRequest = {
   executionFlowMode: string
   suppressSummonedTargetsEffectsWhileOnField: boolean
   revealTimingMode: string
+  revealPostConditionPredicate: ICardCatalogZoneCardPropertyPredicateRequest | null
   executionCondition: ICardCatalogEffectExecutionConditionRequest | null
   attributeModifications: ICardCatalogAttributeModificationRequest[]
   chakraAdjustments: ICardCatalogChakraAdjustmentRequest[]
