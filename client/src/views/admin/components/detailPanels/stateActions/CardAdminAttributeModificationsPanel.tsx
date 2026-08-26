@@ -1,7 +1,7 @@
 import { AppButton } from '@/components/ui'
-import { CountConstraintField } from '@/views/admin/components/controls/CountConstraintField'
-import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
-import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
+import { CountConstraintField } from '@/views/admin/components/controls'
+import { CardAdminSelect } from '@/views/admin/components/controls'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 import {
   ATTRIBUTE_OPERATION_OPTIONS,
   ATTRIBUTE_TYPE_OPTIONS,

@@ -1,6 +1,6 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
-import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
+import { CardAdminSelect } from '@/views/admin/components/controls'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 import {
   KEYWORD_OPERATION_OPTIONS,
   KEYWORD_TARGET_TYPE_OPTIONS,

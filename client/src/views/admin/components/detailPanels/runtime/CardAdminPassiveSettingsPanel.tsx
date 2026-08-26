@@ -1,7 +1,7 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
-import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
-import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
+import { CardAdminSelect } from '@/views/admin/components/controls'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 import {
   PASSIVE_CONSEQUENCE_EFFECT_OPTIONS,
   PASSIVE_SCOPE_OPTIONS,

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { FormInput, FormLabel, FormSelect } from '@/components/forms'
 import type { ICardAdminFilterPanelProps } from '@/views/admin/types/cardAdminFilterPanel'
-import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
-import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
+import { CardAdminSelect } from '@/views/admin/components/controls'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 
 export function CardAdminFilterPanel({
   searchText,
