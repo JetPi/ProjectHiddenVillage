@@ -1,4 +1,5 @@
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
+import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 import type { ICardAdminSummonSettingsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
 
 export function CardAdminSummonSettingsPanel({
@@ -7,9 +8,10 @@ export function CardAdminSummonSettingsPanel({
   updateEffectAt,
 }: ICardAdminSummonSettingsPanelProps) {
   return (
-    <details className="rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-amber-500/55 bg-[var(--surface-muted)] p-3">
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-amber-500/55 bg-[var(--surface-muted)] p-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        Summon Settings
+        <span>Summon Settings</span>
+        <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">

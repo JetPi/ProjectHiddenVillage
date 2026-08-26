@@ -14,6 +14,7 @@ import {
   resolveAttributeValueConstraintMode,
   resolveCountConstraintValue,
 } from '@/views/admin/utils'
+import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 
 export function CardAdminAttributeModificationsPanel({
   effect,
@@ -21,9 +22,10 @@ export function CardAdminAttributeModificationsPanel({
   updateEffectAt,
 }: ICardAdminAttributeModificationsPanelProps) {
   return (
-    <details className="rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-rose-500/50 bg-[var(--surface-muted)] p-3">
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-rose-500/50 bg-[var(--surface-muted)] p-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        Attribute Modifications
+        <span>Attribute Modifications</span>
+        <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
       <div className="mt-3 grid grid-cols-1 gap-3">

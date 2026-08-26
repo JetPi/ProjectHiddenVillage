@@ -8,6 +8,7 @@ import {
 } from '@/views/admin/constants'
 import type { ICardAdminFaceStateFlipsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
 import { createDefaultSummonCardFlip } from '@/views/admin/utils'
+import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 
 export function CardAdminFaceStateFlipsPanel({
   effect,
@@ -15,9 +16,10 @@ export function CardAdminFaceStateFlipsPanel({
   updateEffectAt,
 }: ICardAdminFaceStateFlipsPanelProps) {
   return (
-    <details className="rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-indigo-500/55 bg-[var(--surface-muted)] p-3">
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-indigo-500/55 bg-[var(--surface-muted)] p-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        Face State Flips
+        <span>Face State Flips</span>
+        <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
       <div className="mt-3 grid grid-cols-1 gap-3">

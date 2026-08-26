@@ -7,6 +7,7 @@ import {
 } from '@/views/admin/constants'
 import type { ICardAdminChakraAdjustmentsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
 import { createDefaultChakraAdjustment } from '@/views/admin/utils'
+import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 
 export function CardAdminChakraAdjustmentsPanel({
   effect,
@@ -14,9 +15,10 @@ export function CardAdminChakraAdjustmentsPanel({
   updateEffectAt,
 }: ICardAdminChakraAdjustmentsPanelProps) {
   return (
-    <details className="rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-lime-500/55 bg-[var(--surface-muted)] p-3">
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-lime-500/55 bg-[var(--surface-muted)] p-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        Chakra Adjustments
+        <span>Chakra Adjustments</span>
+        <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
       <div className="mt-3 grid grid-cols-1 gap-3">

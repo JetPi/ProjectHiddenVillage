@@ -27,6 +27,7 @@ import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminPredicateControls } from '@/views/admin/components/controls'
 import { CardAdminPredicateFooter } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
+import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 
 export function CardAdminTargetRulesPanel({
   effect,
@@ -34,9 +35,10 @@ export function CardAdminTargetRulesPanel({
   updateEffectAt,
 }: ICardAdminTargetRulesPanelProps) {
   return (
-    <details className="rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-emerald-500/55 bg-[var(--surface-muted)] p-3" open>
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-emerald-500/55 bg-[var(--surface-muted)] p-3" open>
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        Target Rules
+        <span>Target Rules</span>
+        <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
       <div className="mt-3 space-y-3">
@@ -277,8 +279,8 @@ export function CardAdminTargetRulesPanel({
         </div>
       ) : null}
 
-      <div className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/35 bg-[var(--surface-muted)] p-3">
-        <div className="flex items-center justify-between gap-2">
+      <div className="space-y-3 my-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/35 bg-[var(--surface-muted)] p-3">
+        <div className="flex items-center  justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Rule Rows</p>
           <AppButton
             type="button"

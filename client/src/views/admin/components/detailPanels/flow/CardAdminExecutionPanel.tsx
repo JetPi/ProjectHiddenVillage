@@ -7,6 +7,7 @@ import {
   EXECUTION_TARGET_SOURCE_OPTIONS,
 } from '@/views/admin/constants'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
+import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 import type { ICardAdminExecutionPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 
@@ -17,9 +18,10 @@ export function CardAdminExecutionPanel({
   effectBranchErrors,
 }: ICardAdminExecutionPanelProps) {
   return (
-    <details className="rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-sky-500/55 bg-[var(--surface-muted)] p-3" open>
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-sky-500/55 bg-[var(--surface-muted)] p-3" open>
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        Execution Target
+        <span>Execution Target</span>
+        <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
