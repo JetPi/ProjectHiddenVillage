@@ -52,7 +52,7 @@ export function CardAdminConditionsSection({
           {editorModel.draft.conditions.map((condition) => (
             <div
               key={condition}
-              className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-1 text-xs text-[var(--text-primary)]"
+              className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--text-primary)]"
             >
               <span>{condition}</span>
               <CardAdminRemoveButton

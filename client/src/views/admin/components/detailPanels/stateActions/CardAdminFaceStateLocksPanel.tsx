@@ -15,8 +15,12 @@ export function CardAdminFaceStateLocksPanel({
   updateEffectAt,
 }: ICardAdminFaceStateLocksPanelProps) {
   return (
-    <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-violet-500/55 bg-[var(--surface-muted)] p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Face State Locks</p>
+    <details className="rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-violet-500/55 bg-[var(--surface-muted)] p-3">
+      <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        Face State Locks
+      </summary>
+
+      <div className="mt-3 grid grid-cols-1 gap-3">
 
       <div className="flex justify-end">
         <AppButton
@@ -85,12 +89,12 @@ export function CardAdminFaceStateLocksPanel({
                 ...current,
                 faceStateLocks: current.faceStateLocks.filter((_, index) => index !== faceStateLockIndex),
               }))}
+            className="inline-flex h-10 w-10 items-center justify-center self-stretch rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]"
             ariaLabel="Remove Face State Lock"
-          >
-            Remove
-          </CardAdminRemoveButton>
+          />
         </div>
       ))}
-    </div>
+      </div>
+    </details>
   )
 }

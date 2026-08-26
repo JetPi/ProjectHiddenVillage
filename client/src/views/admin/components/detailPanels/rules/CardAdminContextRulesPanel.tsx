@@ -31,8 +31,12 @@ export function CardAdminContextRulesPanel({
   updateEffectAt,
 }: ICardAdminContextRulesPanelProps) {
   return (
-    <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-cyan-500/55 bg-[var(--surface-muted)] p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Context Rules</p>
+    <details className="rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-cyan-500/55 bg-[var(--surface-muted)] p-3" open>
+      <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        Context Rules
+      </summary>
+
+      <div className="mt-3 space-y-3">
 
       <div className="flex justify-end">
         <AppButton
@@ -85,7 +89,8 @@ export function CardAdminContextRulesPanel({
           </div>
         </div>
       ))}
-    </div>
+      </div>
+    </details>
   )
 }
 

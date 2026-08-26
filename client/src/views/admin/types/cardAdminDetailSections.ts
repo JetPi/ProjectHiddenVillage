@@ -18,6 +18,7 @@ export type ICardAdminEffectsSectionProps = {
   parsedEffects: ICardCatalogEffectRequest[]
   collapsedEffects: Set<number>
   toggleEffectCollapsedAt: (effectIndex: number) => void
+  reorderEffect: (fromIndex: number, toIndex: number) => void
   removeEffectAt: (effectIndex: number) => void
   addEffect: () => void
   updateEffectAt: (effectIndex: number, updater: (effect: ICardCatalogEffectRequest) => ICardCatalogEffectRequest) => void

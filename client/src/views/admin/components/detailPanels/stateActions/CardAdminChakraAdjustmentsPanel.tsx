@@ -14,8 +14,12 @@ export function CardAdminChakraAdjustmentsPanel({
   updateEffectAt,
 }: ICardAdminChakraAdjustmentsPanelProps) {
   return (
-    <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-lime-500/55 bg-[var(--surface-muted)] p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Chakra Adjustments</p>
+    <details className="rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-lime-500/55 bg-[var(--surface-muted)] p-3">
+      <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        Chakra Adjustments
+      </summary>
+
+      <div className="mt-3 grid grid-cols-1 gap-3">
 
       <div className="flex justify-end">
         <AppButton
@@ -81,12 +85,12 @@ export function CardAdminChakraAdjustmentsPanel({
                 ...current,
                 chakraAdjustments: current.chakraAdjustments.filter((_, index) => index !== chakraIndex),
               }))}
+            className="inline-flex h-10 w-10 items-center justify-center self-stretch rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]"
             ariaLabel="Remove Chakra Adjustment"
-          >
-            Remove
-          </CardAdminRemoveButton>
+          />
         </div>
       ))}
-    </div>
+      </div>
+    </details>
   )
 }

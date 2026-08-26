@@ -7,19 +7,25 @@ export function CardAdminSummonSettingsPanel({
   updateEffectAt,
 }: ICardAdminSummonSettingsPanelProps) {
   return (
-    <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-amber-500/55 bg-[var(--surface-muted)] p-3 sm:grid-cols-2">
-      <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-        <CardAdminToggleSwitch
-          checked={effect.suppressSummonedTargetsEffectsWhileOnField}
-          onChange={(checked) =>
-            updateEffectAt(effectIndex, (current) => ({
-              ...current,
-              suppressSummonedTargetsEffectsWhileOnField: checked,
-            }))}
-          ariaLabel="Suppress Summoned Effects On Field"
-        />
-        Suppress Summoned Effects On Field
-      </label>
-    </div>
+    <details className="rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-amber-500/55 bg-[var(--surface-muted)] p-3">
+      <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        Summon Settings
+      </summary>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+          <CardAdminToggleSwitch
+            checked={effect.suppressSummonedTargetsEffectsWhileOnField}
+            onChange={(checked) =>
+              updateEffectAt(effectIndex, (current) => ({
+                ...current,
+                suppressSummonedTargetsEffectsWhileOnField: checked,
+              }))}
+            ariaLabel="Suppress Summoned Effects On Field"
+          />
+          Suppress Summoned Effects On Field
+        </label>
+      </div>
+    </details>
   )
 }

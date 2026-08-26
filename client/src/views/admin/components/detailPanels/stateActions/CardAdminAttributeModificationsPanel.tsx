@@ -21,8 +21,12 @@ export function CardAdminAttributeModificationsPanel({
   updateEffectAt,
 }: ICardAdminAttributeModificationsPanelProps) {
   return (
-    <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-rose-500/50 bg-[var(--surface-muted)] p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Attribute Modifications</p>
+    <details className="rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-rose-500/50 bg-[var(--surface-muted)] p-3">
+      <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        Attribute Modifications
+      </summary>
+
+      <div className="mt-3 grid grid-cols-1 gap-3">
 
       <div className="flex justify-end">
         <AppButton
@@ -47,10 +51,9 @@ export function CardAdminAttributeModificationsPanel({
                   ...current,
                   attributeModifications: current.attributeModifications.filter((_, index) => index !== attributeIndex),
                 }))}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]"
               ariaLabel="Remove Attribute Modification"
-            >
-              Remove
-            </CardAdminRemoveButton>
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-y-3 sm:grid-cols-4 sm:gap-x-2">
@@ -205,6 +208,7 @@ export function CardAdminAttributeModificationsPanel({
           </div>
         </div>
       ))}
-    </div>
+      </div>
+    </details>
   )
 }

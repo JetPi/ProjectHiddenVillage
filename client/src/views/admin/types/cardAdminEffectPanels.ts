@@ -12,7 +12,6 @@ export type ICardAdminEffectPanelBaseProps = {
 }
 
 export type ICardAdminExecutionPanelProps = ICardAdminEffectPanelBaseProps & {
-  effectIdOptions: string[]
   effectBranchErrors?: string[]
 }
 
