@@ -528,6 +528,256 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
     }
 
     [TestMethod]
+    public void Validate_ReturnsError_WhenNonRevealRuntimeEffectSetsRevealPostConditionRestriction()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-invalid-reveal-restriction-runtime",
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    RevealPostConditionRestriction = new ZoneCardRestriction
+                    {
+                        MatchMode = ZoneRestrictionMatchMode.All,
+                        Predicates =
+                        [
+                            new ZoneCardPropertyPredicate
+                            {
+                                Property = ZoneCardProperty.Name,
+                                Operator = ZoneCardPredicateOperator.Contains,
+                                Value = "Sasuke",
+                                IgnoreCase = true,
+                            },
+                        ],
+                    },
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Reveal post-condition predicate/restriction/rule-set can only be set for Reveal Card runtime effects.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenRevealPostConditionRestrictionIsSetWithoutRevealFirstTiming()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-invalid-reveal-restriction-timing",
+                    RuntimeEffectType = RuntimeEffects.RevealCard,
+                    RevealTimingMode = RevealTimingMode.RevealLast,
+                    RevealPostConditionRestriction = new ZoneCardRestriction
+                    {
+                        MatchMode = ZoneRestrictionMatchMode.All,
+                        Predicates =
+                        [
+                            new ZoneCardPropertyPredicate
+                            {
+                                Property = ZoneCardProperty.Name,
+                                Operator = ZoneCardPredicateOperator.Contains,
+                                Value = "Sasuke",
+                                IgnoreCase = true,
+                            },
+                        ],
+                    },
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.Quick,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Any,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Any,
+                                InZone = PlayerZone.Hand,
+                                Restriction = new ZoneCardRestriction
+                                {
+                                    Predicates = []
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Reveal post-condition predicate/restriction/rule-set requires Reveal Timing Mode to be Reveal First.", StringComparison.Ordinal)));
+
+    }
+
+    [TestMethod]
+    public void Validate_AllowsRevealPostConditionRuleSetForRevealRuntimeEffect()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-valid-reveal-rule-set",
+                    RuntimeEffectType = RuntimeEffects.RevealCard,
+                    RevealTimingMode = RevealTimingMode.RevealFirst,
+                    RevealPostConditionRuleSet = new ZoneCardRestrictionRuleSet
+                    {
+                        Operator = RequirementGroupOperator.Any,
+                        Restrictions =
+                        [
+                            new ZoneCardRestriction
+                            {
+                                MatchMode = ZoneRestrictionMatchMode.All,
+                                Predicates =
+                                [
+                                    new ZoneCardPropertyPredicate
+                                    {
+                                        Property = ZoneCardProperty.Name,
+                                        Operator = ZoneCardPredicateOperator.Contains,
+                                        Value = "Sasuke",
+                                        IgnoreCase = true,
+                                    },
+                                    new ZoneCardPropertyPredicate
+                                    {
+                                        Property = ZoneCardProperty.Type,
+                                        Operator = ZoneCardPredicateOperator.NotEquals,
+                                        Value = "EX Character",
+                                        IgnoreCase = true,
+                                    },
+                                ],
+                            },
+                            new ZoneCardRestriction
+                            {
+                                MatchMode = ZoneRestrictionMatchMode.All,
+                                Predicates =
+                                [
+                                    new ZoneCardPropertyPredicate
+                                    {
+                                        Property = ZoneCardProperty.Trait,
+                                        Operator = ZoneCardPredicateOperator.Equals,
+                                        Value = "The Taka",
+                                        IgnoreCase = true,
+                                    },
+                                    new ZoneCardPropertyPredicate
+                                    {
+                                        Property = ZoneCardProperty.Type,
+                                        Operator = ZoneCardPredicateOperator.NotEquals,
+                                        Value = "EX Character",
+                                        IgnoreCase = true,
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.Quick,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Any,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Any,
+                                InZone = PlayerZone.Hand,
+                                Restriction = new ZoneCardRestriction
+                                {
+                                    Predicates = []
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenRevealPostConditionRuleSetHasNoGroups()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-invalid-reveal-rule-set-empty",
+                    RuntimeEffectType = RuntimeEffects.RevealCard,
+                    RevealTimingMode = RevealTimingMode.RevealFirst,
+                    RevealPostConditionRuleSet = new ZoneCardRestrictionRuleSet
+                    {
+                        Operator = RequirementGroupOperator.Any,
+                        Restrictions = [],
+                    },
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.Quick,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Any,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Any,
+                                InZone = PlayerZone.Hand,
+                                Restriction = new ZoneCardRestriction
+                                {
+                                    Predicates = []
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Reveal post-condition rule set must include at least one restriction group.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
     public void Validate_AllowsNonInstantDuration_ForFreezeCardRuntimeEffect()
     {
         var validator = new UpdateCardEffectsRequestValidator();

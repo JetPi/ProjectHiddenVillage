@@ -354,7 +354,13 @@ public sealed class GameSequentialEffectExecutor(
 
     private static bool RevealPostConditionMatches(EffectSpec effectSpec, GameCardEffectContext context)
     {
-        if (effectSpec.RuntimeEffectType != RuntimeEffects.RevealCard || effectSpec.RevealPostConditionPredicate is null)
+        if (effectSpec.RuntimeEffectType != RuntimeEffects.RevealCard)
+        {
+            return true;
+        }
+
+        var revealPostConditionRuleSet = ResolveRevealPostConditionRuleSet(effectSpec);
+        if (revealPostConditionRuleSet is null)
         {
             return true;
         }
@@ -364,16 +370,67 @@ public sealed class GameSequentialEffectExecutor(
             return false;
         }
 
-        return ZoneCardRestrictionMatcher.Matches(
-            gameState: context.Game.State,
-            cardDefinition: revealedCardDefinition,
-            restriction: new ZoneCardRestriction
-            {
-                MatchMode = ZoneRestrictionMatchMode.All,
-                Predicates = [effectSpec.RevealPostConditionPredicate],
-            },
-            cardInstance: revealedCardInstance,
-            sourceCardInstance: context.SourceCardInstance);
+        var groupResults = revealPostConditionRuleSet.Restrictions.Select(restriction =>
+            ZoneCardRestrictionMatcher.Matches(
+                gameState: context.Game.State,
+                cardDefinition: revealedCardDefinition,
+                restriction: restriction,
+                cardInstance: revealedCardInstance,
+                sourceCardInstance: context.SourceCardInstance));
+
+        return revealPostConditionRuleSet.Operator == RequirementGroupOperator.All
+            ? groupResults.All(result => result)
+            : groupResults.Any(result => result);
+    }
+
+    private static ZoneCardRestrictionRuleSet? ResolveRevealPostConditionRuleSet(EffectSpec effectSpec)
+    {
+        if (effectSpec.RevealPostConditionRuleSet?.Restrictions is { Count: > 0 })
+        {
+            return effectSpec.RevealPostConditionRuleSet;
+        }
+
+        var restriction = ResolveRevealPostConditionRestriction(effectSpec);
+        if (restriction is null)
+        {
+            return null;
+        }
+
+        return new ZoneCardRestrictionRuleSet
+        {
+            Operator = RequirementGroupOperator.All,
+            Restrictions =
+            [
+                restriction,
+            ],
+        };
+    }
+
+    private static ZoneCardRestriction? ResolveRevealPostConditionRestriction(EffectSpec effectSpec)
+    {
+        if (effectSpec.RevealPostConditionRuleSet?.Restrictions is { Count: > 0 })
+        {
+            return effectSpec.RevealPostConditionRuleSet.Restrictions[0];
+        }
+
+        if (effectSpec.RevealPostConditionRestriction is not null)
+        {
+            return effectSpec.RevealPostConditionRestriction;
+        }
+
+        if (effectSpec.RevealPostConditionPredicate is null)
+        {
+            return null;
+        }
+
+        return new ZoneCardRestriction
+        {
+            MatchMode = ZoneRestrictionMatchMode.All,
+            Predicates =
+            [
+                effectSpec.RevealPostConditionPredicate,
+            ],
+        };
     }
 
     private static bool TryResolveRevealedPrimaryCard(

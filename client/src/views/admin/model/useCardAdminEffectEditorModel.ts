@@ -52,7 +52,32 @@ function toEditorDraft(card: ICardAdminEffectEditorHydrationSource | null): ICar
     supportEffect: card.supportEffect ?? '',
     cannotBeNormalSummoned: card.cannotBeNormalSummoned,
     conditions: [...card.conditions],
-    effects: card.effects.map((effect) => ({ ...effect })),
+    effects: card.effects.map((effect) => ({
+      ...effect,
+      revealPostConditionRuleSet: effect.revealPostConditionRuleSet ?? (effect.revealPostConditionRestriction
+        ? {
+          operator: 'All',
+          restrictions: [effect.revealPostConditionRestriction],
+        }
+        : effect.revealPostConditionPredicate
+          ? {
+            operator: 'All',
+            restrictions: [
+              {
+                predicates: [effect.revealPostConditionPredicate],
+                matchMode: 'All',
+              },
+            ],
+          }
+          : null),
+      revealPostConditionRestriction: effect.revealPostConditionRestriction ?? (effect.revealPostConditionPredicate
+        ? {
+          predicates: [effect.revealPostConditionPredicate],
+          matchMode: 'All',
+        }
+        : null),
+      revealPostConditionPredicate: effect.revealPostConditionPredicate ?? null,
+    })),
   }
 }
 
@@ -64,6 +89,29 @@ function normalizeEffectForSave(effect: ICardCatalogEffectRequest): ICardCatalog
     ...effect,
     onSuccessEffectId: normalizedOnSuccess.length > 0 ? normalizedOnSuccess : null,
     onFailureEffectId: normalizedOnFailure.length > 0 ? normalizedOnFailure : null,
+    revealPostConditionRuleSet: effect.revealPostConditionRuleSet ?? (effect.revealPostConditionRestriction
+      ? {
+        operator: 'All',
+        restrictions: [effect.revealPostConditionRestriction],
+      }
+      : effect.revealPostConditionPredicate
+        ? {
+          operator: 'All',
+          restrictions: [
+            {
+              predicates: [effect.revealPostConditionPredicate],
+              matchMode: 'All',
+            },
+          ],
+        }
+        : null),
+    revealPostConditionRestriction: effect.revealPostConditionRestriction ?? (effect.revealPostConditionPredicate
+      ? {
+        predicates: [effect.revealPostConditionPredicate],
+        matchMode: 'All',
+      }
+      : null),
+    revealPostConditionPredicate: null,
     passiveConsequences: (effect.passiveConsequences ?? []).map((consequence) => ({
       consequenceEffectTypeKey: consequence.consequenceEffectTypeKey,
       targetPolicy: consequence.targetPolicy,

@@ -259,13 +259,46 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
                 effect.RuleFor(value => value)
                     .Must(value => value.RuntimeEffectType == RuntimeEffects.RevealCard
-                        || value.RevealPostConditionPredicate is null)
-                    .WithMessage("Reveal post-condition predicate can only be set for Reveal Card runtime effects.");
+                        || (value.RevealPostConditionPredicate is null
+                            && value.RevealPostConditionRestriction is null
+                            && value.RevealPostConditionRuleSet is null))
+                    .WithMessage("Reveal post-condition predicate/restriction/rule-set can only be set for Reveal Card runtime effects.");
 
                 effect.RuleFor(value => value)
-                    .Must(value => value.RevealPostConditionPredicate is null
+                    .Must(value => (value.RevealPostConditionPredicate is null
+                            && value.RevealPostConditionRestriction is null
+                            && value.RevealPostConditionRuleSet is null)
                         || value.RevealTimingMode == RevealTimingMode.RevealFirst)
-                    .WithMessage("Reveal post-condition predicate requires Reveal Timing Mode to be Reveal First.");
+                    .WithMessage("Reveal post-condition predicate/restriction/rule-set requires Reveal Timing Mode to be Reveal First.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RevealPostConditionRuleSet is null
+                        || value.RevealPostConditionRuleSet.Restrictions is { Count: > 0 })
+                    .WithMessage("Reveal post-condition rule set must include at least one restriction group.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RevealPostConditionRestriction is null
+                        || value.RevealPostConditionRestriction.Predicates is { Count: > 0 })
+                    .WithMessage("Reveal post-condition restriction must include at least one predicate.");
+
+                effect.RuleForEach(value => value.RevealPostConditionRuleSet!.Restrictions)
+                    .Must(restriction => restriction.Predicates is { Count: > 0 })
+                    .When(value => value.RevealPostConditionRuleSet is not null)
+                    .WithMessage("Reveal post-condition restriction groups must include at least one predicate.");
+
+                effect.RuleForEach(value => value.RevealPostConditionRuleSet!.Restrictions)
+                    .ChildRules(restriction =>
+                    {
+                        restriction.RuleForEach(value => value.Predicates)
+                            .Must(HasValidPredicateValuePayload)
+                            .WithMessage("Reveal post-condition predicate value payload does not match the selected operator.");
+                    })
+                    .When(value => value.RevealPostConditionRuleSet is not null);
+
+                effect.RuleForEach(value => value.RevealPostConditionRestriction!.Predicates)
+                    .Must(HasValidPredicateValuePayload)
+                    .When(value => value.RevealPostConditionRestriction is not null)
+                    .WithMessage("Reveal post-condition predicate value payload does not match the selected operator.");
 
                 effect.RuleFor(value => value.ChakraCost)
                     .GreaterThanOrEqualTo(0)
@@ -375,24 +408,7 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                             .ChildRules(predicate =>
                             {
                                 predicate.RuleFor(value => value)
-                                    .Must(value =>
-                                    {
-                                        var hasValue = !string.IsNullOrWhiteSpace(value.Value);
-                                        var hasValues = value.Values is { Count: > 0 };
-
-                                        return value.Operator switch
-                                        {
-                                            ZoneCardPredicateOperator.In => hasValues || value.Property == ZoneCardProperty.Type,
-                                            ZoneCardPredicateOperator.Equals => hasValue || value.Property == ZoneCardProperty.Self,
-                                            ZoneCardPredicateOperator.NotEquals => hasValue || value.Property == ZoneCardProperty.Self,
-                                            ZoneCardPredicateOperator.Contains => hasValue,
-                                            ZoneCardPredicateOperator.GreaterThan => hasValue,
-                                            ZoneCardPredicateOperator.GreaterThanOrEqual => hasValue,
-                                            ZoneCardPredicateOperator.LessThan => hasValue,
-                                            ZoneCardPredicateOperator.LessThanOrEqual => hasValue,
-                                            _ => false,
-                                        };
-                                    })
+                                    .Must(HasValidPredicateValuePayload)
                                     .WithMessage("Predicate value payload does not match the selected operator.");
                             });
                     });
@@ -835,6 +851,25 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                 && selector.SupportSlotIndex.Value >= 0,
             EffectTargetLocationSelectorKind.DeckTop =>
                 rule.InZone == PlayerZone.Deck,
+            _ => false,
+        };
+    }
+
+    private static bool HasValidPredicateValuePayload(ZoneCardPropertyPredicate value)
+    {
+        var hasValue = !string.IsNullOrWhiteSpace(value.Value);
+        var hasValues = value.Values is { Count: > 0 };
+
+        return value.Operator switch
+        {
+            ZoneCardPredicateOperator.In => hasValues || value.Property == ZoneCardProperty.Type,
+            ZoneCardPredicateOperator.Equals => hasValue || value.Property == ZoneCardProperty.Self,
+            ZoneCardPredicateOperator.NotEquals => hasValue || value.Property == ZoneCardProperty.Self,
+            ZoneCardPredicateOperator.Contains => hasValue,
+            ZoneCardPredicateOperator.GreaterThan => hasValue,
+            ZoneCardPredicateOperator.GreaterThanOrEqual => hasValue,
+            ZoneCardPredicateOperator.LessThan => hasValue,
+            ZoneCardPredicateOperator.LessThanOrEqual => hasValue,
             _ => false,
         };
     }
