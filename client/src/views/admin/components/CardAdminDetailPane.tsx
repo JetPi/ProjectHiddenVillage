@@ -5,572 +5,87 @@ import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/app
 import { CountConstraintField } from './CountConstraintField'
 import { CardAdminSelectedCardSummary } from './CardAdminSelectedCardSummary'
 import { useCardAdminEffectEditorModel } from '@/views/admin/model/useCardAdminEffectEditorModel'
+import {
+  appendPredicateEntries,
+  createDefaultAttributeModification,
+  createDefaultChakraAdjustment,
+  createDefaultContextRule,
+  createDefaultEffect,
+  createDefaultFaceStateLock,
+  createDefaultKeywordModification,
+  createDefaultMoveCardAction,
+  createDefaultPassiveConsequence,
+  createDefaultPassiveReevaluation,
+  createDefaultPredicate,
+  createDefaultSummonCardFlip,
+  createDefaultTargetRule,
+  createDefaultZoneAmountRequirement,
+  createDefaultZoneRequirementSet,
+  getPredicateEntries,
+  isAttackNegationRuntimeEffect,
+  isSummonOrTributeRuntimeEffect,
+  normalizeEffectId,
+  normalizeRevealRuleZone,
+  parseNullableInteger,
+  removePredicateEntryAt,
+  renderEmptySelectionState,
+  resolveAttributeValueConstraintMode,
+  resolveCountConstraintMode,
+  resolveCountConstraintSeedValue,
+  resolveCountConstraintValue,
+  resolveRevealPostConditionRuleSet,
+  resolveTargetZoneOptions,
+} from '@/views/admin/utils'
 import { fetchCardCatalogEffectConditionKeywords } from '@/services/api/cardCatalogApi'
 import {
   CARD_CATALOG_EXECUTION_CONDITION_ARGUMENT_KEY_OPTIONS,
   type ICardCatalogEffectExecutionConditionArgumentKey,
 } from '@/types/cardCatalogExecutionCondition'
+import {
+  ATTRIBUTE_OPERATION_OPTIONS,
+  ATTRIBUTE_TYPE_OPTIONS,
+  CHAKRA_OPERATION_OPTIONS,
+  CONDITION_OPTIONS,
+  EFFECT_CONDITION_KEYWORD_OPTIONS_FALLBACK,
+  EFFECT_DURATION_MODE_OPTIONS,
+  EFFECT_KIND_OPTIONS,
+  EFFECT_TIMING_OPTIONS,
+  EXECUTION_FLOW_MODE_OPTIONS,
+  EXECUTION_TARGET_SOURCE_OPTIONS,
+  FACE_STATE_LOCK_OPERATION_OPTIONS,
+  FACE_STATE_OPTIONS,
+  FACE_STATE_TARGET_CATEGORY_OPTIONS,
+  KEYWORD_OPERATION_OPTIONS,
+  KEYWORD_TARGET_TYPE_OPTIONS,
+  MATCH_MODE_OPTIONS,
+  MOVE_CARD_DECK_PLACEMENT_OPTIONS,
+  MOVE_CARD_DESTINATION_RANGE_OPTIONS,
+  MOVE_CARD_MULTI_ORDERING_OPTIONS,
+  MOVE_CARD_OPERATION_OPTIONS,
+  MOVE_CARD_ZONE_OPTIONS,
+  PASSIVE_CONSEQUENCE_EFFECT_OPTIONS,
+  PASSIVE_MODE_OPTIONS,
+  PASSIVE_SCOPE_OPTIONS,
+  PASSIVE_TARGET_POLICY_OPTIONS,
+  PASSIVE_TRIGGER_KIND_OPTIONS,
+  PLAYER_ZONE_OPTIONS,
+  PREDICATE_OPERATOR_OPTIONS,
+  PREDICATE_PROPERTY_OPTIONS,
+  RESTRICTIONS_OPTIONS,
+  REVEAL_TIMING_MODE_OPTIONS,
+  RULE_OPERATOR_OPTIONS,
+  RUNTIME_EFFECT_OPTIONS,
+  TARGET_LOCATION_SELECTOR_KIND_OPTIONS,
+  TARGET_RANGE_OPTIONS,
+  TARGET_TYPE_OPTIONS,
+  TRIBUTE_ROLE_OPTIONS,
+} from '@/views/admin/constants'
 import type { ICardAdminDetailEditorProps, ICardAdminDetailPaneProps } from '@/views/admin/types/cardAdminDetailPane'
 import type { ICountConstraintMode } from '@/views/admin/types/countConstraintField'
 import type {
-  ICardCatalogAttributeModificationRequest,
-  ICardCatalogChakraAdjustmentRequest,
-  ICardCatalogFaceStateLockRequest,
-  ICardCatalogKeywordModificationRequest,
-  ICardCatalogMoveCardActionRequest,
-  ICardCatalogPassiveConsequenceRequest,
-  ICardCatalogPassiveReevaluationRequest,
-  ICardCatalogEffectContextRuleSetRequest,
-  ICardCatalogPredicateProperty,
   ICardCatalogEffectRequest,
-  ICardCatalogEffectTargetRuleRequest,
-  ICardCatalogSummonCardFlipRequest,
-  ICardCatalogZoneCardPropertyPredicateRequest,
-  ICardCatalogZoneCardRestrictionRequest,
-  ICardCatalogZoneCardRestrictionRuleSetRequest,
+  ICardCatalogPredicateProperty,
 } from '@/services/api/types/cardCatalog'
-
-const RUNTIME_EFFECT_OPTIONS = [
-  'Destroy Card',
-  'Negate Effect',
-  'Interrupt Attack',
-  'Gain Effect',
-  'Change Values',
-  'Alter Resources',
-  'Tribute',
-  'Search Card',
-  'Freeze Card',
-  'Reveal Card',
-  'Summon Card',
-  'Move Card',
-] as const
-
-const EFFECT_KIND_OPTIONS = [
-  'Support',
-  'Recovery',
-  'Summon Requirement',
-  'Rush',
-  'Activated',
-] as const
-
-const EFFECT_TIMING_OPTIONS = [
-  'Activate Main',
-  'During Opponent Attack',
-  'Support Activated',
-  'Quick',
-  'On Summon',
-  'During Your Main',
-  'Your Turn',
-  'When Attacking',
-] as const
-const EFFECT_DURATION_MODE_OPTIONS = ['Instant', 'During This Turn', 'During Opponent Next Turn', 'Until the End of your Next Turn', 'During This Battle', 'Continuous'] as const
-const PASSIVE_MODE_OPTIONS = ['None', 'Continuous', 'Triggered'] as const
-const PASSIVE_SCOPE_OPTIONS = ['Source Card Only', 'Source Controller', 'Whole Game'] as const
-const PASSIVE_TRIGGER_KIND_OPTIONS = ['Any', 'Stats Changed', 'Zone Changed', 'Turn Changed', 'Phase Changed', 'Stack Resolved'] as const
-const PASSIVE_TARGET_POLICY_OPTIONS = ['Source Card', 'Trigger Selected Targets'] as const
-const PASSIVE_CONSEQUENCE_EFFECT_OPTIONS = ['DestroyCard', 'NegateCard', 'SummonCard', 'TributeSummonCard', 'ModifyAttribute', 'GainKeyword', 'AlterResources', 'Noop'] as const
-const KEYWORD_TARGET_TYPE_OPTIONS = ['Source Card', 'Selected Targets'] as const
-const KEYWORD_OPERATION_OPTIONS = ['Add', 'Remove'] as const
-const EFFECT_CONDITION_KEYWORD_OPTIONS_FALLBACK = [
-  'Activate: Main',
-  'Recovery',
-  "During Your Opponent's Attack",
-  'Support',
-  'Quick',
-  'Rush',
-  'Summon Requirements',
-  'On Summon',
-  'During Your Main',
-  'Your Turn',
-  'Support Activated',
-  'Once Per Turn',
-  'When Attacking',
-  'Not Affected By Opponent Support Effects',
-] as const
-
-const TARGET_RANGE_OPTIONS = ['Self', 'Opponent', 'Any'] as const
-const EXECUTION_TARGET_SOURCE_OPTIONS = ['Selected Targets', 'Source Card', 'None'] as const
-const EXECUTION_FLOW_MODE_OPTIONS = ['Per Step', 'Atomic Chain'] as const
-const REVEAL_TIMING_MODE_OPTIONS = ['Reveal First', 'Reveal Last'] as const
-const RESTRICTIONS_OPTIONS = ['None', 'Once Per Turn'] as const
-const RULE_OPERATOR_OPTIONS = ['Any', 'All'] as const
-const PLAYER_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone', 'Support Zone', 'Character Field', 'Leader'] as const
-const REVEAL_ZONE_OPTIONS = ['Hand', 'Deck', 'Support Zone'] as const
-const TRIBUTE_ROLE_OPTIONS = ['Tribute Material', 'Summon Candidate'] as const
-const TARGET_LOCATION_SELECTOR_KIND_OPTIONS = ['Any', 'Support Slot Index', 'Deck Top'] as const
-const TARGET_TYPE_OPTIONS = ['Selected Targets', 'Leader'] as const
-const ATTRIBUTE_OPERATION_OPTIONS = ['Add', 'Subtract', 'Multiply', 'Set'] as const
-const ATTRIBUTE_TYPE_OPTIONS = [
-  'Card Power',
-  'Card Health',
-  'Card Damage',
-  'Leader Power',
-  'Leader Damage',
-  'Leader Current Life',
-] as const
-const CHAKRA_OPERATION_OPTIONS = ['Pay', 'Recover'] as const
-const FACE_STATE_OPTIONS = ['Face Up', 'Face Down'] as const
-const FACE_STATE_TARGET_CATEGORY_OPTIONS = ['Chakra Card', 'Support Zone Cards'] as const
-const FACE_STATE_LOCK_OPERATION_OPTIONS = ['Cannot Turn Face Up'] as const
-const MOVE_CARD_OPERATION_OPTIONS = ['Move', 'Draw'] as const
-const MOVE_CARD_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone', 'Support Zone', 'Character Field'] as const
-const MOVE_CARD_DESTINATION_RANGE_OPTIONS = ['Self', 'Opponent', 'Any'] as const
-const MOVE_CARD_DECK_PLACEMENT_OPTIONS = ['Top', 'Bottom', 'Index'] as const
-const MOVE_CARD_MULTI_ORDERING_OPTIONS = ['Selected Order', 'Random'] as const
-const MATCH_MODE_OPTIONS = ['Any', 'All'] as const
-const PREDICATE_OPERATOR_OPTIONS = [
-  'Equals',
-  'Not Equals',
-  'Greater Than',
-  'Greater Than Or Equal',
-  'Less Than',
-  'Less Than Or Equal',
-  'Contains',
-  'In',
-] as const
-const PREDICATE_PROPERTY_OPTIONS: ReadonlyArray<ICardCatalogPredicateProperty> = [
-  'Self',
-  'Id',
-  'Original Id',
-  'Display Name',
-  'Name',
-  'Trait',
-  'Type',
-  'Color',
-  'Power',
-  'Damage',
-  'Health',
-  'Current Health',
-  'Owner Player Id',
-  'Controller Player Id',
-  'Is Exhausted',
-  'Is Rested',
-  'Cannot Be Normal Summoned',
-]
-
-const CONDITION_OPTIONS = [
-  'isSecondTurnOrLater',
-  'isFirstTurn',
-  'isYourTurn',
-  'isOpponentTurn',
-  'hasAttackedThisTurn',
-  'hasAvailableChakra',
-  'canNormalSummon',
-  'hasSummonTarget',
-  'hasTributeTargets',
-] as const
-
-function renderEmptySelectionState(message: string) {
-  return (
-    <div className="mt-3 space-y-3">
-      <p className="text-sm text-[var(--text-secondary)]">{message}</p>
-      <div className="rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface)] p-3 text-xs text-[var(--text-secondary)]">
-        Select a card to edit effect fields and generate a full PATCH payload.
-      </div>
-    </div>
-  )
-}
-
-function createDefaultEffect(): ICardCatalogEffectRequest {
-  return {
-    id: 'new-effect',
-    isSubordinate: false,
-    onSuccessEffectId: null,
-    onFailureEffectId: null,
-    runtimeEffectType: 'Change Values',
-    effectType: 'Support',
-    timing: 'Quick',
-    durationMode: 'Instant',
-    passiveMode: 'None',
-    passiveReevaluation: null,
-    passiveConsequences: [],
-    keywordModifications: [],
-    targetRange: 'Self',
-    isOptional: false,
-    chakraCost: null,
-    globalRestrictions: 'None',
-    executionTargetSource: 'Selected Targets',
-    executionFlowMode: 'Per Step',
-    suppressSummonedTargetsEffectsWhileOnField: false,
-    revealTimingMode: 'Reveal Last',
-    revealPostConditionRuleSet: null,
-    revealPostConditionRestriction: null,
-    revealPostConditionPredicate: null,
-    executionCondition: null,
-    attributeModifications: [],
-    chakraAdjustments: [],
-    summonCardFlips: [],
-    faceStateLocks: [],
-    moveCardActions: [],
-    contextRules: [],
-    targetRules: {
-      operator: 'Any',
-      exactTargetCount: null,
-      minimumTargetCount: null,
-      maximumTargetCount: null,
-      autoSelectAllValidTargets: false,
-      tributeComposition: null,
-      rules: [],
-    },
-  }
-}
-
-function createDefaultPassiveReevaluation(): ICardCatalogPassiveReevaluationRequest {
-  return {
-    triggerKinds: ['Any'],
-    scope: 'Source Card Only',
-  }
-}
-
-function createDefaultPassiveConsequence(): ICardCatalogPassiveConsequenceRequest {
-  return {
-    consequenceEffectTypeKey: 'GainKeyword',
-    targetPolicy: 'Source Card',
-  }
-}
-
-function createDefaultKeywordModification(): ICardCatalogKeywordModificationRequest {
-  return {
-    targetType: 'Source Card',
-    operation: 'Add',
-    keyword: '',
-  }
-}
-
-function createDefaultPredicate(): ICardCatalogZoneCardPropertyPredicateRequest {
-  return {
-    property: 'Type',
-    operator: 'Equals',
-    value: '',
-    values: [],
-    ignoreCase: true,
-  }
-}
-
-function createDefaultRestriction(): ICardCatalogZoneCardRestrictionRequest {
-  return {
-    predicates: [],
-    matchMode: 'Any',
-  }
-}
-
-function createDefaultZoneAmountRequirement() {
-  return {
-    amount: 1,
-    comparison: 'Exact',
-    restriction: createDefaultRestriction(),
-  }
-}
-
-function createDefaultZoneRequirementSet() {
-  return {
-    requirements: [createDefaultZoneAmountRequirement()],
-    operator: 'All',
-    distinctCardsAcrossRequirements: false,
-  }
-}
-
-function createDefaultTargetRule(): ICardCatalogEffectTargetRuleRequest {
-  return {
-    scope: 'Self',
-    inZone: 'Character Field',
-    locationSelector: {
-      kind: 'Any',
-      supportSlotIndex: null,
-    },
-    tributeRole: null,
-    exactSelectedTargetCount: null,
-    minimumSelectedTargetCount: null,
-    maximumSelectedTargetCount: null,
-    restriction: createDefaultRestriction(),
-  }
-}
-
-function createDefaultContextRule(): ICardCatalogEffectContextRuleSetRequest {
-  return {
-    player: {
-      inZone: 'Character Field',
-      inZoneRequirements: null,
-    },
-    opponent: null,
-  }
-}
-
-function createDefaultAttributeModification(): ICardCatalogAttributeModificationRequest {
-  return {
-    targetType: 'Selected Targets',
-    targetRange: 'Self',
-    attribute: 'Card Power',
-    operation: 'Add',
-    value: 1,
-    minimumValue: null,
-    maximumValue: null,
-  }
-}
-
-function createDefaultChakraAdjustment(): ICardCatalogChakraAdjustmentRequest {
-  return {
-    targetRange: 'Self',
-    operation: 'Pay',
-    amount: 1,
-  }
-}
-
-function createDefaultSummonCardFlip(): ICardCatalogSummonCardFlipRequest {
-  return {
-    targetCategory: 'Chakra Card',
-    targetRange: 'Self',
-    faceState: 'Face Up',
-  }
-}
-
-function createDefaultMoveCardAction(): ICardCatalogMoveCardActionRequest {
-  return {
-    operation: 'Move',
-    sourceZone: 'Hand',
-    destinationZone: 'Deck',
-    drawCount: null,
-    moveCount: 1,
-    destinationIndex: 0,
-    deckPlacement: 'Top',
-    multiCardOrdering: 'Selected Order',
-    allowCrossPlayer: false,
-    destinationPlayerRange: 'Self',
-  }
-}
-
-function createDefaultFaceStateLock(): ICardCatalogFaceStateLockRequest {
-  return {
-    targetCategory: 'Chakra Card',
-    operation: 'Cannot Turn Face Up',
-    targetRange: 'Self',
-  }
-}
-
-function parseNullableInteger(value: string): number | null {
-  const nextValue = value.trim()
-  if (!nextValue) {
-    return null
-  }
-
-  const parsed = Number.parseInt(nextValue, 10)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function getPredicateEntries(predicate: ICardCatalogZoneCardPropertyPredicateRequest): string[] {
-  const normalizedSingleValue = predicate.value?.trim()
-  const normalizedArrayValues = predicate.values
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0)
-
-  if (normalizedArrayValues.length > 0 && normalizedSingleValue) {
-    return [normalizedSingleValue, ...normalizedArrayValues]
-  }
-
-  if (normalizedArrayValues.length > 0) {
-    return normalizedArrayValues
-  }
-
-  return normalizedSingleValue ? [normalizedSingleValue] : []
-}
-
-function appendPredicateEntries(
-  predicate: ICardCatalogZoneCardPropertyPredicateRequest,
-  rawInput: string,
-): ICardCatalogZoneCardPropertyPredicateRequest {
-  const nextEntries = rawInput
-    .split(',')
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0)
-
-  if (nextEntries.length === 0) {
-    return predicate
-  }
-
-  const mergedEntries = [...getPredicateEntries(predicate), ...nextEntries]
-
-  if (mergedEntries.length === 1) {
-    return {
-      ...predicate,
-      value: mergedEntries[0],
-      values: [],
-    }
-  }
-
-  return {
-    ...predicate,
-    value: null,
-    values: mergedEntries,
-  }
-}
-
-function removePredicateEntryAt(
-  predicate: ICardCatalogZoneCardPropertyPredicateRequest,
-  entryIndex: number,
-): ICardCatalogZoneCardPropertyPredicateRequest {
-  const remainingEntries = getPredicateEntries(predicate).filter((_, index) => index !== entryIndex)
-
-  if (remainingEntries.length === 0) {
-    return {
-      ...predicate,
-      value: null,
-      values: [],
-    }
-  }
-
-  if (remainingEntries.length === 1) {
-    return {
-      ...predicate,
-      value: remainingEntries[0],
-      values: [],
-    }
-  }
-
-  return {
-    ...predicate,
-    value: null,
-    values: remainingEntries,
-  }
-}
-
-function resolveRevealPostConditionRuleSet(
-  effect: ICardCatalogEffectRequest,
-): ICardCatalogZoneCardRestrictionRuleSetRequest | null {
-  if (effect.revealPostConditionRuleSet) {
-    return effect.revealPostConditionRuleSet
-  }
-
-  if (effect.revealPostConditionRestriction) {
-    return {
-      operator: 'All',
-      restrictions: [effect.revealPostConditionRestriction],
-    }
-  }
-
-  if (!effect.revealPostConditionPredicate) {
-    return null
-  }
-
-  return {
-    operator: 'All',
-    restrictions: [
-      {
-        matchMode: 'All',
-        predicates: [effect.revealPostConditionPredicate],
-      },
-    ],
-  }
-}
-
-function resolveCountConstraintMode(
-  exactCount: number | null,
-  minimumCount: number | null,
-  maximumCount: number | null,
-  autoSelectAllValidTargets = false,
-): ICountConstraintMode {
-  if (autoSelectAllValidTargets) {
-    return 'All'
-  }
-
-  if (exactCount !== null) {
-    return 'Exact'
-  }
-
-  if (minimumCount !== null) {
-    return 'Minimum'
-  }
-
-  if (maximumCount !== null) {
-    return 'Maximum'
-  }
-
-  return 'Exact'
-}
-
-function resolveCountConstraintValue(
-  mode: ICountConstraintMode,
-  exactCount: number | null,
-  minimumCount: number | null,
-  maximumCount: number | null,
-): number | null {
-  if (mode === 'All') {
-    return null
-  }
-
-  if (mode === 'Exact') {
-    return exactCount
-  }
-
-  if (mode === 'Minimum') {
-    return minimumCount
-  }
-
-  return maximumCount
-}
-
-function resolveCountConstraintSeedValue(
-  exactCount: number | null,
-  minimumCount: number | null,
-  maximumCount: number | null,
-  autoSelectAllValidTargets = false,
-): number {
-  const currentMode = resolveCountConstraintMode(
-    exactCount,
-    minimumCount,
-    maximumCount,
-    autoSelectAllValidTargets,
-  )
-
-  const currentValue = resolveCountConstraintValue(
-    currentMode,
-    exactCount,
-    minimumCount,
-    maximumCount,
-  )
-
-  return currentValue ?? 1
-}
-
-function resolveAttributeValueConstraintMode(
-  minimumValue: number | null,
-  maximumValue: number | null,
-): ICountConstraintMode {
-  if (minimumValue !== null) {
-    return 'Minimum'
-  }
-
-  if (maximumValue !== null) {
-    return 'Maximum'
-  }
-
-  return 'Exact'
-}
-
-function isSummonOrTributeRuntimeEffect(runtimeEffectType: string): boolean {
-  return runtimeEffectType === 'Tribute' || runtimeEffectType.startsWith('Summon')
-}
-
-function isAttackNegationRuntimeEffect(runtimeEffectType: string): boolean {
-  return runtimeEffectType === 'Interrupt Attack'
-}
-
-function resolveTargetZoneOptions(runtimeEffectType: string): readonly string[] {
-  if (runtimeEffectType === 'Reveal Card') {
-    return REVEAL_ZONE_OPTIONS
-  }
-
-  return PLAYER_ZONE_OPTIONS
-}
-
-function normalizeRevealRuleZone(zone: string): string {
-  return REVEAL_ZONE_OPTIONS.includes(zone as (typeof REVEAL_ZONE_OPTIONS)[number])
-    ? zone
-    : 'Hand'
-}
-
-function normalizeEffectId(value: string | null | undefined): string {
-  return value?.trim() ?? ''
-}
 
 export function CardAdminDetailPane({ selectedCard }: ICardAdminDetailPaneProps) {
   return (

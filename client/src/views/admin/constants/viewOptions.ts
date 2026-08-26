@@ -12,4 +12,7 @@ export const SORT_OPTIONS: readonly ICardAdminSortOption[] = [
   { value: '-updatedAtUtc', label: 'Updated (Newest)' },
 ]
 
-export const ALL_FILTER_OPTION: ICardAdminFilterOption = { value: 'all', label: 'All' }
+export const ALL_FILTER_OPTION: ICardAdminFilterOption = {
+  value: 'all',
+  label: 'All',
+}
