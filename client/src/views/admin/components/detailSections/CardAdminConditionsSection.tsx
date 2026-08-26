@@ -1,7 +1,7 @@
-import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import type { ICardAdminConditionsSectionProps } from '@/views/admin/types/cardAdminDetailSections'
-import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
-import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
+import { CardAdminSelect } from '@/views/admin/components/controls'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 
 export function CardAdminConditionsSection({
   editorModel,

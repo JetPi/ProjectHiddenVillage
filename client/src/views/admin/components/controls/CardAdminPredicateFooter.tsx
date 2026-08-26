@@ -1,5 +1,5 @@
-import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
-import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
+import { CardAdminToggleSwitch } from './CardAdminToggleSwitch'
+import { CardAdminRemoveButton } from './CardAdminRemoveButton'
 import type { ICardAdminPredicateFooterProps } from '@/views/admin/types/cardAdminPredicateControls'
 
 export function CardAdminPredicateFooter({

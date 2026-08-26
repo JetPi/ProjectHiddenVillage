@@ -1,6 +1,6 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
-import { CountConstraintField } from '@/views/admin/components/controls/CountConstraintField'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
+import { CountConstraintField } from '@/views/admin/components/controls'
 import {
   MATCH_MODE_OPTIONS,
   RULE_OPERATOR_OPTIONS,
@@ -23,10 +23,10 @@ import {
   resolveCountConstraintValue,
   resolveTargetZoneOptions,
 } from '@/views/admin/utils'
-import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
-import { CardAdminPredicateControls } from '@/views/admin/components/controls/CardAdminPredicateControls'
-import { CardAdminPredicateFooter } from '@/views/admin/components/controls/CardAdminPredicateFooter'
-import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
+import { CardAdminSelect } from '@/views/admin/components/controls'
+import { CardAdminPredicateControls } from '@/views/admin/components/controls'
+import { CardAdminPredicateFooter } from '@/views/admin/components/controls'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 
 export function CardAdminTargetRulesPanel({
   effect,

@@ -1,7 +1,7 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
-import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
-import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
+import { CardAdminSelect } from '@/views/admin/components/controls'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 import {
   MATCH_MODE_OPTIONS,
   REVEAL_TIMING_MODE_OPTIONS,
@@ -14,8 +14,8 @@ import {
   removePredicateEntryAt,
   resolveRevealPostConditionRuleSet,
 } from '@/views/admin/utils'
-import { CardAdminPredicateControls } from '@/views/admin/components/controls/CardAdminPredicateControls'
-import { CardAdminPredicateFooter } from '@/views/admin/components/controls/CardAdminPredicateFooter'
+import { CardAdminPredicateControls } from '@/views/admin/components/controls'
+import { CardAdminPredicateFooter } from '@/views/admin/components/controls'
 
 export function CardAdminRevealCardPanel({
   effect,

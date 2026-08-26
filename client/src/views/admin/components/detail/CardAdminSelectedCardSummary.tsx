@@ -1,5 +1,5 @@
 import type { ICardAdminSelectedCardSummaryProps } from '@/views/admin/types/cardAdminSelectedCardSummary'
-import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminSelect } from '@/views/admin/components/controls'
 
 const CARD_TYPE_OPTIONS = ['Leader', 'Character', 'EX Character', 'Chakra', 'Summon'] as const
 const CARD_COLOR_OPTIONS = ['Red', 'Blue', 'Green', 'N/A'] as const
