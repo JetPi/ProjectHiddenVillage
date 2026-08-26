@@ -3,6 +3,7 @@ import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
+import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 import {
   EFFECT_DURATION_MODE_OPTIONS,
   EFFECT_KIND_OPTIONS,
@@ -226,14 +227,7 @@ export function CardAdminEffectsSection({
                   aria-label={collapsedEffects.has(effectIndex) ? 'Expand effect' : 'Collapse effect'}
                   title={collapsedEffects.has(effectIndex) ? 'Expand' : 'Collapse'}
                 >
-                  <svg
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    aria-hidden="true"
-                    className={`h-4 w-4 transition-transform duration-200 ${collapsedEffects.has(effectIndex) ? '' : 'rotate-180'}`}
-                  >
-                    <path d="M5 8l5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <CardAdminChevronIcon expanded={!collapsedEffects.has(effectIndex)} className="transition-transform duration-200" />
                 </button>
                 <span
                   className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)]"

@@ -1,3 +1,4 @@
+export { CardAdminChevronIcon } from './CardAdminChevronIcon'
 export { CardAdminPredicateControls } from './CardAdminPredicateControls'
 export { CardAdminPredicateFooter } from './CardAdminPredicateFooter'
 export { CardAdminRemoveButton } from './CardAdminRemoveButton'

@@ -24,6 +24,7 @@ import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminPredicateControls } from '@/views/admin/components/controls'
 import { CardAdminPredicateFooter } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
+import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 
 export function CardAdminContextRulesPanel({
   effect,
@@ -31,9 +32,10 @@ export function CardAdminContextRulesPanel({
   updateEffectAt,
 }: ICardAdminContextRulesPanelProps) {
   return (
-    <details className="rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-cyan-500/55 bg-[var(--surface-muted)] p-3" open>
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-cyan-500/55 bg-[var(--surface-muted)] p-3" open>
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        Context Rules
+        <span>Context Rules</span>
+        <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
       <div className="mt-3 space-y-3">
@@ -106,7 +108,13 @@ function ContextRulePlayerPanel({
   const audienceValue = contextRule[audience]
 
   return (
-    <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/30 bg-[var(--surface)] p-3">
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/30 bg-[var(--surface)] p-3" open>
+      <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        <span>{title} Conditions</span>
+        <CardAdminChevronIcon rotateOnOpen />
+      </summary>
+
+      <div className="mt-2 space-y-2">
       <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
         <CardAdminToggleSwitch
           checked={audienceValue !== null}
@@ -732,6 +740,7 @@ function ContextRulePlayerPanel({
           ) : null}
         </>
       ) : null}
-    </div>
+      </div>
+    </details>
   )
 }

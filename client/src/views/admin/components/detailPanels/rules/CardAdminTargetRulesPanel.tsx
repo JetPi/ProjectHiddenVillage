@@ -58,7 +58,7 @@ export function CardAdminTargetRulesPanel({
       </div>
 
       {effect.runtimeEffectType === 'Tribute' ? (
-        <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+        <label className="flex items-center gap-2 my-2 text-sm text-[var(--text-primary)]">
           <CardAdminToggleSwitch
             checked={effect.targetRules.tributeComposition !== null}
             onChange={(checked) =>
@@ -232,7 +232,7 @@ export function CardAdminTargetRulesPanel({
       </div>
 
       {effect.runtimeEffectType === 'Tribute' && effect.targetRules.tributeComposition ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 my-2 gap-3 sm:grid-cols-2">
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
             <CardAdminToggleSwitch
               checked={effect.targetRules.tributeComposition.requireSingleSummonTarget}
