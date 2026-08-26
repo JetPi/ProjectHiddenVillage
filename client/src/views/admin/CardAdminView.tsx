@@ -9,7 +9,7 @@ import {
   CardAdminFilterPanel,
 } from '@/views/admin/components'
 import { useCardAdminViewModel } from '@/views/admin/model/useCardAdminViewModel'
-import { SORT_OPTIONS } from '@/views/admin/utils/constants'
+import { SORT_OPTIONS } from '@/views/admin/constants'
 import { buildUniqueFilterOptions, normalizeFilterValue } from '@/views/admin/utils/filterNormalization'
 
 export function CardAdminView() {

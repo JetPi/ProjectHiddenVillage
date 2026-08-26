@@ -1,4 +1,4 @@
-import { ALL_FILTER_OPTION } from '@/views/admin/utils/constants'
+import { ALL_FILTER_OPTION } from '@/views/admin/constants'
 import type { ICardAdminFilterOption } from '@/views/admin/types/cardAdminView'
 
 export function normalizeFilterValue(value: string | null | undefined): string {
