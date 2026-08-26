@@ -1,4 +1,5 @@
 import { AppButton } from '@/components/ui'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 import {
   KEYWORD_OPERATION_OPTIONS,
   KEYWORD_TARGET_TYPE_OPTIONS,
@@ -35,7 +36,7 @@ export function CardAdminGainEffectPanel({
         {(effect.keywordModifications ?? []).map((modification, keywordIndex) => (
           <div key={`keyword-mod-${keywordIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
-              <select
+              <CardAdminSelect
                 value={modification.targetType}
                 onChange={(event) =>
                   updateEffectAt(effectIndex, (current) => ({
@@ -48,9 +49,9 @@ export function CardAdminGainEffectPanel({
                 {KEYWORD_TARGET_TYPE_OPTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
-              </select>
+              </CardAdminSelect>
 
-              <select
+              <CardAdminSelect
                 value={modification.operation}
                 onChange={(event) =>
                   updateEffectAt(effectIndex, (current) => ({
@@ -63,9 +64,9 @@ export function CardAdminGainEffectPanel({
                 {KEYWORD_OPERATION_OPTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
-              </select>
+              </CardAdminSelect>
 
-              <select
+              <CardAdminSelect
                 value={modification.keyword}
                 onChange={(event) =>
                   updateEffectAt(effectIndex, (current) => ({
@@ -73,7 +74,6 @@ export function CardAdminGainEffectPanel({
                     keywordModifications: (current.keywordModifications ?? []).map((row, index) =>
                       index === keywordIndex ? { ...row, keyword: event.target.value } : row),
                   }))}
-                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
               >
                 <option value="">Select keyword</option>
                 {(effectConditionKeywordOptions.includes(modification.keyword) || !modification.keyword.trim()
@@ -81,7 +81,7 @@ export function CardAdminGainEffectPanel({
                   : [modification.keyword, ...effectConditionKeywordOptions]).map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
-              </select>
+              </CardAdminSelect>
             </div>
 
             <div className="flex justify-end">

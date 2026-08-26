@@ -23,6 +23,7 @@ import {
   getPredicateEntries,
   removePredicateEntryAt,
 } from '@/views/admin/utils'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 
 export function CardAdminContextRulesPanel({
   effect,
@@ -125,7 +126,7 @@ function ContextRulePlayerPanel({
         <>
           <div className="space-y-1">
             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{title} In Zone</label>
-            <select
+            <CardAdminSelect
               value={audienceValue.inZone ?? ''}
               onChange={(event) =>
                 updateEffectAt(effectIndex, (current) => ({
@@ -146,13 +147,12 @@ function ContextRulePlayerPanel({
                     }
                   }),
                 }))}
-              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
             >
               <option value="">None</option>
               {PLAYER_ZONE_OPTIONS.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
-            </select>
+            </CardAdminSelect>
           </div>
 
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
@@ -190,7 +190,7 @@ function ContextRulePlayerPanel({
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Requirement Operator</label>
-                  <select
+                  <CardAdminSelect
                     value={audienceValue.inZoneRequirements.operator}
                     onChange={(event) =>
                       updateEffectAt(effectIndex, (current) => ({
@@ -222,7 +222,7 @@ function ContextRulePlayerPanel({
                     {RULE_OPERATOR_OPTIONS.map((option) => (
                       <option key={option} value={option}>{option}</option>
                     ))}
-                  </select>
+                  </CardAdminSelect>
                 </div>
 
                 <label className="inline-flex h-10 self-end items-center justify-between gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-primary)]">
@@ -361,7 +361,7 @@ function ContextRulePlayerPanel({
                           }))}
                       />
 
-                      <select
+                      <CardAdminSelect
                         value={requirement.restriction.matchMode}
                         onChange={(event) =>
                           updateEffectAt(effectIndex, (current) => ({
@@ -402,7 +402,7 @@ function ContextRulePlayerPanel({
                         {MATCH_MODE_OPTIONS.map((option) => (
                           <option key={option} value={option}>{option}</option>
                         ))}
-                      </select>
+                      </CardAdminSelect>
 
                       <button
                         type="button"
@@ -489,7 +489,7 @@ function ContextRulePlayerPanel({
                         return (
                           <div key={`${requirementPredicateKey}-predicate-${predicateIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/15 bg-[var(--surface)] p-2">
                             <div className="flex flex-wrap items-start gap-2">
-                              <select
+                              <CardAdminSelect
                                 value={predicate.property}
                                 onChange={(event) =>
                                   updateEffectAt(effectIndex, (current) => ({
@@ -533,9 +533,9 @@ function ContextRulePlayerPanel({
                                 {PREDICATE_PROPERTY_OPTIONS.map((option) => (
                                   <option key={option} value={option}>{option}</option>
                                 ))}
-                              </select>
+                              </CardAdminSelect>
 
-                              <select
+                              <CardAdminSelect
                                 value={predicate.operator}
                                 onChange={(event) =>
                                   updateEffectAt(effectIndex, (current) => ({
@@ -579,7 +579,7 @@ function ContextRulePlayerPanel({
                                 {PREDICATE_OPERATOR_OPTIONS.map((option) => (
                                   <option key={option} value={option}>{option}</option>
                                 ))}
-                              </select>
+                              </CardAdminSelect>
 
                               <div className="min-w-[14rem] flex-1">
                                 <input

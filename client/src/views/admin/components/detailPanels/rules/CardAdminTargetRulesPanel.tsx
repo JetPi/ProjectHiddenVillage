@@ -26,6 +26,7 @@ import {
   resolveCountConstraintValue,
   resolveTargetZoneOptions,
 } from '@/views/admin/utils'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 
 export function CardAdminTargetRulesPanel({
   effect,
@@ -39,19 +40,18 @@ export function CardAdminTargetRulesPanel({
       <div className="grid grid-cols-1 gap-3">
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Rule Operator</label>
-          <select
+          <CardAdminSelect
             value={effect.targetRules.operator}
             onChange={(event) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 targetRules: { ...current.targetRules, operator: event.target.value },
               }))}
-            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
             {RULE_OPERATOR_OPTIONS.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </CardAdminSelect>
         </div>
       </div>
 
@@ -394,7 +394,7 @@ export function CardAdminTargetRulesPanel({
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="space-y-1">
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Scope</label>
-                      <select
+                      <CardAdminSelect
                         value={targetRule.scope}
                         onChange={(event) =>
                           updateEffectAt(effectIndex, (current) => ({
@@ -405,17 +405,16 @@ export function CardAdminTargetRulesPanel({
                                 index === targetRuleIndex ? { ...rule, scope: event.target.value } : rule),
                             },
                           }))}
-                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                       >
                         {TARGET_RANGE_OPTIONS.map((option) => (
                           <option key={option} value={option}>{option}</option>
                         ))}
-                      </select>
+                      </CardAdminSelect>
                     </div>
 
                     <div className="space-y-1">
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Zone</label>
-                      <select
+                      <CardAdminSelect
                         value={targetRule.inZone}
                         onChange={(event) =>
                           updateEffectAt(effectIndex, (current) => ({
@@ -435,17 +434,16 @@ export function CardAdminTargetRulesPanel({
                                   : rule),
                             },
                           }))}
-                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                       >
                         {zoneOptions.map((option) => (
                           <option key={option} value={option}>{option}</option>
                         ))}
-                      </select>
+                      </CardAdminSelect>
                     </div>
 
                     <div className="space-y-1">
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Location Selector</label>
-                      <select
+                      <CardAdminSelect
                         value={targetRule.locationSelector?.kind ?? 'Any'}
                         onChange={(event) =>
                           updateEffectAt(effectIndex, (current) => ({
@@ -466,18 +464,17 @@ export function CardAdminTargetRulesPanel({
                                   : rule),
                             },
                           }))}
-                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                       >
                         {TARGET_LOCATION_SELECTOR_KIND_OPTIONS.map((option) => (
                           <option key={option} value={option}>{option}</option>
                         ))}
-                      </select>
+                      </CardAdminSelect>
                     </div>
 
                     {showsTributeRole ? (
                       <div className="space-y-1">
                         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Tribute Role</label>
-                        <select
+                        <CardAdminSelect
                           value={targetRule.tributeRole ?? ''}
                           onChange={(event) =>
                             updateEffectAt(effectIndex, (current) => ({
@@ -490,13 +487,12 @@ export function CardAdminTargetRulesPanel({
                                     : rule),
                               },
                             }))}
-                          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                         >
                           <option value="">None</option>
                           {TRIBUTE_ROLE_OPTIONS.map((option) => (
                             <option key={option} value={option}>{option}</option>
                           ))}
-                        </select>
+                        </CardAdminSelect>
                       </div>
                     ) : shouldShowSelectedCountField ? selectedCountField : null}
                   </div>
@@ -535,7 +531,7 @@ export function CardAdminTargetRulesPanel({
 
                 <div className="space-y-1 sm:col-span-2">
                   <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Restriction Match Mode</label>
-                  <select
+                  <CardAdminSelect
                     value={targetRule.restriction.matchMode}
                     onChange={(event) =>
                       updateEffectAt(effectIndex, (current) => ({
@@ -554,12 +550,11 @@ export function CardAdminTargetRulesPanel({
                               : rule),
                         },
                       }))}
-                    className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                   >
                     {MATCH_MODE_OPTIONS.map((option) => (
                       <option key={option} value={option}>{option}</option>
                     ))}
-                  </select>
+                  </CardAdminSelect>
                 </div>
               </div>
 
@@ -597,7 +592,7 @@ export function CardAdminTargetRulesPanel({
                   return (
                     <div key={`predicate-${predicateIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/20 bg-[var(--surface)] p-2">
                       <div className="flex flex-wrap items-start gap-2">
-                        <select
+                        <CardAdminSelect
                           value={predicate.property}
                           onChange={(event) =>
                             updateEffectAt(effectIndex, (current) => ({
@@ -624,9 +619,9 @@ export function CardAdminTargetRulesPanel({
                           {PREDICATE_PROPERTY_OPTIONS.map((option) => (
                             <option key={option} value={option}>{option}</option>
                           ))}
-                        </select>
+                        </CardAdminSelect>
 
-                        <select
+                        <CardAdminSelect
                           value={predicate.operator}
                           onChange={(event) =>
                             updateEffectAt(effectIndex, (current) => ({
@@ -653,7 +648,7 @@ export function CardAdminTargetRulesPanel({
                           {PREDICATE_OPERATOR_OPTIONS.map((option) => (
                             <option key={option} value={option}>{option}</option>
                           ))}
-                        </select>
+                        </CardAdminSelect>
 
                         <div className="min-w-[14rem] flex-1">
                           <input

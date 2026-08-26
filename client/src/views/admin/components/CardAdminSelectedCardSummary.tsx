@@ -1,4 +1,5 @@
 import type { ICardAdminSelectedCardSummaryProps } from '@/views/admin/types/cardAdminSelectedCardSummary'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 
 const CARD_TYPE_OPTIONS = ['Leader', 'Character', 'EX Character', 'Chakra', 'Summon'] as const
 const CARD_COLOR_OPTIONS = ['Red', 'Blue', 'Green', 'N/A'] as const
@@ -72,7 +73,7 @@ export function CardAdminSelectedCardSummary({
 
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Type</p>
-          <select
+          <CardAdminSelect
             value={draft.type}
             onChange={(event) => onTypeChange(event.target.value)}
             className="mt-1 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
@@ -80,12 +81,12 @@ export function CardAdminSelectedCardSummary({
             {CARD_TYPE_OPTIONS.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </CardAdminSelect>
         </div>
 
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Color</p>
-          <select
+          <CardAdminSelect
             value={draft.color}
             onChange={(event) => onColorChange(event.target.value)}
             className="mt-1 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
@@ -93,7 +94,7 @@ export function CardAdminSelectedCardSummary({
             {CARD_COLOR_OPTIONS.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </CardAdminSelect>
         </div>
 
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2">

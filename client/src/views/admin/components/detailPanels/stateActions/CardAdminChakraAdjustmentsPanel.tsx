@@ -1,4 +1,5 @@
 import { AppButton } from '@/components/ui'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 import {
   CHAKRA_OPERATION_OPTIONS,
   TARGET_RANGE_OPTIONS,
@@ -31,7 +32,7 @@ export function CardAdminChakraAdjustmentsPanel({
 
       {effect.chakraAdjustments.map((chakraAdjustment, chakraIndex) => (
         <div key={`chakra-adjustment-${chakraIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-lime-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
-          <select
+          <CardAdminSelect
             value={chakraAdjustment.targetRange}
             onChange={(event) =>
               updateEffectAt(effectIndex, (current) => ({
@@ -44,9 +45,9 @@ export function CardAdminChakraAdjustmentsPanel({
             {TARGET_RANGE_OPTIONS.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </CardAdminSelect>
 
-          <select
+          <CardAdminSelect
             value={chakraAdjustment.operation}
             onChange={(event) =>
               updateEffectAt(effectIndex, (current) => ({
@@ -59,7 +60,7 @@ export function CardAdminChakraAdjustmentsPanel({
             {CHAKRA_OPERATION_OPTIONS.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </CardAdminSelect>
 
           <input
             type="number"

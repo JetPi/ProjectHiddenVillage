@@ -1,5 +1,6 @@
 import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 import {
   EFFECT_DURATION_MODE_OPTIONS,
   EFFECT_KIND_OPTIONS,
@@ -166,7 +167,7 @@ export function CardAdminEffectsSection({
 
                   <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Runtime Effect Type</label>
-                    <select
+                    <CardAdminSelect
                       value={effect.runtimeEffectType}
                       onChange={(event) =>
                         updateEffectAt(effectIndex, (current) => {
@@ -263,12 +264,12 @@ export function CardAdminEffectsSection({
                       {RUNTIME_EFFECT_OPTIONS.map((option) => (
                         <option key={option} value={option}>{option}</option>
                       ))}
-                    </select>
+                    </CardAdminSelect>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Effect Type</label>
-                    <select
+                    <CardAdminSelect
                       value={effect.effectType}
                       onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, effectType: event.target.value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
@@ -276,12 +277,12 @@ export function CardAdminEffectsSection({
                       {EFFECT_KIND_OPTIONS.map((option) => (
                         <option key={option} value={option}>{option}</option>
                       ))}
-                    </select>
+                    </CardAdminSelect>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Timing</label>
-                    <select
+                    <CardAdminSelect
                       value={effect.timing}
                       onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, timing: event.target.value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
@@ -289,12 +290,12 @@ export function CardAdminEffectsSection({
                       {EFFECT_TIMING_OPTIONS.map((option) => (
                         <option key={option} value={option}>{option}</option>
                       ))}
-                    </select>
+                    </CardAdminSelect>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Duration</label>
-                    <select
+                    <CardAdminSelect
                       value={effect.durationMode}
                       onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, durationMode: event.target.value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
@@ -302,12 +303,12 @@ export function CardAdminEffectsSection({
                       {EFFECT_DURATION_MODE_OPTIONS.map((option) => (
                         <option key={option} value={option}>{option}</option>
                       ))}
-                    </select>
+                    </CardAdminSelect>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Mode</label>
-                    <select
+                    <CardAdminSelect
                       value={effect.passiveMode}
                       onChange={(event) =>
                         updateEffectAt(effectIndex, (current) => {
@@ -330,12 +331,12 @@ export function CardAdminEffectsSection({
                       {PASSIVE_MODE_OPTIONS.map((option) => (
                         <option key={option} value={option}>{option}</option>
                       ))}
-                    </select>
+                    </CardAdminSelect>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Range</label>
-                    <select
+                    <CardAdminSelect
                       value={effect.targetRange}
                       onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, targetRange: event.target.value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
@@ -343,7 +344,7 @@ export function CardAdminEffectsSection({
                       {TARGET_RANGE_OPTIONS.map((option) => (
                         <option key={option} value={option}>{option}</option>
                       ))}
-                    </select>
+                    </CardAdminSelect>
                   </div>
 
                   <div className="space-y-1">
@@ -383,7 +384,7 @@ export function CardAdminEffectsSection({
 
                   <div className="space-y-1 md:col-span-3">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Global Restrictions</label>
-                    <select
+                    <CardAdminSelect
                       value={effect.globalRestrictions}
                       onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, globalRestrictions: event.target.value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
@@ -391,7 +392,7 @@ export function CardAdminEffectsSection({
                       {RESTRICTIONS_OPTIONS.map((option) => (
                         <option key={option} value={option}>{option}</option>
                       ))}
-                    </select>
+                    </CardAdminSelect>
                   </div>
                 </div>
 

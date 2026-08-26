@@ -1,4 +1,5 @@
 import type { ICountConstraintFieldProps, ICountConstraintMode } from '@/views/admin/types/countConstraintField'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 
 function parseNullableInteger(value: string): number | null {
   const nextValue = value.trim()
@@ -35,7 +36,7 @@ export function CountConstraintField({
     : `count-constraint-number block w-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] ${trailingContent ? 'sm:col-span-2' : ''}`
 
   const selectControl = (
-    <select
+    <CardAdminSelect
       value={mode}
       onChange={(event) => onModeChange(event.target.value as ICountConstraintMode)}
       className={selectClassName ? `block ${selectClassName}` : 'block w-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]'}
@@ -44,7 +45,7 @@ export function CountConstraintField({
       <option value="Minimum">Minimum</option>
       <option value="Maximum">Maximum</option>
       <option value="All">All</option>
-    </select>
+    </CardAdminSelect>
   )
 
   const valueControl = mode === 'All'

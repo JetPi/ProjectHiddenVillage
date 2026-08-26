@@ -1,5 +1,6 @@
 import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 import {
   MOVE_CARD_DECK_PLACEMENT_OPTIONS,
   MOVE_CARD_DESTINATION_RANGE_OPTIONS,
@@ -43,7 +44,7 @@ export function CardAdminMoveCardActionsPanel({
 
         return (
           <div key={`move-card-action-${moveCardActionIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
-            <select
+            <CardAdminSelect
               value={moveCardAction.operation}
               onChange={(event) =>
                 updateEffectAt(effectIndex, (current) => ({
@@ -89,10 +90,10 @@ export function CardAdminMoveCardActionsPanel({
               {MOVE_CARD_OPERATION_OPTIONS.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
-            </select>
+            </CardAdminSelect>
 
             {!isDrawAction ? (
-              <select
+              <CardAdminSelect
                 value={moveCardAction.sourceZone ?? 'Hand'}
                 onChange={(event) =>
                   updateEffectAt(effectIndex, (current) => ({
@@ -105,7 +106,7 @@ export function CardAdminMoveCardActionsPanel({
                 {MOVE_CARD_ZONE_OPTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
-              </select>
+              </CardAdminSelect>
             ) : (
               <input
                 type="number"
@@ -125,7 +126,7 @@ export function CardAdminMoveCardActionsPanel({
             )}
 
             {!isDrawAction ? (
-              <select
+              <CardAdminSelect
                 value={moveCardAction.destinationZone ?? 'Deck'}
                 onChange={(event) =>
                   updateEffectAt(effectIndex, (current) => ({
@@ -149,9 +150,9 @@ export function CardAdminMoveCardActionsPanel({
                 {MOVE_CARD_ZONE_OPTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
-              </select>
+              </CardAdminSelect>
             ) : (
-              <select
+              <CardAdminSelect
                 value={moveCardAction.destinationPlayerRange}
                 onChange={(event) =>
                   updateEffectAt(effectIndex, (current) => ({
@@ -166,7 +167,7 @@ export function CardAdminMoveCardActionsPanel({
                 {MOVE_CARD_DESTINATION_RANGE_OPTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
-              </select>
+              </CardAdminSelect>
             )}
 
             <AppButton
@@ -184,7 +185,7 @@ export function CardAdminMoveCardActionsPanel({
             {!isDrawAction ? (
               <>
                 {isDeckDestination ? (
-                  <select
+                  <CardAdminSelect
                     value={moveCardAction.deckPlacement ?? 'Top'}
                     onChange={(event) =>
                       updateEffectAt(effectIndex, (current) => ({
@@ -210,11 +211,11 @@ export function CardAdminMoveCardActionsPanel({
                     {MOVE_CARD_DECK_PLACEMENT_OPTIONS.map((option) => (
                       <option key={option} value={option}>{option}</option>
                     ))}
-                  </select>
+                  </CardAdminSelect>
                 ) : null}
 
                 {isDeckDestination ? (
-                  <select
+                  <CardAdminSelect
                     value={moveCardAction.multiCardOrdering ?? 'Selected Order'}
                     onChange={(event) =>
                       updateEffectAt(effectIndex, (current) => ({
@@ -229,7 +230,7 @@ export function CardAdminMoveCardActionsPanel({
                     {MOVE_CARD_MULTI_ORDERING_OPTIONS.map((option) => (
                       <option key={option} value={option}>{option}</option>
                     ))}
-                  </select>
+                  </CardAdminSelect>
                 ) : null}
 
                 {isDeckDestination && isIndexPlacement ? (
@@ -266,7 +267,7 @@ export function CardAdminMoveCardActionsPanel({
                   placeholder="Move count"
                 />
 
-                <select
+                <CardAdminSelect
                   value={moveCardAction.destinationPlayerRange}
                   onChange={(event) =>
                     updateEffectAt(effectIndex, (current) => ({
@@ -281,7 +282,7 @@ export function CardAdminMoveCardActionsPanel({
                   {MOVE_CARD_DESTINATION_RANGE_OPTIONS.map((option) => (
                     <option key={option} value={option}>{option}</option>
                   ))}
-                </select>
+                </CardAdminSelect>
 
                 <label className="inline-flex items-center gap-2 text-sm text-[var(--text-primary)] sm:col-span-4">
                   <CardAdminToggleSwitch

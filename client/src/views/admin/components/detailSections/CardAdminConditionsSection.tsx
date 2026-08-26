@@ -1,5 +1,6 @@
 import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
 import type { ICardAdminConditionsSectionProps } from '@/views/admin/types/cardAdminDetailSections'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 
 export function CardAdminConditionsSection({
   editorModel,
@@ -14,7 +15,7 @@ export function CardAdminConditionsSection({
       </label>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-        <select
+        <CardAdminSelect
           value={conditionToAdd}
           onChange={(event) => {
             const nextCondition = event.target.value
@@ -33,7 +34,7 @@ export function CardAdminConditionsSection({
           {availableConditionOptions.map((conditionOption) => (
             <option key={conditionOption} value={conditionOption}>{conditionOption}</option>
           ))}
-        </select>
+        </CardAdminSelect>
 
         <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
           <span>No Normal Summon</span>

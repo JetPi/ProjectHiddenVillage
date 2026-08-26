@@ -1,4 +1,5 @@
 import { AppButton } from '@/components/ui'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 import {
   FACE_STATE_OPTIONS,
   FACE_STATE_TARGET_CATEGORY_OPTIONS,
@@ -32,7 +33,7 @@ export function CardAdminFaceStateFlipsPanel({
 
       {effect.summonCardFlips.map((summonCardFlip, summonFlipIndex) => (
         <div key={`summon-flip-${summonFlipIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-indigo-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
-          <select
+          <CardAdminSelect
             value={summonCardFlip.targetCategory}
             onChange={(event) =>
               updateEffectAt(effectIndex, (current) => ({
@@ -45,9 +46,9 @@ export function CardAdminFaceStateFlipsPanel({
             {FACE_STATE_TARGET_CATEGORY_OPTIONS.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </CardAdminSelect>
 
-          <select
+          <CardAdminSelect
             value={summonCardFlip.targetRange}
             onChange={(event) =>
               updateEffectAt(effectIndex, (current) => ({
@@ -60,9 +61,9 @@ export function CardAdminFaceStateFlipsPanel({
             {TARGET_RANGE_OPTIONS.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </CardAdminSelect>
 
-          <select
+          <CardAdminSelect
             value={summonCardFlip.faceState}
             onChange={(event) =>
               updateEffectAt(effectIndex, (current) => ({
@@ -75,7 +76,7 @@ export function CardAdminFaceStateFlipsPanel({
             {FACE_STATE_OPTIONS.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </CardAdminSelect>
 
           <AppButton
             type="button"
