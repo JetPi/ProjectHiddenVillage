@@ -1,4 +1,5 @@
 import { AppButton } from '@/components/ui'
+import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
 import {
   MOVE_CARD_DECK_PLACEMENT_OPTIONS,
   MOVE_CARD_DESTINATION_RANGE_OPTIONS,
@@ -283,17 +284,17 @@ export function CardAdminMoveCardActionsPanel({
                 </select>
 
                 <label className="inline-flex items-center gap-2 text-sm text-[var(--text-primary)] sm:col-span-4">
-                  <input
-                    type="checkbox"
+                  <CardAdminToggleSwitch
                     checked={moveCardAction.allowCrossPlayer}
-                    onChange={(event) =>
+                    onChange={(checked) =>
                       updateEffectAt(effectIndex, (current) => ({
                         ...current,
                         moveCardActions: current.moveCardActions.map((row, index) =>
                           index === moveCardActionIndex
-                            ? { ...row, allowCrossPlayer: event.target.checked }
+                            ? { ...row, allowCrossPlayer: checked }
                             : row),
                       }))}
+                    ariaLabel="Allow Cross Player Transfer"
                   />
                   Allow Cross Player Transfer
                 </label>

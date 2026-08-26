@@ -1,4 +1,5 @@
 import { AppButton } from '@/components/ui'
+import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
 import {
   PASSIVE_CONSEQUENCE_EFFECT_OPTIONS,
   PASSIVE_SCOPE_OPTIONS,
@@ -21,16 +22,16 @@ export function CardAdminPassiveSettingsPanel({
       <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Settings</p>
 
       <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-        <input
-          type="checkbox"
+        <CardAdminToggleSwitch
           checked={effect.passiveReevaluation !== null}
-          onChange={(event) =>
+          onChange={(checked) =>
             updateEffectAt(effectIndex, (current) => ({
               ...current,
-              passiveReevaluation: event.target.checked
+              passiveReevaluation: checked
                 ? current.passiveReevaluation ?? createDefaultPassiveReevaluation()
                 : null,
             }))}
+          ariaLabel="Passive Reevaluation Enabled"
         />
         Passive Reevaluation Enabled
       </label>

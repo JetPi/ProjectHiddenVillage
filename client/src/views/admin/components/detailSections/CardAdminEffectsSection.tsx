@@ -1,4 +1,5 @@
 import { AppButton } from '@/components/ui'
+import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
 import {
   EFFECT_DURATION_MODE_OPTIONS,
   EFFECT_KIND_OPTIONS,
@@ -155,16 +156,11 @@ export function CardAdminEffectsSection({
                   <div className="flex items-end">
                     <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
                       <span>is Subordinate</span>
-                      <span className="relative inline-flex h-5 w-9 items-center">
-                        <input
-                          type="checkbox"
-                          checked={effect.isSubordinate}
-                          onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, isSubordinate: event.target.checked }))}
-                          className="peer sr-only"
-                        />
-                        <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-amber-500/70" />
-                        <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
-                      </span>
+                      <CardAdminToggleSwitch
+                        checked={effect.isSubordinate}
+                        onChange={(checked) => updateEffectAt(effectIndex, (current) => ({ ...current, isSubordinate: checked }))}
+                        ariaLabel="Is Subordinate"
+                      />
                     </label>
                   </div>
 
@@ -353,22 +349,15 @@ export function CardAdminEffectsSection({
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Chakra Cost</label>
-                      <label className="inline-flex items-center">
-                        <span className="relative inline-flex h-5 w-9 items-center">
-                          <input
-                            type="checkbox"
-                            checked={effect.chakraCost !== null}
-                            onChange={(event) =>
-                              updateEffectAt(effectIndex, (current) => ({
-                                ...current,
-                                chakraCost: event.target.checked ? current.chakraCost ?? 0 : null,
-                              }))}
-                            className="peer sr-only"
-                          />
-                          <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-amber-500/70" />
-                          <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
-                        </span>
-                      </label>
+                      <CardAdminToggleSwitch
+                        checked={effect.chakraCost !== null}
+                        onChange={(checked) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            chakraCost: checked ? current.chakraCost ?? 0 : null,
+                          }))}
+                        ariaLabel="Chakra Cost Enabled"
+                      />
                     </div>
 
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
@@ -383,16 +372,11 @@ export function CardAdminEffectsSection({
 
                       <label className="inline-flex items-center justify-self-end gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
                         <span>Optional</span>
-                        <span className="relative inline-flex h-5 w-9 items-center">
-                          <input
-                            type="checkbox"
-                            checked={effect.isOptional}
-                            onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, isOptional: event.target.checked }))}
-                            className="peer sr-only"
-                          />
-                          <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-amber-500/70" />
-                          <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
-                        </span>
+                        <CardAdminToggleSwitch
+                          checked={effect.isOptional}
+                          onChange={(checked) => updateEffectAt(effectIndex, (current) => ({ ...current, isOptional: checked }))}
+                          ariaLabel="Optional"
+                        />
                       </label>
                     </div>
                   </div>

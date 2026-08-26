@@ -1,4 +1,5 @@
 import { AppButton } from '@/components/ui'
+import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
 import { CountConstraintField } from '@/views/admin/components/CountConstraintField'
 import {
   MATCH_MODE_OPTIONS,
@@ -102,20 +103,20 @@ function ContextRulePlayerPanel({
   return (
     <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/30 bg-[var(--surface)] p-3">
       <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-        <input
-          type="checkbox"
+        <CardAdminToggleSwitch
           checked={audienceValue !== null}
-          onChange={(event) =>
+          onChange={(checked) =>
             updateEffectAt(effectIndex, (current) => ({
               ...current,
               contextRules: current.contextRules.map((row, index) =>
                 index === contextRuleIndex
                   ? {
                       ...row,
-                      [audience]: event.target.checked ? { inZone: null, inZoneRequirements: null } : null,
+                      [audience]: checked ? { inZone: null, inZoneRequirements: null } : null,
                     }
                   : row),
             }))}
+          ariaLabel={`${title} Condition Enabled`}
         />
         {title} Condition Enabled
       </label>
@@ -155,10 +156,9 @@ function ContextRulePlayerPanel({
           </div>
 
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-            <input
-              type="checkbox"
+            <CardAdminToggleSwitch
               checked={audienceValue.inZoneRequirements !== null}
-              onChange={(event) =>
+              onChange={(checked) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   contextRules: current.contextRules.map((row, index) => {
@@ -175,11 +175,12 @@ function ContextRulePlayerPanel({
                       ...row,
                       [audience]: {
                         ...nextAudienceValue,
-                        inZoneRequirements: event.target.checked ? createDefaultZoneRequirementSet() : null,
+                        inZoneRequirements: checked ? createDefaultZoneRequirementSet() : null,
                       },
                     }
                   }),
                 }))}
+              ariaLabel={`${title} In-Zone Requirements Enabled`}
             />
             {title} In-Zone Requirements Enabled
           </label>
@@ -226,40 +227,35 @@ function ContextRulePlayerPanel({
 
                 <label className="inline-flex h-10 self-end items-center justify-between gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-primary)]">
                   <span>Distinct Cards Across Requirements</span>
-                  <span className="relative inline-flex h-5 w-9 items-center">
-                    <input
-                      type="checkbox"
-                      checked={audienceValue.inZoneRequirements.distinctCardsAcrossRequirements}
-                      onChange={(event) =>
-                        updateEffectAt(effectIndex, (current) => ({
-                          ...current,
-                          contextRules: current.contextRules.map((row, index) => {
-                            if (index !== contextRuleIndex) {
-                              return row
-                            }
+                  <CardAdminToggleSwitch
+                    checked={audienceValue.inZoneRequirements.distinctCardsAcrossRequirements}
+                    onChange={(checked) =>
+                      updateEffectAt(effectIndex, (current) => ({
+                        ...current,
+                        contextRules: current.contextRules.map((row, index) => {
+                          if (index !== contextRuleIndex) {
+                            return row
+                          }
 
-                            const nextAudienceValue = row[audience]
-                            if (!nextAudienceValue?.inZoneRequirements) {
-                              return row
-                            }
+                          const nextAudienceValue = row[audience]
+                          if (!nextAudienceValue?.inZoneRequirements) {
+                            return row
+                          }
 
-                            return {
-                              ...row,
-                              [audience]: {
-                                ...nextAudienceValue,
-                                inZoneRequirements: {
-                                  ...nextAudienceValue.inZoneRequirements,
-                                  distinctCardsAcrossRequirements: event.target.checked,
-                                },
+                          return {
+                            ...row,
+                            [audience]: {
+                              ...nextAudienceValue,
+                              inZoneRequirements: {
+                                ...nextAudienceValue.inZoneRequirements,
+                                distinctCardsAcrossRequirements: checked,
                               },
-                            }
-                          }),
-                        }))}
-                      className="peer sr-only"
-                    />
-                    <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-cyan-500/70" />
-                    <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
-                  </span>
+                            },
+                          }
+                        }),
+                      }))}
+                    ariaLabel="Distinct Cards Across Requirements"
+                  />
                 </label>
               </div>
 
@@ -706,52 +702,47 @@ function ContextRulePlayerPanel({
                             <div className="flex flex-wrap items-start justify-between gap-2">
                               <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
                                 <span>Ignore Case</span>
-                                <span className="relative inline-flex h-5 w-9 items-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={predicate.ignoreCase}
-                                    onChange={(event) =>
-                                      updateEffectAt(effectIndex, (current) => ({
-                                        ...current,
-                                        contextRules: current.contextRules.map((row, index) => {
-                                          if (index !== contextRuleIndex) {
-                                            return row
-                                          }
+                                <CardAdminToggleSwitch
+                                  checked={predicate.ignoreCase}
+                                  onChange={(checked) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      contextRules: current.contextRules.map((row, index) => {
+                                        if (index !== contextRuleIndex) {
+                                          return row
+                                        }
 
-                                          const nextAudienceValue = row[audience]
-                                          if (!nextAudienceValue?.inZoneRequirements) {
-                                            return row
-                                          }
+                                        const nextAudienceValue = row[audience]
+                                        if (!nextAudienceValue?.inZoneRequirements) {
+                                          return row
+                                        }
 
-                                          return {
-                                            ...row,
-                                            [audience]: {
-                                              ...nextAudienceValue,
-                                              inZoneRequirements: {
-                                                ...nextAudienceValue.inZoneRequirements,
-                                                requirements: nextAudienceValue.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                                  entryIndex === requirementIndex
-                                                    ? {
-                                                        ...entry,
-                                                        restriction: {
-                                                          ...entry.restriction,
-                                                          predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
-                                                            rowPredicateIndex === predicateIndex
-                                                              ? { ...rowPredicate, ignoreCase: event.target.checked }
-                                                              : rowPredicate),
-                                                        },
-                                                      }
-                                                    : entry),
-                                              },
+                                        return {
+                                          ...row,
+                                          [audience]: {
+                                            ...nextAudienceValue,
+                                            inZoneRequirements: {
+                                              ...nextAudienceValue.inZoneRequirements,
+                                              requirements: nextAudienceValue.inZoneRequirements.requirements.map((entry, entryIndex) =>
+                                                entryIndex === requirementIndex
+                                                  ? {
+                                                      ...entry,
+                                                      restriction: {
+                                                        ...entry.restriction,
+                                                        predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
+                                                          rowPredicateIndex === predicateIndex
+                                                            ? { ...rowPredicate, ignoreCase: checked }
+                                                            : rowPredicate),
+                                                      },
+                                                    }
+                                                  : entry),
                                             },
-                                          }
-                                        }),
-                                      }))}
-                                    className="peer sr-only"
-                                  />
-                                  <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-cyan-500/70" />
-                                  <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
-                                </span>
+                                          },
+                                        }
+                                      }),
+                                    }))}
+                                  ariaLabel="Ignore Case"
+                                />
                               </label>
                               <button
                                 type="button"

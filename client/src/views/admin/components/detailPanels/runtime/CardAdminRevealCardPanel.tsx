@@ -1,4 +1,5 @@
 import { AppButton } from '@/components/ui'
+import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
 import {
   MATCH_MODE_OPTIONS,
   PREDICATE_OPERATOR_OPTIONS,
@@ -36,13 +37,12 @@ export function CardAdminRevealCardPanel({
       </div>
 
       <label className="flex items-center gap-2 text-sm text-[var(--text-primary)] sm:col-span-2">
-        <input
-          type="checkbox"
+        <CardAdminToggleSwitch
           checked={resolveRevealPostConditionRuleSet(effect) !== null}
-          onChange={(event) =>
+          onChange={(checked) =>
             updateEffectAt(effectIndex, (current) => {
               const currentRuleSet = resolveRevealPostConditionRuleSet(current)
-              const nextRuleSet = event.target.checked
+              const nextRuleSet = checked
                 ? currentRuleSet ?? {
                     operator: 'All',
                     restrictions: [
@@ -59,9 +59,10 @@ export function CardAdminRevealCardPanel({
                 revealPostConditionRuleSet: nextRuleSet,
                 revealPostConditionRestriction: null,
                 revealPostConditionPredicate: null,
-                revealTimingMode: event.target.checked ? 'Reveal First' : current.revealTimingMode,
+                revealTimingMode: checked ? 'Reveal First' : current.revealTimingMode,
               }
             })}
+          ariaLabel="Post-Reveal Rule Set Enabled"
         />
         Post-Reveal Rule Set Enabled
       </label>
@@ -411,41 +412,36 @@ export function CardAdminRevealCardPanel({
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
                         <span>Ignore Case</span>
-                        <span className="relative inline-flex h-5 w-9 items-center">
-                          <input
-                            type="checkbox"
-                            checked={predicate.ignoreCase}
-                            onChange={(event) =>
-                              updateEffectAt(effectIndex, (current) => {
-                                const ruleSet = resolveRevealPostConditionRuleSet(current)
-                                if (!ruleSet) {
-                                  return current
-                                }
+                        <CardAdminToggleSwitch
+                          checked={predicate.ignoreCase}
+                          onChange={(checked) =>
+                            updateEffectAt(effectIndex, (current) => {
+                              const ruleSet = resolveRevealPostConditionRuleSet(current)
+                              if (!ruleSet) {
+                                return current
+                              }
 
-                                return {
-                                  ...current,
-                                  revealPostConditionRuleSet: {
-                                    ...ruleSet,
-                                    restrictions: ruleSet.restrictions.map((group, rowGroupIndex) =>
-                                      rowGroupIndex === groupIndex
-                                        ? {
-                                            ...group,
-                                            predicates: group.predicates.map((row, rowIndex) =>
-                                              rowIndex === predicateIndex
-                                                ? { ...row, ignoreCase: event.target.checked }
-                                                : row),
-                                          }
-                                        : group),
-                                  },
-                                  revealPostConditionRestriction: null,
-                                  revealPostConditionPredicate: null,
-                                }
-                              })}
-                            className="peer sr-only"
-                          />
-                          <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-emerald-500/70" />
-                          <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
-                        </span>
+                              return {
+                                ...current,
+                                revealPostConditionRuleSet: {
+                                  ...ruleSet,
+                                  restrictions: ruleSet.restrictions.map((group, rowGroupIndex) =>
+                                    rowGroupIndex === groupIndex
+                                      ? {
+                                          ...group,
+                                          predicates: group.predicates.map((row, rowIndex) =>
+                                            rowIndex === predicateIndex
+                                              ? { ...row, ignoreCase: checked }
+                                              : row),
+                                        }
+                                      : group),
+                                },
+                                revealPostConditionRestriction: null,
+                                revealPostConditionPredicate: null,
+                              }
+                            })}
+                          ariaLabel="Ignore Case"
+                        />
                       </label>
 
                       <button

@@ -9,6 +9,7 @@ import {
 import {
   normalizeEffectId,
 } from '@/views/admin/utils'
+import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
 import type { ICardAdminExecutionPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
 
 export function CardAdminExecutionPanel({
@@ -87,13 +88,12 @@ export function CardAdminExecutionPanel({
       </div>
 
       <label className="flex items-center gap-2 text-sm text-[var(--text-primary)] sm:col-span-2">
-        <input
-          type="checkbox"
+        <CardAdminToggleSwitch
           checked={effect.executionCondition !== null}
-          onChange={(event) =>
+          onChange={(checked) =>
             updateEffectAt(effectIndex, (current) => ({
               ...current,
-              executionCondition: event.target.checked
+              executionCondition: checked
                 ? {
                     argumentKey: CARD_CATALOG_EXECUTION_CONDITION_ARGUMENT_KEY_OPTIONS[0],
                     expectedValue: '',
@@ -102,6 +102,7 @@ export function CardAdminExecutionPanel({
                   }
                 : null,
             }))}
+          ariaLabel="Execution Condition Enabled"
         />
         Execution Condition Enabled
       </label>
@@ -147,31 +148,31 @@ export function CardAdminExecutionPanel({
           </div>
 
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-            <input
-              type="checkbox"
+            <CardAdminToggleSwitch
               checked={effect.executionCondition.ignoreCase}
-              onChange={(event) =>
+              onChange={(checked) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   executionCondition: current.executionCondition
-                    ? { ...current.executionCondition, ignoreCase: event.target.checked }
+                    ? { ...current.executionCondition, ignoreCase: checked }
                     : null,
                 }))}
+              ariaLabel="Ignore Case"
             />
             Ignore Case
           </label>
 
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-            <input
-              type="checkbox"
+            <CardAdminToggleSwitch
               checked={effect.executionCondition.negate}
-              onChange={(event) =>
+              onChange={(checked) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   executionCondition: current.executionCondition
-                    ? { ...current.executionCondition, negate: event.target.checked }
+                    ? { ...current.executionCondition, negate: checked }
                     : null,
                 }))}
+              ariaLabel="Negate Condition"
             />
             Negate Condition
           </label>

@@ -1,3 +1,4 @@
+import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
 import type { ICardAdminConditionsSectionProps } from '@/views/admin/types/cardAdminDetailSections'
 
 export function CardAdminConditionsSection({
@@ -36,16 +37,11 @@ export function CardAdminConditionsSection({
 
         <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
           <span>No Normal Summon</span>
-          <span className="relative inline-flex h-5 w-9 items-center">
-            <input
-              type="checkbox"
-              checked={editorModel.draft.cannotBeNormalSummoned}
-              onChange={(event) => editorModel.setCannotBeNormalSummoned(event.target.checked)}
-              className="peer sr-only"
-            />
-            <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-amber-500/70" />
-            <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
-          </span>
+          <CardAdminToggleSwitch
+            checked={editorModel.draft.cannotBeNormalSummoned}
+            onChange={editorModel.setCannotBeNormalSummoned}
+            ariaLabel="No Normal Summon"
+          />
         </label>
       </div>
 
