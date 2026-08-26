@@ -1,5 +1,5 @@
 import type { ICountConstraintFieldProps, ICountConstraintMode } from '@/views/admin/types/countConstraintField'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
 
 function parseNullableInteger(value: string): number | null {
   const nextValue = value.trim()

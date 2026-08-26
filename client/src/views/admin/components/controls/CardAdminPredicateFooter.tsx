@@ -1,4 +1,5 @@
-import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 import type { ICardAdminPredicateFooterProps } from '@/views/admin/types/cardAdminPredicateControls'
 
 export function CardAdminPredicateFooter({
@@ -18,14 +19,11 @@ export function CardAdminPredicateFooter({
               className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
             >
               <span>{entry}</span>
-              <button
-                type="button"
+              <CardAdminRemoveButton
+                variant="chip"
                 onClick={() => onRemoveEntry(entryIndex)}
-                className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-                aria-label={`Remove ${entry}`}
-              >
-                X
-              </button>
+                ariaLabel={`Remove ${entry}`}
+              />
             </div>
           ))}
         </div>
@@ -41,14 +39,11 @@ export function CardAdminPredicateFooter({
           />
         </label>
 
-        <button
-          type="button"
+        <CardAdminRemoveButton
           onClick={onRemovePredicate}
-          className="self-end px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          aria-label="Remove Predicate"
-        >
-          X
-        </button>
+          className="self-end"
+          ariaLabel="Remove Predicate"
+        />
       </div>
     </>
   )

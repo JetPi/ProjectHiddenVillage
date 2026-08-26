@@ -1,4 +1,4 @@
-import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
 import type { ICardAdminSummonSettingsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
 
 export function CardAdminSummonSettingsPanel({

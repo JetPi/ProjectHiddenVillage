@@ -1,6 +1,7 @@
-import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
 import type { ICardAdminConditionsSectionProps } from '@/views/admin/types/cardAdminDetailSections'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 
 export function CardAdminConditionsSection({
   editorModel,
@@ -54,14 +55,11 @@ export function CardAdminConditionsSection({
               className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-1 text-xs text-[var(--text-primary)]"
             >
               <span>{condition}</span>
-              <button
-                type="button"
+              <CardAdminRemoveButton
+                variant="chip"
                 onClick={() => editorModel.removeCondition(condition)}
-                className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-                aria-label={`Remove ${condition}`}
-              >
-                X
-              </button>
+                ariaLabel={`Remove ${condition}`}
+              />
             </div>
           ))}
         </div>

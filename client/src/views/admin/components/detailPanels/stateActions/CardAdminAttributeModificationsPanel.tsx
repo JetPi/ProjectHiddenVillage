@@ -1,6 +1,7 @@
 import { AppButton } from '@/components/ui'
-import { CountConstraintField } from '@/views/admin/components/CountConstraintField'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CountConstraintField } from '@/views/admin/components/controls/CountConstraintField'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 import {
   ATTRIBUTE_OPERATION_OPTIONS,
   ATTRIBUTE_TYPE_OPTIONS,
@@ -40,17 +41,16 @@ export function CardAdminAttributeModificationsPanel({
       {effect.attributeModifications.map((attributeModification, attributeIndex) => (
         <div key={`attribute-mod-${attributeIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-rose-500/30 bg-[var(--surface)] p-3">
           <div className="flex justify-end">
-            <AppButton
-              type="button"
-              variant="ghost"
+            <CardAdminRemoveButton
               onClick={() =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   attributeModifications: current.attributeModifications.filter((_, index) => index !== attributeIndex),
                 }))}
+              ariaLabel="Remove Attribute Modification"
             >
               Remove
-            </AppButton>
+            </CardAdminRemoveButton>
           </div>
 
           <div className="grid grid-cols-1 gap-y-3 sm:grid-cols-4 sm:gap-x-2">

@@ -1,4 +1,4 @@
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
 import {
   PREDICATE_OPERATOR_OPTIONS,
   PREDICATE_PROPERTY_OPTIONS,

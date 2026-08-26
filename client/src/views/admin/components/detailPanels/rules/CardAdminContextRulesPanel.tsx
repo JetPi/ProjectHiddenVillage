@@ -1,6 +1,6 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
-import { CountConstraintField } from '@/views/admin/components/CountConstraintField'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
+import { CountConstraintField } from '@/views/admin/components/controls/CountConstraintField'
 import {
   MATCH_MODE_OPTIONS,
   PLAYER_ZONE_OPTIONS,
@@ -20,9 +20,10 @@ import {
   getPredicateEntries,
   removePredicateEntryAt,
 } from '@/views/admin/utils'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
-import { CardAdminPredicateControls } from '@/views/admin/components/CardAdminPredicateControls'
-import { CardAdminPredicateFooter } from '@/views/admin/components/CardAdminPredicateFooter'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminPredicateControls } from '@/views/admin/components/controls/CardAdminPredicateControls'
+import { CardAdminPredicateFooter } from '@/views/admin/components/controls/CardAdminPredicateFooter'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 
 export function CardAdminContextRulesPanel({
   effect,
@@ -51,17 +52,16 @@ export function CardAdminContextRulesPanel({
         <div key={`context-rule-${contextRuleIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/35 bg-[var(--surface-muted)] p-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-semibold text-[var(--text-primary)]">Context #{contextRuleIndex + 1}</p>
-            <AppButton
-              type="button"
-              variant="ghost"
+            <CardAdminRemoveButton
               onClick={() =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   contextRules: current.contextRules.filter((_, index) => index !== contextRuleIndex),
                 }))}
+              ariaLabel="Remove Context Rule"
             >
               Remove
-            </AppButton>
+            </CardAdminRemoveButton>
           </div>
 
           <div className="grid grid-cols-1 gap-3">
@@ -403,8 +403,7 @@ function ContextRulePlayerPanel({
                         ))}
                       </CardAdminSelect>
 
-                      <button
-                        type="button"
+                      <CardAdminRemoveButton
                         onClick={() =>
                           updateEffectAt(effectIndex, (current) => ({
                             ...current,
@@ -430,11 +429,9 @@ function ContextRulePlayerPanel({
                               }
                             }),
                           }))}
-                        className="inline-flex w-fit justify-self-end self-center px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                        aria-label="Remove Requirement"
-                      >
-                        X
-                      </button>
+                        className="inline-flex w-fit justify-self-end self-center"
+                        ariaLabel="Remove Requirement"
+                      />
                     </div>
 
                     <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/20 bg-[var(--surface-muted)] p-2">

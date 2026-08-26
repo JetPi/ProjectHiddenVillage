@@ -1,5 +1,6 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 import {
   CHAKRA_OPERATION_OPTIONS,
   TARGET_RANGE_OPTIONS,
@@ -74,17 +75,16 @@ export function CardAdminChakraAdjustmentsPanel({
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           />
 
-          <AppButton
-            type="button"
-            variant="ghost"
+          <CardAdminRemoveButton
             onClick={() =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 chakraAdjustments: current.chakraAdjustments.filter((_, index) => index !== chakraIndex),
               }))}
+            ariaLabel="Remove Chakra Adjustment"
           >
             Remove
-          </AppButton>
+          </CardAdminRemoveButton>
         </div>
       ))}
     </div>

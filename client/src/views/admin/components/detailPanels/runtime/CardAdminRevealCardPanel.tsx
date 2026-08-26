@@ -1,6 +1,7 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 import {
   MATCH_MODE_OPTIONS,
   REVEAL_TIMING_MODE_OPTIONS,
@@ -13,8 +14,8 @@ import {
   removePredicateEntryAt,
   resolveRevealPostConditionRuleSet,
 } from '@/views/admin/utils'
-import { CardAdminPredicateControls } from '@/views/admin/components/CardAdminPredicateControls'
-import { CardAdminPredicateFooter } from '@/views/admin/components/CardAdminPredicateFooter'
+import { CardAdminPredicateControls } from '@/views/admin/components/controls/CardAdminPredicateControls'
+import { CardAdminPredicateFooter } from '@/views/admin/components/controls/CardAdminPredicateFooter'
 
 export function CardAdminRevealCardPanel({
   effect,
@@ -138,8 +139,7 @@ export function CardAdminRevealCardPanel({
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Group {groupIndex + 1}</p>
-                <button
-                  type="button"
+                <CardAdminRemoveButton
                   onClick={() =>
                     updateEffectAt(effectIndex, (current) => {
                       const ruleSet = resolveRevealPostConditionRuleSet(current)
@@ -158,11 +158,8 @@ export function CardAdminRevealCardPanel({
                       }
                     })
                   }
-                  className="px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  aria-label="Remove Group"
-                >
-                  X
-                </button>
+                  ariaLabel="Remove Group"
+                />
               </div>
 
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">

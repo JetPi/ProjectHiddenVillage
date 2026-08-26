@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { FormInput, FormLabel, FormSelect } from '@/components/forms'
 import type { ICardAdminFilterPanelProps } from '@/views/admin/types/cardAdminFilterPanel'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 
 export function CardAdminFilterPanel({
   searchText,
@@ -114,14 +115,11 @@ export function CardAdminFilterPanel({
           >
             <span className="text-[var(--text-secondary)]">Type:</span>
             <span>{option.label}</span>
-            <button
-              type="button"
+            <CardAdminRemoveButton
+              variant="chip"
               onClick={() => onTypeChange(typeValues.filter((value) => value !== option.value))}
-              className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-              aria-label={`Remove type ${option.label}`}
-            >
-              X
-            </button>
+              ariaLabel={`Remove type ${option.label}`}
+            />
           </div>
         ))}
 
@@ -132,14 +130,11 @@ export function CardAdminFilterPanel({
           >
             <span className="text-[var(--text-secondary)]">Color:</span>
             <span>{option.label}</span>
-            <button
-              type="button"
+            <CardAdminRemoveButton
+              variant="chip"
               onClick={() => onColorChange(colorValues.filter((value) => value !== option.value))}
-              className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-              aria-label={`Remove color ${option.label}`}
-            >
-              X
-            </button>
+              ariaLabel={`Remove color ${option.label}`}
+            />
           </div>
         ))}
       </div>
