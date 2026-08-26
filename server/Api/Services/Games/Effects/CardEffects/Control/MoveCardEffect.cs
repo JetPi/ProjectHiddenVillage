@@ -33,6 +33,8 @@ public sealed class MoveCardEffect(
         PlayerZone.Deck,
         PlayerZone.Trash,
         PlayerZone.ExileZone,
+        PlayerZone.SupportZone,
+        PlayerZone.CharacterField,
     ];
 
     private readonly IGameRuntimeEffectSpecResolver effectSpecResolver = effectSpecResolver;
@@ -402,7 +404,7 @@ public sealed class MoveCardEffect(
             {
                 return Error.Validation(
                     code: "Game.Effect.MoveCard.Move.UnsupportedZone",
-                    description: "MoveCard move actions only support Hand, Deck, Trash, and Exile zones in this version.");
+                    description: "MoveCard move actions only support Hand, Deck, Trash, Exile, Support Zone, and Character Field zones in this version.");
             }
 
             if (action.DestinationIndex.HasValue && action.DestinationIndex.Value < 0)

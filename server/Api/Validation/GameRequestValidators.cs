@@ -153,6 +153,10 @@ public sealed class UserLoginDtoValidator : AbstractValidator<UserLoginDto>
 
 public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<UpdateCardEffectsRequest>
 {
+    private static readonly HashSet<string> AllowedKeywordModificationKeywords = new(
+        EffectConditionKeywords.All,
+        StringComparer.OrdinalIgnoreCase);
+
     private static readonly string AllowedExecutionConditionArgumentKeys = string.Join(
         ", ",
         Enum.GetValues<EffectExecutionConditionArgumentKey>()
@@ -304,6 +308,14 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                     .GreaterThanOrEqualTo(0)
                     .When(value => value.ChakraCost.HasValue)
                     .WithMessage("Effect chakra cost cannot be negative.");
+
+                effect.RuleForEach(value => value.KeywordModifications)
+                    .ChildRules(keywordModification =>
+                    {
+                        keywordModification.RuleFor(value => value.Keyword)
+                            .Must(IsSupportedKeywordModificationKeyword)
+                            .WithMessage("Keyword modifications must use a supported effect condition keyword.");
+                    });
 
                 effect.RuleFor(value => value.ContextRules)
                     .NotNull().WithMessage("Effect context rules are required.");
@@ -572,7 +584,7 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                             .Must(value => value.Operation != MoveCardOperationType.Move
                                 || (IsSupportedMoveCardZone(value.SourceZone)
                                     && IsSupportedMoveCardZone(value.DestinationZone)))
-                            .WithMessage("MoveCard move actions support only Hand, Deck, Trash, and ExileZone zones.");
+                            .WithMessage("MoveCard move actions support only Hand, Deck, Trash, ExileZone, SupportZone, and CharacterField zones.");
 
                         action.RuleFor(value => value.DestinationPlayerRange)
                             .Must(range => range is EffectTargetRange.Self or EffectTargetRange.Opponent or EffectTargetRange.Any)
@@ -694,12 +706,28 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
     private static bool IsSupportedMoveCardZone(PlayerZone? zone)
     {
-        return zone is null or PlayerZone.Hand or PlayerZone.Deck or PlayerZone.Trash or PlayerZone.ExileZone;
+        return zone is null
+            or PlayerZone.Hand
+            or PlayerZone.Deck
+            or PlayerZone.Trash
+            or PlayerZone.ExileZone
+            or PlayerZone.SupportZone
+            or PlayerZone.CharacterField;
     }
 
     private static bool IsSupportedFaceStateTargetCategory(FaceStateTargetCategory category)
     {
         return category is FaceStateTargetCategory.ChakraCard or FaceStateTargetCategory.SupportZoneCards;
+    }
+
+    private static bool IsSupportedKeywordModificationKeyword(string keyword)
+    {
+        if (string.IsNullOrWhiteSpace(keyword))
+        {
+            return false;
+        }
+
+        return AllowedKeywordModificationKeywords.Contains(keyword.Trim());
     }
 
     private static bool HasUniqueEffectIds(IReadOnlyList<EffectSpec> effects)

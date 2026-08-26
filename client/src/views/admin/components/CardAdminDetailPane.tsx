@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AppButton } from '@/components/ui'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { CountConstraintField } from './CountConstraintField'
 import { CardAdminSelectedCardSummary } from './CardAdminSelectedCardSummary'
 import { useCardAdminEffectEditorModel } from '@/views/admin/model/useCardAdminEffectEditorModel'
+import { fetchCardCatalogEffectConditionKeywords } from '@/services/api/cardCatalogApi'
 import {
   CARD_CATALOG_EXECUTION_CONDITION_ARGUMENT_KEY_OPTIONS,
   type ICardCatalogEffectExecutionConditionArgumentKey,
@@ -70,6 +71,22 @@ const PASSIVE_TARGET_POLICY_OPTIONS = ['Source Card', 'Trigger Selected Targets'
 const PASSIVE_CONSEQUENCE_EFFECT_OPTIONS = ['DestroyCard', 'NegateCard', 'SummonCard', 'TributeSummonCard', 'ModifyAttribute', 'GainKeyword', 'AlterResources', 'Noop'] as const
 const KEYWORD_TARGET_TYPE_OPTIONS = ['Source Card', 'Selected Targets'] as const
 const KEYWORD_OPERATION_OPTIONS = ['Add', 'Remove'] as const
+const EFFECT_CONDITION_KEYWORD_OPTIONS_FALLBACK = [
+  'Activate: Main',
+  'Recovery',
+  "During Your Opponent's Attack",
+  'Support',
+  'Quick',
+  'Rush',
+  'Summon Requirements',
+  'On Summon',
+  'During Your Main',
+  'Your Turn',
+  'Support Activated',
+  'Once Per Turn',
+  'When Attacking',
+  'Not Affected By Opponent Support Effects',
+] as const
 
 const TARGET_RANGE_OPTIONS = ['Self', 'Opponent', 'Any'] as const
 const EXECUTION_TARGET_SOURCE_OPTIONS = ['Selected Targets', 'Source Card', 'None'] as const
@@ -96,7 +113,7 @@ const FACE_STATE_OPTIONS = ['Face Up', 'Face Down'] as const
 const FACE_STATE_TARGET_CATEGORY_OPTIONS = ['Chakra Card', 'Support Zone Cards'] as const
 const FACE_STATE_LOCK_OPERATION_OPTIONS = ['Cannot Turn Face Up'] as const
 const MOVE_CARD_OPERATION_OPTIONS = ['Move', 'Draw'] as const
-const MOVE_CARD_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone'] as const
+const MOVE_CARD_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone', 'Support Zone', 'Character Field'] as const
 const MOVE_CARD_DESTINATION_RANGE_OPTIONS = ['Self', 'Opponent', 'Any'] as const
 const MOVE_CARD_DECK_PLACEMENT_OPTIONS = ['Top', 'Bottom', 'Index'] as const
 const MOVE_CARD_MULTI_ORDERING_OPTIONS = ['Selected Order', 'Random'] as const
@@ -340,43 +357,6 @@ function parseNullableInteger(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function appendKeywordEntries(
-  keywordModifications: ICardCatalogKeywordModificationRequest[],
-  modificationIndex: number,
-  rawInput: string,
-): ICardCatalogKeywordModificationRequest[] {
-  const nextEntries = rawInput
-    .split(',')
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0)
-
-  if (nextEntries.length === 0) {
-    return keywordModifications
-  }
-
-  const targetModification = keywordModifications[modificationIndex]
-  if (!targetModification) {
-    return keywordModifications
-  }
-
-  const normalizedKeyword = targetModification.keyword.trim()
-  const prefix = keywordModifications.slice(0, modificationIndex)
-  const suffix = keywordModifications.slice(modificationIndex + 1)
-
-  if (!normalizedKeyword) {
-    const [firstEntry, ...remainingEntries] = nextEntries
-    const injectedRows = [
-      { ...targetModification, keyword: firstEntry },
-      ...remainingEntries.map((entry) => ({ ...targetModification, keyword: entry })),
-    ]
-
-    return [...prefix, ...injectedRows, ...suffix]
-  }
-
-  const appendedRows = nextEntries.map((entry) => ({ ...targetModification, keyword: entry }))
-  return [...prefix, targetModification, ...appendedRows, ...suffix]
-}
-
 function getPredicateEntries(predicate: ICardCatalogZoneCardPropertyPredicateRequest): string[] {
   const normalizedSingleValue = predicate.value?.trim()
   const normalizedArrayValues = predicate.values
@@ -607,9 +587,41 @@ export function CardAdminDetailPane({ selectedCard }: ICardAdminDetailPaneProps)
 function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
   const editorModel = useCardAdminEffectEditorModel(selectedCard)
   const [conditionToAdd, setConditionToAdd] = useState('')
+  const [effectConditionKeywordOptions, setEffectConditionKeywordOptions] = useState<string[]>(
+    () => [...EFFECT_CONDITION_KEYWORD_OPTIONS_FALLBACK],
+  )
   const [collapsedEffects, setCollapsedEffects] = useState<Set<number>>(
     () => new Set(selectedCard.effects.map((_, index) => index)),
   )
+
+  useEffect(() => {
+    let isDisposed = false
+
+    async function loadEffectConditionKeywords() {
+      try {
+        const serverKeywords = await fetchCardCatalogEffectConditionKeywords()
+        if (isDisposed) {
+          return
+        }
+
+        const normalizedKeywords = serverKeywords
+          .map((keyword) => keyword.trim())
+          .filter((keyword) => keyword.length > 0)
+
+        if (normalizedKeywords.length > 0) {
+          setEffectConditionKeywordOptions(Array.from(new Set(normalizedKeywords)))
+        }
+      } catch {
+        // Keep fallback list when metadata fetch fails.
+      }
+    }
+
+    void loadEffectConditionKeywords()
+
+    return () => {
+      isDisposed = true
+    }
+  }, [])
 
   const isSaveDisabled = editorModel.isSaving
   const parsedEffects = editorModel.draft.effects
@@ -2026,57 +2038,24 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                               ))}
                             </select>
 
-                            <input
-                              type="text"
-                              placeholder={
-                                modification.keyword.trim().length > 0
-                                  ? `Add keyword (current: ${modification.keyword.trim()})`
-                                  : 'Add keyword and press Enter'
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key !== 'Enter') {
-                                  return
-                                }
-
-                                event.preventDefault()
-                                const inputValue = event.currentTarget.value
-
+                            <select
+                              value={modification.keyword}
+                              onChange={(event) =>
                                 updateEffectAt(effectIndex, (current) => ({
                                   ...current,
-                                  keywordModifications: appendKeywordEntries(
-                                    current.keywordModifications ?? [],
-                                    keywordIndex,
-                                    inputValue,
-                                  ),
-                                }))
-
-                                event.currentTarget.value = ''
-                              }}
+                                  keywordModifications: (current.keywordModifications ?? []).map((row, index) =>
+                                    index === keywordIndex ? { ...row, keyword: event.target.value } : row),
+                                }))}
                               className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                            />
+                            >
+                              <option value="">Select keyword</option>
+                              {(effectConditionKeywordOptions.includes(modification.keyword) || !modification.keyword.trim()
+                                ? effectConditionKeywordOptions
+                                : [modification.keyword, ...effectConditionKeywordOptions]).map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
                           </div>
-
-                          {modification.keyword.trim().length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]">
-                                <span>{modification.keyword.trim()}</span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    updateEffectAt(effectIndex, (current) => ({
-                                      ...current,
-                                      keywordModifications: (current.keywordModifications ?? []).map((row, index) =>
-                                        index === keywordIndex ? { ...row, keyword: '' } : row),
-                                    }))
-                                  }
-                                  className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-                                  aria-label={`Remove ${modification.keyword.trim()}`}
-                                >
-                                  X
-                                </button>
-                              </div>
-                            </div>
-                          ) : null}
 
                           <div className="flex justify-end">
                             <button

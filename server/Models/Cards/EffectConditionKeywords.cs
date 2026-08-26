@@ -16,6 +16,7 @@ public static class EffectConditionKeywords
     public const string SupportActivated = "Support Activated";
     public const string OncePerTurn = "Once Per Turn";
     public const string WhenAttacking = "When Attacking";
+    public const string NotAffectedByOpponentSupportEffects = "Not Affected By Opponent Support Effects";
 
     public static readonly string[] All =
     {
@@ -31,6 +32,7 @@ public static class EffectConditionKeywords
         YourTurn,
         SupportActivated,
         OncePerTurn,
-        WhenAttacking
+        WhenAttacking,
+        NotAffectedByOpponentSupportEffects
     };
 }

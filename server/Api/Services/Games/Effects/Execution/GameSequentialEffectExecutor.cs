@@ -523,7 +523,7 @@ public sealed class GameSequentialEffectExecutor(
 
     private ErrorOr<IReadOnlyList<GameEffectTargetReference>> ResolveStepTargets(GameCardEffectContext context, EffectSpec effectSpec)
     {
-        return effectSpec.ExecutionTargetSource switch
+        var targetsResult = effectSpec.ExecutionTargetSource switch
         {
             EffectExecutionTargetSource.SelectedTargets => ResolveSelectedTargets(context, effectSpec),
             EffectExecutionTargetSource.SourceCard => ResolveSourceCardTarget(context),
@@ -532,6 +532,14 @@ public sealed class GameSequentialEffectExecutor(
                 code: "Game.Effect.Sequential.UnsupportedTargetSource",
                 description: $"Unsupported execution target source '{effectSpec.ExecutionTargetSource}'.")
         };
+
+        if (targetsResult.IsError)
+        {
+            return targetsResult.Errors;
+        }
+
+        var filteredTargets = FilterSupportEffectImmuneTargets(context, effectSpec, targetsResult.Value);
+        return ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(filteredTargets);
     }
 
     private ErrorOr<IReadOnlyList<GameEffectTargetReference>> ResolveSelectedTargets(GameCardEffectContext context, EffectSpec effectSpec)
@@ -543,6 +551,77 @@ public sealed class GameSequentialEffectExecutor(
         }
 
         return ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(context.SelectedTargets);
+    }
+
+    private static IReadOnlyList<GameEffectTargetReference> FilterSupportEffectImmuneTargets(
+        GameCardEffectContext context,
+        EffectSpec effectSpec,
+        IReadOnlyList<GameEffectTargetReference> targets)
+    {
+        if (effectSpec.EffectType != EffectKind.Support || targets.Count == 0)
+        {
+            return targets;
+        }
+
+        var filteredTargets = new List<GameEffectTargetReference>(targets.Count);
+
+        foreach (var target in targets)
+        {
+            if (target.IsEffectResolutionStackTarget)
+            {
+                filteredTargets.Add(target);
+                continue;
+            }
+
+            if (!TryResolveTargetCardInstance(context.Game.State, target, out var targetCardInstance))
+            {
+                filteredTargets.Add(target);
+                continue;
+            }
+
+            var sameControllerAsActingPlayer = string.Equals(
+                targetCardInstance.ControllerPlayerId,
+                context.ActingPlayer.Id,
+                StringComparison.Ordinal);
+
+            if (sameControllerAsActingPlayer)
+            {
+                filteredTargets.Add(target);
+                continue;
+            }
+
+            var effectiveKeywords = CardRuntimeEffectStateService.ResolveEffectiveKeywords(context.Game.State, targetCardInstance);
+            var isImmuneToOpponentSupport = effectiveKeywords.Any(keyword =>
+                string.Equals(keyword, EffectConditionKeywords.NotAffectedByOpponentSupportEffects, StringComparison.OrdinalIgnoreCase));
+
+            if (!isImmuneToOpponentSupport)
+            {
+                filteredTargets.Add(target);
+            }
+        }
+
+        return filteredTargets;
+    }
+
+    private static bool TryResolveTargetCardInstance(
+        GameState state,
+        GameEffectTargetReference target,
+        out CardInstance cardInstance)
+    {
+        cardInstance = null!;
+
+        var targetPlayer = state.Players.FirstOrDefault(player =>
+            string.Equals(player.PlayerId, target.PlayerId, StringComparison.Ordinal));
+
+        if (targetPlayer is null)
+        {
+            return false;
+        }
+
+        cardInstance = PlayerZoneCardAccessor.GetCards(target.Zone, targetPlayer)
+            .FirstOrDefault(card => string.Equals(card.InstanceId, target.CardInstanceId, StringComparison.Ordinal))!;
+
+        return cardInstance is not null;
     }
 
     private static ErrorOr<IReadOnlyList<GameEffectTargetReference>> ResolveSourceCardTarget(GameCardEffectContext context)

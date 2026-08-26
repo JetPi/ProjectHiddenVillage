@@ -299,7 +299,7 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                         {
                             Operation = MoveCardOperationType.Move,
                             SourceZone = PlayerZone.Hand,
-                            DestinationZone = PlayerZone.CharacterField,
+                            DestinationZone = PlayerZone.Leader,
                             DestinationPlayerRange = EffectTargetRange.Self,
                         }
                     ],
@@ -316,7 +316,93 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
         var result = validator.Validate(request);
 
         Assert.IsFalse(result.IsValid);
-        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("MoveCard move actions support only Hand, Deck, Trash, and ExileZone zones.", StringComparison.Ordinal)));
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("MoveCard move actions support only Hand, Deck, Trash, ExileZone, SupportZone, and CharacterField zones.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_AllowsMoveCardRule_WhenDestinationZoneIsCharacterField()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-move-card-character-field-valid",
+                    RuntimeEffectType = RuntimeEffects.MoveCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    MoveCardActions =
+                    [
+                        new MoveCardActionSpec
+                        {
+                            Operation = MoveCardOperationType.Move,
+                            SourceZone = PlayerZone.Hand,
+                            DestinationZone = PlayerZone.CharacterField,
+                            MoveCount = 1,
+                            DestinationPlayerRange = EffectTargetRange.Self,
+                        }
+                    ],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_AllowsMoveCardRule_WhenDestinationZoneIsSupportZone()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-move-card-support-zone-valid",
+                    RuntimeEffectType = RuntimeEffects.MoveCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    MoveCardActions =
+                    [
+                        new MoveCardActionSpec
+                        {
+                            Operation = MoveCardOperationType.Move,
+                            SourceZone = PlayerZone.Hand,
+                            DestinationZone = PlayerZone.SupportZone,
+                            MoveCount = 1,
+                            DestinationPlayerRange = EffectTargetRange.Self,
+                        }
+                    ],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
     }
 
     [TestMethod]
@@ -1209,5 +1295,111 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
         var result = validator.Validate(request);
 
         Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_AllowsKeywordModification_WhenKeywordIsCanonical()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-keyword-valid",
+                    RuntimeEffectType = RuntimeEffects.GainEffect,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.Quick,
+                    DurationMode = EffectDurationMode.DuringThisTurn,
+                    TargetRange = EffectTargetRange.Self,
+                    KeywordModifications =
+                    [
+                        new KeywordModificationSpec
+                        {
+                            TargetType = KeywordModificationTargetType.SelectedTargets,
+                            Operation = KeywordModificationOperation.Add,
+                            Keyword = EffectConditionKeywords.NotAffectedByOpponentSupportEffects,
+                        }
+                    ],
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Self,
+                                InZone = PlayerZone.CharacterField,
+                                Restriction = new ZoneCardRestriction
+                                {
+                                    Predicates = []
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenKeywordModificationUsesUnknownKeyword()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-keyword-invalid",
+                    RuntimeEffectType = RuntimeEffects.GainEffect,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.Quick,
+                    DurationMode = EffectDurationMode.DuringThisTurn,
+                    TargetRange = EffectTargetRange.Self,
+                    KeywordModifications =
+                    [
+                        new KeywordModificationSpec
+                        {
+                            TargetType = KeywordModificationTargetType.SourceCard,
+                            Operation = KeywordModificationOperation.Add,
+                            Keyword = "Totally Unknown Keyword",
+                        }
+                    ],
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Self,
+                                InZone = PlayerZone.CharacterField,
+                                Restriction = new ZoneCardRestriction
+                                {
+                                    Predicates = []
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error =>
+            error.ErrorMessage.Contains("Keyword modifications must use a supported effect condition keyword.", StringComparison.Ordinal)));
     }
 }

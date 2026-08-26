@@ -10,5 +10,7 @@ public interface ICardMappingService
 
     Task<ErrorOr<List<CardCatalogItemResponse>>> GetCardCatalogByIds(IReadOnlyList<string>? cardIds);
 
+    Task<ErrorOr<List<string>>> GetEffectConditionKeywords();
+
     Task<ErrorOr<CardCatalogItemResponse>> UpdateCardEffectsByCardId(string cardId, UpdateCardEffectsRequest request);
 }

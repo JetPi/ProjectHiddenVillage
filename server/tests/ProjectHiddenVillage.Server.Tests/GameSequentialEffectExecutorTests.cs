@@ -343,6 +343,187 @@ public sealed class GameSequentialEffectExecutorTests
     }
 
     [TestMethod]
+    public void Execute_FiltersSelectedTarget_WhenTargetIsImmuneToOpponentSupportEffects()
+    {
+        IReadOnlyList<GameEffectTargetReference>? observedTargets = null;
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new InspectingTargetsEffect(
+                DestroyCardEffect.EffectKey,
+                targets => observedTargets = targets),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "step-immune-filter-selected",
+                RuntimeEffectType = RuntimeEffects.DestroyCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Opponent,
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ContextRules = [],
+                OnSuccessEffectId = null,
+            });
+
+        var immuneTarget = CreateCardOnField("immune-target", "immune-target-inst", "p2", "Immune Target");
+        var context = CreateContext(
+            sourceDefinition,
+            playerTwoFieldCards:
+            [
+                immuneTarget,
+            ],
+            selectedTargets:
+            [
+                new GameEffectTargetReference("p2", PlayerZone.CharacterField, "immune-target-inst"),
+            ]);
+
+        context.Game.State.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = "source-1",
+            EffectSpecId = "grant-immunity",
+            TargetCardInstanceId = "immune-target-inst",
+            ModifierKind = AppliedCardModifierKind.Keyword,
+            DurationMode = EffectDurationMode.DuringThisTurn,
+            KeywordOperation = KeywordModificationOperation.Add,
+            Keyword = EffectConditionKeywords.NotAffectedByOpponentSupportEffects,
+            AppliedByPlayerId = "p2",
+            AppliedTurnNumber = context.Game.State.TurnNumber,
+        });
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.IsNotNull(observedTargets);
+        Assert.AreEqual(0, observedTargets.Count);
+    }
+
+    [TestMethod]
+    public void Execute_DoesNotFilterSelectedTarget_WhenTargetIsImmuneAndControlledByActingPlayer()
+    {
+        IReadOnlyList<GameEffectTargetReference>? observedTargets = null;
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new InspectingTargetsEffect(
+                ModifyAttributeEffect.EffectKey,
+                targets => observedTargets = targets),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "step-immune-self-support",
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Self,
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ContextRules = [],
+                OnSuccessEffectId = null,
+            });
+
+        var ownTarget = CreateCardOnField("own-target", "own-target-inst", "p1", "Own Target");
+        var context = CreateContext(
+            sourceDefinition,
+            playerOneFieldCards:
+            [
+                ownTarget,
+            ],
+            selectedTargets:
+            [
+                new GameEffectTargetReference("p1", PlayerZone.CharacterField, "own-target-inst"),
+            ]);
+
+        context.Game.State.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = "source-1",
+            EffectSpecId = "grant-immunity",
+            TargetCardInstanceId = "own-target-inst",
+            ModifierKind = AppliedCardModifierKind.Keyword,
+            DurationMode = EffectDurationMode.DuringThisTurn,
+            KeywordOperation = KeywordModificationOperation.Add,
+            Keyword = EffectConditionKeywords.NotAffectedByOpponentSupportEffects,
+            AppliedByPlayerId = "p1",
+            AppliedTurnNumber = context.Game.State.TurnNumber,
+        });
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.IsNotNull(observedTargets);
+        Assert.AreEqual(1, observedTargets.Count);
+        Assert.AreEqual("own-target-inst", observedTargets[0].CardInstanceId);
+    }
+
+    [TestMethod]
+    public void Execute_FiltersAutoSelectedTargets_WhenTargetIsImmuneToOpponentSupportEffects()
+    {
+        IReadOnlyList<GameEffectTargetReference>? observedTargets = null;
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new InspectingTargetsEffect(
+                DestroyCardEffect.EffectKey,
+                targets => observedTargets = targets),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "step-immune-filter-auto",
+                RuntimeEffectType = RuntimeEffects.DestroyCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Opponent,
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ContextRules = [],
+                OnSuccessEffectId = null,
+                TargetRules = new EffectTargetRuleSet
+                {
+                    AutoSelectAllValidTargets = true,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Opponent,
+                            InZone = PlayerZone.CharacterField,
+                            Restriction = new ZoneCardRestriction
+                            {
+                                Predicates = []
+                            }
+                        }
+                    ]
+                }
+            });
+
+        var immuneTarget = CreateCardOnField("immune-auto-target", "immune-auto-target-inst", "p2", "Immune Auto Target");
+        var context = CreateContext(
+            sourceDefinition,
+            playerTwoFieldCards:
+            [
+                immuneTarget,
+            ]);
+
+        context.Game.State.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = "source-1",
+            EffectSpecId = "grant-immunity",
+            TargetCardInstanceId = "immune-auto-target-inst",
+            ModifierKind = AppliedCardModifierKind.Keyword,
+            DurationMode = EffectDurationMode.DuringThisTurn,
+            KeywordOperation = KeywordModificationOperation.Add,
+            Keyword = EffectConditionKeywords.NotAffectedByOpponentSupportEffects,
+            AppliedByPlayerId = "p2",
+            AppliedTurnNumber = context.Game.State.TurnNumber,
+        });
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.IsNotNull(observedTargets);
+        Assert.AreEqual(0, observedTargets.Count);
+    }
+
+    [TestMethod]
     public void Execute_UsesConditionalBranching_ForChoiceDrivenEffects()
     {
         var observedSpecIds = new List<string>();
