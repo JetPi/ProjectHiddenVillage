@@ -126,9 +126,15 @@ export type ICardCatalogTributeTargetCompositionRequest = {
   requireDistinctSummonAndTributes: boolean
 }
 
+export type ICardCatalogEffectTargetLocationSelectorRequest = {
+  kind: string
+  supportSlotIndex: number | null
+}
+
 export type ICardCatalogEffectTargetRuleRequest = {
   scope: string
   inZone: string
+  locationSelector: ICardCatalogEffectTargetLocationSelectorRequest
   tributeRole: string | null
   exactSelectedTargetCount: number | null
   minimumSelectedTargetCount: number | null
@@ -148,6 +154,7 @@ export type ICardCatalogEffectTargetRuleSetRequest = {
 
 export type ICardCatalogEffectRequest = {
   id: string
+  isSubordinate: boolean
   onSuccessEffectId?: string | null
   onFailureEffectId?: string | null
   runtimeEffectType: string
@@ -165,6 +172,8 @@ export type ICardCatalogEffectRequest = {
   executionTargetSource: string
   executionFlowMode: string
   suppressSummonedTargetsEffectsWhileOnField: boolean
+  revealTimingMode: string
+  revealPostConditionPredicate: ICardCatalogZoneCardPropertyPredicateRequest | null
   executionCondition: ICardCatalogEffectExecutionConditionRequest | null
   attributeModifications: ICardCatalogAttributeModificationRequest[]
   chakraAdjustments: ICardCatalogChakraAdjustmentRequest[]

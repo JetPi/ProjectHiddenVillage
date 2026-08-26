@@ -450,6 +450,127 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
     }
 
     [TestMethod]
+    public void Validate_ReturnsError_WhenNonRevealRuntimeEffectSetsRevealTimingModeToRevealFirst()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-invalid-reveal-timing-mode",
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    RevealTimingMode = RevealTimingMode.RevealFirst,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Reveal timing mode can be changed only for Reveal Card runtime effects.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_AllowsRevealTimingModeForRevealRuntimeEffect()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-valid-reveal-timing-mode",
+                    RuntimeEffectType = RuntimeEffects.RevealCard,
+                    RevealTimingMode = RevealTimingMode.RevealFirst,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.Quick,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Any,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Any,
+                                InZone = PlayerZone.Hand,
+                                Restriction = new ZoneCardRestriction
+                                {
+                                    Predicates = []
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_AllowsNonInstantDuration_ForFreezeCardRuntimeEffect()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-freeze-during-opponent-next-turn",
+                    RuntimeEffectType = RuntimeEffects.FreezeCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.OnSummon,
+                    DurationMode = EffectDurationMode.DuringOpponentNextTurn,
+                    TargetRange = EffectTargetRange.Any,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Any,
+                                InZone = PlayerZone.CharacterField,
+                                Restriction = new ZoneCardRestriction
+                                {
+                                    Predicates = []
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
     public void Validate_AllowsBranchTargets_WhenEffectIdsExist()
     {
         var validator = new UpdateCardEffectsRequestValidator();
@@ -475,6 +596,7 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
                 new EffectSpec
                 {
                     Id = "next",
+                    IsSubordinate = true,
                     RuntimeEffectType = RuntimeEffects.DestroyCard,
                     EffectType = EffectKind.Activated,
                     Timing = EffectTiming.ActivateMain,
@@ -577,5 +699,132 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
 
         Assert.IsFalse(result.IsValid);
         Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Effect branch graph cannot contain cycles.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_AllowsMultipleEffectsMarkedAsEntry_WhenTheyAreSubordinate()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "entry-a",
+                    IsSubordinate = true,
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet { Rules = [] }
+                },
+                new EffectSpec
+                {
+                    Id = "entry-b",
+                    IsSubordinate = true,
+                    RuntimeEffectType = RuntimeEffects.DestroyCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet { Rules = [] }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenBranchTargetsReferenceNonEntryEffect()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "non-entry-target",
+                    IsSubordinate = false,
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet { Rules = [] }
+                },
+                new EffectSpec
+                {
+                    Id = "other",
+                    RuntimeEffectType = RuntimeEffects.DestroyCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    OnSuccessEffectId = "non-entry-target",
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet { Rules = [] }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("Effects referenced by OnSuccessEffectId or OnFailureEffectId must be marked as subordinate.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_AllowsBranchTargets_WhenReferencedEffectsAreMarkedAsEntry()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "subordinate",
+                    IsSubordinate = true,
+                    RuntimeEffectType = RuntimeEffects.ChangeValues,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet { Rules = [] }
+                },
+                new EffectSpec
+                {
+                    Id = "root",
+                    RuntimeEffectType = RuntimeEffects.DestroyCard,
+                    EffectType = EffectKind.Activated,
+                    Timing = EffectTiming.ActivateMain,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    OnSuccessEffectId = "subordinate",
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet { Rules = [] }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
     }
 }

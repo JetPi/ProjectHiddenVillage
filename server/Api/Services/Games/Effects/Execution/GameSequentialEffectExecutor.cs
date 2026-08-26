@@ -29,7 +29,7 @@ public sealed class GameSequentialEffectExecutor(
 
         var nodeById = nodes.ToDictionary(node => node.NodeId, node => node, StringComparer.Ordinal);
         var visitCounts = new Dictionary<string, int>(StringComparer.Ordinal);
-        var currentNodeId = nodes[0].NodeId;
+        var currentNodeId = ResolveEntryNodeId(nodes);
 
         while (!string.IsNullOrWhiteSpace(currentNodeId))
         {
@@ -73,12 +73,6 @@ public sealed class GameSequentialEffectExecutor(
             var branchOnFailure = NormalizeEffectId(effectSpec.OnFailureEffectId);
             var branchOnSuccess = NormalizeEffectId(effectSpec.OnSuccessEffectId);
 
-            if (!ConditionMatches(effectSpec.ExecutionCondition, context.Arguments))
-            {
-                currentNodeId = branchOnFailure ?? node.SequentialNextNodeId;
-                continue;
-            }
-
             if (!TryResolveEffectKey(effectSpec.RuntimeEffectType, out var effectTypeKey))
             {
                 return Error.Validation(
@@ -117,10 +111,17 @@ public sealed class GameSequentialEffectExecutor(
                 arguments: arguments,
                 selectedTargets: selectedTargetsResult.Value);
 
+            var shouldExecuteBeforeCondition = ShouldExecuteBeforeCondition(effectSpec);
+            if (!shouldExecuteBeforeCondition && !ConditionMatches(effectSpec.ExecutionCondition, perEffectContext.Arguments))
+            {
+                currentNodeId = branchOnFailure;
+                continue;
+            }
+
             var canExecuteResult = effect.CanExecute(perEffectContext);
             if (!canExecuteResult.CanExecute)
             {
-                currentNodeId = branchOnFailure ?? node.SequentialNextNodeId;
+                currentNodeId = branchOnFailure;
                 continue;
             }
 
@@ -129,7 +130,7 @@ public sealed class GameSequentialEffectExecutor(
                 chakraCost: activationCost);
             if (activationCostResult.IsError)
             {
-                currentNodeId = branchOnFailure ?? node.SequentialNextNodeId;
+                currentNodeId = branchOnFailure;
                 continue;
             }
 
@@ -145,7 +146,15 @@ public sealed class GameSequentialEffectExecutor(
                 return executeResult.Errors;
             }
 
-            currentNodeId = branchOnSuccess ?? node.SequentialNextNodeId;
+            if (shouldExecuteBeforeCondition
+                && (!ConditionMatches(effectSpec.ExecutionCondition, perEffectContext.Arguments)
+                    || !RevealPostConditionMatches(effectSpec, perEffectContext)))
+            {
+                currentNodeId = branchOnFailure;
+                continue;
+            }
+
+            currentNodeId = branchOnSuccess;
         }
 
         return Result.Success;
@@ -243,7 +252,7 @@ public sealed class GameSequentialEffectExecutor(
             if (isFirstNodeInChain
                 && !ConditionMatches(effectSpec.ExecutionCondition, context.Arguments))
             {
-                var nextNodeId = branchOnFailure ?? node.SequentialNextNodeId;
+                var nextNodeId = branchOnFailure;
                 return new AtomicExecutionPlan(
                     Steps: [],
                     Aborted: true,
@@ -291,7 +300,7 @@ public sealed class GameSequentialEffectExecutor(
             var canExecuteResult = effect.CanExecute(perEffectContext);
             if (!canExecuteResult.CanExecute)
             {
-                var nextNodeId = branchOnFailure ?? node.SequentialNextNodeId;
+                var nextNodeId = branchOnFailure;
                 return new AtomicExecutionPlan(
                     Steps: [],
                     Aborted: true,
@@ -304,7 +313,7 @@ public sealed class GameSequentialEffectExecutor(
                 simulatedResourcePoolByPlayer: simulatedResourcePoolByPlayer);
             if (preflightResult.IsError)
             {
-                var nextNodeId = branchOnFailure ?? node.SequentialNextNodeId;
+                var nextNodeId = branchOnFailure;
                 return new AtomicExecutionPlan(
                     Steps: [],
                     Aborted: true,
@@ -312,7 +321,7 @@ public sealed class GameSequentialEffectExecutor(
             }
 
             steps.Add(new PlannedExecutionStep(effect, perEffectContext, activationCost));
-            currentNodeId = branchOnSuccess ?? node.SequentialNextNodeId;
+            currentNodeId = branchOnSuccess;
             isFirstNodeInChain = false;
         }
 
@@ -343,6 +352,85 @@ public sealed class GameSequentialEffectExecutor(
         return condition.Negate ? !isMatch : isMatch;
     }
 
+    private static bool RevealPostConditionMatches(EffectSpec effectSpec, GameCardEffectContext context)
+    {
+        if (effectSpec.RuntimeEffectType != RuntimeEffects.RevealCard || effectSpec.RevealPostConditionPredicate is null)
+        {
+            return true;
+        }
+
+        if (!TryResolveRevealedPrimaryCard(context, out var revealedCardDefinition, out var revealedCardInstance))
+        {
+            return false;
+        }
+
+        return ZoneCardRestrictionMatcher.Matches(
+            gameState: context.Game.State,
+            cardDefinition: revealedCardDefinition,
+            restriction: new ZoneCardRestriction
+            {
+                MatchMode = ZoneRestrictionMatchMode.All,
+                Predicates = [effectSpec.RevealPostConditionPredicate],
+            },
+            cardInstance: revealedCardInstance,
+            sourceCardInstance: context.SourceCardInstance);
+    }
+
+    private static bool TryResolveRevealedPrimaryCard(
+        GameCardEffectContext context,
+        out Card revealedCardDefinition,
+        out CardInstance revealedCardInstance)
+    {
+        revealedCardDefinition = null!;
+        revealedCardInstance = null!;
+
+        if (!context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.RevealedPrimaryTargetIdArgument, out var primaryTargetId)
+            || string.IsNullOrWhiteSpace(primaryTargetId))
+        {
+            return false;
+        }
+
+        foreach (var player in context.Game.State.Players)
+        {
+            var zones = new[]
+            {
+                PlayerZone.Hand,
+                PlayerZone.Deck,
+                PlayerZone.SupportZone,
+                PlayerZone.CharacterField,
+                PlayerZone.Trash,
+                PlayerZone.ExileZone,
+            };
+
+            foreach (var zone in zones)
+            {
+                var cardInstance = PlayerZoneCardAccessor.GetCards(zone, player)
+                    .FirstOrDefault(card => string.Equals(card.InstanceId, primaryTargetId, StringComparison.Ordinal));
+                if (cardInstance is null)
+                {
+                    continue;
+                }
+
+                if (!context.Game.State.CardDefinitions.TryGetValue(cardInstance.CardDefinitionId, out var definition))
+                {
+                    return false;
+                }
+
+                revealedCardDefinition = definition;
+                revealedCardInstance = cardInstance;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ShouldExecuteBeforeCondition(EffectSpec effectSpec)
+    {
+        return effectSpec.RuntimeEffectType == RuntimeEffects.RevealCard
+            && effectSpec.RevealTimingMode == RevealTimingMode.RevealFirst;
+    }
+
     private static List<ExecutionNode> BuildExecutionNodes(IReadOnlyList<EffectSpec> effectSpecs)
     {
         var nodes = new List<ExecutionNode>(effectSpecs.Count);
@@ -351,11 +439,8 @@ public sealed class GameSequentialEffectExecutor(
         {
             var effectSpec = effectSpecs[index];
             var nodeId = ResolveNodeId(effectSpec, index);
-            var nextNodeId = index + 1 < effectSpecs.Count
-                ? ResolveNodeId(effectSpecs[index + 1], index + 1)
-                : null;
 
-            nodes.Add(new ExecutionNode(nodeId, effectSpec, nextNodeId));
+            nodes.Add(new ExecutionNode(nodeId, effectSpec));
         }
 
         return nodes;
@@ -366,6 +451,12 @@ public sealed class GameSequentialEffectExecutor(
         return string.IsNullOrWhiteSpace(effectSpec.Id)
             ? $"__index:{index}"
             : effectSpec.Id.Trim();
+    }
+
+    private static string ResolveEntryNodeId(IReadOnlyList<ExecutionNode> nodes)
+    {
+        var independentRoot = nodes.FirstOrDefault(node => !node.EffectSpec.IsSubordinate);
+        return independentRoot?.NodeId ?? nodes[0].NodeId;
     }
 
     private static string? NormalizeEffectId(string? effectId)
@@ -472,6 +563,7 @@ public sealed class GameSequentialEffectExecutor(
         {
             RuntimeEffects.DestroyCard => DestroyCardEffect.EffectKey,
             RuntimeEffects.NegateEffect => NegateCardEffect.EffectKey,
+            RuntimeEffects.FreezeCard => FreezeCardEffect.EffectKey,
             RuntimeEffects.InterruptAttack => InterruptAttackEffect.EffectKey,
             RuntimeEffects.GainEffect => GainKeywordEffect.EffectKey,
             RuntimeEffects.ChangeValues => ModifyAttributeEffect.EffectKey,
@@ -479,6 +571,7 @@ public sealed class GameSequentialEffectExecutor(
             RuntimeEffects.Tribute => TributeSummonCardEffect.EffectKey,
             RuntimeEffects.SummonCard => SummonCardEffect.EffectKey,
             RuntimeEffects.MoveCard => MoveCardEffect.EffectKey,
+            RuntimeEffects.RevealCard => RevealCardEffect.EffectKey,
             _ => string.Empty,
         };
 
@@ -560,5 +653,5 @@ public sealed class GameSequentialEffectExecutor(
         GameCardEffectContext Context,
         int ActivationCost);
 
-    private sealed record ExecutionNode(string NodeId, EffectSpec EffectSpec, string? SequentialNextNodeId);
+    private sealed record ExecutionNode(string NodeId, EffectSpec EffectSpec);
 }

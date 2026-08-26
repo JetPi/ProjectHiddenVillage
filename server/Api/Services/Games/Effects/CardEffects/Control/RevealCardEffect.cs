@@ -4,7 +4,7 @@ using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
-public sealed class DestroyCardEffect(
+public sealed class RevealCardEffect(
     IGameRuntimeEffectSpecResolver effectSpecResolver,
     IGameEffectCanExecuteEvaluator canExecuteEvaluator,
     IGameEffectTargetResolver targetResolver,
@@ -14,19 +14,20 @@ public sealed class DestroyCardEffect(
     private readonly IGameEffectCanExecuteEvaluator canExecuteEvaluator = canExecuteEvaluator;
     private readonly IGameEffectTargetResolver targetResolver = targetResolver;
     private readonly IServiceProvider? serviceProvider = serviceProvider;
-    public const string EffectKey = "DestroyCard";
+
+    public const string EffectKey = "RevealCard";
 
     public string EffectTypeKey => EffectKey;
 
     public CanExecuteResult CanExecute(GameCardEffectContext context)
     {
-        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.DestroyCard);
+        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.RevealCard);
         if (effectSpec is null)
         {
             return new CanExecuteResult
             {
                 CanExecute = false,
-                FailedConditions = ["DestroyCard effect is not defined on the source card."],
+                FailedConditions = ["RevealCard effect is not defined on the source card."],
             };
         }
 
@@ -35,7 +36,7 @@ public sealed class DestroyCardEffect(
 
     public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
     {
-        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.DestroyCard);
+        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.RevealCard);
         if (effectSpec is null)
         {
             return [];
@@ -52,7 +53,7 @@ public sealed class DestroyCardEffect(
 
     public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
     {
-        var affectedCardInstanceIds = new HashSet<string>(StringComparer.Ordinal);
+        var affectedCardIds = new HashSet<string>(StringComparer.Ordinal);
         var affectedPlayerIds = new HashSet<string>(StringComparer.Ordinal)
         {
             context.ActingPlayer.Id,
@@ -62,39 +63,53 @@ public sealed class DestroyCardEffect(
         {
             if (target.Zone == PlayerZone.Leader)
             {
-                return Error.Validation(
-                    code: "Game.Effect.DestroyCard.InvalidLeaderTarget",
-                    description: "DestroyCard does not support targeting leaders.");
+                continue;
             }
 
-            var sourceZone = target.Zone;
-            var sourcePlayer = context.Game.State.Players.Find(player => player.PlayerId == target.PlayerId)!;
-
-            var sourcePlayerZone = PlayerZoneCardAccessor.GetCards(sourceZone, sourcePlayer);
-            var cardInstance = sourcePlayerZone.First(card => card.InstanceId == target.CardInstanceId);
-
-            sourcePlayerZone.Remove(cardInstance);
-
-            if (cardInstance.IsRevealedToBothPlayers)
+            var targetPlayer = context.Game.State.Players.FirstOrDefault(player =>
+                string.Equals(player.PlayerId, target.PlayerId, StringComparison.Ordinal));
+            if (targetPlayer is null)
             {
-                cardInstance.IsRevealedToBothPlayers = false;
-                cardInstance.RevealedInZone = null;
+                continue;
             }
 
-            var ownerPlayer = context.Game.State.Players.Find(player => player.PlayerId == cardInstance.OwnerPlayerId)!;
+            var zoneCards = PlayerZoneCardAccessor.GetCards(target.Zone, targetPlayer);
+            var card = zoneCards.FirstOrDefault(entry =>
+                string.Equals(entry.InstanceId, target.CardInstanceId, StringComparison.Ordinal));
+            if (card is null)
+            {
+                continue;
+            }
 
-            var ownerTrashZone = PlayerZoneCardAccessor.GetCards(PlayerZone.Trash, ownerPlayer);
-            ownerTrashZone.Add(cardInstance);
+            card.IsRevealedToBothPlayers = true;
+            card.RevealedInZone = target.Zone;
+            affectedCardIds.Add(card.InstanceId);
+            affectedPlayerIds.Add(targetPlayer.PlayerId);
+        }
 
-            affectedCardInstanceIds.Add(cardInstance.InstanceId);
-            affectedPlayerIds.Add(sourcePlayer.PlayerId);
-            affectedPlayerIds.Add(ownerPlayer.PlayerId);
+        if (affectedCardIds.Count == 0)
+        {
+            return Error.Validation(
+                code: "Game.Effect.RevealCard.NoTargetsRevealed",
+                description: "No selected targets could be revealed.");
+        }
+
+        // Keep argument handoff available for follow-up effect condition checks.
+        if (context.Arguments is IDictionary<string, string> mutableArguments)
+        {
+            var orderedIds = selectedTargets
+                .Select(target => target.CardInstanceId)
+                .Where(id => affectedCardIds.Contains(id))
+                .ToList();
+
+            mutableArguments[ReactiveEffectExecutionConstants.RevealedTargetIdsArgument] = string.Join(",", orderedIds);
+            mutableArguments[ReactiveEffectExecutionConstants.RevealedPrimaryTargetIdArgument] = orderedIds[0];
         }
 
         var mutationResult = EmitMutation(
             context,
-            GameMutationKind.CardMovedZone,
-            affectedCardInstanceIds,
+            GameMutationKind.EffectResolved,
+            affectedCardIds,
             affectedPlayerIds);
 
         if (mutationResult.IsError)

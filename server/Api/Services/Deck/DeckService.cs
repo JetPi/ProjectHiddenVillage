@@ -266,6 +266,7 @@ public sealed partial class DeckService : IDeckService
                 Effects: effects
                         .ConvertAll(effect => new CardCatalogEffectResponse(
                                 Id: effect.Id,
+                    IsSubordinate: effect.IsSubordinate,
                     OnSuccessEffectId: effect.OnSuccessEffectId,
                     OnFailureEffectId: effect.OnFailureEffectId,
                         RuntimeEffectType: ToReadableRuntimeEffect(effect.RuntimeEffectType),
@@ -287,6 +288,8 @@ public sealed partial class DeckService : IDeckService
                     ExecutionTargetSource: SplitPascalCase(effect.ExecutionTargetSource.ToString()),
                     ExecutionFlowMode: SplitPascalCase(effect.ExecutionFlowMode.ToString()),
                     SuppressSummonedTargetsEffectsWhileOnField: effect.SuppressSummonedTargetsEffectsWhileOnField,
+                    RevealTimingMode: SplitPascalCase(effect.RevealTimingMode.ToString()),
+                    RevealPostConditionPredicate: ToNullableZoneCardPropertyPredicateResponse(effect.RevealPostConditionPredicate),
                     ExecutionCondition: ToExecutionConditionResponse(effect.ExecutionCondition),
                     AttributeModifications: effect.AttributeModifications
                         .Select(ToAttributeModificationResponse)
@@ -479,6 +482,21 @@ public sealed partial class DeckService : IDeckService
             Negate: condition.Negate);
     }
 
+            private static CardCatalogZoneCardPropertyPredicateResponse? ToNullableZoneCardPropertyPredicateResponse(ZoneCardPropertyPredicate? predicate)
+    {
+        if (predicate is null)
+        {
+            return null;
+        }
+
+        return new CardCatalogZoneCardPropertyPredicateResponse(
+            Property: SplitPascalCase(predicate.Property.ToString()),
+            Operator: SplitPascalCase(predicate.Operator.ToString()),
+            Value: predicate.Value,
+            Values: predicate.Values ?? [],
+            IgnoreCase: predicate.IgnoreCase);
+    }
+
     private static CardCatalogPassiveReevaluationResponse? ToPassiveReevaluationResponse(PassiveReevaluationSpec? spec)
     {
         if (spec is null)
@@ -570,11 +588,21 @@ public sealed partial class DeckService : IDeckService
         return new CardCatalogEffectTargetRuleResponse(
             Scope: SplitPascalCase(rule.Scope.ToString()),
             InZone: SplitPascalCase(rule.InZone.ToString()),
+            LocationSelector: ToTargetLocationSelectorResponse(rule.LocationSelector),
             TributeRole: rule.TributeRole.HasValue ? SplitPascalCase(rule.TributeRole.Value.ToString()) : null,
             ExactSelectedTargetCount: rule.ExactSelectedTargetCount,
             MinimumSelectedTargetCount: rule.MinimumSelectedTargetCount,
             MaximumSelectedTargetCount: rule.MaximumSelectedTargetCount,
             Restriction: ToZoneCardRestrictionResponse(rule.Restriction));
+    }
+
+    private static CardCatalogEffectTargetLocationSelectorResponse ToTargetLocationSelectorResponse(EffectTargetLocationSelector selector)
+    {
+        selector ??= new EffectTargetLocationSelector();
+
+        return new CardCatalogEffectTargetLocationSelectorResponse(
+            Kind: SplitPascalCase(selector.Kind.ToString()),
+            SupportSlotIndex: selector.SupportSlotIndex);
     }
 
     private static CardCatalogZoneCardRestrictionResponse ToZoneCardRestrictionResponse(ZoneCardRestriction restriction)

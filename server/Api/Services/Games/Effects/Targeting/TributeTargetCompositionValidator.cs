@@ -174,6 +174,11 @@ internal static class TributeTargetCompositionValidator
             return false;
         }
 
+        if (!MatchesLocationSelector(target, rule))
+        {
+            return false;
+        }
+
         if (!ScopeAllowsTargetPlayer(rule.Scope, actingPlayerState.PlayerId, target.PlayerId))
         {
             return false;
@@ -272,6 +277,27 @@ internal static class TributeTargetCompositionValidator
 
     private static string BuildTargetKey(GameEffectTargetReference target)
     {
-        return string.Join("|", target.PlayerId, target.Zone, target.CardInstanceId);
+        return string.Join("|", target.PlayerId, target.Zone, target.CardInstanceId, target.SlotId ?? string.Empty);
+    }
+
+    private static bool MatchesLocationSelector(GameEffectTargetReference target, EffectTargetRule rule)
+    {
+        var selector = rule.LocationSelector;
+        if (selector is null || selector.Kind == EffectTargetLocationSelectorKind.Any)
+        {
+            return true;
+        }
+
+        return selector.Kind switch
+        {
+            EffectTargetLocationSelectorKind.SupportSlotIndex =>
+                rule.InZone == PlayerZone.SupportZone
+                && selector.SupportSlotIndex.HasValue
+                && string.Equals(target.SlotId, $"support:{selector.SupportSlotIndex.Value}", StringComparison.Ordinal),
+            EffectTargetLocationSelectorKind.DeckTop =>
+                rule.InZone == PlayerZone.Deck
+                && string.Equals(target.SlotId, "deck:0", StringComparison.Ordinal),
+            _ => false,
+        };
     }
 }

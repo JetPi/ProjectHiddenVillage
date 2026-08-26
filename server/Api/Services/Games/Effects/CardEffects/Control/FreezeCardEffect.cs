@@ -4,7 +4,7 @@ using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
-public sealed class DestroyCardEffect(
+public sealed class FreezeCardEffect(
     IGameRuntimeEffectSpecResolver effectSpecResolver,
     IGameEffectCanExecuteEvaluator canExecuteEvaluator,
     IGameEffectTargetResolver targetResolver,
@@ -14,19 +14,21 @@ public sealed class DestroyCardEffect(
     private readonly IGameEffectCanExecuteEvaluator canExecuteEvaluator = canExecuteEvaluator;
     private readonly IGameEffectTargetResolver targetResolver = targetResolver;
     private readonly IServiceProvider? serviceProvider = serviceProvider;
-    public const string EffectKey = "DestroyCard";
+
+    public const string EffectKey = "FreezeCard";
+    public const string CannotAttackKeyword = "Cannot Attack";
 
     public string EffectTypeKey => EffectKey;
 
     public CanExecuteResult CanExecute(GameCardEffectContext context)
     {
-        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.DestroyCard);
+        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.FreezeCard);
         if (effectSpec is null)
         {
             return new CanExecuteResult
             {
                 CanExecute = false,
-                FailedConditions = ["DestroyCard effect is not defined on the source card."],
+                FailedConditions = ["FreezeCard effect is not defined on the source card."],
             };
         }
 
@@ -35,7 +37,7 @@ public sealed class DestroyCardEffect(
 
     public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
     {
-        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.DestroyCard);
+        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.FreezeCard);
         if (effectSpec is null)
         {
             return [];
@@ -52,48 +54,91 @@ public sealed class DestroyCardEffect(
 
     public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
     {
+        var effectSpec = effectSpecResolver.Resolve(context, RuntimeEffects.FreezeCard);
+        if (effectSpec is null)
+        {
+            return Error.Validation(
+                code: "Game.Effect.FreezeCard.MissingEffectSpec",
+                description: "FreezeCard effect is not defined on the source card.");
+        }
+
+        if (selectedTargets.Count == 0)
+        {
+            return Error.Validation(
+                code: "Game.Effect.FreezeCard.MissingTargets",
+                description: "FreezeCard requires at least one selected target.");
+        }
+
         var affectedCardInstanceIds = new HashSet<string>(StringComparer.Ordinal);
         var affectedPlayerIds = new HashSet<string>(StringComparer.Ordinal)
         {
             context.ActingPlayer.Id,
         };
 
-        foreach (var target in selectedTargets)
+        foreach (var target in selectedTargets.Where(target => !target.IsEffectResolutionStackTarget))
         {
             if (target.Zone == PlayerZone.Leader)
             {
-                return Error.Validation(
-                    code: "Game.Effect.DestroyCard.InvalidLeaderTarget",
-                    description: "DestroyCard does not support targeting leaders.");
+                continue;
             }
 
-            var sourceZone = target.Zone;
-            var sourcePlayer = context.Game.State.Players.Find(player => player.PlayerId == target.PlayerId)!;
+            var targetPlayer = context.Game.State.Players.FirstOrDefault(player =>
+                string.Equals(player.PlayerId, target.PlayerId, StringComparison.Ordinal));
 
-            var sourcePlayerZone = PlayerZoneCardAccessor.GetCards(sourceZone, sourcePlayer);
-            var cardInstance = sourcePlayerZone.First(card => card.InstanceId == target.CardInstanceId);
-
-            sourcePlayerZone.Remove(cardInstance);
-
-            if (cardInstance.IsRevealedToBothPlayers)
+            if (targetPlayer is null)
             {
-                cardInstance.IsRevealedToBothPlayers = false;
-                cardInstance.RevealedInZone = null;
+                return Error.NotFound(
+                    code: "Game.Effect.FreezeCard.TargetPlayerNotFound",
+                    description: $"Target player '{target.PlayerId}' was not found.");
             }
 
-            var ownerPlayer = context.Game.State.Players.Find(player => player.PlayerId == cardInstance.OwnerPlayerId)!;
+            var sourceZone = PlayerZoneCardAccessor.GetCards(target.Zone, targetPlayer);
+            var targetCard = sourceZone.FirstOrDefault(card =>
+                string.Equals(card.InstanceId, target.CardInstanceId, StringComparison.Ordinal));
 
-            var ownerTrashZone = PlayerZoneCardAccessor.GetCards(PlayerZone.Trash, ownerPlayer);
-            ownerTrashZone.Add(cardInstance);
+            if (targetCard is null)
+            {
+                return Error.NotFound(
+                    code: "Game.Effect.FreezeCard.TargetCardNotFound",
+                    description: $"Target card instance '{target.CardInstanceId}' was not found in {target.Zone}.");
+            }
 
-            affectedCardInstanceIds.Add(cardInstance.InstanceId);
-            affectedPlayerIds.Add(sourcePlayer.PlayerId);
-            affectedPlayerIds.Add(ownerPlayer.PlayerId);
+            if (CardRuntimeEffectStateService.IsDurationSupportedForKeywords(effectSpec.DurationMode)
+                && context.SourceCardInstance is not null)
+            {
+                CardRuntimeEffectStateService.AddTemporaryKeywordEffect(
+                    context.Game.State,
+                    context.SourceCardInstance,
+                    targetCard,
+                    effectSpec.Id,
+                    new KeywordModificationSpec
+                    {
+                        TargetType = KeywordModificationTargetType.SelectedTargets,
+                        Operation = KeywordModificationOperation.Add,
+                        Keyword = CannotAttackKeyword,
+                    },
+                    effectSpec.DurationMode);
+            }
+            else if (!targetCard.RuntimeKeywords.Any(keyword =>
+                string.Equals(keyword, CannotAttackKeyword, StringComparison.OrdinalIgnoreCase)))
+            {
+                targetCard.RuntimeKeywords.Add(CannotAttackKeyword);
+            }
+
+            affectedCardInstanceIds.Add(targetCard.InstanceId);
+            affectedPlayerIds.Add(targetPlayer.PlayerId);
+        }
+
+        if (affectedCardInstanceIds.Count == 0)
+        {
+            return Error.Validation(
+                code: "Game.Effect.FreezeCard.NoTargetsAffected",
+                description: "FreezeCard did not affect any selected targets.");
         }
 
         var mutationResult = EmitMutation(
             context,
-            GameMutationKind.CardMovedZone,
+            GameMutationKind.KeywordChanged,
             affectedCardInstanceIds,
             affectedPlayerIds);
 

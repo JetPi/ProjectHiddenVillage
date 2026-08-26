@@ -193,16 +193,60 @@ public static class GameStateResponseMapper
             TurnCount: player.TurnCount,
             Leader: ToLeaderCardInstanceResponse(player.LeaderCardInstance, state),
             Deck: isRequestingPlayer
-                ? player.Deck.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Deck)) : [],
+                ? player.Deck.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Deck))
+                : player.Deck
+                    .Where(card => IsVisibleToRequestingPlayer(card, PlayerZone.Deck, isRequestingPlayer))
+                    .Select(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Deck, state, pendingPrompt, isRequestingPlayer))
+                    .ToList(),
             DeckCount: player.Deck.Count,
             Hand: isRequestingPlayer
                 ? player.Hand.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Hand, state, pendingPrompt, isRequestingPlayer))
-                : player.Hand.ConvertAll(ToConcealedCardInstanceResponse),
+                : player.Hand
+                    .Select(card => IsVisibleToRequestingPlayer(card, PlayerZone.Hand, isRequestingPlayer)
+                        ? ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Hand, state, pendingPrompt, isRequestingPlayer)
+                        : ToConcealedCardInstanceResponse(card))
+                    .ToList(),
             HandCount: player.Hand.Count,
             CharacterField: player.Battlefield.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.CharacterField, state, pendingPrompt, isRequestingPlayer)),
-            SupportZone: player.SupportZone.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.SupportZone, state, pendingPrompt, isRequestingPlayer)),
+            SupportZone: player.SupportZone
+                .Select(card => ToSupportCardInstanceResponse(card, state.CardDefinitions, state, pendingPrompt, isRequestingPlayer))
+                .ToList(),
             Trash: player.DiscardPile.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Trash)),
             ExileZone: player.ExileZone.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.ExileZone)));
+    }
+
+    private static bool IsVisibleToRequestingPlayer(CardInstance card, PlayerZone zone, bool isRequestingPlayer)
+    {
+        if (isRequestingPlayer)
+        {
+            return true;
+        }
+
+        if (!card.IsRevealedToBothPlayers)
+        {
+            return false;
+        }
+
+        return card.RevealedInZone == zone;
+    }
+
+    private static CardInstanceResponse ToSupportCardInstanceResponse(
+        CardInstance card,
+        IReadOnlyDictionary<string, Card> cardDefinitions,
+        GameState state,
+        GamePrompt? pendingPrompt,
+        bool isRequestingPlayer)
+    {
+        if (!IsVisibleToRequestingPlayer(card, PlayerZone.SupportZone, isRequestingPlayer))
+        {
+            return new CardInstanceResponse(
+                InstanceId: card.InstanceId,
+                CardDefinitionId: card.CardDefinitionId,
+                OwnerPlayerId: card.OwnerPlayerId,
+                ControllerPlayerId: card.ControllerPlayerId);
+        }
+
+        return ToCardInstanceResponse(card, cardDefinitions, PlayerZone.SupportZone, state, pendingPrompt, isRequestingPlayer);
     }
 
     private static CardInstanceResponse ToConcealedCardInstanceResponse(CardInstance card)
@@ -375,6 +419,13 @@ public static class GameStateResponseMapper
         }
 
         if (card.IsExhausted)
+        {
+            return false;
+        }
+
+        var effectiveKeywords = CardRuntimeEffectStateService.ResolveEffectiveKeywords(state, card);
+        if (effectiveKeywords.Any(keyword =>
+            string.Equals(keyword, FreezeCardEffect.CannotAttackKeyword, StringComparison.OrdinalIgnoreCase)))
         {
             return false;
         }

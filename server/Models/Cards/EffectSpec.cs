@@ -174,6 +174,8 @@ public sealed class EffectSpec
 {
     public string Id { get; set; } = string.Empty;
 
+    public bool IsSubordinate { get; set; } = false;
+
     public RuntimeEffects RuntimeEffectType { get; set; }
 
     public EffectKind EffectType { get; set; } = EffectKind.Unknown;
@@ -200,6 +202,10 @@ public sealed class EffectSpec
 
     public EffectExecutionConditionSpec? ExecutionCondition { get; set; }
 
+    public RevealTimingMode RevealTimingMode { get; set; } = RevealTimingMode.RevealLast;
+
+    public ZoneCardPropertyPredicate? RevealPostConditionPredicate { get; set; }
+
     public string? OnSuccessEffectId { get; set; }
 
     public string? OnFailureEffectId { get; set; }
@@ -223,4 +229,10 @@ public sealed class EffectSpec
     public IReadOnlyList<EffectContextRuleSet> ContextRules { get; set; } = [];
 
     public EffectTargetRuleSet TargetRules { get; set; } = new();
+}
+
+public enum RevealTimingMode
+{
+    RevealFirst,
+    RevealLast,
 }

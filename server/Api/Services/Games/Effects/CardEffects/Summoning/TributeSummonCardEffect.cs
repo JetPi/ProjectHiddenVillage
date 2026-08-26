@@ -110,6 +110,12 @@ public sealed class TributeSummonCardEffect(
 
             tributeSourceZone.Remove(tributeCard);
 
+            if (tributeCard.IsRevealedToBothPlayers)
+            {
+                tributeCard.IsRevealedToBothPlayers = false;
+                tributeCard.RevealedInZone = null;
+            }
+
             var ownerPlayer = context.Game.State.Players.First(player => player.PlayerId == tributeCard.OwnerPlayerId);
             var ownerTrashZone = PlayerZoneCardAccessor.GetCards(PlayerZone.Trash, ownerPlayer);
             ownerTrashZone.Add(tributeCard);
@@ -125,6 +131,12 @@ public sealed class TributeSummonCardEffect(
         var summonedCard = summonSourceZone.First(card => card.InstanceId == summonTarget.CardInstanceId);
 
         summonSourceZone.Remove(summonedCard);
+
+        if (summonedCard.IsRevealedToBothPlayers)
+        {
+            summonedCard.IsRevealedToBothPlayers = false;
+            summonedCard.RevealedInZone = null;
+        }
 
         var summoningPlayerField = PlayerZoneCardAccessor.GetCards(PlayerZone.CharacterField, summoningPlayer);
         summonedCard.ControllerPlayerId = summoningPlayer.PlayerId;

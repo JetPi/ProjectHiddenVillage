@@ -70,6 +70,7 @@ public enum EffectDurationMode
 {
     Instant,
     DuringThisTurn,
+    DuringOpponentNextTurn,
     DuringThisBattle,
     Continuous
 }

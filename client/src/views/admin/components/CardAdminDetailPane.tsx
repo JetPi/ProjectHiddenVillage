@@ -60,7 +60,7 @@ const EFFECT_TIMING_OPTIONS = [
   'Your Turn',
   'When Attacking',
 ] as const
-const EFFECT_DURATION_MODE_OPTIONS = ['Instant', 'During This Turn', 'During This Battle', 'Continuous'] as const
+const EFFECT_DURATION_MODE_OPTIONS = ['Instant', 'During This Turn', 'During Opponent Next Turn', 'During This Battle', 'Continuous'] as const
 const PASSIVE_MODE_OPTIONS = ['None', 'Continuous', 'Triggered'] as const
 const PASSIVE_SCOPE_OPTIONS = ['Source Card Only', 'Source Controller', 'Whole Game'] as const
 const PASSIVE_TRIGGER_KIND_OPTIONS = ['Any', 'Stats Changed', 'Zone Changed', 'Turn Changed', 'Phase Changed', 'Stack Resolved'] as const
@@ -72,10 +72,13 @@ const KEYWORD_OPERATION_OPTIONS = ['Add', 'Remove'] as const
 const TARGET_RANGE_OPTIONS = ['Self', 'Opponent', 'Any'] as const
 const EXECUTION_TARGET_SOURCE_OPTIONS = ['Selected Targets', 'Source Card', 'None'] as const
 const EXECUTION_FLOW_MODE_OPTIONS = ['Per Step', 'Atomic Chain'] as const
+const REVEAL_TIMING_MODE_OPTIONS = ['Reveal First', 'Reveal Last'] as const
 const RESTRICTIONS_OPTIONS = ['None', 'Once Per Turn'] as const
 const RULE_OPERATOR_OPTIONS = ['Any', 'All'] as const
 const PLAYER_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone', 'Support Zone', 'Character Field', 'Leader'] as const
+const REVEAL_ZONE_OPTIONS = ['Hand', 'Deck', 'Support Zone'] as const
 const TRIBUTE_ROLE_OPTIONS = ['Tribute Material', 'Summon Candidate'] as const
+const TARGET_LOCATION_SELECTOR_KIND_OPTIONS = ['Any', 'Support Slot Index', 'Deck Top'] as const
 const TARGET_TYPE_OPTIONS = ['Selected Targets', 'Leader'] as const
 const ATTRIBUTE_OPERATION_OPTIONS = ['Add', 'Subtract', 'Multiply', 'Set'] as const
 const ATTRIBUTE_TYPE_OPTIONS = [
@@ -150,6 +153,7 @@ function renderEmptySelectionState(message: string) {
 function createDefaultEffect(): ICardCatalogEffectRequest {
   return {
     id: 'new-effect',
+    isSubordinate: false,
     onSuccessEffectId: null,
     onFailureEffectId: null,
     runtimeEffectType: 'Change Values',
@@ -167,6 +171,8 @@ function createDefaultEffect(): ICardCatalogEffectRequest {
     executionTargetSource: 'Selected Targets',
     executionFlowMode: 'Per Step',
     suppressSummonedTargetsEffectsWhileOnField: false,
+    revealTimingMode: 'Reveal Last',
+    revealPostConditionPredicate: null,
     executionCondition: null,
     attributeModifications: [],
     chakraAdjustments: [],
@@ -244,6 +250,10 @@ function createDefaultTargetRule(): ICardCatalogEffectTargetRuleRequest {
   return {
     scope: 'Self',
     inZone: 'Character Field',
+    locationSelector: {
+      kind: 'Any',
+      supportSlotIndex: null,
+    },
     tributeRole: null,
     exactSelectedTargetCount: null,
     minimumSelectedTargetCount: null,
@@ -517,6 +527,20 @@ function isSummonOrTributeRuntimeEffect(runtimeEffectType: string): boolean {
 
 function isAttackNegationRuntimeEffect(runtimeEffectType: string): boolean {
   return runtimeEffectType === 'Interrupt Attack'
+}
+
+function resolveTargetZoneOptions(runtimeEffectType: string): readonly string[] {
+  if (runtimeEffectType === 'Reveal Card') {
+    return REVEAL_ZONE_OPTIONS
+  }
+
+  return PLAYER_ZONE_OPTIONS
+}
+
+function normalizeRevealRuleZone(zone: string): string {
+  return REVEAL_ZONE_OPTIONS.includes(zone as (typeof REVEAL_ZONE_OPTIONS)[number])
+    ? zone
+    : 'Hand'
 }
 
 function normalizeEffectId(value: string | null | undefined): string {
@@ -862,6 +886,22 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                     />
                   </div>
 
+                  <div className="flex items-end">
+                    <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                      <span>is Subordinate</span>
+                      <span className="relative inline-flex h-5 w-9 items-center">
+                        <input
+                          type="checkbox"
+                          checked={effect.isSubordinate}
+                          onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, isSubordinate: event.target.checked }))}
+                          className="peer sr-only"
+                        />
+                        <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-amber-500/70" />
+                        <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                      </span>
+                    </label>
+                  </div>
+
                   <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Runtime Effect Type</label>
                     <select
@@ -872,14 +912,38 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                           const isTributeEffect = nextRuntimeEffectType === 'Tribute'
                           const supportsTributeRole = isSummonOrTributeRuntimeEffect(nextRuntimeEffectType)
                           const hidesTargetCount = isAttackNegationRuntimeEffect(nextRuntimeEffectType)
+                          const shouldEnsureRevealTargetRule = nextRuntimeEffectType === 'Reveal Card'
+                          const nextTargetRules = shouldEnsureRevealTargetRule
+                            && current.targetRules.rules.length === 0
+                            ? [
+                                {
+                                  ...createDefaultTargetRule(),
+                                  inZone: 'Hand',
+                                },
+                              ]
+                            : current.targetRules.rules
+                          const normalizedTargetRules = nextRuntimeEffectType === 'Reveal Card'
+                            ? nextTargetRules.map((rule) => ({
+                                ...rule,
+                                inZone: normalizeRevealRuleZone(rule.inZone),
+                              }))
+                            : nextTargetRules
 
                           return {
                             ...current,
                             runtimeEffectType: nextRuntimeEffectType,
+                            executionTargetSource:
+                              nextRuntimeEffectType === 'Reveal Card'
+                                ? 'Selected Targets'
+                                : current.executionTargetSource,
                             suppressSummonedTargetsEffectsWhileOnField:
                               nextRuntimeEffectType === 'Summon Card'
                                 ? current.suppressSummonedTargetsEffectsWhileOnField
                                 : false,
+                            revealTimingMode:
+                              nextRuntimeEffectType === 'Reveal Card'
+                                ? current.revealTimingMode
+                                : 'Reveal Last',
                             attributeModifications:
                               nextRuntimeEffectType === 'Change Values'
                                 ? current.attributeModifications
@@ -898,13 +962,17 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                 : [],
                             targetRules: {
                               ...current.targetRules,
+                              autoSelectAllValidTargets:
+                                nextRuntimeEffectType === 'Reveal Card'
+                                  ? true
+                                  : current.targetRules.autoSelectAllValidTargets,
                               exactTargetCount: hidesTargetCount ? null : current.targetRules.exactTargetCount,
                               minimumTargetCount: hidesTargetCount ? null : current.targetRules.minimumTargetCount,
                               maximumTargetCount: hidesTargetCount ? null : current.targetRules.maximumTargetCount,
                               tributeComposition: isTributeEffect
                                 ? current.targetRules.tributeComposition
                                 : null,
-                              rules: current.targetRules.rules.map((rule) => (
+                              rules: normalizedTargetRules.map((rule) => (
                                 supportsTributeRole
                                   ? rule
                                   : { ...rule, tributeRole: null }
@@ -1075,6 +1143,162 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                       />
                       Suppress Summoned Effects On Field
                     </label>
+                  </div>
+                ) : null}
+
+                {effect.runtimeEffectType === 'Reveal Card' ? (
+                  <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-emerald-500/55 bg-[var(--surface-muted)] p-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Reveal Timing</label>
+                      <select
+                        value={effect.revealTimingMode}
+                        onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, revealTimingMode: event.target.value }))}
+                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                      >
+                        {REVEAL_TIMING_MODE_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <label className="flex items-center gap-2 text-sm text-[var(--text-primary)] sm:col-span-2">
+                      <input
+                        type="checkbox"
+                        checked={effect.revealPostConditionPredicate !== null}
+                        onChange={(event) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            revealPostConditionPredicate: event.target.checked
+                              ? current.revealPostConditionPredicate ?? createDefaultPredicate()
+                              : null,
+                            revealTimingMode: event.target.checked ? 'Reveal First' : current.revealTimingMode,
+                          }))}
+                      />
+                      Post-Reveal Predicate Enabled
+                    </label>
+
+                    {effect.revealPostConditionPredicate ? (
+                      <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/30 bg-[var(--surface)] p-3 sm:col-span-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Post-Reveal Condition</p>
+
+                        <div className="flex flex-wrap items-start gap-2">
+                          <select
+                            value={effect.revealPostConditionPredicate.property}
+                            onChange={(event) =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                revealPostConditionPredicate: current.revealPostConditionPredicate
+                                  ? {
+                                      ...current.revealPostConditionPredicate,
+                                      property: event.target.value as ICardCatalogPredicateProperty,
+                                    }
+                                  : null,
+                              }))}
+                            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[11rem]"
+                          >
+                            {PREDICATE_PROPERTY_OPTIONS.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+
+                          <select
+                            value={effect.revealPostConditionPredicate.operator}
+                            onChange={(event) =>
+                              updateEffectAt(effectIndex, (current) => ({
+                                ...current,
+                                revealPostConditionPredicate: current.revealPostConditionPredicate
+                                  ? {
+                                      ...current.revealPostConditionPredicate,
+                                      operator: event.target.value,
+                                    }
+                                  : null,
+                              }))}
+                            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[10rem]"
+                          >
+                            {PREDICATE_OPERATOR_OPTIONS.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+
+                          <div className="min-w-[14rem] flex-1">
+                            <input
+                              type="text"
+                              placeholder={
+                                getPredicateEntries(effect.revealPostConditionPredicate).length > 0
+                                  ? `Add value (current: ${getPredicateEntries(effect.revealPostConditionPredicate).join(', ')})`
+                                  : 'Add value and press Enter'
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key !== 'Enter') {
+                                  return
+                                }
+
+                                event.preventDefault()
+                                const inputValue = event.currentTarget.value
+
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  revealPostConditionPredicate: current.revealPostConditionPredicate
+                                    ? appendPredicateEntries(current.revealPostConditionPredicate, inputValue)
+                                    : null,
+                                }))
+
+                                event.currentTarget.value = ''
+                              }}
+                              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                            />
+                          </div>
+                        </div>
+
+                        {getPredicateEntries(effect.revealPostConditionPredicate).length > 0 ? (
+                          <div className="w-full flex flex-wrap gap-2">
+                            {getPredicateEntries(effect.revealPostConditionPredicate).map((entry, entryIndex) => (
+                              <div
+                                key={`${entry}-${entryIndex}`}
+                                className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
+                              >
+                                <span>{entry}</span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      revealPostConditionPredicate: current.revealPostConditionPredicate
+                                        ? removePredicateEntryAt(current.revealPostConditionPredicate, entryIndex)
+                                        : null,
+                                    }))
+                                  }
+                                  className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                                  aria-label={`Remove ${entry}`}
+                                >
+                                  X
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
+                          <span>Ignore Case</span>
+                          <span className="relative inline-flex h-5 w-9 items-center">
+                            <input
+                              type="checkbox"
+                              checked={effect.revealPostConditionPredicate.ignoreCase}
+                              onChange={(event) =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  revealPostConditionPredicate: current.revealPostConditionPredicate
+                                    ? { ...current.revealPostConditionPredicate, ignoreCase: event.target.checked }
+                                    : null,
+                                }))}
+                              className="peer sr-only"
+                            />
+                            <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-emerald-500/70" />
+                            <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                          </span>
+                        </label>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -1763,6 +1987,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                     {effect.targetRules.rules.map((targetRule, targetRuleIndex) => {
                       const showsTributeRole = isSummonOrTributeRuntimeEffect(effect.runtimeEffectType)
                       const shouldShowSelectedCountField = !effect.targetRules.autoSelectAllValidTargets
+                      const zoneOptions = resolveTargetZoneOptions(effect.runtimeEffectType)
                       const selectedCountField = (
                         <div className="space-y-1">
                           <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Selected Count</label>
@@ -1888,12 +2113,52 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                       targetRules: {
                                         ...current.targetRules,
                                         rules: current.targetRules.rules.map((rule, index) =>
-                                          index === targetRuleIndex ? { ...rule, inZone: event.target.value } : rule),
+                                          index === targetRuleIndex
+                                            ? {
+                                              ...rule,
+                                              inZone: event.target.value,
+                                              locationSelector: {
+                                                kind: rule.locationSelector?.kind ?? 'Any',
+                                                supportSlotIndex: rule.locationSelector?.supportSlotIndex ?? null,
+                                              },
+                                            }
+                                            : rule),
                                       },
                                     }))}
                                   className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                                 >
-                                  {PLAYER_ZONE_OPTIONS.map((option) => (
+                                  {zoneOptions.map((option) => (
+                                    <option key={option} value={option}>{option}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Location Selector</label>
+                                <select
+                                  value={targetRule.locationSelector?.kind ?? 'Any'}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      targetRules: {
+                                        ...current.targetRules,
+                                        rules: current.targetRules.rules.map((rule, index) =>
+                                          index === targetRuleIndex
+                                            ? {
+                                              ...rule,
+                                              locationSelector: {
+                                                kind: event.target.value,
+                                                supportSlotIndex: event.target.value === 'Support Slot Index'
+                                                  ? (rule.locationSelector?.supportSlotIndex ?? 0)
+                                                  : null,
+                                              },
+                                            }
+                                            : rule),
+                                      },
+                                    }))}
+                                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                >
+                                  {TARGET_LOCATION_SELECTOR_KIND_OPTIONS.map((option) => (
                                     <option key={option} value={option}>{option}</option>
                                   ))}
                                 </select>
@@ -1925,6 +2190,35 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                                 </div>
                               ) : shouldShowSelectedCountField ? selectedCountField : null}
                             </div>
+
+                            {targetRule.locationSelector?.kind === 'Support Slot Index' ? (
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Support Slot Index</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={targetRule.locationSelector.supportSlotIndex ?? 0}
+                                  onChange={(event) =>
+                                    updateEffectAt(effectIndex, (current) => ({
+                                      ...current,
+                                      targetRules: {
+                                        ...current.targetRules,
+                                        rules: current.targetRules.rules.map((rule, index) =>
+                                          index === targetRuleIndex
+                                            ? {
+                                              ...rule,
+                                              locationSelector: {
+                                                kind: 'Support Slot Index',
+                                                supportSlotIndex: parseNullableInteger(event.target.value) ?? 0,
+                                              },
+                                            }
+                                            : rule),
+                                      },
+                                    }))}
+                                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                                />
+                              </div>
+                            ) : null}
                           </div>
 
                           {showsTributeRole && shouldShowSelectedCountField ? selectedCountField : null}

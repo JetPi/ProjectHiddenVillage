@@ -252,6 +252,21 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                     .Must(condition => condition is null || Enum.IsDefined(condition.ArgumentKey))
                     .WithMessage($"Execution condition argument key must be one of: {AllowedExecutionConditionArgumentKeys}.");
 
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType == RuntimeEffects.RevealCard
+                        || value.RevealTimingMode == RevealTimingMode.RevealLast)
+                    .WithMessage("Reveal timing mode can be changed only for Reveal Card runtime effects.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType == RuntimeEffects.RevealCard
+                        || value.RevealPostConditionPredicate is null)
+                    .WithMessage("Reveal post-condition predicate can only be set for Reveal Card runtime effects.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RevealPostConditionPredicate is null
+                        || value.RevealTimingMode == RevealTimingMode.RevealFirst)
+                    .WithMessage("Reveal post-condition predicate requires Reveal Timing Mode to be Reveal First.");
+
                 effect.RuleFor(value => value.ChakraCost)
                     .GreaterThanOrEqualTo(0)
                     .When(value => value.ChakraCost.HasValue)
@@ -341,6 +356,10 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                             .WithMessage("Leader zone target rules cannot use Health or CurrentHealth predicates. Use life/damage/power leader attributes instead.");
 
                         rule.RuleFor(value => value)
+                            .Must(HasValidLocationSelector)
+                            .WithMessage("Target rule location selector is invalid for the selected zone.");
+
+                        rule.RuleFor(value => value)
                             .Must(value =>
                             {
                                 if (!value.MinimumSelectedTargetCount.HasValue || !value.MaximumSelectedTargetCount.HasValue)
@@ -419,8 +438,8 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
                 effect.RuleFor(value => value)
                     .Must(value => value.DurationMode == EffectDurationMode.Instant
-                        || value.RuntimeEffectType is RuntimeEffects.ChangeValues or RuntimeEffects.GainEffect)
-                    .WithMessage("Non-instant duration is currently supported only for Change Values and Gain Effect runtime effects.");
+                        || value.RuntimeEffectType is RuntimeEffects.ChangeValues or RuntimeEffects.GainEffect or RuntimeEffects.FreezeCard)
+                    .WithMessage("Non-instant duration is currently supported only for Change Values, Gain Effect, and Freeze Card runtime effects.");
 
                 effect.RuleFor(value => value)
                     .Must(value => value.RuntimeEffectType != RuntimeEffects.MoveCard || value.MoveCardActions.Count > 0)
@@ -494,6 +513,10 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
         RuleFor(request => request.Effects)
             .Must(effects => effects is null || !HasBranchCycle(effects))
             .WithMessage("Effect branch graph cannot contain cycles.");
+
+        RuleFor(request => request.Effects)
+            .Must(effects => effects is null || BranchTargetsMustReferenceEntryEffects(effects))
+            .WithMessage("Effects referenced by OnSuccessEffectId or OnFailureEffectId must be marked as subordinate.");
     }
 
     private static bool HasAnyPatchableField(UpdateCardEffectsRequest request)
@@ -671,6 +694,35 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
         return false;
     }
 
+    private static bool BranchTargetsMustReferenceEntryEffects(IReadOnlyList<EffectSpec> effects)
+    {
+        var effectById = effects.ToDictionary(
+            effect => effect.Id.Trim(),
+            effect => effect,
+            StringComparer.Ordinal);
+
+        foreach (var effect in effects)
+        {
+            var onSuccess = effect.OnSuccessEffectId?.Trim();
+            if (!string.IsNullOrWhiteSpace(onSuccess)
+                && effectById.TryGetValue(onSuccess, out var successTarget)
+                && !successTarget.IsSubordinate)
+            {
+                return false;
+            }
+
+            var onFailure = effect.OnFailureEffectId?.Trim();
+            if (!string.IsNullOrWhiteSpace(onFailure)
+                && effectById.TryGetValue(onFailure, out var failureTarget)
+                && !failureTarget.IsSubordinate)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static bool DetectCycle(
         string nodeId,
         IReadOnlyDictionary<string, string[]> branchEdgesById,
@@ -697,5 +749,25 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
         recursionStack.Remove(nodeId);
         return false;
+    }
+
+    private static bool HasValidLocationSelector(EffectTargetRule rule)
+    {
+        var selector = rule.LocationSelector;
+        if (selector is null || selector.Kind == EffectTargetLocationSelectorKind.Any)
+        {
+            return true;
+        }
+
+        return selector.Kind switch
+        {
+            EffectTargetLocationSelectorKind.SupportSlotIndex =>
+                rule.InZone == PlayerZone.SupportZone
+                && selector.SupportSlotIndex.HasValue
+                && selector.SupportSlotIndex.Value >= 0,
+            EffectTargetLocationSelectorKind.DeckTop =>
+                rule.InZone == PlayerZone.Deck,
+            _ => false,
+        };
     }
 }

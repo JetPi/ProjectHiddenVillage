@@ -122,6 +122,118 @@ public sealed class GamesControllerStateVisibilityTests
         Assert.IsInstanceOfType<UnauthorizedObjectResult>(response.Result);
     }
 
+    [TestMethod]
+    public void GetCurrentGameState_ShowsRevealedOpponentHandCard()
+    {
+        var requesterId = Guid.NewGuid();
+        var opponentId = Guid.NewGuid();
+
+        var requesterPlayerId = requesterId.ToString("N");
+        var opponentPlayerId = opponentId.ToString("N");
+
+        var revealedHandCard = CreateCard("o-hand-revealed", opponentPlayerId);
+        revealedHandCard.IsRevealedToBothPlayers = true;
+        revealedHandCard.RevealedInZone = PlayerZone.Hand;
+
+        var hiddenHandCard = CreateCard("o-hand-hidden", opponentPlayerId);
+
+        var gameState = new GameState
+        {
+            GameId = "ABCDE",
+            CardDefinitions = BuildCardDefinitions(),
+            Players =
+            [
+                new PlayerState
+                {
+                    PlayerId = requesterPlayerId,
+                    LeaderCardInstance = CreateLeader(requesterPlayerId)
+                },
+                new PlayerState
+                {
+                    PlayerId = opponentPlayerId,
+                    LeaderCardInstance = CreateLeader(opponentPlayerId),
+                    Hand = [revealedHandCard, hiddenHandCard]
+                }
+            ]
+        };
+
+        var controller = BuildController(new StubGameReadService(gameState));
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = CreateHttpContextWithSub(requesterId.ToString())
+        };
+
+        var response = controller.GetCurrentGameState("ABCDE");
+
+        var ok = response.Result as OkObjectResult;
+        Assert.IsNotNull(ok);
+        var payload = ok.Value as GameStateResponse;
+        Assert.IsNotNull(payload);
+
+        var opponent = payload.Players.Single(player => player.PlayerId == opponentPlayerId);
+        Assert.AreEqual(2, opponent.Hand.Count);
+
+        var revealed = opponent.Hand.Single(card => card.InstanceId == "o-hand-revealed");
+        var hidden = opponent.Hand.Single(card => card.InstanceId == "o-hand-hidden");
+
+        Assert.AreEqual("card-1", revealed.CardDefinitionId);
+        Assert.AreEqual("concealed-card", hidden.CardDefinitionId);
+    }
+
+    [TestMethod]
+    public void GetCurrentGameState_ShowsRevealedOpponentDeckCardOnly()
+    {
+        var requesterId = Guid.NewGuid();
+        var opponentId = Guid.NewGuid();
+
+        var requesterPlayerId = requesterId.ToString("N");
+        var opponentPlayerId = opponentId.ToString("N");
+
+        var revealedDeckCard = CreateCard("o-deck-revealed", opponentPlayerId);
+        revealedDeckCard.IsRevealedToBothPlayers = true;
+        revealedDeckCard.RevealedInZone = PlayerZone.Deck;
+
+        var hiddenDeckCard = CreateCard("o-deck-hidden", opponentPlayerId);
+
+        var gameState = new GameState
+        {
+            GameId = "ABCDE",
+            CardDefinitions = BuildCardDefinitions(),
+            Players =
+            [
+                new PlayerState
+                {
+                    PlayerId = requesterPlayerId,
+                    LeaderCardInstance = CreateLeader(requesterPlayerId)
+                },
+                new PlayerState
+                {
+                    PlayerId = opponentPlayerId,
+                    LeaderCardInstance = CreateLeader(opponentPlayerId),
+                    Deck = [revealedDeckCard, hiddenDeckCard]
+                }
+            ]
+        };
+
+        var controller = BuildController(new StubGameReadService(gameState));
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = CreateHttpContextWithSub(requesterId.ToString())
+        };
+
+        var response = controller.GetCurrentGameState("ABCDE");
+
+        var ok = response.Result as OkObjectResult;
+        Assert.IsNotNull(ok);
+        var payload = ok.Value as GameStateResponse;
+        Assert.IsNotNull(payload);
+
+        var opponent = payload.Players.Single(player => player.PlayerId == opponentPlayerId);
+        Assert.AreEqual(2, opponent.DeckCount);
+        Assert.AreEqual(1, opponent.Deck.Count);
+        Assert.AreEqual("o-deck-revealed", opponent.Deck[0].InstanceId);
+    }
+
     private static GamesController BuildController(IGameReadService readService)
     {
         return new GamesController(readService, new StubGameInstanceService());

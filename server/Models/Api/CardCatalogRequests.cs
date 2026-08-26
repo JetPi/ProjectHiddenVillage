@@ -25,6 +25,7 @@ public sealed record CardCatalogItemResponse(
 
 public sealed record CardCatalogEffectResponse(
     string Id,
+    bool IsSubordinate,
     string? OnSuccessEffectId,
     string? OnFailureEffectId,
     string RuntimeEffectType,
@@ -42,6 +43,8 @@ public sealed record CardCatalogEffectResponse(
     string ExecutionTargetSource,
     string ExecutionFlowMode,
     bool SuppressSummonedTargetsEffectsWhileOnField,
+    string RevealTimingMode,
+    CardCatalogZoneCardPropertyPredicateResponse? RevealPostConditionPredicate,
     CardCatalogEffectExecutionConditionResponse? ExecutionCondition,
     IReadOnlyList<CardCatalogAttributeModificationResponse> AttributeModifications,
     IReadOnlyList<CardCatalogChakraAdjustmentResponse> ChakraAdjustments,
@@ -130,11 +133,16 @@ public sealed record CardCatalogEffectTargetRuleSetResponse(
 public sealed record CardCatalogEffectTargetRuleResponse(
     string Scope,
     string InZone,
+    CardCatalogEffectTargetLocationSelectorResponse LocationSelector,
     string? TributeRole,
     int? ExactSelectedTargetCount,
     int? MinimumSelectedTargetCount,
     int? MaximumSelectedTargetCount,
     CardCatalogZoneCardRestrictionResponse Restriction);
+
+public sealed record CardCatalogEffectTargetLocationSelectorResponse(
+    string Kind,
+    int? SupportSlotIndex);
 
 public sealed record CardCatalogZoneCardRestrictionResponse(
     IReadOnlyList<CardCatalogZoneCardPropertyPredicateResponse> Predicates,

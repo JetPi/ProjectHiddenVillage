@@ -70,7 +70,7 @@ internal static class CardRuntimeEffectStateService
     public static IReadOnlyList<TemporaryEffectProjection> BuildTemporaryEffectProjections(GameState state)
     {
         return state.AppliedCardEffects
-            .Where(effect => effect.DurationMode is EffectDurationMode.DuringThisTurn or EffectDurationMode.DuringThisBattle)
+            .Where(effect => effect.DurationMode is EffectDurationMode.DuringThisTurn or EffectDurationMode.DuringOpponentNextTurn or EffectDurationMode.DuringThisBattle)
             .Select(effect => new TemporaryEffectProjection(
                 EffectId: effect.EffectSpecId,
                 SourceCardInstanceId: effect.SourceCardInstanceId,
@@ -88,12 +88,14 @@ internal static class CardRuntimeEffectStateService
     public static bool IsDurationSupportedForAttributes(EffectDurationMode durationMode)
     {
         return durationMode == EffectDurationMode.DuringThisTurn
+            || durationMode == EffectDurationMode.DuringOpponentNextTurn
             || durationMode == EffectDurationMode.DuringThisBattle;
     }
 
     public static bool IsDurationSupportedForKeywords(EffectDurationMode durationMode)
     {
         return durationMode == EffectDurationMode.DuringThisTurn
+            || durationMode == EffectDurationMode.DuringOpponentNextTurn
             || durationMode == EffectDurationMode.DuringThisBattle;
     }
 
@@ -212,7 +214,7 @@ internal static class CardRuntimeEffectStateService
     {
         return state.AppliedCardEffects
             .Where(effect => string.Equals(effect.TargetCardInstanceId, targetCardInstanceId, StringComparison.Ordinal)
-                && effect.DurationMode is EffectDurationMode.DuringThisTurn or EffectDurationMode.DuringThisBattle);
+                && effect.DurationMode is EffectDurationMode.DuringThisTurn or EffectDurationMode.DuringOpponentNextTurn or EffectDurationMode.DuringThisBattle);
     }
 
     private static int ApplyOperation(int currentValue, AttributeModificationOperation operation, int operand)
