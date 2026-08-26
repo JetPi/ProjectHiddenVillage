@@ -42,4 +42,7 @@ public sealed class CardInstance
 
     // Captures the zone where reveal became active; reveal is cleared when card changes zone.
     public PlayerZone? RevealedInZone { get; set; }
+
+    // True when this card is face-up while in zones that support face state.
+    public bool IsFaceUp { get; set; } = true;
 }

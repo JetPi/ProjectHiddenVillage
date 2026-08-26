@@ -27,4 +27,6 @@ public sealed class LeaderCardInstanceState
     public int TotalLife { get; set; }
 
     public int CurrentLife { get; set; }
+
+    public bool IsFaceUp { get; set; } = true;
 }

@@ -34,6 +34,7 @@ export type INonLeaderCardViewModel = {
   image: string
   displayName: string
   type: string
+  isFaceUp: boolean
   isExhausted: boolean
   availableActions?: IGameActionOptionResponse[]
   isRested: boolean

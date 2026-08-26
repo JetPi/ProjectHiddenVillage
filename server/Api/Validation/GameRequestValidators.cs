@@ -438,8 +438,71 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
                 effect.RuleFor(value => value)
                     .Must(value => value.DurationMode == EffectDurationMode.Instant
-                        || value.RuntimeEffectType is RuntimeEffects.ChangeValues or RuntimeEffects.GainEffect or RuntimeEffects.FreezeCard)
-                    .WithMessage("Non-instant duration is currently supported only for Change Values, Gain Effect, and Freeze Card runtime effects.");
+                        || value.RuntimeEffectType is RuntimeEffects.ChangeValues or RuntimeEffects.GainEffect or RuntimeEffects.FreezeCard
+                        || (value.RuntimeEffectType == RuntimeEffects.AlterResources && value.FaceStateLocks.Count > 0))
+                    .WithMessage("Non-instant duration is currently supported only for Change Values, Gain Effect, Freeze Card, and Alter Resources face-state lock effects.");
+
+                effect.RuleForEach(value => value.SummonCardFlips)
+                    .ChildRules(flipSpec =>
+                    {
+                        flipSpec.RuleFor(value => value.TargetCategory)
+                            .Must(IsSupportedFaceStateTargetCategory)
+                            .WithMessage("Face-state flip target category must be ChakraCard or SupportZoneCards.");
+
+                        flipSpec.RuleFor(value => value.TargetRange)
+                            .Must(range => range is EffectTargetRange.Self or EffectTargetRange.Opponent or EffectTargetRange.Any)
+                            .WithMessage("Face-state flip target range must be Self, Opponent, or Any.");
+
+                        flipSpec.RuleFor(value => value.FaceState)
+                            .Must(Enum.IsDefined)
+                            .WithMessage("Face-state flip face state is invalid.");
+                    });
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType == RuntimeEffects.AlterResources || value.SummonCardFlips.Count == 0)
+                    .WithMessage("Face-state flips can only be set for Alter Resources runtime effects.");
+
+                effect.RuleForEach(value => value.FaceStateLocks)
+                    .ChildRules(lockSpec =>
+                    {
+                        lockSpec.RuleFor(value => value.TargetCategory)
+                            .Must(IsSupportedFaceStateTargetCategory)
+                            .WithMessage("Face-state lock target category must be ChakraCard or SupportZoneCards.");
+
+                        lockSpec.RuleFor(value => value.Operation)
+                            .Must(operation => operation == FaceStateLockOperation.CannotTurnFaceUp)
+                            .WithMessage("Face-state lock operation must be CannotTurnFaceUp.");
+
+                        lockSpec.RuleFor(value => value.TargetRange)
+                            .Must(range => range is EffectTargetRange.Self or EffectTargetRange.Opponent or EffectTargetRange.Any)
+                            .WithMessage("Face-state lock target range must be Self, Opponent, or Any.");
+                    });
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType == RuntimeEffects.AlterResources || value.FaceStateLocks.Count == 0)
+                    .WithMessage("Face-state locks can only be set for Alter Resources runtime effects.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.FaceStateLocks.Count == 0 || value.DurationMode != EffectDurationMode.Instant)
+                    .WithMessage("Face-state locks require a non-instant duration mode.");
+
+                effect.RuleFor(value => value.FaceStateLocks)
+                    .Must(faceStateLocks =>
+                    {
+                        var keys = new HashSet<string>(StringComparer.Ordinal);
+
+                        foreach (var faceStateLock in faceStateLocks)
+                        {
+                            var key = $"{faceStateLock.TargetCategory}:{faceStateLock.Operation}:{faceStateLock.TargetRange}";
+                            if (!keys.Add(key))
+                            {
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    })
+                    .WithMessage("Face-state locks cannot contain duplicate category/operation/target-range combinations.");
 
                 effect.RuleFor(value => value)
                     .Must(value => value.RuntimeEffectType != RuntimeEffects.MoveCard || value.MoveCardActions.Count > 0)
@@ -616,6 +679,11 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
     private static bool IsSupportedMoveCardZone(PlayerZone? zone)
     {
         return zone is null or PlayerZone.Hand or PlayerZone.Deck or PlayerZone.Trash or PlayerZone.ExileZone;
+    }
+
+    private static bool IsSupportedFaceStateTargetCategory(FaceStateTargetCategory category)
+    {
+        return category is FaceStateTargetCategory.ChakraCard or FaceStateTargetCategory.SupportZoneCards;
     }
 
     private static bool HasUniqueEffectIds(IReadOnlyList<EffectSpec> effects)

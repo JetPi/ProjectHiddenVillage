@@ -71,6 +71,7 @@ public enum EffectDurationMode
     Instant,
     DuringThisTurn,
     DuringOpponentNextTurn,
+    UntilTheEndOfYourNextTurn,
     DuringThisBattle,
     Continuous
 }
@@ -102,6 +103,20 @@ public enum ChakraAdjustmentOperation
 {
     Pay,
     Recover,
+}
+
+public enum FaceStateTargetCategory
+{
+    ChakraCard,
+    SupportZoneCards,
+    SummonCard,
+    Leader,
+    CharacterField,
+}
+
+public enum FaceStateLockOperation
+{
+    CannotTurnFaceUp,
 }
 
 public enum EffectExecutionTargetSource

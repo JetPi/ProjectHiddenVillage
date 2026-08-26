@@ -47,6 +47,8 @@ public static class GameStateResponseMapper
                     Operation: effect.Operation,
                     Value: effect.Value,
                     Keyword: effect.Keyword,
+                    FaceStateTargetCategory: effect.FaceStateTargetCategory,
+                    TargetPlayerId: effect.TargetPlayerId,
                     AppliedTurnNumber: effect.AppliedTurnNumber))
                 .ToList(),
             Players: state.Players
@@ -255,7 +257,10 @@ public static class GameStateResponseMapper
             InstanceId: card.InstanceId,
             CardDefinitionId: ConcealedCardDefinitionId,
             OwnerPlayerId: card.OwnerPlayerId,
-            ControllerPlayerId: card.ControllerPlayerId);
+            ControllerPlayerId: card.ControllerPlayerId)
+        {
+            IsFaceUp = false,
+        };
     }
 
     private static bool IsSamePlayerId(string? left, string? right)
@@ -319,6 +324,7 @@ public static class GameStateResponseMapper
                     Damage: resolvedDamage,
                     Power: resolvedPower)
                 {
+                    IsFaceUp = card.IsFaceUp,
                     AvailableActions = cardActions
                 },
             PlayerZone.SupportZone =>
@@ -339,13 +345,17 @@ public static class GameStateResponseMapper
                             Damage: resolvedDamage,
                             Power: resolvedPower)
                         {
+                            IsFaceUp = card.IsFaceUp,
                             AvailableActions = cardActions
                         }
                         : new CardInstanceResponse(
                             InstanceId: card.InstanceId,
                             CardDefinitionId: card.CardDefinitionId,
                             OwnerPlayerId: card.OwnerPlayerId,
-                            ControllerPlayerId: card.ControllerPlayerId),
+                            ControllerPlayerId: card.ControllerPlayerId)
+                        {
+                            IsFaceUp = card.IsFaceUp,
+                        },
 
             _ => new CardInstanceResponse(
                 InstanceId: card.InstanceId,

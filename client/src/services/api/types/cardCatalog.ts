@@ -101,8 +101,15 @@ export type ICardCatalogChakraAdjustmentRequest = {
 }
 
 export type ICardCatalogSummonCardFlipRequest = {
+  targetCategory: string
   targetRange: string
   faceState: string
+}
+
+export type ICardCatalogFaceStateLockRequest = {
+  targetCategory: string
+  operation: string
+  targetRange: string
 }
 
 export type ICardCatalogMoveCardActionRequest = {
@@ -178,6 +185,7 @@ export type ICardCatalogEffectRequest = {
   attributeModifications: ICardCatalogAttributeModificationRequest[]
   chakraAdjustments: ICardCatalogChakraAdjustmentRequest[]
   summonCardFlips: ICardCatalogSummonCardFlipRequest[]
+  faceStateLocks: ICardCatalogFaceStateLockRequest[]
   moveCardActions: ICardCatalogMoveCardActionRequest[]
   contextRules: ICardCatalogEffectContextRuleSetRequest[]
   targetRules: ICardCatalogEffectTargetRuleSetRequest

@@ -99,6 +99,7 @@ function resolveNonLeaderCards(
       image: catalogCard.image,
       displayName: catalogCard.displayName,
       type: catalogCard.type,
+      isFaceUp: card.isFaceUp,
       isExhausted: card.isExhausted,
       availableActions: card.availableActions,
       isRested: card.isRested,

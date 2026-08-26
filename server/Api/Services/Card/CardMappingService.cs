@@ -394,6 +394,9 @@ public sealed class CardMappingService : ICardMappingService
                     SummonCardFlips: effect.SummonCardFlips
                         .Select(ToSummonCardFlipResponse)
                         .ToList(),
+                    FaceStateLocks: effect.FaceStateLocks
+                        .Select(ToFaceStateLockResponse)
+                        .ToList(),
                     MoveCardActions: effect.MoveCardActions
                         .Select(ToMoveCardActionResponse)
                         .ToList(),
@@ -762,8 +765,17 @@ public sealed class CardMappingService : ICardMappingService
     private static CardCatalogSummonCardFlipResponse ToSummonCardFlipResponse(SummonCardFlipSpec spec)
     {
         return new CardCatalogSummonCardFlipResponse(
+            TargetCategory: SplitPascalCase(spec.TargetCategory.ToString()),
             TargetRange: SplitPascalCase(spec.TargetRange.ToString()),
             FaceState: SplitPascalCase(spec.FaceState.ToString()));
+    }
+
+    private static CardCatalogFaceStateLockResponse ToFaceStateLockResponse(FaceStateLockSpec spec)
+    {
+        return new CardCatalogFaceStateLockResponse(
+            TargetCategory: SplitPascalCase(spec.TargetCategory.ToString()),
+            Operation: SplitPascalCase(spec.Operation.ToString()),
+            TargetRange: SplitPascalCase(spec.TargetRange.ToString()));
     }
 
     private static CardCatalogMoveCardActionResponse ToMoveCardActionResponse(MoveCardActionSpec spec)

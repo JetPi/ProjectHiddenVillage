@@ -1,6 +1,6 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { AppButton } from '@/components/ui'
-import { CardImage, LeaderCard } from '@/components/ui/cards'
+import { CardBack, CardImage, LeaderCard } from '@/components/ui/cards'
 import { PlayCard, PlayPileZone, PlayResourceTracker } from '@/components/ui/game'
 import { twMerge } from 'tailwind-merge'
 import type { IGameZonesProps } from '@/views/game/types/gameZones'
@@ -73,13 +73,17 @@ function GameZones({
                 card.isExhausted ? 'opacity-80 saturate-75' : '',
               )}
             >
-              <CardImage
-                src={card.image}
-                alt={card.displayName}
-                loading="lazy"
-                decoding="async"
-                className={LEADER_CARD_IMAGE_CLASS}
-              />
+              {card.isFaceUp ? (
+                <CardImage
+                  src={card.image}
+                  alt={card.displayName}
+                  loading="lazy"
+                  decoding="async"
+                  className={LEADER_CARD_IMAGE_CLASS}
+                />
+              ) : (
+                <CardBack className="h-full w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+              )}
 
               <NonLeaderCardOverlay
                 previewCard={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null}

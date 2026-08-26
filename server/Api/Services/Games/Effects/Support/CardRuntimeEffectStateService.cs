@@ -12,6 +12,8 @@ internal static class CardRuntimeEffectStateService
         string? Operation,
         int? Value,
         string? Keyword,
+        string? FaceStateTargetCategory,
+        string? TargetPlayerId,
         int AppliedTurnNumber);
 
     public static int ResolveEffectivePower(GameState state, CardInstance cardInstance, Card cardDefinition)
@@ -70,7 +72,10 @@ internal static class CardRuntimeEffectStateService
     public static IReadOnlyList<TemporaryEffectProjection> BuildTemporaryEffectProjections(GameState state)
     {
         return state.AppliedCardEffects
-            .Where(effect => effect.DurationMode is EffectDurationMode.DuringThisTurn or EffectDurationMode.DuringOpponentNextTurn or EffectDurationMode.DuringThisBattle)
+            .Where(effect => effect.DurationMode is EffectDurationMode.DuringThisTurn
+                or EffectDurationMode.DuringOpponentNextTurn
+                or EffectDurationMode.UntilTheEndOfYourNextTurn
+                or EffectDurationMode.DuringThisBattle)
             .Select(effect => new TemporaryEffectProjection(
                 EffectId: effect.EffectSpecId,
                 SourceCardInstanceId: effect.SourceCardInstanceId,
@@ -81,6 +86,8 @@ internal static class CardRuntimeEffectStateService
                 Operation: effect.AttributeOperation?.ToString() ?? effect.KeywordOperation?.ToString(),
                 Value: effect.AttributeValue,
                 Keyword: effect.Keyword,
+                FaceStateTargetCategory: effect.FaceStateTargetCategory?.ToString(),
+                TargetPlayerId: effect.TargetPlayerId,
                 AppliedTurnNumber: effect.AppliedTurnNumber))
             .ToList();
     }
@@ -89,6 +96,7 @@ internal static class CardRuntimeEffectStateService
     {
         return durationMode == EffectDurationMode.DuringThisTurn
             || durationMode == EffectDurationMode.DuringOpponentNextTurn
+            || durationMode == EffectDurationMode.UntilTheEndOfYourNextTurn
             || durationMode == EffectDurationMode.DuringThisBattle;
     }
 
@@ -96,6 +104,15 @@ internal static class CardRuntimeEffectStateService
     {
         return durationMode == EffectDurationMode.DuringThisTurn
             || durationMode == EffectDurationMode.DuringOpponentNextTurn
+            || durationMode == EffectDurationMode.UntilTheEndOfYourNextTurn
+            || durationMode == EffectDurationMode.DuringThisBattle;
+    }
+
+    public static bool IsDurationSupportedForFaceStateLocks(EffectDurationMode durationMode)
+    {
+        return durationMode == EffectDurationMode.DuringThisTurn
+            || durationMode == EffectDurationMode.DuringOpponentNextTurn
+            || durationMode == EffectDurationMode.UntilTheEndOfYourNextTurn
             || durationMode == EffectDurationMode.DuringThisBattle;
     }
 
@@ -119,6 +136,7 @@ internal static class CardRuntimeEffectStateService
             AttributeValue = modification.Value,
             AttributeMinimumValue = modification.MinimumValue,
             AttributeMaximumValue = modification.MaximumValue,
+            AppliedByPlayerId = sourceCardInstance.ControllerPlayerId,
             AppliedTurnNumber = state.TurnNumber,
         });
     }
@@ -143,6 +161,7 @@ internal static class CardRuntimeEffectStateService
             AttributeValue = modification.Value,
             AttributeMinimumValue = modification.MinimumValue,
             AttributeMaximumValue = modification.MaximumValue,
+            AppliedByPlayerId = sourceCardInstance.ControllerPlayerId,
             AppliedTurnNumber = state.TurnNumber,
         });
     }
@@ -164,8 +183,49 @@ internal static class CardRuntimeEffectStateService
             DurationMode = durationMode,
             KeywordOperation = modification.Operation,
             Keyword = modification.Keyword,
+            AppliedByPlayerId = sourceCardInstance.ControllerPlayerId,
             AppliedTurnNumber = state.TurnNumber,
         });
+    }
+
+    public static void AddTemporaryFaceStateLockEffect(
+        GameState state,
+        CardInstance sourceCardInstance,
+        string effectSpecId,
+        FaceStateTargetCategory targetCategory,
+        FaceStateLockOperation operation,
+        string targetPlayerId,
+        EffectDurationMode durationMode)
+    {
+        state.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = sourceCardInstance.InstanceId,
+            EffectSpecId = effectSpecId,
+            TargetCardInstanceId = string.Empty,
+            ModifierKind = AppliedCardModifierKind.FaceStateLock,
+            DurationMode = durationMode,
+            FaceStateTargetCategory = targetCategory,
+            FaceStateLockOperation = operation,
+            TargetPlayerId = targetPlayerId,
+            AppliedByPlayerId = sourceCardInstance.ControllerPlayerId,
+            AppliedTurnNumber = state.TurnNumber,
+        });
+    }
+
+    public static bool IsFaceUpTransitionBlocked(
+        GameState state,
+        string targetPlayerId,
+        FaceStateTargetCategory targetCategory)
+    {
+        return state.AppliedCardEffects.Any(effect =>
+            effect.ModifierKind == AppliedCardModifierKind.FaceStateLock
+            && effect.FaceStateLockOperation == FaceStateLockOperation.CannotTurnFaceUp
+            && effect.FaceStateTargetCategory == targetCategory
+            && string.Equals(effect.TargetPlayerId, targetPlayerId, StringComparison.Ordinal)
+            && effect.DurationMode is EffectDurationMode.DuringThisTurn
+                or EffectDurationMode.DuringOpponentNextTurn
+                or EffectDurationMode.UntilTheEndOfYourNextTurn
+                or EffectDurationMode.DuringThisBattle);
     }
 
     private static int ApplyActiveAttributeEffects(
@@ -214,7 +274,10 @@ internal static class CardRuntimeEffectStateService
     {
         return state.AppliedCardEffects
             .Where(effect => string.Equals(effect.TargetCardInstanceId, targetCardInstanceId, StringComparison.Ordinal)
-                && effect.DurationMode is EffectDurationMode.DuringThisTurn or EffectDurationMode.DuringOpponentNextTurn or EffectDurationMode.DuringThisBattle);
+                && effect.DurationMode is EffectDurationMode.DuringThisTurn
+                    or EffectDurationMode.DuringOpponentNextTurn
+                    or EffectDurationMode.UntilTheEndOfYourNextTurn
+                    or EffectDurationMode.DuringThisBattle);
     }
 
     private static int ApplyOperation(int currentValue, AttributeModificationOperation operation, int operand)

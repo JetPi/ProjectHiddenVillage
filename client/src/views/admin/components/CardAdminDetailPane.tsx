@@ -14,6 +14,7 @@ import type { ICountConstraintMode } from '@/views/admin/types/countConstraintFi
 import type {
   ICardCatalogAttributeModificationRequest,
   ICardCatalogChakraAdjustmentRequest,
+  ICardCatalogFaceStateLockRequest,
   ICardCatalogKeywordModificationRequest,
   ICardCatalogMoveCardActionRequest,
   ICardCatalogPassiveConsequenceRequest,
@@ -60,7 +61,7 @@ const EFFECT_TIMING_OPTIONS = [
   'Your Turn',
   'When Attacking',
 ] as const
-const EFFECT_DURATION_MODE_OPTIONS = ['Instant', 'During This Turn', 'During Opponent Next Turn', 'During This Battle', 'Continuous'] as const
+const EFFECT_DURATION_MODE_OPTIONS = ['Instant', 'During This Turn', 'During Opponent Next Turn', 'Until the End of your Next Turn', 'During This Battle', 'Continuous'] as const
 const PASSIVE_MODE_OPTIONS = ['None', 'Continuous', 'Triggered'] as const
 const PASSIVE_SCOPE_OPTIONS = ['Source Card Only', 'Source Controller', 'Whole Game'] as const
 const PASSIVE_TRIGGER_KIND_OPTIONS = ['Any', 'Stats Changed', 'Zone Changed', 'Turn Changed', 'Phase Changed', 'Stack Resolved'] as const
@@ -91,6 +92,8 @@ const ATTRIBUTE_TYPE_OPTIONS = [
 ] as const
 const CHAKRA_OPERATION_OPTIONS = ['Pay', 'Recover'] as const
 const FACE_STATE_OPTIONS = ['Face Up', 'Face Down'] as const
+const FACE_STATE_TARGET_CATEGORY_OPTIONS = ['Chakra Card', 'Support Zone Cards'] as const
+const FACE_STATE_LOCK_OPERATION_OPTIONS = ['Cannot Turn Face Up'] as const
 const MOVE_CARD_OPERATION_OPTIONS = ['Move', 'Draw'] as const
 const MOVE_CARD_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone'] as const
 const MOVE_CARD_DESTINATION_RANGE_OPTIONS = ['Self', 'Opponent', 'Any'] as const
@@ -177,6 +180,7 @@ function createDefaultEffect(): ICardCatalogEffectRequest {
     attributeModifications: [],
     chakraAdjustments: [],
     summonCardFlips: [],
+    faceStateLocks: [],
     moveCardActions: [],
     contextRules: [],
     targetRules: {
@@ -294,6 +298,7 @@ function createDefaultChakraAdjustment(): ICardCatalogChakraAdjustmentRequest {
 
 function createDefaultSummonCardFlip(): ICardCatalogSummonCardFlipRequest {
   return {
+    targetCategory: 'Chakra Card',
     targetRange: 'Self',
     faceState: 'Face Up',
   }
@@ -311,6 +316,14 @@ function createDefaultMoveCardAction(): ICardCatalogMoveCardActionRequest {
     multiCardOrdering: 'Selected Order',
     allowCrossPlayer: false,
     destinationPlayerRange: 'Self',
+  }
+}
+
+function createDefaultFaceStateLock(): ICardCatalogFaceStateLockRequest {
+  return {
+    targetCategory: 'Chakra Card',
+    operation: 'Cannot Turn Face Up',
+    targetRange: 'Self',
   }
 }
 
@@ -955,6 +968,10 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                             summonCardFlips:
                               nextRuntimeEffectType === 'Alter Resources'
                                 ? current.summonCardFlips
+                                : [],
+                            faceStateLocks:
+                              nextRuntimeEffectType === 'Alter Resources'
+                                ? current.faceStateLocks
                                 : [],
                             moveCardActions:
                               nextRuntimeEffectType === 'Move Card'
@@ -4021,7 +4038,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
                 {effect.runtimeEffectType === 'Alter Resources' ? (
                   <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-indigo-500/55 bg-[var(--surface-muted)] p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Summon Card Flips</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Face State Flips</p>
 
                     <div className="flex justify-end">
                       <AppButton
@@ -4033,12 +4050,27 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                             summonCardFlips: [...current.summonCardFlips, createDefaultSummonCardFlip()],
                           }))}
                       >
-                        Add Summon Flip
+                        Add Face State Flip
                       </AppButton>
                     </div>
 
                     {effect.summonCardFlips.map((summonCardFlip, summonFlipIndex) => (
-                      <div key={`summon-flip-${summonFlipIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-indigo-500/30 bg-[var(--surface)] p-3 sm:grid-cols-3">
+                      <div key={`summon-flip-${summonFlipIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-indigo-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
+                      <select
+                        value={summonCardFlip.targetCategory}
+                        onChange={(event) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            summonCardFlips: current.summonCardFlips.map((row, index) =>
+                              index === summonFlipIndex ? { ...row, targetCategory: event.target.value } : row),
+                          }))}
+                        className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                      >
+                        {FACE_STATE_TARGET_CATEGORY_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+
                       <select
                         value={summonCardFlip.targetRange}
                         onChange={(event) =>
@@ -4080,6 +4112,87 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                       >
                         Remove
                       </AppButton>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {effect.runtimeEffectType === 'Alter Resources' ? (
+                  <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-violet-500/55 bg-[var(--surface-muted)] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Face State Locks</p>
+
+                    <div className="flex justify-end">
+                      <AppButton
+                        type="button"
+                        variant="ghost"
+                        onClick={() =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            faceStateLocks: [...current.faceStateLocks, createDefaultFaceStateLock()],
+                          }))}
+                      >
+                        Add Face State Lock
+                      </AppButton>
+                    </div>
+
+                    {effect.faceStateLocks.map((faceStateLock, faceStateLockIndex) => (
+                      <div key={`face-lock-${faceStateLockIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-violet-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
+                        <select
+                          value={faceStateLock.targetCategory}
+                          onChange={(event) =>
+                            updateEffectAt(effectIndex, (current) => ({
+                              ...current,
+                              faceStateLocks: current.faceStateLocks.map((row, index) =>
+                                index === faceStateLockIndex ? { ...row, targetCategory: event.target.value } : row),
+                            }))}
+                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                        >
+                            {FACE_STATE_TARGET_CATEGORY_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={faceStateLock.operation}
+                          onChange={(event) =>
+                            updateEffectAt(effectIndex, (current) => ({
+                              ...current,
+                              faceStateLocks: current.faceStateLocks.map((row, index) =>
+                                index === faceStateLockIndex ? { ...row, operation: event.target.value } : row),
+                            }))}
+                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                        >
+                          {FACE_STATE_LOCK_OPERATION_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={faceStateLock.targetRange}
+                          onChange={(event) =>
+                            updateEffectAt(effectIndex, (current) => ({
+                              ...current,
+                              faceStateLocks: current.faceStateLocks.map((row, index) =>
+                                index === faceStateLockIndex ? { ...row, targetRange: event.target.value } : row),
+                            }))}
+                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                        >
+                          {TARGET_RANGE_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+
+                        <AppButton
+                          type="button"
+                          variant="ghost"
+                          onClick={() =>
+                            updateEffectAt(effectIndex, (current) => ({
+                              ...current,
+                              faceStateLocks: current.faceStateLocks.filter((_, index) => index !== faceStateLockIndex),
+                            }))}
+                        >
+                          Remove
+                        </AppButton>
                       </div>
                     ))}
                   </div>

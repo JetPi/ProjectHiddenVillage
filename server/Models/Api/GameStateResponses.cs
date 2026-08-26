@@ -21,6 +21,8 @@ public sealed record ActiveTemporaryEffectResponse(
     string? Operation,
     int? Value,
     string? Keyword,
+    string? FaceStateTargetCategory,
+    string? TargetPlayerId,
     int AppliedTurnNumber);
 
 public sealed record PendingPromptResponse(
@@ -54,6 +56,8 @@ public record CardInstanceResponse(
     string OwnerPlayerId,
     string ControllerPlayerId)
 {
+    public bool IsFaceUp { get; init; } = true;
+
     public IReadOnlyList<GameActionOptionResponse> AvailableActions { get; init; } = [];
 }
 
