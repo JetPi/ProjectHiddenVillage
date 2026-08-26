@@ -93,6 +93,11 @@ export async function fetchCardCatalogByIds(cardIds: string[]): Promise<ICardCat
   return data
 }
 
+export async function fetchCardCatalogEffectConditionKeywords(): Promise<string[]> {
+  const { data } = await api.get<string[]>('/api/card/catalog/effect-condition-keywords')
+  return data
+}
+
 export async function updateCardCatalogEffects(
   cardId: string,
   request: IUpdateCardCatalogEffectsRequest,

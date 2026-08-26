@@ -178,6 +178,12 @@ public sealed class CardMappingService : ICardMappingService
         return orderedItems;
     }
 
+    public Task<ErrorOr<List<string>>> GetEffectConditionKeywords()
+    {
+        var keywords = EffectConditionKeywords.All.ToList();
+        return Task.FromResult<ErrorOr<List<string>>>(keywords);
+    }
+
     public async Task<ErrorOr<CardCatalogItemResponse>> UpdateCardEffectsByCardId(string cardId, UpdateCardEffectsRequest request)
     {
         if (request is null)

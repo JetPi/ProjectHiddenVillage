@@ -60,6 +60,20 @@ public sealed class CardController : ApiControllerBase
         return Ok(result.Value);
     }
 
+    [HttpGet("catalog/effect-condition-keywords")]
+    [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<List<string>>> GetEffectConditionKeywords()
+    {
+        var result = await cardMappingService.GetEffectConditionKeywords();
+        if (result.IsError)
+        {
+            return ProblemFromErrors<List<string>>(result.Errors);
+        }
+
+        return Ok(result.Value);
+    }
+
     [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
     [HttpPatch("catalog/{cardId}/effects")]
     [ProducesResponseType(typeof(CardCatalogItemResponse), StatusCodes.Status200OK)]
