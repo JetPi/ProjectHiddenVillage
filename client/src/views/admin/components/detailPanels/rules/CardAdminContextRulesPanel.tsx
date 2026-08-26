@@ -4,8 +4,6 @@ import { CountConstraintField } from '@/views/admin/components/CountConstraintFi
 import {
   MATCH_MODE_OPTIONS,
   PLAYER_ZONE_OPTIONS,
-  PREDICATE_OPERATOR_OPTIONS,
-  PREDICATE_PROPERTY_OPTIONS,
   RULE_OPERATOR_OPTIONS,
 } from '@/views/admin/constants'
 import type {
@@ -13,7 +11,6 @@ import type {
   ICardAdminContextRulesPanelProps,
 } from '@/views/admin/types/cardAdminEffectPanels'
 import type { ICountConstraintMode } from '@/views/admin/types/countConstraintField'
-import type { ICardCatalogPredicateProperty } from '@/services/api/types/cardCatalog'
 import {
   appendPredicateEntries,
   createDefaultContextRule,
@@ -24,6 +21,8 @@ import {
   removePredicateEntryAt,
 } from '@/views/admin/utils'
 import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminPredicateControls } from '@/views/admin/components/CardAdminPredicateControls'
+import { CardAdminPredicateFooter } from '@/views/admin/components/CardAdminPredicateFooter'
 
 export function CardAdminContextRulesPanel({
   effect,
@@ -488,304 +487,238 @@ function ContextRulePlayerPanel({
 
                         return (
                           <div key={`${requirementPredicateKey}-predicate-${predicateIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/15 bg-[var(--surface)] p-2">
-                            <div className="flex flex-wrap items-start gap-2">
-                              <CardAdminSelect
-                                value={predicate.property}
-                                onChange={(event) =>
-                                  updateEffectAt(effectIndex, (current) => ({
-                                    ...current,
-                                    contextRules: current.contextRules.map((row, index) => {
-                                      if (index !== contextRuleIndex) {
-                                        return row
-                                      }
-
-                                      const nextAudienceValue = row[audience]
-                                      if (!nextAudienceValue?.inZoneRequirements) {
-                                        return row
-                                      }
-
-                                      return {
-                                        ...row,
-                                        [audience]: {
-                                          ...nextAudienceValue,
-                                          inZoneRequirements: {
-                                            ...nextAudienceValue.inZoneRequirements,
-                                            requirements: nextAudienceValue.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                              entryIndex === requirementIndex
-                                                ? {
-                                                    ...entry,
-                                                    restriction: {
-                                                      ...entry.restriction,
-                                                      predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
-                                                        rowPredicateIndex === predicateIndex
-                                                          ? { ...rowPredicate, property: event.target.value as ICardCatalogPredicateProperty }
-                                                          : rowPredicate),
-                                                    },
-                                                  }
-                                                : entry),
-                                          },
-                                        },
-                                      }
-                                    }),
-                                  }))}
-                                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[11rem]"
-                              >
-                                {PREDICATE_PROPERTY_OPTIONS.map((option) => (
-                                  <option key={option} value={option}>{option}</option>
-                                ))}
-                              </CardAdminSelect>
-
-                              <CardAdminSelect
-                                value={predicate.operator}
-                                onChange={(event) =>
-                                  updateEffectAt(effectIndex, (current) => ({
-                                    ...current,
-                                    contextRules: current.contextRules.map((row, index) => {
-                                      if (index !== contextRuleIndex) {
-                                        return row
-                                      }
-
-                                      const nextAudienceValue = row[audience]
-                                      if (!nextAudienceValue?.inZoneRequirements) {
-                                        return row
-                                      }
-
-                                      return {
-                                        ...row,
-                                        [audience]: {
-                                          ...nextAudienceValue,
-                                          inZoneRequirements: {
-                                            ...nextAudienceValue.inZoneRequirements,
-                                            requirements: nextAudienceValue.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                              entryIndex === requirementIndex
-                                                ? {
-                                                    ...entry,
-                                                    restriction: {
-                                                      ...entry.restriction,
-                                                      predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
-                                                        rowPredicateIndex === predicateIndex
-                                                          ? { ...rowPredicate, operator: event.target.value }
-                                                          : rowPredicate),
-                                                    },
-                                                  }
-                                                : entry),
-                                          },
-                                        },
-                                      }
-                                    }),
-                                  }))}
-                                className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[10rem]"
-                              >
-                                {PREDICATE_OPERATOR_OPTIONS.map((option) => (
-                                  <option key={option} value={option}>{option}</option>
-                                ))}
-                              </CardAdminSelect>
-
-                              <div className="min-w-[14rem] flex-1">
-                                <input
-                                  type="text"
-                                  placeholder={
-                                    predicateEntries.length > 0
-                                      ? `Add value (current: ${predicateEntries.join(', ')})`
-                                      : 'Add value and press Enter'
-                                  }
-                                  onKeyDown={(event) => {
-                                    if (event.key !== 'Enter') {
-                                      return
+                            <CardAdminPredicateControls
+                              predicateProperty={predicate.property}
+                              predicateOperator={predicate.operator}
+                              predicateEntries={predicateEntries}
+                              onPropertyChange={(property) =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  contextRules: current.contextRules.map((row, index) => {
+                                    if (index !== contextRuleIndex) {
+                                      return row
                                     }
 
-                                    event.preventDefault()
-                                    const inputValue = event.currentTarget.value
+                                    const nextAudienceValue = row[audience]
+                                    if (!nextAudienceValue?.inZoneRequirements) {
+                                      return row
+                                    }
 
-                                    updateEffectAt(effectIndex, (current) => ({
-                                      ...current,
-                                      contextRules: current.contextRules.map((row, index) => {
-                                        if (index !== contextRuleIndex) {
-                                          return row
-                                        }
-
-                                        const nextAudienceValue = row[audience]
-                                        if (!nextAudienceValue?.inZoneRequirements) {
-                                          return row
-                                        }
-
-                                        return {
-                                          ...row,
-                                          [audience]: {
-                                            ...nextAudienceValue,
-                                            inZoneRequirements: {
-                                              ...nextAudienceValue.inZoneRequirements,
-                                              requirements: nextAudienceValue.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                                entryIndex === requirementIndex
-                                                  ? {
-                                                      ...entry,
-                                                      restriction: {
-                                                        ...entry.restriction,
-                                                        predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
-                                                          rowPredicateIndex === predicateIndex
-                                                            ? appendPredicateEntries(rowPredicate, inputValue)
-                                                            : rowPredicate),
-                                                      },
-                                                    }
-                                                  : entry),
-                                            },
-                                          },
-                                        }
-                                      }),
-                                    }))
-
-                                    event.currentTarget.value = ''
-                                  }}
-                                  className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                                />
-                              </div>
-                            </div>
-
-                            {predicateEntries.length > 0 ? (
-                              <div className="w-full flex flex-wrap gap-2">
-                                {predicateEntries.map((entry, entryIndex) => (
-                                  <div
-                                    key={`${entry}-${entryIndex}`}
-                                    className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
-                                  >
-                                    <span>{entry}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        updateEffectAt(effectIndex, (current) => ({
-                                          ...current,
-                                          contextRules: current.contextRules.map((row, index) => {
-                                            if (index !== contextRuleIndex) {
-                                              return row
-                                            }
-
-                                            const nextAudienceValue = row[audience]
-                                            if (!nextAudienceValue?.inZoneRequirements) {
-                                              return row
-                                            }
-
-                                            return {
-                                              ...row,
-                                              [audience]: {
-                                                ...nextAudienceValue,
-                                                inZoneRequirements: {
-                                                  ...nextAudienceValue.inZoneRequirements,
-                                                  requirements: nextAudienceValue.inZoneRequirements.requirements.map((requirementEntry, requirementEntryIndex) =>
-                                                    requirementEntryIndex === requirementIndex
-                                                      ? {
-                                                          ...requirementEntry,
-                                                          restriction: {
-                                                            ...requirementEntry.restriction,
-                                                            predicates: requirementEntry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
-                                                              rowPredicateIndex === predicateIndex
-                                                                ? removePredicateEntryAt(rowPredicate, entryIndex)
-                                                                : rowPredicate),
-                                                          },
-                                                        }
-                                                      : requirementEntry),
-                                                },
-                                              },
-                                            }
-                                          }),
-                                        }))
-                                      }
-                                      className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-                                      aria-label={`Remove ${entry}`}
-                                    >
-                                      X
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : null}
-
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
-                                <span>Ignore Case</span>
-                                <CardAdminToggleSwitch
-                                  checked={predicate.ignoreCase}
-                                  onChange={(checked) =>
-                                    updateEffectAt(effectIndex, (current) => ({
-                                      ...current,
-                                      contextRules: current.contextRules.map((row, index) => {
-                                        if (index !== contextRuleIndex) {
-                                          return row
-                                        }
-
-                                        const nextAudienceValue = row[audience]
-                                        if (!nextAudienceValue?.inZoneRequirements) {
-                                          return row
-                                        }
-
-                                        return {
-                                          ...row,
-                                          [audience]: {
-                                            ...nextAudienceValue,
-                                            inZoneRequirements: {
-                                              ...nextAudienceValue.inZoneRequirements,
-                                              requirements: nextAudienceValue.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                                entryIndex === requirementIndex
-                                                  ? {
-                                                      ...entry,
-                                                      restriction: {
-                                                        ...entry.restriction,
-                                                        predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
-                                                          rowPredicateIndex === predicateIndex
-                                                            ? { ...rowPredicate, ignoreCase: checked }
-                                                            : rowPredicate),
-                                                      },
-                                                    }
-                                                  : entry),
-                                            },
-                                          },
-                                        }
-                                      }),
-                                    }))}
-                                  ariaLabel="Ignore Case"
-                                />
-                              </label>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateEffectAt(effectIndex, (current) => ({
-                                    ...current,
-                                    contextRules: current.contextRules.map((row, index) => {
-                                      if (index !== contextRuleIndex) {
-                                        return row
-                                      }
-
-                                      const nextAudienceValue = row[audience]
-                                      if (!nextAudienceValue?.inZoneRequirements) {
-                                        return row
-                                      }
-
-                                      return {
-                                        ...row,
-                                        [audience]: {
-                                          ...nextAudienceValue,
-                                          inZoneRequirements: {
-                                            ...nextAudienceValue.inZoneRequirements,
-                                            requirements: nextAudienceValue.inZoneRequirements.requirements.map((entry, entryIndex) =>
-                                              entryIndex === requirementIndex
-                                                ? {
-                                                    ...entry,
-                                                    restriction: {
-                                                      ...entry.restriction,
-                                                      predicates: entry.restriction.predicates.filter((_, rowPredicateIndex) => rowPredicateIndex !== predicateIndex),
-                                                    },
-                                                  }
-                                                : entry),
-                                          },
+                                    return {
+                                      ...row,
+                                      [audience]: {
+                                        ...nextAudienceValue,
+                                        inZoneRequirements: {
+                                          ...nextAudienceValue.inZoneRequirements,
+                                          requirements: nextAudienceValue.inZoneRequirements.requirements.map((entry, entryIndex) =>
+                                            entryIndex === requirementIndex
+                                              ? {
+                                                  ...entry,
+                                                  restriction: {
+                                                    ...entry.restriction,
+                                                    predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
+                                                      rowPredicateIndex === predicateIndex
+                                                        ? { ...rowPredicate, property }
+                                                        : rowPredicate),
+                                                  },
+                                                }
+                                              : entry),
                                         },
-                                      }
-                                    }),
-                                  }))}
-                                className="self-end px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                                aria-label="Remove Predicate"
-                              >
-                                X
-                              </button>
-                            </div>
+                                      },
+                                    }
+                                  }),
+                                }))}
+                              onOperatorChange={(operator) =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  contextRules: current.contextRules.map((row, index) => {
+                                    if (index !== contextRuleIndex) {
+                                      return row
+                                    }
+
+                                    const nextAudienceValue = row[audience]
+                                    if (!nextAudienceValue?.inZoneRequirements) {
+                                      return row
+                                    }
+
+                                    return {
+                                      ...row,
+                                      [audience]: {
+                                        ...nextAudienceValue,
+                                        inZoneRequirements: {
+                                          ...nextAudienceValue.inZoneRequirements,
+                                          requirements: nextAudienceValue.inZoneRequirements.requirements.map((entry, entryIndex) =>
+                                            entryIndex === requirementIndex
+                                              ? {
+                                                  ...entry,
+                                                  restriction: {
+                                                    ...entry.restriction,
+                                                    predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
+                                                      rowPredicateIndex === predicateIndex
+                                                        ? { ...rowPredicate, operator }
+                                                        : rowPredicate),
+                                                  },
+                                                }
+                                              : entry),
+                                        },
+                                      },
+                                    }
+                                  }),
+                                }))}
+                              onAddValue={(inputValue) =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  contextRules: current.contextRules.map((row, index) => {
+                                    if (index !== contextRuleIndex) {
+                                      return row
+                                    }
+
+                                    const nextAudienceValue = row[audience]
+                                    if (!nextAudienceValue?.inZoneRequirements) {
+                                      return row
+                                    }
+
+                                    return {
+                                      ...row,
+                                      [audience]: {
+                                        ...nextAudienceValue,
+                                        inZoneRequirements: {
+                                          ...nextAudienceValue.inZoneRequirements,
+                                          requirements: nextAudienceValue.inZoneRequirements.requirements.map((entry, entryIndex) =>
+                                            entryIndex === requirementIndex
+                                              ? {
+                                                  ...entry,
+                                                  restriction: {
+                                                    ...entry.restriction,
+                                                    predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
+                                                      rowPredicateIndex === predicateIndex
+                                                        ? appendPredicateEntries(rowPredicate, inputValue)
+                                                        : rowPredicate),
+                                                  },
+                                                }
+                                              : entry),
+                                        },
+                                      },
+                                    }
+                                  }),
+                                }))}
+                            />
+
+                            <CardAdminPredicateFooter
+                              predicateEntries={predicateEntries}
+                              ignoreCase={predicate.ignoreCase}
+                              onRemoveEntry={(entryIndex) =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  contextRules: current.contextRules.map((row, index) => {
+                                    if (index !== contextRuleIndex) {
+                                      return row
+                                    }
+
+                                    const nextAudienceValue = row[audience]
+                                    if (!nextAudienceValue?.inZoneRequirements) {
+                                      return row
+                                    }
+
+                                    return {
+                                      ...row,
+                                      [audience]: {
+                                        ...nextAudienceValue,
+                                        inZoneRequirements: {
+                                          ...nextAudienceValue.inZoneRequirements,
+                                          requirements: nextAudienceValue.inZoneRequirements.requirements.map((requirementEntry, requirementEntryIndex) =>
+                                            requirementEntryIndex === requirementIndex
+                                              ? {
+                                                  ...requirementEntry,
+                                                  restriction: {
+                                                    ...requirementEntry.restriction,
+                                                    predicates: requirementEntry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
+                                                      rowPredicateIndex === predicateIndex
+                                                        ? removePredicateEntryAt(rowPredicate, entryIndex)
+                                                        : rowPredicate),
+                                                  },
+                                                }
+                                              : requirementEntry),
+                                        },
+                                      },
+                                    }
+                                  }),
+                                }))
+                              }
+                              onIgnoreCaseChange={(checked) =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  contextRules: current.contextRules.map((row, index) => {
+                                    if (index !== contextRuleIndex) {
+                                      return row
+                                    }
+
+                                    const nextAudienceValue = row[audience]
+                                    if (!nextAudienceValue?.inZoneRequirements) {
+                                      return row
+                                    }
+
+                                    return {
+                                      ...row,
+                                      [audience]: {
+                                        ...nextAudienceValue,
+                                        inZoneRequirements: {
+                                          ...nextAudienceValue.inZoneRequirements,
+                                          requirements: nextAudienceValue.inZoneRequirements.requirements.map((entry, entryIndex) =>
+                                            entryIndex === requirementIndex
+                                              ? {
+                                                  ...entry,
+                                                  restriction: {
+                                                    ...entry.restriction,
+                                                    predicates: entry.restriction.predicates.map((rowPredicate, rowPredicateIndex) =>
+                                                      rowPredicateIndex === predicateIndex
+                                                        ? { ...rowPredicate, ignoreCase: checked }
+                                                        : rowPredicate),
+                                                  },
+                                                }
+                                              : entry),
+                                        },
+                                      },
+                                    }
+                                  }),
+                                }))
+                              }
+                              onRemovePredicate={() =>
+                                updateEffectAt(effectIndex, (current) => ({
+                                  ...current,
+                                  contextRules: current.contextRules.map((row, index) => {
+                                    if (index !== contextRuleIndex) {
+                                      return row
+                                    }
+
+                                    const nextAudienceValue = row[audience]
+                                    if (!nextAudienceValue?.inZoneRequirements) {
+                                      return row
+                                    }
+
+                                    return {
+                                      ...row,
+                                      [audience]: {
+                                        ...nextAudienceValue,
+                                        inZoneRequirements: {
+                                          ...nextAudienceValue.inZoneRequirements,
+                                          requirements: nextAudienceValue.inZoneRequirements.requirements.map((entry, entryIndex) =>
+                                            entryIndex === requirementIndex
+                                              ? {
+                                                  ...entry,
+                                                  restriction: {
+                                                    ...entry.restriction,
+                                                    predicates: entry.restriction.predicates.filter((_, rowPredicateIndex) => rowPredicateIndex !== predicateIndex),
+                                                  },
+                                                }
+                                              : entry),
+                                        },
+                                      },
+                                    }
+                                  }),
+                                }))
+                              }
+                            />
                           </div>
                         )
                       })}

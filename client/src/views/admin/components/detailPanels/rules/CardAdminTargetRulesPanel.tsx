@@ -3,15 +3,12 @@ import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleS
 import { CountConstraintField } from '@/views/admin/components/CountConstraintField'
 import {
   MATCH_MODE_OPTIONS,
-  PREDICATE_OPERATOR_OPTIONS,
-  PREDICATE_PROPERTY_OPTIONS,
   RULE_OPERATOR_OPTIONS,
   TARGET_LOCATION_SELECTOR_KIND_OPTIONS,
   TARGET_RANGE_OPTIONS,
   TRIBUTE_ROLE_OPTIONS,
 } from '@/views/admin/constants'
 import type { ICardAdminTargetRulesPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
-import type { ICardCatalogPredicateProperty } from '@/services/api/types/cardCatalog'
 import {
   appendPredicateEntries,
   createDefaultPredicate,
@@ -27,6 +24,8 @@ import {
   resolveTargetZoneOptions,
 } from '@/views/admin/utils'
 import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminPredicateControls } from '@/views/admin/components/CardAdminPredicateControls'
+import { CardAdminPredicateFooter } from '@/views/admin/components/CardAdminPredicateFooter'
 
 export function CardAdminTargetRulesPanel({
   effect,
@@ -591,202 +590,136 @@ export function CardAdminTargetRulesPanel({
 
                   return (
                     <div key={`predicate-${predicateIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/20 bg-[var(--surface)] p-2">
-                      <div className="flex flex-wrap items-start gap-2">
-                        <CardAdminSelect
-                          value={predicate.property}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              targetRules: {
-                                ...current.targetRules,
-                                rules: current.targetRules.rules.map((rule, index) =>
-                                  index === targetRuleIndex
-                                    ? {
-                                        ...rule,
-                                        restriction: {
-                                          ...rule.restriction,
-                                          predicates: rule.restriction.predicates.map((row, rowIndex) =>
-                                            rowIndex === predicateIndex
-                                              ? { ...row, property: event.target.value as ICardCatalogPredicateProperty }
-                                              : row),
-                                        },
-                                      }
-                                    : rule),
-                              },
-                            }))}
-                          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[11rem]"
-                        >
-                          {PREDICATE_PROPERTY_OPTIONS.map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
-                        </CardAdminSelect>
+                      <CardAdminPredicateControls
+                        predicateProperty={predicate.property}
+                        predicateOperator={predicate.operator}
+                        predicateEntries={predicateEntries}
+                        onPropertyChange={(property) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              rules: current.targetRules.rules.map((rule, index) =>
+                                index === targetRuleIndex
+                                  ? {
+                                      ...rule,
+                                      restriction: {
+                                        ...rule.restriction,
+                                        predicates: rule.restriction.predicates.map((row, rowIndex) =>
+                                          rowIndex === predicateIndex
+                                            ? { ...row, property }
+                                            : row),
+                                      },
+                                    }
+                                  : rule),
+                            },
+                          }))}
+                        onOperatorChange={(operator) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              rules: current.targetRules.rules.map((rule, index) =>
+                                index === targetRuleIndex
+                                  ? {
+                                      ...rule,
+                                      restriction: {
+                                        ...rule.restriction,
+                                        predicates: rule.restriction.predicates.map((row, rowIndex) =>
+                                          rowIndex === predicateIndex
+                                            ? { ...row, operator }
+                                            : row),
+                                      },
+                                    }
+                                  : rule),
+                            },
+                          }))}
+                        onAddValue={(inputValue) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              rules: current.targetRules.rules.map((rule, index) =>
+                                index === targetRuleIndex
+                                  ? {
+                                      ...rule,
+                                      restriction: {
+                                        ...rule.restriction,
+                                        predicates: rule.restriction.predicates.map((row, rowIndex) =>
+                                          rowIndex === predicateIndex
+                                            ? appendPredicateEntries(row, inputValue)
+                                            : row),
+                                      },
+                                    }
+                                  : rule),
+                            },
+                          }))}
+                      />
 
-                        <CardAdminSelect
-                          value={predicate.operator}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              targetRules: {
-                                ...current.targetRules,
-                                rules: current.targetRules.rules.map((rule, index) =>
-                                  index === targetRuleIndex
-                                    ? {
-                                        ...rule,
-                                        restriction: {
-                                          ...rule.restriction,
-                                          predicates: rule.restriction.predicates.map((row, rowIndex) =>
-                                            rowIndex === predicateIndex
-                                              ? { ...row, operator: event.target.value }
-                                              : row),
-                                        },
-                                      }
-                                    : rule),
-                              },
-                            }))}
-                          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[10rem]"
-                        >
-                          {PREDICATE_OPERATOR_OPTIONS.map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
-                        </CardAdminSelect>
-
-                        <div className="min-w-[14rem] flex-1">
-                          <input
-                            type="text"
-                            placeholder={
-                              predicateEntries.length > 0
-                                ? `Add value (current: ${predicateEntries.join(', ')})`
-                                : 'Add value and press Enter'
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key !== 'Enter') {
-                                return
-                              }
-
-                              event.preventDefault()
-                              const inputValue = event.currentTarget.value
-
-                              updateEffectAt(effectIndex, (current) => ({
-                                ...current,
-                                targetRules: {
-                                  ...current.targetRules,
-                                  rules: current.targetRules.rules.map((rule, index) =>
-                                    index === targetRuleIndex
-                                      ? {
-                                          ...rule,
-                                          restriction: {
-                                            ...rule.restriction,
-                                            predicates: rule.restriction.predicates.map((row, rowIndex) =>
-                                              rowIndex === predicateIndex
-                                                ? appendPredicateEntries(row, inputValue)
-                                                : row),
-                                          },
-                                        }
-                                      : rule),
-                                },
-                              }))
-
-                              event.currentTarget.value = ''
-                            }}
-                            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                          />
-                        </div>
-                      </div>
-
-                      {predicateEntries.length > 0 ? (
-                        <div className="w-full flex flex-wrap gap-2">
-                          {predicateEntries.map((entry, entryIndex) => (
-                            <div
-                              key={`${entry}-${entryIndex}`}
-                              className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
-                            >
-                              <span>{entry}</span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateEffectAt(effectIndex, (current) => ({
-                                    ...current,
-                                    targetRules: {
-                                      ...current.targetRules,
-                                      rules: current.targetRules.rules.map((rule, index) =>
-                                        index === targetRuleIndex
-                                          ? {
-                                              ...rule,
-                                              restriction: {
-                                                ...rule.restriction,
-                                                predicates: rule.restriction.predicates.map((row, rowIndex) =>
-                                                  rowIndex === predicateIndex
-                                                    ? removePredicateEntryAt(row, entryIndex)
-                                                    : row),
-                                              },
-                                            }
-                                          : rule),
-                                    },
-                                  }))
-                                }
-                                className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-                                aria-label={`Remove ${entry}`}
-                              >
-                                X
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
-                          <span>Ignore Case</span>
-                          <CardAdminToggleSwitch
-                            checked={predicate.ignoreCase}
-                            onChange={(checked) =>
-                              updateEffectAt(effectIndex, (current) => ({
-                                ...current,
-                                targetRules: {
-                                  ...current.targetRules,
-                                  rules: current.targetRules.rules.map((rule, index) =>
-                                    index === targetRuleIndex
-                                      ? {
-                                          ...rule,
-                                          restriction: {
-                                            ...rule.restriction,
-                                            predicates: rule.restriction.predicates.map((row, rowIndex) =>
-                                              rowIndex === predicateIndex
-                                                ? { ...row, ignoreCase: checked }
-                                                : row),
-                                          },
-                                        }
-                                      : rule),
-                                },
-                              }))}
-                            ariaLabel="Ignore Case"
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              targetRules: {
-                                ...current.targetRules,
-                                rules: current.targetRules.rules.map((rule, index) =>
-                                  index === targetRuleIndex
-                                    ? {
-                                        ...rule,
-                                        restriction: {
-                                          ...rule.restriction,
-                                          predicates: rule.restriction.predicates.filter((_, rowIndex) => rowIndex !== predicateIndex),
-                                        },
-                                      }
-                                    : rule),
-                              },
-                            }))}
-                          className="self-end px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                          aria-label="Remove Predicate"
-                        >
-                          X
-                        </button>
-                      </div>
+                      <CardAdminPredicateFooter
+                        predicateEntries={predicateEntries}
+                        ignoreCase={predicate.ignoreCase}
+                        onRemoveEntry={(entryIndex) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              rules: current.targetRules.rules.map((rule, index) =>
+                                index === targetRuleIndex
+                                  ? {
+                                      ...rule,
+                                      restriction: {
+                                        ...rule.restriction,
+                                        predicates: rule.restriction.predicates.map((row, rowIndex) =>
+                                          rowIndex === predicateIndex
+                                            ? removePredicateEntryAt(row, entryIndex)
+                                            : row),
+                                      },
+                                    }
+                                  : rule),
+                            },
+                          }))
+                        }
+                        onIgnoreCaseChange={(checked) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              rules: current.targetRules.rules.map((rule, index) =>
+                                index === targetRuleIndex
+                                  ? {
+                                      ...rule,
+                                      restriction: {
+                                        ...rule.restriction,
+                                        predicates: rule.restriction.predicates.map((row, rowIndex) =>
+                                          rowIndex === predicateIndex
+                                            ? { ...row, ignoreCase: checked }
+                                            : row),
+                                      },
+                                    }
+                                  : rule),
+                            },
+                          }))
+                        }
+                        onRemovePredicate={() =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              rules: current.targetRules.rules.map((rule, index) =>
+                                index === targetRuleIndex
+                                  ? {
+                                      ...rule,
+                                      restriction: {
+                                        ...rule.restriction,
+                                        predicates: rule.restriction.predicates.filter((_, rowIndex) => rowIndex !== predicateIndex),
+                                      },
+                                    }
+                                  : rule),
+                            },
+                          }))
+                        }
+                      />
                     </div>
                   )
                 })}
