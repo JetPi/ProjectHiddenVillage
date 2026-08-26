@@ -9,9 +9,9 @@ import {
 import {
   normalizeEffectId,
 } from '@/views/admin/utils'
-import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
 import type { ICardAdminExecutionPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
 
 export function CardAdminExecutionPanel({
   effect,

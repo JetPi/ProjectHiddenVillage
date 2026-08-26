@@ -1,6 +1,7 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 import {
   EFFECT_DURATION_MODE_OPTIONS,
   EFFECT_KIND_OPTIONS,
@@ -129,15 +130,12 @@ export function CardAdminEffectsSection({
                     <path d="M5 8l5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </button>
-                <button
-                  type="button"
+                <CardAdminRemoveButton
                   disabled={parsedEffects.length <= 1}
                   onClick={() => removeEffectAt(effectIndex)}
-                  className="px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Remove Effect"
-                >
-                  X
-                </button>
+                  className="disabled:cursor-not-allowed disabled:opacity-40"
+                  ariaLabel="Remove Effect"
+                />
               </div>
             </div>
 

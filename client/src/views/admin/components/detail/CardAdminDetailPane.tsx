@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { AppButton } from '@/components/ui'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { CardAdminSelectedCardSummary } from './CardAdminSelectedCardSummary'
-import { CardAdminConditionsSection, CardAdminEffectsSection } from './detailSections'
+import { CardAdminConditionsSection, CardAdminEffectsSection } from '@/views/admin/components/detailSections'
 import { useCardAdminEffectEditorModel } from '@/views/admin/model/useCardAdminEffectEditorModel'
 import {
   createDefaultEffect,

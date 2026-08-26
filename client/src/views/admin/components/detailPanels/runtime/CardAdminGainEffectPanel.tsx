@@ -1,5 +1,6 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 import {
   KEYWORD_OPERATION_OPTIONS,
   KEYWORD_TARGET_TYPE_OPTIONS,
@@ -85,18 +86,15 @@ export function CardAdminGainEffectPanel({
             </div>
 
             <div className="flex justify-end">
-              <button
-                type="button"
+              <CardAdminRemoveButton
                 onClick={() =>
                   updateEffectAt(effectIndex, (current) => ({
                     ...current,
                     keywordModifications: (current.keywordModifications ?? []).filter((_, index) => index !== keywordIndex),
                   }))}
-                className="inline-flex w-fit px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                aria-label="Remove keyword modification"
-              >
-                X
-              </button>
+                className="inline-flex w-fit"
+                ariaLabel="Remove keyword modification"
+              />
             </div>
           </div>
         ))}

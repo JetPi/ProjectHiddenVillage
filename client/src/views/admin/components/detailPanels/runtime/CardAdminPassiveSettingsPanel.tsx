@@ -1,6 +1,7 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 import {
   PASSIVE_CONSEQUENCE_EFFECT_OPTIONS,
   PASSIVE_SCOPE_OPTIONS,
@@ -127,17 +128,16 @@ export function CardAdminPassiveSettingsPanel({
               ))}
             </CardAdminSelect>
 
-            <AppButton
-              type="button"
-              variant="ghost"
+            <CardAdminRemoveButton
               onClick={() =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   passiveConsequences: (current.passiveConsequences ?? []).filter((_, index) => index !== consequenceIndex),
                 }))}
+              ariaLabel="Remove Passive Consequence"
             >
               Remove
-            </AppButton>
+            </CardAdminRemoveButton>
           </div>
         ))}
       </div>

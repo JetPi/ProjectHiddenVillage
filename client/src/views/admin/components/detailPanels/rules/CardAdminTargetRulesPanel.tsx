@@ -1,6 +1,6 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
-import { CountConstraintField } from '@/views/admin/components/CountConstraintField'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls/CardAdminToggleSwitch'
+import { CountConstraintField } from '@/views/admin/components/controls/CountConstraintField'
 import {
   MATCH_MODE_OPTIONS,
   RULE_OPERATOR_OPTIONS,
@@ -23,9 +23,10 @@ import {
   resolveCountConstraintValue,
   resolveTargetZoneOptions,
 } from '@/views/admin/utils'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
-import { CardAdminPredicateControls } from '@/views/admin/components/CardAdminPredicateControls'
-import { CardAdminPredicateFooter } from '@/views/admin/components/CardAdminPredicateFooter'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminPredicateControls } from '@/views/admin/components/controls/CardAdminPredicateControls'
+import { CardAdminPredicateFooter } from '@/views/admin/components/controls/CardAdminPredicateFooter'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 
 export function CardAdminTargetRulesPanel({
   effect,
@@ -372,9 +373,7 @@ export function CardAdminTargetRulesPanel({
             <div key={`target-rule-${targetRuleIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/30 bg-[var(--surface)] p-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-[var(--text-primary)]">Rule #{targetRuleIndex + 1}</p>
-                <AppButton
-                  type="button"
-                  variant="ghost"
+                <CardAdminRemoveButton
                   onClick={() =>
                     updateEffectAt(effectIndex, (current) => ({
                       ...current,
@@ -383,9 +382,10 @@ export function CardAdminTargetRulesPanel({
                         rules: current.targetRules.rules.filter((_, index) => index !== targetRuleIndex),
                       },
                     }))}
+                  ariaLabel="Remove Target Rule"
                 >
                   Remove
-                </AppButton>
+                </CardAdminRemoveButton>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

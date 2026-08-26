@@ -1,5 +1,6 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 import {
   FACE_STATE_OPTIONS,
   FACE_STATE_TARGET_CATEGORY_OPTIONS,
@@ -78,17 +79,16 @@ export function CardAdminFaceStateFlipsPanel({
             ))}
           </CardAdminSelect>
 
-          <AppButton
-            type="button"
-            variant="ghost"
+          <CardAdminRemoveButton
             onClick={() =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 summonCardFlips: current.summonCardFlips.filter((_, index) => index !== summonFlipIndex),
               }))}
+            ariaLabel="Remove Face State Flip"
           >
             Remove
-          </AppButton>
+          </CardAdminRemoveButton>
         </div>
       ))}
     </div>

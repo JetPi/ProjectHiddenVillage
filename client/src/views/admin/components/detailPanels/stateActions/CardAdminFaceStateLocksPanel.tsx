@@ -1,5 +1,6 @@
 import { AppButton } from '@/components/ui'
-import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminSelect } from '@/views/admin/components/controls/CardAdminSelect'
+import { CardAdminRemoveButton } from '@/views/admin/components/controls/CardAdminRemoveButton'
 import {
   FACE_STATE_LOCK_OPERATION_OPTIONS,
   FACE_STATE_TARGET_CATEGORY_OPTIONS,
@@ -78,17 +79,16 @@ export function CardAdminFaceStateLocksPanel({
             ))}
           </CardAdminSelect>
 
-          <AppButton
-            type="button"
-            variant="ghost"
+          <CardAdminRemoveButton
             onClick={() =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 faceStateLocks: current.faceStateLocks.filter((_, index) => index !== faceStateLockIndex),
               }))}
+            ariaLabel="Remove Face State Lock"
           >
             Remove
-          </AppButton>
+          </CardAdminRemoveButton>
         </div>
       ))}
     </div>
