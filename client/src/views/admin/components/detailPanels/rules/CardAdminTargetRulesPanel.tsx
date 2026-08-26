@@ -1,16 +1,14 @@
 import { AppButton } from '@/components/ui'
+import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
 import { CountConstraintField } from '@/views/admin/components/CountConstraintField'
 import {
   MATCH_MODE_OPTIONS,
-  PREDICATE_OPERATOR_OPTIONS,
-  PREDICATE_PROPERTY_OPTIONS,
   RULE_OPERATOR_OPTIONS,
   TARGET_LOCATION_SELECTOR_KIND_OPTIONS,
   TARGET_RANGE_OPTIONS,
   TRIBUTE_ROLE_OPTIONS,
 } from '@/views/admin/constants'
 import type { ICardAdminTargetRulesPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
-import type { ICardCatalogPredicateProperty } from '@/services/api/types/cardCatalog'
 import {
   appendPredicateEntries,
   createDefaultPredicate,
@@ -25,6 +23,9 @@ import {
   resolveCountConstraintValue,
   resolveTargetZoneOptions,
 } from '@/views/admin/utils'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
+import { CardAdminPredicateControls } from '@/views/admin/components/CardAdminPredicateControls'
+import { CardAdminPredicateFooter } from '@/views/admin/components/CardAdminPredicateFooter'
 
 export function CardAdminTargetRulesPanel({
   effect,
@@ -38,33 +39,31 @@ export function CardAdminTargetRulesPanel({
       <div className="grid grid-cols-1 gap-3">
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Rule Operator</label>
-          <select
+          <CardAdminSelect
             value={effect.targetRules.operator}
             onChange={(event) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 targetRules: { ...current.targetRules, operator: event.target.value },
               }))}
-            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
             {RULE_OPERATOR_OPTIONS.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </CardAdminSelect>
         </div>
       </div>
 
       {effect.runtimeEffectType === 'Tribute' ? (
         <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-          <input
-            type="checkbox"
+          <CardAdminToggleSwitch
             checked={effect.targetRules.tributeComposition !== null}
-            onChange={(event) =>
+            onChange={(checked) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 targetRules: {
                   ...current.targetRules,
-                  tributeComposition: event.target.checked
+                  tributeComposition: checked
                     ? {
                         exactTributeCount: null,
                         minimumTributeCount: null,
@@ -75,6 +74,7 @@ export function CardAdminTargetRulesPanel({
                     : null,
                 },
               }))}
+            ariaLabel="Tribute Composition Enabled"
           />
           Tribute Composition Enabled
         </label>
@@ -231,10 +231,9 @@ export function CardAdminTargetRulesPanel({
       {effect.runtimeEffectType === 'Tribute' && effect.targetRules.tributeComposition ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-            <input
-              type="checkbox"
+            <CardAdminToggleSwitch
               checked={effect.targetRules.tributeComposition.requireSingleSummonTarget}
-              onChange={(event) =>
+              onChange={(checked) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   targetRules: current.targetRules.tributeComposition
@@ -242,20 +241,20 @@ export function CardAdminTargetRulesPanel({
                         ...current.targetRules,
                         tributeComposition: {
                           ...current.targetRules.tributeComposition,
-                          requireSingleSummonTarget: event.target.checked,
+                          requireSingleSummonTarget: checked,
                         },
                       }
                     : current.targetRules,
                 }))}
+              ariaLabel="Require Single Summon Target"
             />
             Require Single Summon Target
           </label>
 
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)] sm:col-span-2">
-            <input
-              type="checkbox"
+            <CardAdminToggleSwitch
               checked={effect.targetRules.tributeComposition.requireDistinctSummonAndTributes}
-              onChange={(event) =>
+              onChange={(checked) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   targetRules: current.targetRules.tributeComposition
@@ -263,11 +262,12 @@ export function CardAdminTargetRulesPanel({
                         ...current.targetRules,
                         tributeComposition: {
                           ...current.targetRules.tributeComposition,
-                          requireDistinctSummonAndTributes: event.target.checked,
+                          requireDistinctSummonAndTributes: checked,
                         },
                       }
                     : current.targetRules,
                 }))}
+              ariaLabel="Require Distinct Summon And Tributes"
             />
             Require Distinct Summon And Tributes
           </label>
@@ -393,7 +393,7 @@ export function CardAdminTargetRulesPanel({
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="space-y-1">
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Scope</label>
-                      <select
+                      <CardAdminSelect
                         value={targetRule.scope}
                         onChange={(event) =>
                           updateEffectAt(effectIndex, (current) => ({
@@ -404,17 +404,16 @@ export function CardAdminTargetRulesPanel({
                                 index === targetRuleIndex ? { ...rule, scope: event.target.value } : rule),
                             },
                           }))}
-                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                       >
                         {TARGET_RANGE_OPTIONS.map((option) => (
                           <option key={option} value={option}>{option}</option>
                         ))}
-                      </select>
+                      </CardAdminSelect>
                     </div>
 
                     <div className="space-y-1">
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Zone</label>
-                      <select
+                      <CardAdminSelect
                         value={targetRule.inZone}
                         onChange={(event) =>
                           updateEffectAt(effectIndex, (current) => ({
@@ -434,17 +433,16 @@ export function CardAdminTargetRulesPanel({
                                   : rule),
                             },
                           }))}
-                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                       >
                         {zoneOptions.map((option) => (
                           <option key={option} value={option}>{option}</option>
                         ))}
-                      </select>
+                      </CardAdminSelect>
                     </div>
 
                     <div className="space-y-1">
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Location Selector</label>
-                      <select
+                      <CardAdminSelect
                         value={targetRule.locationSelector?.kind ?? 'Any'}
                         onChange={(event) =>
                           updateEffectAt(effectIndex, (current) => ({
@@ -465,18 +463,17 @@ export function CardAdminTargetRulesPanel({
                                   : rule),
                             },
                           }))}
-                        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                       >
                         {TARGET_LOCATION_SELECTOR_KIND_OPTIONS.map((option) => (
                           <option key={option} value={option}>{option}</option>
                         ))}
-                      </select>
+                      </CardAdminSelect>
                     </div>
 
                     {showsTributeRole ? (
                       <div className="space-y-1">
                         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Tribute Role</label>
-                        <select
+                        <CardAdminSelect
                           value={targetRule.tributeRole ?? ''}
                           onChange={(event) =>
                             updateEffectAt(effectIndex, (current) => ({
@@ -489,13 +486,12 @@ export function CardAdminTargetRulesPanel({
                                     : rule),
                               },
                             }))}
-                          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                         >
                           <option value="">None</option>
                           {TRIBUTE_ROLE_OPTIONS.map((option) => (
                             <option key={option} value={option}>{option}</option>
                           ))}
-                        </select>
+                        </CardAdminSelect>
                       </div>
                     ) : shouldShowSelectedCountField ? selectedCountField : null}
                   </div>
@@ -534,7 +530,7 @@ export function CardAdminTargetRulesPanel({
 
                 <div className="space-y-1 sm:col-span-2">
                   <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Restriction Match Mode</label>
-                  <select
+                  <CardAdminSelect
                     value={targetRule.restriction.matchMode}
                     onChange={(event) =>
                       updateEffectAt(effectIndex, (current) => ({
@@ -553,12 +549,11 @@ export function CardAdminTargetRulesPanel({
                               : rule),
                         },
                       }))}
-                    className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                   >
                     {MATCH_MODE_OPTIONS.map((option) => (
                       <option key={option} value={option}>{option}</option>
                     ))}
-                  </select>
+                  </CardAdminSelect>
                 </div>
               </div>
 
@@ -595,207 +590,136 @@ export function CardAdminTargetRulesPanel({
 
                   return (
                     <div key={`predicate-${predicateIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/20 bg-[var(--surface)] p-2">
-                      <div className="flex flex-wrap items-start gap-2">
-                        <select
-                          value={predicate.property}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              targetRules: {
-                                ...current.targetRules,
-                                rules: current.targetRules.rules.map((rule, index) =>
-                                  index === targetRuleIndex
-                                    ? {
-                                        ...rule,
-                                        restriction: {
-                                          ...rule.restriction,
-                                          predicates: rule.restriction.predicates.map((row, rowIndex) =>
-                                            rowIndex === predicateIndex
-                                              ? { ...row, property: event.target.value as ICardCatalogPredicateProperty }
-                                              : row),
-                                        },
-                                      }
-                                    : rule),
-                              },
-                            }))}
-                          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[11rem]"
-                        >
-                          {PREDICATE_PROPERTY_OPTIONS.map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
-                        </select>
+                      <CardAdminPredicateControls
+                        predicateProperty={predicate.property}
+                        predicateOperator={predicate.operator}
+                        predicateEntries={predicateEntries}
+                        onPropertyChange={(property) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              rules: current.targetRules.rules.map((rule, index) =>
+                                index === targetRuleIndex
+                                  ? {
+                                      ...rule,
+                                      restriction: {
+                                        ...rule.restriction,
+                                        predicates: rule.restriction.predicates.map((row, rowIndex) =>
+                                          rowIndex === predicateIndex
+                                            ? { ...row, property }
+                                            : row),
+                                      },
+                                    }
+                                  : rule),
+                            },
+                          }))}
+                        onOperatorChange={(operator) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              rules: current.targetRules.rules.map((rule, index) =>
+                                index === targetRuleIndex
+                                  ? {
+                                      ...rule,
+                                      restriction: {
+                                        ...rule.restriction,
+                                        predicates: rule.restriction.predicates.map((row, rowIndex) =>
+                                          rowIndex === predicateIndex
+                                            ? { ...row, operator }
+                                            : row),
+                                      },
+                                    }
+                                  : rule),
+                            },
+                          }))}
+                        onAddValue={(inputValue) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              rules: current.targetRules.rules.map((rule, index) =>
+                                index === targetRuleIndex
+                                  ? {
+                                      ...rule,
+                                      restriction: {
+                                        ...rule.restriction,
+                                        predicates: rule.restriction.predicates.map((row, rowIndex) =>
+                                          rowIndex === predicateIndex
+                                            ? appendPredicateEntries(row, inputValue)
+                                            : row),
+                                      },
+                                    }
+                                  : rule),
+                            },
+                          }))}
+                      />
 
-                        <select
-                          value={predicate.operator}
-                          onChange={(event) =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              targetRules: {
-                                ...current.targetRules,
-                                rules: current.targetRules.rules.map((rule, index) =>
-                                  index === targetRuleIndex
-                                    ? {
-                                        ...rule,
-                                        restriction: {
-                                          ...rule.restriction,
-                                          predicates: rule.restriction.predicates.map((row, rowIndex) =>
-                                            rowIndex === predicateIndex
-                                              ? { ...row, operator: event.target.value }
-                                              : row),
-                                        },
-                                      }
-                                    : rule),
-                              },
-                            }))}
-                          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[10rem]"
-                        >
-                          {PREDICATE_OPERATOR_OPTIONS.map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
-                        </select>
-
-                        <div className="min-w-[14rem] flex-1">
-                          <input
-                            type="text"
-                            placeholder={
-                              predicateEntries.length > 0
-                                ? `Add value (current: ${predicateEntries.join(', ')})`
-                                : 'Add value and press Enter'
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key !== 'Enter') {
-                                return
-                              }
-
-                              event.preventDefault()
-                              const inputValue = event.currentTarget.value
-
-                              updateEffectAt(effectIndex, (current) => ({
-                                ...current,
-                                targetRules: {
-                                  ...current.targetRules,
-                                  rules: current.targetRules.rules.map((rule, index) =>
-                                    index === targetRuleIndex
-                                      ? {
-                                          ...rule,
-                                          restriction: {
-                                            ...rule.restriction,
-                                            predicates: rule.restriction.predicates.map((row, rowIndex) =>
-                                              rowIndex === predicateIndex
-                                                ? appendPredicateEntries(row, inputValue)
-                                                : row),
-                                          },
-                                        }
-                                      : rule),
-                                },
-                              }))
-
-                              event.currentTarget.value = ''
-                            }}
-                            className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                          />
-                        </div>
-                      </div>
-
-                      {predicateEntries.length > 0 ? (
-                        <div className="w-full flex flex-wrap gap-2">
-                          {predicateEntries.map((entry, entryIndex) => (
-                            <div
-                              key={`${entry}-${entryIndex}`}
-                              className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
-                            >
-                              <span>{entry}</span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateEffectAt(effectIndex, (current) => ({
-                                    ...current,
-                                    targetRules: {
-                                      ...current.targetRules,
-                                      rules: current.targetRules.rules.map((rule, index) =>
-                                        index === targetRuleIndex
-                                          ? {
-                                              ...rule,
-                                              restriction: {
-                                                ...rule.restriction,
-                                                predicates: rule.restriction.predicates.map((row, rowIndex) =>
-                                                  rowIndex === predicateIndex
-                                                    ? removePredicateEntryAt(row, entryIndex)
-                                                    : row),
-                                              },
-                                            }
-                                          : rule),
-                                    },
-                                  }))
-                                }
-                                className="rounded-full px-1 leading-none text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-                                aria-label={`Remove ${entry}`}
-                              >
-                                X
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
-                          <span>Ignore Case</span>
-                          <span className="relative inline-flex h-5 w-9 items-center">
-                            <input
-                              type="checkbox"
-                              checked={predicate.ignoreCase}
-                              onChange={(event) =>
-                                updateEffectAt(effectIndex, (current) => ({
-                                  ...current,
-                                  targetRules: {
-                                    ...current.targetRules,
-                                    rules: current.targetRules.rules.map((rule, index) =>
-                                      index === targetRuleIndex
-                                        ? {
-                                            ...rule,
-                                            restriction: {
-                                              ...rule.restriction,
-                                              predicates: rule.restriction.predicates.map((row, rowIndex) =>
-                                                rowIndex === predicateIndex
-                                                  ? { ...row, ignoreCase: event.target.checked }
-                                                  : row),
-                                            },
-                                          }
-                                        : rule),
-                                  },
-                                }))}
-                              className="peer sr-only"
-                            />
-                            <span className="absolute inset-0 rounded-full bg-[var(--surface)] transition peer-checked:bg-emerald-500/70" />
-                            <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
-                          </span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateEffectAt(effectIndex, (current) => ({
-                              ...current,
-                              targetRules: {
-                                ...current.targetRules,
-                                rules: current.targetRules.rules.map((rule, index) =>
-                                  index === targetRuleIndex
-                                    ? {
-                                        ...rule,
-                                        restriction: {
-                                          ...rule.restriction,
-                                          predicates: rule.restriction.predicates.filter((_, rowIndex) => rowIndex !== predicateIndex),
-                                        },
-                                      }
-                                    : rule),
-                              },
-                            }))}
-                          className="self-end px-1 text-sm leading-none text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                          aria-label="Remove Predicate"
-                        >
-                          X
-                        </button>
-                      </div>
+                      <CardAdminPredicateFooter
+                        predicateEntries={predicateEntries}
+                        ignoreCase={predicate.ignoreCase}
+                        onRemoveEntry={(entryIndex) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              rules: current.targetRules.rules.map((rule, index) =>
+                                index === targetRuleIndex
+                                  ? {
+                                      ...rule,
+                                      restriction: {
+                                        ...rule.restriction,
+                                        predicates: rule.restriction.predicates.map((row, rowIndex) =>
+                                          rowIndex === predicateIndex
+                                            ? removePredicateEntryAt(row, entryIndex)
+                                            : row),
+                                      },
+                                    }
+                                  : rule),
+                            },
+                          }))
+                        }
+                        onIgnoreCaseChange={(checked) =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              rules: current.targetRules.rules.map((rule, index) =>
+                                index === targetRuleIndex
+                                  ? {
+                                      ...rule,
+                                      restriction: {
+                                        ...rule.restriction,
+                                        predicates: rule.restriction.predicates.map((row, rowIndex) =>
+                                          rowIndex === predicateIndex
+                                            ? { ...row, ignoreCase: checked }
+                                            : row),
+                                      },
+                                    }
+                                  : rule),
+                            },
+                          }))
+                        }
+                        onRemovePredicate={() =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            targetRules: {
+                              ...current.targetRules,
+                              rules: current.targetRules.rules.map((rule, index) =>
+                                index === targetRuleIndex
+                                  ? {
+                                      ...rule,
+                                      restriction: {
+                                        ...rule.restriction,
+                                        predicates: rule.restriction.predicates.filter((_, rowIndex) => rowIndex !== predicateIndex),
+                                      },
+                                    }
+                                  : rule),
+                            },
+                          }))
+                        }
+                      />
                     </div>
                   )
                 })}

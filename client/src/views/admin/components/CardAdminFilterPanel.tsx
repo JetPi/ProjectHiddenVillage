@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FormInput, FormLabel, FormSelect } from '@/components/forms'
 import type { ICardAdminFilterPanelProps } from '@/views/admin/types/cardAdminFilterPanel'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 
 export function CardAdminFilterPanel({
   searchText,
@@ -45,7 +46,7 @@ export function CardAdminFilterPanel({
         <FormLabel className="text-[10px] tracking-[0.12em]">
           Type
         </FormLabel>
-        <select
+        <CardAdminSelect
           value={pendingTypeSelection}
           disabled={availableTypeOptions.length === 0}
           onChange={(event) => {
@@ -70,14 +71,14 @@ export function CardAdminFilterPanel({
               <option key={option.value} value={option.value}>{option.label}</option>
             ))
           ) : null}
-        </select>
+        </CardAdminSelect>
       </div>
 
       <div className="space-y-1">
         <FormLabel className="text-[10px] tracking-[0.12em]">
           Color
         </FormLabel>
-        <select
+        <CardAdminSelect
           value={pendingColorSelection}
           disabled={availableColorOptions.length === 0}
           onChange={(event) => {
@@ -102,7 +103,7 @@ export function CardAdminFilterPanel({
               <option key={option.value} value={option.value}>{option.label}</option>
             ))
           ) : null}
-        </select>
+        </CardAdminSelect>
       </div>
 
       <div className="col-span-3 flex min-h-6 flex-wrap items-center gap-1.5">

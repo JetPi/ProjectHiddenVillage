@@ -1,4 +1,6 @@
 import { AppButton } from '@/components/ui'
+import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 import {
   PASSIVE_CONSEQUENCE_EFFECT_OPTIONS,
   PASSIVE_SCOPE_OPTIONS,
@@ -21,16 +23,16 @@ export function CardAdminPassiveSettingsPanel({
       <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Settings</p>
 
       <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-        <input
-          type="checkbox"
+        <CardAdminToggleSwitch
           checked={effect.passiveReevaluation !== null}
-          onChange={(event) =>
+          onChange={(checked) =>
             updateEffectAt(effectIndex, (current) => ({
               ...current,
-              passiveReevaluation: event.target.checked
+              passiveReevaluation: checked
                 ? current.passiveReevaluation ?? createDefaultPassiveReevaluation()
                 : null,
             }))}
+          ariaLabel="Passive Reevaluation Enabled"
         />
         Passive Reevaluation Enabled
       </label>
@@ -39,7 +41,7 @@ export function CardAdminPassiveSettingsPanel({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Reevaluation Scope</label>
-            <select
+            <CardAdminSelect
               value={effect.passiveReevaluation.scope}
               onChange={(event) =>
                 updateEffectAt(effectIndex, (current) => ({
@@ -48,17 +50,16 @@ export function CardAdminPassiveSettingsPanel({
                     ? { ...current.passiveReevaluation, scope: event.target.value }
                     : null,
                 }))}
-              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
             >
               {PASSIVE_SCOPE_OPTIONS.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
-            </select>
+            </CardAdminSelect>
           </div>
 
           <div className="space-y-1">
             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Trigger Kind</label>
-            <select
+            <CardAdminSelect
               value={effect.passiveReevaluation.triggerKinds[0] ?? 'Any'}
               onChange={(event) =>
                 updateEffectAt(effectIndex, (current) => ({
@@ -67,12 +68,11 @@ export function CardAdminPassiveSettingsPanel({
                     ? { ...current.passiveReevaluation, triggerKinds: [event.target.value] }
                     : null,
                 }))}
-              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
             >
               {PASSIVE_TRIGGER_KIND_OPTIONS.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
-            </select>
+            </CardAdminSelect>
           </div>
         </div>
       ) : null}
@@ -95,7 +95,7 @@ export function CardAdminPassiveSettingsPanel({
 
         {(effect.passiveConsequences ?? []).map((consequence, consequenceIndex) => (
           <div key={`passive-consequence-${consequenceIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 sm:grid-cols-3">
-            <select
+            <CardAdminSelect
               value={consequence.consequenceEffectTypeKey}
               onChange={(event) =>
                 updateEffectAt(effectIndex, (current) => ({
@@ -108,9 +108,9 @@ export function CardAdminPassiveSettingsPanel({
               {PASSIVE_CONSEQUENCE_EFFECT_OPTIONS.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
-            </select>
+            </CardAdminSelect>
 
-            <select
+            <CardAdminSelect
               value={consequence.targetPolicy}
               onChange={(event) =>
                 updateEffectAt(effectIndex, (current) => ({
@@ -125,7 +125,7 @@ export function CardAdminPassiveSettingsPanel({
               {PASSIVE_TARGET_POLICY_OPTIONS.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
-            </select>
+            </CardAdminSelect>
 
             <AppButton
               type="button"

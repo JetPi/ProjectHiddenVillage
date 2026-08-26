@@ -1,5 +1,6 @@
 import { AppButton } from '@/components/ui'
 import { CountConstraintField } from '@/views/admin/components/CountConstraintField'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 import {
   ATTRIBUTE_OPERATION_OPTIONS,
   ATTRIBUTE_TYPE_OPTIONS,
@@ -55,7 +56,7 @@ export function CardAdminAttributeModificationsPanel({
           <div className="grid grid-cols-1 gap-y-3 sm:grid-cols-4 sm:gap-x-2">
             <div className="space-y-1">
               <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Type</label>
-              <select
+              <CardAdminSelect
                 value={attributeModification.targetType}
                 onChange={(event) =>
                   updateEffectAt(effectIndex, (current) => ({
@@ -68,12 +69,12 @@ export function CardAdminAttributeModificationsPanel({
                 {TARGET_TYPE_OPTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
-              </select>
+              </CardAdminSelect>
             </div>
 
             <div className="space-y-1">
               <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Range</label>
-              <select
+              <CardAdminSelect
                 value={attributeModification.targetRange}
                 onChange={(event) =>
                   updateEffectAt(effectIndex, (current) => ({
@@ -86,12 +87,12 @@ export function CardAdminAttributeModificationsPanel({
                 {TARGET_RANGE_OPTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
-              </select>
+              </CardAdminSelect>
             </div>
 
             <div className="space-y-1 sm:col-span-2">
               <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Affected Property</label>
-              <select
+              <CardAdminSelect
                 value={attributeModification.attribute}
                 onChange={(event) =>
                   updateEffectAt(effectIndex, (current) => ({
@@ -104,7 +105,7 @@ export function CardAdminAttributeModificationsPanel({
                 {ATTRIBUTE_TYPE_OPTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
-              </select>
+              </CardAdminSelect>
             </div>
 
             <CountConstraintField
@@ -130,7 +131,7 @@ export function CardAdminAttributeModificationsPanel({
               trailingContent={(
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Operation</label>
-                  <select
+                  <CardAdminSelect
                     value={attributeModification.operation}
                     onChange={(event) =>
                       updateEffectAt(effectIndex, (current) => ({
@@ -143,7 +144,7 @@ export function CardAdminAttributeModificationsPanel({
                     {ATTRIBUTE_OPERATION_OPTIONS.map((option) => (
                       <option key={option} value={option}>{option}</option>
                     ))}
-                  </select>
+                  </CardAdminSelect>
                 </div>
               )}
               onModeChange={(selectedMode) =>

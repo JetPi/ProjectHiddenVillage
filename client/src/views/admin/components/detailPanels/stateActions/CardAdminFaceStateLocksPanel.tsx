@@ -1,4 +1,5 @@
 import { AppButton } from '@/components/ui'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 import {
   FACE_STATE_LOCK_OPERATION_OPTIONS,
   FACE_STATE_TARGET_CATEGORY_OPTIONS,
@@ -32,7 +33,7 @@ export function CardAdminFaceStateLocksPanel({
 
       {effect.faceStateLocks.map((faceStateLock, faceStateLockIndex) => (
         <div key={`face-lock-${faceStateLockIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-violet-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
-          <select
+          <CardAdminSelect
             value={faceStateLock.targetCategory}
             onChange={(event) =>
               updateEffectAt(effectIndex, (current) => ({
@@ -45,9 +46,9 @@ export function CardAdminFaceStateLocksPanel({
             {FACE_STATE_TARGET_CATEGORY_OPTIONS.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </CardAdminSelect>
 
-          <select
+          <CardAdminSelect
             value={faceStateLock.operation}
             onChange={(event) =>
               updateEffectAt(effectIndex, (current) => ({
@@ -60,9 +61,9 @@ export function CardAdminFaceStateLocksPanel({
             {FACE_STATE_LOCK_OPERATION_OPTIONS.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </CardAdminSelect>
 
-          <select
+          <CardAdminSelect
             value={faceStateLock.targetRange}
             onChange={(event) =>
               updateEffectAt(effectIndex, (current) => ({
@@ -75,7 +76,7 @@ export function CardAdminFaceStateLocksPanel({
             {TARGET_RANGE_OPTIONS.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </CardAdminSelect>
 
           <AppButton
             type="button"

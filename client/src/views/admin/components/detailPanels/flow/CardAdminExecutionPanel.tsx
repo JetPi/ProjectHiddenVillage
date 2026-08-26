@@ -9,7 +9,9 @@ import {
 import {
   normalizeEffectId,
 } from '@/views/admin/utils'
+import { CardAdminToggleSwitch } from '@/views/admin/components/CardAdminToggleSwitch'
 import type { ICardAdminExecutionPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import { CardAdminSelect } from '@/views/admin/components/CardAdminSelect'
 
 export function CardAdminExecutionPanel({
   effect,
@@ -22,40 +24,37 @@ export function CardAdminExecutionPanel({
     <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-sky-500/55 bg-[var(--surface-muted)] p-3 sm:grid-cols-2">
       <div className="space-y-1">
         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Execution Target Source</label>
-        <select
+        <CardAdminSelect
           value={effect.executionTargetSource}
           onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, executionTargetSource: event.target.value }))}
-          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
         >
           {EXECUTION_TARGET_SOURCE_OPTIONS.map((option) => (
             <option key={option} value={option}>{option}</option>
           ))}
-        </select>
+        </CardAdminSelect>
       </div>
 
       <div className="space-y-1">
         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Execution Flow Mode</label>
-        <select
+        <CardAdminSelect
           value={effect.executionFlowMode}
           onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, executionFlowMode: event.target.value }))}
-          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
         >
           {EXECUTION_FLOW_MODE_OPTIONS.map((option) => (
             <option key={option} value={option}>{option}</option>
           ))}
-        </select>
+        </CardAdminSelect>
       </div>
 
       <div className="space-y-1">
         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">On Success</label>
-        <select
+        <CardAdminSelect
           value={effect.onSuccessEffectId ?? ''}
           onChange={(event) =>
             updateEffectAt(effectIndex, (current) => ({
               ...current,
               onSuccessEffectId: event.target.value.trim().length > 0 ? event.target.value : null,
             }))}
-          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
         >
           <option value="">None</option>
           {effectIdOptions
@@ -63,19 +62,18 @@ export function CardAdminExecutionPanel({
             .map((idOption) => (
               <option key={idOption} value={idOption}>{idOption}</option>
             ))}
-        </select>
+        </CardAdminSelect>
       </div>
 
       <div className="space-y-1">
         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">On Failure</label>
-        <select
+        <CardAdminSelect
           value={effect.onFailureEffectId ?? ''}
           onChange={(event) =>
             updateEffectAt(effectIndex, (current) => ({
               ...current,
               onFailureEffectId: event.target.value.trim().length > 0 ? event.target.value : null,
             }))}
-          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
         >
           <option value="">None</option>
           {effectIdOptions
@@ -83,17 +81,16 @@ export function CardAdminExecutionPanel({
             .map((idOption) => (
               <option key={idOption} value={idOption}>{idOption}</option>
             ))}
-        </select>
+        </CardAdminSelect>
       </div>
 
       <label className="flex items-center gap-2 text-sm text-[var(--text-primary)] sm:col-span-2">
-        <input
-          type="checkbox"
+        <CardAdminToggleSwitch
           checked={effect.executionCondition !== null}
-          onChange={(event) =>
+          onChange={(checked) =>
             updateEffectAt(effectIndex, (current) => ({
               ...current,
-              executionCondition: event.target.checked
+              executionCondition: checked
                 ? {
                     argumentKey: CARD_CATALOG_EXECUTION_CONDITION_ARGUMENT_KEY_OPTIONS[0],
                     expectedValue: '',
@@ -102,6 +99,7 @@ export function CardAdminExecutionPanel({
                   }
                 : null,
             }))}
+          ariaLabel="Execution Condition Enabled"
         />
         Execution Condition Enabled
       </label>
@@ -110,7 +108,7 @@ export function CardAdminExecutionPanel({
         <>
           <div className="space-y-1">
             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Condition Argument Key</label>
-            <select
+            <CardAdminSelect
               value={effect.executionCondition.argumentKey}
               onChange={(event) =>
                 updateEffectAt(effectIndex, (current) => ({
@@ -122,12 +120,11 @@ export function CardAdminExecutionPanel({
                       }
                     : null,
                 }))}
-              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
             >
               {CARD_CATALOG_EXECUTION_CONDITION_ARGUMENT_KEY_OPTIONS.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
-            </select>
+            </CardAdminSelect>
           </div>
 
           <div className="space-y-1">
@@ -147,31 +144,31 @@ export function CardAdminExecutionPanel({
           </div>
 
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-            <input
-              type="checkbox"
+            <CardAdminToggleSwitch
               checked={effect.executionCondition.ignoreCase}
-              onChange={(event) =>
+              onChange={(checked) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   executionCondition: current.executionCondition
-                    ? { ...current.executionCondition, ignoreCase: event.target.checked }
+                    ? { ...current.executionCondition, ignoreCase: checked }
                     : null,
                 }))}
+              ariaLabel="Ignore Case"
             />
             Ignore Case
           </label>
 
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-            <input
-              type="checkbox"
+            <CardAdminToggleSwitch
               checked={effect.executionCondition.negate}
-              onChange={(event) =>
+              onChange={(checked) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   executionCondition: current.executionCondition
-                    ? { ...current.executionCondition, negate: event.target.checked }
+                    ? { ...current.executionCondition, negate: checked }
                     : null,
                 }))}
+              ariaLabel="Negate Condition"
             />
             Negate Condition
           </label>
