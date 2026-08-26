@@ -107,6 +107,108 @@ public sealed class AlterResourcesEffectTests
             message.Contains("does not have enough chakra", StringComparison.OrdinalIgnoreCase)));
     }
 
+    [TestMethod]
+    public void Execute_RegistersFaceStateLock_ForTargetPlayer()
+    {
+        var effectSpec = new EffectSpec
+        {
+            Id = "effect-face-lock",
+            RuntimeEffectType = RuntimeEffects.AlterResources,
+            DurationMode = EffectDurationMode.DuringOpponentNextTurn,
+            FaceStateLocks =
+            [
+                new FaceStateLockSpec
+                {
+                    TargetCategory = FaceStateTargetCategory.SummonCard,
+                    Operation = FaceStateLockOperation.CannotTurnFaceUp,
+                    TargetRange = EffectTargetRange.Self,
+                }
+            ]
+        };
+
+        var sourceCardInstance = new CardInstance
+        {
+            InstanceId = "source-instance",
+            CardDefinitionId = "source-def",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        };
+
+        var context = CreateContext(effectSpec, playerOneResource: 3, playerTwoResource: 3, sourceCardInstance);
+
+        var effect = CreateEffect(effectSpec);
+        var result = effect.Execute(context, []);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(1, context.Game.State.AppliedCardEffects.Count);
+
+        var appliedLock = context.Game.State.AppliedCardEffects[0];
+        Assert.AreEqual(AppliedCardModifierKind.FaceStateLock, appliedLock.ModifierKind);
+        Assert.AreEqual(FaceStateTargetCategory.SummonCard, appliedLock.FaceStateTargetCategory);
+        Assert.AreEqual(FaceStateLockOperation.CannotTurnFaceUp, appliedLock.FaceStateLockOperation);
+        Assert.AreEqual("p1", appliedLock.TargetPlayerId);
+        Assert.AreEqual(EffectDurationMode.DuringOpponentNextTurn, appliedLock.DurationMode);
+    }
+
+    [TestMethod]
+    public void Execute_Fails_WhenSummonFaceUpIsBlockedByActiveLock()
+    {
+        var setupEffectSpec = new EffectSpec
+        {
+            Id = "effect-setup-lock",
+            RuntimeEffectType = RuntimeEffects.AlterResources,
+            DurationMode = EffectDurationMode.DuringThisTurn,
+            FaceStateLocks =
+            [
+                new FaceStateLockSpec
+                {
+                    TargetCategory = FaceStateTargetCategory.SummonCard,
+                    Operation = FaceStateLockOperation.CannotTurnFaceUp,
+                    TargetRange = EffectTargetRange.Self,
+                }
+            ]
+        };
+
+        var sourceCardInstance = new CardInstance
+        {
+            InstanceId = "source-instance",
+            CardDefinitionId = "source-def",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        };
+
+        var context = CreateContext(setupEffectSpec, playerOneResource: 3, playerTwoResource: 3, sourceCardInstance);
+
+        var setupEffect = CreateEffect(setupEffectSpec);
+        var setupResult = setupEffect.Execute(context, []);
+        Assert.IsFalse(setupResult.IsError);
+
+        var flipEffectSpec = new EffectSpec
+        {
+            Id = "effect-flip-face-up",
+            RuntimeEffectType = RuntimeEffects.AlterResources,
+            SummonCardFlips =
+            [
+                new SummonCardFlipSpec
+                {
+                    TargetRange = EffectTargetRange.Self,
+                    FaceState = SummonCardFaceState.FaceUp,
+                }
+            ]
+        };
+
+        var flipContext = CreateContext(flipEffectSpec, playerOneResource: 3, playerTwoResource: 3);
+        flipContext.Game.State.AppliedCardEffects = context.Game.State.AppliedCardEffects;
+        flipContext.Game.State.Player1SummonCard = false;
+
+        var flipEffect = CreateEffect(flipEffectSpec);
+        var flipResult = flipEffect.Execute(flipContext, []);
+
+        Assert.IsTrue(flipResult.IsError);
+        Assert.IsTrue(flipResult.FirstError.Code.Contains("FaceStateLock", StringComparison.Ordinal));
+        Assert.IsFalse(flipContext.Game.State.Player1SummonCard);
+    }
+
     private static AlterResourcesEffect CreateEffect(EffectSpec effectSpec)
     {
         return new AlterResourcesEffect(
@@ -114,7 +216,11 @@ public sealed class AlterResourcesEffectTests
             canExecuteEvaluator: new StubCanExecuteEvaluator());
     }
 
-    private static GameCardEffectContext CreateContext(EffectSpec effectSpec, int playerOneResource, int playerTwoResource)
+    private static GameCardEffectContext CreateContext(
+        EffectSpec effectSpec,
+        int playerOneResource,
+        int playerTwoResource,
+        CardInstance? sourceCardInstance = null)
     {
         var state = new GameState
         {
@@ -162,7 +268,7 @@ public sealed class AlterResourcesEffectTests
             game: game,
             actingPlayer: new Player { Id = "p1" },
             sourceCardDefinition: state.CardDefinitions["source-def"],
-            sourceCardInstance: null,
+            sourceCardInstance: sourceCardInstance,
             arguments: new Dictionary<string, string>(),
             selectedTargets: []);
     }

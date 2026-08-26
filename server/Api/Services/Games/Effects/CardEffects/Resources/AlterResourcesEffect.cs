@@ -29,12 +29,14 @@ public sealed class AlterResourcesEffect(
 			};
 		}
 
-		if (effectSpec.ChakraAdjustments.Count == 0 && effectSpec.SummonCardFlips.Count == 0)
+		if (effectSpec.ChakraAdjustments.Count == 0
+			&& effectSpec.SummonCardFlips.Count == 0
+			&& effectSpec.FaceStateLocks.Count == 0)
 		{
 			return new CanExecuteResult
 			{
 				CanExecute = false,
-				FailedConditions = ["AlterResources requires at least one chakra adjustment or summon-card flip."],
+				FailedConditions = ["AlterResources requires at least one chakra adjustment, summon-card flip, or face-state lock."],
 			};
 		}
 
@@ -76,6 +78,27 @@ public sealed class AlterResourcesEffect(
 			}
 		}
 
+		foreach (var faceStateLock in effectSpec.FaceStateLocks)
+		{
+			if (faceStateLock.Operation != FaceStateLockOperation.CannotTurnFaceUp)
+			{
+				return new CanExecuteResult
+				{
+					CanExecute = false,
+					FailedConditions = ["AlterResources face-state lock operation is not supported."],
+				};
+			}
+
+			if (!CardRuntimeEffectStateService.IsDurationSupportedForFaceStateLocks(effectSpec.DurationMode))
+			{
+				return new CanExecuteResult
+				{
+					CanExecute = false,
+					FailedConditions = ["AlterResources face-state locks require a temporary duration mode."],
+				};
+			}
+		}
+
 		return baseResult;
 	}
 
@@ -94,11 +117,13 @@ public sealed class AlterResourcesEffect(
 				description: "AlterResources effect is not defined on the source card.");
 		}
 
-		if (effectSpec.ChakraAdjustments.Count == 0 && effectSpec.SummonCardFlips.Count == 0)
+		if (effectSpec.ChakraAdjustments.Count == 0
+			&& effectSpec.SummonCardFlips.Count == 0
+			&& effectSpec.FaceStateLocks.Count == 0)
 		{
 			return Error.Validation(
 				code: "Game.Effect.AlterResources.NoOperations",
-				description: "AlterResources requires at least one chakra adjustment or summon-card flip.");
+				description: "AlterResources requires at least one chakra adjustment, summon-card flip, or face-state lock.");
 		}
 
 		var affectedPlayerIds = new HashSet<string>(StringComparer.Ordinal)
@@ -133,12 +158,61 @@ public sealed class AlterResourcesEffect(
 
 					foreach (var player in ResolveTargetPlayers(context.Game.State, context.ActingPlayer.Id, flip.TargetRange))
 			{
+				if (shouldBeFaceUp
+					&& CardRuntimeEffectStateService.IsFaceUpTransitionBlocked(
+						context.Game.State,
+						player.PlayerId,
+						FaceStateTargetCategory.SummonCard))
+				{
+					return Error.Validation(
+						code: "Game.Effect.FaceStateLock.CannotTurnFaceUp.SummonCard",
+						description: $"Player '{player.PlayerId}' cannot turn Summon Card face-up while a face-state lock is active.");
+				}
+
 				if (!TrySetSummonCardFaceState(context.Game.State, player.PlayerId, shouldBeFaceUp))
 				{
 					return Error.Validation(
 						code: "Game.Effect.AlterResources.UnknownSummonCardOwner",
 						description: $"Could not map player '{player.PlayerId}' to summon-card state.");
 				}
+
+				affectedPlayerIds.Add(player.PlayerId);
+			}
+		}
+
+		foreach (var faceStateLock in effectSpec.FaceStateLocks)
+		{
+			if (faceStateLock.Operation != FaceStateLockOperation.CannotTurnFaceUp)
+			{
+				return Error.Validation(
+					code: "Game.Effect.AlterResources.UnsupportedFaceStateLockOperation",
+					description: "AlterResources face-state lock operation is not supported.");
+			}
+
+			if (!CardRuntimeEffectStateService.IsDurationSupportedForFaceStateLocks(effectSpec.DurationMode))
+			{
+				return Error.Validation(
+					code: "Game.Effect.AlterResources.FaceStateLockDurationNotSupported",
+					description: "AlterResources face-state locks require a temporary duration mode.");
+			}
+
+			if (context.SourceCardInstance is null)
+			{
+				return Error.Validation(
+					code: "Game.Effect.AlterResources.FaceStateLockSourceMissing",
+					description: "AlterResources face-state locks require a source card instance.");
+			}
+
+			foreach (var player in ResolveTargetPlayers(context.Game.State, context.ActingPlayer.Id, faceStateLock.TargetRange))
+			{
+				CardRuntimeEffectStateService.AddTemporaryFaceStateLockEffect(
+					context.Game.State,
+					context.SourceCardInstance,
+					effectSpec.Id,
+					faceStateLock.TargetCategory,
+					faceStateLock.Operation,
+					player.PlayerId,
+					effectSpec.DurationMode);
 
 				affectedPlayerIds.Add(player.PlayerId);
 			}

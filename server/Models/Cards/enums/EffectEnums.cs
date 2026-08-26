@@ -104,6 +104,18 @@ public enum ChakraAdjustmentOperation
     Recover,
 }
 
+public enum FaceStateTargetCategory
+{
+    SummonCard,
+    Leader,
+    CharacterField,
+}
+
+public enum FaceStateLockOperation
+{
+    CannotTurnFaceUp,
+}
+
 public enum EffectExecutionTargetSource
 {
     SelectedTargets,

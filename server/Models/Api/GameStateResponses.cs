@@ -21,6 +21,8 @@ public sealed record ActiveTemporaryEffectResponse(
     string? Operation,
     int? Value,
     string? Keyword,
+    string? FaceStateTargetCategory,
+    string? TargetPlayerId,
     int AppliedTurnNumber);
 
 public sealed record PendingPromptResponse(

@@ -12,6 +12,8 @@ internal static class CardRuntimeEffectStateService
         string? Operation,
         int? Value,
         string? Keyword,
+        string? FaceStateTargetCategory,
+        string? TargetPlayerId,
         int AppliedTurnNumber);
 
     public static int ResolveEffectivePower(GameState state, CardInstance cardInstance, Card cardDefinition)
@@ -81,6 +83,8 @@ internal static class CardRuntimeEffectStateService
                 Operation: effect.AttributeOperation?.ToString() ?? effect.KeywordOperation?.ToString(),
                 Value: effect.AttributeValue,
                 Keyword: effect.Keyword,
+                FaceStateTargetCategory: effect.FaceStateTargetCategory?.ToString(),
+                TargetPlayerId: effect.TargetPlayerId,
                 AppliedTurnNumber: effect.AppliedTurnNumber))
             .ToList();
     }
@@ -93,6 +97,13 @@ internal static class CardRuntimeEffectStateService
     }
 
     public static bool IsDurationSupportedForKeywords(EffectDurationMode durationMode)
+    {
+        return durationMode == EffectDurationMode.DuringThisTurn
+            || durationMode == EffectDurationMode.DuringOpponentNextTurn
+            || durationMode == EffectDurationMode.DuringThisBattle;
+    }
+
+    public static bool IsDurationSupportedForFaceStateLocks(EffectDurationMode durationMode)
     {
         return durationMode == EffectDurationMode.DuringThisTurn
             || durationMode == EffectDurationMode.DuringOpponentNextTurn
@@ -166,6 +177,44 @@ internal static class CardRuntimeEffectStateService
             Keyword = modification.Keyword,
             AppliedTurnNumber = state.TurnNumber,
         });
+    }
+
+    public static void AddTemporaryFaceStateLockEffect(
+        GameState state,
+        CardInstance sourceCardInstance,
+        string effectSpecId,
+        FaceStateTargetCategory targetCategory,
+        FaceStateLockOperation operation,
+        string targetPlayerId,
+        EffectDurationMode durationMode)
+    {
+        state.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = sourceCardInstance.InstanceId,
+            EffectSpecId = effectSpecId,
+            TargetCardInstanceId = string.Empty,
+            ModifierKind = AppliedCardModifierKind.FaceStateLock,
+            DurationMode = durationMode,
+            FaceStateTargetCategory = targetCategory,
+            FaceStateLockOperation = operation,
+            TargetPlayerId = targetPlayerId,
+            AppliedTurnNumber = state.TurnNumber,
+        });
+    }
+
+    public static bool IsFaceUpTransitionBlocked(
+        GameState state,
+        string targetPlayerId,
+        FaceStateTargetCategory targetCategory)
+    {
+        return state.AppliedCardEffects.Any(effect =>
+            effect.ModifierKind == AppliedCardModifierKind.FaceStateLock
+            && effect.FaceStateLockOperation == FaceStateLockOperation.CannotTurnFaceUp
+            && effect.FaceStateTargetCategory == targetCategory
+            && string.Equals(effect.TargetPlayerId, targetPlayerId, StringComparison.Ordinal)
+            && effect.DurationMode is EffectDurationMode.DuringThisTurn
+                or EffectDurationMode.DuringOpponentNextTurn
+                or EffectDurationMode.DuringThisBattle);
     }
 
     private static int ApplyActiveAttributeEffects(

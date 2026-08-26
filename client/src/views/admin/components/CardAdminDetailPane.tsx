@@ -14,6 +14,7 @@ import type { ICountConstraintMode } from '@/views/admin/types/countConstraintFi
 import type {
   ICardCatalogAttributeModificationRequest,
   ICardCatalogChakraAdjustmentRequest,
+  ICardCatalogFaceStateLockRequest,
   ICardCatalogKeywordModificationRequest,
   ICardCatalogMoveCardActionRequest,
   ICardCatalogPassiveConsequenceRequest,
@@ -91,6 +92,8 @@ const ATTRIBUTE_TYPE_OPTIONS = [
 ] as const
 const CHAKRA_OPERATION_OPTIONS = ['Pay', 'Recover'] as const
 const FACE_STATE_OPTIONS = ['Face Up', 'Face Down'] as const
+const FACE_STATE_LOCK_TARGET_CATEGORY_OPTIONS = ['Summon Card', 'Leader', 'Character Field'] as const
+const FACE_STATE_LOCK_OPERATION_OPTIONS = ['Cannot Turn Face Up'] as const
 const MOVE_CARD_OPERATION_OPTIONS = ['Move', 'Draw'] as const
 const MOVE_CARD_ZONE_OPTIONS = ['Hand', 'Deck', 'Trash', 'Exile Zone'] as const
 const MOVE_CARD_DESTINATION_RANGE_OPTIONS = ['Self', 'Opponent', 'Any'] as const
@@ -177,6 +180,7 @@ function createDefaultEffect(): ICardCatalogEffectRequest {
     attributeModifications: [],
     chakraAdjustments: [],
     summonCardFlips: [],
+    faceStateLocks: [],
     moveCardActions: [],
     contextRules: [],
     targetRules: {
@@ -311,6 +315,14 @@ function createDefaultMoveCardAction(): ICardCatalogMoveCardActionRequest {
     multiCardOrdering: 'Selected Order',
     allowCrossPlayer: false,
     destinationPlayerRange: 'Self',
+  }
+}
+
+function createDefaultFaceStateLock(): ICardCatalogFaceStateLockRequest {
+  return {
+    targetCategory: 'Summon Card',
+    operation: 'Cannot Turn Face Up',
+    targetRange: 'Self',
   }
 }
 
@@ -955,6 +967,10 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                             summonCardFlips:
                               nextRuntimeEffectType === 'Alter Resources'
                                 ? current.summonCardFlips
+                                : [],
+                            faceStateLocks:
+                              nextRuntimeEffectType === 'Alter Resources'
+                                ? current.faceStateLocks
                                 : [],
                             moveCardActions:
                               nextRuntimeEffectType === 'Move Card'
@@ -4080,6 +4096,87 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
                       >
                         Remove
                       </AppButton>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {effect.runtimeEffectType === 'Alter Resources' ? (
+                  <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-violet-500/55 bg-[var(--surface-muted)] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Face State Locks</p>
+
+                    <div className="flex justify-end">
+                      <AppButton
+                        type="button"
+                        variant="ghost"
+                        onClick={() =>
+                          updateEffectAt(effectIndex, (current) => ({
+                            ...current,
+                            faceStateLocks: [...current.faceStateLocks, createDefaultFaceStateLock()],
+                          }))}
+                      >
+                        Add Face State Lock
+                      </AppButton>
+                    </div>
+
+                    {effect.faceStateLocks.map((faceStateLock, faceStateLockIndex) => (
+                      <div key={`face-lock-${faceStateLockIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-violet-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
+                        <select
+                          value={faceStateLock.targetCategory}
+                          onChange={(event) =>
+                            updateEffectAt(effectIndex, (current) => ({
+                              ...current,
+                              faceStateLocks: current.faceStateLocks.map((row, index) =>
+                                index === faceStateLockIndex ? { ...row, targetCategory: event.target.value } : row),
+                            }))}
+                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                        >
+                          {FACE_STATE_LOCK_TARGET_CATEGORY_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={faceStateLock.operation}
+                          onChange={(event) =>
+                            updateEffectAt(effectIndex, (current) => ({
+                              ...current,
+                              faceStateLocks: current.faceStateLocks.map((row, index) =>
+                                index === faceStateLockIndex ? { ...row, operation: event.target.value } : row),
+                            }))}
+                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                        >
+                          {FACE_STATE_LOCK_OPERATION_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={faceStateLock.targetRange}
+                          onChange={(event) =>
+                            updateEffectAt(effectIndex, (current) => ({
+                              ...current,
+                              faceStateLocks: current.faceStateLocks.map((row, index) =>
+                                index === faceStateLockIndex ? { ...row, targetRange: event.target.value } : row),
+                            }))}
+                          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                        >
+                          {TARGET_RANGE_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+
+                        <AppButton
+                          type="button"
+                          variant="ghost"
+                          onClick={() =>
+                            updateEffectAt(effectIndex, (current) => ({
+                              ...current,
+                              faceStateLocks: current.faceStateLocks.filter((_, index) => index !== faceStateLockIndex),
+                            }))}
+                        >
+                          Remove
+                        </AppButton>
                       </div>
                     ))}
                   </div>

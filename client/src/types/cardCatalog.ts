@@ -107,6 +107,12 @@ export type ICardCatalogSummonCardFlipResponse = {
   faceState: string
 }
 
+export type ICardCatalogFaceStateLockResponse = {
+  targetCategory: string
+  operation: string
+  targetRange: string
+}
+
 export type ICardCatalogMoveCardActionResponse = {
   operation: string
   sourceZone: string | null
@@ -180,6 +186,7 @@ export type ICardCatalogEffectResponse = {
   attributeModifications: ICardCatalogAttributeModificationResponse[]
   chakraAdjustments: ICardCatalogChakraAdjustmentResponse[]
   summonCardFlips: ICardCatalogSummonCardFlipResponse[]
+  faceStateLocks: ICardCatalogFaceStateLockResponse[]
   moveCardActions: ICardCatalogMoveCardActionResponse[]
   contextRules: ICardCatalogEffectContextRuleSetResponse[]
   targetRules: ICardCatalogEffectTargetRuleSetResponse

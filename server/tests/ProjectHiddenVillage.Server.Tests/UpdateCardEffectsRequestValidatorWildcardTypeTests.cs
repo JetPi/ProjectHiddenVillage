@@ -571,6 +571,139 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
     }
 
     [TestMethod]
+    public void Validate_AllowsFaceStateLocks_ForAlterResourcesWithNonInstantDuration()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-face-lock-valid",
+                    RuntimeEffectType = RuntimeEffects.AlterResources,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.Quick,
+                    DurationMode = EffectDurationMode.DuringOpponentNextTurn,
+                    TargetRange = EffectTargetRange.Self,
+                    FaceStateLocks =
+                    [
+                        new FaceStateLockSpec
+                        {
+                            TargetCategory = FaceStateTargetCategory.SummonCard,
+                            Operation = FaceStateLockOperation.CannotTurnFaceUp,
+                            TargetRange = EffectTargetRange.Self,
+                        }
+                    ],
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenFaceStateLocksUseInstantDuration()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-face-lock-instant-invalid",
+                    RuntimeEffectType = RuntimeEffects.AlterResources,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.Quick,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Self,
+                    FaceStateLocks =
+                    [
+                        new FaceStateLockSpec
+                        {
+                            TargetCategory = FaceStateTargetCategory.SummonCard,
+                            Operation = FaceStateLockOperation.CannotTurnFaceUp,
+                            TargetRange = EffectTargetRange.Self,
+                        }
+                    ],
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error =>
+            error.ErrorMessage.Contains("Face-state locks require a non-instant duration mode.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenDuplicateFaceStateLocksAreProvided()
+    {
+        var validator = new UpdateCardEffectsRequestValidator();
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-face-lock-duplicate-invalid",
+                    RuntimeEffectType = RuntimeEffects.AlterResources,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.Quick,
+                    DurationMode = EffectDurationMode.DuringThisTurn,
+                    TargetRange = EffectTargetRange.Self,
+                    FaceStateLocks =
+                    [
+                        new FaceStateLockSpec
+                        {
+                            TargetCategory = FaceStateTargetCategory.Leader,
+                            Operation = FaceStateLockOperation.CannotTurnFaceUp,
+                            TargetRange = EffectTargetRange.Self,
+                        },
+                        new FaceStateLockSpec
+                        {
+                            TargetCategory = FaceStateTargetCategory.Leader,
+                            Operation = FaceStateLockOperation.CannotTurnFaceUp,
+                            TargetRange = EffectTargetRange.Self,
+                        }
+                    ],
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = validator.Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error =>
+            error.ErrorMessage.Contains("Face-state locks cannot contain duplicate category/operation/target-range combinations.", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
     public void Validate_AllowsBranchTargets_WhenEffectIdsExist()
     {
         var validator = new UpdateCardEffectsRequestValidator();

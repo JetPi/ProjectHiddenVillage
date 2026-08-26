@@ -47,6 +47,8 @@ public static class GameStateResponseMapper
                     Operation: effect.Operation,
                     Value: effect.Value,
                     Keyword: effect.Keyword,
+                    FaceStateTargetCategory: effect.FaceStateTargetCategory,
+                    TargetPlayerId: effect.TargetPlayerId,
                     AppliedTurnNumber: effect.AppliedTurnNumber))
                 .ToList(),
             Players: state.Players

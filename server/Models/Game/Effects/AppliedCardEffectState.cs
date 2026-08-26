@@ -3,7 +3,8 @@ namespace ProjectHiddenVillage.Server;
 public enum AppliedCardModifierKind
 {
     Attribute,
-    Keyword
+    Keyword,
+    FaceStateLock,
 }
 
 public sealed class AppliedCardEffectState
@@ -33,6 +34,12 @@ public sealed class AppliedCardEffectState
     public KeywordModificationOperation? KeywordOperation { get; set; }
 
     public string? Keyword { get; set; }
+
+    public FaceStateTargetCategory? FaceStateTargetCategory { get; set; }
+
+    public FaceStateLockOperation? FaceStateLockOperation { get; set; }
+
+    public string? TargetPlayerId { get; set; }
 
     public int AppliedTurnNumber { get; set; }
 }
