@@ -685,6 +685,194 @@ public sealed class GameSequentialEffectExecutorTests
     }
 
     [TestMethod]
+    public void Execute_RevealFirst_ExecutesFailureBranch_WhenRevealPostConditionRestrictionDoesNotMatch()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingRevealEffect(observedSpecIds, "o-hand"),
+            new RecordingEffect(FreezeCardEffect.EffectKey, observedSpecIds),
+            new RecordingEffect(DestroyCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                RevealTimingMode = RevealTimingMode.RevealFirst,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                RevealPostConditionRestriction = new ZoneCardRestriction
+                {
+                    MatchMode = ZoneRestrictionMatchMode.All,
+                    Predicates =
+                    [
+                        new ZoneCardPropertyPredicate
+                        {
+                            Property = ZoneCardProperty.Name,
+                            Operator = ZoneCardPredicateOperator.Contains,
+                            Value = "Naruto",
+                            IgnoreCase = true,
+                        },
+                        new ZoneCardPropertyPredicate
+                        {
+                            Property = ZoneCardProperty.Type,
+                            Operator = ZoneCardPredicateOperator.NotEquals,
+                            Value = "EX Character",
+                            IgnoreCase = true,
+                        },
+                    ],
+                },
+                OnSuccessEffectId = "freeze-step",
+                OnFailureEffectId = "fallback",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "freeze-step",
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "fallback",
+                RuntimeEffectType = RuntimeEffects.DestroyCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var revealedCard = CreateCardOnField("revealed-card", "o-hand", "p2", "Sasuke Uchiha");
+        revealedCard.Card.Type = CardType.ExCharacter;
+
+        var context = CreateContext(
+            sourceDefinition,
+            playerTwoFieldCards:
+            [
+                revealedCard,
+            ]);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "reveal-step", "fallback" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_RevealFirst_ExecutesSuccessBranch_WhenRevealPostConditionRuleSetMatchesAnyGroup()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingRevealEffect(observedSpecIds, "o-hand"),
+            new RecordingEffect(FreezeCardEffect.EffectKey, observedSpecIds),
+            new RecordingEffect(DestroyCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                RevealTimingMode = RevealTimingMode.RevealFirst,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                RevealPostConditionRuleSet = new ZoneCardRestrictionRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    Restrictions =
+                    [
+                        new ZoneCardRestriction
+                        {
+                            MatchMode = ZoneRestrictionMatchMode.All,
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Name,
+                                    Operator = ZoneCardPredicateOperator.Contains,
+                                    Value = "Sasuke",
+                                    IgnoreCase = true,
+                                },
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Type,
+                                    Operator = ZoneCardPredicateOperator.NotEquals,
+                                    Value = "EX Character",
+                                    IgnoreCase = true,
+                                },
+                            ],
+                        },
+                        new ZoneCardRestriction
+                        {
+                            MatchMode = ZoneRestrictionMatchMode.All,
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Trait,
+                                    Operator = ZoneCardPredicateOperator.Equals,
+                                    Value = "The Taka",
+                                    IgnoreCase = true,
+                                },
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Type,
+                                    Operator = ZoneCardPredicateOperator.NotEquals,
+                                    Value = "EX Character",
+                                    IgnoreCase = true,
+                                },
+                            ],
+                        },
+                    ],
+                },
+                OnSuccessEffectId = "freeze-step",
+                OnFailureEffectId = "fallback",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "freeze-step",
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "fallback",
+                RuntimeEffectType = RuntimeEffects.DestroyCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var revealedCard = CreateCardOnField("revealed-card", "o-hand", "p2", "Sasuke Uchiha");
+        revealedCard.Card.Type = CardType.Character;
+
+        var context = CreateContext(
+            sourceDefinition,
+            playerTwoFieldCards:
+            [
+                revealedCard,
+            ]);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "reveal-step", "freeze-step" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
     public void Execute_AtomicChain_DoesNotExecuteAnyStep_WhenLaterStepCannotExecute()
     {
         var observedSpecIds = new List<string>();

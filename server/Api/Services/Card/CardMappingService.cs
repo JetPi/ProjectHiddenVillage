@@ -383,7 +383,9 @@ public sealed class CardMappingService : ICardMappingService
                     ExecutionFlowMode: SplitPascalCase(effect.ExecutionFlowMode.ToString()),
                     SuppressSummonedTargetsEffectsWhileOnField: effect.SuppressSummonedTargetsEffectsWhileOnField,
                     RevealTimingMode: SplitPascalCase(effect.RevealTimingMode.ToString()),
-                    RevealPostConditionPredicate: ToNullableZoneCardPropertyPredicateResponse(effect.RevealPostConditionPredicate),
+                    RevealPostConditionRuleSet: ToNullableZoneCardRestrictionRuleSetResponse(ResolveRevealPostConditionRuleSet(effect)),
+                    RevealPostConditionRestriction: ToNullableZoneCardRestrictionResponse(ResolveRevealPostConditionRestriction(effect)),
+                    RevealPostConditionPredicate: ToNullableZoneCardPropertyPredicateResponse(ResolveRevealPostConditionPredicate(effect)),
                     ExecutionCondition: ToExecutionConditionResponse(effect.ExecutionCondition),
                     AttributeModifications: effect.AttributeModifications
                         .Select(ToAttributeModificationResponse)
@@ -807,7 +809,80 @@ public sealed class CardMappingService : ICardMappingService
             Negate: condition.Negate);
     }
 
-            private static CardCatalogZoneCardPropertyPredicateResponse? ToNullableZoneCardPropertyPredicateResponse(ZoneCardPropertyPredicate? predicate)
+    private static ZoneCardRestrictionRuleSet? ResolveRevealPostConditionRuleSet(EffectSpec effect)
+    {
+        if (effect.RevealPostConditionRuleSet is not null)
+        {
+            return effect.RevealPostConditionRuleSet;
+        }
+
+        var restriction = ResolveRevealPostConditionRestriction(effect);
+        if (restriction is null)
+        {
+            return null;
+        }
+
+        return new ZoneCardRestrictionRuleSet
+        {
+            Operator = RequirementGroupOperator.All,
+            Restrictions =
+            [
+                restriction,
+            ],
+        };
+    }
+
+    private static ZoneCardRestriction? ResolveRevealPostConditionRestriction(EffectSpec effect)
+    {
+        if (effect.RevealPostConditionRuleSet?.Restrictions is { Count: > 0 })
+        {
+            return effect.RevealPostConditionRuleSet.Restrictions[0];
+        }
+
+        if (effect.RevealPostConditionRestriction is not null)
+        {
+            return effect.RevealPostConditionRestriction;
+        }
+
+        if (effect.RevealPostConditionPredicate is null)
+        {
+            return null;
+        }
+
+        return new ZoneCardRestriction
+        {
+            MatchMode = ZoneRestrictionMatchMode.All,
+            Predicates =
+            [
+                effect.RevealPostConditionPredicate,
+            ],
+        };
+    }
+
+    private static ZoneCardPropertyPredicate? ResolveRevealPostConditionPredicate(EffectSpec effect)
+    {
+        return effect.RevealPostConditionPredicate
+            ?? effect.RevealPostConditionRestriction?.Predicates?.FirstOrDefault();
+    }
+
+    private static CardCatalogZoneCardRestrictionResponse? ToNullableZoneCardRestrictionResponse(ZoneCardRestriction? restriction)
+    {
+        return restriction is null ? null : ToZoneCardRestrictionResponse(restriction);
+    }
+
+    private static CardCatalogZoneCardRestrictionRuleSetResponse? ToNullableZoneCardRestrictionRuleSetResponse(ZoneCardRestrictionRuleSet? ruleSet)
+    {
+        if (ruleSet is null)
+        {
+            return null;
+        }
+
+        return new CardCatalogZoneCardRestrictionRuleSetResponse(
+            Restrictions: ruleSet.Restrictions.Select(ToZoneCardRestrictionResponse).ToList(),
+            Operator: SplitPascalCase(ruleSet.Operator.ToString()));
+    }
+
+    private static CardCatalogZoneCardPropertyPredicateResponse? ToNullableZoneCardPropertyPredicateResponse(ZoneCardPropertyPredicate? predicate)
     {
         if (predicate is null)
         {

@@ -44,6 +44,8 @@ public sealed record CardCatalogEffectResponse(
     string ExecutionFlowMode,
     bool SuppressSummonedTargetsEffectsWhileOnField,
     string RevealTimingMode,
+    CardCatalogZoneCardRestrictionRuleSetResponse? RevealPostConditionRuleSet,
+    CardCatalogZoneCardRestrictionResponse? RevealPostConditionRestriction,
     CardCatalogZoneCardPropertyPredicateResponse? RevealPostConditionPredicate,
     CardCatalogEffectExecutionConditionResponse? ExecutionCondition,
     IReadOnlyList<CardCatalogAttributeModificationResponse> AttributeModifications,
@@ -154,6 +156,10 @@ public sealed record CardCatalogEffectTargetLocationSelectorResponse(
 public sealed record CardCatalogZoneCardRestrictionResponse(
     IReadOnlyList<CardCatalogZoneCardPropertyPredicateResponse> Predicates,
     string MatchMode);
+
+public sealed record CardCatalogZoneCardRestrictionRuleSetResponse(
+    IReadOnlyList<CardCatalogZoneCardRestrictionResponse> Restrictions,
+    string Operator);
 
 public sealed record CardCatalogZoneCardPropertyPredicateResponse(
     string Property,

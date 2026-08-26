@@ -215,6 +215,10 @@ public sealed class EffectSpec
 
     public RevealTimingMode RevealTimingMode { get; set; } = RevealTimingMode.RevealLast;
 
+    public ZoneCardRestrictionRuleSet? RevealPostConditionRuleSet { get; set; }
+
+    public ZoneCardRestriction? RevealPostConditionRestriction { get; set; }
+
     public ZoneCardPropertyPredicate? RevealPostConditionPredicate { get; set; }
 
     public string? OnSuccessEffectId { get; set; }

@@ -64,6 +64,11 @@ export type ICardCatalogZoneCardRestrictionResponse = {
   matchMode: string
 }
 
+export type ICardCatalogZoneCardRestrictionRuleSetResponse = {
+  restrictions: ICardCatalogZoneCardRestrictionResponse[]
+  operator: string
+}
+
 export type ICardCatalogZoneAmountRequirementResponse = {
   amount: number
   comparison: string
@@ -182,6 +187,8 @@ export type ICardCatalogEffectResponse = {
   executionFlowMode: string
   suppressSummonedTargetsEffectsWhileOnField: boolean
   revealTimingMode: string
+  revealPostConditionRuleSet: ICardCatalogZoneCardRestrictionRuleSetResponse | null
+  revealPostConditionRestriction: ICardCatalogZoneCardRestrictionResponse | null
   revealPostConditionPredicate: ICardCatalogZoneCardPropertyPredicateResponse | null
   executionCondition: ICardCatalogEffectExecutionConditionResponse | null
   attributeModifications: ICardCatalogAttributeModificationResponse[]

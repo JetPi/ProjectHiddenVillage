@@ -71,6 +71,12 @@ public sealed class ZoneCardRestriction
     public ZoneRestrictionMatchMode MatchMode { get; set; } = ZoneRestrictionMatchMode.Any;
 }
 
+public sealed class ZoneCardRestrictionRuleSet
+{
+    public IReadOnlyList<ZoneCardRestriction> Restrictions { get; set; } = [];
+    public RequirementGroupOperator Operator { get; set; } = RequirementGroupOperator.All;
+}
+
 public enum ZoneCardPredicateOperator
 {
     Equals,
