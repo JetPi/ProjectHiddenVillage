@@ -323,6 +323,10 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                 effect.RuleFor(value => value.TargetRules)
                     .NotNull().WithMessage("Effect target rules are required.");
 
+                effect.RuleFor(value => value)
+                    .Must(UsesSupportedPredicatePropertiesOnly)
+                    .WithMessage("Predicates can only use Self, Name, Trait, Type, Color, Power, Damage, Health, CurrentHealth, IsExhausted, and IsRested properties.");
+
                 effect.RuleFor(value => value.TargetRules.ExactTargetCount)
                     .GreaterThanOrEqualTo(0)
                     .When(value => value.TargetRules.ExactTargetCount.HasValue)
@@ -900,5 +904,69 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
             ZoneCardPredicateOperator.LessThanOrEqual => hasValue,
             _ => false,
         };
+    }
+
+    private static bool UsesSupportedPredicatePropertiesOnly(EffectSpec effect)
+    {
+        return EnumerateEffectPredicates(effect).All(predicate =>
+            predicate.Property is ZoneCardProperty.Self
+                or ZoneCardProperty.Name
+                or ZoneCardProperty.Trait
+                or ZoneCardProperty.Type
+                or ZoneCardProperty.Color
+                or ZoneCardProperty.Power
+                or ZoneCardProperty.Damage
+                or ZoneCardProperty.Health
+                or ZoneCardProperty.CurrentHealth
+                or ZoneCardProperty.IsExhausted
+                or ZoneCardProperty.IsRested);
+    }
+
+    private static IEnumerable<ZoneCardPropertyPredicate> EnumerateEffectPredicates(EffectSpec effect)
+    {
+        foreach (var rule in effect.TargetRules.Rules)
+        {
+            foreach (var predicate in rule.Restriction.Predicates ?? [])
+            {
+                yield return predicate;
+            }
+        }
+
+        if (effect.RevealPostConditionPredicate is not null)
+        {
+            yield return effect.RevealPostConditionPredicate;
+        }
+
+        foreach (var predicate in effect.RevealPostConditionRestriction?.Predicates ?? [])
+        {
+            yield return predicate;
+        }
+
+        foreach (var restriction in effect.RevealPostConditionRuleSet?.Restrictions ?? [])
+        {
+            foreach (var predicate in restriction.Predicates ?? [])
+            {
+                yield return predicate;
+            }
+        }
+
+        foreach (var contextRule in effect.ContextRules)
+        {
+            foreach (var requirement in contextRule.Player?.InZoneRequirements?.Requirements ?? [])
+            {
+                foreach (var predicate in requirement.Restriction.Predicates ?? [])
+                {
+                    yield return predicate;
+                }
+            }
+
+            foreach (var requirement in contextRule.Opponent?.InZoneRequirements?.Requirements ?? [])
+            {
+                foreach (var predicate in requirement.Restriction.Predicates ?? [])
+                {
+                    yield return predicate;
+                }
+            }
+        }
     }
 }

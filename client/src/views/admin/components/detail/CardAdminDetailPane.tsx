@@ -53,6 +53,12 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
         const normalizedKeywords = serverKeywords
           .map((keyword) => keyword.trim())
           .filter((keyword) => keyword.length > 0)
+          .filter((keyword) => {
+            const normalized = keyword.toLowerCase()
+            return normalized === 'rush'
+              || normalized.includes('not affected')
+              || normalized.includes('immune')
+          })
 
         if (normalizedKeywords.length > 0) {
           setEffectConditionKeywordOptions(Array.from(new Set(normalizedKeywords)))
@@ -121,10 +127,6 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
   }
 
   const removeEffectAt = (effectIndex: number) => {
-    if (parsedEffects.length <= 1) {
-      return
-    }
-
     const nextEffects = parsedEffects.filter((_, index) => index !== effectIndex)
     updateEffects(nextEffects)
 
@@ -154,6 +156,48 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
       next.add(0)
       current.forEach((index) => {
         next.add(index + 1)
+      })
+
+      return next
+    })
+  }
+
+  const reorderEffect = (fromIndex: number, toIndex: number) => {
+    if (
+      fromIndex === toIndex
+      || fromIndex < 0
+      || toIndex < 0
+      || fromIndex >= parsedEffects.length
+      || toIndex >= parsedEffects.length
+    ) {
+      return
+    }
+
+    const nextEffects = [...parsedEffects]
+    const [movedEffect] = nextEffects.splice(fromIndex, 1)
+    nextEffects.splice(toIndex, 0, movedEffect)
+    updateEffects(nextEffects)
+
+    setCollapsedEffects((current) => {
+      const next = new Set<number>()
+
+      current.forEach((index) => {
+        if (index === fromIndex) {
+          next.add(toIndex)
+          return
+        }
+
+        if (fromIndex < toIndex && index > fromIndex && index <= toIndex) {
+          next.add(index - 1)
+          return
+        }
+
+        if (fromIndex > toIndex && index >= toIndex && index < fromIndex) {
+          next.add(index + 1)
+          return
+        }
+
+        next.add(index)
       })
 
       return next
@@ -227,6 +271,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
         parsedEffects={parsedEffects}
         collapsedEffects={collapsedEffects}
         toggleEffectCollapsedAt={toggleEffectCollapsedAt}
+        reorderEffect={reorderEffect}
         removeEffectAt={removeEffectAt}
         addEffect={addEffect}
         updateEffectAt={updateEffectAt}

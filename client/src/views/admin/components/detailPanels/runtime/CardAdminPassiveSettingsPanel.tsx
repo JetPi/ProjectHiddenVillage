@@ -13,6 +13,7 @@ import {
   createDefaultPassiveConsequence,
   createDefaultPassiveReevaluation,
 } from '@/views/admin/utils'
+import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 
 export function CardAdminPassiveSettingsPanel({
   effect,
@@ -20,8 +21,13 @@ export function CardAdminPassiveSettingsPanel({
   updateEffectAt,
 }: ICardAdminPassiveSettingsPanelProps) {
   return (
-    <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-violet-500/55 bg-[var(--surface-muted)] p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Settings</p>
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-violet-500/55 bg-[var(--surface-muted)] p-3">
+      <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        <span>Passive Settings</span>
+        <CardAdminChevronIcon rotateOnOpen />
+      </summary>
+
+      <div className="mt-3 grid grid-cols-1 gap-3">
 
       <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
         <CardAdminToggleSwitch
@@ -95,7 +101,7 @@ export function CardAdminPassiveSettingsPanel({
         </div>
 
         {(effect.passiveConsequences ?? []).map((consequence, consequenceIndex) => (
-          <div key={`passive-consequence-${consequenceIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 sm:grid-cols-3">
+          <div key={`passive-consequence-${consequenceIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
             <CardAdminSelect
               value={consequence.consequenceEffectTypeKey}
               onChange={(event) =>
@@ -134,13 +140,13 @@ export function CardAdminPassiveSettingsPanel({
                   ...current,
                   passiveConsequences: (current.passiveConsequences ?? []).filter((_, index) => index !== consequenceIndex),
                 }))}
+              className="inline-flex h-10 w-10 items-center justify-center self-stretch rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]"
               ariaLabel="Remove Passive Consequence"
-            >
-              Remove
-            </CardAdminRemoveButton>
+            />
           </div>
         ))}
       </div>
-    </div>
+      </div>
+    </details>
   )
 }

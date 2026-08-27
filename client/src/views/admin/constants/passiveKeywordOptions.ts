@@ -36,18 +36,6 @@ export const KEYWORD_TARGET_TYPE_OPTIONS = ['Source Card', 'Selected Targets'] a
 export const KEYWORD_OPERATION_OPTIONS = ['Add', 'Remove'] as const
 
 export const EFFECT_CONDITION_KEYWORD_OPTIONS_FALLBACK = [
-  'Activate: Main',
-  'Recovery',
-  "During Your Opponent's Attack",
-  'Support',
-  'Quick',
   'Rush',
-  'Summon Requirements',
-  'On Summon',
-  'During Your Main',
-  'Your Turn',
-  'Support Activated',
-  'Once Per Turn',
-  'When Attacking',
   'Not Affected By Opponent Support Effects',
 ] as const
