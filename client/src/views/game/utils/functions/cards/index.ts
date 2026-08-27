@@ -69,6 +69,7 @@ function resolveLeaderCard(
     life,
     currentLife,
     recoveryEffect: player?.leader?.recoveryEffect ?? '',
+    availableActions: player?.leader?.availableActions,
   }
 }
 

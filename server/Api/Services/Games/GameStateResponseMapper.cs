@@ -9,6 +9,7 @@ public static class GameStateResponseMapper
     private const string ConcealedCardDefinitionId = "concealed-card";
     private const string SummonToFieldActionPrefix = "summon-to-field:";
     private const string SetSupportActionPrefix = "set-support:";
+    private const string LeaderEffectActionPrefix = "leader-effect:";
 
     public static GameStateResponse ToGameStateResponse(GameInstance game, string requestingPlayerId)
     {
@@ -196,7 +197,7 @@ public static class GameStateResponseMapper
             PlayerId: player.PlayerId,
             TurnCount: player.TurnCount,
             IsSummonCardReady: state.IsSummonCardReady(player.PlayerId),
-            Leader: ToLeaderCardInstanceResponse(player.LeaderCardInstance, state),
+            Leader: ToLeaderCardInstanceResponse(player.LeaderCardInstance, state, player, isRequestingPlayer, pendingPrompt),
             Deck: isRequestingPlayer
                 ? player.Deck.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Deck))
                 : player.Deck
@@ -555,11 +556,17 @@ public static class GameStateResponseMapper
             string.Equals(condition, EffectConditionKeywords.Rush, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static LeaderCardInstanceResponse ToLeaderCardInstanceResponse(LeaderCardInstanceState? leader, GameState state)
+    private static LeaderCardInstanceResponse ToLeaderCardInstanceResponse(
+        LeaderCardInstanceState? leader,
+        GameState state,
+        PlayerState player,
+        bool isRequestingPlayer,
+        GamePrompt? pendingPrompt)
     {
         var resolvedPower = leader is null ? 0 : CardRuntimeEffectStateService.ResolveEffectiveLeaderPower(state, leader);
         var resolvedDamage = leader is null ? 0 : CardRuntimeEffectStateService.ResolveEffectiveLeaderDamage(state, leader);
         var resolvedCurrentLife = leader is null ? 0 : CardRuntimeEffectStateService.ResolveEffectiveLeaderCurrentLife(state, leader);
+        var availableActions = BuildLeaderAvailableActions(leader, state, player, isRequestingPlayer, pendingPrompt);
 
         return new LeaderCardInstanceResponse(
             InstanceId: leader!.InstanceId,
@@ -574,6 +581,86 @@ public static class GameStateResponseMapper
             Power: resolvedPower,
             TotalLife: leader!.TotalLife,
             CurrentLife: resolvedCurrentLife,
-            RecoveryEffect: leader!.RecoveryEffect);
+            RecoveryEffect: leader!.RecoveryEffect)
+        {
+            AvailableActions = availableActions
+        };
     }
+
+    private static IReadOnlyList<GameActionOptionResponse> BuildLeaderAvailableActions(
+        LeaderCardInstanceState? leader,
+        GameState state,
+        PlayerState player,
+        bool isRequestingPlayer,
+        GamePrompt? pendingPrompt)
+    {
+        if (!isRequestingPlayer || pendingPrompt is not null || leader is null)
+        {
+            return [];
+        }
+
+        if (!state.CardDefinitions.TryGetValue(leader.CardDefinitionId, out var leaderDefinition))
+        {
+            return [];
+        }
+
+        var actions = new List<GameActionOptionResponse>();
+
+        foreach (var entry in leaderDefinition.Effects.Select((effect, index) => new { Effect = effect, Index = index }))
+        {
+            if (!IsLeaderEffectTimingAvailable(entry.Effect.Timing, state, player.PlayerId))
+            {
+                continue;
+            }
+
+            var effectKey = ResolveEffectKey(entry.Effect, entry.Index);
+            var actionId = $"{LeaderEffectActionPrefix}{leader.InstanceId}:{effectKey}";
+            actions.Add(new GameActionOptionResponse(
+                ActionId: actionId,
+                Label: BuildLeaderEffectLabel(entry.Effect, entry.Index),
+                IsEnabled: true,
+                DisabledReason: null));
+        }
+
+        return actions;
+    }
+
+    private static string BuildLeaderEffectLabel(EffectSpec effectSpec, int effectIndex)
+    {
+        var effectId = string.IsNullOrWhiteSpace(effectSpec.Id)
+            ? $"Effect {effectIndex + 1}"
+            : effectSpec.Id;
+
+        return $"Leader: {effectId}";
+    }
+
+    private static bool IsLeaderEffectTimingAvailable(EffectTiming timing, GameState state, string actingPlayerId)
+    {
+        var isActivePlayer = IsSamePlayerId(state.ActivePlayerId, actingPlayerId);
+        var isPriorityPlayer = IsSamePlayerId(state.PriorityPlayerId, actingPlayerId);
+
+        return timing switch
+        {
+            EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
+                state.Phase == GamePhase.MainPhase && isActivePlayer,
+            EffectTiming.YourTurn => isActivePlayer,
+            EffectTiming.Quick or EffectTiming.SupportActivated =>
+                state.Phase == GamePhase.ActionStep && isPriorityPlayer,
+            EffectTiming.DuringOpponentAttack =>
+                state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep
+                && !isActivePlayer,
+            _ => false,
+        };
+    }
+
+    private static string ResolveEffectKey(EffectSpec effectSpec, int effectIndex)
+    {
+        if (!string.IsNullOrWhiteSpace(effectSpec.Id))
+        {
+            return effectSpec.Id.Trim();
+        }
+
+        return $"index-{effectIndex}";
+    }
+
 }

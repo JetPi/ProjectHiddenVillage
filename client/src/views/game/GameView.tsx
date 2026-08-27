@@ -91,6 +91,7 @@ export function GameView() {
     isConnected,
     isActionPending,
     submitHubIntent,
+    getCardActionTargets,
   } = useGameHubState(joinCode, initialGameState, authUserId)
 
   const players = gameState.players
@@ -167,7 +168,13 @@ export function GameView() {
     const stillAvailable = stillAvailableInGlobalActions || stillAvailableOnCard
 
     if (!stillAvailable) {
-      setPendingSetSupportCardInstanceId(null)
+      const timeoutId = window.setTimeout(() => {
+        setPendingSetSupportCardInstanceId(null)
+      }, 0)
+
+      return () => {
+        window.clearTimeout(timeoutId)
+      }
     }
   }, [bottomHandCards, mappedAvailableActions, pendingSetSupportCardInstanceId])
 
@@ -205,6 +212,45 @@ export function GameView() {
   })
 
   function submitMappedAction(action: IGameActionOptionResponse): void {
+    if (action.actionId.startsWith('leader-effect:')) {
+      const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
+      if (!intentRequest || intentRequest.intent !== 'execute-card-action') {
+        return
+      }
+
+      void (async () => {
+        const targetsResponse = await getCardActionTargets({
+          actionId: intentRequest.actionId,
+          sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+        })
+
+        if (!targetsResponse || !targetsResponse.isEnabled) {
+          return
+        }
+
+        const autoSelectedTargets = targetsResponse.validTargets
+        const exactTargetCount = targetsResponse.exactTargetCount
+        const minimumTargetCount = targetsResponse.minimumTargetCount
+
+        if (typeof exactTargetCount === 'number' && autoSelectedTargets.length !== exactTargetCount) {
+          return
+        }
+
+        if (typeof minimumTargetCount === 'number' && autoSelectedTargets.length < minimumTargetCount) {
+          return
+        }
+
+        await submitHubIntent({
+          intent: 'execute-card-action',
+          actionId: intentRequest.actionId,
+          sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+          selectedTargets: autoSelectedTargets,
+        })
+      })()
+
+      return
+    }
+
     if (action.actionId.startsWith('set-support:')) {
       const delimiterIndex = action.actionId.indexOf(':')
       if (delimiterIndex < 0 || delimiterIndex === action.actionId.length - 1) {

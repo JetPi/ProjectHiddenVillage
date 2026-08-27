@@ -55,6 +55,7 @@ export type IGameLeaderCardInstanceResponse = {
   totalLife: number
   currentLife: number
   recoveryEffect: string
+  availableActions?: IGameActionOptionResponse[]
 }
 
 export type IGamePlayerStateResponse = {

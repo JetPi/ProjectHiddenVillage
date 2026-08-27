@@ -14,6 +14,10 @@ export function LeaderCard({
   placeholderLabel = 'Leader',
   showBadgeWhenLifeMissing = false,
   previewCard = null,
+  actionOptions = [],
+  isConnected = true,
+  isActionPending = false,
+  onSelectActionOption,
 }: ILeaderCardProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
 
@@ -52,6 +56,27 @@ export function LeaderCard({
           loading="eager"
           className={imageClassName}
         />
+
+        {actionOptions.length > 0 ? (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-end justify-center p-1 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
+            <div className="grid w-full gap-0.5 rounded-md bg-black/45 p-1 backdrop-blur-[1px]">
+              {actionOptions.map((action) => (
+                <button
+                  key={action.actionId}
+                  type="button"
+                  disabled={!isConnected || isActionPending || !action.isEnabled}
+                  title={action.disabledReason ?? undefined}
+                  onClick={() => {
+                    onSelectActionOption?.(action.actionId)
+                  }}
+                  className="w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </PlayCard>
 
       {previewCard ? (

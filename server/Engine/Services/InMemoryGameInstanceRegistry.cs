@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using ProjectHiddenVillage.Server.Api.Services.Games;
 
 namespace ProjectHiddenVillage.Server;
 
@@ -12,7 +13,9 @@ public sealed class InMemoryGameInstanceRegistry
     private const string ActivateSupportActionPrefix = "activate-support:";
     private const string SummonToFieldActionPrefix = "summon-to-field:";
     private const string SetSupportActionPrefix = "set-support:";
+    private const string LeaderEffectActionPrefix = "leader-effect:";
     private const string SupportSlotIndexArgumentKey = "supportSlotIndex";
+    private const string FallbackEffectKeyArgument = "__leaderEffectKey";
     private const int MaxSupportSlots = 5;
     private static readonly Regex GameCodePattern = new("^[A-Za-z0-9]{5}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
@@ -221,7 +224,7 @@ public sealed class InMemoryGameInstanceRegistry
 
             ValidateCardActionWindow(instance, request.PlayerId, actionPrefix);
 
-            var actionCardInstanceId = request.ActionId[actionPrefix.Length..].Trim();
+            var actionCardInstanceId = ResolveActionSourceCardInstanceId(request.ActionId, actionPrefix);
             if (!string.Equals(actionCardInstanceId, request.SourceCardInstanceId, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException("ActionId source card does not match SourceCardInstanceId.");
@@ -249,6 +252,9 @@ public sealed class InMemoryGameInstanceRegistry
                 case SetSupportActionPrefix:
                     ExecuteSetSupportAction(instance, request.PlayerId, request.SourceCardInstanceId, actingPlayer, arguments);
                     break;
+                case LeaderEffectActionPrefix:
+                    ExecuteLeaderEffectAction(instance, request.PlayerId, request, sequentialEffectExecutor, actingPlayer, arguments);
+                    break;
                 default:
                     throw new InvalidOperationException($"Card action '{request.ActionId}' is not supported yet.");
             }
@@ -260,6 +266,85 @@ public sealed class InMemoryGameInstanceRegistry
 
             instance.ValidateInvariants();
             return instance;
+        }
+    }
+
+    public GameCardActionTargetsResponse GetCardActionTargets(
+        string gameId,
+        GameCardActionTargetsRequest request,
+        IGameEffectCanExecuteEvaluator canExecuteEvaluator)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(canExecuteEvaluator);
+
+        var instance = GetRequired(gameId);
+
+        lock (instance)
+        {
+            if (instance.GetPendingPrompt() is not null)
+            {
+                throw new InvalidOperationException("Cannot fetch card action targets while a prompt is pending.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.ActionId))
+            {
+                throw new ArgumentException("ActionId is required.", nameof(request));
+            }
+
+            var actionPrefix = ResolveActionPrefix(request.ActionId);
+            if (actionPrefix is null)
+            {
+                throw new InvalidOperationException($"Card action '{request.ActionId}' is not supported yet.");
+            }
+
+            ValidateCardActionWindow(instance, request.PlayerId, actionPrefix);
+
+            var actionCardInstanceId = ResolveActionSourceCardInstanceId(request.ActionId, actionPrefix);
+            if (!string.Equals(actionCardInstanceId, request.SourceCardInstanceId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("ActionId source card does not match SourceCardInstanceId.");
+            }
+
+            var actingPlayer = instance.State.Players.FirstOrDefault(player =>
+                string.Equals(player.PlayerId, request.PlayerId, StringComparison.Ordinal));
+            if (actingPlayer is null)
+            {
+                throw new InvalidOperationException($"Player '{request.PlayerId}' was not found in game.");
+            }
+
+            var arguments = request.Arguments is null
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : new Dictionary<string, string>(request.Arguments, StringComparer.Ordinal);
+
+            return actionPrefix switch
+            {
+                ActivateSupportActionPrefix => BuildSupportCardActionTargets(
+                    instance,
+                    request.ActionId,
+                    request.SourceCardInstanceId,
+                    request.PlayerId,
+                    actingPlayer,
+                    arguments,
+                    canExecuteEvaluator),
+                LeaderEffectActionPrefix => BuildLeaderCardActionTargets(
+                    instance,
+                    request.ActionId,
+                    request.SourceCardInstanceId,
+                    request.PlayerId,
+                    actingPlayer,
+                    arguments,
+                    canExecuteEvaluator),
+                _ => new GameCardActionTargetsResponse(
+                    ActionId: request.ActionId,
+                    SourceCardInstanceId: request.SourceCardInstanceId,
+                    IsEnabled: true,
+                    DisabledReason: null,
+                    MinimumTargetCount: null,
+                    MaximumTargetCount: null,
+                    ExactTargetCount: null,
+                    AutoSelectAllValidTargets: false,
+                    ValidTargets: []),
+            };
         }
     }
 
@@ -315,6 +400,11 @@ public sealed class InMemoryGameInstanceRegistry
 
     private static string? ResolveActionPrefix(string actionId)
     {
+        if (actionId.StartsWith(LeaderEffectActionPrefix, StringComparison.Ordinal))
+        {
+            return LeaderEffectActionPrefix;
+        }
+
         if (actionId.StartsWith(ActivateSupportActionPrefix, StringComparison.Ordinal))
         {
             return ActivateSupportActionPrefix;
@@ -350,6 +440,11 @@ public sealed class InMemoryGameInstanceRegistry
             return;
         }
 
+        if (actionPrefix == LeaderEffectActionPrefix)
+        {
+            return;
+        }
+
         if (instance.State.Phase != GamePhase.ActionStep)
         {
             throw new InvalidOperationException("Card actions can only be executed during ActionStep.");
@@ -358,6 +453,298 @@ public sealed class InMemoryGameInstanceRegistry
         if (!string.Equals(instance.State.PriorityPlayerId, playerId, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Only the priority player can execute card actions.");
+        }
+    }
+
+    private static string ResolveActionSourceCardInstanceId(string actionId, string actionPrefix)
+    {
+        if (actionPrefix == LeaderEffectActionPrefix)
+        {
+            if (!TryParseLeaderEffectActionId(actionId, out var parsedLeaderInstanceId, out _))
+            {
+                throw new InvalidOperationException($"Card action '{actionId}' is invalid.");
+            }
+
+            return parsedLeaderInstanceId;
+        }
+
+        return actionId[actionPrefix.Length..].Trim();
+    }
+
+    private static bool TryParseLeaderEffectActionId(string actionId, out string leaderInstanceId, out string effectKey)
+    {
+        leaderInstanceId = string.Empty;
+        effectKey = string.Empty;
+
+        if (!actionId.StartsWith(LeaderEffectActionPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var payload = actionId[LeaderEffectActionPrefix.Length..];
+        var delimiterIndex = payload.IndexOf(':');
+        if (delimiterIndex <= 0 || delimiterIndex >= payload.Length - 1)
+        {
+            return false;
+        }
+
+        leaderInstanceId = payload[..delimiterIndex].Trim();
+        effectKey = payload[(delimiterIndex + 1)..].Trim();
+        return !string.IsNullOrWhiteSpace(leaderInstanceId) && !string.IsNullOrWhiteSpace(effectKey);
+    }
+
+    private static bool IsLeaderEffectTimingAvailable(EffectTiming timing, GameState state, string actingPlayerId)
+    {
+        var isActivePlayer = string.Equals(state.ActivePlayerId, actingPlayerId, StringComparison.Ordinal);
+        var isPriorityPlayer = string.Equals(state.PriorityPlayerId, actingPlayerId, StringComparison.Ordinal);
+
+        return timing switch
+        {
+            EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
+                state.Phase == GamePhase.MainPhase && isActivePlayer,
+            EffectTiming.YourTurn =>
+                isActivePlayer,
+            EffectTiming.Quick =>
+                state.Phase == GamePhase.ActionStep && isPriorityPlayer,
+            EffectTiming.SupportActivated =>
+                state.Phase == GamePhase.ActionStep && isPriorityPlayer,
+            EffectTiming.DuringOpponentAttack =>
+                state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep
+                && !isActivePlayer,
+            _ => false,
+        };
+    }
+
+    private static string ResolveEffectKey(EffectSpec effectSpec, int effectIndex)
+    {
+        if (!string.IsNullOrWhiteSpace(effectSpec.Id))
+        {
+            return effectSpec.Id.Trim();
+        }
+
+        return $"index-{effectIndex}";
+    }
+
+    private static bool MatchesEffectKey(EffectSpec effectSpec, int effectIndex, string effectKey)
+    {
+        var resolvedEffectKey = ResolveEffectKey(effectSpec, effectIndex);
+        return string.Equals(resolvedEffectKey, effectKey, StringComparison.Ordinal);
+    }
+
+    private GameCardActionTargetsResponse BuildSupportCardActionTargets(
+        GameInstance instance,
+        string actionId,
+        string sourceCardInstanceId,
+        string playerId,
+        PlayerState actingPlayer,
+        IReadOnlyDictionary<string, string> arguments,
+        IGameEffectCanExecuteEvaluator canExecuteEvaluator)
+    {
+        var sourceCardInstance = actingPlayer.SupportZone.FirstOrDefault(card =>
+            string.Equals(card.InstanceId, sourceCardInstanceId, StringComparison.Ordinal));
+        if (sourceCardInstance is null)
+        {
+            throw new InvalidOperationException(
+                $"Support card instance '{sourceCardInstanceId}' was not found for player '{playerId}'.");
+        }
+
+        if (!instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
+        {
+            throw new InvalidOperationException($"Card definition '{sourceCardInstance.CardDefinitionId}' was not found.");
+        }
+
+        var effectSpec = sourceCardDefinition.Effects.FirstOrDefault();
+        if (effectSpec is null)
+        {
+            return new GameCardActionTargetsResponse(
+                ActionId: actionId,
+                SourceCardInstanceId: sourceCardInstanceId,
+                IsEnabled: true,
+                DisabledReason: null,
+                MinimumTargetCount: null,
+                MaximumTargetCount: null,
+                ExactTargetCount: null,
+                AutoSelectAllValidTargets: false,
+                ValidTargets: []);
+        }
+
+        var context = new GameCardEffectContext(
+            game: instance,
+            actingPlayer: new Player { Id = playerId },
+            sourceCardDefinition: sourceCardDefinition,
+            sourceCardInstance: sourceCardInstance,
+            arguments: arguments,
+            selectedTargets: []);
+
+        var canExecuteResult = canExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+        var validTargets = ResolveValidTargetsForResponse(context, effectSpec, canExecuteResult);
+        return ToCardActionTargetsResponse(actionId, sourceCardInstanceId, effectSpec, canExecuteResult, validTargets);
+    }
+
+    private GameCardActionTargetsResponse BuildLeaderCardActionTargets(
+        GameInstance instance,
+        string actionId,
+        string sourceCardInstanceId,
+        string playerId,
+        PlayerState actingPlayer,
+        IReadOnlyDictionary<string, string> arguments,
+        IGameEffectCanExecuteEvaluator canExecuteEvaluator)
+    {
+        var leaderInstance = actingPlayer.LeaderCardInstance;
+        if (leaderInstance is null
+            || !string.Equals(leaderInstance.InstanceId, sourceCardInstanceId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Leader card instance '{sourceCardInstanceId}' was not found for player '{playerId}'.");
+        }
+
+        if (!instance.State.CardDefinitions.TryGetValue(leaderInstance.CardDefinitionId, out var sourceCardDefinition))
+        {
+            throw new InvalidOperationException($"Card definition '{leaderInstance.CardDefinitionId}' was not found.");
+        }
+
+        if (!TryParseLeaderEffectActionId(actionId, out _, out var effectKey))
+        {
+            throw new InvalidOperationException($"Card action '{actionId}' is invalid.");
+        }
+
+        var effectWithIndex = sourceCardDefinition.Effects
+            .Select((effect, index) => new { Effect = effect, Index = index })
+            .FirstOrDefault(entry => MatchesEffectKey(entry.Effect, entry.Index, effectKey));
+
+        if (effectWithIndex is null)
+        {
+            throw new InvalidOperationException($"Leader effect '{effectKey}' was not found on '{sourceCardDefinition.Id}'.");
+        }
+
+        var effectSpec = effectWithIndex.Effect;
+        var timingAvailable = IsLeaderEffectTimingAvailable(effectSpec.Timing, instance.State, playerId);
+        if (!timingAvailable)
+        {
+            return new GameCardActionTargetsResponse(
+                ActionId: actionId,
+                SourceCardInstanceId: sourceCardInstanceId,
+                IsEnabled: false,
+                DisabledReason: $"Leader effect '{effectSpec.Timing}' timing is not available right now.",
+                MinimumTargetCount: effectSpec.TargetRules.MinimumTargetCount,
+                MaximumTargetCount: effectSpec.TargetRules.MaximumTargetCount,
+                ExactTargetCount: effectSpec.TargetRules.ExactTargetCount,
+                AutoSelectAllValidTargets: effectSpec.TargetRules.AutoSelectAllValidTargets,
+                ValidTargets: []);
+        }
+
+        var context = new GameCardEffectContext(
+            game: instance,
+            actingPlayer: new Player { Id = playerId },
+            sourceCardDefinition: sourceCardDefinition,
+            sourceCardInstance: null,
+            arguments: arguments,
+            selectedTargets: []);
+
+        var canExecuteResult = canExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+        var validTargets = ResolveValidTargetsForResponse(context, effectSpec, canExecuteResult);
+        return ToCardActionTargetsResponse(actionId, sourceCardInstanceId, effectSpec, canExecuteResult, validTargets);
+    }
+
+    private static GameCardActionTargetsResponse ToCardActionTargetsResponse(
+        string actionId,
+        string sourceCardInstanceId,
+        EffectSpec effectSpec,
+        CanExecuteResult canExecuteResult,
+        IReadOnlyList<GameEffectTargetReference> validTargets)
+    {
+        return new GameCardActionTargetsResponse(
+            ActionId: actionId,
+            SourceCardInstanceId: sourceCardInstanceId,
+            IsEnabled: canExecuteResult.CanExecute,
+            DisabledReason: canExecuteResult.FailedConditions.Count == 0
+                ? null
+                : canExecuteResult.FailedConditions[0],
+            MinimumTargetCount: effectSpec.TargetRules.MinimumTargetCount,
+            MaximumTargetCount: effectSpec.TargetRules.MaximumTargetCount,
+            ExactTargetCount: effectSpec.TargetRules.ExactTargetCount,
+            AutoSelectAllValidTargets: effectSpec.TargetRules.AutoSelectAllValidTargets,
+            ValidTargets: validTargets);
+    }
+
+    private static IReadOnlyList<GameEffectTargetReference> ResolveValidTargetsForResponse(
+        GameCardEffectContext context,
+        EffectSpec effectSpec,
+        CanExecuteResult canExecuteResult)
+    {
+        if (!canExecuteResult.CanExecute)
+        {
+            return [];
+        }
+
+        if (effectSpec.TargetRules.Rules.Count == 0)
+        {
+            return [];
+        }
+
+        var targetResolver = new Api.Services.Games.EffectTargetResolver();
+        return targetResolver.ResolveTargets(context, effectSpec);
+    }
+
+    private void ExecuteLeaderEffectAction(
+        GameInstance instance,
+        string playerId,
+        GameCardActionExecutionRequest request,
+        IGameSequentialEffectExecutor sequentialEffectExecutor,
+        PlayerState actingPlayer,
+        Dictionary<string, string> arguments)
+    {
+        var leaderInstance = actingPlayer.LeaderCardInstance;
+        if (leaderInstance is null
+            || !string.Equals(leaderInstance.InstanceId, request.SourceCardInstanceId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Leader card instance '{request.SourceCardInstanceId}' was not found for player '{playerId}'.");
+        }
+
+        if (!instance.State.CardDefinitions.TryGetValue(leaderInstance.CardDefinitionId, out var sourceCardDefinition))
+        {
+            throw new InvalidOperationException($"Card definition '{leaderInstance.CardDefinitionId}' was not found.");
+        }
+
+        if (!TryParseLeaderEffectActionId(request.ActionId, out _, out var effectKey))
+        {
+            throw new InvalidOperationException($"Card action '{request.ActionId}' is invalid.");
+        }
+
+        var effectWithIndex = sourceCardDefinition.Effects
+            .Select((effect, index) => new { Effect = effect, Index = index })
+            .FirstOrDefault(entry => MatchesEffectKey(entry.Effect, entry.Index, effectKey));
+
+        if (effectWithIndex is null)
+        {
+            throw new InvalidOperationException($"Leader effect '{effectKey}' was not found on '{sourceCardDefinition.Id}'.");
+        }
+
+        var effectSpec = effectWithIndex.Effect;
+        if (!IsLeaderEffectTimingAvailable(effectSpec.Timing, instance.State, playerId))
+        {
+            throw new InvalidOperationException($"Leader effect '{effectSpec.Timing}' timing is not available right now.");
+        }
+
+        arguments[ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument] = string.IsNullOrWhiteSpace(effectSpec.Id)
+            ? effectSpec.RuntimeEffectType.ToString()
+            : effectSpec.Id;
+        arguments[FallbackEffectKeyArgument] = effectKey;
+
+        var selectedTargets = request.SelectedTargets ?? [];
+        var context = new GameCardEffectContext(
+            game: instance,
+            actingPlayer: new Player { Id = playerId },
+            sourceCardDefinition: sourceCardDefinition,
+            sourceCardInstance: null,
+            arguments: arguments,
+            selectedTargets: selectedTargets);
+
+        var executeResult = sequentialEffectExecutor.Execute(context);
+        if (executeResult.IsError)
+        {
+            throw new InvalidOperationException(executeResult.FirstError.Description);
         }
     }
 

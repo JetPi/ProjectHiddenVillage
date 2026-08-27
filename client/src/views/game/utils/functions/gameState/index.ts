@@ -59,6 +59,17 @@ function deriveGameViewState(
 }
 
 function resolveSourceCardInstanceId(actionId: string): string | null {
+  if (actionId.startsWith('leader-effect:')) {
+    const payload = actionId.slice('leader-effect:'.length)
+    const delimiterIndex = payload.indexOf(':')
+    if (delimiterIndex <= 0) {
+      return null
+    }
+
+    const sourceCardInstanceId = payload.slice(0, delimiterIndex).trim()
+    return sourceCardInstanceId.length > 0 ? sourceCardInstanceId : null
+  }
+
   const delimiterIndex = actionId.indexOf(':')
   if (delimiterIndex < 0 || delimiterIndex === actionId.length - 1) {
     return null
@@ -100,7 +111,8 @@ export function mapActionToHubIntent(
   if (action.actionId.startsWith('activate-support:')
     || action.actionId.startsWith('play-card:')
     || action.actionId.startsWith('summon-to-field:')
-    || action.actionId.startsWith('battle-action:')) {
+    || action.actionId.startsWith('battle-action:')
+    || action.actionId.startsWith('leader-effect:')) {
     const sourceCardInstanceId = resolveSourceCardInstanceId(action.actionId)
     if (!sourceCardInstanceId) {
       return null

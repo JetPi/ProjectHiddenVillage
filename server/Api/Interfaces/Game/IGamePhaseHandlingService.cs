@@ -14,6 +14,8 @@ public interface IGamePhaseHandlingService
 
     ErrorOr<GameInstance> ExecuteCardAction(string gameId, GameCardActionExecutionRequest request);
 
+    ErrorOr<GameCardActionTargetsResponse> GetCardActionTargets(string gameId, GameCardActionTargetsRequest request);
+
     ErrorOr<GameInstance> DeclareEndStep(string gameId);
 
     ErrorOr<GameInstance> CompleteEndStep(string gameId);

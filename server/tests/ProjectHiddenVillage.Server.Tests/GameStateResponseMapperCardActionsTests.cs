@@ -244,6 +244,43 @@ public sealed class GameStateResponseMapperCardActionsTests
         Assert.AreEqual(0, requester.Hand[0].AvailableActions.Count);
     }
 
+    [TestMethod]
+    public void ToGameStateResponse_MapsLeaderEffectActions_WithLeaderEffectPrefix()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
+        StringAssert.StartsWith(
+            requester.Leader.AvailableActions[0].ActionId,
+            $"leader-effect:{requester.Leader.InstanceId}:leader-main");
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DoesNotMapLeaderEffectActions_WhenTimingDoesNotMatchPhase()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.ActionStep;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = requesterId;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(0, requester.Leader.AvailableActions.Count);
+    }
+
     private static GameState BuildState(
         string requesterId,
         string opponentId,
@@ -270,7 +307,17 @@ public sealed class GameStateResponseMapperCardActionsTests
                     Type = CardType.Leader,
                     Color = CardColor.Blue,
                     Life = 5,
-                    RecoveryEffect = "Recover 1"
+                    RecoveryEffect = "Recover 1",
+                    Effects =
+                    [
+                        new EffectSpec
+                        {
+                            Id = "leader-main",
+                            EffectType = EffectKind.Activated,
+                            Timing = EffectTiming.ActivateMain,
+                            RuntimeEffectType = RuntimeEffects.AlterResources,
+                        }
+                    ]
                 },
                 ["card-hand"] = CreateCharacterDefinition("card-hand", "Hand Card"),
                 ["card-support"] = CreateCharacterDefinition("card-support", "Support Card"),

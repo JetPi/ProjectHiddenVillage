@@ -23,6 +23,7 @@ export type ILeaderCardViewModel = {
   life: number | null
   currentLife: number | null
   recoveryEffect: string
+  availableActions?: IGameActionOptionResponse[]
 }
 
 export type INonLeaderCardViewModel = {
