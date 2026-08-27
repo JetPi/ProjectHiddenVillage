@@ -5,7 +5,6 @@ import { PageShell } from '@/components/layout/PageShell'
 import { Panel } from '@/components/ui'
 import { useAuthSessionStore } from '@/state/authSession'
 import { useThemeStore } from '@/state/themeStore'
-import { useAlignedSplit } from '@/views/game/useAlignedSplit'
 import {
   buildLeaderCardFrameClass,
 } from '@/views/game/utils/functions'
@@ -46,7 +45,7 @@ export function GameView() {
     'BattleEndStep',
   ]), [])
 
-  const { outerRef: outerZoneRef, innerRef: boardZoneRef } = useAlignedSplit()
+  const boardZoneRef = useRef<HTMLDivElement | null>(null)
   const topDeckCardRef = useRef<HTMLDivElement | null>(null)
   const bottomDeckCardRef = useRef<HTMLDivElement | null>(null)
   const topTrashCardRef = useRef<HTMLDivElement | null>(null)
@@ -352,12 +351,19 @@ export function GameView() {
   }
 
   return (
-    <PageShell compact edgeToEdge className="pt-0 pb-0 sm:pt-0 sm:pb-0 lg:pt-0 lg:pb-0">
+    <PageShell
+      compact
+      edgeToEdge
+      className="pt-0 pb-0 sm:pt-0 sm:pb-0 lg:pt-0 lg:pb-0"
+      overlayClassName="opacity-65"
+    >
       <div
-        ref={outerZoneRef}
         className={`mx-auto h-full min-h-0 w-full overflow-hidden gap-1.5 rounded-2xl ${GAMEBOARD_MAX_WIDTH_CLASS} ${GAMEBOARD_COLUMNS_CLASS}`}
       >
-        <Panel className="col-span-full h-full min-h-0 border-hidden overflow-hidden bg-transparent pt-0 pb-0.5 px-0.5">
+        <Panel
+          className="col-span-full h-full min-h-0 border-hidden overflow-hidden bg-transparent pt-0 pb-0.5 px-0.5 backdrop-blur-none"
+          style={{ backdropFilter: 'none' }}
+        >
           <div className="grid h-full min-h-0 grid-rows-[minmax(0,0.6fr)_minmax(0,6.1fr)_minmax(0,1.85fr)] gap-1 rounded-2xl px-0 pt-0 pb-0">
             <GameHandRow
               cards={topHandCards}
