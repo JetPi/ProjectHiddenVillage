@@ -243,7 +243,7 @@ function GameZones({
             {renderBattlefieldRow(topBattlefieldCards, false)}
           </div>
 
-          <div className="min-h-0 w-full">
+          <div className="flex min-h-0 w-full justify-end">
             <LeaderCard
               className={topLeaderCardFrameClassName}
               imageClassName={LEADER_CARD_IMAGE_CLASS}
