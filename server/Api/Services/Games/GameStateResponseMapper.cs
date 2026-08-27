@@ -242,6 +242,8 @@ public static class GameStateResponseMapper
         GamePrompt? pendingPrompt,
         bool isRequestingPlayer)
     {
+        var isConcealedFromOpponent = !IsVisibleToRequestingPlayer(card, PlayerZone.SupportZone, isRequestingPlayer: false);
+
         if (!IsVisibleToRequestingPlayer(card, PlayerZone.SupportZone, isRequestingPlayer))
         {
             return new CardInstanceResponse(
@@ -252,10 +254,12 @@ public static class GameStateResponseMapper
             {
                 IsFaceUp = false,
                 SupportSlotIndex = card.SupportSlotIndex,
+                IsConcealedFromOpponent = isConcealedFromOpponent,
             };
         }
 
-        return ToCardInstanceResponse(card, cardDefinitions, PlayerZone.SupportZone, state, pendingPrompt, isRequestingPlayer);
+        var supportResponse = ToCardInstanceResponse(card, cardDefinitions, PlayerZone.SupportZone, state, pendingPrompt, isRequestingPlayer);
+        return supportResponse with { IsConcealedFromOpponent = isConcealedFromOpponent };
     }
 
     private static CardInstanceResponse ToConcealedCardInstanceResponse(CardInstance card)

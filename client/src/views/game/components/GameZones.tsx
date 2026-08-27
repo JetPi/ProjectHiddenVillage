@@ -145,7 +145,9 @@ function GameZones({
             card.instanceId,
             card.availableActions,
           )
-          const shouldHideOverlayDetails = zone === 'support' && !isCurrentPlayerZone && !card.isFaceUp
+          const isOwnConcealedSupportCard = zone === 'support' && isCurrentPlayerZone && card.isConcealedFromOpponent === true
+          const isConcealedSupportCard = zone === 'support' && !isCurrentPlayerZone && !card.isFaceUp
+          const shouldHideOverlayDetails = isConcealedSupportCard
 
           return (
             <PlayCard
@@ -155,7 +157,8 @@ function GameZones({
               data-slot-index={index}
               data-slot-card="true"
               className={twMerge(
-                'group relative h-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)]',
+                'group relative h-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
+                zone === 'support' ? 'border-transparent' : 'border border-[var(--border-subtle)]',
                 card.isExhausted ? 'opacity-80 saturate-75' : '',
                 isSelectionBlocked ? 'opacity-45' : '',
               )}
@@ -171,6 +174,20 @@ function GameZones({
               ) : (
                 <CardBack className="h-full w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
               )}
+
+              {isConcealedSupportCard ? (
+                <div className="pointer-events-none absolute inset-0 z-10 rounded-lg bg-black/18" />
+              ) : null}
+
+              {isOwnConcealedSupportCard ? (
+                <div
+                  className="pointer-events-none absolute inset-0 z-10 rounded-lg"
+                  style={{
+                    backgroundImage: 'repeating-linear-gradient(135deg, rgba(203, 213, 225, 0.46) 0px, rgba(203, 213, 225, 0.46) 7px, rgba(15, 23, 42, 0.06) 7px, rgba(15, 23, 42, 0.06) 15px)',
+                    backgroundColor: 'rgba(51, 65, 85, 0.12)',
+                  }}
+                />
+              ) : null}
 
               {!shouldHideOverlayDetails ? (
                 <NonLeaderCardOverlay

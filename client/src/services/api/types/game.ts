@@ -34,6 +34,7 @@ export type IGameCardInstanceResponse = {
   ownerPlayerId: string
   controllerPlayerId: string
   isFaceUp: boolean
+  isConcealedFromOpponent?: boolean
   isExhausted: boolean
   availableActions?: IGameActionOptionResponse[]
   isRested: boolean
