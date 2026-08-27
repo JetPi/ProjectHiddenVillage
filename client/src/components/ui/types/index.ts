@@ -50,6 +50,33 @@ export type IPlayResourceTrackerProps = {
   cardClassName: string
   className?: string
   reverse?: boolean
+  isSummonCardReady?: boolean
+}
+
+export type IResourceTrackerShellProps = {
+  reverse?: boolean
+  className?: string
+  chakraContent: ReactNode
+  summonContent: ReactNode
+}
+
+export type IResourceChakraGridProps = {
+  cardClassName: string
+  className?: string
+  slotClassName?: string
+  slotCount?: number
+  topRowCount?: number
+}
+
+export type IResourceSummonCardProps = {
+  isSummonCardReady?: boolean
+  className?: string
+}
+
+export type IPlayResourceZoneProps = {
+  className?: string
+  isSummonCardReady?: boolean
+  chakraCardClassName?: string
 }
 
 export type IPlayPileZoneProps = {

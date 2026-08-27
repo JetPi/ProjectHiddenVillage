@@ -58,6 +58,7 @@ export type IGameLeaderCardInstanceResponse = {
 export type IGamePlayerStateResponse = {
   playerId: string
   turnCount: number
+  isSummonCardReady: boolean
   leader: IGameLeaderCardInstanceResponse
   deck: IGameCardInstanceResponse[]
   deckCount: number

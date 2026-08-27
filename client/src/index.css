@@ -59,6 +59,10 @@
   --stat-pill-hp-text: #dcfce7;
 
   --panel-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+
+  --resource-rail-max-width: 208px;
+  --resource-summon-lane-width: 3.9rem;
+  --resource-card-scale: 0.93;
 }
 
 html[data-theme='light'] {
@@ -116,6 +120,10 @@ html[data-theme='light'] {
   --stat-pill-hp-text: #14532d;
 
   --panel-shadow: 0 12px 24px rgba(0, 0, 0, 0.16);
+
+  --resource-rail-max-width: 208px;
+  --resource-summon-lane-width: 3.9rem;
+  --resource-card-scale: 0.93;
 }
 
 @layer base {

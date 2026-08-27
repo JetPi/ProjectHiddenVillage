@@ -40,6 +40,7 @@ public sealed record GameActionOptionResponse(
 public sealed record PlayerZonesResponse(
     string PlayerId,
     int TurnCount,
+    bool IsSummonCardReady,
     LeaderCardInstanceResponse Leader,
     IReadOnlyList<CardInstanceResponse> Deck,
     int DeckCount,

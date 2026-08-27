@@ -1,5 +1,4 @@
 import { twMerge } from 'tailwind-merge'
-import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { PlayCard } from '@/components/ui/game/PlayCard'
 import { CardBack } from '@/components/ui/cards/CardBack'
 import { CardOverlayBadge } from '@/components/ui/cards/CardOverlayBadge'
@@ -14,7 +13,6 @@ function isTrashLabel(label: string): boolean {
 }
 
 export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', gameState, deckCardRef, trashCardRef }: IPlayPileZoneProps) {
-  const [pileGridAutoAnimateRef] = useAutoAnimate({ duration: 200, easing: 'ease-out' })
   const labeledPileCardClassName =
     'h-full flex items-center justify-center text-center overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]'
   const deckPileCardClassName = 'h-full overflow-hidden rounded-lg'
@@ -39,13 +37,12 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
     <div
       data-side={side}
       className={twMerge(
-        'h-full w-full max-w-[250px] justify-self-center overflow-hidden px-1',
+        'h-full w-full max-w-[var(--resource-rail-max-width)] justify-self-center overflow-hidden px-1',
         side === 'top' ? 'play-pile-zone-top' : 'play-pile-zone-bottom',
         className,
       )}
     >
       <div
-        ref={pileGridAutoAnimateRef}
         className="grid h-full w-full justify-center justify-items-center gap-0.5"
         style={{ gridTemplateColumns: `repeat(${columnCount}, auto)` }}
       >
@@ -71,7 +68,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                 value={badgeValue}
               />
               {isDeckLabel(label) ? (
-                <CardBack tone={cardBackTone} />
+                <CardBack className="border-0 bg-transparent [&_img]:object-cover" tone={cardBackTone} />
               ) : (
                 label
               )}

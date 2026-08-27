@@ -9,6 +9,11 @@ public sealed class InMemoryGameInstanceRegistry
 {
     private const int GameCodeLength = 5;
     private const string GameCodeAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    private const string ActivateSupportActionPrefix = "activate-support:";
+    private const string SummonToFieldActionPrefix = "summon-to-field:";
+    private const string SetSupportActionPrefix = "set-support:";
+    private const string SupportSlotIndexArgumentKey = "supportSlotIndex";
+    private const int MaxSupportSlots = 5;
     private static readonly Regex GameCodePattern = new("^[A-Za-z0-9]{5}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly ConcurrentDictionary<string, GameInstance> instances =
@@ -16,11 +21,13 @@ public sealed class InMemoryGameInstanceRegistry
 
     private readonly GameInstanceFactory factory;
     private readonly global::ProjectHiddenVillage.Server.Engine.GamePhaseService phaseService;
+    private readonly IGameRuntimeDeckService runtimeDeckService;
 
     public InMemoryGameInstanceRegistry(GameInstanceFactory factory, global::ProjectHiddenVillage.Server.Engine.GamePhaseService phaseService)
     {
         this.factory = factory;
         this.phaseService = phaseService;
+        runtimeDeckService = new Api.Services.Games.GameRuntimeDeckService(new GameEffectHandlingService());
     }
 
     public GameInstance Create(
@@ -196,16 +203,6 @@ public sealed class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
-            if (instance.State.Phase != GamePhase.ActionStep)
-            {
-                throw new InvalidOperationException("Card actions can only be executed during ActionStep.");
-            }
-
-            if (!string.Equals(instance.State.PriorityPlayerId, request.PlayerId, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException("Only the priority player can execute card actions.");
-            }
-
             if (instance.GetPendingPrompt() is not null)
             {
                 throw new InvalidOperationException("Cannot execute card actions while a prompt is pending.");
@@ -216,12 +213,15 @@ public sealed class InMemoryGameInstanceRegistry
                 throw new ArgumentException("ActionId is required.", nameof(request));
             }
 
-            if (!request.ActionId.StartsWith("activate-support:", StringComparison.Ordinal))
+            var actionPrefix = ResolveActionPrefix(request.ActionId);
+            if (actionPrefix is null)
             {
                 throw new InvalidOperationException($"Card action '{request.ActionId}' is not supported yet.");
             }
 
-            var actionCardInstanceId = request.ActionId["activate-support:".Length..].Trim();
+            ValidateCardActionWindow(instance, request.PlayerId, actionPrefix);
+
+            var actionCardInstanceId = request.ActionId[actionPrefix.Length..].Trim();
             if (!string.Equals(actionCardInstanceId, request.SourceCardInstanceId, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException("ActionId source card does not match SourceCardInstanceId.");
@@ -234,38 +234,23 @@ public sealed class InMemoryGameInstanceRegistry
                 throw new InvalidOperationException($"Player '{request.PlayerId}' was not found in game.");
             }
 
-            var sourceCardInstance = actingPlayer.SupportZone.FirstOrDefault(card =>
-                string.Equals(card.InstanceId, request.SourceCardInstanceId, StringComparison.Ordinal));
-            if (sourceCardInstance is null)
-            {
-                throw new InvalidOperationException(
-                    $"Support card instance '{request.SourceCardInstanceId}' was not found for player '{request.PlayerId}'.");
-            }
-
-            if (!instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
-            {
-                throw new InvalidOperationException(
-                    $"Card definition '{sourceCardInstance.CardDefinitionId}' was not found.");
-            }
-
             var arguments = request.Arguments is null
                 ? new Dictionary<string, string>(StringComparer.Ordinal)
                 : new Dictionary<string, string>(request.Arguments, StringComparer.Ordinal);
 
-            var selectedTargets = request.SelectedTargets ?? [];
-
-            var context = new GameCardEffectContext(
-                game: instance,
-                actingPlayer: new Player { Id = request.PlayerId },
-                sourceCardDefinition: sourceCardDefinition,
-                sourceCardInstance: sourceCardInstance,
-                arguments: arguments,
-                selectedTargets: selectedTargets);
-
-            var executeResult = sequentialEffectExecutor.Execute(context);
-            if (executeResult.IsError)
+            switch (actionPrefix)
             {
-                throw new InvalidOperationException(executeResult.FirstError.Description);
+                case ActivateSupportActionPrefix:
+                    ExecuteActivateSupportAction(instance, request.PlayerId, request, sequentialEffectExecutor, actingPlayer, arguments);
+                    break;
+                case SummonToFieldActionPrefix:
+                    ExecuteSummonToFieldAction(instance, request.PlayerId, request.SourceCardInstanceId, actingPlayer);
+                    break;
+                case SetSupportActionPrefix:
+                    ExecuteSetSupportAction(instance, request.PlayerId, request.SourceCardInstanceId, actingPlayer, arguments);
+                    break;
+                default:
+                    throw new InvalidOperationException($"Card action '{request.ActionId}' is not supported yet.");
             }
 
             if (instance.State.Phase == GamePhase.ActionStep)
@@ -326,5 +311,241 @@ public sealed class InMemoryGameInstanceRegistry
                 buffer[index] = GameCodeAlphabet[RandomNumberGenerator.GetInt32(GameCodeAlphabet.Length)];
             }
         });
+    }
+
+    private static string? ResolveActionPrefix(string actionId)
+    {
+        if (actionId.StartsWith(ActivateSupportActionPrefix, StringComparison.Ordinal))
+        {
+            return ActivateSupportActionPrefix;
+        }
+
+        if (actionId.StartsWith(SummonToFieldActionPrefix, StringComparison.Ordinal))
+        {
+            return SummonToFieldActionPrefix;
+        }
+
+        if (actionId.StartsWith(SetSupportActionPrefix, StringComparison.Ordinal))
+        {
+            return SetSupportActionPrefix;
+        }
+
+        return null;
+    }
+
+    private static void ValidateCardActionWindow(GameInstance instance, string playerId, string actionPrefix)
+    {
+        if (actionPrefix is SummonToFieldActionPrefix or SetSupportActionPrefix)
+        {
+            if (instance.State.Phase != GamePhase.MainPhase)
+            {
+                throw new InvalidOperationException("Hand card actions can only be executed during MainPhase.");
+            }
+
+            if (!string.Equals(instance.State.ActivePlayerId, playerId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Only the active player can execute hand card actions.");
+            }
+
+            return;
+        }
+
+        if (instance.State.Phase != GamePhase.ActionStep)
+        {
+            throw new InvalidOperationException("Card actions can only be executed during ActionStep.");
+        }
+
+        if (!string.Equals(instance.State.PriorityPlayerId, playerId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Only the priority player can execute card actions.");
+        }
+    }
+
+    private void ExecuteActivateSupportAction(
+        GameInstance instance,
+        string playerId,
+        GameCardActionExecutionRequest request,
+        IGameSequentialEffectExecutor sequentialEffectExecutor,
+        PlayerState actingPlayer,
+        Dictionary<string, string> arguments)
+    {
+        var sourceCardInstance = actingPlayer.SupportZone.FirstOrDefault(card =>
+            string.Equals(card.InstanceId, request.SourceCardInstanceId, StringComparison.Ordinal));
+        if (sourceCardInstance is null)
+        {
+            throw new InvalidOperationException(
+                $"Support card instance '{request.SourceCardInstanceId}' was not found for player '{playerId}'.");
+        }
+
+        if (!instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
+        {
+            throw new InvalidOperationException(
+                $"Card definition '{sourceCardInstance.CardDefinitionId}' was not found.");
+        }
+
+        var selectedTargets = request.SelectedTargets ?? [];
+
+        var context = new GameCardEffectContext(
+            game: instance,
+            actingPlayer: new Player { Id = playerId },
+            sourceCardDefinition: sourceCardDefinition,
+            sourceCardInstance: sourceCardInstance,
+            arguments: arguments,
+            selectedTargets: selectedTargets);
+
+        var executeResult = sequentialEffectExecutor.Execute(context);
+        if (executeResult.IsError)
+        {
+            throw new InvalidOperationException(executeResult.FirstError.Description);
+        }
+    }
+
+    private void ExecuteSummonToFieldAction(
+        GameInstance instance,
+        string playerId,
+        string sourceCardInstanceId,
+        PlayerState actingPlayer)
+    {
+        var sourceCardInstance = actingPlayer.Hand.FirstOrDefault(card =>
+            string.Equals(card.InstanceId, sourceCardInstanceId, StringComparison.Ordinal));
+        if (sourceCardInstance is null)
+        {
+            throw new InvalidOperationException(
+                $"Hand card instance '{sourceCardInstanceId}' was not found for player '{playerId}'.");
+        }
+
+        if (!instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
+        {
+            throw new InvalidOperationException(
+                $"Card definition '{sourceCardInstance.CardDefinitionId}' was not found.");
+        }
+
+        if (sourceCardDefinition.Type is CardType.Chakra or CardType.Summon or CardType.Leader)
+        {
+            throw new InvalidOperationException(
+                $"Card '{sourceCardDefinition.Id}' cannot be summoned to the battlefield from hand.");
+        }
+
+        var requiresReadySummonCard = !sourceCardDefinition.CannotBeNormalSummoned;
+        if (requiresReadySummonCard && !instance.State.IsSummonCardReady(playerId))
+        {
+            throw new InvalidOperationException("Your summon card is rested.");
+        }
+
+        if (sourceCardDefinition.CannotBeNormalSummoned && !CanSpecialSummonWithoutNormalSummon(sourceCardDefinition))
+        {
+            throw new InvalidOperationException(
+                $"Card '{sourceCardDefinition.Id}' cannot be summoned because its summon condition is not satisfiable.");
+        }
+
+        var movedCard = MoveCardToZone(
+            instance,
+            playerId,
+            sourceCardInstanceId,
+            PlayerZone.Hand,
+            PlayerZone.CharacterField,
+            destinationIndex: null);
+
+        movedCard.IsRested = false;
+
+        if (requiresReadySummonCard)
+        {
+            instance.State.SetSummonCardReady(playerId, false);
+        }
+    }
+
+    private void ExecuteSetSupportAction(
+        GameInstance instance,
+        string playerId,
+        string sourceCardInstanceId,
+        PlayerState actingPlayer,
+        IReadOnlyDictionary<string, string> arguments)
+    {
+        var sourceCardInstance = actingPlayer.Hand.FirstOrDefault(card =>
+            string.Equals(card.InstanceId, sourceCardInstanceId, StringComparison.Ordinal));
+        if (sourceCardInstance is null)
+        {
+            throw new InvalidOperationException(
+                $"Hand card instance '{sourceCardInstanceId}' was not found for player '{playerId}'.");
+        }
+
+        if (!instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
+        {
+            throw new InvalidOperationException(
+                $"Card definition '{sourceCardInstance.CardDefinitionId}' was not found.");
+        }
+
+        if (!IsSupportCapable(sourceCardDefinition))
+        {
+            throw new InvalidOperationException(
+                $"Card '{sourceCardDefinition.Id}' cannot be set to support zone.");
+        }
+
+        if (!arguments.TryGetValue(SupportSlotIndexArgumentKey, out var rawSlot)
+            || !int.TryParse(rawSlot, out var slotIndex)
+            || slotIndex < 0
+            || slotIndex >= MaxSupportSlots)
+        {
+            throw new InvalidOperationException("A valid support slot index is required.");
+        }
+
+        if (slotIndex > actingPlayer.SupportZone.Count)
+        {
+            throw new InvalidOperationException(
+                $"Support slot {slotIndex} cannot be selected before filling prior slots.");
+        }
+
+        if (slotIndex < actingPlayer.SupportZone.Count)
+        {
+            throw new InvalidOperationException($"Support slot {slotIndex} is already occupied.");
+        }
+
+        MoveCardToZone(
+            instance,
+            playerId,
+            sourceCardInstanceId,
+            PlayerZone.Hand,
+            PlayerZone.SupportZone,
+            slotIndex);
+    }
+
+    private CardInstance MoveCardToZone(
+        GameInstance instance,
+        string playerId,
+        string cardInstanceId,
+        PlayerZone sourceZone,
+        PlayerZone destinationZone,
+        int? destinationIndex)
+    {
+        return runtimeDeckService.MoveCardToZone(
+            instance,
+            playerId,
+            sourceZone,
+            destinationZone,
+            cardInstanceId,
+            destinationIndex: destinationIndex);
+    }
+
+    private static bool IsSupportCapable(Card card)
+    {
+        if (card is not CharacterCard characterCard)
+        {
+            return false;
+        }
+
+        return !string.IsNullOrWhiteSpace(characterCard.SupportName)
+            || !string.IsNullOrWhiteSpace(characterCard.SupportEffect);
+    }
+
+    private static bool CanSpecialSummonWithoutNormalSummon(Card card)
+    {
+        if (card.Conditions.Count == 0)
+        {
+            return false;
+        }
+
+        return card.Conditions.Any(condition =>
+            string.Equals(condition, EffectConditionKeywords.SummonRequirements, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(condition, "hasSummonTarget", StringComparison.OrdinalIgnoreCase));
     }
 }

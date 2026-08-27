@@ -21,6 +21,14 @@ export type IHandToPileAnimationArgs = {
   bottomHandRowRef: RefObject<HTMLDivElement | null>
 }
 
+export type IHandToElementAnimationArgs = {
+  side: 'top' | 'bottom'
+  cardInstanceId: string
+  destinationElement: HTMLElement | null
+  topHandRowRef: RefObject<HTMLDivElement | null>
+  bottomHandRowRef: RefObject<HTMLDivElement | null>
+}
+
 export type IHandZoneSnapshot = {
   topHandInstanceIds: Set<string>
   bottomHandInstanceIds: Set<string>

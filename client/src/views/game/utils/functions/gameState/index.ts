@@ -90,6 +90,8 @@ export function mapActionToHubIntent(
 ): ISubmitHubIntentRequest | null {
   if (action.actionId.startsWith('activate-support:')
     || action.actionId.startsWith('play-card:')
+    || action.actionId.startsWith('summon-to-field:')
+    || action.actionId.startsWith('set-support:')
     || action.actionId.startsWith('battle-action:')) {
     const delimiterIndex = action.actionId.indexOf(':')
     if (delimiterIndex < 0 || delimiterIndex === action.actionId.length - 1) {

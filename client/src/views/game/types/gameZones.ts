@@ -16,9 +16,12 @@ export type IGameZonesProps = {
   gameState: IGameStateResponse
   authUserId?: string
   availableActions: IGameActionOptionResponse[]
+  pendingSetSupportCardInstanceId: string | null
   isConnected: boolean
   isActionPending: boolean
   onSelectAction: (action: IGameActionOptionResponse) => void
+  onSelectSupportSlotForSet: (slotIndex: number) => void
+  onCancelSetSupportSelection: () => void
   onToggleTheme: () => void
   onPassTurn: () => void
 }

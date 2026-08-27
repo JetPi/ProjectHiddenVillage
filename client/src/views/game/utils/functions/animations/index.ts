@@ -1,4 +1,4 @@
-import type { IDeckToHandAnimationArgs, IHandToPileAnimationArgs } from "@/views/game/types/animations"
+import type { IDeckToHandAnimationArgs, IHandToElementAnimationArgs, IHandToPileAnimationArgs } from "@/views/game/types/animations"
 
 export function runHandToPileAnimation({
   side,
@@ -156,6 +156,80 @@ export function runDeckToHandAnimation({
     ],
     {
       duration: 420,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+    },
+  )
+
+  animation.onfinish = () => {
+    movingCardElement.remove()
+  }
+
+  animation.oncancel = () => {
+    movingCardElement.remove()
+  }
+}
+
+export function runHandToElementAnimation({
+  side,
+  cardInstanceId,
+  destinationElement,
+  topHandRowRef,
+  bottomHandRowRef,
+}: IHandToElementAnimationArgs): void {
+  const sourceHandRowElement = side === 'top' ? topHandRowRef.current : bottomHandRowRef.current
+
+  if (!sourceHandRowElement || !destinationElement) {
+    return
+  }
+
+  const sourceCardElement = sourceHandRowElement.querySelector<HTMLDivElement>(
+    `[data-hand-instance-id="${cardInstanceId}"]`,
+  )
+  if (!sourceCardElement) {
+    return
+  }
+
+  const sourceRect = sourceCardElement.getBoundingClientRect()
+  const destinationRect = destinationElement.getBoundingClientRect()
+
+  if (sourceRect.width <= 0 || sourceRect.height <= 0 || destinationRect.width <= 0 || destinationRect.height <= 0) {
+    return
+  }
+
+  const sourceCenterX = sourceRect.left + sourceRect.width / 2
+  const sourceCenterY = sourceRect.top + sourceRect.height / 2
+  const destinationCenterX = destinationRect.left + destinationRect.width / 2
+  const destinationCenterY = destinationRect.top + destinationRect.height / 2
+  const translateX = destinationCenterX - sourceCenterX
+  const translateY = destinationCenterY - sourceCenterY
+
+  const movingCardElement = sourceCardElement.cloneNode(true) as HTMLDivElement
+  movingCardElement.style.position = 'fixed'
+  movingCardElement.style.left = `${sourceCenterX}px`
+  movingCardElement.style.top = `${sourceCenterY}px`
+  movingCardElement.style.width = `${sourceRect.width}px`
+  movingCardElement.style.height = `${sourceRect.height}px`
+  movingCardElement.style.margin = '0'
+  movingCardElement.style.pointerEvents = 'none'
+  movingCardElement.style.zIndex = '220'
+  movingCardElement.style.transform = 'translate(-50%, -50%)'
+  movingCardElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
+
+  document.body.appendChild(movingCardElement)
+
+  const animation = movingCardElement.animate(
+    [
+      {
+        transform: 'translate(-50%, -50%) translate(0px, 0px) scale(1)',
+        opacity: 0.98,
+      },
+      {
+        transform: `translate(-50%, -50%) translate(${translateX}px, ${translateY}px) scale(0.9)`,
+        opacity: 0.92,
+      },
+    ],
+    {
+      duration: 340,
       easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
     },
   )

@@ -26,14 +26,14 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(1, requester.Hand[0].AvailableActions.Count);
-        Assert.AreEqual("play-card:hand-1", requester.Hand[0].AvailableActions[0].ActionId);
+        Assert.AreEqual(0, requester.Hand[0].AvailableActions.Count);
 
         Assert.AreEqual(1, requester.SupportZone[0].AvailableActions.Count);
         Assert.AreEqual("activate-support:support-1", requester.SupportZone[0].AvailableActions[0].ActionId);
 
         Assert.AreEqual(1, requester.CharacterField[0].AvailableActions.Count);
         Assert.AreEqual("battle-action:battle-1", requester.CharacterField[0].AvailableActions[0].ActionId);
+        Assert.IsTrue(requester.IsSummonCardReady);
     }
 
     [TestMethod]
@@ -167,6 +167,83 @@ public sealed class GameStateResponseMapperCardActionsTests
         Assert.AreEqual(0, requester.CharacterField[0].AvailableActions.Count);
     }
 
+    [TestMethod]
+    public void ToGameStateResponse_MapsBothSummonAndSetSupport_ForSupportCapableHandCard()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var requesterHandCard = CreateCardInstance("hand-1", "card-support-capable", requesterId);
+        var state = BuildState(requesterId, opponentId, handCards: [requesterHandCard]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(2, requester.Hand[0].AvailableActions.Count);
+        CollectionAssert.AreEquivalent(
+            new[] { "summon-to-field:hand-1", "set-support:hand-1" },
+            requester.Hand[0].AvailableActions.Select(action => action.ActionId).ToArray());
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesNormalSummon_WhenSummonCardIsRested()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var requesterHandCard = CreateCardInstance("hand-1", "card-hand", requesterId);
+        var state = BuildState(requesterId, opponentId, handCards: [requesterHandCard]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.SetSummonCardReady(requesterId, false);
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var summonAction = requester.Hand[0].AvailableActions.Single(action => action.ActionId == "summon-to-field:hand-1");
+
+        Assert.IsFalse(summonAction.IsEnabled);
+        Assert.AreEqual("Your summon card is rested.", summonAction.DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_MapsHandActions_InMainPhase_ForActivePlayer()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var requesterHandCard = CreateCardInstance("hand-1", "card-hand", requesterId);
+        var state = BuildState(requesterId, opponentId, handCards: [requesterHandCard]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.Hand[0].AvailableActions.Count);
+        Assert.AreEqual("summon-to-field:hand-1", requester.Hand[0].AvailableActions[0].ActionId);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DoesNotMapHandActions_InActionStep()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var requesterHandCard = CreateCardInstance("hand-1", "card-hand", requesterId);
+        var state = BuildState(requesterId, opponentId, handCards: [requesterHandCard]);
+        state.Phase = GamePhase.ActionStep;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = requesterId;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(0, requester.Hand[0].AvailableActions.Count);
+    }
+
     private static GameState BuildState(
         string requesterId,
         string opponentId,
@@ -197,6 +274,7 @@ public sealed class GameStateResponseMapperCardActionsTests
                 },
                 ["card-hand"] = CreateCharacterDefinition("card-hand", "Hand Card"),
                 ["card-support"] = CreateCharacterDefinition("card-support", "Support Card"),
+                ["card-support-capable"] = CreateSupportCapableCharacterDefinition("card-support-capable", "Support Capable Card"),
                 ["card-battle"] = CreateCharacterDefinition("card-battle", "Battle Card")
             },
             Players =
@@ -266,5 +344,12 @@ public sealed class GameStateResponseMapperCardActionsTests
             Damage = 1,
             Power = 2
         };
+    }
+
+    private static CharacterCard CreateSupportCapableCharacterDefinition(string id, string displayName)
+    {
+        var card = CreateCharacterDefinition(id, displayName);
+        card.SupportEffect = "Deal 1";
+        return card;
     }
 }

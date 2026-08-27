@@ -5,7 +5,6 @@ import { PageShell } from '@/components/layout/PageShell'
 import { Panel } from '@/components/ui'
 import { useAuthSessionStore } from '@/state/authSession'
 import { useThemeStore } from '@/state/themeStore'
-import { useAlignedSplit } from '@/views/game/useAlignedSplit'
 import {
   buildLeaderCardFrameClass,
 } from '@/views/game/utils/functions'
@@ -30,7 +29,7 @@ import {
   HAND_TO_PILE_DURATION_MS,
 } from '@/views/game/utils/contants'
 import { mapActionToHubIntent } from '@/views/game/utils/functions/gameState'
-import { runHandToPileAnimation, waitMillis } from '@/views/game/utils/functions/animations'
+import { runHandToElementAnimation, runHandToPileAnimation, waitMillis } from '@/views/game/utils/functions/animations'
 import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions/cards'
 import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 
@@ -46,7 +45,7 @@ export function GameView() {
     'BattleEndStep',
   ]), [])
 
-  const { outerRef: outerZoneRef, innerRef: boardZoneRef } = useAlignedSplit()
+  const boardZoneRef = useRef<HTMLDivElement | null>(null)
   const topDeckCardRef = useRef<HTMLDivElement | null>(null)
   const bottomDeckCardRef = useRef<HTMLDivElement | null>(null)
   const topTrashCardRef = useRef<HTMLDivElement | null>(null)
@@ -72,6 +71,7 @@ export function GameView() {
   })
   const [bottomHandFaceUpByInstanceId, setBottomHandFaceUpByInstanceId] = useState<Record<string, boolean>>({})
   const [isMulliganAnimationPending, setIsMulliganAnimationPending] = useState(false)
+  const [pendingSetSupportCardInstanceId, setPendingSetSupportCardInstanceId] = useState<string | null>(null)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const authUserId = useAuthSessionStore((state) => state.session?.userId)
 
@@ -130,6 +130,16 @@ export function GameView() {
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:') && action.actionId !== 'declare-attack')
     : gameState.availableActions.filter((action) => action.actionId !== 'declare-attack')
 
+  const passLikeAction = useMemo(
+    () => mappedAvailableActions.find((action) =>
+      action.actionId === 'pass-turn'
+      || action.actionId === 'turn-end'
+      || action.actionId === 'endPhase'
+      || action.actionId === 'declare-end-step'
+      || action.actionId === 'advance-phase'),
+    [mappedAvailableActions],
+  )
+
   useHandZoneAnimationEffects({
     topHandInstanceIds,
     bottomHandInstanceIds,
@@ -164,12 +174,131 @@ export function GameView() {
   })
 
   function submitMappedAction(action: IGameActionOptionResponse): void {
+    if (action.actionId.startsWith('set-support:')) {
+      const delimiterIndex = action.actionId.indexOf(':')
+      if (delimiterIndex < 0 || delimiterIndex === action.actionId.length - 1) {
+        return
+      }
+
+      setPendingSetSupportCardInstanceId(action.actionId.slice(delimiterIndex + 1))
+      return
+    }
+
+    if (action.actionId.startsWith('summon-to-field:')) {
+      const delimiterIndex = action.actionId.indexOf(':')
+      if (delimiterIndex < 0 || delimiterIndex === action.actionId.length - 1) {
+        return
+      }
+
+      const cardInstanceId = action.actionId.slice(delimiterIndex + 1)
+      const battlefieldRowElement = boardZoneRef.current?.querySelector<HTMLElement>(
+        '[data-zone="character-field-row"][data-slot-side="bottom"]',
+      ) ?? null
+
+      const lastBattlefieldCardElement = boardZoneRef.current?.querySelectorAll<HTMLElement>(
+        '[data-zone="character-field-card"][data-slot-side="bottom"]',
+      )
+
+      let summonTargetElement: HTMLElement | null = battlefieldRowElement
+      let temporarySummonTargetElement: HTMLDivElement | null = null
+
+      if (lastBattlefieldCardElement && lastBattlefieldCardElement.length > 0) {
+        const lastCard = lastBattlefieldCardElement[lastBattlefieldCardElement.length - 1]
+        const lastCardRect = lastCard.getBoundingClientRect()
+
+        if (lastCardRect.width > 0 && lastCardRect.height > 0) {
+          temporarySummonTargetElement = document.createElement('div')
+          temporarySummonTargetElement.style.position = 'fixed'
+          temporarySummonTargetElement.style.left = `${lastCardRect.left + lastCardRect.width + 6}px`
+          temporarySummonTargetElement.style.top = `${lastCardRect.top}px`
+          temporarySummonTargetElement.style.width = `${lastCardRect.width}px`
+          temporarySummonTargetElement.style.height = `${lastCardRect.height}px`
+          temporarySummonTargetElement.style.pointerEvents = 'none'
+          temporarySummonTargetElement.style.opacity = '0'
+          temporarySummonTargetElement.style.zIndex = '-1'
+          document.body.appendChild(temporarySummonTargetElement)
+          summonTargetElement = temporarySummonTargetElement
+        }
+      }
+
+      runHandToElementAnimation({
+        side: 'bottom',
+        cardInstanceId,
+        destinationElement: summonTargetElement,
+        topHandRowRef,
+        bottomHandRowRef,
+      })
+
+      temporarySummonTargetElement?.remove()
+    }
+
     const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
     if (!intentRequest) {
       return
     }
 
+    if (pendingSetSupportCardInstanceId) {
+      setPendingSetSupportCardInstanceId(null)
+    }
+
     void submitHubIntent(intentRequest)
+  }
+
+  function submitSetSupportToSlot(slotIndex: number): void {
+    if (!pendingSetSupportCardInstanceId) {
+      return
+    }
+
+    const action = mappedAvailableActions.find((option) =>
+      option.actionId === `set-support:${pendingSetSupportCardInstanceId}`)
+    if (!action) {
+      setPendingSetSupportCardInstanceId(null)
+      return
+    }
+
+    const currentPlayerSupportCount = derivedGameState.currentPlayer?.supportZone.length ?? 0
+    if (slotIndex < 0 || slotIndex > 4) {
+      return
+    }
+
+    if (slotIndex !== currentPlayerSupportCount) {
+      return
+    }
+
+    const intentRequest = mapActionToHubIntent(
+      action,
+      canResolvePrompt,
+      undefined,
+      { supportSlotIndex: slotIndex.toString() },
+    )
+
+    const supportSlotElement = boardZoneRef.current?.querySelector<HTMLElement>(
+      `[data-zone="support"][data-slot-side="bottom"][data-slot-index="${slotIndex}"]`,
+    ) ?? null
+
+    runHandToElementAnimation({
+      side: 'bottom',
+      cardInstanceId: pendingSetSupportCardInstanceId,
+      destinationElement: supportSlotElement,
+      topHandRowRef,
+      bottomHandRowRef,
+    })
+
+    setPendingSetSupportCardInstanceId(null)
+
+    if (!intentRequest) {
+      return
+    }
+
+    void submitHubIntent(intentRequest)
+  }
+
+  function handlePassLikeAction(): void {
+    if (!passLikeAction || !passLikeAction.isEnabled) {
+      return
+    }
+
+    submitMappedAction(passLikeAction)
   }
 
   async function handlePromptResolve(selectedOption: string): Promise<void> {
@@ -222,13 +351,20 @@ export function GameView() {
   }
 
   return (
-    <PageShell compact className="pt-0 pb-0 sm:pt-0 sm:pb-0 lg:pt-0 lg:pb-0">
+    <PageShell
+      compact
+      edgeToEdge
+      className="pt-0 pb-0 sm:pt-0 sm:pb-0 lg:pt-0 lg:pb-0"
+      overlayClassName="opacity-65"
+    >
       <div
-        ref={outerZoneRef}
         className={`mx-auto h-full min-h-0 w-full overflow-hidden gap-1.5 rounded-2xl ${GAMEBOARD_MAX_WIDTH_CLASS} ${GAMEBOARD_COLUMNS_CLASS}`}
       >
-        <Panel className="col-span-full h-full min-h-0 border-hidden overflow-hidden bg-transparent pt-0 pb-0.5 px-1.5">
-          <div className="grid h-full min-h-0 grid-rows-[minmax(0,0.6fr)_minmax(0,6.1fr)_minmax(0,1.85fr)] gap-1 rounded-2xl px-1 pt-0 pb-0">
+        <Panel
+          className="col-span-full h-full min-h-0 border-hidden overflow-hidden bg-transparent pt-0 pb-0.5 px-0.5 backdrop-blur-none"
+          style={{ backdropFilter: 'none' }}
+        >
+          <div className="grid h-full min-h-0 grid-rows-[minmax(0,0.6fr)_minmax(0,6.1fr)_minmax(0,1.85fr)] gap-1 rounded-2xl px-0 pt-0 pb-0">
             <GameHandRow
               cards={topHandCards}
               rowRef={setTopHandRowRefs}
@@ -257,13 +393,14 @@ export function GameView() {
               gameState={gameState}
               authUserId={authUserId}
               availableActions={mappedAvailableActions}
+              pendingSetSupportCardInstanceId={pendingSetSupportCardInstanceId}
               isConnected={isConnected}
               isActionPending={isActionPending}
               onSelectAction={submitMappedAction}
+              onSelectSupportSlotForSet={submitSetSupportToSlot}
+              onCancelSetSupportSelection={() => setPendingSetSupportCardInstanceId(null)}
               onToggleTheme={toggleTheme}
-              onPassTurn={() => {
-                void submitHubIntent({ intent: 'pass-turn' })
-              }}
+              onPassTurn={handlePassLikeAction}
             />
 
             <GameHandRow
@@ -272,6 +409,11 @@ export function GameView() {
               rowClassName="overflow-hidden"
               renderCard={(card) => {
                 const previewCard = derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null
+                const cardActionOptions = resolveCardActionOptionsForInstanceId(
+                  mappedAvailableActions,
+                  card.instanceId,
+                  card.availableActions,
+                )
 
                 return (
                   <div
@@ -296,15 +438,11 @@ export function GameView() {
                             previewCard={previewCard}
                             zone="hand"
                             visibilityMode="hover"
-                            actionOptions={resolveCardActionOptionsForInstanceId(
-                              mappedAvailableActions,
-                              card.instanceId,
-                              card.availableActions,
-                            )}
+                            actionOptions={cardActionOptions}
                             isConnected={isConnected}
                             isActionPending={isActionPending}
                             onSelectActionOption={(actionId) => {
-                              const actionOption = mappedAvailableActions.find((action) => action.actionId === actionId)
+                              const actionOption = cardActionOptions.find((action) => action.actionId === actionId)
                               if (!actionOption) {
                                 return
                               }

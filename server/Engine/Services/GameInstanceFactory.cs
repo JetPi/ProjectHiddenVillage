@@ -48,6 +48,8 @@ public sealed class GameInstanceFactory
             EffectResolutionStack = []
         };
 
+        state.EnsureSummonCardStateForPlayers();
+
         var instance = new GameInstance(state);
         LogAction(
             instance,
@@ -69,6 +71,7 @@ public sealed class GameInstanceFactory
         ValidateJoinablePlayer(player, knownPlayerIds, instance.State.CardDefinitions);
 
         instance.State.Players.Add(BuildPlayerState(player, instance.State.CardDefinitions));
+        instance.State.EnsureSummonCardStateForPlayers();
         LogAction(
             instance,
             actionType: "player_joined",
