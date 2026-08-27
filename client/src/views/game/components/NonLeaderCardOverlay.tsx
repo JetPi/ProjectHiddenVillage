@@ -9,6 +9,7 @@ function NonLeaderCardOverlay({
   zone,
   visibilityMode,
   actionOptions,
+  showEmptyActionMessage = true,
   suppressActionFallback = false,
   isConnected,
   isActionPending,
@@ -66,7 +67,7 @@ function NonLeaderCardOverlay({
                 </button>
               ))}
             </div>
-          ) : !suppressActionFallback ? (
+          ) : !suppressActionFallback && showEmptyActionMessage ? (
             <div className="rounded-sm border border-dashed border-white/35 bg-black/65 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.04em] text-white/90">
               {isHandZone ? 'No actions' : 'Actions pending backend wiring'}
             </div>
@@ -76,7 +77,7 @@ function NonLeaderCardOverlay({
 
       {visibilityMode === 'mixed' ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-between rounded-b-md border-t border-[var(--border-subtle)] bg-[var(--surface-elevated)]/95 px-1 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)]">
-          <span>{hasActions ? `${actionOptions.length} action${actionOptions.length > 1 ? 's' : ''}` : 'No actions'}</span>
+          <span>{hasActions ? `${actionOptions.length} action${actionOptions.length > 1 ? 's' : ''}` : (showEmptyActionMessage ? 'No actions' : '')}</span>
           <span>View</span>
         </div>
       ) : null}

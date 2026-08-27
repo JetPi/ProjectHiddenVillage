@@ -209,6 +209,7 @@ function GameZones({
                   zone={zone}
                   visibilityMode={visibilityMode}
                   actionOptions={actionOptions}
+                  showEmptyActionMessage={isCurrentPlayerZone}
                   suppressActionFallback={!isCurrentPlayerZone}
                   isConnected={isConnected}
                   isActionPending={isActionPending}
@@ -273,6 +274,7 @@ function GameZones({
                 zone="character-field"
                 visibilityMode="hover"
                 actionOptions={actionOptions}
+                showEmptyActionMessage={isCurrentPlayerZone}
                 suppressActionFallback={!isCurrentPlayerZone}
                 isConnected={isConnected}
                 isActionPending={isActionPending}

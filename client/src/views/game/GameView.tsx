@@ -554,6 +554,7 @@ export function GameView() {
                             zone="hand"
                             visibilityMode="hover"
                             actionOptions={cardActionOptions}
+                            showEmptyActionMessage
                             isConnected={isConnected}
                             isActionPending={isActionPending}
                             onSelectActionOption={(actionId) => {

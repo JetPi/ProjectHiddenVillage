@@ -120,6 +120,12 @@ public sealed class InMemoryGameInstanceRegistryTests
 
         registry.ResolvePrompt(game.Id, mulliganPrompt.RequestedPlayerId, "noMulligan");
 
+        var secondMulliganPrompt = game.GetPendingPrompt();
+        Assert.IsNotNull(secondMulliganPrompt);
+        Assert.AreEqual(GamePromptType.Mulligan, secondMulliganPrompt.Type);
+
+        registry.ResolvePrompt(game.Id, secondMulliganPrompt.RequestedPlayerId, "noMulligan");
+
         Assert.AreEqual(GamePhase.StartOfMainPhase, game.State.Phase);
         Assert.IsNull(game.GetPendingPrompt());
     }

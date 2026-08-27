@@ -123,19 +123,43 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
             return;
         }
 
-        var secondPlayerId = GetNextPlayerId(instance.State, instance.State.ActivePlayerId);
+        var firstRequestedPlayerId = GetNextPlayerId(instance.State, instance.State.ActivePlayerId);
+        var orderedPlayerIds = BuildPromptOrderStartingWith(instance.State, firstRequestedPlayerId);
 
-        instance.EnqueuePrompt(new GamePrompt
+        foreach (var playerId in orderedPlayerIds)
         {
-            RequestedPlayerId = secondPlayerId,
-            Type = GamePromptType.Mulligan,
-            Options = ["mulligan", "noMulligan"]
-        });
+            instance.EnqueuePrompt(new GamePrompt
+            {
+                RequestedPlayerId = playerId,
+                Type = GamePromptType.Mulligan,
+                Options = ["mulligan", "noMulligan"]
+            });
 
-        LogAction(
-            instance,
-            actionType: "mulligan_prompted",
-            playerId: secondPlayerId);
+            LogAction(
+                instance,
+                actionType: "mulligan_prompted",
+                playerId: playerId);
+        }
+    }
+
+    private static IReadOnlyList<string> BuildPromptOrderStartingWith(GameState state, string firstPlayerId)
+    {
+        var firstIndex = state.Players.FindIndex(player =>
+            string.Equals(player.PlayerId, firstPlayerId, StringComparison.Ordinal));
+
+        if (firstIndex < 0)
+        {
+            throw new InvalidOperationException($"Player '{firstPlayerId}' was not found in turn order.");
+        }
+
+        var ordered = new List<string>(capacity: state.Players.Count);
+        for (var offset = 0; offset < state.Players.Count; offset++)
+        {
+            var index = (firstIndex + offset) % state.Players.Count;
+            ordered.Add(state.Players[index].PlayerId);
+        }
+
+        return ordered;
     }
 
     private static string GetNextPlayerId(GameState state, string currentPlayerId)

@@ -65,6 +65,8 @@ public sealed class GamePhaseServiceTests
         Assert.AreEqual(GamePromptType.Mulligan, mulliganPrompt.Type);
         Assert.AreEqual("p2", mulliganPrompt.RequestedPlayerId);
         CollectionAssert.AreEqual(new[] { "mulligan", "noMulligan" }, mulliganPrompt.Options);
+        Assert.AreEqual(2, instance.PendingPrompts.Count);
+        Assert.AreEqual("p1", instance.PendingPrompts.ElementAt(1).RequestedPlayerId);
         Assert.AreEqual(5, instance.State.Players[0].Hand.Count);
         Assert.AreEqual(1, instance.State.Players[0].Deck.Count);
         Assert.AreEqual("p1-card-1", instance.State.Players[0].Hand[0].CardDefinitionId);
@@ -101,6 +103,12 @@ public sealed class GamePhaseServiceTests
             .ToList();
 
         instance.ResolvePrompt(prompt.RequestedPlayerId, "mulligan");
+
+        var secondPrompt = instance.GetPendingPrompt();
+        Assert.IsNotNull(secondPrompt);
+        Assert.AreEqual("p1", secondPrompt.RequestedPlayerId);
+
+        instance.ResolvePrompt(secondPrompt.RequestedPlayerId, "noMulligan");
 
         Assert.IsNull(instance.GetPendingPrompt());
         Assert.AreEqual(5, secondPlayer.Hand.Count);
