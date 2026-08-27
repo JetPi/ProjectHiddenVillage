@@ -446,6 +446,19 @@ export function CardAdminEffectsSection({
 
                 </div>
 
+                <CardAdminExecutionPanel
+                  effect={effect}
+                  effectIndex={effectIndex}
+                  updateEffectAt={updateEffectAt}
+                  effectBranchErrors={effectBranchErrors[effectIndex]}
+                />
+
+                <CardAdminTargetRulesPanel
+                  effect={effect}
+                  effectIndex={effectIndex}
+                  updateEffectAt={updateEffectAt}
+                />
+
                 {effect.runtimeEffectType === 'Summon Card' ? (
                   <CardAdminSummonSettingsPanel
                     effect={effect}
@@ -461,13 +474,6 @@ export function CardAdminEffectsSection({
                     updateEffectAt={updateEffectAt}
                   />
                 ) : null}
-
-                <CardAdminExecutionPanel
-                  effect={effect}
-                  effectIndex={effectIndex}
-                  updateEffectAt={updateEffectAt}
-                  effectBranchErrors={effectBranchErrors[effectIndex]}
-                />
 
                 {effect.passiveMode !== 'None' ? (
                   <CardAdminPassiveSettingsPanel
@@ -485,18 +491,6 @@ export function CardAdminEffectsSection({
                     effectConditionKeywordOptions={effectConditionKeywordOptions}
                   />
                 ) : null}
-
-                <CardAdminTargetRulesPanel
-                  effect={effect}
-                  effectIndex={effectIndex}
-                  updateEffectAt={updateEffectAt}
-                />
-
-                <CardAdminContextRulesPanel
-                  effect={effect}
-                  effectIndex={effectIndex}
-                  updateEffectAt={updateEffectAt}
-                />
 
                 {effect.runtimeEffectType === 'Change Values' ? (
                   <CardAdminAttributeModificationsPanel
@@ -537,6 +531,12 @@ export function CardAdminEffectsSection({
                     updateEffectAt={updateEffectAt}
                   />
                 ) : null}
+
+                <CardAdminContextRulesPanel
+                  effect={effect}
+                  effectIndex={effectIndex}
+                  updateEffectAt={updateEffectAt}
+                />
               </>
             ) : null}
           </div>

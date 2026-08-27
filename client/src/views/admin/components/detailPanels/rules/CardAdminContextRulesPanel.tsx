@@ -32,7 +32,7 @@ export function CardAdminContextRulesPanel({
   updateEffectAt,
 }: ICardAdminContextRulesPanelProps) {
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-cyan-500/55 bg-[var(--surface-muted)] p-3" open>
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-cyan-500/55 bg-[var(--surface-muted)] p-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Context Rules</span>
         <CardAdminChevronIcon rotateOnOpen />
@@ -108,7 +108,7 @@ function ContextRulePlayerPanel({
   const audienceValue = contextRule[audience]
 
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/30 bg-[var(--surface)] p-3" open>
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/30 bg-[var(--surface)] p-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>{title} Conditions</span>
         <CardAdminChevronIcon rotateOnOpen />
