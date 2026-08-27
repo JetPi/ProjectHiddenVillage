@@ -140,6 +140,37 @@ export function GameView() {
     [mappedAvailableActions],
   )
 
+  const occupiedBottomSupportSlots = useMemo(() => {
+    const occupied = new Set<number>()
+    const supportCards = derivedGameState.currentPlayer?.supportZone ?? []
+    for (const [currentIndex, supportCard] of supportCards.entries()) {
+      if (typeof supportCard.supportSlotIndex === 'number') {
+        occupied.add(supportCard.supportSlotIndex)
+      } else {
+        occupied.add(currentIndex)
+      }
+    }
+
+    return occupied
+  }, [derivedGameState.currentPlayer?.supportZone])
+
+  useEffect(() => {
+    if (!pendingSetSupportCardInstanceId) {
+      return
+    }
+
+    const pendingActionId = `set-support:${pendingSetSupportCardInstanceId}`
+    const stillAvailableInGlobalActions = mappedAvailableActions.some((option) =>
+      option.actionId === pendingActionId)
+    const pendingCard = bottomHandCards.find((card) => card.instanceId === pendingSetSupportCardInstanceId)
+    const stillAvailableOnCard = (pendingCard?.availableActions ?? []).some((option) => option.actionId === pendingActionId)
+    const stillAvailable = stillAvailableInGlobalActions || stillAvailableOnCard
+
+    if (!stillAvailable) {
+      setPendingSetSupportCardInstanceId(null)
+    }
+  }, [bottomHandCards, mappedAvailableActions, pendingSetSupportCardInstanceId])
+
   useHandZoneAnimationEffects({
     topHandInstanceIds,
     bottomHandInstanceIds,
@@ -194,6 +225,10 @@ export function GameView() {
       const battlefieldRowElement = boardZoneRef.current?.querySelector<HTMLElement>(
         '[data-zone="character-field-row"][data-slot-side="bottom"]',
       ) ?? null
+      const sourceHandRowElement = bottomHandRowRef.current
+      const sourceCardElement = sourceHandRowElement?.querySelector<HTMLDivElement>(
+        `[data-hand-instance-id="${cardInstanceId}"]`,
+      ) ?? null
 
       const lastBattlefieldCardElement = boardZoneRef.current?.querySelectorAll<HTMLElement>(
         '[data-zone="character-field-card"][data-slot-side="bottom"]',
@@ -202,17 +237,47 @@ export function GameView() {
       let summonTargetElement: HTMLElement | null = battlefieldRowElement
       let temporarySummonTargetElement: HTMLDivElement | null = null
 
-      if (lastBattlefieldCardElement && lastBattlefieldCardElement.length > 0) {
-        const lastCard = lastBattlefieldCardElement[lastBattlefieldCardElement.length - 1]
-        const lastCardRect = lastCard.getBoundingClientRect()
+      if (battlefieldRowElement && sourceCardElement) {
+        const rowRect = battlefieldRowElement.getBoundingClientRect()
+        const sourceRect = sourceCardElement.getBoundingClientRect()
 
-        if (lastCardRect.width > 0 && lastCardRect.height > 0) {
+        if (rowRect.width > 0 && rowRect.height > 0 && sourceRect.width > 0 && sourceRect.height > 0) {
           temporarySummonTargetElement = document.createElement('div')
           temporarySummonTargetElement.style.position = 'fixed'
-          temporarySummonTargetElement.style.left = `${lastCardRect.left + lastCardRect.width + 6}px`
-          temporarySummonTargetElement.style.top = `${lastCardRect.top}px`
-          temporarySummonTargetElement.style.width = `${lastCardRect.width}px`
-          temporarySummonTargetElement.style.height = `${lastCardRect.height}px`
+
+          let targetLeft = rowRect.left
+          let targetTop = rowRect.top
+          let targetWidth = sourceRect.width
+          let targetHeight = sourceRect.height
+
+          if (lastBattlefieldCardElement && lastBattlefieldCardElement.length > 0) {
+            const lastCard = lastBattlefieldCardElement[lastBattlefieldCardElement.length - 1]
+            const lastCardRect = lastCard.getBoundingClientRect()
+            const rowStyle = window.getComputedStyle(battlefieldRowElement)
+            const laneGap = Number.parseFloat(rowStyle.columnGap || rowStyle.gap || '0') || 0
+
+            if (lastCardRect.width > 0 && lastCardRect.height > 0) {
+              targetWidth = lastCardRect.width
+              targetHeight = lastCardRect.height
+              targetLeft = lastCardRect.left + lastCardRect.width + laneGap
+              targetTop = lastCardRect.top
+            }
+          } else {
+            const rowStyle = window.getComputedStyle(battlefieldRowElement)
+            const rowPaddingLeft = Number.parseFloat(rowStyle.paddingLeft || '0') || 0
+            const targetCardHeight = rowRect.height
+            const targetCardWidth = targetCardHeight * (200 / 277)
+
+            targetWidth = targetCardWidth
+            targetHeight = targetCardHeight
+            targetLeft = rowRect.left + rowPaddingLeft
+            targetTop = rowRect.top
+          }
+
+          temporarySummonTargetElement.style.left = `${targetLeft}px`
+          temporarySummonTargetElement.style.top = `${targetTop}px`
+          temporarySummonTargetElement.style.width = `${targetWidth}px`
+          temporarySummonTargetElement.style.height = `${targetHeight}px`
           temporarySummonTargetElement.style.pointerEvents = 'none'
           temporarySummonTargetElement.style.opacity = '0'
           temporarySummonTargetElement.style.zIndex = '-1'
@@ -249,19 +314,23 @@ export function GameView() {
       return
     }
 
-    const action = mappedAvailableActions.find((option) =>
-      option.actionId === `set-support:${pendingSetSupportCardInstanceId}`)
+    const pendingActionId = `set-support:${pendingSetSupportCardInstanceId}`
+    const action = mappedAvailableActions.find((option) => option.actionId === pendingActionId)
+      ?? bottomHandCards
+        .find((card) => card.instanceId === pendingSetSupportCardInstanceId)
+        ?.availableActions
+        ?.find((option) => option.actionId === pendingActionId)
+
     if (!action) {
       setPendingSetSupportCardInstanceId(null)
       return
     }
 
-    const currentPlayerSupportCount = derivedGameState.currentPlayer?.supportZone.length ?? 0
     if (slotIndex < 0 || slotIndex > 4) {
       return
     }
 
-    if (slotIndex !== currentPlayerSupportCount) {
+    if (occupiedBottomSupportSlots.has(slotIndex)) {
       return
     }
 
@@ -273,7 +342,7 @@ export function GameView() {
     )
 
     const supportSlotElement = boardZoneRef.current?.querySelector<HTMLElement>(
-      `[data-zone="support"][data-slot-side="bottom"][data-slot-index="${slotIndex}"]`,
+      `[data-zone="support"][data-slot-side="bottom"][data-slot-index="${slotIndex}"][data-slot-card="true"]`,
     ) ?? null
 
     runHandToElementAnimation({

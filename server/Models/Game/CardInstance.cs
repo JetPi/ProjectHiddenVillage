@@ -45,4 +45,7 @@ public sealed class CardInstance
 
     // True when this card is face-up while in zones that support face state.
     public bool IsFaceUp { get; set; } = true;
+
+    // Logical support-zone slot index (0-4) when this card is in SupportZone.
+    public int? SupportSlotIndex { get; set; }
 }

@@ -103,6 +103,7 @@ function resolveNonLeaderCards(
       isExhausted: card.isExhausted,
       availableActions: card.availableActions,
       isRested: card.isRested,
+      supportSlotIndex: card.supportSlotIndex,
     })
   }
 

@@ -37,6 +37,7 @@ export type IGameCardInstanceResponse = {
   isExhausted: boolean
   availableActions?: IGameActionOptionResponse[]
   isRested: boolean
+  supportSlotIndex?: number | null
 }
 
 export type IGameLeaderCardInstanceResponse = {

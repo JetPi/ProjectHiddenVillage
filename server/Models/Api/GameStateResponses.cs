@@ -59,6 +59,8 @@ public record CardInstanceResponse(
 {
     public bool IsFaceUp { get; init; } = true;
 
+    public int? SupportSlotIndex { get; init; }
+
     public IReadOnlyList<GameActionOptionResponse> AvailableActions { get; init; } = [];
 }
 

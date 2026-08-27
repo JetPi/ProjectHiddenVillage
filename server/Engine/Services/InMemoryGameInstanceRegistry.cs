@@ -489,13 +489,11 @@ public sealed class InMemoryGameInstanceRegistry
             throw new InvalidOperationException("A valid support slot index is required.");
         }
 
-        if (slotIndex > actingPlayer.SupportZone.Count)
-        {
-            throw new InvalidOperationException(
-                $"Support slot {slotIndex} cannot be selected before filling prior slots.");
-        }
+        var occupiedSlotIndex = actingPlayer.SupportZone
+            .Select((card, currentIndex) => card.SupportSlotIndex ?? currentIndex)
+            .Any(currentSlotIndex => currentSlotIndex == slotIndex);
 
-        if (slotIndex < actingPlayer.SupportZone.Count)
+        if (occupiedSlotIndex)
         {
             throw new InvalidOperationException($"Support slot {slotIndex} is already occupied.");
         }

@@ -58,6 +58,15 @@ function deriveGameViewState(
   }
 }
 
+function resolveSourceCardInstanceId(actionId: string): string | null {
+  const delimiterIndex = actionId.indexOf(':')
+  if (delimiterIndex < 0 || delimiterIndex === actionId.length - 1) {
+    return null
+  }
+
+  return actionId.slice(delimiterIndex + 1)
+}
+
 function buildCardPreloadPayload(gameCards: IGameLoaderData['gameCards']): ICardPreloadPayload | null {
   const cardIds = Array.from(
     new Set(
@@ -91,19 +100,37 @@ export function mapActionToHubIntent(
   if (action.actionId.startsWith('activate-support:')
     || action.actionId.startsWith('play-card:')
     || action.actionId.startsWith('summon-to-field:')
-    || action.actionId.startsWith('set-support:')
     || action.actionId.startsWith('battle-action:')) {
-    const delimiterIndex = action.actionId.indexOf(':')
-    if (delimiterIndex < 0 || delimiterIndex === action.actionId.length - 1) {
+    const sourceCardInstanceId = resolveSourceCardInstanceId(action.actionId)
+    if (!sourceCardInstanceId) {
       return null
     }
 
     return {
       intent: 'execute-card-action',
       actionId: action.actionId,
-      sourceCardInstanceId: action.actionId.slice(delimiterIndex + 1),
+      sourceCardInstanceId,
       selectedTargets,
       arguments: executionArguments,
+    }
+  }
+
+  if (action.actionId.startsWith('set-support:')) {
+    const sourceCardInstanceId = resolveSourceCardInstanceId(action.actionId)
+    const supportSlotIndex = executionArguments?.supportSlotIndex
+    if (!sourceCardInstanceId || typeof supportSlotIndex !== 'string' || supportSlotIndex.trim().length === 0) {
+      return null
+    }
+
+    return {
+      intent: 'execute-card-action',
+      actionId: action.actionId,
+      sourceCardInstanceId,
+      selectedTargets,
+      arguments: {
+        ...executionArguments,
+        supportSlotIndex,
+      },
     }
   }
 

@@ -22,6 +22,15 @@ export type ISubmitHubIntentRequest =
       arguments?: IGameCardActionExecutionRequest['arguments']
     }
   | {
+      intent: 'execute-card-action'
+      actionId: `set-support:${string}`
+      sourceCardInstanceId: string
+      selectedTargets?: IGameCardActionExecutionRequest['selectedTargets']
+      arguments: IGameCardActionExecutionRequest['arguments'] & {
+        supportSlotIndex: string
+      }
+    }
+  | {
       intent: 'resolve-prompt'
       selectedOption: string
     }

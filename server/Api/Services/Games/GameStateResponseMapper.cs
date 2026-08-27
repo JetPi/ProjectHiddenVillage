@@ -248,7 +248,11 @@ public static class GameStateResponseMapper
                 InstanceId: card.InstanceId,
                 CardDefinitionId: card.CardDefinitionId,
                 OwnerPlayerId: card.OwnerPlayerId,
-                ControllerPlayerId: card.ControllerPlayerId);
+                ControllerPlayerId: card.ControllerPlayerId)
+            {
+                IsFaceUp = false,
+                SupportSlotIndex = card.SupportSlotIndex,
+            };
         }
 
         return ToCardInstanceResponse(card, cardDefinitions, PlayerZone.SupportZone, state, pendingPrompt, isRequestingPlayer);
@@ -349,6 +353,7 @@ public static class GameStateResponseMapper
                             Power: resolvedPower)
                         {
                             IsFaceUp = card.IsFaceUp,
+                            SupportSlotIndex = card.SupportSlotIndex,
                             AvailableActions = cardActions
                         }
                         : new CardInstanceResponse(
@@ -358,6 +363,7 @@ public static class GameStateResponseMapper
                             ControllerPlayerId: card.ControllerPlayerId)
                         {
                             IsFaceUp = card.IsFaceUp,
+                            SupportSlotIndex = card.SupportSlotIndex,
                         },
 
             _ => new CardInstanceResponse(
