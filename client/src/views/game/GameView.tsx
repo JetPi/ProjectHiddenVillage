@@ -352,13 +352,13 @@ export function GameView() {
   }
 
   return (
-    <PageShell compact className="pt-0 pb-0 sm:pt-0 sm:pb-0 lg:pt-0 lg:pb-0">
+    <PageShell compact edgeToEdge className="pt-0 pb-0 sm:pt-0 sm:pb-0 lg:pt-0 lg:pb-0">
       <div
         ref={outerZoneRef}
         className={`mx-auto h-full min-h-0 w-full overflow-hidden gap-1.5 rounded-2xl ${GAMEBOARD_MAX_WIDTH_CLASS} ${GAMEBOARD_COLUMNS_CLASS}`}
       >
-        <Panel className="col-span-full h-full min-h-0 border-hidden overflow-hidden bg-transparent pt-0 pb-0.5 px-1.5">
-          <div className="grid h-full min-h-0 grid-rows-[minmax(0,0.6fr)_minmax(0,6.1fr)_minmax(0,1.85fr)] gap-1 rounded-2xl px-1 pt-0 pb-0">
+        <Panel className="col-span-full h-full min-h-0 border-hidden overflow-hidden bg-transparent pt-0 pb-0.5 px-0.5">
+          <div className="grid h-full min-h-0 grid-rows-[minmax(0,0.6fr)_minmax(0,6.1fr)_minmax(0,1.85fr)] gap-1 rounded-2xl px-0 pt-0 pb-0">
             <GameHandRow
               cards={topHandCards}
               rowRef={setTopHandRowRefs}
