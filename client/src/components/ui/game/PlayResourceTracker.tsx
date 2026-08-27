@@ -9,7 +9,7 @@ const SMALL_RESOURCE_CARD_SLOTS = 6
 const RESOURCE_CARD_FRAME_CLASS = 'h-full max-h-full overflow-hidden rounded-sm border border-[var(--border-subtle)] bg-[var(--surface-muted)]'
 const RESOURCE_CARD_IMAGE_CLASS = 'h-full w-full rounded-none object-contain p-[1px] [image-rendering:auto] [transform:translateZ(0)]'
 
-export function PlayResourceTracker({ cardClassName, className, reverse = false }: IPlayResourceTrackerProps) {
+export function PlayResourceTracker({ cardClassName, className, reverse = false, isSummonCardReady = true }: IPlayResourceTrackerProps) {
     const smallResourceCardSlots = Array.from({ length: SMALL_RESOURCE_CARD_SLOTS }, (_, slotIndex) => slotIndex)
     const smallCardFrameClassName = twMerge(
         RESOURCE_CARD_FRAME_CLASS,
@@ -18,12 +18,11 @@ export function PlayResourceTracker({ cardClassName, className, reverse = false 
     )
     const largeCardFrameClassName = twMerge(
         RESOURCE_CARD_FRAME_CLASS,
-        cardClassName,
-        'border-transparent',
+        'border-transparent bg-transparent p-1',
     )
 
     return (
-        <div className={twMerge('grid min-h-0 max-w-[250px] grid-cols-[1fr_auto] gap-px rounded-lg border border-dashed border-[var(--border-subtle)] p-px bg-[var(--surface-elevated)]', className)}>
+        <div className={twMerge('grid min-h-0 max-w-[265px] grid-cols-[1fr_4.6rem] gap-1 rounded-lg border border-dashed border-[var(--border-subtle)] p-px bg-[var(--surface-elevated)]', className)}>
             <div
                 className={twMerge(
                     'grid min-h-0 m-1 grid-rows-2 gap-px rounded-lg p-px bg-[var(--surface-elevated)]',
@@ -60,8 +59,14 @@ export function PlayResourceTracker({ cardClassName, className, reverse = false 
                 </div>
             </div>
 
-            <div className={twMerge('grid min-h-0 w-fit place-items-center justify-self-center', reverse ? 'order-1' : 'order-2')}>
-                <PlayCard className={largeCardFrameClassName}>
+            <div className={twMerge('grid min-h-0 w-[4.6rem] place-items-center justify-self-center px-1', reverse ? 'order-1' : 'order-2')}>
+                <PlayCard
+                    className={twMerge(
+                        largeCardFrameClassName,
+                        'transition-transform duration-300 ease-out will-change-transform origin-center',
+                        isSummonCardReady ? 'rotate-0 scale-100' : 'rotate-90 scale-[0.88]',
+                    )}
+                >
                     <CardImage
                         src={summonCardImage}
                         alt="Summon card"

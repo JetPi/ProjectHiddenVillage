@@ -233,7 +233,11 @@ function GameZones({
               deckCardRef={topDeckCardRef}
               trashCardRef={topTrashCardRef}
             />
-            <PlayResourceTracker cardClassName="turn-band-blue" reverse />
+            <PlayResourceTracker
+              cardClassName="turn-band-blue"
+              reverse
+              isSummonCardReady={derivedGameState.opponentPlayer?.isSummonCardReady ?? true}
+            />
           </div>
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
@@ -277,7 +281,10 @@ function GameZones({
           </div>
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
-            <PlayResourceTracker cardClassName="turn-band-orange-button" />
+            <PlayResourceTracker
+              cardClassName="turn-band-orange-button"
+              isSummonCardReady={derivedGameState.currentPlayer?.isSummonCardReady ?? true}
+            />
             <PlayPileZone
               side="bottom"
               labels={['Trash', 'Deck']}

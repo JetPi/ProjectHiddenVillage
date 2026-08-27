@@ -50,6 +50,7 @@ export type IPlayResourceTrackerProps = {
   cardClassName: string
   className?: string
   reverse?: boolean
+  isSummonCardReady?: boolean
 }
 
 export type IPlayPileZoneProps = {
