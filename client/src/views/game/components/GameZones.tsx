@@ -1,7 +1,7 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { AppButton } from '@/components/ui'
 import { CardBack, CardImage, LeaderCard } from '@/components/ui/cards'
-import { PlayCard, PlayPileZone, PlayResourceTracker } from '@/components/ui/game'
+import { PlayBottomResourceZone, PlayCard, PlayPileZone, PlayTopResourceZone } from '@/components/ui/game'
 import { twMerge } from 'tailwind-merge'
 import type { IGameZonesProps } from '@/views/game/types/gameZones'
 import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
@@ -233,9 +233,7 @@ function GameZones({
               deckCardRef={topDeckCardRef}
               trashCardRef={topTrashCardRef}
             />
-            <PlayResourceTracker
-              cardClassName="turn-band-blue"
-              reverse
+            <PlayTopResourceZone
               isSummonCardReady={derivedGameState.opponentPlayer?.isSummonCardReady ?? true}
             />
           </div>
@@ -283,8 +281,7 @@ function GameZones({
           </div>
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
-            <PlayResourceTracker
-              cardClassName="turn-band-orange-button"
+            <PlayBottomResourceZone
               isSummonCardReady={derivedGameState.currentPlayer?.isSummonCardReady ?? true}
             />
             <PlayPileZone

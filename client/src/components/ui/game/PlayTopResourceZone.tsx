@@ -1,14 +1,14 @@
-import type { IPlayResourceTrackerProps } from '@/components/ui/types'
 import { ResourceTrackerShell } from '@/components/ui/game/ResourceTrackerShell'
 import { ResourceChakraGrid } from '@/components/ui/game/ResourceChakraGrid'
 import { ResourceSummonCard } from '@/components/ui/game/ResourceSummonCard'
+import type { IPlayResourceZoneProps } from '@/components/ui/types'
 
-export function PlayResourceTracker({ cardClassName, className, reverse = false, isSummonCardReady = true }: IPlayResourceTrackerProps) {
+export function PlayTopResourceZone({ className, isSummonCardReady = true, chakraCardClassName = 'turn-band-blue' }: IPlayResourceZoneProps) {
   return (
     <ResourceTrackerShell
-      reverse={reverse}
+      reverse
       className={className}
-      chakraContent={<ResourceChakraGrid cardClassName={cardClassName} />}
+      chakraContent={<ResourceChakraGrid cardClassName={chakraCardClassName} slotClassName="h-[2.85rem]" />}
       summonContent={<ResourceSummonCard isSummonCardReady={isSummonCardReady} />}
     />
   )
