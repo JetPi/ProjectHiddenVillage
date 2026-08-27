@@ -7,6 +7,7 @@ import {
 } from '@/views/admin/constants'
 import type { ICardAdminGainEffectPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
 import { createDefaultKeywordModification } from '@/views/admin/utils'
+import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 
 export function CardAdminGainEffectPanel({
   effect,
@@ -15,8 +16,13 @@ export function CardAdminGainEffectPanel({
   effectConditionKeywordOptions,
 }: ICardAdminGainEffectPanelProps) {
   return (
-    <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-fuchsia-500/55 bg-[var(--surface-muted)] p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Gain Effect Settings</p>
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-fuchsia-500/55 bg-[var(--surface-muted)] p-3">
+      <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        <span>Gain Effect Settings</span>
+        <CardAdminChevronIcon rotateOnOpen />
+      </summary>
+
+      <div className="mt-3 grid grid-cols-1 gap-3">
 
       <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-fuchsia-500/35 bg-[var(--surface)] p-3">
         <div className="flex items-center justify-between gap-2">
@@ -36,7 +42,7 @@ export function CardAdminGainEffectPanel({
 
         {(effect.keywordModifications ?? []).map((modification, keywordIndex) => (
           <div key={`keyword-mod-${keywordIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
               <CardAdminSelect
                 value={modification.targetType}
                 onChange={(event) =>
@@ -83,22 +89,21 @@ export function CardAdminGainEffectPanel({
                   <option key={option} value={option}>{option}</option>
                 ))}
               </CardAdminSelect>
-            </div>
 
-            <div className="flex justify-end">
               <CardAdminRemoveButton
                 onClick={() =>
                   updateEffectAt(effectIndex, (current) => ({
                     ...current,
                     keywordModifications: (current.keywordModifications ?? []).filter((_, index) => index !== keywordIndex),
                   }))}
-                className="inline-flex w-fit"
+                className="inline-flex h-10 w-10 items-center justify-center self-stretch rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]"
                 ariaLabel="Remove keyword modification"
               />
             </div>
           </div>
         ))}
       </div>
-    </div>
+      </div>
+    </details>
   )
 }

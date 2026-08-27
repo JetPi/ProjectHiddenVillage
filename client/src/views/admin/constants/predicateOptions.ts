@@ -15,9 +15,6 @@ export const PREDICATE_OPERATOR_OPTIONS = [
 
 export const PREDICATE_PROPERTY_OPTIONS: ReadonlyArray<ICardCatalogPredicateProperty> = [
   'Self',
-  'Id',
-  'Original Id',
-  'Display Name',
   'Name',
   'Trait',
   'Type',
@@ -26,9 +23,28 @@ export const PREDICATE_PROPERTY_OPTIONS: ReadonlyArray<ICardCatalogPredicateProp
   'Damage',
   'Health',
   'Current Health',
-  'Owner Player Id',
-  'Controller Player Id',
   'Is Exhausted',
   'Is Rested',
-  'Cannot Be Normal Summoned',
 ]
+
+export const PREDICATE_NUMERIC_PROPERTY_OPTIONS: ReadonlyArray<ICardCatalogPredicateProperty> = [
+  'Power',
+  'Damage',
+  'Health',
+  'Current Health',
+]
+
+export const PREDICATE_CARD_TYPE_VALUE_OPTIONS = [
+  { value: 'Leader', label: 'Leader' },
+  { value: 'Character', label: 'Character' },
+  { value: 'ExCharacter', label: 'EX Character' },
+  { value: 'Chakra', label: 'Chakra' },
+  { value: 'Summon', label: 'Summon' },
+] as const
+
+export const PREDICATE_CARD_COLOR_VALUE_OPTIONS = [
+  { value: 'Red', label: 'Red' },
+  { value: 'Blue', label: 'Blue' },
+  { value: 'Green', label: 'Green' },
+  { value: 'NotApplicable', label: 'N/A' },
+] as const

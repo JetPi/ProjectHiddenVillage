@@ -16,7 +16,7 @@ export function CardAdminPredicateFooter({
           {predicateEntries.map((entry, entryIndex) => (
             <div
               key={`${entry}-${entryIndex}`}
-              className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
+              className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface)] px-1.5 py-0.5 text-[11px] text-[var(--text-primary)]"
             >
               <span>{entry}</span>
               <CardAdminRemoveButton

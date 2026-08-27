@@ -27,6 +27,7 @@ import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminPredicateControls } from '@/views/admin/components/controls'
 import { CardAdminPredicateFooter } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
+import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 
 export function CardAdminTargetRulesPanel({
   effect,
@@ -34,10 +35,13 @@ export function CardAdminTargetRulesPanel({
   updateEffectAt,
 }: ICardAdminTargetRulesPanelProps) {
   return (
-    <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-emerald-500/55 bg-[var(--surface-muted)] p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Rules</p>
+    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-emerald-500/55 bg-[var(--surface-muted)] p-3" open>
+      <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        <span>Target Rules</span>
+        <CardAdminChevronIcon rotateOnOpen />
+      </summary>
 
-      <div className="grid grid-cols-1 gap-3">
+      <div className="mt-3 space-y-3">
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Rule Operator</label>
           <CardAdminSelect
@@ -56,7 +60,7 @@ export function CardAdminTargetRulesPanel({
       </div>
 
       {effect.runtimeEffectType === 'Tribute' ? (
-        <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+        <label className="flex items-center gap-2 my-2 text-sm text-[var(--text-primary)]">
           <CardAdminToggleSwitch
             checked={effect.targetRules.tributeComposition !== null}
             onChange={(checked) =>
@@ -230,7 +234,7 @@ export function CardAdminTargetRulesPanel({
       </div>
 
       {effect.runtimeEffectType === 'Tribute' && effect.targetRules.tributeComposition ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 my-2 gap-3 sm:grid-cols-2">
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
             <CardAdminToggleSwitch
               checked={effect.targetRules.tributeComposition.requireSingleSummonTarget}
@@ -275,8 +279,8 @@ export function CardAdminTargetRulesPanel({
         </div>
       ) : null}
 
-      <div className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/35 bg-[var(--surface-muted)] p-3">
-        <div className="flex items-center justify-between gap-2">
+      <div className="space-y-3 my-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/35 bg-[var(--surface-muted)] p-3">
+        <div className="flex items-center  justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Rule Rows</p>
           <AppButton
             type="button"
@@ -370,7 +374,7 @@ export function CardAdminTargetRulesPanel({
           )
 
           return (
-            <div key={`target-rule-${targetRuleIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/30 bg-[var(--surface)] p-3">
+            <div key={`target-rule-${targetRuleIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/30 bg-[var(--surface)] p-3 shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-[var(--text-primary)]">Rule #{targetRuleIndex + 1}</p>
                 <CardAdminRemoveButton
@@ -382,10 +386,9 @@ export function CardAdminTargetRulesPanel({
                         rules: current.targetRules.rules.filter((_, index) => index !== targetRuleIndex),
                       },
                     }))}
+                  className="h-8 w-8"
                   ariaLabel="Remove Target Rule"
-                >
-                  Remove
-                </CardAdminRemoveButton>
+                />
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -728,6 +731,6 @@ export function CardAdminTargetRulesPanel({
           )
         })}
       </div>
-    </div>
+    </details>
   )
 }
