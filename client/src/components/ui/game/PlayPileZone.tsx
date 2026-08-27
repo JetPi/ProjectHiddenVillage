@@ -39,7 +39,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
     <div
       data-side={side}
       className={twMerge(
-        'h-full w-full max-w-[250px] justify-self-center overflow-hidden px-1',
+        'h-full w-full max-w-[var(--resource-rail-max-width)] justify-self-center overflow-hidden px-1',
         side === 'top' ? 'play-pile-zone-top' : 'play-pile-zone-bottom',
         className,
       )}

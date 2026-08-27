@@ -223,7 +223,7 @@ function GameZones({
   return (
     <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
       <div ref={boardZoneRef} className="grid min-h-0 overflow-hidden grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1.5 rounded-2xl border border-dashed border-[var(--border-subtle)] p-2 turn-zone-split">
-        <div className="row-span-2 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-1.5 rounded-xl p-1">
+        <div className="row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1.5 rounded-xl p-1">
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
             <PlayPileZone
               side="top"
@@ -245,7 +245,7 @@ function GameZones({
             {renderBattlefieldRow(topBattlefieldCards, false)}
           </div>
 
-          <div className="min-h-0">
+          <div className="min-h-0 w-full">
             <LeaderCard
               className={topLeaderCardFrameClassName}
               imageClassName={LEADER_CARD_IMAGE_CLASS}
@@ -265,8 +265,8 @@ function GameZones({
           onSelectAction={onSelectAction}
         />
 
-        <div className="row-span-2 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-1.5 rounded-xl p-1">
-          <div className="min-h-0">
+        <div className="row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1.5 rounded-xl p-1">
+          <div className="min-h-0 w-full">
             <LeaderCard
               className={bottomLeaderCardFrameClassName}
               imageClassName={LEADER_CARD_IMAGE_CLASS}
