@@ -220,7 +220,7 @@ public sealed class InMemoryGameInstanceRegistryTests
 
         game.PendingPrompts.Clear();
         game.State.Phase = GamePhase.ActionStep;
-        game.State.ActivePlayerId = "p1";
+        game.State.ActivePlayerId = "p2";
         game.State.PriorityPlayerId = "p2";
         game.State.Players[1].SupportZone.Add(new CardInstance
         {
@@ -259,7 +259,7 @@ public sealed class InMemoryGameInstanceRegistryTests
 
         game.PendingPrompts.Clear();
         game.State.Phase = GamePhase.ActionStep;
-        game.State.ActivePlayerId = "p1";
+        game.State.ActivePlayerId = "p2";
         game.State.PriorityPlayerId = "p2";
 
         var request = new GameCardActionExecutionRequest(
@@ -286,8 +286,8 @@ public sealed class InMemoryGameInstanceRegistryTests
             random: new FixedIndexRandom(0));
 
         game.PendingPrompts.Clear();
-        game.State.Phase = GamePhase.ActionStep;
-        game.State.ActivePlayerId = "p1";
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
         game.State.PriorityPlayerId = "p2";
         game.State.SetSummonCardReady("p2", true);
         game.State.Players[1].Hand.Add(new CardInstance
@@ -324,8 +324,8 @@ public sealed class InMemoryGameInstanceRegistryTests
             random: new FixedIndexRandom(0));
 
         game.PendingPrompts.Clear();
-        game.State.Phase = GamePhase.ActionStep;
-        game.State.ActivePlayerId = "p1";
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
         game.State.PriorityPlayerId = "p2";
         game.State.Players[1].Hand.Add(new CardInstance
         {
@@ -364,8 +364,8 @@ public sealed class InMemoryGameInstanceRegistryTests
             random: new FixedIndexRandom(0));
 
         game.PendingPrompts.Clear();
-        game.State.Phase = GamePhase.ActionStep;
-        game.State.ActivePlayerId = "p1";
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
         game.State.PriorityPlayerId = "p2";
         game.State.Players[1].SupportZone.Add(new CardInstance
         {
@@ -395,6 +395,81 @@ public sealed class InMemoryGameInstanceRegistryTests
             registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor()));
 
         Assert.AreEqual("Support slot 0 is already occupied.", ex.Message);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_SummonToField_ThrowsOutsideMainPhase()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.ActionStep;
+        game.State.ActivePlayerId = "p2";
+        game.State.PriorityPlayerId = "p2";
+        game.State.SetSummonCardReady("p2", true);
+        game.State.Players[1].Hand.Add(new CardInstance
+        {
+            InstanceId = "hand-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p2",
+            ActionId: "summon-to-field:hand-1",
+            SourceCardInstanceId: "hand-1");
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor()));
+
+        Assert.AreEqual("Hand card actions can only be executed during MainPhase.", ex.Message);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_SetSupport_ThrowsWhenRequesterIsNotActivePlayer()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildSupportCapableDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.PriorityPlayerId = "p2";
+        game.State.Players[1].Hand.Add(new CardInstance
+        {
+            InstanceId = "hand-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p2",
+            ActionId: "set-support:hand-1",
+            SourceCardInstanceId: "hand-1",
+            Arguments: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["supportSlotIndex"] = "0",
+            });
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor()));
+
+        Assert.AreEqual("Only the active player can execute hand card actions.", ex.Message);
     }
 
     private static Dictionary<string, Card> BuildDefinitions(params string[] ids)

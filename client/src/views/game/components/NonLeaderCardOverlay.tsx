@@ -49,7 +49,7 @@ function NonLeaderCardOverlay({
 
         <div className="flex h-full w-full items-start justify-center pt-6">
           {hasActions ? (
-            <div className="grid w-[92%] max-w-[8.5rem] grid-cols-1 gap-0.5">
+            <div className="grid w-full place-items-center gap-0.5">
               {actionOptions.map((action) => (
                 <button
                   key={action.actionId}
@@ -59,7 +59,7 @@ function NonLeaderCardOverlay({
                   }}
                   disabled={!isConnected || isActionPending || !action.isEnabled}
                   title={action.disabledReason ?? undefined}
-                  className="truncate rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-left text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {action.label}
                 </button>

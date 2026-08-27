@@ -37,8 +37,18 @@ function GameZones({
     derivedGameState.cardTypeById,
     derivedGameState.cardById,
   )
+  const topBattlefieldCards = resolveNonLeaderCards(
+    derivedGameState.opponentPlayer?.characterField ?? [],
+    derivedGameState.cardTypeById,
+    derivedGameState.cardById,
+  )
   const bottomSupportCards = resolveNonLeaderCards(
     derivedGameState.currentPlayer?.supportZone ?? [],
+    derivedGameState.cardTypeById,
+    derivedGameState.cardById,
+  )
+  const bottomBattlefieldCards = resolveNonLeaderCards(
+    derivedGameState.currentPlayer?.characterField ?? [],
     derivedGameState.cardTypeById,
     derivedGameState.cardById,
   )
@@ -70,6 +80,9 @@ function GameZones({
               <button
                 key={`${zone}-empty-${index}`}
                 type="button"
+                data-zone={zone}
+                data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
+                data-slot-index={index}
                 disabled={!isSelectionSlot}
                 onClick={
                   isSelectionSlot
@@ -101,6 +114,9 @@ function GameZones({
           return (
             <PlayCard
               key={`${zone}-${card.instanceId}`}
+              data-zone={zone}
+              data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
+              data-slot-index={index}
               className={twMerge(
                 'group relative h-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)]',
                 card.isExhausted ? 'opacity-80 saturate-75' : '',
@@ -142,6 +158,68 @@ function GameZones({
     )
   }
 
+  function renderBattlefieldRow(
+    cards: ReturnType<typeof resolveNonLeaderCards>,
+    isCurrentPlayerZone: boolean,
+  ) {
+    return (
+      <div
+        data-zone="character-field-row"
+        data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
+        className="flex h-full min-h-0 w-full items-center justify-start gap-1.5 overflow-hidden rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1"
+      >
+        {cards.map((card) => {
+          const actionOptions = resolveCardActionOptionsForInstanceId(
+            availableActions,
+            card.instanceId,
+            card.availableActions,
+          )
+
+          return (
+            <PlayCard
+              key={`character-field-${card.instanceId}`}
+              data-zone="character-field-card"
+              data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
+              className={twMerge(
+                'group relative h-full shrink-0 overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
+                card.isExhausted ? 'opacity-80 saturate-75' : '',
+              )}
+            >
+              {card.isFaceUp ? (
+                <CardImage
+                  src={card.image}
+                  alt={card.displayName}
+                  loading="lazy"
+                  decoding="async"
+                  className={LEADER_CARD_IMAGE_CLASS}
+                />
+              ) : (
+                <CardBack className="h-full w-full rounded-lg bg-[var(--surface-elevated)]" />
+              )}
+
+              <NonLeaderCardOverlay
+                previewCard={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null}
+                zone="character-field"
+                visibilityMode="hover"
+                actionOptions={actionOptions}
+                isConnected={isConnected}
+                isActionPending={isActionPending}
+                onSelectActionOption={(actionId) => {
+                  const selectedAction = actionOptions.find((action) => action.actionId === actionId)
+                  if (!selectedAction) {
+                    return
+                  }
+
+                  onSelectAction(selectedAction)
+                }}
+              />
+            </PlayCard>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-1">
       <div ref={boardZoneRef} className="grid min-h-0 overflow-hidden grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1.5 rounded-2xl border border-dashed border-[var(--border-subtle)] p-2 turn-zone-split">
@@ -160,7 +238,7 @@ function GameZones({
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
             {renderZoneCardSlots(topSupportCards, 'support', 'hover', false)}
-            <div className="rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+            {renderBattlefieldRow(topBattlefieldCards, false)}
           </div>
 
           <div className="min-h-0">
@@ -194,7 +272,7 @@ function GameZones({
           </div>
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
-            <div className="rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+            {renderBattlefieldRow(bottomBattlefieldCards, true)}
             {renderZoneCardSlots(bottomSupportCards, 'support', 'hover', true)}
           </div>
 

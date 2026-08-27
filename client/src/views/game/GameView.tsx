@@ -30,7 +30,7 @@ import {
   HAND_TO_PILE_DURATION_MS,
 } from '@/views/game/utils/contants'
 import { mapActionToHubIntent } from '@/views/game/utils/functions/gameState'
-import { runHandToPileAnimation, waitMillis } from '@/views/game/utils/functions/animations'
+import { runHandToElementAnimation, runHandToPileAnimation, waitMillis } from '@/views/game/utils/functions/animations'
 import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions/cards'
 import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 
@@ -185,6 +185,54 @@ export function GameView() {
       return
     }
 
+    if (action.actionId.startsWith('summon-to-field:')) {
+      const delimiterIndex = action.actionId.indexOf(':')
+      if (delimiterIndex < 0 || delimiterIndex === action.actionId.length - 1) {
+        return
+      }
+
+      const cardInstanceId = action.actionId.slice(delimiterIndex + 1)
+      const battlefieldRowElement = boardZoneRef.current?.querySelector<HTMLElement>(
+        '[data-zone="character-field-row"][data-slot-side="bottom"]',
+      ) ?? null
+
+      const lastBattlefieldCardElement = boardZoneRef.current?.querySelectorAll<HTMLElement>(
+        '[data-zone="character-field-card"][data-slot-side="bottom"]',
+      )
+
+      let summonTargetElement: HTMLElement | null = battlefieldRowElement
+      let temporarySummonTargetElement: HTMLDivElement | null = null
+
+      if (lastBattlefieldCardElement && lastBattlefieldCardElement.length > 0) {
+        const lastCard = lastBattlefieldCardElement[lastBattlefieldCardElement.length - 1]
+        const lastCardRect = lastCard.getBoundingClientRect()
+
+        if (lastCardRect.width > 0 && lastCardRect.height > 0) {
+          temporarySummonTargetElement = document.createElement('div')
+          temporarySummonTargetElement.style.position = 'fixed'
+          temporarySummonTargetElement.style.left = `${lastCardRect.left + lastCardRect.width + 6}px`
+          temporarySummonTargetElement.style.top = `${lastCardRect.top}px`
+          temporarySummonTargetElement.style.width = `${lastCardRect.width}px`
+          temporarySummonTargetElement.style.height = `${lastCardRect.height}px`
+          temporarySummonTargetElement.style.pointerEvents = 'none'
+          temporarySummonTargetElement.style.opacity = '0'
+          temporarySummonTargetElement.style.zIndex = '-1'
+          document.body.appendChild(temporarySummonTargetElement)
+          summonTargetElement = temporarySummonTargetElement
+        }
+      }
+
+      runHandToElementAnimation({
+        side: 'bottom',
+        cardInstanceId,
+        destinationElement: summonTargetElement,
+        topHandRowRef,
+        bottomHandRowRef,
+      })
+
+      temporarySummonTargetElement?.remove()
+    }
+
     const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
     if (!intentRequest) {
       return
@@ -224,6 +272,18 @@ export function GameView() {
       undefined,
       { supportSlotIndex: slotIndex.toString() },
     )
+
+    const supportSlotElement = boardZoneRef.current?.querySelector<HTMLElement>(
+      `[data-zone="support"][data-slot-side="bottom"][data-slot-index="${slotIndex}"]`,
+    ) ?? null
+
+    runHandToElementAnimation({
+      side: 'bottom',
+      cardInstanceId: pendingSetSupportCardInstanceId,
+      destinationElement: supportSlotElement,
+      topHandRowRef,
+      bottomHandRowRef,
+    })
 
     setPendingSetSupportCardInstanceId(null)
 
@@ -343,6 +403,11 @@ export function GameView() {
               rowClassName="overflow-hidden"
               renderCard={(card) => {
                 const previewCard = derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null
+                const cardActionOptions = resolveCardActionOptionsForInstanceId(
+                  mappedAvailableActions,
+                  card.instanceId,
+                  card.availableActions,
+                )
 
                 return (
                   <div
@@ -367,15 +432,11 @@ export function GameView() {
                             previewCard={previewCard}
                             zone="hand"
                             visibilityMode="hover"
-                            actionOptions={resolveCardActionOptionsForInstanceId(
-                              mappedAvailableActions,
-                              card.instanceId,
-                              card.availableActions,
-                            )}
+                            actionOptions={cardActionOptions}
                             isConnected={isConnected}
                             isActionPending={isActionPending}
                             onSelectActionOption={(actionId) => {
-                              const actionOption = mappedAvailableActions.find((action) => action.actionId === actionId)
+                              const actionOption = cardActionOptions.find((action) => action.actionId === actionId)
                               if (!actionOption) {
                                 return
                               }

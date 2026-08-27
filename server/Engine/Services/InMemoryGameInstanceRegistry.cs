@@ -203,16 +203,6 @@ public sealed class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
-            if (instance.State.Phase != GamePhase.ActionStep)
-            {
-                throw new InvalidOperationException("Card actions can only be executed during ActionStep.");
-            }
-
-            if (!string.Equals(instance.State.PriorityPlayerId, request.PlayerId, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException("Only the priority player can execute card actions.");
-            }
-
             if (instance.GetPendingPrompt() is not null)
             {
                 throw new InvalidOperationException("Cannot execute card actions while a prompt is pending.");
@@ -228,6 +218,8 @@ public sealed class InMemoryGameInstanceRegistry
             {
                 throw new InvalidOperationException($"Card action '{request.ActionId}' is not supported yet.");
             }
+
+            ValidateCardActionWindow(instance, request.PlayerId, actionPrefix);
 
             var actionCardInstanceId = request.ActionId[actionPrefix.Length..].Trim();
             if (!string.Equals(actionCardInstanceId, request.SourceCardInstanceId, StringComparison.Ordinal))
@@ -339,6 +331,34 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         return null;
+    }
+
+    private static void ValidateCardActionWindow(GameInstance instance, string playerId, string actionPrefix)
+    {
+        if (actionPrefix is SummonToFieldActionPrefix or SetSupportActionPrefix)
+        {
+            if (instance.State.Phase != GamePhase.MainPhase)
+            {
+                throw new InvalidOperationException("Hand card actions can only be executed during MainPhase.");
+            }
+
+            if (!string.Equals(instance.State.ActivePlayerId, playerId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Only the active player can execute hand card actions.");
+            }
+
+            return;
+        }
+
+        if (instance.State.Phase != GamePhase.ActionStep)
+        {
+            throw new InvalidOperationException("Card actions can only be executed during ActionStep.");
+        }
+
+        if (!string.Equals(instance.State.PriorityPlayerId, playerId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Only the priority player can execute card actions.");
+        }
     }
 
     private void ExecuteActivateSupportAction(

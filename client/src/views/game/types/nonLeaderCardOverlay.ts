@@ -3,7 +3,7 @@ import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 
 export type ICardOverlayVisibilityMode = 'hover' | 'mixed'
 
-export type ICardOverlayZone = 'hand' | 'support' | 'battlefield'
+export type ICardOverlayZone = 'hand' | 'support' | 'battlefield' | 'character-field'
 
 export type INonLeaderCardOverlayProps = {
   previewCard: ICardCatalogItemResponse | null
