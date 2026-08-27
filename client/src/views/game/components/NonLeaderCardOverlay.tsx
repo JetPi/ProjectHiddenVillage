@@ -9,6 +9,7 @@ function NonLeaderCardOverlay({
   zone,
   visibilityMode,
   actionOptions,
+  suppressActionFallback = false,
   isConnected,
   isActionPending,
   onSelectActionOption,
@@ -65,11 +66,11 @@ function NonLeaderCardOverlay({
                 </button>
               ))}
             </div>
-          ) : (
+          ) : !suppressActionFallback ? (
             <div className="rounded-sm border border-dashed border-white/35 bg-black/65 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.04em] text-white/90">
               {isHandZone ? 'No actions' : 'Actions pending backend wiring'}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 

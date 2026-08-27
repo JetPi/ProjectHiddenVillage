@@ -1,5 +1,19 @@
 import type { IDeckToHandAnimationArgs, IHandToElementAnimationArgs, IHandToPileAnimationArgs } from "@/views/game/types/animations"
 
+const MIN_HAND_TO_ELEMENT_DURATION_MS = 220
+const MAX_HAND_TO_ELEMENT_DURATION_MS = 520
+const HAND_TO_ELEMENT_PIXELS_PER_MS = 3.3
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function resolveHandToElementDurationMs(translateX: number, translateY: number): number {
+  const distance = Math.hypot(translateX, translateY)
+  const rawDuration = Math.round(distance / HAND_TO_ELEMENT_PIXELS_PER_MS)
+  return clamp(rawDuration, MIN_HAND_TO_ELEMENT_DURATION_MS, MAX_HAND_TO_ELEMENT_DURATION_MS)
+}
+
 export function runHandToPileAnimation({
   side,
   destination,
@@ -202,6 +216,7 @@ export function runHandToElementAnimation({
   const destinationCenterY = destinationRect.top + destinationRect.height / 2
   const translateX = destinationCenterX - sourceCenterX
   const translateY = destinationCenterY - sourceCenterY
+  const animationDurationMs = resolveHandToElementDurationMs(translateX, translateY)
 
   const movingCardElement = sourceCardElement.cloneNode(true) as HTMLDivElement
   movingCardElement.style.position = 'fixed'
@@ -229,7 +244,7 @@ export function runHandToElementAnimation({
       },
     ],
     {
-      duration: 340,
+      duration: animationDurationMs,
       easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
     },
   )

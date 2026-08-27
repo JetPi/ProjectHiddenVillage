@@ -242,16 +242,24 @@ public static class GameStateResponseMapper
         GamePrompt? pendingPrompt,
         bool isRequestingPlayer)
     {
+        var isConcealedFromOpponent = !IsVisibleToRequestingPlayer(card, PlayerZone.SupportZone, isRequestingPlayer: false);
+
         if (!IsVisibleToRequestingPlayer(card, PlayerZone.SupportZone, isRequestingPlayer))
         {
             return new CardInstanceResponse(
                 InstanceId: card.InstanceId,
                 CardDefinitionId: card.CardDefinitionId,
                 OwnerPlayerId: card.OwnerPlayerId,
-                ControllerPlayerId: card.ControllerPlayerId);
+                ControllerPlayerId: card.ControllerPlayerId)
+            {
+                IsFaceUp = false,
+                SupportSlotIndex = card.SupportSlotIndex,
+                IsConcealedFromOpponent = isConcealedFromOpponent,
+            };
         }
 
-        return ToCardInstanceResponse(card, cardDefinitions, PlayerZone.SupportZone, state, pendingPrompt, isRequestingPlayer);
+        var supportResponse = ToCardInstanceResponse(card, cardDefinitions, PlayerZone.SupportZone, state, pendingPrompt, isRequestingPlayer);
+        return supportResponse with { IsConcealedFromOpponent = isConcealedFromOpponent };
     }
 
     private static CardInstanceResponse ToConcealedCardInstanceResponse(CardInstance card)
@@ -349,6 +357,7 @@ public static class GameStateResponseMapper
                             Power: resolvedPower)
                         {
                             IsFaceUp = card.IsFaceUp,
+                            SupportSlotIndex = card.SupportSlotIndex,
                             AvailableActions = cardActions
                         }
                         : new CardInstanceResponse(
@@ -358,6 +367,7 @@ public static class GameStateResponseMapper
                             ControllerPlayerId: card.ControllerPlayerId)
                         {
                             IsFaceUp = card.IsFaceUp,
+                            SupportSlotIndex = card.SupportSlotIndex,
                         },
 
             _ => new CardInstanceResponse(

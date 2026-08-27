@@ -205,6 +205,11 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 		var movedCard = sourceList[sourceIndex];
 		sourceList.RemoveAt(sourceIndex);
 
+		if (sourceZone == PlayerZone.SupportZone)
+		{
+			movedCard.SupportSlotIndex = null;
+		}
+
 		if (movedCard.IsRevealedToBothPlayers && movedCard.RevealedInZone != destinationZone)
 		{
 			movedCard.IsRevealedToBothPlayers = false;
@@ -215,6 +220,20 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 		if (ReferenceEquals(sourceList, destinationList) && destinationIndex.HasValue && destinationIndex.Value > sourceIndex)
 		{
 			insertIndex--;
+		}
+
+		if (destinationZone == PlayerZone.SupportZone)
+		{
+			var supportSlotIndex = destinationIndex ?? destinationList.Count;
+			movedCard.SupportSlotIndex = supportSlotIndex;
+			destinationList.Add(movedCard);
+			destinationList.Sort((left, right) =>
+			{
+				var leftIndex = left.SupportSlotIndex ?? int.MaxValue;
+				var rightIndex = right.SupportSlotIndex ?? int.MaxValue;
+				return leftIndex.CompareTo(rightIndex);
+			});
+			return movedCard;
 		}
 
 		if (insertIndex < topDeck || insertIndex > destinationList.Count)

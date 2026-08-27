@@ -58,6 +58,16 @@ public sealed class GameCardActionExecutionRequestValidator : AbstractValidator<
 
         RuleFor(request => request.SourceCardInstanceId)
             .NotEmpty().WithMessage("SourceCardInstanceId is required.");
+
+        RuleFor(request => request.Arguments)
+            .Must(arguments => arguments is not null
+                && arguments.TryGetValue("supportSlotIndex", out var rawSlotIndex)
+                && !string.IsNullOrWhiteSpace(rawSlotIndex)
+                && int.TryParse(rawSlotIndex, out var parsedSlotIndex)
+                && parsedSlotIndex >= 0
+                && parsedSlotIndex < 5)
+            .When(request => request.ActionId.StartsWith("set-support:", StringComparison.Ordinal))
+            .WithMessage("Set support actions require a valid supportSlotIndex argument between 0 and 4.");
     }
 }
 

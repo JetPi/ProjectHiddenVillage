@@ -35,9 +35,11 @@ export type INonLeaderCardViewModel = {
   displayName: string
   type: string
   isFaceUp: boolean
+  isConcealedFromOpponent?: boolean
   isExhausted: boolean
   availableActions?: IGameActionOptionResponse[]
   isRested: boolean
+  supportSlotIndex?: number | null
 }
 
 export type IDerivedGameViewState = {

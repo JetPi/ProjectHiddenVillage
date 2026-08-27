@@ -1,4 +1,5 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
+import { useMemo } from 'react'
 import { AppButton } from '@/components/ui'
 import { CardBack, CardImage, LeaderCard } from '@/components/ui/cards'
 import { PlayBottomResourceZone, PlayCard, PlayPileZone, PlayTopResourceZone } from '@/components/ui/game'
@@ -53,9 +54,35 @@ function GameZones({
     derivedGameState.cardById,
   )
 
-  const selectableSupportSlotIndex = pendingSetSupportCardInstanceId
-    ? (derivedGameState.currentPlayer?.supportZone.length ?? 0)
-    : -1
+  const topSupportCardsBySlotIndex = useMemo(() => {
+    const cardsBySlot = new Map<number, ReturnType<typeof resolveNonLeaderCards>[number]>()
+    for (const [currentIndex, card] of topSupportCards.entries()) {
+      const resolvedSlotIndex = typeof card.supportSlotIndex === 'number'
+        ? card.supportSlotIndex
+        : currentIndex
+
+      if (resolvedSlotIndex >= 0 && resolvedSlotIndex < 5) {
+        cardsBySlot.set(resolvedSlotIndex, card)
+      }
+    }
+
+    return cardsBySlot
+  }, [topSupportCards])
+
+  const bottomSupportCardsBySlotIndex = useMemo(() => {
+    const cardsBySlot = new Map<number, ReturnType<typeof resolveNonLeaderCards>[number]>()
+    for (const [currentIndex, card] of bottomSupportCards.entries()) {
+      const resolvedSlotIndex = typeof card.supportSlotIndex === 'number'
+        ? card.supportSlotIndex
+        : currentIndex
+
+      if (resolvedSlotIndex >= 0 && resolvedSlotIndex < 5) {
+        cardsBySlot.set(resolvedSlotIndex, card)
+      }
+    }
+
+    return cardsBySlot
+  }, [bottomSupportCards])
 
   function renderZoneCardSlots(
     cards: ReturnType<typeof resolveNonLeaderCards>,
@@ -66,14 +93,18 @@ function GameZones({
     return (
       <div className="grid min-h-0 w-full overflow-hidden grid-cols-5 justify-items-center gap-1.5">
         {Array.from({ length: 5 }).map((_, index) => {
-          const card = cards[index]
+          const card = zone === 'support'
+            ? (isCurrentPlayerZone
+              ? (bottomSupportCardsBySlotIndex.get(index) ?? null)
+              : (topSupportCardsBySlotIndex.get(index) ?? null))
+            : (cards[index] ?? null)
           const isSelectionSlot = isCurrentPlayerZone
             && pendingSetSupportCardInstanceId !== null
-            && index === selectableSupportSlotIndex
+            && card === null
 
           const isSelectionBlocked = isCurrentPlayerZone
             && pendingSetSupportCardInstanceId !== null
-            && index !== selectableSupportSlotIndex
+            && !isSelectionSlot
 
           if (!card) {
             return (
@@ -95,6 +126,10 @@ function GameZones({
                 )}
               >
                 <PlayCard
+                  data-zone={zone}
+                  data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
+                  data-slot-index={index}
+                  data-slot-card="true"
                   className={twMerge(
                     'h-full rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]',
                     isSelectionBlocked ? 'opacity-45' : '',
@@ -110,6 +145,9 @@ function GameZones({
             card.instanceId,
             card.availableActions,
           )
+          const isOwnConcealedSupportCard = zone === 'support' && isCurrentPlayerZone && card.isConcealedFromOpponent === true
+          const isConcealedSupportCard = zone === 'support' && !isCurrentPlayerZone && !card.isFaceUp
+          const shouldHideOverlayDetails = isConcealedSupportCard
 
           return (
             <PlayCard
@@ -117,8 +155,10 @@ function GameZones({
               data-zone={zone}
               data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
               data-slot-index={index}
+              data-slot-card="true"
               className={twMerge(
-                'group relative h-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)]',
+                'group relative h-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
+                zone === 'support' ? 'border-transparent' : 'border border-[var(--border-subtle)]',
                 card.isExhausted ? 'opacity-80 saturate-75' : '',
                 isSelectionBlocked ? 'opacity-45' : '',
               )}
@@ -135,22 +175,39 @@ function GameZones({
                 <CardBack className="h-full w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
               )}
 
-              <NonLeaderCardOverlay
-                previewCard={derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null}
-                zone={zone}
-                visibilityMode={visibilityMode}
-                actionOptions={actionOptions}
-                isConnected={isConnected}
-                isActionPending={isActionPending}
-                onSelectActionOption={(actionId) => {
-                  const selectedAction = actionOptions.find((action) => action.actionId === actionId)
-                  if (!selectedAction) {
-                    return
-                  }
+              {isConcealedSupportCard ? (
+                <div className="pointer-events-none absolute inset-0 z-10 rounded-lg bg-black/18" />
+              ) : null}
 
-                  onSelectAction(selectedAction)
-                }}
-              />
+              {isOwnConcealedSupportCard ? (
+                <div
+                  className="pointer-events-none absolute inset-0 z-10 rounded-lg"
+                  style={{
+                    backgroundImage: 'repeating-linear-gradient(135deg, rgba(203, 213, 225, 0.46) 0px, rgba(203, 213, 225, 0.46) 7px, rgba(15, 23, 42, 0.06) 7px, rgba(15, 23, 42, 0.06) 15px)',
+                    backgroundColor: 'rgba(51, 65, 85, 0.12)',
+                  }}
+                />
+              ) : null}
+
+              {!shouldHideOverlayDetails ? (
+                <NonLeaderCardOverlay
+                  previewCard={card.isFaceUp ? (derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
+                  zone={zone}
+                  visibilityMode={visibilityMode}
+                  actionOptions={actionOptions}
+                  suppressActionFallback={!isCurrentPlayerZone}
+                  isConnected={isConnected}
+                  isActionPending={isActionPending}
+                  onSelectActionOption={(actionId) => {
+                    const selectedAction = actionOptions.find((action) => action.actionId === actionId)
+                    if (!selectedAction) {
+                      return
+                    }
+
+                    onSelectAction(selectedAction)
+                  }}
+                />
+              ) : null}
             </PlayCard>
           )
         })}
@@ -202,6 +259,7 @@ function GameZones({
                 zone="character-field"
                 visibilityMode="hover"
                 actionOptions={actionOptions}
+                suppressActionFallback={!isCurrentPlayerZone}
                 isConnected={isConnected}
                 isActionPending={isActionPending}
                 onSelectActionOption={(actionId) => {
