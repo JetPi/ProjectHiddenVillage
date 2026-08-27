@@ -68,7 +68,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                 value={badgeValue}
               />
               {isDeckLabel(label) ? (
-                <CardBack tone={cardBackTone} />
+                <CardBack className="border-0 bg-transparent [&_img]:object-cover" tone={cardBackTone} />
               ) : (
                 label
               )}
