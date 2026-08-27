@@ -24,7 +24,7 @@ function NonLeaderCardOverlay({
     return 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
   }, [visibilityMode])
 
-  const hasActions = !isHandZone && actionOptions.length > 0
+  const hasActions = actionOptions.length > 0
 
   return (
     <>
@@ -67,7 +67,7 @@ function NonLeaderCardOverlay({
             </div>
           ) : (
             <div className="rounded-sm border border-dashed border-white/35 bg-black/65 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.04em] text-white/90">
-              {isHandZone ? 'pHolder' : 'Actions pending backend wiring'}
+              {isHandZone ? 'No actions' : 'Actions pending backend wiring'}
             </div>
           )}
         </div>

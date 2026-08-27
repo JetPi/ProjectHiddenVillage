@@ -233,6 +233,8 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
         {
             card.IsRested = false;
         }
+
+        state.SetSummonCardReady(activePlayer.PlayerId, true);
     }
 
     private static void OnEnterActionStep(GameState state)

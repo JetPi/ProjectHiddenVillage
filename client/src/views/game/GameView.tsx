@@ -72,6 +72,7 @@ export function GameView() {
   })
   const [bottomHandFaceUpByInstanceId, setBottomHandFaceUpByInstanceId] = useState<Record<string, boolean>>({})
   const [isMulliganAnimationPending, setIsMulliganAnimationPending] = useState(false)
+  const [pendingSetSupportCardInstanceId, setPendingSetSupportCardInstanceId] = useState<string | null>(null)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const authUserId = useAuthSessionStore((state) => state.session?.userId)
 
@@ -130,6 +131,16 @@ export function GameView() {
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:') && action.actionId !== 'declare-attack')
     : gameState.availableActions.filter((action) => action.actionId !== 'declare-attack')
 
+  const passLikeAction = useMemo(
+    () => mappedAvailableActions.find((action) =>
+      action.actionId === 'pass-turn'
+      || action.actionId === 'turn-end'
+      || action.actionId === 'endPhase'
+      || action.actionId === 'declare-end-step'
+      || action.actionId === 'advance-phase'),
+    [mappedAvailableActions],
+  )
+
   useHandZoneAnimationEffects({
     topHandInstanceIds,
     bottomHandInstanceIds,
@@ -164,12 +175,71 @@ export function GameView() {
   })
 
   function submitMappedAction(action: IGameActionOptionResponse): void {
+    if (action.actionId.startsWith('set-support:')) {
+      const delimiterIndex = action.actionId.indexOf(':')
+      if (delimiterIndex < 0 || delimiterIndex === action.actionId.length - 1) {
+        return
+      }
+
+      setPendingSetSupportCardInstanceId(action.actionId.slice(delimiterIndex + 1))
+      return
+    }
+
     const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
     if (!intentRequest) {
       return
     }
 
+    if (pendingSetSupportCardInstanceId) {
+      setPendingSetSupportCardInstanceId(null)
+    }
+
     void submitHubIntent(intentRequest)
+  }
+
+  function submitSetSupportToSlot(slotIndex: number): void {
+    if (!pendingSetSupportCardInstanceId) {
+      return
+    }
+
+    const action = mappedAvailableActions.find((option) =>
+      option.actionId === `set-support:${pendingSetSupportCardInstanceId}`)
+    if (!action) {
+      setPendingSetSupportCardInstanceId(null)
+      return
+    }
+
+    const currentPlayerSupportCount = derivedGameState.currentPlayer?.supportZone.length ?? 0
+    if (slotIndex < 0 || slotIndex > 4) {
+      return
+    }
+
+    if (slotIndex !== currentPlayerSupportCount) {
+      return
+    }
+
+    const intentRequest = mapActionToHubIntent(
+      action,
+      canResolvePrompt,
+      undefined,
+      { supportSlotIndex: slotIndex.toString() },
+    )
+
+    setPendingSetSupportCardInstanceId(null)
+
+    if (!intentRequest) {
+      return
+    }
+
+    void submitHubIntent(intentRequest)
+  }
+
+  function handlePassLikeAction(): void {
+    if (!passLikeAction || !passLikeAction.isEnabled) {
+      return
+    }
+
+    submitMappedAction(passLikeAction)
   }
 
   async function handlePromptResolve(selectedOption: string): Promise<void> {
@@ -257,13 +327,14 @@ export function GameView() {
               gameState={gameState}
               authUserId={authUserId}
               availableActions={mappedAvailableActions}
+              pendingSetSupportCardInstanceId={pendingSetSupportCardInstanceId}
               isConnected={isConnected}
               isActionPending={isActionPending}
               onSelectAction={submitMappedAction}
+              onSelectSupportSlotForSet={submitSetSupportToSlot}
+              onCancelSetSupportSelection={() => setPendingSetSupportCardInstanceId(null)}
               onToggleTheme={toggleTheme}
-              onPassTurn={() => {
-                void submitHubIntent({ intent: 'pass-turn' })
-              }}
+              onPassTurn={handlePassLikeAction}
             />
 
             <GameHandRow

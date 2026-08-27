@@ -7,6 +7,8 @@ public static class GameStateResponseMapper
 {
     private static readonly IGamePhaseStateService PhaseStateService = new GamePhaseStateService();
     private const string ConcealedCardDefinitionId = "concealed-card";
+    private const string SummonToFieldActionPrefix = "summon-to-field:";
+    private const string SetSupportActionPrefix = "set-support:";
 
     public static GameStateResponse ToGameStateResponse(GameInstance game, string requestingPlayerId)
     {
@@ -193,6 +195,7 @@ public static class GameStateResponseMapper
         return new PlayerZonesResponse(
             PlayerId: player.PlayerId,
             TurnCount: player.TurnCount,
+            IsSummonCardReady: state.IsSummonCardReady(player.PlayerId),
             Leader: ToLeaderCardInstanceResponse(player.LeaderCardInstance, state),
             Deck: isRequestingPlayer
                 ? player.Deck.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Deck))
@@ -382,32 +385,26 @@ public static class GameStateResponseMapper
             return [];
         }
 
-        var isPriorityPlayer = string.Equals(state.PriorityPlayerId, card.ControllerPlayerId, StringComparison.Ordinal);
-        if (!isPriorityPlayer || state.Phase != GamePhase.ActionStep)
-        {
-            return [];
-        }
-
         return playerZone switch
         {
             PlayerZone.Hand =>
-            [
-                new GameActionOptionResponse(
-                    ActionId: $"play-card:{card.InstanceId}",
-                    Label: "Play",
-                    IsEnabled: true)
-            ],
+                CanUseHandCardActions(card, state)
+                    ? BuildHandAvailableActions(card, state)
+                    : [],
 
             PlayerZone.SupportZone =>
-            [
-                new GameActionOptionResponse(
-                    ActionId: $"activate-support:{card.InstanceId}",
-                    Label: "Activate",
-                    IsEnabled: true)
-            ],
+                CanUseActionStepPriorityActions(card, state)
+                    ?
+                    [
+                        new GameActionOptionResponse(
+                            ActionId: $"activate-support:{card.InstanceId}",
+                            Label: "Activate",
+                            IsEnabled: true)
+                    ]
+                    : [],
 
             PlayerZone.CharacterField =>
-                !CanDeclareBattleAction(card, state)
+                !CanUseActionStepPriorityActions(card, state) || !CanDeclareBattleAction(card, state)
                     ? []
                     :
                     [
@@ -419,6 +416,87 @@ public static class GameStateResponseMapper
 
             _ => []
         };
+    }
+
+    private static bool CanUseHandCardActions(CardInstance card, GameState state)
+    {
+        return state.Phase == GamePhase.MainPhase
+            && IsSamePlayerId(state.ActivePlayerId, card.ControllerPlayerId);
+    }
+
+    private static bool CanUseActionStepPriorityActions(CardInstance card, GameState state)
+    {
+        return state.Phase == GamePhase.ActionStep
+            && IsSamePlayerId(state.PriorityPlayerId, card.ControllerPlayerId);
+    }
+
+    private static IReadOnlyList<GameActionOptionResponse> BuildHandAvailableActions(CardInstance card, GameState state)
+    {
+        if (!state.CardDefinitions.TryGetValue(card.CardDefinitionId, out var cardDefinition))
+        {
+            return [];
+        }
+
+        if (cardDefinition.Type is CardType.Chakra or CardType.Summon or CardType.Leader)
+        {
+            return [];
+        }
+
+        var actions = new List<GameActionOptionResponse>();
+        var summonReady = state.IsSummonCardReady(card.ControllerPlayerId);
+
+        if (cardDefinition.CannotBeNormalSummoned)
+        {
+            var specialSummonAllowed = CanSpecialSummonWithoutNormalSummon(cardDefinition);
+            actions.Add(new GameActionOptionResponse(
+                ActionId: $"{SummonToFieldActionPrefix}{card.InstanceId}",
+                Label: "Summon",
+                IsEnabled: specialSummonAllowed,
+                DisabledReason: specialSummonAllowed
+                    ? null
+                    : "Summon requirements are not currently satisfiable."));
+        }
+        else
+        {
+            actions.Add(new GameActionOptionResponse(
+                ActionId: $"{SummonToFieldActionPrefix}{card.InstanceId}",
+                Label: "Summon",
+                IsEnabled: summonReady,
+                DisabledReason: summonReady ? null : "Your summon card is rested."));
+        }
+
+        if (IsSupportCapable(cardDefinition))
+        {
+            actions.Add(new GameActionOptionResponse(
+                ActionId: $"{SetSupportActionPrefix}{card.InstanceId}",
+                Label: "Set Support",
+                IsEnabled: true));
+        }
+
+        return actions;
+    }
+
+    private static bool IsSupportCapable(Card cardDefinition)
+    {
+        if (cardDefinition is not CharacterCard characterCard)
+        {
+            return false;
+        }
+
+        return !string.IsNullOrWhiteSpace(characterCard.SupportName)
+            || !string.IsNullOrWhiteSpace(characterCard.SupportEffect);
+    }
+
+    private static bool CanSpecialSummonWithoutNormalSummon(Card cardDefinition)
+    {
+        if (cardDefinition.Conditions.Count == 0)
+        {
+            return false;
+        }
+
+        return cardDefinition.Conditions.Any(condition =>
+            string.Equals(condition, EffectConditionKeywords.SummonRequirements, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(condition, "hasSummonTarget", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool CanDeclareBattleAction(CardInstance card, GameState state)

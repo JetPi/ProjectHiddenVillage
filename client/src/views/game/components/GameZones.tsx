@@ -22,9 +22,12 @@ function GameZones({
   gameState,
   authUserId,
   availableActions,
+  pendingSetSupportCardInstanceId,
   isConnected,
   isActionPending,
   onSelectAction,
+  onSelectSupportSlotForSet,
+  onCancelSetSupportSelection,
   onToggleTheme,
   onPassTurn,
 }: IGameZonesProps) {
@@ -40,22 +43,52 @@ function GameZones({
     derivedGameState.cardById,
   )
 
+  const selectableSupportSlotIndex = pendingSetSupportCardInstanceId
+    ? (derivedGameState.currentPlayer?.supportZone.length ?? 0)
+    : -1
+
   function renderZoneCardSlots(
     cards: ReturnType<typeof resolveNonLeaderCards>,
     zone: 'support',
     visibilityMode: 'hover',
+    isCurrentPlayerZone: boolean,
   ) {
     return (
       <div className="grid min-h-0 w-full overflow-hidden grid-cols-5 justify-items-center gap-1.5">
         {Array.from({ length: 5 }).map((_, index) => {
           const card = cards[index]
+          const isSelectionSlot = isCurrentPlayerZone
+            && pendingSetSupportCardInstanceId !== null
+            && index === selectableSupportSlotIndex
+
+          const isSelectionBlocked = isCurrentPlayerZone
+            && pendingSetSupportCardInstanceId !== null
+            && index !== selectableSupportSlotIndex
 
           if (!card) {
             return (
-              <PlayCard
+              <button
                 key={`${zone}-empty-${index}`}
-                className="h-full rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]"
-              />
+                type="button"
+                disabled={!isSelectionSlot}
+                onClick={
+                  isSelectionSlot
+                    ? () => onSelectSupportSlotForSet(index)
+                    : undefined
+                }
+                className={twMerge(
+                  'h-full rounded-lg',
+                  !isSelectionSlot ? 'cursor-default' : 'cursor-pointer',
+                )}
+              >
+                <PlayCard
+                  className={twMerge(
+                    'h-full rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]',
+                    isSelectionBlocked ? 'opacity-45' : '',
+                    isSelectionSlot ? 'border-amber-400/90 bg-amber-300/20' : '',
+                  )}
+                />
+              </button>
             )
           }
 
@@ -71,6 +104,7 @@ function GameZones({
               className={twMerge(
                 'group relative h-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)]',
                 card.isExhausted ? 'opacity-80 saturate-75' : '',
+                isSelectionBlocked ? 'opacity-45' : '',
               )}
             >
               {card.isFaceUp ? (
@@ -125,7 +159,7 @@ function GameZones({
           </div>
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
-            {renderZoneCardSlots(topSupportCards, 'support', 'hover')}
+            {renderZoneCardSlots(topSupportCards, 'support', 'hover', false)}
             <div className="rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
           </div>
 
@@ -161,7 +195,7 @@ function GameZones({
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
             <div className="rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-            {renderZoneCardSlots(bottomSupportCards, 'support', 'hover')}
+            {renderZoneCardSlots(bottomSupportCards, 'support', 'hover', true)}
           </div>
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
@@ -212,9 +246,26 @@ function GameZones({
             <SkipForward size={10} />
           </AppButton>
           <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-            Pass Turn
+            Do Nothing / Pass
           </span>
         </div>
+
+        {pendingSetSupportCardInstanceId ? (
+          <div className="group relative">
+            <AppButton
+              type="button"
+              variant="ghost"
+              aria-label="Cancel support slot selection"
+              onClick={onCancelSetSupportSelection}
+              className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+            >
+              <span className="text-[10px] font-bold leading-none">X</span>
+            </AppButton>
+            <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
+              Cancel Set Support
+            </span>
+          </div>
+        ) : null}
 
         <div className="group relative">
           <AppButton

@@ -28,6 +28,9 @@ public sealed class GameState
 
     public bool Player2SummonCard { get; set; } = true;
 
+    public Dictionary<string, bool> SummonCardReadyByPlayerId { get; set; } =
+        new(StringComparer.Ordinal);
+
     public List<PlayerState> Players { get; set; } = [];
 
     public List<EffectResolutionStackEntry> EffectResolutionStack { get; set; } = [];
@@ -43,6 +46,46 @@ public sealed class GameState
     public void InsertPhase(GamePhase phase)
     {
         InsertedPhases.Enqueue(phase);
+    }
+
+    public void EnsureSummonCardStateForPlayers()
+    {
+        foreach (var player in Players)
+        {
+            if (string.IsNullOrWhiteSpace(player.PlayerId))
+            {
+                continue;
+            }
+
+            if (!SummonCardReadyByPlayerId.ContainsKey(player.PlayerId))
+            {
+                SummonCardReadyByPlayerId[player.PlayerId] = true;
+            }
+        }
+    }
+
+    public bool IsSummonCardReady(string playerId)
+    {
+        EnsureSummonCardStateForPlayers();
+
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return false;
+        }
+
+        return SummonCardReadyByPlayerId.TryGetValue(playerId, out var isReady) && isReady;
+    }
+
+    public void SetSummonCardReady(string playerId, bool isReady)
+    {
+        EnsureSummonCardStateForPlayers();
+
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return;
+        }
+
+        SummonCardReadyByPlayerId[playerId] = isReady;
     }
 }
 
