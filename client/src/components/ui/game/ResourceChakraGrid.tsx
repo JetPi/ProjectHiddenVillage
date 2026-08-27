@@ -4,7 +4,7 @@ import chakraCardImage from '@/assets/ChakraCard.webp'
 import { twMerge } from 'tailwind-merge'
 import type { IResourceChakraGridProps } from '@/components/ui/types'
 
-const RESOURCE_CARD_FRAME_CLASS = 'h-full max-h-full overflow-hidden rounded-sm border border-[var(--border-subtle)] bg-[var(--surface-muted)]'
+const RESOURCE_CARD_FRAME_CLASS = 'overflow-hidden rounded-sm border border-[var(--border-subtle)] bg-[var(--surface-muted)]'
 const CHAKRA_CARD_IMAGE_CLASS = 'h-full w-full rounded-none object-cover p-0 [image-rendering:auto] [transform:translateZ(0)]'
 
 export function ResourceChakraGrid({ cardClassName, className, slotClassName, slotCount = 5, topRowCount = 3 }: IResourceChakraGridProps) {
