@@ -166,7 +166,7 @@ function GameZones({
       <div
         data-zone="character-field-row"
         data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
-        className="flex h-full min-h-0 w-full items-center justify-start gap-1.5 overflow-hidden rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1"
+        className="flex h-full min-h-0 w-full items-center justify-start gap-2.5 overflow-visible rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5"
       >
         {cards.map((card) => {
           const actionOptions = resolveCardActionOptionsForInstanceId(
@@ -181,8 +181,8 @@ function GameZones({
               data-zone="character-field-card"
               data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
               className={twMerge(
-                'group relative h-full shrink-0 overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
-                card.isExhausted ? 'opacity-80 saturate-75' : '',
+                'group relative h-full shrink-0 overflow-hidden rounded-lg bg-[var(--surface-elevated)] transition-transform duration-300 ease-out will-change-transform origin-center',
+                card.isExhausted ? 'opacity-80 saturate-75 rotate-[14deg]' : 'rotate-0',
               )}
             >
               {card.isFaceUp ? (
@@ -240,7 +240,7 @@ function GameZones({
             />
           </div>
 
-          <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
+          <div className="grid min-h-0 grid-rows-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-2">
             {renderZoneCardSlots(topSupportCards, 'support', 'hover', false)}
             {renderBattlefieldRow(topBattlefieldCards, false)}
           </div>
@@ -256,14 +256,16 @@ function GameZones({
           </div>
         </div>
 
-        <GamePhaseActionRow
-          gameInstance={gameState}
-          authUserId={authUserId}
-          availableActions={availableActions}
-          isConnected={isConnected}
-          isActionPending={isActionPending}
-          onSelectAction={onSelectAction}
-        />
+        <div className="my-0.5">
+          <GamePhaseActionRow
+            gameInstance={gameState}
+            authUserId={authUserId}
+            availableActions={availableActions}
+            isConnected={isConnected}
+            isActionPending={isActionPending}
+            onSelectAction={onSelectAction}
+          />
+        </div>
 
         <div className="row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
           <div className="min-h-0 w-full">
@@ -275,7 +277,7 @@ function GameZones({
             />
           </div>
 
-          <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
+          <div className="grid min-h-0 grid-rows-[minmax(0,1.05fr)_minmax(0,0.95fr)] gap-2">
             {renderBattlefieldRow(bottomBattlefieldCards, true)}
             {renderZoneCardSlots(bottomSupportCards, 'support', 'hover', true)}
           </div>
