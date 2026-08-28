@@ -223,6 +223,59 @@ export function GameView() {
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:') && action.actionId !== 'declare-attack')
     : gameState.availableActions.filter((action) => action.actionId !== 'declare-attack')
 
+  const canShowHandNoActionsMessage =
+    Boolean(authUserId)
+    && gameState.phase === 'MainPhase'
+    && gameState.activePlayerId.trim().toLowerCase() === authUserId?.trim().toLowerCase()
+    && !gameState.pendingPrompt
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return
+    }
+
+    const currentPlayerRaw = gameState.players.find((player) =>
+      player.playerId.trim().toLowerCase() === authUserId?.trim().toLowerCase())
+
+    const rawLeaderActions = currentPlayerRaw?.leader?.availableActions ?? []
+    const resolvedLeaderActions = bottomLeaderCard
+      ? resolveCardActionOptionsForInstanceId(
+        mappedAvailableActions,
+        bottomLeaderCard.instanceId,
+        bottomLeaderCard.availableActions,
+      )
+      : []
+
+    const currentPlayerBattlefieldActions = (derivedGameState.currentPlayer?.characterField ?? []).map((card) => ({
+      instanceId: card.instanceId,
+      availableActions: card.availableActions ?? [],
+    }))
+
+    console.log('[GameView][ActionDebug] Leader and battlefield action states', {
+      gameId: gameState.gameId,
+      phase: gameState.phase,
+      turnNumber: gameState.turnNumber,
+      activePlayerId: gameState.activePlayerId,
+      priorityPlayerId: gameState.priorityPlayerId,
+      authUserId,
+      rawLeaderActions,
+      resolvedLeaderActions,
+      currentPlayerBattlefieldActions,
+      globalAvailableActions: mappedAvailableActions,
+    })
+  }, [
+    authUserId,
+    bottomLeaderCard,
+    derivedGameState.currentPlayer?.characterField,
+    gameState.activePlayerId,
+    gameState.gameId,
+    gameState.phase,
+    gameState.players,
+    gameState.priorityPlayerId,
+    gameState.turnNumber,
+    mappedAvailableActions,
+  ])
+
   const passLikeAction = useMemo(
     () => mappedAvailableActions.find((action) =>
       action.actionId === 'pass-turn'
@@ -304,6 +357,10 @@ export function GameView() {
   })
 
   function submitMappedAction(action: IGameActionOptionResponse): void {
+    if (!action.isEnabled) {
+      return
+    }
+
     if (action.actionId.startsWith('leader-effect:')) {
       const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
       if (!intentRequest || intentRequest.intent !== 'execute-card-action') {
@@ -646,7 +703,7 @@ export function GameView() {
                             zone="hand"
                             visibilityMode="hover"
                             actionOptions={cardActionOptions}
-                            showEmptyActionMessage
+                            showEmptyActionMessage={canShowHandNoActionsMessage}
                             isConnected={isConnected}
                             isActionPending={isActionPending}
                             onSelectActionOption={(actionId) => {

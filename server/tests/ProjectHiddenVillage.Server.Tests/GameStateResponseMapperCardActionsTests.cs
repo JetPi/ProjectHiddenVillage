@@ -423,6 +423,156 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
+    public void ToGameStateResponse_DisablesActivateMainLeaderEffect_WithSelfCharacterFieldRule_WhenBothBattlefieldsAreEmpty()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "power-up-card",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                ChakraCost = 1,
+                AttributeModifications =
+                [
+                    new AttributeModificationSpec
+                    {
+                        TargetType = AttributeModificationTargetType.SelectedTargets,
+                        TargetRange = EffectTargetRange.Self,
+                        Attribute = EffectAttributeType.CardPower,
+                        Operation = AttributeModificationOperation.Add,
+                        Value = 3,
+                    }
+                ],
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    ExactTargetCount = 1,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Self,
+                            InZone = PlayerZone.CharacterField,
+                            ExactSelectedTargetCount = 1,
+                            Restriction = new ZoneCardRestriction
+                            {
+                                Predicates = [],
+                                MatchMode = ZoneRestrictionMatchMode.Any,
+                            },
+                        }
+                    ]
+                }
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
+        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
+        Assert.AreEqual("No valid targets available.", requester.Leader.AvailableActions[0].DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesLeaderEffect_WhenRequiredSupportZoneIsEmpty()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "support-zone-target-check",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    ExactTargetCount = 1,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Any,
+                            InZone = PlayerZone.SupportZone,
+                            Restriction = new ZoneCardRestriction(),
+                        }
+                    ]
+                }
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
+        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
+        Assert.AreEqual("No valid targets available.", requester.Leader.AvailableActions[0].DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesSelectedTargetLeaderEffect_WhenTargetRulesAreMissing()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "selected-target-no-rules",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                AttributeModifications =
+                [
+                    new AttributeModificationSpec
+                    {
+                        TargetType = AttributeModificationTargetType.SelectedTargets,
+                        TargetRange = EffectTargetRange.Self,
+                        Attribute = EffectAttributeType.CardPower,
+                        Operation = AttributeModificationOperation.Add,
+                        Value = 1,
+                    }
+                ],
+                TargetRules = new EffectTargetRuleSet()
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
+        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
+        Assert.AreEqual("No valid targets available.", requester.Leader.AvailableActions[0].DisabledReason);
+    }
+
+    [TestMethod]
     public void ToGameStateResponse_SeparatesDuplicateActivateMainLeaderLabels()
     {
         var requesterId = Guid.NewGuid().ToString("N");
