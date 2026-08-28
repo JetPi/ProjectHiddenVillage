@@ -55,3 +55,4 @@ export type IGameCardActionTargetsResponse = {
 }
 
 export type IGameStateInvalidatedHandler = (gameId: string) => void
+export type IGameParticipantJoinedHandler = (gameId: string) => void

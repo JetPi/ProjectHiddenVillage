@@ -12,7 +12,8 @@ public sealed partial class GamesHub
             return Task.FromResult(HubOperationResult<GameStateResponse>.FromErrors(requesterIdResult.Errors));
         }
 
-        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        var normalizedGameId = NormalizeGameId(gameId);
+        var gameResult = GetAuthorizedGameInstance(normalizedGameId, requesterIdResult.Value);
         if (gameResult.IsError)
         {
             return Task.FromResult(HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors));

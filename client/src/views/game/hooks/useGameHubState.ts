@@ -12,6 +12,7 @@ import {
   executeCardAction,
   getCardActionTargets,
   getCurrentGameState,
+  onGameParticipantJoined,
   onGameStateInvalidated,
   resolvePrompt,
   subscribeToGame,
@@ -111,6 +112,7 @@ function useGameHubState(
 
     let isDisposed = false
     let disposeInvalidationHandler = () => {}
+    let disposeParticipantJoinedHandler = () => {}
 
     async function connectAndSubscribe(): Promise<void> {
       try {
@@ -125,6 +127,14 @@ function useGameHubState(
         }
 
         disposeInvalidationHandler = onGameStateInvalidated(nextConnection, (updatedGameId) => {
+          if (updatedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
+            return
+          }
+
+          void refreshCurrentGameState(nextConnection)
+        })
+
+        disposeParticipantJoinedHandler = onGameParticipantJoined(nextConnection, (updatedGameId) => {
           if (updatedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
             return
           }
@@ -155,6 +165,7 @@ function useGameHubState(
       isDisposed = true
       resetConnectionState()
       disposeInvalidationHandler()
+      disposeParticipantJoinedHandler()
       connectionRef.current = null
 
       void (async () => {
