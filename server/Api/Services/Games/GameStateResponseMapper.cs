@@ -6,6 +6,11 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 public static class GameStateResponseMapper
 {
     private static readonly IGamePhaseStateService PhaseStateService = new GamePhaseStateService();
+    private static readonly GameEffectCanExecuteEvaluator LeaderEffectCanExecuteEvaluator = new(
+        new EffectContextConditionEvaluator(),
+        new EffectTargetResolver(),
+        new GameValidTargetResultFactory(),
+        new GameEffectConditionDiagnostics());
     private const string ConcealedCardDefinitionId = "concealed-card";
     private const string SummonToFieldActionPrefix = "summon-to-field:";
     private const string SetSupportActionPrefix = "set-support:";
@@ -405,13 +410,7 @@ public static class GameStateResponseMapper
 
             PlayerZone.SupportZone =>
                 CanUseActionStepPriorityActions(card, state)
-                    ?
-                    [
-                        new GameActionOptionResponse(
-                            ActionId: $"activate-support:{card.InstanceId}",
-                            Label: BuildCardEffectOptionLabel(state, card.CardDefinitionId),
-                            IsEnabled: true)
-                    ]
+                    ? BuildSupportAvailableActions(card, state)
                     : [],
 
             PlayerZone.CharacterField =>
@@ -427,6 +426,52 @@ public static class GameStateResponseMapper
 
             _ => []
         };
+    }
+
+    private static IReadOnlyList<GameActionOptionResponse> BuildSupportAvailableActions(CardInstance card, GameState state)
+    {
+        if (!state.CardDefinitions.TryGetValue(card.CardDefinitionId, out var cardDefinition))
+        {
+            return [];
+        }
+
+        var primaryEffect = cardDefinition.Effects.FirstOrDefault();
+        if (primaryEffect is null)
+        {
+            return
+            [
+                new GameActionOptionResponse(
+                    ActionId: $"activate-support:{card.InstanceId}",
+                    Label: EffectTiming.Unspecified.ToString(),
+                    IsEnabled: true)
+            ];
+        }
+
+        var actingPlayerState = state.Players.FirstOrDefault(player =>
+            string.Equals(player.PlayerId, card.ControllerPlayerId, StringComparison.Ordinal));
+
+        if (actingPlayerState is null)
+        {
+            return [];
+        }
+
+        GameInstance? evaluationGame = null;
+        var (isEnabled, disabledReason) = EvaluateEffectAvailability(
+            state,
+            actingPlayerState,
+            cardDefinition,
+            card,
+            primaryEffect,
+            ref evaluationGame);
+
+        return
+        [
+            new GameActionOptionResponse(
+                ActionId: $"activate-support:{card.InstanceId}",
+                Label: BuildEffectOptionLabel(primaryEffect),
+                IsEnabled: isEnabled,
+                DisabledReason: disabledReason)
+        ];
     }
 
     private static bool CanUseHandCardActions(CardInstance card, GameState state)
@@ -636,6 +681,7 @@ public static class GameStateResponseMapper
 
         var labelOrdinals = new Dictionary<string, int>(StringComparer.Ordinal);
         var actions = new List<GameActionOptionResponse>(capacity: candidateEffects.Count);
+        GameInstance? evaluationGame = null;
         foreach (var candidate in candidateEffects)
         {
             var label = candidate.BaseLabel;
@@ -648,11 +694,19 @@ public static class GameStateResponseMapper
             }
 
             var actionId = $"{LeaderEffectActionPrefix}{leader.InstanceId}:{candidate.EffectKey}";
+            var (isEnabled, disabledReason) = EvaluateEffectAvailability(
+                state,
+                player,
+                leaderDefinition,
+                sourceCardInstance: null,
+                candidate.Effect,
+                ref evaluationGame);
+
             actions.Add(new GameActionOptionResponse(
                 ActionId: actionId,
                 Label: label,
-                IsEnabled: true,
-                DisabledReason: null));
+                IsEnabled: isEnabled,
+                DisabledReason: disabledReason));
         }
 
         return actions;
@@ -672,6 +726,108 @@ public static class GameStateResponseMapper
         }
 
         return BuildEffectOptionLabel(primaryEffect);
+    }
+
+    private static (bool IsEnabled, string? DisabledReason) EvaluateEffectAvailability(
+        GameState state,
+        PlayerState player,
+        Card sourceCardDefinition,
+        CardInstance? sourceCardInstance,
+        EffectSpec effectSpec,
+        ref GameInstance? evaluationGame)
+    {
+        if (effectSpec.EffectType == EffectKind.Recovery)
+        {
+            if (player.TurnCount < 2)
+            {
+                return (false, "Recovery can only be activated starting from your second turn.");
+            }
+
+            if (!HasFaceDownChakra(state, player.PlayerId))
+            {
+                return (false, "All chakra cards are already face up.");
+            }
+        }
+
+        if (evaluationGame is null)
+        {
+            try
+            {
+                evaluationGame = new GameInstance(state);
+            }
+            catch (InvalidOperationException)
+            {
+                return (true, null);
+            }
+        }
+
+        var arguments = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (effectSpec.ChakraCost is > 0)
+        {
+            arguments[ReactiveEffectExecutionConstants.SupportActivationChakraCostArgument] =
+                effectSpec.ChakraCost.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        var context = new GameCardEffectContext(
+            game: evaluationGame,
+            actingPlayer: new Player { Id = player.PlayerId },
+            sourceCardDefinition: sourceCardDefinition,
+            sourceCardInstance: sourceCardInstance,
+            arguments: arguments,
+            selectedTargets: []);
+
+        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+        var requiresTargets = RequiresTargets(effectSpec);
+
+        if (!canExecuteResult.CanExecute)
+        {
+            if (requiresTargets)
+            {
+                var resolvedTargets = new EffectTargetResolver().ResolveTargets(context, effectSpec);
+                if (resolvedTargets.Count == 0)
+                {
+                    return (false, "No valid targets available.");
+                }
+            }
+
+            return (false, canExecuteResult.FailedConditions.FirstOrDefault());
+        }
+
+        if (requiresTargets && canExecuteResult.ValidTargets.Count == 0)
+        {
+            return (false, "No valid targets available.");
+        }
+
+        return (true, null);
+    }
+
+    private static bool HasFaceDownChakra(GameState state, string playerId)
+    {
+        var playerIndex = state.Players.FindIndex(player =>
+            string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
+
+        var chakraStates = playerIndex switch
+        {
+            0 => state.Player1CurrentChakras,
+            1 => state.Player2CurrentChakras,
+            _ => null,
+        };
+
+        if (chakraStates is null)
+        {
+            return false;
+        }
+
+        return chakraStates.Any(isFaceUp => !isFaceUp);
+    }
+
+    private static bool RequiresTargets(EffectSpec effectSpec)
+    {
+        var targetRules = effectSpec.TargetRules;
+        return targetRules.Rules.Count > 0
+            || targetRules.ExactTargetCount.HasValue
+            || targetRules.MinimumTargetCount.HasValue
+            || targetRules.MaximumTargetCount.HasValue;
     }
 
     private static string BuildEffectOptionLabel(EffectSpec effectSpec)

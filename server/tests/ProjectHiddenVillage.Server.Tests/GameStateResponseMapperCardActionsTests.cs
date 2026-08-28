@@ -60,6 +60,51 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
+    public void ToGameStateResponse_DisablesSupportEffectAction_WhenNoValidTargetsExist()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var requesterSupportCard = CreateCardInstance("support-1", "card-support", requesterId);
+        var state = BuildState(requesterId, opponentId, supportCards: [requesterSupportCard]);
+        state.Phase = GamePhase.ActionStep;
+        state.ActivePlayerId = opponentId;
+        state.PriorityPlayerId = requesterId;
+
+        var supportDefinition = (CharacterCard)state.CardDefinitions["card-support"];
+        supportDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "support-needs-target",
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                TargetRules = new EffectTargetRuleSet
+                {
+                    ExactTargetCount = 1,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Any,
+                            InZone = PlayerZone.CharacterField,
+                            Restriction = new ZoneCardRestriction(),
+                        }
+                    ]
+                }
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.SupportZone[0].AvailableActions.Count);
+        Assert.IsFalse(requester.SupportZone[0].AvailableActions[0].IsEnabled);
+        Assert.AreEqual("No valid targets available.", requester.SupportZone[0].AvailableActions[0].DisabledReason);
+    }
+
+    [TestMethod]
     public void ToGameStateResponse_DoesNotMapCardActions_WhilePromptIsPending()
     {
         var requesterId = Guid.NewGuid().ToString("N");
@@ -276,6 +321,7 @@ public sealed class GameStateResponseMapperCardActionsTests
         state.Phase = GamePhase.MainPhase;
         state.ActivePlayerId = requesterId;
         state.PriorityPlayerId = opponentId;
+        state.Players[0].TurnCount = 1;
         var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
         leaderCard.Effects =
         [
@@ -293,6 +339,87 @@ public sealed class GameStateResponseMapperCardActionsTests
 
         Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
         Assert.AreEqual("Recovery", requester.Leader.AvailableActions[0].Label);
+        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
+    Assert.AreEqual("Recovery can only be activated starting from your second turn.", requester.Leader.AvailableActions[0].DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesRecoveryLeaderEffect_WhenAllChakraCardsAreFaceUp()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+        state.TurnNumber = 2;
+        state.Players[0].TurnCount = 2;
+        state.Player1CurrentChakras = [true, true, true, true, true, true];
+
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "leader-recovery",
+                EffectType = EffectKind.Recovery,
+                Timing = EffectTiming.DuringYourMain,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
+        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
+        Assert.AreEqual("All chakra cards are already face up.", requester.Leader.AvailableActions[0].DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesActivateMainLeaderEffect_WhenNoValidTargetsExist()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+        state.TurnNumber = 2;
+
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "leader-main-no-target",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Opponent,
+                            InZone = PlayerZone.CharacterField,
+                            Restriction = new ZoneCardRestriction(),
+                        }
+                    ]
+                }
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
+        Assert.AreEqual("Activate Main", requester.Leader.AvailableActions[0].Label);
+        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
+        Assert.AreEqual("No valid targets available.", requester.Leader.AvailableActions[0].DisabledReason);
     }
 
     [TestMethod]
