@@ -263,7 +263,7 @@ public sealed class GameStateResponseMapperCardActionsTests
         StringAssert.StartsWith(
             requester.Leader.AvailableActions[0].ActionId,
             $"leader-effect:{requester.Leader.InstanceId}:leader-main");
-        Assert.AreEqual("ActivateMain", requester.Leader.AvailableActions[0].Label);
+        Assert.AreEqual("Activate Main", requester.Leader.AvailableActions[0].Label);
     }
 
     [TestMethod]
@@ -293,6 +293,45 @@ public sealed class GameStateResponseMapperCardActionsTests
 
         Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
         Assert.AreEqual("Recovery", requester.Leader.AvailableActions[0].Label);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_SeparatesDuplicateActivateMainLeaderLabels()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "leader-main-a",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+            },
+            new EffectSpec
+            {
+                Id = "leader-main-b",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                RuntimeEffectType = RuntimeEffects.MoveCard,
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(2, requester.Leader.AvailableActions.Count);
+        CollectionAssert.AreEqual(
+            new[] { "Activate Main (1)", "Activate Main (2)" },
+            requester.Leader.AvailableActions.Select(action => action.Label).ToArray());
     }
 
     [TestMethod]

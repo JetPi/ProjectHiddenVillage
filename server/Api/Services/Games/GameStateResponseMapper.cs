@@ -604,8 +604,7 @@ public static class GameStateResponseMapper
             return [];
         }
 
-        var actions = new List<GameActionOptionResponse>();
-
+        var candidateEffects = new List<(EffectSpec Effect, int Index, string EffectKey, string BaseLabel)>();
         foreach (var entry in leaderDefinition.Effects.Select((effect, index) => new { Effect = effect, Index = index }))
         {
             if (!IsLeaderEffectTimingAvailable(entry.Effect.Timing, state, player.PlayerId))
@@ -614,10 +613,44 @@ public static class GameStateResponseMapper
             }
 
             var effectKey = ResolveEffectKey(entry.Effect, entry.Index);
-            var actionId = $"{LeaderEffectActionPrefix}{leader.InstanceId}:{effectKey}";
+            var baseLabel = BuildEffectOptionLabel(entry.Effect);
+            candidateEffects.Add((entry.Effect, entry.Index, effectKey, baseLabel));
+        }
+
+        if (candidateEffects.Count == 0)
+        {
+            return [];
+        }
+
+        var labelCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var candidate in candidateEffects)
+        {
+            if (labelCounts.TryGetValue(candidate.BaseLabel, out var currentCount))
+            {
+                labelCounts[candidate.BaseLabel] = currentCount + 1;
+                continue;
+            }
+
+            labelCounts[candidate.BaseLabel] = 1;
+        }
+
+        var labelOrdinals = new Dictionary<string, int>(StringComparer.Ordinal);
+        var actions = new List<GameActionOptionResponse>(capacity: candidateEffects.Count);
+        foreach (var candidate in candidateEffects)
+        {
+            var label = candidate.BaseLabel;
+            if (labelCounts[label] > 1)
+            {
+                labelOrdinals.TryGetValue(label, out var currentOrdinal);
+                var nextOrdinal = currentOrdinal + 1;
+                labelOrdinals[label] = nextOrdinal;
+                label = $"{label} ({nextOrdinal})";
+            }
+
+            var actionId = $"{LeaderEffectActionPrefix}{leader.InstanceId}:{candidate.EffectKey}";
             actions.Add(new GameActionOptionResponse(
                 ActionId: actionId,
-                Label: BuildEffectOptionLabel(entry.Effect),
+                Label: label,
                 IsEnabled: true,
                 DisabledReason: null));
         }
@@ -647,8 +680,39 @@ public static class GameStateResponseMapper
         {
             EffectKind.Recovery => nameof(EffectKind.Recovery),
             EffectKind.Support => nameof(EffectKind.Support),
-            _ => effectSpec.Timing.ToString(),
+            _ => BuildTimingLabel(effectSpec.Timing),
         };
+    }
+
+    private static string BuildTimingLabel(EffectTiming timing)
+    {
+        var rawLabel = timing.ToString();
+        if (string.IsNullOrEmpty(rawLabel))
+        {
+            return rawLabel;
+        }
+
+        var builder = new System.Text.StringBuilder(rawLabel.Length + 8);
+
+        for (var index = 0; index < rawLabel.Length; index++)
+        {
+            var currentCharacter = rawLabel[index];
+
+            if (index > 0 && char.IsUpper(currentCharacter))
+            {
+                var previousCharacter = rawLabel[index - 1];
+                var nextCharacterIsLower = index + 1 < rawLabel.Length && char.IsLower(rawLabel[index + 1]);
+
+                if (char.IsLower(previousCharacter) || nextCharacterIsLower)
+                {
+                    builder.Append(' ');
+                }
+            }
+
+            builder.Append(currentCharacter);
+        }
+
+        return builder.ToString();
     }
 
     private static bool IsLeaderEffectTimingAvailable(EffectTiming timing, GameState state, string actingPlayerId)
