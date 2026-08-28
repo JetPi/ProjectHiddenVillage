@@ -409,7 +409,7 @@ public static class GameStateResponseMapper
                     [
                         new GameActionOptionResponse(
                             ActionId: $"activate-support:{card.InstanceId}",
-                            Label: "Activate",
+                            Label: BuildCardEffectOptionLabel(state, card.CardDefinitionId),
                             IsEnabled: true)
                     ]
                     : [],
@@ -617,7 +617,7 @@ public static class GameStateResponseMapper
             var actionId = $"{LeaderEffectActionPrefix}{leader.InstanceId}:{effectKey}";
             actions.Add(new GameActionOptionResponse(
                 ActionId: actionId,
-                Label: BuildLeaderEffectLabel(entry.Effect, entry.Index),
+                Label: BuildEffectOptionLabel(entry.Effect),
                 IsEnabled: true,
                 DisabledReason: null));
         }
@@ -625,13 +625,30 @@ public static class GameStateResponseMapper
         return actions;
     }
 
-    private static string BuildLeaderEffectLabel(EffectSpec effectSpec, int effectIndex)
+    private static string BuildCardEffectOptionLabel(GameState state, string cardDefinitionId)
     {
-        var effectId = string.IsNullOrWhiteSpace(effectSpec.Id)
-            ? $"Effect {effectIndex + 1}"
-            : effectSpec.Id;
+        if (!state.CardDefinitions.TryGetValue(cardDefinitionId, out var cardDefinition))
+        {
+            return EffectTiming.Unspecified.ToString();
+        }
 
-        return $"Leader: {effectId}";
+        var primaryEffect = cardDefinition.Effects.FirstOrDefault();
+        if (primaryEffect is null)
+        {
+            return EffectTiming.Unspecified.ToString();
+        }
+
+        return BuildEffectOptionLabel(primaryEffect);
+    }
+
+    private static string BuildEffectOptionLabel(EffectSpec effectSpec)
+    {
+        return effectSpec.EffectType switch
+        {
+            EffectKind.Recovery => nameof(EffectKind.Recovery),
+            EffectKind.Support => nameof(EffectKind.Support),
+            _ => effectSpec.Timing.ToString(),
+        };
     }
 
     private static bool IsLeaderEffectTimingAvailable(EffectTiming timing, GameState state, string actingPlayerId)

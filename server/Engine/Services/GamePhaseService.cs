@@ -124,42 +124,17 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
         }
 
         var firstRequestedPlayerId = GetNextPlayerId(instance.State, instance.State.ActivePlayerId);
-        var orderedPlayerIds = BuildPromptOrderStartingWith(instance.State, firstRequestedPlayerId);
-
-        foreach (var playerId in orderedPlayerIds)
+        instance.EnqueuePrompt(new GamePrompt
         {
-            instance.EnqueuePrompt(new GamePrompt
-            {
-                RequestedPlayerId = playerId,
-                Type = GamePromptType.Mulligan,
-                Options = ["mulligan", "noMulligan"]
-            });
+            RequestedPlayerId = firstRequestedPlayerId,
+            Type = GamePromptType.Mulligan,
+            Options = ["mulligan", "noMulligan"]
+        });
 
-            LogAction(
-                instance,
-                actionType: "mulligan_prompted",
-                playerId: playerId);
-        }
-    }
-
-    private static IReadOnlyList<string> BuildPromptOrderStartingWith(GameState state, string firstPlayerId)
-    {
-        var firstIndex = state.Players.FindIndex(player =>
-            string.Equals(player.PlayerId, firstPlayerId, StringComparison.Ordinal));
-
-        if (firstIndex < 0)
-        {
-            throw new InvalidOperationException($"Player '{firstPlayerId}' was not found in turn order.");
-        }
-
-        var ordered = new List<string>(capacity: state.Players.Count);
-        for (var offset = 0; offset < state.Players.Count; offset++)
-        {
-            var index = (firstIndex + offset) % state.Players.Count;
-            ordered.Add(state.Players[index].PlayerId);
-        }
-
-        return ordered;
+        LogAction(
+            instance,
+            actionType: "mulligan_prompted",
+            playerId: firstRequestedPlayerId);
     }
 
     private static string GetNextPlayerId(GameState state, string currentPlayerId)

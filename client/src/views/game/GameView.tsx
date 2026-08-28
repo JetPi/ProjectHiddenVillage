@@ -11,6 +11,7 @@ import {
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IGameLoaderData } from '@/views/game/types/routeData'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
+import { fetchGameCards } from '@/services/api/gameApi'
 import type { IGameViewAnimController } from '@/views/game/types/hooks'
 import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from '@/views/game/hooks/useGameViewEffects'
 import { useDerivedGameViewState } from '@/views/game/hooks/useDerivedGameViewState'
@@ -69,6 +70,8 @@ export function GameView() {
       isInitialized: false,
     },
   })
+  const isCardCatalogRefreshInFlightRef = useRef(false)
+  const lastRequestedMissingCardIdsKeyRef = useRef('')
   const [bottomHandFaceUpByInstanceId, setBottomHandFaceUpByInstanceId] = useState<Record<string, boolean>>({})
   const [isMulliganAnimationPending, setIsMulliganAnimationPending] = useState(false)
   const [pendingSetSupportCardInstanceId, setPendingSetSupportCardInstanceId] = useState<string | null>(null)
@@ -86,6 +89,8 @@ export function GameView() {
   }, [bottomHandAutoAnimateRef])
   
   const { joinCode, gameCards, gameState: initialGameState } = useLoaderData() as IGameLoaderData
+  const [liveGameCards, setLiveGameCards] = useState<IGameLoaderData['gameCards']>(gameCards)
+
   const {
     gameState,
     isConnected,
@@ -96,7 +101,94 @@ export function GameView() {
 
   const players = gameState.players
 
-  const derivedGameState = useDerivedGameViewState(gameCards, players, authUserId)
+  useEffect(() => {
+    const knownCardIds = new Set(liveGameCards.map((card) => card.id.trim().toLowerCase()))
+    const referencedCardIds = new Set<string>()
+
+    for (const player of players) {
+      const leaderCardDefinitionId = player.leader?.cardDefinitionId?.trim().toLowerCase()
+      if (leaderCardDefinitionId) {
+        referencedCardIds.add(leaderCardDefinitionId)
+      }
+
+      const allCardInstances = [
+        ...player.deck,
+        ...player.hand,
+        ...player.characterField,
+        ...player.supportZone,
+        ...player.trash,
+        ...player.exileZone,
+      ]
+
+      for (const cardInstance of allCardInstances) {
+        const normalizedCardId = cardInstance.cardDefinitionId.trim().toLowerCase()
+        if (normalizedCardId) {
+          referencedCardIds.add(normalizedCardId)
+        }
+      }
+    }
+
+    const missingCardIds = [...referencedCardIds]
+      .filter((cardId) => !knownCardIds.has(cardId))
+      .sort()
+
+    if (missingCardIds.length === 0) {
+      lastRequestedMissingCardIdsKeyRef.current = ''
+      return
+    }
+
+    const missingCardIdsKey = missingCardIds.join('|')
+    if (lastRequestedMissingCardIdsKeyRef.current === missingCardIdsKey || isCardCatalogRefreshInFlightRef.current) {
+      return
+    }
+
+    let cancelled = false
+    isCardCatalogRefreshInFlightRef.current = true
+    lastRequestedMissingCardIdsKeyRef.current = missingCardIdsKey
+
+    void fetchGameCards(joinCode)
+      .then((freshCards) => {
+        if (cancelled) {
+          return
+        }
+
+        setLiveGameCards((previousCards) => {
+          const mergedById = new Map<string, IGameLoaderData['gameCards'][number]>()
+
+          for (const card of previousCards) {
+            const normalizedCardId = card.id.trim().toLowerCase()
+            if (!normalizedCardId) {
+              continue
+            }
+
+            mergedById.set(normalizedCardId, card)
+          }
+
+          for (const card of freshCards) {
+            const normalizedCardId = card.id.trim().toLowerCase()
+            if (!normalizedCardId) {
+              continue
+            }
+
+            mergedById.set(normalizedCardId, card)
+          }
+
+          return Array.from(mergedById.values())
+        })
+      })
+      .catch(() => {
+        // Live catalog refresh is best effort and must not block gameplay rendering.
+      })
+      .finally(() => {
+        isCardCatalogRefreshInFlightRef.current = false
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [joinCode, liveGameCards, players])
+
+  const derivedGameState = useDerivedGameViewState(liveGameCards, players, authUserId)
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
   const topHandCards = useMemo(() => derivedGameState.opponentPlayer?.hand ?? [], [derivedGameState.opponentPlayer?.hand])
   const bottomHandCards = useMemo(() => derivedGameState.currentPlayer?.hand ?? [], [derivedGameState.currentPlayer?.hand])
@@ -110,7 +202,7 @@ export function GameView() {
   const topLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(topLeaderCard))
   const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
 
-  useCardCatalogPreload(gameCards)
+  useCardCatalogPreload(liveGameCards)
 
   useEffect(() => {
     if (!import.meta.env.DEV) {

@@ -30,6 +30,7 @@ public sealed class GameStateResponseMapperCardActionsTests
 
         Assert.AreEqual(1, requester.SupportZone[0].AvailableActions.Count);
         Assert.AreEqual("activate-support:support-1", requester.SupportZone[0].AvailableActions[0].ActionId);
+        Assert.AreEqual("Support", requester.SupportZone[0].AvailableActions[0].Label);
 
         Assert.AreEqual(1, requester.CharacterField[0].AvailableActions.Count);
         Assert.AreEqual("battle-action:battle-1", requester.CharacterField[0].AvailableActions[0].ActionId);
@@ -262,6 +263,36 @@ public sealed class GameStateResponseMapperCardActionsTests
         StringAssert.StartsWith(
             requester.Leader.AvailableActions[0].ActionId,
             $"leader-effect:{requester.Leader.InstanceId}:leader-main");
+        Assert.AreEqual("ActivateMain", requester.Leader.AvailableActions[0].Label);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_UsesRecoveryLabel_ForLeaderRecoveryEffects()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "leader-recovery",
+                EffectType = EffectKind.Recovery,
+                Timing = EffectTiming.DuringYourMain,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
+        Assert.AreEqual("Recovery", requester.Leader.AvailableActions[0].Label);
     }
 
     [TestMethod]
@@ -379,7 +410,7 @@ public sealed class GameStateResponseMapperCardActionsTests
 
     private static CharacterCard CreateCharacterDefinition(string id, string displayName)
     {
-        return new CharacterCard
+        var card = new CharacterCard
         {
             Id = id,
             DisplayName = displayName,
@@ -391,6 +422,22 @@ public sealed class GameStateResponseMapperCardActionsTests
             Damage = 1,
             Power = 2
         };
+
+        if (string.Equals(id, "card-support", StringComparison.Ordinal))
+        {
+            card.Effects =
+            [
+                new EffectSpec
+                {
+                    Id = "support-primary",
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.Quick,
+                    RuntimeEffectType = RuntimeEffects.AlterResources,
+                }
+            ];
+        }
+
+        return card;
     }
 
     private static CharacterCard CreateSupportCapableCharacterDefinition(string id, string displayName)
