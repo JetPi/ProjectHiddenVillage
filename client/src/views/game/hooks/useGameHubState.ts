@@ -10,7 +10,9 @@ import {
   declarePassInActionStep,
   disconnectGameHub,
   executeCardAction,
+  getCardActionTargets,
   getCurrentGameState,
+  onGameParticipantJoined,
   onGameStateInvalidated,
   resolvePrompt,
   subscribeToGame,
@@ -18,10 +20,23 @@ import {
   type IHubOperationResult,
 } from '@/services/api/gameHubApi'
 import type { IGameStateResponse } from '@/services/api/gameApi'
+import type { IGameCardActionTargetsResponse } from '@/services/api/types/gameHub'
 import { useGameHubStore } from '@/state/gameHubStore'
 import type { ISubmitHubIntentRequest, IUseGameHubStateResult } from '@/views/game/types/hub'
 
 function resolveHubErrorMessage(result: IHubOperationResult<IGameStateResponse>): string {
+  if (result.errorDescription) {
+    return result.errorDescription
+  }
+
+  if (result.errorCode) {
+    return result.errorCode
+  }
+
+  return 'Hub operation failed.'
+}
+
+function resolveGenericHubErrorMessage(result: IHubOperationResult<unknown>): string {
   if (result.errorDescription) {
     return result.errorDescription
   }
@@ -97,6 +112,7 @@ function useGameHubState(
 
     let isDisposed = false
     let disposeInvalidationHandler = () => {}
+    let disposeParticipantJoinedHandler = () => {}
 
     async function connectAndSubscribe(): Promise<void> {
       try {
@@ -111,6 +127,14 @@ function useGameHubState(
         }
 
         disposeInvalidationHandler = onGameStateInvalidated(nextConnection, (updatedGameId) => {
+          if (updatedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
+            return
+          }
+
+          void refreshCurrentGameState(nextConnection)
+        })
+
+        disposeParticipantJoinedHandler = onGameParticipantJoined(nextConnection, (updatedGameId) => {
           if (updatedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
             return
           }
@@ -141,6 +165,7 @@ function useGameHubState(
       isDisposed = true
       resetConnectionState()
       disposeInvalidationHandler()
+      disposeParticipantJoinedHandler()
       connectionRef.current = null
 
       void (async () => {
@@ -254,6 +279,50 @@ function useGameHubState(
     [authUserId, gameId, gameState, setActionError, setActionPending, setGameState],
   )
 
+  const getCardActionTargetsForRequest = useCallback(
+    async (request: {
+      actionId: string
+      sourceCardInstanceId: string
+      arguments?: Record<string, string>
+    }) => {
+      const currentConnection = connectionRef.current
+
+      if (!currentConnection || currentConnection.state !== HubConnectionState.Connected) {
+        setActionError('Game hub is not connected.')
+        return null
+      }
+
+      if (!authUserId) {
+        setActionError('You must be logged in to perform this action.')
+        return null
+      }
+
+      try {
+        const result = await getCardActionTargets(
+          currentConnection,
+          gameId,
+          authUserId,
+          request.actionId,
+          request.sourceCardInstanceId,
+          request.arguments,
+        )
+
+        if (!result.succeeded || !result.value) {
+          setActionError(resolveGenericHubErrorMessage(result as IHubOperationResult<unknown>))
+          return null
+        }
+
+        setActionError(null)
+        return result.value as IGameCardActionTargetsResponse
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to fetch card action targets.'
+        setActionError(message)
+        return null
+      }
+    },
+    [authUserId, gameId, setActionError],
+  )
+
   return useMemo(
     () => ({
       gameState,
@@ -262,8 +331,17 @@ function useGameHubState(
       connectionError,
       actionError,
       submitHubIntent,
+      getCardActionTargets: getCardActionTargetsForRequest,
     }),
-    [actionError, connectionError, gameState, isActionPending, isConnected, submitHubIntent],
+    [
+      actionError,
+      connectionError,
+      gameState,
+      getCardActionTargetsForRequest,
+      isActionPending,
+      isConnected,
+      submitHubIntent,
+    ],
   )
 }
 

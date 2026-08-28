@@ -123,11 +123,10 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
             return;
         }
 
-        var secondPlayerId = GetNextPlayerId(instance.State, instance.State.ActivePlayerId);
-
+        var firstRequestedPlayerId = GetNextPlayerId(instance.State, instance.State.ActivePlayerId);
         instance.EnqueuePrompt(new GamePrompt
         {
-            RequestedPlayerId = secondPlayerId,
+            RequestedPlayerId = firstRequestedPlayerId,
             Type = GamePromptType.Mulligan,
             Options = ["mulligan", "noMulligan"]
         });
@@ -135,7 +134,7 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
         LogAction(
             instance,
             actionType: "mulligan_prompted",
-            playerId: secondPlayerId);
+            playerId: firstRequestedPlayerId);
     }
 
     private static string GetNextPlayerId(GameState state, string currentPlayerId)

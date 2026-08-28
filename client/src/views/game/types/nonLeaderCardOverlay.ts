@@ -10,6 +10,7 @@ export type INonLeaderCardOverlayProps = {
   zone: ICardOverlayZone
   visibilityMode: ICardOverlayVisibilityMode
   actionOptions: IGameActionOptionResponse[]
+  showEmptyActionMessage?: boolean
   suppressActionFallback?: boolean
   isConnected: boolean
   isActionPending: boolean

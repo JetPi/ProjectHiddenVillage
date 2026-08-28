@@ -10,13 +10,14 @@ public sealed partial class GamesHub
             return;
         }
 
-        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        var normalizedGameId = NormalizeGameId(gameId);
+        var gameResult = GetAuthorizedGameInstance(normalizedGameId, requesterIdResult.Value);
         if (gameResult.IsError)
         {
             return;
         }
 
-        await Groups.AddToGroupAsync(Context.ConnectionId, gameId.Trim());
+        await Groups.AddToGroupAsync(Context.ConnectionId, normalizedGameId);
     }
 
     public async Task UnsubscribeFromGame(string gameId)
@@ -26,6 +27,6 @@ public sealed partial class GamesHub
             return;
         }
 
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, gameId.Trim());
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, NormalizeGameId(gameId));
     }
 }

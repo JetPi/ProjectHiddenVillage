@@ -5,9 +5,11 @@ namespace ProjectHiddenVillage.Server;
 
 public sealed class GamePhaseHandlingService(
     InMemoryGameInstanceRegistry registry,
-    IGameSequentialEffectExecutor sequentialEffectExecutor) : IGamePhaseHandlingService
+    IGameSequentialEffectExecutor sequentialEffectExecutor,
+    IGameEffectCanExecuteEvaluator canExecuteEvaluator) : IGamePhaseHandlingService
 {
     private readonly IGameSequentialEffectExecutor sequentialEffectExecutor = sequentialEffectExecutor;
+    private readonly IGameEffectCanExecuteEvaluator canExecuteEvaluator = canExecuteEvaluator;
 
     public ErrorOr<GameInstance> ResolvePrompt(string gameId, ResolvePromptRequest request)
     {
@@ -46,6 +48,28 @@ public sealed class GamePhaseHandlingService(
         return ExecuteRegistryOperation(
             operationName: "Game.ExecuteCardAction",
             operation: () => registry.ExecuteCardAction(gameId, request, sequentialEffectExecutor));
+    }
+
+    public ErrorOr<GameCardActionTargetsResponse> GetCardActionTargets(string gameId, GameCardActionTargetsRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        try
+        {
+            return registry.GetCardActionTargets(gameId, request, canExecuteEvaluator);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return Error.NotFound(code: "Game.GetCardActionTargets.NotFound", description: ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return Error.Validation(code: "Game.GetCardActionTargets.InvalidRequest", description: ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Error.Validation(code: "Game.GetCardActionTargets.InvalidState", description: ex.Message);
+        }
     }
 
     public ErrorOr<GameInstance> DeclareEndStep(string gameId)

@@ -7,6 +7,9 @@ import type {
   IJoinGameAsPlayerRequest,
 } from '@/services/api/types/game'
 import type {
+  IGameCardActionTargetsRequest,
+  IGameCardActionTargetsResponse,
+  IGameParticipantJoinedHandler,
   IGameCardActionExecutionRequest,
   IGameStateInvalidatedHandler,
   IHubOperationResult,
@@ -15,6 +18,7 @@ import type {
 } from '@/services/api/types/gameHub'
 
 const EVENT_GAME_STATE_INVALIDATED = 'GameStateInvalidated'
+const EVENT_GAME_PARTICIPANT_JOINED = 'GameParticipantJoined'
 const HUB_ENDPOINT_PATH = '/hubs/games'
 const defaultApiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3001'
 const hubBaseUrl = defaultApiBaseUrl.endsWith('/')
@@ -23,6 +27,10 @@ const hubBaseUrl = defaultApiBaseUrl.endsWith('/')
 
 function normalizePlayerId(value: string): string {
   return value.trim().toLowerCase().replace(/-/g, '')
+}
+
+function normalizeGameId(value: string): string {
+  return value.trim().toUpperCase()
 }
 
 function createGameHubConnection(): HubConnection {
@@ -45,7 +53,7 @@ async function invokeHubStateMethod(
   methodName: string,
   gameId: string,
 ): Promise<IHubOperationResult<IGameStateResponse>> {
-  const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(methodName, gameId)
+  const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(methodName, normalizeGameId(gameId))
   return result
 }
 
@@ -76,12 +84,23 @@ function onGameStateInvalidated(
   }
 }
 
+function onGameParticipantJoined(
+  connection: HubConnection,
+  handler: IGameParticipantJoinedHandler,
+): () => void {
+  connection.on(EVENT_GAME_PARTICIPANT_JOINED, handler)
+
+  return () => {
+    connection.off(EVENT_GAME_PARTICIPANT_JOINED, handler)
+  }
+}
+
 async function subscribeToGame(connection: HubConnection, gameId: string): Promise<void> {
-  await connection.invoke('SubscribeToGame', gameId)
+  await connection.invoke('SubscribeToGame', normalizeGameId(gameId))
 }
 
 async function unsubscribeFromGame(connection: HubConnection, gameId: string): Promise<void> {
-  await connection.invoke('UnsubscribeFromGame', gameId)
+  await connection.invoke('UnsubscribeFromGame', normalizeGameId(gameId))
 }
 
 async function getCurrentGameState(
@@ -123,7 +142,7 @@ async function declarePassInActionStep(
 
   const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(
     'DeclarePassInActionStep',
-    gameId,
+    normalizeGameId(gameId),
     payload,
   )
 
@@ -141,7 +160,7 @@ async function declareActionInActionStep(
 
   const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(
     'DeclareActionInActionStep',
-    gameId,
+    normalizeGameId(gameId),
     payload,
   )
 
@@ -161,7 +180,7 @@ async function resolvePrompt(
 
   const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(
     'ResolvePrompt',
-    gameId,
+    normalizeGameId(gameId),
     payload,
   )
 
@@ -187,7 +206,31 @@ async function executeCardAction(
 
   const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(
     'ExecuteCardAction',
-    gameId,
+    normalizeGameId(gameId),
+    payload,
+  )
+
+  return result
+}
+
+async function getCardActionTargets(
+  connection: HubConnection,
+  gameId: string,
+  playerId: string,
+  actionId: string,
+  sourceCardInstanceId: string,
+  executionArguments?: IGameCardActionTargetsRequest['arguments'],
+): Promise<IHubOperationResult<IGameCardActionTargetsResponse>> {
+  const payload: IGameCardActionTargetsRequest = {
+    playerId: normalizePlayerId(playerId),
+    actionId,
+    sourceCardInstanceId,
+    arguments: executionArguments,
+  }
+
+  const result = await connection.invoke<IHubOperationResult<IGameCardActionTargetsResponse>>(
+    'GetCardActionTargets',
+    normalizeGameId(gameId),
     payload,
   )
 
@@ -232,7 +275,7 @@ async function joinGameAsPlayerViaHub(
 
     const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(
       'JoinGame',
-      gameCode,
+      normalizeGameId(gameCode),
       request,
     )
 
@@ -253,6 +296,7 @@ export {
   connectGameHub,
   disconnectGameHub,
   onGameStateInvalidated,
+  onGameParticipantJoined,
   subscribeToGame,
   unsubscribeFromGame,
   getCurrentGameState,
@@ -262,6 +306,7 @@ export {
   resolvePrompt,
   declarePassInActionStep,
   declareActionInActionStep,
+  getCardActionTargets,
   executeCardAction,
   createGameForUserViaHub,
   joinGameAsPlayerViaHub,

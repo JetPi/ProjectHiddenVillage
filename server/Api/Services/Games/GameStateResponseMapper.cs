@@ -6,9 +6,15 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 public static class GameStateResponseMapper
 {
     private static readonly IGamePhaseStateService PhaseStateService = new GamePhaseStateService();
+    private static readonly GameEffectCanExecuteEvaluator LeaderEffectCanExecuteEvaluator = new(
+        new EffectContextConditionEvaluator(),
+        new EffectTargetResolver(),
+        new GameValidTargetResultFactory(),
+        new GameEffectConditionDiagnostics());
     private const string ConcealedCardDefinitionId = "concealed-card";
     private const string SummonToFieldActionPrefix = "summon-to-field:";
     private const string SetSupportActionPrefix = "set-support:";
+    private const string LeaderEffectActionPrefix = "leader-effect:";
 
     public static GameStateResponse ToGameStateResponse(GameInstance game, string requestingPlayerId)
     {
@@ -196,7 +202,7 @@ public static class GameStateResponseMapper
             PlayerId: player.PlayerId,
             TurnCount: player.TurnCount,
             IsSummonCardReady: state.IsSummonCardReady(player.PlayerId),
-            Leader: ToLeaderCardInstanceResponse(player.LeaderCardInstance, state),
+            Leader: ToLeaderCardInstanceResponse(player.LeaderCardInstance, state, player, isRequestingPlayer, pendingPrompt),
             Deck: isRequestingPlayer
                 ? player.Deck.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Deck))
                 : player.Deck
@@ -404,13 +410,7 @@ public static class GameStateResponseMapper
 
             PlayerZone.SupportZone =>
                 CanUseActionStepPriorityActions(card, state)
-                    ?
-                    [
-                        new GameActionOptionResponse(
-                            ActionId: $"activate-support:{card.InstanceId}",
-                            Label: "Activate",
-                            IsEnabled: true)
-                    ]
+                    ? BuildSupportAvailableActions(card, state)
                     : [],
 
             PlayerZone.CharacterField =>
@@ -426,6 +426,52 @@ public static class GameStateResponseMapper
 
             _ => []
         };
+    }
+
+    private static IReadOnlyList<GameActionOptionResponse> BuildSupportAvailableActions(CardInstance card, GameState state)
+    {
+        if (!state.CardDefinitions.TryGetValue(card.CardDefinitionId, out var cardDefinition))
+        {
+            return [];
+        }
+
+        var primaryEffect = cardDefinition.Effects.FirstOrDefault();
+        if (primaryEffect is null)
+        {
+            return
+            [
+                new GameActionOptionResponse(
+                    ActionId: $"activate-support:{card.InstanceId}",
+                    Label: EffectTiming.Unspecified.ToString(),
+                    IsEnabled: true)
+            ];
+        }
+
+        var actingPlayerState = state.Players.FirstOrDefault(player =>
+            string.Equals(player.PlayerId, card.ControllerPlayerId, StringComparison.Ordinal));
+
+        if (actingPlayerState is null)
+        {
+            return [];
+        }
+
+        GameInstance? evaluationGame = null;
+        var (isEnabled, disabledReason) = EvaluateEffectAvailability(
+            state,
+            actingPlayerState,
+            cardDefinition,
+            card,
+            primaryEffect,
+            ref evaluationGame);
+
+        return
+        [
+            new GameActionOptionResponse(
+                ActionId: $"activate-support:{card.InstanceId}",
+                Label: BuildEffectOptionLabel(primaryEffect),
+                IsEnabled: isEnabled,
+                DisabledReason: disabledReason)
+        ];
     }
 
     private static bool CanUseHandCardActions(CardInstance card, GameState state)
@@ -555,11 +601,17 @@ public static class GameStateResponseMapper
             string.Equals(condition, EffectConditionKeywords.Rush, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static LeaderCardInstanceResponse ToLeaderCardInstanceResponse(LeaderCardInstanceState? leader, GameState state)
+    private static LeaderCardInstanceResponse ToLeaderCardInstanceResponse(
+        LeaderCardInstanceState? leader,
+        GameState state,
+        PlayerState player,
+        bool isRequestingPlayer,
+        GamePrompt? pendingPrompt)
     {
         var resolvedPower = leader is null ? 0 : CardRuntimeEffectStateService.ResolveEffectiveLeaderPower(state, leader);
         var resolvedDamage = leader is null ? 0 : CardRuntimeEffectStateService.ResolveEffectiveLeaderDamage(state, leader);
         var resolvedCurrentLife = leader is null ? 0 : CardRuntimeEffectStateService.ResolveEffectiveLeaderCurrentLife(state, leader);
+        var availableActions = BuildLeaderAvailableActions(leader, state, player, isRequestingPlayer, pendingPrompt);
 
         return new LeaderCardInstanceResponse(
             InstanceId: leader!.InstanceId,
@@ -574,6 +626,343 @@ public static class GameStateResponseMapper
             Power: resolvedPower,
             TotalLife: leader!.TotalLife,
             CurrentLife: resolvedCurrentLife,
-            RecoveryEffect: leader!.RecoveryEffect);
+            RecoveryEffect: leader!.RecoveryEffect)
+        {
+            AvailableActions = availableActions
+        };
     }
+
+    private static IReadOnlyList<GameActionOptionResponse> BuildLeaderAvailableActions(
+        LeaderCardInstanceState? leader,
+        GameState state,
+        PlayerState player,
+        bool isRequestingPlayer,
+        GamePrompt? pendingPrompt)
+    {
+        if (!isRequestingPlayer || pendingPrompt is not null || leader is null)
+        {
+            return [];
+        }
+
+        if (!state.CardDefinitions.TryGetValue(leader.CardDefinitionId, out var leaderDefinition))
+        {
+            return [];
+        }
+
+        var candidateEffects = new List<(EffectSpec Effect, int Index, string EffectKey, string BaseLabel)>();
+        foreach (var entry in leaderDefinition.Effects.Select((effect, index) => new { Effect = effect, Index = index }))
+        {
+            if (!IsLeaderEffectTimingAvailable(entry.Effect.Timing, state, player.PlayerId))
+            {
+                continue;
+            }
+
+            var effectKey = ResolveEffectKey(entry.Effect, entry.Index);
+            var baseLabel = BuildEffectOptionLabel(entry.Effect);
+            candidateEffects.Add((entry.Effect, entry.Index, effectKey, baseLabel));
+        }
+
+        if (candidateEffects.Count == 0)
+        {
+            return [];
+        }
+
+        var labelCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var candidate in candidateEffects)
+        {
+            if (labelCounts.TryGetValue(candidate.BaseLabel, out var currentCount))
+            {
+                labelCounts[candidate.BaseLabel] = currentCount + 1;
+                continue;
+            }
+
+            labelCounts[candidate.BaseLabel] = 1;
+        }
+
+        var labelOrdinals = new Dictionary<string, int>(StringComparer.Ordinal);
+        var actions = new List<GameActionOptionResponse>(capacity: candidateEffects.Count);
+        GameInstance? evaluationGame = null;
+        foreach (var candidate in candidateEffects)
+        {
+            var label = candidate.BaseLabel;
+            if (labelCounts[label] > 1)
+            {
+                labelOrdinals.TryGetValue(label, out var currentOrdinal);
+                var nextOrdinal = currentOrdinal + 1;
+                labelOrdinals[label] = nextOrdinal;
+                label = $"{label} ({nextOrdinal})";
+            }
+
+            var actionId = $"{LeaderEffectActionPrefix}{leader.InstanceId}:{candidate.EffectKey}";
+            var (isEnabled, disabledReason) = EvaluateEffectAvailability(
+                state,
+                player,
+                leaderDefinition,
+                sourceCardInstance: null,
+                candidate.Effect,
+                ref evaluationGame);
+
+            actions.Add(new GameActionOptionResponse(
+                ActionId: actionId,
+                Label: label,
+                IsEnabled: isEnabled,
+                DisabledReason: disabledReason));
+        }
+
+        return actions;
+    }
+
+    private static string BuildCardEffectOptionLabel(GameState state, string cardDefinitionId)
+    {
+        if (!state.CardDefinitions.TryGetValue(cardDefinitionId, out var cardDefinition))
+        {
+            return EffectTiming.Unspecified.ToString();
+        }
+
+        var primaryEffect = cardDefinition.Effects.FirstOrDefault();
+        if (primaryEffect is null)
+        {
+            return EffectTiming.Unspecified.ToString();
+        }
+
+        return BuildEffectOptionLabel(primaryEffect);
+    }
+
+    private static (bool IsEnabled, string? DisabledReason) EvaluateEffectAvailability(
+        GameState state,
+        PlayerState player,
+        Card sourceCardDefinition,
+        CardInstance? sourceCardInstance,
+        EffectSpec effectSpec,
+        ref GameInstance? evaluationGame)
+    {
+        if (RequiresTargets(effectSpec)
+            && HasNoCardsInRequiredTargetZones(state, player.PlayerId, effectSpec))
+        {
+            return (false, "No valid targets available.");
+        }
+
+        if (effectSpec.EffectType == EffectKind.Recovery)
+        {
+            if (player.TurnCount < 2)
+            {
+                return (false, "Recovery can only be activated starting from your second turn.");
+            }
+
+            if (!HasFaceDownChakra(state, player.PlayerId))
+            {
+                return (false, "All chakra cards are already face up.");
+            }
+        }
+
+        if (evaluationGame is null)
+        {
+            try
+            {
+                evaluationGame = new GameInstance(state);
+            }
+            catch (InvalidOperationException)
+            {
+                return (true, null);
+            }
+        }
+
+        var arguments = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (effectSpec.ChakraCost is > 0)
+        {
+            arguments[ReactiveEffectExecutionConstants.SupportActivationChakraCostArgument] =
+                effectSpec.ChakraCost.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        var context = new GameCardEffectContext(
+            game: evaluationGame,
+            actingPlayer: new Player { Id = player.PlayerId },
+            sourceCardDefinition: sourceCardDefinition,
+            sourceCardInstance: sourceCardInstance,
+            arguments: arguments,
+            selectedTargets: []);
+
+        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+        var requiresTargets = RequiresTargets(effectSpec);
+
+        if (!canExecuteResult.CanExecute)
+        {
+            if (requiresTargets)
+            {
+                var resolvedTargets = new EffectTargetResolver().ResolveTargets(context, effectSpec);
+                if (resolvedTargets.Count == 0)
+                {
+                    return (false, "No valid targets available.");
+                }
+            }
+
+            return (false, canExecuteResult.FailedConditions.FirstOrDefault());
+        }
+
+        if (requiresTargets && canExecuteResult.ValidTargets.Count == 0)
+        {
+            return (false, "No valid targets available.");
+        }
+
+        return (true, null);
+    }
+
+    private static bool HasFaceDownChakra(GameState state, string playerId)
+    {
+        var playerIndex = state.Players.FindIndex(player =>
+            string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
+
+        var chakraStates = playerIndex switch
+        {
+            0 => state.Player1CurrentChakras,
+            1 => state.Player2CurrentChakras,
+            _ => null,
+        };
+
+        if (chakraStates is null)
+        {
+            return false;
+        }
+
+        return chakraStates.Any(isFaceUp => !isFaceUp);
+    }
+
+    private static bool RequiresTargets(EffectSpec effectSpec)
+    {
+        var targetRules = effectSpec.TargetRules;
+        var hasExplicitTargetRules = targetRules.Rules.Count > 0
+            || targetRules.ExactTargetCount.HasValue
+            || targetRules.MinimumTargetCount.HasValue
+            || targetRules.MaximumTargetCount.HasValue;
+
+        if (hasExplicitTargetRules)
+        {
+            return true;
+        }
+
+        return effectSpec.AttributeModifications.Any(modification =>
+            modification.TargetType == AttributeModificationTargetType.SelectedTargets);
+    }
+
+    private static bool HasNoCardsInRequiredTargetZones(GameState state, string actingPlayerId, EffectSpec effectSpec)
+    {
+        var targetRules = effectSpec.TargetRules;
+        if (targetRules.Rules.Count == 0)
+        {
+            return false;
+        }
+
+        var hasCardsByRule = targetRules.Rules
+            .Select(rule => RuleHasAnyCardsInScope(state, actingPlayerId, rule))
+            .ToArray();
+
+        return targetRules.Operator switch
+        {
+            RequirementGroupOperator.All => hasCardsByRule.Any(hasCards => !hasCards),
+            _ => hasCardsByRule.All(hasCards => !hasCards),
+        };
+    }
+
+    private static bool RuleHasAnyCardsInScope(GameState state, string actingPlayerId, EffectTargetRule rule)
+    {
+        var playersInScope = ResolveTargetPlayersInScope(state, actingPlayerId, rule.Scope);
+        if (playersInScope.Count == 0)
+        {
+            return false;
+        }
+
+        if (rule.InZone == PlayerZone.Leader)
+        {
+            return playersInScope.Any(currentPlayer => currentPlayer.LeaderCardInstance is not null);
+        }
+
+        return playersInScope.Any(currentPlayer =>
+            PlayerZoneCardAccessor.GetCards(rule.InZone, currentPlayer).Count > 0);
+    }
+
+    private static IReadOnlyList<PlayerState> ResolveTargetPlayersInScope(GameState state, string actingPlayerId, EffectTargetRange scope)
+    {
+        return scope switch
+        {
+            EffectTargetRange.Self => state.Players
+                .Where(currentPlayer => string.Equals(currentPlayer.PlayerId, actingPlayerId, StringComparison.Ordinal))
+                .ToList(),
+            EffectTargetRange.Opponent => state.Players
+                .Where(currentPlayer => !string.Equals(currentPlayer.PlayerId, actingPlayerId, StringComparison.Ordinal))
+                .ToList(),
+            EffectTargetRange.Any => state.Players,
+            _ => [],
+        };
+    }
+
+    private static string BuildEffectOptionLabel(EffectSpec effectSpec)
+    {
+        return effectSpec.EffectType switch
+        {
+            EffectKind.Recovery => nameof(EffectKind.Recovery),
+            EffectKind.Support => nameof(EffectKind.Support),
+            _ => BuildTimingLabel(effectSpec.Timing),
+        };
+    }
+
+    private static string BuildTimingLabel(EffectTiming timing)
+    {
+        var rawLabel = timing.ToString();
+        if (string.IsNullOrEmpty(rawLabel))
+        {
+            return rawLabel;
+        }
+
+        var builder = new System.Text.StringBuilder(rawLabel.Length + 8);
+
+        for (var index = 0; index < rawLabel.Length; index++)
+        {
+            var currentCharacter = rawLabel[index];
+
+            if (index > 0 && char.IsUpper(currentCharacter))
+            {
+                var previousCharacter = rawLabel[index - 1];
+                var nextCharacterIsLower = index + 1 < rawLabel.Length && char.IsLower(rawLabel[index + 1]);
+
+                if (char.IsLower(previousCharacter) || nextCharacterIsLower)
+                {
+                    builder.Append(' ');
+                }
+            }
+
+            builder.Append(currentCharacter);
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool IsLeaderEffectTimingAvailable(EffectTiming timing, GameState state, string actingPlayerId)
+    {
+        var isActivePlayer = IsSamePlayerId(state.ActivePlayerId, actingPlayerId);
+        var isPriorityPlayer = IsSamePlayerId(state.PriorityPlayerId, actingPlayerId);
+
+        return timing switch
+        {
+            EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
+                state.Phase == GamePhase.MainPhase && isActivePlayer,
+            EffectTiming.YourTurn => isActivePlayer,
+            EffectTiming.Quick or EffectTiming.SupportActivated =>
+                state.Phase == GamePhase.ActionStep && isPriorityPlayer,
+            EffectTiming.DuringOpponentAttack =>
+                state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep
+                && !isActivePlayer,
+            _ => false,
+        };
+    }
+
+    private static string ResolveEffectKey(EffectSpec effectSpec, int effectIndex)
+    {
+        if (!string.IsNullOrWhiteSpace(effectSpec.Id))
+        {
+            return effectSpec.Id.Trim();
+        }
+
+        return $"index-{effectIndex}";
+    }
+
 }

@@ -26,7 +26,7 @@ public sealed partial class GamesHub
             return HubOperationResult<GameStateResponse>.FromErrors(createResult.Errors);
         }
 
-        var gameId = createResult.Value.Id;
+        var gameId = NormalizeGameId(createResult.Value.Id);
         await Groups.AddToGroupAsync(Context.ConnectionId, gameId);
 
         var stateResponse = GameStateResponseMapper.ToGameStateResponse(createResult.Value, requesterIdResult.Value);
@@ -56,11 +56,12 @@ public sealed partial class GamesHub
             return HubOperationResult<GameStateResponse>.FromErrors(joinResult.Errors);
         }
 
-        var normalizedGameId = joinResult.Value.Id;
+        var normalizedGameId = NormalizeGameId(joinResult.Value.Id);
         await Groups.AddToGroupAsync(Context.ConnectionId, normalizedGameId);
 
         var stateResponse = GameStateResponseMapper.ToGameStateResponse(joinResult.Value, requesterIdResult.Value);
         await Clients.Group(normalizedGameId).SendAsync("GameStateInvalidated", normalizedGameId);
+        await Clients.Group(normalizedGameId).SendAsync("GameParticipantJoined", normalizedGameId);
 
         return HubOperationResult<GameStateResponse>.Success(stateResponse);
     }

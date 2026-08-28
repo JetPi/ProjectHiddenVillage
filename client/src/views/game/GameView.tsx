@@ -11,6 +11,7 @@ import {
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IGameLoaderData } from '@/views/game/types/routeData'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
+import { fetchGameCards } from '@/services/api/gameApi'
 import type { IGameViewAnimController } from '@/views/game/types/hooks'
 import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from '@/views/game/hooks/useGameViewEffects'
 import { useDerivedGameViewState } from '@/views/game/hooks/useDerivedGameViewState'
@@ -69,6 +70,8 @@ export function GameView() {
       isInitialized: false,
     },
   })
+  const isCardCatalogRefreshInFlightRef = useRef(false)
+  const lastRequestedMissingCardIdsKeyRef = useRef('')
   const [bottomHandFaceUpByInstanceId, setBottomHandFaceUpByInstanceId] = useState<Record<string, boolean>>({})
   const [isMulliganAnimationPending, setIsMulliganAnimationPending] = useState(false)
   const [pendingSetSupportCardInstanceId, setPendingSetSupportCardInstanceId] = useState<string | null>(null)
@@ -86,16 +89,106 @@ export function GameView() {
   }, [bottomHandAutoAnimateRef])
   
   const { joinCode, gameCards, gameState: initialGameState } = useLoaderData() as IGameLoaderData
+  const [liveGameCards, setLiveGameCards] = useState<IGameLoaderData['gameCards']>(gameCards)
+
   const {
     gameState,
     isConnected,
     isActionPending,
     submitHubIntent,
+    getCardActionTargets,
   } = useGameHubState(joinCode, initialGameState, authUserId)
 
   const players = gameState.players
 
-  const derivedGameState = useDerivedGameViewState(gameCards, players, authUserId)
+  useEffect(() => {
+    const knownCardIds = new Set(liveGameCards.map((card) => card.id.trim().toLowerCase()))
+    const referencedCardIds = new Set<string>()
+
+    for (const player of players) {
+      const leaderCardDefinitionId = player.leader?.cardDefinitionId?.trim().toLowerCase()
+      if (leaderCardDefinitionId) {
+        referencedCardIds.add(leaderCardDefinitionId)
+      }
+
+      const allCardInstances = [
+        ...player.deck,
+        ...player.hand,
+        ...player.characterField,
+        ...player.supportZone,
+        ...player.trash,
+        ...player.exileZone,
+      ]
+
+      for (const cardInstance of allCardInstances) {
+        const normalizedCardId = cardInstance.cardDefinitionId.trim().toLowerCase()
+        if (normalizedCardId) {
+          referencedCardIds.add(normalizedCardId)
+        }
+      }
+    }
+
+    const missingCardIds = [...referencedCardIds]
+      .filter((cardId) => !knownCardIds.has(cardId))
+      .sort()
+
+    if (missingCardIds.length === 0) {
+      lastRequestedMissingCardIdsKeyRef.current = ''
+      return
+    }
+
+    const missingCardIdsKey = missingCardIds.join('|')
+    if (lastRequestedMissingCardIdsKeyRef.current === missingCardIdsKey || isCardCatalogRefreshInFlightRef.current) {
+      return
+    }
+
+    let cancelled = false
+    isCardCatalogRefreshInFlightRef.current = true
+    lastRequestedMissingCardIdsKeyRef.current = missingCardIdsKey
+
+    void fetchGameCards(joinCode)
+      .then((freshCards) => {
+        if (cancelled) {
+          return
+        }
+
+        setLiveGameCards((previousCards) => {
+          const mergedById = new Map<string, IGameLoaderData['gameCards'][number]>()
+
+          for (const card of previousCards) {
+            const normalizedCardId = card.id.trim().toLowerCase()
+            if (!normalizedCardId) {
+              continue
+            }
+
+            mergedById.set(normalizedCardId, card)
+          }
+
+          for (const card of freshCards) {
+            const normalizedCardId = card.id.trim().toLowerCase()
+            if (!normalizedCardId) {
+              continue
+            }
+
+            mergedById.set(normalizedCardId, card)
+          }
+
+          return Array.from(mergedById.values())
+        })
+      })
+      .catch(() => {
+        // Live catalog refresh is best effort and must not block gameplay rendering.
+      })
+      .finally(() => {
+        isCardCatalogRefreshInFlightRef.current = false
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [joinCode, liveGameCards, players])
+
+  const derivedGameState = useDerivedGameViewState(liveGameCards, players, authUserId)
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
   const topHandCards = useMemo(() => derivedGameState.opponentPlayer?.hand ?? [], [derivedGameState.opponentPlayer?.hand])
   const bottomHandCards = useMemo(() => derivedGameState.currentPlayer?.hand ?? [], [derivedGameState.currentPlayer?.hand])
@@ -109,7 +202,7 @@ export function GameView() {
   const topLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(topLeaderCard))
   const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
 
-  useCardCatalogPreload(gameCards)
+  useCardCatalogPreload(liveGameCards)
 
   useEffect(() => {
     if (!import.meta.env.DEV) {
@@ -129,6 +222,59 @@ export function GameView() {
   const mappedAvailableActions = shouldShowPromptOverlay
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:') && action.actionId !== 'declare-attack')
     : gameState.availableActions.filter((action) => action.actionId !== 'declare-attack')
+
+  const canShowHandNoActionsMessage =
+    Boolean(authUserId)
+    && gameState.phase === 'MainPhase'
+    && gameState.activePlayerId.trim().toLowerCase() === authUserId?.trim().toLowerCase()
+    && !gameState.pendingPrompt
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return
+    }
+
+    const currentPlayerRaw = gameState.players.find((player) =>
+      player.playerId.trim().toLowerCase() === authUserId?.trim().toLowerCase())
+
+    const rawLeaderActions = currentPlayerRaw?.leader?.availableActions ?? []
+    const resolvedLeaderActions = bottomLeaderCard
+      ? resolveCardActionOptionsForInstanceId(
+        mappedAvailableActions,
+        bottomLeaderCard.instanceId,
+        bottomLeaderCard.availableActions,
+      )
+      : []
+
+    const currentPlayerBattlefieldActions = (derivedGameState.currentPlayer?.characterField ?? []).map((card) => ({
+      instanceId: card.instanceId,
+      availableActions: card.availableActions ?? [],
+    }))
+
+    console.log('[GameView][ActionDebug] Leader and battlefield action states', {
+      gameId: gameState.gameId,
+      phase: gameState.phase,
+      turnNumber: gameState.turnNumber,
+      activePlayerId: gameState.activePlayerId,
+      priorityPlayerId: gameState.priorityPlayerId,
+      authUserId,
+      rawLeaderActions,
+      resolvedLeaderActions,
+      currentPlayerBattlefieldActions,
+      globalAvailableActions: mappedAvailableActions,
+    })
+  }, [
+    authUserId,
+    bottomLeaderCard,
+    derivedGameState.currentPlayer?.characterField,
+    gameState.activePlayerId,
+    gameState.gameId,
+    gameState.phase,
+    gameState.players,
+    gameState.priorityPlayerId,
+    gameState.turnNumber,
+    mappedAvailableActions,
+  ])
 
   const passLikeAction = useMemo(
     () => mappedAvailableActions.find((action) =>
@@ -167,7 +313,13 @@ export function GameView() {
     const stillAvailable = stillAvailableInGlobalActions || stillAvailableOnCard
 
     if (!stillAvailable) {
-      setPendingSetSupportCardInstanceId(null)
+      const timeoutId = window.setTimeout(() => {
+        setPendingSetSupportCardInstanceId(null)
+      }, 0)
+
+      return () => {
+        window.clearTimeout(timeoutId)
+      }
     }
   }, [bottomHandCards, mappedAvailableActions, pendingSetSupportCardInstanceId])
 
@@ -205,6 +357,49 @@ export function GameView() {
   })
 
   function submitMappedAction(action: IGameActionOptionResponse): void {
+    if (!action.isEnabled) {
+      return
+    }
+
+    if (action.actionId.startsWith('leader-effect:')) {
+      const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
+      if (!intentRequest || intentRequest.intent !== 'execute-card-action') {
+        return
+      }
+
+      void (async () => {
+        const targetsResponse = await getCardActionTargets({
+          actionId: intentRequest.actionId,
+          sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+        })
+
+        if (!targetsResponse || !targetsResponse.isEnabled) {
+          return
+        }
+
+        const autoSelectedTargets = targetsResponse.validTargets
+        const exactTargetCount = targetsResponse.exactTargetCount
+        const minimumTargetCount = targetsResponse.minimumTargetCount
+
+        if (typeof exactTargetCount === 'number' && autoSelectedTargets.length !== exactTargetCount) {
+          return
+        }
+
+        if (typeof minimumTargetCount === 'number' && autoSelectedTargets.length < minimumTargetCount) {
+          return
+        }
+
+        await submitHubIntent({
+          intent: 'execute-card-action',
+          actionId: intentRequest.actionId,
+          sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+          selectedTargets: autoSelectedTargets,
+        })
+      })()
+
+      return
+    }
+
     if (action.actionId.startsWith('set-support:')) {
       const delimiterIndex = action.actionId.indexOf(':')
       if (delimiterIndex < 0 || delimiterIndex === action.actionId.length - 1) {
@@ -508,6 +703,7 @@ export function GameView() {
                             zone="hand"
                             visibilityMode="hover"
                             actionOptions={cardActionOptions}
+                            showEmptyActionMessage={canShowHandNoActionsMessage}
                             isConnected={isConnected}
                             isActionPending={isActionPending}
                             onSelectActionOption={(actionId) => {

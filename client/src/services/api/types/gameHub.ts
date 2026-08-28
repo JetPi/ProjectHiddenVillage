@@ -28,4 +28,31 @@ export type IGameCardActionExecutionRequest = {
   arguments?: Record<string, string>
 }
 
+export type IGameCardActionTargetsRequest = {
+  playerId: string
+  actionId: string
+  sourceCardInstanceId: string
+  arguments?: Record<string, string>
+}
+
+export type IGameCardActionTargetsResponse = {
+  actionId: string
+  sourceCardInstanceId: string
+  isEnabled: boolean
+  disabledReason: string | null
+  minimumTargetCount: number | null
+  maximumTargetCount: number | null
+  exactTargetCount: number | null
+  autoSelectAllValidTargets: boolean
+  validTargets: Array<{
+    playerId: string
+    zone: string
+    cardInstanceId: string
+    slotId?: string | null
+    isEffectResolutionStackTarget?: boolean
+    effectResolutionEntryId?: string | null
+  }>
+}
+
 export type IGameStateInvalidatedHandler = (gameId: string) => void
+export type IGameParticipantJoinedHandler = (gameId: string) => void

@@ -23,3 +23,9 @@ public sealed record GameCardActionExecutionRequest(
     string SourceCardInstanceId,
     IReadOnlyList<GameEffectTargetReference>? SelectedTargets = null,
     IReadOnlyDictionary<string, string>? Arguments = null);
+
+public sealed record GameCardActionTargetsRequest(
+    string PlayerId,
+    string ActionId,
+    string SourceCardInstanceId,
+    IReadOnlyDictionary<string, string>? Arguments = null);

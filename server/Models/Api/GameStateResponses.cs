@@ -37,6 +37,17 @@ public sealed record GameActionOptionResponse(
     bool IsEnabled,
     string? DisabledReason = null);
 
+public sealed record GameCardActionTargetsResponse(
+    string ActionId,
+    string SourceCardInstanceId,
+    bool IsEnabled,
+    string? DisabledReason,
+    int? MinimumTargetCount,
+    int? MaximumTargetCount,
+    int? ExactTargetCount,
+    bool AutoSelectAllValidTargets,
+    IReadOnlyList<GameEffectTargetReference> ValidTargets);
+
 public sealed record PlayerZonesResponse(
     string PlayerId,
     int TurnCount,

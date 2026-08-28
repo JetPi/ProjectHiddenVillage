@@ -1,5 +1,9 @@
 import type { IGameStateResponse } from '@/services/api/gameApi'
-import type { IGameCardActionExecutionRequest } from '@/services/api/types/gameHub'
+import type {
+  IGameCardActionExecutionRequest,
+  IGameCardActionTargetsRequest,
+  IGameCardActionTargetsResponse,
+} from '@/services/api/types/gameHub'
 
 export type IGameHubActionIntent =
   | 'pass-turn'
@@ -42,4 +46,7 @@ export type IUseGameHubStateResult = {
   connectionError: string | null
   actionError: string | null
   submitHubIntent: (request: ISubmitHubIntentRequest) => Promise<void>
+  getCardActionTargets: (
+    request: Omit<IGameCardActionTargetsRequest, 'playerId'>,
+  ) => Promise<IGameCardActionTargetsResponse | null>
 }

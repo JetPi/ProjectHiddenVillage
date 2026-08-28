@@ -6,6 +6,7 @@ import type {
   RefObject,
   ReactNode,
 } from 'react'
+import type { IGameActionOptionResponse } from '@/services/api/types/game'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import type { IDerivedGameViewState } from '@/views/game/types/viewModels'
 
@@ -111,6 +112,10 @@ export type ILeaderCardProps = {
   placeholderLabel?: string
   showBadgeWhenLifeMissing?: boolean
   previewCard?: ICardCatalogItemResponse | null
+  actionOptions?: IGameActionOptionResponse[]
+  isConnected?: boolean
+  isActionPending?: boolean
+  onSelectActionOption?: (actionId: string) => void
   leaderCard: {
     id: string
     cardDefinitionId: string

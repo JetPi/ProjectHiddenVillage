@@ -53,6 +53,20 @@ function GameZones({
     derivedGameState.cardTypeById,
     derivedGameState.cardById,
   )
+  const topLeaderActionOptions = topLeaderCard
+    ? resolveCardActionOptionsForInstanceId(
+      availableActions,
+      topLeaderCard.instanceId,
+      topLeaderCard.availableActions,
+    )
+    : []
+  const bottomLeaderActionOptions = bottomLeaderCard
+    ? resolveCardActionOptionsForInstanceId(
+      availableActions,
+      bottomLeaderCard.instanceId,
+      bottomLeaderCard.availableActions,
+    )
+    : []
 
   const topSupportCardsBySlotIndex = useMemo(() => {
     const cardsBySlot = new Map<number, ReturnType<typeof resolveNonLeaderCards>[number]>()
@@ -195,6 +209,7 @@ function GameZones({
                   zone={zone}
                   visibilityMode={visibilityMode}
                   actionOptions={actionOptions}
+                  showEmptyActionMessage={isCurrentPlayerZone}
                   suppressActionFallback={!isCurrentPlayerZone}
                   isConnected={isConnected}
                   isActionPending={isActionPending}
@@ -259,6 +274,7 @@ function GameZones({
                 zone="character-field"
                 visibilityMode="hover"
                 actionOptions={actionOptions}
+                showEmptyActionMessage={isCurrentPlayerZone}
                 suppressActionFallback={!isCurrentPlayerZone}
                 isConnected={isConnected}
                 isActionPending={isActionPending}
@@ -308,6 +324,17 @@ function GameZones({
               leaderCard={topLeaderCard}
               previewCard={topLeaderCard ? (derivedGameState.cardById.get(topLeaderCard.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
               showBadgeWhenLifeMissing
+              actionOptions={topLeaderActionOptions}
+              isConnected={isConnected}
+              isActionPending={isActionPending}
+              onSelectActionOption={(actionId) => {
+                const selectedAction = topLeaderActionOptions.find((action) => action.actionId === actionId)
+                if (!selectedAction) {
+                  return
+                }
+
+                onSelectAction(selectedAction)
+              }}
             />
           </div>
         </div>
@@ -330,6 +357,17 @@ function GameZones({
               imageClassName={LEADER_CARD_IMAGE_CLASS}
               leaderCard={bottomLeaderCard}
               previewCard={bottomLeaderCard ? (derivedGameState.cardById.get(bottomLeaderCard.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
+              actionOptions={bottomLeaderActionOptions}
+              isConnected={isConnected}
+              isActionPending={isActionPending}
+              onSelectActionOption={(actionId) => {
+                const selectedAction = bottomLeaderActionOptions.find((action) => action.actionId === actionId)
+                if (!selectedAction) {
+                  return
+                }
+
+                onSelectAction(selectedAction)
+              }}
             />
           </div>
 

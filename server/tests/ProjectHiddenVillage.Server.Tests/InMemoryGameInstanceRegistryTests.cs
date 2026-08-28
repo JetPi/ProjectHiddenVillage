@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ErrorOr;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using ProjectHiddenVillage.Server.Api.Services.Games;
 using ProjectHiddenVillage.Server.Engine;
 using System.Text.RegularExpressions;
 
@@ -521,6 +522,70 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.AreEqual("Only the active player can execute hand card actions.", ex.Message);
     }
 
+    [TestMethod]
+    public void ExecuteCardAction_LeaderEffect_ExecutesSequentialEffect()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
+        game.State.PriorityPlayerId = "p1";
+
+        var leaderInstanceId = game.State.Players[1].LeaderCardInstance!.InstanceId;
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p2",
+            ActionId: $"leader-effect:{leaderInstanceId}:leader-main",
+            SourceCardInstanceId: leaderInstanceId);
+
+        var recordingExecutor = new RecordingSequentialExecutor();
+        registry.ExecuteCardAction(game.Id, request, recordingExecutor);
+
+        Assert.AreEqual(1, recordingExecutor.Contexts.Count);
+        Assert.AreEqual("p2", recordingExecutor.Contexts[0].ActingPlayer.Id);
+    }
+
+    [TestMethod]
+    public void GetCardActionTargets_LeaderEffect_ReturnsPrecomputedTargets()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
+        game.State.PriorityPlayerId = "p1";
+
+        var leaderInstanceId = game.State.Players[1].LeaderCardInstance!.InstanceId;
+        var response = registry.GetCardActionTargets(
+            game.Id,
+            new GameCardActionTargetsRequest(
+                PlayerId: "p2",
+                ActionId: $"leader-effect:{leaderInstanceId}:leader-main",
+                SourceCardInstanceId: leaderInstanceId),
+            new GameEffectCanExecuteEvaluator(
+                new EffectContextConditionEvaluator(),
+                new EffectTargetResolver(),
+                new GameValidTargetResultFactory(),
+                new GameEffectConditionDiagnostics()));
+
+        Assert.AreEqual($"leader-effect:{leaderInstanceId}:leader-main", response.ActionId);
+        Assert.IsTrue(response.IsEnabled);
+    }
+
     private static Dictionary<string, Card> BuildDefinitions(params string[] ids)
     {
         return ids.ToDictionary(
@@ -538,6 +603,46 @@ public sealed class InMemoryGameInstanceRegistryTests
                 Effects = []
             },
             comparer: StringComparer.Ordinal);
+    }
+
+    private static Dictionary<string, Card> BuildDefinitionsWithLeaderEffects()
+    {
+        return new Dictionary<string, Card>(StringComparer.Ordinal)
+        {
+            ["card-1"] = new Card
+            {
+                Id = "card-1",
+                DisplayName = "card-1",
+                Name = ["card-1"],
+                Type = CardType.Character,
+                Traits = [],
+                Color = CardColor.Red,
+                Description = string.Empty,
+                Conditions = [],
+                Effects = []
+            },
+            ["leader-def"] = new LeaderCard
+            {
+                Id = "leader-def",
+                DisplayName = "Leader",
+                Name = ["Leader"],
+                Type = CardType.Leader,
+                Traits = ["Leader"],
+                Color = CardColor.Blue,
+                Life = 5,
+                RecoveryEffect = "Recover 1",
+                Effects =
+                [
+                    new EffectSpec
+                    {
+                        Id = "leader-main",
+                        EffectType = EffectKind.Activated,
+                        Timing = EffectTiming.ActivateMain,
+                        RuntimeEffectType = RuntimeEffects.AlterResources,
+                    }
+                ]
+            }
+        };
     }
 
     private static Dictionary<string, Card> BuildSupportCapableDefinitions(params string[] ids)
