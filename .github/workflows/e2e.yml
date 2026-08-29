@@ -65,6 +65,9 @@ jobs:
       - name: Add .NET tools to PATH
         run: echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
+      - name: Restore server dependencies
+        run: dotnet restore server/ProjectHiddenVillage.Server.csproj
+
       - name: Install root dependencies
         run: npm ci
 
