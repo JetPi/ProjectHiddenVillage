@@ -1,6 +1,7 @@
 name: E2E
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -19,6 +20,26 @@ jobs:
   playwright:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Host=localhost;Port=5432;Database=project_hidden_village_ci;Username=postgres;Password=postgres
+      Jwt__Key: local-dev-e2e-ci-key-for-github-actions-only
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: project_hidden_village_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d project_hidden_village_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
     steps:
       - name: Checkout
@@ -38,11 +59,20 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef --version 10.0.*
+
+      - name: Add .NET tools to PATH
+        run: echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
       - name: Install root dependencies
         run: npm ci
 
       - name: Install client dependencies
         run: npm --prefix client ci
+
+      - name: Apply database migrations
+        run: npm run db:migrate
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
