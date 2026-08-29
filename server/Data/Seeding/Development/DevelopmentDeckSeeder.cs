@@ -5,6 +5,12 @@ namespace ProjectHiddenVillage.Server.Data.Seeding.Development;
 
 public sealed class DevelopmentDeckSeeder
 {
+    private static readonly HashSet<string> PlaceholderLeaderCardIds =
+    [
+        "N-001",
+        "N-012"
+    ];
+
     private static readonly Guid SeedDeckOneId = Guid.Parse("10000000-0000-0000-0000-000000000001");
     private static readonly Guid SeedDeckTwoId = Guid.Parse("10000000-0000-0000-0000-000000000002");
 
@@ -111,11 +117,32 @@ public sealed class DevelopmentDeckSeeder
 
             if (missingCardIds.Count > 0)
             {
-                logger.LogWarning(
-                    "Skipping seed deck {DeckId}. Unknown card id(s): {MissingCardIds}",
-                    seedDeck.DeckId,
-                    string.Join(", ", missingCardIds));
-                continue;
+                await SeedPlaceholderCatalogEntriesAsync(missingCardIds, cancellationToken);
+
+                catalogEntries = await dbContext.CardCatalogEntries
+                    .AsNoTracking()
+                    .Where(entry => requestedCardIds.Contains(entry.CardId.ToUpper()))
+                    .Select(entry => new { entry.Id, entry.CardId, entry.Type })
+                    .ToListAsync(cancellationToken);
+
+                catalogByCardId = catalogEntries.ToDictionary(
+                    keySelector: entry => entry.CardId.ToUpperInvariant(),
+                    elementSelector: entry => entry.Id,
+                    comparer: StringComparer.Ordinal);
+
+                missingCardIds = requestedCardIds
+                    .Where(cardId => !catalogByCardId.ContainsKey(cardId))
+                    .OrderBy(cardId => cardId, StringComparer.Ordinal)
+                    .ToList();
+
+                if (missingCardIds.Count > 0)
+                {
+                    logger.LogWarning(
+                        "Skipping seed deck {DeckId}. Unknown card id(s) remained after placeholder seed attempt: {MissingCardIds}",
+                        seedDeck.DeckId,
+                        string.Join(", ", missingCardIds));
+                    continue;
+                }
             }
 
             var prohibitedCardIds = catalogEntries
@@ -154,6 +181,67 @@ public sealed class DevelopmentDeckSeeder
                 deck.Id,
                 deck.Cards.Count);
         }
+    }
+
+    private async Task SeedPlaceholderCatalogEntriesAsync(
+        IReadOnlyList<string> missingCardIds,
+        CancellationToken cancellationToken)
+    {
+        if (missingCardIds.Count == 0)
+        {
+            return;
+        }
+
+        var utcNow = DateTimeOffset.UtcNow;
+
+        foreach (var cardId in missingCardIds)
+        {
+            var normalizedCardId = cardId.Trim().ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(normalizedCardId))
+            {
+                continue;
+            }
+
+            if (await dbContext.CardCatalogEntries
+                .AsNoTracking()
+                .AnyAsync(entry => entry.CardId.ToUpper() == normalizedCardId, cancellationToken))
+            {
+                continue;
+            }
+
+            var isLeader = PlaceholderLeaderCardIds.Contains(normalizedCardId);
+
+            dbContext.CardCatalogEntries.Add(new CardCatalogEntry
+            {
+                CardId = normalizedCardId,
+                OriginalId = normalizedCardId,
+                DisplayName = normalizedCardId,
+                Image = $"https://example.com/cards/{normalizedCardId}.webp",
+                Type = isLeader ? CardType.Leader : CardType.Character,
+                Color = CardColor.NotApplicable,
+                Description = "Development placeholder card entry for deterministic local and CI seeding.",
+                NameJson = $"[\"{normalizedCardId}\"]",
+                TraitsJson = "[]",
+                ConditionsJson = "[]",
+                EffectsJson = "[]",
+                Damage = 0,
+                Power = 0,
+                Life = isLeader ? 15 : null,
+                Health = isLeader ? null : 1,
+                SupportName = string.Empty,
+                SupportEffect = string.Empty,
+                MainAlternate = false,
+                CannotBeNormalSummoned = false,
+                CreatedAtUtc = utcNow,
+                UpdatedAtUtc = utcNow,
+            });
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        logger.LogWarning(
+            "Seeded placeholder catalog entries for missing development deck card ids: {CardIds}",
+            string.Join(", ", missingCardIds));
     }
 
     private sealed record SeedDeckDefinition(
