@@ -7,4 +7,5 @@ export type IGamePhaseActionRowProps = {
   isConnected: boolean
   isActionPending: boolean
   onSelectAction: (action: IGameActionOptionResponse) => void
+  phaseTestId?: string
 }

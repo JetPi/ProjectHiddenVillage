@@ -5,17 +5,26 @@
   "scripts": {
     "dev:prepare": "sh -c 'fuser -k 3001/tcp 2>/dev/null || true; fuser -k 5173/tcp 2>/dev/null || true; fuser -k 5174/tcp 2>/dev/null || true'",
     "dev": "npm run dev:prepare && concurrently -n client,server -c cyan,green \"npm --prefix client run dev\" \"ASPNETCORE_ENVIRONMENT=Development DOTNET_ENVIRONMENT=Development dotnet watch --project server/ProjectHiddenVillage.Server.csproj run --urls http://127.0.0.1:3001\"",
+    "e2e:prepare": "npm run dev:prepare",
+    "e2e:start:client": "npm --prefix client run dev -- --host 127.0.0.1 --port 5173 --strictPort",
+    "e2e:start:server": "ASPNETCORE_ENVIRONMENT=Development DOTNET_ENVIRONMENT=Development dotnet run --project server/ProjectHiddenVillage.Server.csproj --urls http://127.0.0.1:3001",
+    "e2e:start": "npm run e2e:prepare && concurrently -n client,server -c cyan,green \"npm run e2e:start:client\" \"npm run e2e:start:server\"",
     "dev:prod": "npm run dev:prepare && concurrently -n client,server -c cyan,green \"npm --prefix client run dev\" \"dotnet watch --project server/ProjectHiddenVillage.Server.csproj run --urls http://127.0.0.1:3001\"",
     "lint": "npm run lint:client",
     "lint:client": "npm --prefix client run lint",
     "typecheck": "npm run typecheck:client",
     "typecheck:client": "npm --prefix client run typecheck",
     "build": "dotnet build server/ProjectHiddenVillage.Server.csproj && npm --prefix client run build",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report",
     "db:migration:add": "sh -c 'if [ -z \"$npm_config_name\" ]; then echo \"Missing required --name argument. Example: npm run db:migration:add --name=AddUsers\"; exit 1; fi; dotnet ef migrations add \"$npm_config_name\" --project server/ProjectHiddenVillage.Server.csproj --startup-project server/ProjectHiddenVillage.Server.csproj'",
     "db:migrate": "dotnet ef database update --project server/ProjectHiddenVillage.Server.csproj --startup-project server/ProjectHiddenVillage.Server.csproj",
     "db:migrate:to": "sh -c 'if [ -z \"$npm_config_name\" ]; then echo \"Missing required --name argument. Example: npm run db:migrate:to --name=InitialCreate (or --name=0 to rollback all)\"; exit 1; fi; dotnet ef database update \"$npm_config_name\" --project server/ProjectHiddenVillage.Server.csproj --startup-project server/ProjectHiddenVillage.Server.csproj'"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "concurrently": "^9.2.1"
   }
 }

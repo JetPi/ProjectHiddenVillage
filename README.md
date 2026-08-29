@@ -57,6 +57,30 @@ npm run build
 
 This runs backend build first, then frontend build.
 
+## Run GameView e2e tests (Playwright)
+
+From the project root:
+
+```bash
+npm install
+npx playwright install --with-deps chromium
+npm run test:e2e
+```
+
+Helpful modes:
+
+```bash
+npm run test:e2e:ui
+npm run test:e2e:debug
+npm run test:e2e:report
+```
+
+Notes:
+
+- E2E boot uses dedicated non-watch scripts through `npm run e2e:start`.
+- Tests target seeded Development game route `http://127.0.0.1:5173/game/TEST1`.
+- Backend is started with `ASPNETCORE_ENVIRONMENT=Development` for deterministic local seed behavior.
+
 ## Manage EF migrations from root
 
 Create a migration:

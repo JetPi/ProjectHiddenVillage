@@ -618,6 +618,7 @@ export function GameView() {
     <PageShell
       compact
       edgeToEdge
+      data-testid="game-view-root"
       className="pt-0 pb-0 sm:pt-0 sm:pb-0 lg:pt-0 lg:pb-0"
       overlayClassName="opacity-65"
     >
@@ -632,6 +633,7 @@ export function GameView() {
             <GameHandRow
               cards={topHandCards}
               rowRef={setTopHandRowRefs}
+              rowTestId="top-hand-row"
               rowClassName="h-[230%] -translate-y-[62%]"
               renderCard={(card) => (
                 <div
@@ -670,6 +672,7 @@ export function GameView() {
             <GameHandRow
               cards={bottomHandCards}
               rowRef={setBottomHandRowRefs}
+              rowTestId="bottom-hand-row"
               rowClassName="overflow-hidden"
               renderCard={(card) => {
                 const previewCard = derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null
