@@ -53,6 +53,7 @@ function GamePhaseActionRow({
   isConnected,
   isActionPending,
   onSelectAction,
+  phaseTestId,
 }: IGamePhaseActionRowProps) {
   const phaseValue = getPhaseValue(gameInstance, authUserId)
   const phaseThemeClasses = getPhaseThemeClasses(phaseValue)
@@ -85,6 +86,7 @@ function GamePhaseActionRow({
         </div>
 
         <div
+          data-testid={phaseTestId}
           className={`min-w-0 flex-1 rounded-md border border-[var(--border-subtle)] py-0.5 text-center text-[12px] font-extrabold leading-none transition-[max-width,transform,opacity] duration-300 ease-out ${phaseThemeClasses}`}
         >
           <span key={phaseValue} className="phase-indicator-text-swap inline-block">

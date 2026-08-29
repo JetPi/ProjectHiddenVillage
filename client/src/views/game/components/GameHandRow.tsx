@@ -6,6 +6,7 @@ function GameHandRow<TCard>({
   cards,
   rowRef,
   renderCard,
+  rowTestId,
   containerClassName,
   rowClassName,
   cardsContainerClassName,
@@ -17,6 +18,7 @@ function GameHandRow<TCard>({
       <PlayRow className={twMerge('min-h-0 p-0 m-0 min-w-0 flex flex-1 flex-col rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5', rowClassName)}>
         <div
           ref={rowRef}
+          data-testid={rowTestId}
           className={twMerge(
             'flex h-full min-h-0 items-center justify-center gap-px overflow-hidden [&_[data-hand-instance-id]]:h-[100%] [&_[data-hand-instance-id]_*]:outline-none [&_[data-hand-instance-id]_.border]:border-transparent [&_[data-hand-instance-id]_.border]:shadow-none',
             cardsContainerClassName,

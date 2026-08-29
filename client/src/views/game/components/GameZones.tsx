@@ -296,7 +296,11 @@ function GameZones({
 
   return (
     <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-0.5">
-      <div ref={boardZoneRef} className="grid min-h-0 overflow-hidden grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1 rounded-2xl border border-dashed border-[var(--border-subtle)] p-0.5 turn-zone-split">
+      <div
+        ref={boardZoneRef}
+        data-testid="game-board"
+        className="grid min-h-0 overflow-hidden grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1 rounded-2xl border border-dashed border-[var(--border-subtle)] p-0.5 turn-zone-split"
+      >
         <div className="row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
             <PlayPileZone
@@ -347,6 +351,7 @@ function GameZones({
             isConnected={isConnected}
             isActionPending={isActionPending}
             onSelectAction={onSelectAction}
+            phaseTestId="phase-indicator"
           />
         </div>
 
@@ -394,7 +399,10 @@ function GameZones({
 
       <div className="flex flex-col items-end justify-center gap-1">
         {joinCode ? (
-          <div className="mb-1 px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] [writing-mode:vertical-rl] rotate-180">
+          <div
+            data-testid="game-join-code"
+            className="mb-1 px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] [writing-mode:vertical-rl] rotate-180"
+          >
             {joinCode}
           </div>
         ) : null}
@@ -403,6 +411,7 @@ function GameZones({
           <AppButton
             type="button"
             variant="ghost"
+            data-testid="theme-toggle-button"
             onClick={onToggleTheme}
             aria-label="Toggle light and dark mode"
             className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
@@ -418,6 +427,7 @@ function GameZones({
           <AppButton
             type="button"
             variant="ghost"
+            data-testid="pass-turn-button"
             aria-label="Pass turn"
             onClick={onPassTurn}
             disabled={!isConnected || isActionPending}
