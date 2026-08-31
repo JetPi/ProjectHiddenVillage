@@ -41,6 +41,8 @@ public static class GameStateResponseMapper
             ActivePlayerId: state.ActivePlayerId,
             PriorityPlayerId: state.PriorityPlayerId,
             Phase: state.Phase.ToString(),
+            AttackSequenceStage: ResolveAttackSequenceStage(state),
+            IsAttackSequencePending: state.HasPendingAttack,
             PendingPrompt: ToPendingPromptResponse(pendingPrompt, requestingPlayerId),
             AvailableActions: BuildAvailableActions(state, phaseData, requestingPlayerId, pendingPrompt),
             ActiveTemporaryEffects: CardRuntimeEffectStateService
@@ -61,6 +63,23 @@ public static class GameStateResponseMapper
                 .ToList(),
             Players: state.Players
                 .ConvertAll(player => ToPlayerZonesResponse(player, requestingPlayerId, state, pendingPrompt)));
+    }
+
+    private static string? ResolveAttackSequenceStage(GameState state)
+    {
+        if (!state.HasPendingAttack)
+        {
+            return null;
+        }
+
+        return state.Phase switch
+        {
+            GamePhase.AttackDeclaration => "AttackDeclaration",
+            GamePhase.BlockerDeclaration => "EffectDeclaration",
+            GamePhase.ActionStep => "SupportCutIn",
+            GamePhase.AttackResolution => "DamageStep",
+            _ => null,
+        };
     }
 
     private static PendingPromptResponse? ToPendingPromptResponse(GamePrompt? pendingPrompt, string requestingPlayerId)
@@ -649,17 +668,18 @@ public static class GameStateResponseMapper
                 : state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep,
             EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
                 isActivePlayer && state.Phase == GamePhase.MainPhase,
+            EffectTiming.WhenAttacking =>
+                isActivePlayer && state.HasPendingAttack && state.Phase == GamePhase.BlockerDeclaration,
             EffectTiming.YourTurn =>
                 isActivePlayer,
             EffectTiming.Quick =>
                 isActivePlayer
                     ? state.Phase == GamePhase.ActionStep && isPriorityPlayer
-                    : state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration
-                      || (state.Phase == GamePhase.ActionStep && isPriorityPlayer),
+                    : state.HasPendingAttack && state.Phase == GamePhase.ActionStep && isPriorityPlayer,
             EffectTiming.SupportActivated =>
                 state.Phase == GamePhase.ActionStep && isPriorityPlayer,
             EffectTiming.DuringOpponentAttack =>
-                !isActivePlayer && state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep,
+                !isActivePlayer && state.HasPendingAttack && state.Phase == GamePhase.ActionStep,
             _ => false,
         };
     }
@@ -1008,12 +1028,13 @@ public static class GameStateResponseMapper
         {
             EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
                 state.Phase == GamePhase.MainPhase && isActivePlayer,
+            EffectTiming.WhenAttacking =>
+                state.HasPendingAttack && state.Phase == GamePhase.BlockerDeclaration && isActivePlayer,
             EffectTiming.YourTurn => isActivePlayer,
             EffectTiming.Quick or EffectTiming.SupportActivated =>
                 state.Phase == GamePhase.ActionStep && isPriorityPlayer,
             EffectTiming.DuringOpponentAttack =>
-                state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep
-                && !isActivePlayer,
+                state.HasPendingAttack && state.Phase == GamePhase.ActionStep && !isActivePlayer,
             _ => false,
         };
     }

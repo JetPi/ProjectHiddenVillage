@@ -12,7 +12,34 @@ const PhaseValues = {
   'opponent-turn': "Opponent's turn",
   'w-for-opponent-to-choose': 'Waiting for opponent to choose',
   'w-for-opponent-to-mulligan': 'Waiting for opponent to choose mulligan',
+  'attack-declaration': 'Attack Declaration',
+  'effect-declaration': 'Effect Declaration',
+  'support-cut-in': 'Support Cut-In',
+  'damage-step': 'Damage Step',
 }
+
+const AttackSequenceStepMeta = {
+  AttackDeclaration: {
+    stepLabel: 'Step 1/4',
+    detail: 'Attack target has been declared.',
+    owner: 'active',
+  },
+  EffectDeclaration: {
+    stepLabel: 'Step 2/4',
+    detail: 'When Attacking effects can be declared.',
+    owner: 'active',
+  },
+  SupportCutIn: {
+    stepLabel: 'Step 3/4',
+    detail: 'Quick/support responses resolve via priority.',
+    owner: 'priority',
+  },
+  DamageStep: {
+    stepLabel: 'Step 4/4',
+    detail: 'Damage resolves automatically.',
+    owner: 'system',
+  },
+} as const
 
 function getPhaseValue(gameInstance: IGameStateResponse, authUserId?: string): string {
   const normalizedAuthUserId = normalizeId(authUserId)
@@ -24,6 +51,24 @@ function getPhaseValue(gameInstance: IGameStateResponse, authUserId?: string): s
   if (!otherPlayer) {
     return PhaseValues['w-for-players']
   } else {
+    if (gameInstance.isAttackSequencePending && gameInstance.attackSequenceStage) {
+      if (gameInstance.attackSequenceStage === 'AttackDeclaration') {
+        return PhaseValues['attack-declaration']
+      }
+
+      if (gameInstance.attackSequenceStage === 'EffectDeclaration') {
+        return PhaseValues['effect-declaration']
+      }
+
+      if (gameInstance.attackSequenceStage === 'SupportCutIn') {
+        return PhaseValues['support-cut-in']
+      }
+
+      if (gameInstance.attackSequenceStage === 'DamageStep') {
+        return PhaseValues['damage-step']
+      }
+    }
+
     if (gameInstance.pendingPrompt && !gameInstance.pendingPrompt.isAwaitingRequestingPlayer) {
       if (gameInstance.pendingPrompt.type.toLowerCase() === 'mulligan') {
         return PhaseValues['w-for-opponent-to-mulligan']
@@ -46,6 +91,37 @@ function getPhaseThemeClasses(phaseValue: string): string {
   }
 }
 
+function getAttackSequenceGuidance(gameInstance: IGameStateResponse, authUserId?: string): string | null {
+  if (!gameInstance.isAttackSequencePending || !gameInstance.attackSequenceStage) {
+    return null
+  }
+
+  const stage = gameInstance.attackSequenceStage
+  if (!(stage in AttackSequenceStepMeta)) {
+    return null
+  }
+
+  const stageMeta = AttackSequenceStepMeta[stage as keyof typeof AttackSequenceStepMeta]
+  const normalizedAuthUserId = normalizeId(authUserId)
+  const normalizedActivePlayerId = normalizeId(gameInstance.activePlayerId)
+  const normalizedPriorityPlayerId = normalizeId(gameInstance.priorityPlayerId)
+
+  let windowLabel = 'System window'
+  if (stageMeta.owner === 'active') {
+    windowLabel = normalizedAuthUserId.length > 0 && normalizedAuthUserId === normalizedActivePlayerId
+      ? 'Your window'
+      : "Opponent's window"
+  }
+
+  if (stageMeta.owner === 'priority') {
+    windowLabel = normalizedAuthUserId.length > 0 && normalizedAuthUserId === normalizedPriorityPlayerId
+      ? 'Your priority'
+      : "Opponent's priority"
+  }
+
+  return `${stageMeta.stepLabel} - ${windowLabel}. ${stageMeta.detail}`
+}
+
 function GamePhaseActionRow({
   gameInstance,
   authUserId,
@@ -58,6 +134,7 @@ function GamePhaseActionRow({
   const phaseValue = getPhaseValue(gameInstance, authUserId)
   const phaseThemeClasses = getPhaseThemeClasses(phaseValue)
   const hasOptions = availableActions.length > 0
+  const attackSequenceGuidance = getAttackSequenceGuidance(gameInstance, authUserId)
 
   return (
     <div className="grid min-h-0 grid-cols-6">
@@ -87,11 +164,16 @@ function GamePhaseActionRow({
 
         <div
           data-testid={phaseTestId}
-          className={`min-w-0 flex-1 rounded-md border border-[var(--border-subtle)] py-0.5 text-center text-[12px] font-extrabold leading-none transition-[max-width,transform,opacity] duration-300 ease-out ${phaseThemeClasses}`}
+          className={`min-w-0 flex-1 rounded-md border border-[var(--border-subtle)] py-0.5 text-center transition-[max-width,transform,opacity] duration-300 ease-out ${phaseThemeClasses}`}
         >
-          <span key={phaseValue} className="phase-indicator-text-swap inline-block">
+          <span key={phaseValue} className="phase-indicator-text-swap inline-block text-[12px] font-extrabold leading-none">
             {phaseValue}
           </span>
+          {attackSequenceGuidance ? (
+            <p className="mt-0.5 px-1 text-[9px] font-semibold leading-tight opacity-85">
+              {attackSequenceGuidance}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

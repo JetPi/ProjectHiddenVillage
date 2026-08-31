@@ -12,10 +12,10 @@ Last updated: 2026-08-30
 - [x] Opponent-turn support-area-only enforcement
 - [x] Frontend no longer hides declare-attack-style actions
 - [x] Explicit battle target contract required for attack actions
-- [~] Full strict 4-step attack sequence windows (declare/effect/cut-in/damage)
+- [x] Full strict 4-step attack sequence windows (declare/effect/cut-in/damage)
 - [x] Dedicated support cut-in timing windows tied to attack stage
-- [ ] LIFO multi-support chain assertions in attack windows
-- [ ] Frontend explicit sequence/prompt UX for battle stages
+- [x] LIFO multi-support chain assertions in attack windows
+- [x] Frontend explicit sequence/prompt UX for battle stages
 
 ## 1. Source Requirements (from your spec)
 
@@ -108,18 +108,18 @@ Last updated: 2026-08-30
   - Effect declaration
   - Support cut-in
   - Damage step
-- Current implementation now stages attack declaration and defers damage to AttackResolution, and exposes support response windows during attack declaration phases. Remaining work is explicit prompt/action contracts for Effect Declaration and Support Cut-in as named stages so the full strict sequence is formally represented end-to-end.
+- Current implementation now stages attack declaration, maps named sequence stages in API (`AttackDeclaration`, `EffectDeclaration`, `SupportCutIn`, `DamageStep`), defers damage to AttackResolution, and enforces stricter stage-specific legality (`WhenAttacking` in effect declaration stage, `Quick`/response timings in support cut-in stage). Remaining work is deeper chain-resolution assertions tied specifically to those stages.
 
 ### Battle targeting contract
 - Need explicit target-selection contract for battle actions (not fallback behavior).
 - Need stronger server validations tied to declared target context per stage.
 
 ### Support cut-in integration
-- Need dedicated cut-in response window integration with attack sequence stages.
-- Need to guarantee only valid support windows/actions appear at each stage.
+- Dedicated cut-in response window integration with attack sequence stages is implemented.
+- Valid support timing windows are now stage-gated server-side and in action mapping.
 
 ### Full chain-window behavior coverage
-- Need additional tests for multi-support chains in attack windows with strict LIFO resolution assertions.
+- Multi-support attack-window LIFO assertions are implemented with integration coverage using `GameState.EffectResolutionStack` and resolver order checks.
 
 ### UI prompt fidelity
 - Need explicit frontend prompt and phase-sequence representation for:

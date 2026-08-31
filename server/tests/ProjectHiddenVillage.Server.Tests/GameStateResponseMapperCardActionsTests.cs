@@ -73,6 +73,7 @@ public sealed class GameStateResponseMapperCardActionsTests
         state.Phase = GamePhase.ActionStep;
         state.ActivePlayerId = opponentId;
         state.PriorityPlayerId = requesterId;
+        state.HasPendingAttack = true;
 
         var supportDefinition = (CharacterCard)state.CardDefinitions["card-support"];
         supportDefinition.Effects =
@@ -299,7 +300,7 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
-    public void ToGameStateResponse_MapsOpponentSupportActions_InAttackDeclarationWindow()
+    public void ToGameStateResponse_DisablesOpponentSupportActions_InAttackDeclarationWindow()
     {
         var requesterId = Guid.NewGuid().ToString("N");
         var opponentId = Guid.NewGuid().ToString("N");
@@ -317,6 +318,8 @@ public sealed class GameStateResponseMapperCardActionsTests
 
         Assert.AreEqual(1, opponent.SupportZone[0].AvailableActions.Count);
         Assert.AreEqual("activate-support:support-opponent", opponent.SupportZone[0].AvailableActions[0].ActionId);
+        Assert.IsFalse(opponent.SupportZone[0].AvailableActions[0].IsEnabled);
+        Assert.AreEqual("Support timing is not available right now.", opponent.SupportZone[0].AvailableActions[0].DisabledReason);
     }
 
     [TestMethod]
@@ -335,6 +338,100 @@ public sealed class GameStateResponseMapperCardActionsTests
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
         Assert.AreEqual(0, requester.Hand[0].AvailableActions.Count);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_EnablesOpponentQuickSupport_InActionStepCutInWindow()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var opponentSupportCard = CreateCardInstance("support-opponent", "card-support", opponentId);
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            opponentSupportCards: [opponentSupportCard]);
+        state.Phase = GamePhase.ActionStep;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+        state.HasPendingAttack = true;
+
+        var supportDefinition = (CharacterCard)state.CardDefinitions["card-support"];
+        supportDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "support-quick",
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, opponentId);
+        var opponent = response.Players.Single(player => player.PlayerId == opponentId);
+
+        Assert.AreEqual(1, opponent.SupportZone[0].AvailableActions.Count);
+        Assert.IsTrue(opponent.SupportZone[0].AvailableActions[0].IsEnabled);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_EnablesWhenAttackingLeaderEffect_InEffectDeclarationStage()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.BlockerDeclaration;
+        state.ActivePlayerId = requesterId;
+        state.HasPendingAttack = true;
+
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "leader-when-attacking",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.WhenAttacking,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
+        Assert.IsTrue(requester.Leader.AvailableActions[0].IsEnabled);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesWhenAttackingLeaderEffect_WithoutPendingAttack()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.BlockerDeclaration;
+        state.ActivePlayerId = requesterId;
+        state.HasPendingAttack = false;
+
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "leader-when-attacking",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.WhenAttacking,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(0, requester.Leader.AvailableActions.Count);
     }
 
     [TestMethod]

@@ -324,6 +324,294 @@ public sealed class InMemoryGameInstanceRegistryTests
     }
 
     [TestMethod]
+    public void ExecuteCardAction_ActivateSupport_QuickOnOpponentTurn_ThrowsOutsideSupportCutInStage()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildSupportCapableDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.AttackDeclaration;
+        game.State.ActivePlayerId = "p1";
+        game.State.PriorityPlayerId = "p2";
+        game.State.Players[1].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        var quickDefinition = (CharacterCard)game.State.CardDefinitions["card-1"];
+        quickDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "support-quick",
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+            }
+        ];
+
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p2",
+            ActionId: "activate-support:support-1",
+            SourceCardInstanceId: "support-1");
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor()));
+
+        Assert.AreEqual("Support timing is not available right now.", ex.Message);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_ActivateSupport_QuickOnOpponentTurn_AllowsInSupportCutInStage()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildSupportCapableDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.ActionStep;
+        game.State.ActivePlayerId = "p1";
+        game.State.PriorityPlayerId = "p2";
+        game.State.HasPendingAttack = true;
+        game.State.Players[1].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        var quickDefinition = (CharacterCard)game.State.CardDefinitions["card-1"];
+        quickDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "support-quick",
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+            }
+        ];
+
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p2",
+            ActionId: "activate-support:support-1",
+            SourceCardInstanceId: "support-1");
+
+        registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor());
+
+        Assert.AreEqual("p1", game.State.PriorityPlayerId);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_ActivateSupport_QuickOnOpponentTurn_ThrowsWhenNoPendingAttack()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildSupportCapableDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.ActionStep;
+        game.State.ActivePlayerId = "p1";
+        game.State.PriorityPlayerId = "p2";
+        game.State.HasPendingAttack = false;
+        game.State.Players[1].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        var quickDefinition = (CharacterCard)game.State.CardDefinitions["card-1"];
+        quickDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "support-quick",
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+            }
+        ];
+
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p2",
+            ActionId: "activate-support:support-1",
+            SourceCardInstanceId: "support-1");
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor()));
+
+        Assert.AreEqual("Support timing is not available right now.", ex.Message);
+    }
+
+    [TestMethod]
+    public void AttackWindow_MultiSupportStack_ResolvesInLifoOrder_ForOpponentCutIn()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-2", "card-3"] }
+            ],
+            cardDefinitions: BuildSupportCapableDefinitions("card-1", "card-2", "card-3"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.ActionStep;
+        game.State.ActivePlayerId = "p1";
+        game.State.PriorityPlayerId = "p2";
+        game.State.HasPendingAttack = true;
+        game.State.Players[1].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-1",
+            CardDefinitionId = "card-2",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+        game.State.Players[1].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-2",
+            CardDefinitionId = "card-3",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        SetQuickSupportEffect(game.State, "card-2", "stack-alpha");
+        SetQuickSupportEffect(game.State, "card-3", "stack-beta");
+
+        var enqueueExecutor = new StackEnqueueingSequentialExecutor();
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: "activate-support:support-1",
+                SourceCardInstanceId: "support-1"),
+            enqueueExecutor);
+
+        game.State.PriorityPlayerId = "p2";
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: "activate-support:support-2",
+                SourceCardInstanceId: "support-2"),
+            enqueueExecutor);
+
+        Assert.AreEqual(2, game.State.EffectResolutionStack.Count);
+        Assert.AreEqual("stack-alpha", game.State.EffectResolutionStack[0].EffectTypeKey);
+        Assert.AreEqual("stack-beta", game.State.EffectResolutionStack[1].EffectTypeKey);
+
+        var resolutionOrder = new List<string>();
+        var chainResolver = new GameEffectChainResolver(new GameCardEffectRegistry(
+        [
+            new RecordingStackEffect("stack-alpha", resolutionOrder),
+            new RecordingStackEffect("stack-beta", resolutionOrder),
+        ]));
+
+        var result = chainResolver.Resolve(game, actingPlayerId: "p2", new PassiveChainResolutionOptions());
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "stack-beta", "stack-alpha" }, resolutionOrder.ToArray());
+        Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
+    }
+
+    [TestMethod]
+    public void AttackWindow_MultiSupportStack_ResolvesInLifoOrder_ForActivePlayerCutIn()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-2", "card-3"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildSupportCapableDefinitions("card-1", "card-2", "card-3"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.ActionStep;
+        game.State.ActivePlayerId = "p1";
+        game.State.PriorityPlayerId = "p1";
+        game.State.HasPendingAttack = true;
+        game.State.Players[0].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-1",
+            CardDefinitionId = "card-2",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        });
+        game.State.Players[0].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-2",
+            CardDefinitionId = "card-3",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        });
+
+        SetQuickSupportEffect(game.State, "card-2", "stack-gamma");
+        SetQuickSupportEffect(game.State, "card-3", "stack-delta");
+
+        var enqueueExecutor = new StackEnqueueingSequentialExecutor();
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: "activate-support:support-1",
+                SourceCardInstanceId: "support-1"),
+            enqueueExecutor);
+
+        game.State.PriorityPlayerId = "p1";
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: "activate-support:support-2",
+                SourceCardInstanceId: "support-2"),
+            enqueueExecutor);
+
+        Assert.AreEqual(2, game.State.EffectResolutionStack.Count);
+        Assert.AreEqual("stack-gamma", game.State.EffectResolutionStack[0].EffectTypeKey);
+        Assert.AreEqual("stack-delta", game.State.EffectResolutionStack[1].EffectTypeKey);
+
+        var resolutionOrder = new List<string>();
+        var chainResolver = new GameEffectChainResolver(new GameCardEffectRegistry(
+        [
+            new RecordingStackEffect("stack-gamma", resolutionOrder),
+            new RecordingStackEffect("stack-delta", resolutionOrder),
+        ]));
+
+        var result = chainResolver.Resolve(game, actingPlayerId: "p1", new PassiveChainResolutionOptions());
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "stack-delta", "stack-gamma" }, resolutionOrder.ToArray());
+        Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
+    }
+
+    [TestMethod]
     public void GetCardActionTargets_BattleAction_ReturnsLeaderAndRestedCharacterTargets()
     {
         var game = registry.Create(
@@ -926,6 +1214,21 @@ public sealed class InMemoryGameInstanceRegistryTests
             comparer: StringComparer.Ordinal);
     }
 
+    private static void SetQuickSupportEffect(GameState state, string cardDefinitionId, string effectTypeKey)
+    {
+        var supportDefinition = (CharacterCard)state.CardDefinitions[cardDefinitionId];
+        supportDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = effectTypeKey,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+            }
+        ];
+    }
+
     private sealed class FixedIndexRandom(int fixedIndex) : Random
     {
         public override int Next(int maxValue)
@@ -946,6 +1249,49 @@ public sealed class InMemoryGameInstanceRegistryTests
         public ErrorOr<Success> Execute(GameCardEffectContext context)
         {
             Contexts.Add(context);
+            return Result.Success;
+        }
+    }
+
+    private sealed class StackEnqueueingSequentialExecutor : IGameSequentialEffectExecutor
+    {
+        public ErrorOr<Success> Execute(GameCardEffectContext context)
+        {
+            var effectTypeKey = context.SourceCardDefinition.Effects.FirstOrDefault()?.Id;
+            if (string.IsNullOrWhiteSpace(effectTypeKey))
+            {
+                return Result.Success;
+            }
+
+            context.Game.State.EffectResolutionStack.Add(new EffectResolutionStackEntry
+            {
+                SourcePlayerId = context.ActingPlayer.Id,
+                SourceZone = PlayerZone.SupportZone,
+                SourceCardInstanceId = context.SourceCardInstance?.InstanceId ?? string.Empty,
+                EffectTypeKey = effectTypeKey,
+            });
+
+            return Result.Success;
+        }
+    }
+
+    private sealed class RecordingStackEffect(string effectTypeKey, List<string> order) : IGameCardEffect
+    {
+        public string EffectTypeKey => effectTypeKey;
+
+        public CanExecuteResult CanExecute(GameCardEffectContext context)
+        {
+            return new CanExecuteResult { CanExecute = true };
+        }
+
+        public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
+        {
+            return [];
+        }
+
+        public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
+        {
+            order.Add(effectTypeKey);
             return Result.Success;
         }
     }

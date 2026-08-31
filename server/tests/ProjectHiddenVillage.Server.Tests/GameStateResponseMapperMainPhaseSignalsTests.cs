@@ -15,9 +15,39 @@ public sealed class GameStateResponseMapperMainPhaseSignalsTests
 
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
 
+        Assert.IsNull(response.AttackSequenceStage);
+        Assert.IsFalse(response.IsAttackSequencePending);
         Assert.AreEqual(1, response.AvailableActions.Count);
         Assert.IsTrue(response.AvailableActions.Any(action => action.ActionId == "turn-end" && action.Label == "End Turn"));
         Assert.IsFalse(response.AvailableActions.Any(action => action.ActionId == "declare-attack"));
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_AttackDeclaration_MapsAttackSequenceStage()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+        var state = BuildState(GamePhase.AttackDeclaration, requesterId, requesterId, requesterId, opponentId);
+        state.HasPendingAttack = true;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+
+        Assert.AreEqual("AttackDeclaration", response.AttackSequenceStage);
+        Assert.IsTrue(response.IsAttackSequencePending);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_ActionStep_MapsSupportCutInStage_WhenAttackPending()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+        var state = BuildState(GamePhase.ActionStep, requesterId, requesterId, requesterId, opponentId);
+        state.HasPendingAttack = true;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+
+        Assert.AreEqual("SupportCutIn", response.AttackSequenceStage);
+        Assert.IsTrue(response.IsAttackSequencePending);
     }
 
     private static GameState BuildState(

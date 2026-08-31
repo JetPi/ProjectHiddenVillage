@@ -583,6 +583,8 @@ public sealed class InMemoryGameInstanceRegistry
         {
             EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
                 state.Phase == GamePhase.MainPhase && isActivePlayer,
+            EffectTiming.WhenAttacking =>
+                state.HasPendingAttack && state.Phase == GamePhase.BlockerDeclaration && isActivePlayer,
             EffectTiming.YourTurn =>
                 isActivePlayer,
             EffectTiming.Quick =>
@@ -590,8 +592,7 @@ public sealed class InMemoryGameInstanceRegistry
             EffectTiming.SupportActivated =>
                 state.Phase == GamePhase.ActionStep && isPriorityPlayer,
             EffectTiming.DuringOpponentAttack =>
-                state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep
-                && !isActivePlayer,
+                state.HasPendingAttack && state.Phase == GamePhase.ActionStep && !isActivePlayer,
             _ => false,
         };
     }
@@ -1274,17 +1275,18 @@ public sealed class InMemoryGameInstanceRegistry
                 : state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep,
             EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
                 isActivePlayer && state.Phase == GamePhase.MainPhase,
+            EffectTiming.WhenAttacking =>
+                isActivePlayer && state.HasPendingAttack && state.Phase == GamePhase.BlockerDeclaration,
             EffectTiming.YourTurn =>
                 isActivePlayer,
             EffectTiming.Quick =>
                 isActivePlayer
                     ? state.Phase == GamePhase.ActionStep && isPriorityPlayer
-                    : state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration
-                      || (state.Phase == GamePhase.ActionStep && isPriorityPlayer),
+                    : state.HasPendingAttack && state.Phase == GamePhase.ActionStep && isPriorityPlayer,
             EffectTiming.SupportActivated =>
                 state.Phase == GamePhase.ActionStep && isPriorityPlayer,
             EffectTiming.DuringOpponentAttack =>
-                !isActivePlayer && state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep,
+                !isActivePlayer && state.HasPendingAttack && state.Phase == GamePhase.ActionStep,
             _ => false,
         };
     }
