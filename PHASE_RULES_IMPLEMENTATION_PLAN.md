@@ -20,9 +20,9 @@ Last updated: 2026-08-30
 ## 1. Source Requirements (from your spec)
 
 ### Draw phase
-- The player going first draws 1 card.
-- The player going second draws 2 cards.
-- From turn 2 onward, both players draw 2 cards.
+- On global turn 1 (the first player's first turn), the active player draws 1 card.
+- On global turn 2 (the second player's first turn), the active player draws 2 cards.
+- From global turn 3 onward, the active player draws 2 cards each turn.
 
 ### Main phase
 - Normal summons are limited to 1 per turn and use the summon card (resting it consumes the summon).

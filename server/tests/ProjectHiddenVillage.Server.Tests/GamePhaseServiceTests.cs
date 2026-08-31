@@ -41,7 +41,7 @@ public sealed class GamePhaseServiceTests
         var instance = CreateInstance(phase: GamePhase.StartOfMainPhase, activePlayerId: "p1");
         SeedDefinitions(instance.State, "p1-card", 4);
         instance.State.Players[0].Deck.AddRange(CreateDeckCards("p1", "p1-card", 4));
-        instance.State.Players[0].TurnCount = 1;
+        instance.State.TurnNumber = 1;
 
         service.AdvancePhase(instance);
 
@@ -52,12 +52,12 @@ public sealed class GamePhaseServiceTests
     }
 
     [TestMethod]
-    public void AdvancePhase_EnteringDrawPhase_FromSecondTurnOnwardDrawsTwo()
+    public void AdvancePhase_EnteringDrawPhase_SecondPlayerFirstTurnDrawsTwo()
     {
         var instance = CreateInstance(phase: GamePhase.StartOfMainPhase, activePlayerId: "p2");
         SeedDefinitions(instance.State, "p2-card", 5);
         instance.State.Players[1].Deck.AddRange(CreateDeckCards("p2", "p2-card", 5));
-        instance.State.Players[1].TurnCount = 2;
+        instance.State.TurnNumber = 2;
 
         service.AdvancePhase(instance);
 

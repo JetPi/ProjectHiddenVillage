@@ -364,7 +364,8 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
             return;
         }
 
-        var cardsToDraw = activePlayer.TurnCount <= 1 ? 1 : 2;
+        // Only the very first global turn draws one. Every subsequent turn draws two.
+        var cardsToDraw = state.TurnNumber <= 1 ? 1 : 2;
         for (var index = 0; index < cardsToDraw; index++)
         {
             if (activePlayer.Deck.Count == 0)
