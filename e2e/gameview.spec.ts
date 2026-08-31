@@ -109,5 +109,4 @@ test.describe('GameView', () => {
       expect(nextOrder[1]).toBe(firstCardInstanceId)
     })
   })
-
 })
