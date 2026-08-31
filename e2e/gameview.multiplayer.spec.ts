@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import type { APIRequestContext, Browser, BrowserContext, Page } from '@playwright/test'
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 
-const API_BASE_URL = 'http://127.0.0.1:3001'
+const API_BASE_URL = 'http://127.0.0.1:3101'
 const AUTH_STORAGE_KEY = 'phv-auth-session'
 
 const SEEDED_PLAYER_ONE = {

@@ -11,6 +11,7 @@ import {
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IGameLoaderData } from '@/views/game/types/routeData'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
+import type { IAttackFlowLinkState, IAttackTargetingState } from '@/views/game/types/attackTargeting'
 import { fetchGameCards } from '@/services/api/gameApi'
 import type { IGameViewAnimController } from '@/views/game/types/hooks'
 import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from '@/views/game/hooks/useGameViewEffects'
@@ -76,6 +77,9 @@ export function GameView() {
   const [bottomHandFaceUpByInstanceId, setBottomHandFaceUpByInstanceId] = useState<Record<string, boolean>>({})
   const [isMulliganAnimationPending, setIsMulliganAnimationPending] = useState(false)
   const [pendingSetSupportCardInstanceId, setPendingSetSupportCardInstanceId] = useState<string | null>(null)
+  const [pendingAttackTargeting, setPendingAttackTargeting] = useState<IAttackTargetingState | null>(null)
+  const [optimisticRestedByInstanceId, setOptimisticRestedByInstanceId] = useState<Record<string, boolean>>({})
+  const [activeAttackLink, setActiveAttackLink] = useState<IAttackFlowLinkState | null>(null)
   const [topBattlefieldDisplayOrder, setTopBattlefieldDisplayOrder] = useState<string[]>([])
   const [bottomBattlefieldDisplayOrder, setBottomBattlefieldDisplayOrder] = useState<string[]>([])
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
@@ -98,9 +102,11 @@ export function GameView() {
     gameState,
     isConnected,
     isActionPending,
+    actionError,
     submitHubIntent,
     getCardActionTargets,
   } = useGameHubState(joinCode, initialGameState, authUserId)
+  const lastSubmittedAttackSourceRef = useRef<string | null>(null)
 
   const players = gameState.players
 
@@ -368,6 +374,8 @@ export function GameView() {
     [mappedAvailableActions],
   )
 
+  const isBattleActionTargeting = pendingAttackTargeting !== null
+
   const occupiedBottomSupportSlots = useMemo(() => {
     const occupied = new Set<number>()
     const supportCards = derivedGameState.currentPlayer?.supportZone ?? []
@@ -404,6 +412,129 @@ export function GameView() {
       }
     }
   }, [bottomHandCards, mappedAvailableActions, pendingSetSupportCardInstanceId])
+
+  useEffect(() => {
+    if (!pendingAttackTargeting) {
+      return
+    }
+
+    const matchingBattleAction = mappedAvailableActions.find((option) =>
+      option.actionId === pendingAttackTargeting.actionId)
+
+    const sourceCardStillControlledByCurrentPlayer = (derivedGameState.currentPlayer?.characterField ?? []).some((card) =>
+      card.instanceId.trim().toLowerCase() === pendingAttackTargeting.sourceCardInstanceId.trim().toLowerCase())
+
+    const stillAvailable = Boolean(matchingBattleAction?.isEnabled) && sourceCardStillControlledByCurrentPlayer
+
+    if (stillAvailable) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setPendingAttackTargeting(null)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [derivedGameState.currentPlayer?.characterField, mappedAvailableActions, pendingAttackTargeting])
+
+  useEffect(() => {
+    if (!gameState.isAttackSequencePending) {
+      setOptimisticRestedByInstanceId({})
+      setActiveAttackLink(null)
+      lastSubmittedAttackSourceRef.current = null
+      return
+    }
+
+    if (!activeAttackLink) {
+      return
+    }
+
+    const stillExists = gameState.players.some((player) =>
+      player.characterField.some((card) =>
+        card.instanceId.trim().toLowerCase() === activeAttackLink.sourceCardInstanceId.trim().toLowerCase()))
+
+    if (!stillExists) {
+      setActiveAttackLink(null)
+    }
+  }, [activeAttackLink, gameState.isAttackSequencePending, gameState.players])
+
+  useEffect(() => {
+    if (!actionError || gameState.isAttackSequencePending) {
+      return
+    }
+
+    const sourceCardInstanceId = lastSubmittedAttackSourceRef.current
+    if (!sourceCardInstanceId) {
+      return
+    }
+
+    setOptimisticRestedByInstanceId((previous) => {
+      const { [sourceCardInstanceId]: _, ...nextState } = previous
+      return nextState
+    })
+    setActiveAttackLink(null)
+    lastSubmittedAttackSourceRef.current = null
+  }, [actionError, gameState.isAttackSequencePending])
+
+  function beginBattleTargeting(targeting: IAttackTargetingState): void {
+    setPendingSetSupportCardInstanceId(null)
+    setActiveAttackLink(null)
+    setPendingAttackTargeting(targeting)
+  }
+
+  function cancelBattleTargeting(): void {
+    setPendingAttackTargeting(null)
+    setActiveAttackLink(null)
+  }
+
+  function submitBattleTargetSelection(targetCardInstanceId: string): void {
+    if (!pendingAttackTargeting) {
+      return
+    }
+
+    const selectedTarget = pendingAttackTargeting.validTargets.find((target) =>
+      target.cardInstanceId.trim().toLowerCase() === targetCardInstanceId.trim().toLowerCase())
+
+    if (!selectedTarget) {
+      return
+    }
+
+    const intentRequest = mapActionToHubIntent(
+      {
+        actionId: pendingAttackTargeting.actionId,
+        label: 'Battle',
+        isEnabled: true,
+        disabledReason: null,
+      },
+      canResolvePrompt,
+      [selectedTarget],
+    )
+
+    if (!intentRequest || intentRequest.intent !== 'execute-card-action') {
+      return
+    }
+
+    const sourceCardInstanceId = pendingAttackTargeting.sourceCardInstanceId
+    const selectedTargetForLink = selectedTarget
+    lastSubmittedAttackSourceRef.current = sourceCardInstanceId
+    setPendingAttackTargeting(null)
+    setOptimisticRestedByInstanceId((previous) => ({
+      ...previous,
+      [sourceCardInstanceId]: true,
+    }))
+    setActiveAttackLink({
+      sourceCardInstanceId,
+      targetCardInstanceId: selectedTargetForLink.cardInstanceId,
+      targetZone: selectedTargetForLink.zone,
+      targetPlayerId: selectedTargetForLink.playerId,
+    })
+
+    void (async () => {
+      await submitHubIntent(intentRequest)
+    })()
+  }
 
   useHandZoneAnimationEffects({
     topHandInstanceIds,
@@ -534,11 +665,10 @@ export function GameView() {
           return
         }
 
-        await submitHubIntent({
-          intent: 'execute-card-action',
+        beginBattleTargeting({
           actionId: intentRequest.actionId,
           sourceCardInstanceId: intentRequest.sourceCardInstanceId,
-          selectedTargets: [targetsResponse.validTargets[0]],
+          validTargets: targetsResponse.validTargets,
         })
       })()
 
@@ -616,6 +746,10 @@ export function GameView() {
 
     if (pendingSetSupportCardInstanceId) {
       setPendingSetSupportCardInstanceId(null)
+    }
+
+    if (pendingAttackTargeting) {
+      setPendingAttackTargeting(null)
     }
 
     void submitHubIntent(intentRequest)
@@ -792,11 +926,17 @@ export function GameView() {
               authUserId={authUserId}
               availableActions={mappedAvailableActions}
               pendingSetSupportCardInstanceId={pendingSetSupportCardInstanceId}
+              pendingAttackTargeting={pendingAttackTargeting}
+              optimisticRestedByInstanceId={optimisticRestedByInstanceId}
+              activeAttackLink={activeAttackLink}
+              isBattleActionTargeting={isBattleActionTargeting}
               isConnected={isConnected}
               isActionPending={isActionPending}
               onSelectAction={submitMappedAction}
               onSelectSupportSlotForSet={submitSetSupportToSlot}
               onCancelSetSupportSelection={() => setPendingSetSupportCardInstanceId(null)}
+              onSelectAttackTarget={submitBattleTargetSelection}
+              onCancelAttackTargetSelection={cancelBattleTargeting}
               onToggleTheme={toggleTheme}
               onPassTurn={handlePassLikeAction}
             />

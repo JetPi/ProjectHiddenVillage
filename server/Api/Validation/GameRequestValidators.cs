@@ -68,6 +68,11 @@ public sealed class GameCardActionExecutionRequestValidator : AbstractValidator<
                 && parsedSlotIndex < 5)
             .When(request => request.ActionId.StartsWith("set-support:", StringComparison.Ordinal))
             .WithMessage("Set support actions require a valid supportSlotIndex argument between 0 and 4.");
+
+        RuleFor(request => request.SelectedTargets)
+            .Must(selectedTargets => selectedTargets is { Count: > 0 })
+            .When(request => request.ActionId.StartsWith("battle-action:", StringComparison.Ordinal))
+            .WithMessage("Battle actions require selecting an explicit attack target before execution.");
     }
 }
 
