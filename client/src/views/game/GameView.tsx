@@ -198,6 +198,7 @@ export function GameView() {
     activeDraggedInstanceId,
     isReorderDragging,
     getCardPointerHandlers,
+    debugState: handReorderDebugState,
   } = useLongPressHandReorder({
     cards: bottomHandCards,
     rowRef: bottomHandRowRef,
@@ -783,6 +784,19 @@ export function GameView() {
             void handlePromptResolve(selectedOption)
           }}
         />
+
+        {import.meta.env.DEV ? (
+          <div className="pointer-events-none fixed right-2 top-2 z-[500] max-w-[24rem] rounded-md border border-[var(--border-subtle)] bg-black/80 px-2 py-1 text-[10px] text-white shadow-lg">
+            <div className="font-semibold uppercase tracking-[0.08em]">Hand Reorder Debug</div>
+            <div>Cards: {handReorderDebugState.cardsCount}</div>
+            <div>Dragging: {isReorderDragging ? 'yes' : 'no'}</div>
+            <div>Dragged ID: {handReorderDebugState.activeDraggedInstanceId ?? 'none'}</div>
+            <div>Target index: {handReorderDebugState.lastResolvedTargetIndex ?? 'none'}</div>
+            <div>Seen valid lane: {handReorderDebugState.hasSeenValidReorderTarget ? 'yes' : 'no'}</div>
+            <div>Last drop valid: {handReorderDebugState.lastDropWasValid === null ? 'n/a' : (handReorderDebugState.lastDropWasValid ? 'yes' : 'no')}</div>
+            <div className="mt-1 truncate">Order: {handReorderDebugState.displayOrder.join(' | ')}</div>
+          </div>
+        ) : null}
 
       </div>
     </PageShell>
