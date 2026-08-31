@@ -768,6 +768,93 @@ async function resolveActorWithBottomHandAction(
   throw new Error(`No '${actionLabel}' action found in bottom hand after deterministic phase advancement.`)
 }
 
+async function resolvePlayerHandActionWithoutReload(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  player: PlayerAuth,
+): Promise<{ cardInstanceId: string; actionLabel: string }> {
+  const maxCycles = 180
+
+  const resolveHandActionFromState = (state: GameStateResponse, actor: PlayerAuth) => {
+    const actorState = resolvePlayerState(state, actor)
+
+    for (const handCard of actorState.hand) {
+      const availableActions = handCard.availableActions ?? []
+      const matchedAction = availableActions.find((action) => {
+        const normalizedLabel = action.label.trim().toLowerCase()
+        return action.isEnabled && (normalizedLabel === 'summon' || normalizedLabel === 'set support')
+      })
+
+      if (matchedAction) {
+        return {
+          cardInstanceId: handCard.instanceId,
+          actionLabel: matchedAction.label,
+        }
+      }
+    }
+
+    return null
+  }
+
+  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+    const [playerOneState, playerTwoState] = await Promise.all([
+      fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+      fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+    ])
+
+    const targetState = player.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+    const targetPlayerCanUseHandActions =
+      targetState.phase === 'MainPhase'
+      && targetState.pendingPrompt === null
+      && normalizeUserId(targetState.activePlayerId) === player.normalizedUserId
+
+    if (targetPlayerCanUseHandActions) {
+      const resolvedAction = resolveHandActionFromState(targetState, player)
+      if (resolvedAction) {
+        return resolvedAction
+      }
+    }
+
+    const activePlayer = normalizeUserId(playerOneState.activePlayerId) === setup.playerOne.normalizedUserId
+      ? setup.playerOne
+      : setup.playerTwo
+    const activePlayerState = activePlayer.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+
+    const canEndTurn = activePlayerState.availableActions.some((action) => action.actionId === 'turn-end' && action.isEnabled)
+    if (canEndTurn) {
+      await declareEndStepViaHub(setup.gameCode, activePlayer)
+      await completeEndStepViaHub(setup.gameCode, activePlayer)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const playerOneCanPass = playerOneState.availableActions.some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    if (playerOneCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerOne)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const playerTwoCanPass = playerTwoState.availableActions.some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    if (playerTwoCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerTwo)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const canAdvance = activePlayerState.availableActions.some((action) => action.actionId === 'advance-phase' && action.isEnabled)
+    if (!canAdvance) {
+      await new Promise((resolve) => setTimeout(resolve, 350))
+      continue
+    }
+
+    await advancePhaseViaHub(setup.gameCode, activePlayer)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+  }
+
+  throw new Error(`No enabled bottom-hand Summon/Set Support action found for player '${player.userId}' within retry limit.`)
+}
+
 function resolvePlayerState(state: GameStateResponse, player: PlayerAuth): GamePlayerStateResponse {
   const matchedPlayer = state.players.find((entry) => normalizeUserId(entry.playerId) === player.normalizedUserId)
   if (!matchedPlayer) {
@@ -1068,6 +1155,31 @@ test.describe('GameView multiplayer game-start flow', () => {
       }, {
         timeout: 6_000,
       }).toBeGreaterThan(initialAnimationCount)
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  test('joining player receives card options without manual reload', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+
+      await advanceToMulliganPromptIfNeeded(request, setup)
+      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+      const playerTwoAction = await resolvePlayerHandActionWithoutReload(request, setup, setup.playerTwo)
+      const playerTwoCard = pages.playerTwoPage.locator(`[data-testid="bottom-hand-card-${playerTwoAction.cardInstanceId}"]`)
+
+      await expect(playerTwoCard).toBeVisible()
+      await playerTwoCard.hover()
+
+      await expect(playerTwoCard.getByRole('button', { name: new RegExp(`^${playerTwoAction.actionLabel}$`, 'i') })).toBeVisible({ timeout: 10_000 })
+      await expect(playerTwoCard.getByRole('button', { name: new RegExp(`^${playerTwoAction.actionLabel}$`, 'i') })).toBeEnabled()
     } finally {
       await closeMultiplayerPages(pages)
     }
