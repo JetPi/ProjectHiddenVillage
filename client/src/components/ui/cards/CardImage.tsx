@@ -88,6 +88,10 @@ export function CardImage({
         <img
           src={FALLBACK_IMAGE_SRC}
           alt={resolvedFallbackLabel}
+          draggable={false}
+          onDragStart={(event) => {
+            event.preventDefault()
+          }}
           loading="lazy"
           decoding="async"
           className="h-full w-full rounded-xl object-cover"
@@ -101,6 +105,10 @@ export function CardImage({
       {...imageProps}
       src={normalizedSrc}
       alt={alt}
+      draggable={false}
+      onDragStart={(event) => {
+        event.preventDefault()
+      }}
       width={width}
       height={height}
       loading={loading}

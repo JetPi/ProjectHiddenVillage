@@ -16,6 +16,7 @@ import type { IGameViewAnimController } from '@/views/game/types/hooks'
 import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from '@/views/game/hooks/useGameViewEffects'
 import { useDerivedGameViewState } from '@/views/game/hooks/useDerivedGameViewState'
 import { useGameHubState } from '@/views/game/hooks/useGameHubState'
+import { useLongPressHandReorder } from '@/views/game/hooks/useLongPressHandReorder'
 import { GameHandRow } from '@/views/game/components/GameHandRow'
 import { NonLeaderCardOverlay } from '@/views/game/components/NonLeaderCardOverlay'
 import { GameZones } from '@/views/game/components/GameZones'
@@ -192,8 +193,17 @@ export function GameView() {
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
   const topHandCards = useMemo(() => derivedGameState.opponentPlayer?.hand ?? [], [derivedGameState.opponentPlayer?.hand])
   const bottomHandCards = useMemo(() => derivedGameState.currentPlayer?.hand ?? [], [derivedGameState.currentPlayer?.hand])
+  const {
+    orderedCards: orderedBottomHandCards,
+    activeDraggedInstanceId,
+    isReorderDragging,
+    getCardPointerHandlers,
+  } = useLongPressHandReorder({
+    cards: bottomHandCards,
+    rowRef: bottomHandRowRef,
+  })
   const topHandInstanceIds = useMemo(() => topHandCards.map((card) => card.instanceId), [topHandCards])
-  const bottomHandInstanceIds = useMemo(() => bottomHandCards.map((card) => card.instanceId), [bottomHandCards])
+  const bottomHandInstanceIds = useMemo(() => orderedBottomHandCards.map((card) => card.instanceId), [orderedBottomHandCards])
   const topDeckCount = derivedGameState.opponentPlayer?.deckCount ?? 0
   const bottomDeckCount = derivedGameState.currentPlayer?.deckCount ?? 0
   const topTrashCount = derivedGameState.opponentPlayer?.trash.length ?? 0
@@ -508,15 +518,15 @@ export function GameView() {
         }
       }
 
-      runHandToElementAnimation({
+      void runHandToElementAnimation({
         side: 'bottom',
         cardInstanceId,
         destinationElement: summonTargetElement,
         topHandRowRef,
         bottomHandRowRef,
+      }).finally(() => {
+        temporarySummonTargetElement?.remove()
       })
-
-      temporarySummonTargetElement?.remove()
     }
 
     const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
@@ -567,7 +577,7 @@ export function GameView() {
       `[data-zone="support"][data-slot-side="bottom"][data-slot-index="${slotIndex}"][data-slot-card="true"]`,
     ) ?? null
 
-    runHandToElementAnimation({
+    void runHandToElementAnimation({
       side: 'bottom',
       cardInstanceId: pendingSetSupportCardInstanceId,
       destinationElement: supportSlotElement,
@@ -608,7 +618,7 @@ export function GameView() {
     const currentBottomHandInstanceIds = bottomHandCards.map((card) => card.instanceId)
     currentBottomHandInstanceIds.forEach((instanceId, index) => {
       const animationTimeoutId = window.setTimeout(() => {
-        runHandToPileAnimation({
+        void runHandToPileAnimation({
           side: 'bottom',
           destination: 'deck',
           cardInstanceId: instanceId,
@@ -697,10 +707,10 @@ export function GameView() {
             />
 
             <GameHandRow
-              cards={bottomHandCards}
+              cards={orderedBottomHandCards}
               rowRef={setBottomHandRowRefs}
               rowTestId="bottom-hand-row"
-              rowClassName="overflow-hidden"
+              rowClassName="overflow-visible"
               renderCard={(card) => {
                 const previewCard = derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null
                 const cardActionOptions = resolveCardActionOptionsForInstanceId(
@@ -708,12 +718,19 @@ export function GameView() {
                   card.instanceId,
                   card.availableActions,
                 )
+                const cardPointerHandlers = getCardPointerHandlers(card.instanceId)
 
                 return (
                   <div
                     key={`bottom-hand-${card.instanceId}`}
                     data-hand-instance-id={card.instanceId}
-                    className="h-full aspect-[200/277] shrink-0"
+                    data-testid={`bottom-hand-card-${card.instanceId}`}
+                    draggable={false}
+                    onDragStart={(event) => {
+                      event.preventDefault()
+                    }}
+                    className={`h-full aspect-[200/277] shrink-0 select-none ${activeDraggedInstanceId === card.instanceId ? 'z-[260] touch-none' : 'touch-manipulation'}`}
+                    {...cardPointerHandlers}
                   >
                     <FlippableCard
                       isFlipped={bottomHandFaceUpByInstanceId[card.instanceId] ?? true}
@@ -734,6 +751,7 @@ export function GameView() {
                             visibilityMode="hover"
                             actionOptions={cardActionOptions}
                             showEmptyActionMessage={canShowHandNoActionsMessage}
+                            disableInteractions={isReorderDragging}
                             isConnected={isConnected}
                             isActionPending={isActionPending}
                             onSelectActionOption={(actionId) => {

@@ -20,7 +20,7 @@ function GameHandRow<TCard>({
           ref={rowRef}
           data-testid={rowTestId}
           className={twMerge(
-            'flex h-full min-h-0 items-center justify-center gap-px overflow-hidden [&_[data-hand-instance-id]]:h-[100%] [&_[data-hand-instance-id]_*]:outline-none [&_[data-hand-instance-id]_.border]:border-transparent [&_[data-hand-instance-id]_.border]:shadow-none',
+            'flex h-full min-h-0 items-center justify-center gap-px overflow-visible [&_[data-hand-instance-id]]:h-[100%] [&_[data-hand-instance-id]_*]:outline-none [&_[data-hand-instance-id]_.border]:border-transparent [&_[data-hand-instance-id]_.border]:shadow-none',
             cardsContainerClassName,
           )}
         >

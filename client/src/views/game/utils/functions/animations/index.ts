@@ -14,6 +14,114 @@ function resolveHandToElementDurationMs(translateX: number, translateY: number):
   return clamp(rawDuration, MIN_HAND_TO_ELEMENT_DURATION_MS, MAX_HAND_TO_ELEMENT_DURATION_MS)
 }
 
+type IOverflowSnapshot = {
+  element: HTMLElement
+  overflow: string
+  overflowX: string
+  overflowY: string
+}
+
+function resolveOverflowAncestors(startElement: HTMLElement): IOverflowSnapshot[] {
+  const snapshots: IOverflowSnapshot[] = []
+  let current: HTMLElement | null = startElement.parentElement
+
+  while (current && current !== document.body) {
+    const computedStyle = window.getComputedStyle(current)
+    const hasClipping =
+      computedStyle.overflow !== 'visible'
+      || computedStyle.overflowX !== 'visible'
+      || computedStyle.overflowY !== 'visible'
+
+    if (hasClipping) {
+      snapshots.push({
+        element: current,
+        overflow: current.style.overflow,
+        overflowX: current.style.overflowX,
+        overflowY: current.style.overflowY,
+      })
+
+      current.style.overflow = 'visible'
+      current.style.overflowX = 'visible'
+      current.style.overflowY = 'visible'
+    }
+
+    current = current.parentElement
+  }
+
+  return snapshots
+}
+
+function restoreOverflowAncestors(snapshots: IOverflowSnapshot[]): void {
+  snapshots.forEach((snapshot) => {
+    snapshot.element.style.overflow = snapshot.overflow
+    snapshot.element.style.overflowX = snapshot.overflowX
+    snapshot.element.style.overflowY = snapshot.overflowY
+  })
+}
+
+function animateCardEntityToDestination(
+  sourceCardElement: HTMLDivElement,
+  destinationRect: DOMRect,
+  durationMs: number,
+): Promise<void> {
+  const sourceRect = sourceCardElement.getBoundingClientRect()
+
+  if (sourceRect.width <= 0 || sourceRect.height <= 0 || destinationRect.width <= 0 || destinationRect.height <= 0) {
+    return Promise.resolve()
+  }
+
+  const sourceCenterX = sourceRect.left + sourceRect.width / 2
+  const sourceCenterY = sourceRect.top + sourceRect.height / 2
+  const destinationCenterX = destinationRect.left + destinationRect.width / 2
+  const destinationCenterY = destinationRect.top + destinationRect.height / 2
+  const translateX = destinationCenterX - sourceCenterX
+  const translateY = destinationCenterY - sourceCenterY
+
+  const previousTransition = sourceCardElement.style.transition
+  const previousTransform = sourceCardElement.style.transform
+  const previousZIndex = sourceCardElement.style.zIndex
+  const previousPointerEvents = sourceCardElement.style.pointerEvents
+  const previousFilter = sourceCardElement.style.filter
+  const overflowSnapshots = resolveOverflowAncestors(sourceCardElement)
+
+  sourceCardElement.style.zIndex = '260'
+  sourceCardElement.style.pointerEvents = 'none'
+  sourceCardElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
+  sourceCardElement.style.transition = 'none'
+
+  return new Promise<void>((resolve) => {
+    const animation = sourceCardElement.animate(
+      [
+        {
+          transform: 'translate(0px, 0px) scale(1)',
+          opacity: 0.98,
+        },
+        {
+          transform: `translate(${translateX}px, ${translateY}px) scale(0.9)`,
+          opacity: 0.92,
+        },
+      ],
+      {
+        duration: durationMs,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      },
+    )
+
+    const cleanup = () => {
+      sourceCardElement.style.transition = previousTransition
+      sourceCardElement.style.transform = previousTransform
+      sourceCardElement.style.zIndex = previousZIndex
+      sourceCardElement.style.pointerEvents = previousPointerEvents
+      sourceCardElement.style.filter = previousFilter
+      restoreOverflowAncestors(overflowSnapshots)
+      resolve()
+    }
+
+    animation.onfinish = cleanup
+    animation.oncancel = cleanup
+  })
+}
+
 export function runHandToPileAnimation({
   side,
   destination,
@@ -24,7 +132,7 @@ export function runHandToPileAnimation({
   bottomTrashCardRef,
   topHandRowRef,
   bottomHandRowRef,
-}: IHandToPileAnimationArgs): void {
+}: IHandToPileAnimationArgs): Promise<void> {
   const sourceHandRowElement = side === 'top' ? topHandRowRef.current : bottomHandRowRef.current
   const destinationPileElement = destination === 'deck'
     ? side === 'top'
@@ -35,68 +143,18 @@ export function runHandToPileAnimation({
       : bottomTrashCardRef.current
 
   if (!sourceHandRowElement || !destinationPileElement) {
-    return
+    return Promise.resolve()
   }
 
   const sourceCardElement = sourceHandRowElement.querySelector<HTMLDivElement>(
     `[data-hand-instance-id="${cardInstanceId}"]`,
   )
   if (!sourceCardElement) {
-    return
+    return Promise.resolve()
   }
-
-  const sourceRect = sourceCardElement.getBoundingClientRect()
   const destinationRect = destinationPileElement.getBoundingClientRect()
 
-  if (sourceRect.width <= 0 || sourceRect.height <= 0 || destinationRect.width <= 0 || destinationRect.height <= 0) {
-    return
-  }
-
-  const sourceCenterX = sourceRect.left + sourceRect.width / 2
-  const sourceCenterY = sourceRect.top + sourceRect.height / 2
-  const destinationCenterX = destinationRect.left + destinationRect.width / 2
-  const destinationCenterY = destinationRect.top + destinationRect.height / 2
-  const translateX = destinationCenterX - sourceCenterX
-  const translateY = destinationCenterY - sourceCenterY
-
-  const movingCardElement = sourceCardElement.cloneNode(true) as HTMLDivElement
-  movingCardElement.style.position = 'fixed'
-  movingCardElement.style.left = `${sourceCenterX}px`
-  movingCardElement.style.top = `${sourceCenterY}px`
-  movingCardElement.style.width = `${sourceRect.width}px`
-  movingCardElement.style.height = `${sourceRect.height}px`
-  movingCardElement.style.margin = '0'
-  movingCardElement.style.pointerEvents = 'none'
-  movingCardElement.style.zIndex = '220'
-  movingCardElement.style.transform = 'translate(-50%, -50%)'
-  movingCardElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
-
-  document.body.appendChild(movingCardElement)
-
-  const animation = movingCardElement.animate(
-    [
-      {
-        transform: 'translate(-50%, -50%) translate(0px, 0px) scale(1)',
-        opacity: 0.98,
-      },
-      {
-        transform: `translate(-50%, -50%) translate(${translateX}px, ${translateY}px) scale(0.9)`,
-        opacity: 0.92,
-      },
-    ],
-    {
-      duration: 340,
-      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-    },
-  )
-
-  animation.onfinish = () => {
-    movingCardElement.remove()
-  }
-
-  animation.oncancel = () => {
-    movingCardElement.remove()
-  }
+  return animateCardEntityToDestination(sourceCardElement, destinationRect, 340)
 }
 
 export async function waitMillis(durationMs: number): Promise<void> {
@@ -118,69 +176,78 @@ export function runDeckToHandAnimation({
   bottomDeckCardRef,
   topHandRowRef,
   bottomHandRowRef,
-}: IDeckToHandAnimationArgs): void {
+}: IDeckToHandAnimationArgs): Promise<void> {
   const sourceDeckElement = side === 'top' ? topDeckCardRef.current : bottomDeckCardRef.current
   const destinationHandRowElement = side === 'top' ? topHandRowRef.current : bottomHandRowRef.current
 
   if (!sourceDeckElement || !destinationHandRowElement) {
-    return
+    return Promise.resolve()
   }
 
   const destinationCardElement = destinationHandRowElement.querySelector<HTMLDivElement>(
     `[data-hand-instance-id="${cardInstanceId}"]`,
   )
+  if (!destinationCardElement) {
+    return Promise.resolve()
+  }
+
   const sourceRect = sourceDeckElement.getBoundingClientRect()
-  const destinationRect = (destinationCardElement ?? destinationHandRowElement).getBoundingClientRect()
+  const destinationRect = destinationCardElement.getBoundingClientRect()
 
   if (sourceRect.width <= 0 || sourceRect.height <= 0 || destinationRect.width <= 0 || destinationRect.height <= 0) {
-    return
+    return Promise.resolve()
   }
 
   const sourceCenterX = sourceRect.left + sourceRect.width / 2
   const sourceCenterY = sourceRect.top + sourceRect.height / 2
   const destinationCenterX = destinationRect.left + destinationRect.width / 2
   const destinationCenterY = destinationRect.top + destinationRect.height / 2
-  const translateX = destinationCenterX - sourceCenterX
-  const translateY = destinationCenterY - sourceCenterY
+  const fromTranslateX = sourceCenterX - destinationCenterX
+  const fromTranslateY = sourceCenterY - destinationCenterY
 
-  const movingCardElement = sourceDeckElement.cloneNode(true) as HTMLDivElement
-  movingCardElement.style.position = 'fixed'
-  movingCardElement.style.left = `${sourceCenterX}px`
-  movingCardElement.style.top = `${sourceCenterY}px`
-  movingCardElement.style.width = `${sourceRect.width}px`
-  movingCardElement.style.height = `${sourceRect.height}px`
-  movingCardElement.style.margin = '0'
-  movingCardElement.style.pointerEvents = 'none'
-  movingCardElement.style.zIndex = '220'
-  movingCardElement.style.transform = 'translate(-50%, -50%)'
-  movingCardElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
+  const previousTransition = destinationCardElement.style.transition
+  const previousTransform = destinationCardElement.style.transform
+  const previousZIndex = destinationCardElement.style.zIndex
+  const previousPointerEvents = destinationCardElement.style.pointerEvents
+  const previousFilter = destinationCardElement.style.filter
+  const overflowSnapshots = resolveOverflowAncestors(destinationCardElement)
 
-  document.body.appendChild(movingCardElement)
+  destinationCardElement.style.zIndex = '260'
+  destinationCardElement.style.pointerEvents = 'none'
+  destinationCardElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
+  destinationCardElement.style.transition = 'none'
 
-  const animation = movingCardElement.animate(
-    [
+  return new Promise<void>((resolve) => {
+    const animation = destinationCardElement.animate(
+      [
+        {
+          transform: `translate(${fromTranslateX}px, ${fromTranslateY}px) scale(0.92)`,
+          opacity: 0.97,
+        },
+        {
+          transform: 'translate(0px, 0px) scale(1)',
+          opacity: 0.99,
+        },
+      ],
       {
-        transform: 'translate(-50%, -50%) translate(0px, 0px) scale(1)',
-        opacity: 0.97,
+        duration: 420,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
       },
-      {
-        transform: `translate(-50%, -50%) translate(${translateX}px, ${translateY}px) scale(0.92)`,
-        opacity: 0.99,
-      },
-    ],
-    {
-      duration: 420,
-      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-    },
-  )
+    )
 
-  animation.onfinish = () => {
-    movingCardElement.remove()
-  }
+    const cleanup = () => {
+      destinationCardElement.style.transition = previousTransition
+      destinationCardElement.style.transform = previousTransform
+      destinationCardElement.style.zIndex = previousZIndex
+      destinationCardElement.style.pointerEvents = previousPointerEvents
+      destinationCardElement.style.filter = previousFilter
+      restoreOverflowAncestors(overflowSnapshots)
+      resolve()
+    }
 
-  animation.oncancel = () => {
-    movingCardElement.remove()
-  }
+    animation.onfinish = cleanup
+    animation.oncancel = cleanup
+  })
 }
 
 export function runHandToElementAnimation({
@@ -189,27 +256,23 @@ export function runHandToElementAnimation({
   destinationElement,
   topHandRowRef,
   bottomHandRowRef,
-}: IHandToElementAnimationArgs): void {
+}: IHandToElementAnimationArgs): Promise<void> {
   const sourceHandRowElement = side === 'top' ? topHandRowRef.current : bottomHandRowRef.current
 
   if (!sourceHandRowElement || !destinationElement) {
-    return
+    return Promise.resolve()
   }
 
   const sourceCardElement = sourceHandRowElement.querySelector<HTMLDivElement>(
     `[data-hand-instance-id="${cardInstanceId}"]`,
   )
   if (!sourceCardElement) {
-    return
+    return Promise.resolve()
   }
 
-  const sourceRect = sourceCardElement.getBoundingClientRect()
   const destinationRect = destinationElement.getBoundingClientRect()
 
-  if (sourceRect.width <= 0 || sourceRect.height <= 0 || destinationRect.width <= 0 || destinationRect.height <= 0) {
-    return
-  }
-
+  const sourceRect = sourceCardElement.getBoundingClientRect()
   const sourceCenterX = sourceRect.left + sourceRect.width / 2
   const sourceCenterY = sourceRect.top + sourceRect.height / 2
   const destinationCenterX = destinationRect.left + destinationRect.width / 2
@@ -218,42 +281,5 @@ export function runHandToElementAnimation({
   const translateY = destinationCenterY - sourceCenterY
   const animationDurationMs = resolveHandToElementDurationMs(translateX, translateY)
 
-  const movingCardElement = sourceCardElement.cloneNode(true) as HTMLDivElement
-  movingCardElement.style.position = 'fixed'
-  movingCardElement.style.left = `${sourceCenterX}px`
-  movingCardElement.style.top = `${sourceCenterY}px`
-  movingCardElement.style.width = `${sourceRect.width}px`
-  movingCardElement.style.height = `${sourceRect.height}px`
-  movingCardElement.style.margin = '0'
-  movingCardElement.style.pointerEvents = 'none'
-  movingCardElement.style.zIndex = '220'
-  movingCardElement.style.transform = 'translate(-50%, -50%)'
-  movingCardElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
-
-  document.body.appendChild(movingCardElement)
-
-  const animation = movingCardElement.animate(
-    [
-      {
-        transform: 'translate(-50%, -50%) translate(0px, 0px) scale(1)',
-        opacity: 0.98,
-      },
-      {
-        transform: `translate(-50%, -50%) translate(${translateX}px, ${translateY}px) scale(0.9)`,
-        opacity: 0.92,
-      },
-    ],
-    {
-      duration: animationDurationMs,
-      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-    },
-  )
-
-  animation.onfinish = () => {
-    movingCardElement.remove()
-  }
-
-  animation.oncancel = () => {
-    movingCardElement.remove()
-  }
+  return animateCardEntityToDestination(sourceCardElement, destinationRect, animationDurationMs)
 }
