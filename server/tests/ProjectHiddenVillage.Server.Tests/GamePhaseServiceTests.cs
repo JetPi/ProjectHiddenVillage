@@ -29,8 +29,43 @@ public sealed class GamePhaseServiceTests
     {
         var instance = CreateInstance(phase: GamePhase.EndStep, activePlayerId: "p1");
 
-        var ex = Assert.ThrowsException<InvalidOperationException>(() => service.AdvancePhase(instance));
-        Assert.AreEqual("Use CompleteEndStep to advance from EndStep.", ex.Message);
+        var advanced = service.AdvancePhase(instance);
+
+        Assert.AreEqual(GamePhase.StartOfMainPhase, advanced.PhaseName);
+        Assert.AreEqual(GamePhase.StartOfMainPhase, instance.State.Phase);
+    }
+
+    [TestMethod]
+    public void AdvancePhase_EnteringDrawPhase_FirstTurnPlayerDrawsOne()
+    {
+        var instance = CreateInstance(phase: GamePhase.StartOfMainPhase, activePlayerId: "p1");
+        SeedDefinitions(instance.State, "p1-card", 4);
+        instance.State.Players[0].Deck.AddRange(CreateDeckCards("p1", "p1-card", 4));
+        instance.State.Players[0].TurnCount = 1;
+
+        service.AdvancePhase(instance);
+
+        Assert.AreEqual(GamePhase.DrawPhase, instance.State.Phase);
+        Assert.AreEqual(3, instance.State.Players[0].Deck.Count);
+        Assert.AreEqual(1, instance.State.Players[0].Hand.Count);
+        Assert.AreEqual("p1-card-1", instance.State.Players[0].Hand[0].CardDefinitionId);
+    }
+
+    [TestMethod]
+    public void AdvancePhase_EnteringDrawPhase_FromSecondTurnOnwardDrawsTwo()
+    {
+        var instance = CreateInstance(phase: GamePhase.StartOfMainPhase, activePlayerId: "p2");
+        SeedDefinitions(instance.State, "p2-card", 5);
+        instance.State.Players[1].Deck.AddRange(CreateDeckCards("p2", "p2-card", 5));
+        instance.State.Players[1].TurnCount = 2;
+
+        service.AdvancePhase(instance);
+
+        Assert.AreEqual(GamePhase.DrawPhase, instance.State.Phase);
+        Assert.AreEqual(3, instance.State.Players[1].Deck.Count);
+        Assert.AreEqual(2, instance.State.Players[1].Hand.Count);
+        Assert.AreEqual("p2-card-1", instance.State.Players[1].Hand[0].CardDefinitionId);
+        Assert.AreEqual("p2-card-2", instance.State.Players[1].Hand[1].CardDefinitionId);
     }
 
     [TestMethod]

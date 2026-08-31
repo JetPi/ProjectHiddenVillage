@@ -125,6 +125,265 @@ public sealed class InMemoryGameInstanceRegistryTests
     }
 
     [TestMethod]
+    public void AdvancePhase_AutoEndsMainPhase_WhenNoLegalActionsRemain()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.DrawPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].TurnCount = 2;
+        game.State.Players[0].Deck.Clear();
+        game.State.Players[0].Hand.Clear();
+        game.State.Players[0].Battlefield.Clear();
+        game.State.SetSummonCardReady("p1", false);
+
+        registry.AdvancePhase(game.Id);
+        registry.AdvancePhase(game.Id);
+
+        Assert.AreEqual(GamePhase.StartOfMainPhase, game.State.Phase);
+        Assert.AreEqual("p2", game.State.ActivePlayerId);
+        Assert.AreEqual(2, game.State.TurnNumber);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_BattleAction_AttacksLeaderAndRestsAttacker()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "attacker-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = false,
+            DamageOverride = 2,
+        });
+
+        var startingLife = game.State.Players[1].LeaderCardInstance!.CurrentLife;
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p1",
+            ActionId: "battle-action:attacker-1",
+            SourceCardInstanceId: "attacker-1",
+            SelectedTargets:
+            [
+                new GameEffectTargetReference(
+                    PlayerId: "p2",
+                    Zone: PlayerZone.Leader,
+                    CardInstanceId: game.State.Players[1].LeaderCardInstance!.InstanceId)
+            ]);
+
+        registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor());
+
+        Assert.IsTrue(game.State.Players[0].Battlefield[0].IsRested);
+        Assert.AreEqual(startingLife, game.State.Players[1].LeaderCardInstance!.CurrentLife);
+        Assert.AreEqual(GamePhase.AttackDeclaration, game.State.Phase);
+        Assert.IsTrue(game.State.HasPendingAttack);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_BattleAction_ThrowsWithoutExplicitTarget()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "attacker-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = false,
+        });
+
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p1",
+            ActionId: "battle-action:attacker-1",
+            SourceCardInstanceId: "attacker-1");
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor()));
+
+        Assert.AreEqual("Battle actions require an explicit defender target.", ex.Message);
+    }
+
+    [TestMethod]
+    public void AdvancePhase_AttackResolution_AppliesPendingLeaderDamage()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "attacker-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = false,
+            DamageOverride = 2,
+        });
+
+        var startingLife = game.State.Players[1].LeaderCardInstance!.CurrentLife;
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: "battle-action:attacker-1",
+                SourceCardInstanceId: "attacker-1",
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.Leader,
+                        CardInstanceId: game.State.Players[1].LeaderCardInstance!.InstanceId)
+                ]),
+            new RecordingSequentialExecutor());
+
+        Assert.AreEqual(GamePhase.AttackDeclaration, game.State.Phase);
+        Assert.AreEqual(startingLife, game.State.Players[1].LeaderCardInstance!.CurrentLife);
+
+        registry.AdvancePhase(game.Id); // AttackDeclaration -> BlockerDeclaration
+        registry.AdvancePhase(game.Id); // BlockerDeclaration -> ActionStep
+        registry.DeclarePassInActionStep(game.Id, "p1");
+        registry.DeclarePassInActionStep(game.Id, "p2"); // enters AttackResolution
+
+        Assert.AreEqual(GamePhase.AttackResolution, game.State.Phase);
+        Assert.AreEqual(startingLife - 2, game.State.Players[1].LeaderCardInstance!.CurrentLife);
+        Assert.IsFalse(game.State.HasPendingAttack);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_ActivateSupport_FromHandOnOpponentTurn_Throws()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildSupportCapableDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.ActionStep;
+        game.State.ActivePlayerId = "p1";
+        game.State.PriorityPlayerId = "p2";
+        game.State.Players[1].Hand.Add(new CardInstance
+        {
+            InstanceId = "hand-support-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p2",
+            ActionId: "activate-support:hand-support-1",
+            SourceCardInstanceId: "hand-support-1");
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor()));
+
+        Assert.AreEqual("Opponent-turn supports, including Quick, must be played from support area.", ex.Message);
+    }
+
+    [TestMethod]
+    public void GetCardActionTargets_BattleAction_ReturnsLeaderAndRestedCharacterTargets()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "attacker-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = false,
+        });
+        game.State.Players[1].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "defender-rested",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+            IsRested = true,
+        });
+        game.State.Players[1].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "defender-active",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+            IsRested = false,
+        });
+
+        var targets = registry.GetCardActionTargets(
+            game.Id,
+            new GameCardActionTargetsRequest(
+                PlayerId: "p1",
+                ActionId: "battle-action:attacker-1",
+                SourceCardInstanceId: "attacker-1"),
+            new GameEffectCanExecuteEvaluator(
+                new EffectContextConditionEvaluator(),
+                new EffectTargetResolver(),
+                new GameValidTargetResultFactory(),
+                new GameEffectConditionDiagnostics()));
+
+        Assert.IsTrue(targets.IsEnabled);
+        Assert.AreEqual(1, targets.ExactTargetCount);
+        Assert.AreEqual(2, targets.ValidTargets.Count);
+        Assert.IsTrue(targets.ValidTargets.Any(target => target.Zone == PlayerZone.Leader && target.PlayerId == "p2"));
+        Assert.IsTrue(targets.ValidTargets.Any(target => target.Zone == PlayerZone.CharacterField && target.CardInstanceId == "defender-rested"));
+        Assert.IsFalse(targets.ValidTargets.Any(target => target.CardInstanceId == "defender-active"));
+    }
+
+    [TestMethod]
     public void Join_Throws_WhenGameIsMissing()
     {
         var ex = Assert.ThrowsException<KeyNotFoundException>(() =>
@@ -599,6 +858,8 @@ public sealed class InMemoryGameInstanceRegistryTests
                 Traits = [],
                 Color = CardColor.Red,
                 Description = string.Empty,
+                Damage = 2,
+                Power = 2,
                 Conditions = [],
                 Effects = []
             },

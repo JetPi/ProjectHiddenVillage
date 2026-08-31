@@ -181,12 +181,6 @@ public static class GameStateResponseMapper
             return;
         }
 
-        if (phaseData.PhaseName == GamePhase.EndStep)
-        {
-            actions.Add(new GameActionOptionResponse(ActionId: "complete-end-step", Label: "Complete End Step", IsEnabled: true));
-            return;
-        }
-
         actions.Add(new GameActionOptionResponse(ActionId: "advance-phase", Label: "Advance Phase", IsEnabled: true));
     }
 
@@ -409,12 +403,12 @@ public static class GameStateResponseMapper
                     : [],
 
             PlayerZone.SupportZone =>
-                CanUseActionStepPriorityActions(card, state)
+                CanUseSupportCardActions(card, state)
                     ? BuildSupportAvailableActions(card, state)
                     : [],
 
             PlayerZone.CharacterField =>
-                !CanUseActionStepPriorityActions(card, state) || !CanDeclareBattleAction(card, state)
+                !CanUseBattleCardActions(card, state) || !CanDeclareBattleAction(card, state)
                     ? []
                     :
                     [
@@ -444,6 +438,18 @@ public static class GameStateResponseMapper
                     ActionId: $"activate-support:{card.InstanceId}",
                     Label: EffectTiming.Unspecified.ToString(),
                     IsEnabled: true)
+            ];
+        }
+
+        if (!IsSupportEffectTimingAvailable(primaryEffect.Timing, state, card.ControllerPlayerId, isFromSupportZone: true))
+        {
+            return
+            [
+                new GameActionOptionResponse(
+                    ActionId: $"activate-support:{card.InstanceId}",
+                    Label: BuildEffectOptionLabel(primaryEffect),
+                    IsEnabled: false,
+                    DisabledReason: "Support timing is not available right now.")
             ];
         }
 
@@ -480,10 +486,26 @@ public static class GameStateResponseMapper
             && IsSamePlayerId(state.ActivePlayerId, card.ControllerPlayerId);
     }
 
-    private static bool CanUseActionStepPriorityActions(CardInstance card, GameState state)
+    private static bool CanUseSupportCardActions(CardInstance card, GameState state)
     {
+        if (state.Phase == GamePhase.MainPhase)
+        {
+            return IsSamePlayerId(state.ActivePlayerId, card.ControllerPlayerId);
+        }
+
+        if (state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration)
+        {
+            return !IsSamePlayerId(state.ActivePlayerId, card.ControllerPlayerId);
+        }
+
         return state.Phase == GamePhase.ActionStep
             && IsSamePlayerId(state.PriorityPlayerId, card.ControllerPlayerId);
+    }
+
+    private static bool CanUseBattleCardActions(CardInstance card, GameState state)
+    {
+        return state.Phase == GamePhase.MainPhase
+            && IsSamePlayerId(state.ActivePlayerId, card.ControllerPlayerId);
     }
 
     private static IReadOnlyList<GameActionOptionResponse> BuildHandAvailableActions(CardInstance card, GameState state)
@@ -526,6 +548,11 @@ public static class GameStateResponseMapper
             actions.Add(new GameActionOptionResponse(
                 ActionId: $"{SetSupportActionPrefix}{card.InstanceId}",
                 Label: "Set Support",
+                IsEnabled: true));
+
+            actions.Add(new GameActionOptionResponse(
+                ActionId: $"activate-support:{card.InstanceId}",
+                Label: "Support",
                 IsEnabled: true));
         }
 
@@ -599,6 +626,42 @@ public static class GameStateResponseMapper
 
         return definition.Conditions.Any(condition =>
             string.Equals(condition, EffectConditionKeywords.Rush, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsSupportEffectTimingAvailable(
+        EffectTiming timing,
+        GameState state,
+        string actingPlayerId,
+        bool isFromSupportZone)
+    {
+        var isActivePlayer = IsSamePlayerId(state.ActivePlayerId, actingPlayerId);
+        var isPriorityPlayer = IsSamePlayerId(state.PriorityPlayerId, actingPlayerId);
+
+        if (!isActivePlayer && !isFromSupportZone)
+        {
+            return false;
+        }
+
+        return timing switch
+        {
+            EffectTiming.Unspecified => isActivePlayer
+                ? state.Phase is GamePhase.MainPhase or GamePhase.ActionStep
+                : state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep,
+            EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
+                isActivePlayer && state.Phase == GamePhase.MainPhase,
+            EffectTiming.YourTurn =>
+                isActivePlayer,
+            EffectTiming.Quick =>
+                isActivePlayer
+                    ? state.Phase == GamePhase.ActionStep && isPriorityPlayer
+                    : state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration
+                      || (state.Phase == GamePhase.ActionStep && isPriorityPlayer),
+            EffectTiming.SupportActivated =>
+                state.Phase == GamePhase.ActionStep && isPriorityPlayer,
+            EffectTiming.DuringOpponentAttack =>
+                !isActivePlayer && state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep,
+            _ => false,
+        };
     }
 
     private static LeaderCardInstanceResponse ToLeaderCardInstanceResponse(
