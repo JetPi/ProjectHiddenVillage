@@ -31,7 +31,7 @@ import {
   HAND_TO_PILE_DURATION_MS,
 } from '@/views/game/utils/contants'
 import { mapActionToHubIntent } from '@/views/game/utils/functions/gameState'
-import { runHandToPileAnimation, runRectToElementAnimation, waitMillis } from '@/views/game/utils/functions/animations'
+import { runHandToElementAnimation, runHandToPileAnimation, runRectToDynamicElementAnimation, waitMillis } from '@/views/game/utils/functions/animations'
 import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions/cards'
 import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 
@@ -514,18 +514,66 @@ export function GameView() {
       }
 
       const cardInstanceId = action.actionId.slice(delimiterIndex + 1)
+      const expectedBattlefieldSlotIndex = currentBottomBattlefieldRawCards.length
       const sourceHandRowElement = bottomHandRowRef.current
       const sourceCardElement = sourceHandRowElement?.querySelector<HTMLDivElement>(
         `[data-hand-instance-id="${cardInstanceId}"]`,
       ) ?? null
-      const sourceRect = sourceCardElement?.getBoundingClientRect() ?? null
+
+      function createPredictedBattlefieldSlotAnchor(): HTMLDivElement | null {
+        const battlefieldRowElement = boardZoneRef.current?.querySelector<HTMLElement>(
+          '[data-zone="character-field-row"][data-slot-side="bottom"]',
+        ) ?? null
+
+        if (!battlefieldRowElement || !sourceCardElement) {
+          return null
+        }
+
+        const sourceRect = sourceCardElement.getBoundingClientRect()
+        const rowRect = battlefieldRowElement.getBoundingClientRect()
+        if (sourceRect.width <= 0 || sourceRect.height <= 0 || rowRect.width <= 0 || rowRect.height <= 0) {
+          return null
+        }
+
+        const rowComputedStyle = window.getComputedStyle(battlefieldRowElement)
+        const gapPx = Number.parseFloat(rowComputedStyle.columnGap || rowComputedStyle.gap || '0') || 0
+        const leftInset = Number.parseFloat(rowComputedStyle.paddingLeft || '0') || 0
+        const rightInset = Number.parseFloat(rowComputedStyle.paddingRight || '0') || 0
+        const usableWidth = Math.max(rowRect.width - leftInset - rightInset, sourceRect.width)
+        const unclampedLeft = rowRect.left + leftInset + expectedBattlefieldSlotIndex * (sourceRect.width + gapPx)
+        const maxLeft = rowRect.left + leftInset + usableWidth - sourceRect.width
+        const targetLeft = Math.min(Math.max(unclampedLeft, rowRect.left + leftInset), maxLeft)
+        const targetTop = rowRect.top + (rowRect.height - sourceRect.height) / 2
+
+        const anchor = document.createElement('div')
+        anchor.setAttribute('data-zone', 'summon-predicted-anchor')
+        anchor.style.position = 'fixed'
+        anchor.style.left = `${targetLeft}px`
+        anchor.style.top = `${targetTop}px`
+        anchor.style.width = `${sourceRect.width}px`
+        anchor.style.height = `${sourceRect.height}px`
+        anchor.style.pointerEvents = 'none'
+        anchor.style.opacity = '0'
+        anchor.style.zIndex = '-1'
+        document.body.appendChild(anchor)
+
+        return anchor
+      }
 
       void (async () => {
-        await submitHubIntent(intentRequest)
-
-        if (!sourceRect) {
-          return
+        const predictedSlotAnchor = createPredictedBattlefieldSlotAnchor()
+        if (predictedSlotAnchor) {
+          await runHandToElementAnimation({
+            side: 'bottom',
+            cardInstanceId,
+            destinationElement: predictedSlotAnchor,
+            topHandRowRef,
+            bottomHandRowRef,
+          })
         }
+
+        predictedSlotAnchor?.remove()
+        await submitHubIntent(intentRequest)
 
         setBottomBattlefieldDisplayOrder((previousOrder) => {
           const knownIds = new Set(currentBottomBattlefieldRawCards.map((card) => card.instanceId))
@@ -535,15 +583,6 @@ export function GameView() {
           }
 
           return [...preservedIds, cardInstanceId]
-        })
-
-        const destinationElement = boardZoneRef.current?.querySelector<HTMLElement>(
-          `[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${cardInstanceId}"]`,
-        ) ?? null
-
-        await runRectToElementAnimation({
-          sourceRect,
-          destinationElement,
         })
       })()
 
@@ -613,13 +652,18 @@ export function GameView() {
         return
       }
 
-      const destinationElement = boardZoneRef.current?.querySelector<HTMLElement>(
-        `[data-zone="support"][data-slot-side="bottom"][data-card-instance-id="${cardInstanceId}"]`,
-      ) ?? null
-
-      await runRectToElementAnimation({
+      await runRectToDynamicElementAnimation({
         sourceRect,
-        destinationElement,
+        resolveDestinationElement: () => {
+          return boardZoneRef.current?.querySelector<HTMLElement>(
+            `[data-zone="support"][data-slot-side="bottom"][data-card-instance-id="${cardInstanceId}"]`,
+          ) ?? null
+        },
+        resolveFallbackElement: () => {
+          return boardZoneRef.current?.querySelector<HTMLElement>(
+            `[data-zone="support"][data-slot-side="bottom"][data-slot-index="${slotIndex}"][data-slot-card="true"]`,
+          ) ?? null
+        },
       })
     })()
   }

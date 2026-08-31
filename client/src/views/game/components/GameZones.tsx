@@ -243,7 +243,7 @@ function GameZones({
         data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
         className="flex h-full min-h-0 w-full items-center justify-start gap-2.5 overflow-visible rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5"
       >
-        {cards.map((card) => {
+        {cards.map((card, index) => {
           const actionOptions = resolveCardActionOptionsForInstanceId(
             availableActions,
             card.instanceId,
@@ -255,6 +255,7 @@ function GameZones({
               key={`character-field-${card.instanceId}`}
               data-zone="character-field-card"
               data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
+              data-slot-index={index}
               data-card-instance-id={card.instanceId}
               className={twMerge(
                 'group relative h-full shrink-0 overflow-hidden rounded-lg bg-[var(--surface-elevated)] transition-transform duration-300 ease-out will-change-transform origin-center',

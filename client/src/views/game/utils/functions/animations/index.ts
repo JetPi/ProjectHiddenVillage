@@ -1,8 +1,18 @@
-import type { IDeckToHandAnimationArgs, IHandToElementAnimationArgs, IHandToPileAnimationArgs, IRectToElementAnimationArgs } from "@/views/game/types/animations"
+import type {
+  IDeckToHandAnimationArgs,
+  IHandToElementAnimationArgs,
+  IHandToPileAnimationArgs,
+  IRectToDynamicElementAnimationArgs,
+  IRectToElementAnimationArgs,
+  IWaitForElementArgs,
+} from "@/views/game/types/animations"
 
 const MIN_HAND_TO_ELEMENT_DURATION_MS = 220
 const MAX_HAND_TO_ELEMENT_DURATION_MS = 520
 const HAND_TO_ELEMENT_PIXELS_PER_MS = 3.3
+const STANDARD_MOVEMENT_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)'
+const DEFAULT_DYNAMIC_TARGET_TIMEOUT_MS = 700
+const DEFAULT_DYNAMIC_TARGET_MAX_FRAMES = 12
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -103,7 +113,7 @@ function animateCardEntityToDestination(
       ],
       {
         duration: durationMs,
-        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        easing: STANDARD_MOVEMENT_EASING,
       },
     )
 
@@ -119,6 +129,76 @@ function animateCardEntityToDestination(
 
     animation.onfinish = cleanup
     animation.oncancel = cleanup
+  })
+}
+
+export async function waitForElement({
+  resolveElement,
+  timeoutMs = DEFAULT_DYNAMIC_TARGET_TIMEOUT_MS,
+  maxFrames = DEFAULT_DYNAMIC_TARGET_MAX_FRAMES,
+}: IWaitForElementArgs): Promise<HTMLElement | null> {
+  const immediateElement = resolveElement()
+  if (immediateElement) {
+    return immediateElement
+  }
+
+  const startedAt = performance.now()
+  let frameCount = 0
+
+  while (frameCount < maxFrames && performance.now() - startedAt <= timeoutMs) {
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        resolve()
+      })
+    })
+
+    const nextElement = resolveElement()
+    if (nextElement) {
+      return nextElement
+    }
+
+    frameCount += 1
+  }
+
+  return null
+}
+
+export async function runRectToDynamicElementAnimation({
+  sourceRect,
+  resolveDestinationElement,
+  resolveFallbackElement,
+  durationMs,
+  timeoutMs,
+  maxFrames,
+}: IRectToDynamicElementAnimationArgs): Promise<void> {
+  const destinationElement = await waitForElement({
+    resolveElement: resolveDestinationElement,
+    timeoutMs,
+    maxFrames,
+  })
+
+  if (destinationElement) {
+    await runRectToElementAnimation({
+      sourceRect,
+      destinationElement,
+      durationMs,
+    })
+    return
+  }
+
+  if (!resolveFallbackElement) {
+    return
+  }
+
+  const fallbackElement = resolveFallbackElement()
+  if (!fallbackElement) {
+    return
+  }
+
+  await runRectToElementAnimation({
+    sourceRect,
+    destinationElement: fallbackElement,
+    durationMs,
   })
 }
 
@@ -170,7 +250,7 @@ export function runRectToElementAnimation({
       ],
       {
         duration: durationMs,
-        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        easing: STANDARD_MOVEMENT_EASING,
       },
     )
 
@@ -250,70 +330,21 @@ export function runDeckToHandAnimation({
   if (!sourceDeckElement || !destinationHandRowElement) {
     return Promise.resolve()
   }
-
-  const destinationCardElement = destinationHandRowElement.querySelector<HTMLDivElement>(
-    `[data-hand-instance-id="${cardInstanceId}"]`,
-  )
-  if (!destinationCardElement) {
-    return Promise.resolve()
-  }
-
   const sourceRect = sourceDeckElement.getBoundingClientRect()
-  const destinationRect = destinationCardElement.getBoundingClientRect()
 
-  if (sourceRect.width <= 0 || sourceRect.height <= 0 || destinationRect.width <= 0 || destinationRect.height <= 0) {
+  if (sourceRect.width <= 0 || sourceRect.height <= 0) {
     return Promise.resolve()
   }
 
-  const sourceCenterX = sourceRect.left + sourceRect.width / 2
-  const sourceCenterY = sourceRect.top + sourceRect.height / 2
-  const destinationCenterX = destinationRect.left + destinationRect.width / 2
-  const destinationCenterY = destinationRect.top + destinationRect.height / 2
-  const fromTranslateX = sourceCenterX - destinationCenterX
-  const fromTranslateY = sourceCenterY - destinationCenterY
-
-  const previousTransition = destinationCardElement.style.transition
-  const previousTransform = destinationCardElement.style.transform
-  const previousZIndex = destinationCardElement.style.zIndex
-  const previousPointerEvents = destinationCardElement.style.pointerEvents
-  const previousFilter = destinationCardElement.style.filter
-  const overflowSnapshots = resolveOverflowAncestors(destinationCardElement)
-
-  destinationCardElement.style.zIndex = '260'
-  destinationCardElement.style.pointerEvents = 'none'
-  destinationCardElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
-  destinationCardElement.style.transition = 'none'
-
-  return new Promise<void>((resolve) => {
-    const animation = destinationCardElement.animate(
-      [
-        {
-          transform: `translate(${fromTranslateX}px, ${fromTranslateY}px) scale(0.92)`,
-          opacity: 0.97,
-        },
-        {
-          transform: 'translate(0px, 0px) scale(1)',
-          opacity: 0.99,
-        },
-      ],
-      {
-        duration: 420,
-        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-      },
-    )
-
-    const cleanup = () => {
-      destinationCardElement.style.transition = previousTransition
-      destinationCardElement.style.transform = previousTransform
-      destinationCardElement.style.zIndex = previousZIndex
-      destinationCardElement.style.pointerEvents = previousPointerEvents
-      destinationCardElement.style.filter = previousFilter
-      restoreOverflowAncestors(overflowSnapshots)
-      resolve()
-    }
-
-    animation.onfinish = cleanup
-    animation.oncancel = cleanup
+  return runRectToDynamicElementAnimation({
+    sourceRect,
+    durationMs: 420,
+    resolveDestinationElement: () => {
+      return destinationHandRowElement.querySelector<HTMLElement>(`[data-hand-instance-id="${cardInstanceId}"]`)
+    },
+    resolveFallbackElement: () => {
+      return destinationHandRowElement
+    },
   })
 }
 
