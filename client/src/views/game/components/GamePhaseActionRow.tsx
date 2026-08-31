@@ -12,29 +12,13 @@ const PhaseValues = {
   'opponent-turn': "Opponent's turn",
   'w-for-opponent-to-choose': 'Waiting for opponent to choose',
   'w-for-opponent-to-mulligan': 'Waiting for opponent to choose mulligan',
-  'attack-declaration': 'Attack Declaration',
+  'your-attack-declaration': 'Your Attack Declaration',
+  'opponent-attack-declaration': "Opponent Attack Declaration",
   'effect-declaration': 'Effect Declaration',
-  'support-cut-in': 'Support Cut-In',
+  'your-support-cut-in': 'Your Support Cut-In',
+  'opponent-support-cut-in': "Opponent Support Cut-In",
   'damage-step': 'Damage Step',
 }
-
-const AttackSequenceStepMeta = {
-  AttackDeclaration: {
-    stepLabel: 'Step 1/3',
-    detail: 'Attack target has been declared.',
-    owner: 'active',
-  },
-  SupportCutIn: {
-    stepLabel: 'Step 2/3',
-    detail: 'Quick/support responses resolve via priority.',
-    owner: 'priority',
-  },
-  DamageStep: {
-    stepLabel: 'Step 3/3',
-    detail: 'Damage resolves automatically.',
-    owner: 'system',
-  },
-} as const
 
 function getPhaseValue(gameInstance: IGameStateResponse, authUserId?: string): string {
   const normalizedAuthUserId = normalizeId(authUserId)
@@ -48,7 +32,9 @@ function getPhaseValue(gameInstance: IGameStateResponse, authUserId?: string): s
   } else {
     if (gameInstance.isAttackSequencePending && gameInstance.attackSequenceStage) {
       if (gameInstance.attackSequenceStage === 'AttackDeclaration') {
-        return PhaseValues['attack-declaration']
+        return isPlayerTurn
+          ? PhaseValues['your-attack-declaration']
+          : PhaseValues['opponent-attack-declaration']
       }
 
       if (gameInstance.attackSequenceStage === 'EffectDeclaration') {
@@ -56,7 +42,9 @@ function getPhaseValue(gameInstance: IGameStateResponse, authUserId?: string): s
       }
 
       if (gameInstance.attackSequenceStage === 'SupportCutIn') {
-        return PhaseValues['support-cut-in']
+        const normalizedPriorityPlayerId = normalizeId(gameInstance.priorityPlayerId)
+        const isPlayerPriority = normalizedAuthUserId.length > 0 && normalizedAuthUserId === normalizedPriorityPlayerId
+        return isPlayerPriority ? PhaseValues['your-support-cut-in'] : PhaseValues['opponent-support-cut-in']
       }
 
       if (gameInstance.attackSequenceStage === 'DamageStep') {
@@ -75,46 +63,27 @@ function getPhaseValue(gameInstance: IGameStateResponse, authUserId?: string): s
   return isPlayerTurn ? PhaseValues['player-turn'] : PhaseValues['opponent-turn']
 }
 
-function getPhaseThemeClasses(phaseValue: string): string {
-  switch (phaseValue) {
-    case PhaseValues['w-for-players']:
-      return 'turn-indicator-light-gray turn-indicator-text-black'
-    case PhaseValues['player-turn']:
-      return 'turn-indicator-orange turn-indicator-text-light-theme'
-    default:
-      return 'turn-indicator-blue turn-indicator-text-dark-theme'
-  }
-}
-
-function getAttackSequenceGuidance(gameInstance: IGameStateResponse, authUserId?: string): string | null {
-  if (!gameInstance.isAttackSequencePending || !gameInstance.attackSequenceStage) {
-    return null
+function getPhaseThemeClasses(gameInstance: IGameStateResponse, phaseValue: string, authUserId?: string): string {
+  if (phaseValue === PhaseValues['your-support-cut-in']) {
+    return 'turn-indicator-orange turn-indicator-text-light-theme'
   }
 
-  const stage = gameInstance.attackSequenceStage
-  if (!(stage in AttackSequenceStepMeta)) {
-    return null
+  if (phaseValue === PhaseValues['opponent-support-cut-in']) {
+    return 'turn-indicator-blue turn-indicator-text-dark-theme'
   }
 
-  const stageMeta = AttackSequenceStepMeta[stage as keyof typeof AttackSequenceStepMeta]
   const normalizedAuthUserId = normalizeId(authUserId)
   const normalizedActivePlayerId = normalizeId(gameInstance.activePlayerId)
-  const normalizedPriorityPlayerId = normalizeId(gameInstance.priorityPlayerId)
+  const hasBothPlayers = gameInstance.players.length > 1
+  const isPlayerTurn = normalizedAuthUserId.length > 0 && normalizedAuthUserId === normalizedActivePlayerId
 
-  let windowLabel = 'System window'
-  if (stageMeta.owner === 'active') {
-    windowLabel = normalizedAuthUserId.length > 0 && normalizedAuthUserId === normalizedActivePlayerId
-      ? 'Your window'
-      : "Opponent's window"
+  if (!hasBothPlayers) {
+    return 'turn-indicator-light-gray turn-indicator-text-black'
   }
 
-  if (stageMeta.owner === 'priority') {
-    windowLabel = normalizedAuthUserId.length > 0 && normalizedAuthUserId === normalizedPriorityPlayerId
-      ? 'Your priority'
-      : "Opponent's priority"
-  }
-
-  return `${stageMeta.stepLabel} - ${windowLabel}. ${stageMeta.detail}`
+  return isPlayerTurn
+    ? 'turn-indicator-orange turn-indicator-text-light-theme'
+    : 'turn-indicator-blue turn-indicator-text-dark-theme'
 }
 
 function GamePhaseActionRow({
@@ -127,9 +96,8 @@ function GamePhaseActionRow({
   phaseTestId,
 }: IGamePhaseActionRowProps) {
   const phaseValue = getPhaseValue(gameInstance, authUserId)
-  const phaseThemeClasses = getPhaseThemeClasses(phaseValue)
+  const phaseThemeClasses = getPhaseThemeClasses(gameInstance, phaseValue, authUserId)
   const hasOptions = availableActions.length > 0
-  const attackSequenceGuidance = getAttackSequenceGuidance(gameInstance, authUserId)
 
   return (
     <div className="grid min-h-0 grid-cols-6">
@@ -164,11 +132,6 @@ function GamePhaseActionRow({
           <span key={phaseValue} className="phase-indicator-text-swap inline-block text-[12px] font-extrabold leading-none">
             {phaseValue}
           </span>
-          {attackSequenceGuidance ? (
-            <p className="mt-0.5 px-1 text-[9px] font-semibold leading-tight opacity-85">
-              {attackSequenceGuidance}
-            </p>
-          ) : null}
         </div>
       </div>
     </div>
