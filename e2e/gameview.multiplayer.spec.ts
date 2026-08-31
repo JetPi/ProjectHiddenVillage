@@ -47,14 +47,20 @@ type GameActionOptionResponse = {
   isEnabled: boolean
 }
 
+type GameCardInstanceStateResponse = {
+  instanceId: string
+  cardDefinitionId?: string
+  availableActions?: GameActionOptionResponse[]
+}
+
 type GamePlayerStateResponse = {
   playerId: string
   leader: {
     displayName: string
   }
-  hand: Array<{ instanceId: string }>
-  characterField: Array<{ instanceId: string }>
-  supportZone: Array<{ instanceId: string }>
+  hand: GameCardInstanceStateResponse[]
+  characterField: GameCardInstanceStateResponse[]
+  supportZone: GameCardInstanceStateResponse[]
 }
 
 type GameStateResponse = {
@@ -247,6 +253,42 @@ async function advancePhaseViaHub(gameCode: string, player: PlayerAuth): Promise
     }>('AdvancePhase', gameCode.toUpperCase())
 
     expect(result.succeeded, `${result.errorCode ?? 'Hub.AdvancePhase'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
+  } finally {
+    await connection.stop()
+  }
+}
+
+async function declareEndStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
+  const connection = buildHubConnection(player.session.accessToken, player.userId)
+
+  try {
+    await connection.start()
+
+    const result = await connection.invoke<{
+      succeeded: boolean
+      errorCode?: string | null
+      errorDescription?: string | null
+    }>('DeclareEndStep', gameCode.toUpperCase())
+
+    expect(result.succeeded, `${result.errorCode ?? 'Hub.DeclareEndStep'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
+  } finally {
+    await connection.stop()
+  }
+}
+
+async function completeEndStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
+  const connection = buildHubConnection(player.session.accessToken, player.userId)
+
+  try {
+    await connection.start()
+
+    const result = await connection.invoke<{
+      succeeded: boolean
+      errorCode?: string | null
+      errorDescription?: string | null
+    }>('CompleteEndStep', gameCode.toUpperCase())
+
+    expect(result.succeeded, `${result.errorCode ?? 'Hub.CompleteEndStep'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
   } finally {
     await connection.stop()
   }
@@ -606,6 +648,7 @@ async function resolveActorWithBottomHandAction(
 ): Promise<{ actor: PlayerAuth; actorPage: Page; cardInstanceId: string; actionId: string }> {
   const maxCycles = 180
   const actionPrefix = actionLabel === 'Summon' ? 'summon-to-field:' : 'set-support:'
+  const normalizedLabel = actionLabel.trim().toLowerCase()
 
   for (let cycle = 0; cycle < maxCycles; cycle += 1) {
     const [playerOneState, playerTwoState] = await Promise.all([
@@ -626,31 +669,58 @@ async function resolveActorWithBottomHandAction(
       && playerTwoState.pendingPrompt === null
       && normalizeUserId(playerTwoState.activePlayerId) === setup.playerTwo.normalizedUserId
 
+    const resolveHandActionFromState = (state: GameStateResponse, actor: PlayerAuth) => {
+      const actorState = resolvePlayerState(state, actor)
+      for (const handCard of actorState.hand) {
+        const availableActions = handCard.availableActions ?? []
+        const matchedAction = availableActions.find((action) => {
+          return action.isEnabled && action.label.trim().toLowerCase() === normalizedLabel
+        })
+
+        if (matchedAction) {
+          return {
+            cardInstanceId: handCard.instanceId,
+            actionId: matchedAction.actionId,
+          }
+        }
+      }
+
+      return null
+    }
+
     if (playerOneCanUseHandActions) {
-      const cardInstanceId = await findBottomHandCardWithAction(pages.playerOnePage, actionLabel)
-      if (cardInstanceId) {
+      const resolvedAction = resolveHandActionFromState(playerOneState, setup.playerOne)
+      if (resolvedAction) {
         return {
           actor: setup.playerOne,
           actorPage: pages.playerOnePage,
-          cardInstanceId,
-          actionId: `${actionPrefix}${cardInstanceId}`,
+          cardInstanceId: resolvedAction.cardInstanceId,
+          actionId: resolvedAction.actionId || `${actionPrefix}${resolvedAction.cardInstanceId}`,
         }
       }
     }
 
     if (playerTwoCanUseHandActions) {
-      const cardInstanceId = await findBottomHandCardWithAction(pages.playerTwoPage, actionLabel)
-      if (cardInstanceId) {
+      const resolvedAction = resolveHandActionFromState(playerTwoState, setup.playerTwo)
+      if (resolvedAction) {
         return {
           actor: setup.playerTwo,
           actorPage: pages.playerTwoPage,
-          cardInstanceId,
-          actionId: `${actionPrefix}${cardInstanceId}`,
+          cardInstanceId: resolvedAction.cardInstanceId,
+          actionId: resolvedAction.actionId || `${actionPrefix}${resolvedAction.cardInstanceId}`,
         }
       }
     }
 
     const activePlayerState = activePlayer.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+    const canEndTurn = activePlayerState.availableActions.some((action) => action.actionId === 'turn-end' && action.isEnabled)
+    if (canEndTurn) {
+      await declareEndStepViaHub(setup.gameCode, activePlayer)
+      await completeEndStepViaHub(setup.gameCode, activePlayer)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
     const canAdvance = activePlayerState.availableActions.some((action) => action.actionId === 'advance-phase' && action.isEnabled)
     if (!canAdvance) {
       await new Promise((resolve) => setTimeout(resolve, 350))
