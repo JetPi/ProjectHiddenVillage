@@ -33,7 +33,7 @@ function NonLeaderCardOverlay({
     <>
       <div
         className={twMerge(
-          'absolute inset-0 z-20 rounded-md p-1 text-[9px] text-[var(--text-primary)] transition-opacity duration-200 ease-out',
+          'card-overlay-controls absolute inset-0 z-20 rounded-md p-1 text-[9px] text-[var(--text-primary)] transition-opacity duration-200 ease-out',
           disableInteractions ? 'pointer-events-none opacity-0' : overlayVisibilityClassName,
         )}
       >

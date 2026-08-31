@@ -92,12 +92,14 @@ function animateCardEntityToDestination(
   const previousZIndex = sourceCardElement.style.zIndex
   const previousPointerEvents = sourceCardElement.style.pointerEvents
   const previousFilter = sourceCardElement.style.filter
+  const previousMovingFlag = sourceCardElement.getAttribute('data-card-moving')
   const overflowSnapshots = resolveOverflowAncestors(sourceCardElement)
 
   sourceCardElement.style.zIndex = '260'
   sourceCardElement.style.pointerEvents = 'none'
   sourceCardElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
   sourceCardElement.style.transition = 'none'
+  sourceCardElement.setAttribute('data-card-moving', 'true')
 
   return new Promise<void>((resolve) => {
     const animation = sourceCardElement.animate(
@@ -123,6 +125,11 @@ function animateCardEntityToDestination(
       sourceCardElement.style.zIndex = previousZIndex
       sourceCardElement.style.pointerEvents = previousPointerEvents
       sourceCardElement.style.filter = previousFilter
+      if (previousMovingFlag === null) {
+        sourceCardElement.removeAttribute('data-card-moving')
+      } else {
+        sourceCardElement.setAttribute('data-card-moving', previousMovingFlag)
+      }
       restoreOverflowAncestors(overflowSnapshots)
       resolve()
     }

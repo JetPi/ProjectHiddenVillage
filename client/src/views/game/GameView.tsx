@@ -247,6 +247,23 @@ export function GameView() {
     () => derivedGameState.currentPlayer?.characterField ?? [],
     [derivedGameState.currentPlayer?.characterField],
   )
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setBottomBattlefieldDisplayOrder((previousOrder) => {
+        const knownIds = new Set(currentBottomBattlefieldRawCards.map((card) => card.instanceId))
+        const preservedIds = previousOrder.filter((instanceId) => knownIds.has(instanceId))
+        const preservedIdSet = new Set(preservedIds)
+        const appendedIds = currentBottomBattlefieldRawCards
+          .map((card) => card.instanceId)
+          .filter((instanceId) => !preservedIdSet.has(instanceId))
+        return [...preservedIds, ...appendedIds]
+      })
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [currentBottomBattlefieldRawCards])
   const bottomBattlefieldCards = useMemo(() => {
     const baseCards = currentBottomBattlefieldRawCards
     const knownIds = new Set(baseCards.map((card) => card.instanceId))
@@ -562,8 +579,9 @@ export function GameView() {
 
       void (async () => {
         const predictedSlotAnchor = createPredictedBattlefieldSlotAnchor()
+        let movementPromise: Promise<void> | null = null
         if (predictedSlotAnchor) {
-          await runHandToElementAnimation({
+          movementPromise = runHandToElementAnimation({
             side: 'bottom',
             cardInstanceId,
             destinationElement: predictedSlotAnchor,
@@ -572,8 +590,12 @@ export function GameView() {
           })
         }
 
+        await waitMillis(180)
         predictedSlotAnchor?.remove()
         await submitHubIntent(intentRequest)
+        if (movementPromise) {
+          await movementPromise
+        }
 
         setBottomBattlefieldDisplayOrder((previousOrder) => {
           const knownIds = new Set(currentBottomBattlefieldRawCards.map((card) => card.instanceId))

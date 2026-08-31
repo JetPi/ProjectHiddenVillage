@@ -232,6 +232,11 @@ html[data-theme='light'] {
   animation: card-preview-slide-in 220ms ease-out;
 }
 
+[data-card-moving="true"] .card-overlay-controls {
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
 @keyframes phase-indicator-text-swap {
   from {
     opacity: 0.35;
