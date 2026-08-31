@@ -23,16 +23,6 @@ export type IUseLongPressHandReorderResult<TCard> = {
   activeDraggedInstanceId: string | null
   isReorderDragging: boolean
   getCardPointerHandlers: (instanceId: string) => ICardReorderPointerHandlers
-  debugState: IHandReorderDebugState
-}
-
-export type IHandReorderDebugState = {
-  cardsCount: number
-  displayOrder: string[]
-  activeDraggedInstanceId: string | null
-  lastResolvedTargetIndex: number | null
-  hasSeenValidReorderTarget: boolean
-  lastDropWasValid: boolean | null
 }
 
 export type IPointerStartSnapshot = {

@@ -55,7 +55,7 @@ export function GameView() {
   const topHandRowRef = useRef<HTMLDivElement | null>(null)
   const bottomHandRowRef = useRef<HTMLDivElement | null>(null)
   const [topHandAutoAnimateRef] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
-  const [bottomHandAutoAnimateRef] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
+  const [bottomHandAutoAnimateRef, setBottomHandAutoAnimateEnabled] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
   const animControllerRef = useRef<IGameViewAnimController>({
     lastAutoSignalKey: '',
     pendingDrawAnimationFrameId: null,
@@ -198,7 +198,6 @@ export function GameView() {
     activeDraggedInstanceId,
     isReorderDragging,
     getCardPointerHandlers,
-    debugState: handReorderDebugState,
   } = useLongPressHandReorder({
     cards: bottomHandCards,
     rowRef: bottomHandRowRef,
@@ -214,6 +213,10 @@ export function GameView() {
   const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
 
   useCardCatalogPreload(liveGameCards)
+
+  useEffect(() => {
+    setBottomHandAutoAnimateEnabled(!isReorderDragging)
+  }, [isReorderDragging, setBottomHandAutoAnimateEnabled])
 
   useEffect(() => {
     if (!import.meta.env.DEV) {
@@ -454,6 +457,11 @@ export function GameView() {
         return
       }
 
+      const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
+      if (!intentRequest) {
+        return
+      }
+
       const cardInstanceId = action.actionId.slice(delimiterIndex + 1)
       const battlefieldRowElement = boardZoneRef.current?.querySelector<HTMLElement>(
         '[data-zone="character-field-row"][data-slot-side="bottom"]',
@@ -519,15 +527,23 @@ export function GameView() {
         }
       }
 
-      void runHandToElementAnimation({
-        side: 'bottom',
-        cardInstanceId,
-        destinationElement: summonTargetElement,
-        topHandRowRef,
-        bottomHandRowRef,
-      }).finally(() => {
-        temporarySummonTargetElement?.remove()
-      })
+      void (async () => {
+        try {
+          await runHandToElementAnimation({
+            side: 'bottom',
+            cardInstanceId,
+            destinationElement: summonTargetElement,
+            topHandRowRef,
+            bottomHandRowRef,
+          })
+        } finally {
+          temporarySummonTargetElement?.remove()
+        }
+
+        await submitHubIntent(intentRequest)
+      })()
+
+      return
     }
 
     const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
@@ -578,21 +594,24 @@ export function GameView() {
       `[data-zone="support"][data-slot-side="bottom"][data-slot-index="${slotIndex}"][data-slot-card="true"]`,
     ) ?? null
 
-    void runHandToElementAnimation({
-      side: 'bottom',
-      cardInstanceId: pendingSetSupportCardInstanceId,
-      destinationElement: supportSlotElement,
-      topHandRowRef,
-      bottomHandRowRef,
-    })
-
-    setPendingSetSupportCardInstanceId(null)
-
     if (!intentRequest) {
       return
     }
 
-    void submitHubIntent(intentRequest)
+    const cardInstanceId = pendingSetSupportCardInstanceId
+    setPendingSetSupportCardInstanceId(null)
+
+    void (async () => {
+      await runHandToElementAnimation({
+        side: 'bottom',
+        cardInstanceId,
+        destinationElement: supportSlotElement,
+        topHandRowRef,
+        bottomHandRowRef,
+      })
+
+      await submitHubIntent(intentRequest)
+    })()
   }
 
   function handlePassLikeAction(): void {
@@ -784,19 +803,6 @@ export function GameView() {
             void handlePromptResolve(selectedOption)
           }}
         />
-
-        {import.meta.env.DEV ? (
-          <div className="pointer-events-none fixed right-2 top-2 z-[500] max-w-[24rem] rounded-md border border-[var(--border-subtle)] bg-black/80 px-2 py-1 text-[10px] text-white shadow-lg">
-            <div className="font-semibold uppercase tracking-[0.08em]">Hand Reorder Debug</div>
-            <div>Cards: {handReorderDebugState.cardsCount}</div>
-            <div>Dragging: {isReorderDragging ? 'yes' : 'no'}</div>
-            <div>Dragged ID: {handReorderDebugState.activeDraggedInstanceId ?? 'none'}</div>
-            <div>Target index: {handReorderDebugState.lastResolvedTargetIndex ?? 'none'}</div>
-            <div>Seen valid lane: {handReorderDebugState.hasSeenValidReorderTarget ? 'yes' : 'no'}</div>
-            <div>Last drop valid: {handReorderDebugState.lastDropWasValid === null ? 'n/a' : (handReorderDebugState.lastDropWasValid ? 'yes' : 'no')}</div>
-            <div className="mt-1 truncate">Order: {handReorderDebugState.displayOrder.join(' | ')}</div>
-          </div>
-        ) : null}
 
       </div>
     </PageShell>

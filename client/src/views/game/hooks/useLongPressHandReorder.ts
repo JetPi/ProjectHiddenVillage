@@ -122,9 +122,6 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
   const dragPointerRef = useRef<IActiveDragState | null>(null)
   const longPressTimeoutIdRef = useRef<number | null>(null)
   const hasSeenValidReorderTargetRef = useRef(false)
-  const [lastResolvedTargetIndex, setLastResolvedTargetIndex] = useState<number | null>(null)
-  const [lastDropWasValid, setLastDropWasValid] = useState<boolean | null>(null)
-  const [hasSeenValidReorderTarget, setHasSeenValidReorderTarget] = useState(false)
   const bodyUserSelectRef = useRef<string | null>(null)
   const bodyCursorRef = useRef<string | null>(null)
 
@@ -213,13 +210,10 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
     pendingDragRef.current = null
     dragPointerRef.current = activeDragState
     hasSeenValidReorderTargetRef.current = false
-    setHasSeenValidReorderTarget(false)
     setDisplayOrder((previousOrder) => {
       const reconciledOrder = reconcileOrder(previousOrder, latestCardsRef.current)
-      setLastResolvedTargetIndex(reconciledOrder.indexOf(pointerState.cardInstanceId))
       return reconciledOrder
     })
-    setLastDropWasValid(null)
     setActiveDraggedInstanceId(pointerState.cardInstanceId)
     setIsReorderDragging(true)
   }, [displayOrder])
@@ -240,7 +234,6 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
 
     dragPointerRef.current = null
     hasSeenValidReorderTargetRef.current = false
-    setHasSeenValidReorderTarget(false)
     setIsReorderDragging(false)
     setActiveDraggedInstanceId(null)
 
@@ -330,18 +323,15 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
     }
 
     hasSeenValidReorderTargetRef.current = true
-    setHasSeenValidReorderTarget(true)
     const clampedClientX = clamp(clientX, rowRect.left, rowRect.right)
 
     const currentOrder = reconcileOrder(displayOrder, latestCardsRef.current)
     const currentIndex = currentOrder.indexOf(dragState.cardInstanceId)
     if (currentIndex < 0) {
-      setLastResolvedTargetIndex(-1)
       return
     }
 
     const nextIndex = resolveInsertionIndex(rowElement, clampedClientX, currentIndex, dragState.cardInstanceId)
-    setLastResolvedTargetIndex(nextIndex)
     if (nextIndex === currentIndex) {
       return
     }
@@ -375,10 +365,8 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
     if (activeDragState && activeDragState.pointerId === pointerId && rowElement) {
       const hasValidDrop = isPointerInsideElement(rowElement, clientX, clientY) || hasSeenValidReorderTargetRef.current
       if (hasValidDrop) {
-        setLastDropWasValid(true)
         finalizeValidDrop(pointerId, activeDragState)
       } else {
-        setLastDropWasValid(false)
         finalizeInvalidDrop(pointerId, activeDragState)
       }
 
@@ -461,13 +449,5 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
     activeDraggedInstanceId,
     isReorderDragging,
     getCardPointerHandlers,
-    debugState: {
-      cardsCount: cards.length,
-      displayOrder,
-      activeDraggedInstanceId,
-      lastResolvedTargetIndex,
-      hasSeenValidReorderTarget,
-      lastDropWasValid,
-    },
   }
 }
