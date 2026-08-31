@@ -195,7 +195,8 @@ public sealed class InMemoryGameInstanceRegistryTests
 
         Assert.IsTrue(game.State.Players[0].Battlefield[0].IsRested);
         Assert.AreEqual(startingLife, game.State.Players[1].LeaderCardInstance!.CurrentLife);
-        Assert.AreEqual(GamePhase.AttackDeclaration, game.State.Phase);
+        Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
+        Assert.AreEqual("p2", game.State.PriorityPlayerId);
         Assert.IsTrue(game.State.HasPendingAttack);
     }
 
@@ -275,17 +276,253 @@ public sealed class InMemoryGameInstanceRegistryTests
                 ]),
             new RecordingSequentialExecutor());
 
-        Assert.AreEqual(GamePhase.AttackDeclaration, game.State.Phase);
+        Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
         Assert.AreEqual(startingLife, game.State.Players[1].LeaderCardInstance!.CurrentLife);
 
-        registry.AdvancePhase(game.Id); // AttackDeclaration -> BlockerDeclaration
-        registry.AdvancePhase(game.Id); // BlockerDeclaration -> ActionStep
-        registry.DeclarePassInActionStep(game.Id, "p1");
-        registry.DeclarePassInActionStep(game.Id, "p2"); // enters AttackResolution
+        registry.DeclarePassInActionStep(game.Id, "p2");
+        registry.DeclarePassInActionStep(game.Id, "p1"); // enters AttackResolution
 
         Assert.AreEqual(GamePhase.AttackResolution, game.State.Phase);
         Assert.AreEqual(startingLife - 2, game.State.Players[1].LeaderCardInstance!.CurrentLife);
         Assert.IsFalse(game.State.HasPendingAttack);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_BattleAction_DoesNotAutoExecuteLeaderWhenAttackingEffects()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "attacker-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = false,
+        });
+
+        var leaderDefinition = (LeaderCard)game.State.CardDefinitions["leader-def"];
+        leaderDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "leader-on-attack-auto",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.WhenAttacking,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+                IsOptional = false,
+            }
+        ];
+
+        var recordingExecutor = new RecordingSequentialExecutor();
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: "battle-action:attacker-1",
+                SourceCardInstanceId: "attacker-1",
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.Leader,
+                        CardInstanceId: game.State.Players[1].LeaderCardInstance!.InstanceId)
+                ]),
+            recordingExecutor);
+
+        Assert.IsFalse(recordingExecutor.Contexts.Any(context =>
+            context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument, out var effectId)
+            && effectId == "leader-on-attack-auto"));
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_BattleAction_WithoutAttackEffect_TransitionsDirectlyToActionStep()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "attacker-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = false,
+        });
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: "battle-action:attacker-1",
+                SourceCardInstanceId: "attacker-1",
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.Leader,
+                        CardInstanceId: game.State.Players[1].LeaderCardInstance!.InstanceId)
+                ]),
+            new RecordingSequentialExecutor());
+
+        Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
+        Assert.AreEqual("p2", game.State.PriorityPlayerId);
+        Assert.AreEqual(string.Empty, game.State.PendingAttackOptionalEffectSourceCardInstanceId);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_BattleAction_WithMandatoryAttackerAttackEffect_AutoExecutesThenTransitionsToActionStep()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "attacker-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = false,
+        });
+
+        var attackerDefinition = game.State.CardDefinitions["card-1"];
+        attackerDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "attacker-on-attack-mandatory",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.WhenAttacking,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+                IsOptional = false,
+            }
+        ];
+
+        var recordingExecutor = new RecordingSequentialExecutor();
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: "battle-action:attacker-1",
+                SourceCardInstanceId: "attacker-1",
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.Leader,
+                        CardInstanceId: game.State.Players[1].LeaderCardInstance!.InstanceId)
+                ]),
+            recordingExecutor);
+
+        Assert.IsTrue(recordingExecutor.Contexts.Any(context =>
+            context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument, out var effectId)
+            && effectId == "attacker-on-attack-mandatory"));
+        Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
+        Assert.AreEqual("p2", game.State.PriorityPlayerId);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_BattleAction_WithOptionalAttackerAttackEffect_RequiresChoiceThenTransitionsToActionStep()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "attacker-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = false,
+        });
+
+        var attackerDefinition = game.State.CardDefinitions["card-1"];
+        attackerDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "attacker-on-attack-optional",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.WhenAttacking,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+                IsOptional = true,
+            }
+        ];
+
+        var recordingExecutor = new RecordingSequentialExecutor();
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: "battle-action:attacker-1",
+                SourceCardInstanceId: "attacker-1",
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.Leader,
+                        CardInstanceId: game.State.Players[1].LeaderCardInstance!.InstanceId)
+                ]),
+            recordingExecutor);
+
+        Assert.AreEqual(GamePhase.AttackDeclaration, game.State.Phase);
+        Assert.AreEqual("attacker-1", game.State.PendingAttackOptionalEffectSourceCardInstanceId);
+        Assert.AreEqual("p1", game.State.PendingAttackOptionalEffectPlayerId);
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: "resolve-optional-attack-effect:attacker-1:yes",
+                SourceCardInstanceId: "attacker-1"),
+            recordingExecutor);
+
+        Assert.IsTrue(recordingExecutor.Contexts.Any(context =>
+            context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument, out var effectId)
+            && effectId == "attacker-on-attack-optional"));
+        Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
+        Assert.AreEqual("p2", game.State.PriorityPlayerId);
+        Assert.AreEqual(string.Empty, game.State.PendingAttackOptionalEffectSourceCardInstanceId);
     }
 
     [TestMethod]

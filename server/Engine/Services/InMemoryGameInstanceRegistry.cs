@@ -15,6 +15,7 @@ public sealed class InMemoryGameInstanceRegistry
     private const string SetSupportActionPrefix = "set-support:";
     private const string BattleActionPrefix = "battle-action:";
     private const string LeaderEffectActionPrefix = "leader-effect:";
+    private const string ResolveOptionalAttackEffectActionPrefix = "resolve-optional-attack-effect:";
     private const string SupportSlotIndexArgumentKey = "supportSlotIndex";
     private const string FallbackEffectKeyArgument = "__leaderEffectKey";
     private const int MaxSupportSlots = 5;
@@ -250,6 +251,7 @@ public sealed class InMemoryGameInstanceRegistry
             var arguments = request.Arguments is null
                 ? new Dictionary<string, string>(StringComparer.Ordinal)
                 : new Dictionary<string, string>(request.Arguments, StringComparer.Ordinal);
+            var phaseBeforeActionExecution = instance.State.Phase;
 
             switch (actionPrefix)
             {
@@ -263,16 +265,20 @@ public sealed class InMemoryGameInstanceRegistry
                     ExecuteSetSupportAction(instance, request.PlayerId, request.SourceCardInstanceId, actingPlayer, arguments);
                     break;
                 case BattleActionPrefix:
-                    ExecuteBattleAction(instance, request.PlayerId, request, actingPlayer);
+                    ExecuteBattleAction(instance, request.PlayerId, request, actingPlayer, sequentialEffectExecutor);
                     break;
                 case LeaderEffectActionPrefix:
                     ExecuteLeaderEffectAction(instance, request.PlayerId, request, sequentialEffectExecutor, actingPlayer, arguments);
+                    break;
+                case ResolveOptionalAttackEffectActionPrefix:
+                    ExecuteResolveOptionalAttackEffectAction(instance, request.PlayerId, request, sequentialEffectExecutor);
                     break;
                 default:
                     throw new InvalidOperationException($"Card action '{request.ActionId}' is not supported yet.");
             }
 
-            if (instance.State.Phase == GamePhase.ActionStep)
+            if (phaseBeforeActionExecution == GamePhase.ActionStep
+                && instance.State.Phase == GamePhase.ActionStep)
             {
                 phaseService.DeclareActionInActionStep(instance, request.PlayerId);
             }
@@ -447,6 +453,11 @@ public sealed class InMemoryGameInstanceRegistry
             return BattleActionPrefix;
         }
 
+        if (actionId.StartsWith(ResolveOptionalAttackEffectActionPrefix, StringComparison.Ordinal))
+        {
+            return ResolveOptionalAttackEffectActionPrefix;
+        }
+
         return null;
     }
 
@@ -477,6 +488,21 @@ public sealed class InMemoryGameInstanceRegistry
             if (!string.Equals(instance.State.ActivePlayerId, playerId, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException("Only the active player can execute battle actions.");
+            }
+
+            return;
+        }
+
+        if (actionPrefix == ResolveOptionalAttackEffectActionPrefix)
+        {
+            if (instance.State.Phase != GamePhase.AttackDeclaration)
+            {
+                throw new InvalidOperationException("Optional attack effect choice can only be resolved during attack declaration.");
+            }
+
+            if (!string.Equals(instance.State.PendingAttackOptionalEffectPlayerId, playerId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Only the attacking player can resolve optional attack effect choice.");
             }
 
             return;
@@ -547,6 +573,18 @@ public sealed class InMemoryGameInstanceRegistry
         if (actionPrefix == BattleActionPrefix)
         {
             return actionId[actionPrefix.Length..].Trim();
+        }
+
+        if (actionPrefix == ResolveOptionalAttackEffectActionPrefix)
+        {
+            var payload = actionId[actionPrefix.Length..].Trim();
+            var delimiterIndex = payload.IndexOf(':');
+            if (delimiterIndex <= 0 || delimiterIndex >= payload.Length - 1)
+            {
+                throw new InvalidOperationException($"Card action '{actionId}' is invalid.");
+            }
+
+            return payload[..delimiterIndex].Trim();
         }
 
         return actionId[actionPrefix.Length..].Trim();
@@ -1007,7 +1045,8 @@ public sealed class InMemoryGameInstanceRegistry
         GameInstance instance,
         string playerId,
         GameCardActionExecutionRequest request,
-        PlayerState actingPlayer)
+        PlayerState actingPlayer,
+        IGameSequentialEffectExecutor sequentialEffectExecutor)
     {
         var attacker = actingPlayer.Battlefield.FirstOrDefault(card =>
             string.Equals(card.InstanceId, request.SourceCardInstanceId, StringComparison.Ordinal));
@@ -1084,9 +1123,241 @@ public sealed class InMemoryGameInstanceRegistry
         instance.State.PendingAttackDefenderInstanceId = selectedTarget.CardInstanceId;
         instance.State.PendingAttackDefenderZone = targetZone;
 
-        instance.State.Phase = GamePhase.AttackDeclaration;
-        instance.State.PriorityPlayerId = string.Empty;
-        instance.State.ConsecutivePasses = 0;
+        ExecuteAutomaticWhenAttackingEffects(instance, playerId, attacker, sequentialEffectExecutor);
+
+        if (TryPrepareOptionalWhenAttackingChoice(instance, playerId, attacker))
+        {
+            instance.State.Phase = GamePhase.AttackDeclaration;
+            instance.State.PriorityPlayerId = string.Empty;
+            instance.State.ConsecutivePasses = 0;
+            return;
+        }
+
+        EnterSupportCutInWindow(instance.State, defenderPlayer.PlayerId);
+    }
+
+    private static void ExecuteAutomaticWhenAttackingEffects(
+        GameInstance instance,
+        string actingPlayerId,
+        CardInstance attacker,
+        IGameSequentialEffectExecutor sequentialEffectExecutor)
+    {
+        if (instance.State.CardDefinitions.TryGetValue(attacker.CardDefinitionId, out var attackerDefinition))
+        {
+            ExecuteAutomaticWhenAttackingEffectsForSource(
+                instance,
+                actingPlayerId,
+                sourceCardDefinition: attackerDefinition,
+                sourceCardInstance: attacker,
+                sequentialEffectExecutor);
+        }
+    }
+
+    private static bool TryPrepareOptionalWhenAttackingChoice(GameInstance instance, string actingPlayerId, CardInstance attacker)
+    {
+        if (!instance.State.CardDefinitions.TryGetValue(attacker.CardDefinitionId, out var attackerDefinition))
+        {
+            return false;
+        }
+
+        var optionalEffect = attackerDefinition.Effects.FirstOrDefault(effect =>
+            effect.Timing == EffectTiming.WhenAttacking && effect.IsOptional);
+
+        if (optionalEffect is null)
+        {
+            ClearPendingOptionalAttackEffectState(instance.State);
+            return false;
+        }
+
+        instance.State.PendingAttackOptionalEffectSourceCardInstanceId = attacker.InstanceId;
+        instance.State.PendingAttackOptionalEffectId = ResolveEffectKey(optionalEffect, 0);
+        instance.State.PendingAttackOptionalEffectPlayerId = actingPlayerId;
+        return true;
+    }
+
+    private static void ExecuteResolveOptionalAttackEffectAction(
+        GameInstance instance,
+        string playerId,
+        GameCardActionExecutionRequest request,
+        IGameSequentialEffectExecutor sequentialEffectExecutor)
+    {
+        if (!TryParseResolveOptionalAttackEffectActionId(request.ActionId, out var sourceCardInstanceId, out var decision))
+        {
+            throw new InvalidOperationException($"Card action '{request.ActionId}' is invalid.");
+        }
+
+        if (!string.Equals(sourceCardInstanceId, instance.State.PendingAttackOptionalEffectSourceCardInstanceId, StringComparison.Ordinal)
+            || !string.Equals(playerId, instance.State.PendingAttackOptionalEffectPlayerId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Optional attack effect choice does not match pending attack context.");
+        }
+
+        if (string.Equals(decision, "yes", StringComparison.Ordinal))
+        {
+            var actingPlayer = instance.State.Players.FirstOrDefault(player =>
+                string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
+
+            var sourceCardInstance = actingPlayer?.Battlefield.FirstOrDefault(card =>
+                string.Equals(card.InstanceId, sourceCardInstanceId, StringComparison.Ordinal));
+
+            if (sourceCardInstance is not null
+                && instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
+            {
+                var effectWithIndex = sourceCardDefinition.Effects
+                    .Select((effect, index) => new { Effect = effect, Index = index })
+                    .FirstOrDefault(entry =>
+                        entry.Effect.Timing == EffectTiming.WhenAttacking
+                        && entry.Effect.IsOptional
+                        && string.Equals(ResolveEffectKey(entry.Effect, entry.Index), instance.State.PendingAttackOptionalEffectId, StringComparison.Ordinal));
+
+                if (effectWithIndex is not null)
+                {
+                    var arguments = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        [ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument] = string.IsNullOrWhiteSpace(effectWithIndex.Effect.Id)
+                            ? effectWithIndex.Effect.RuntimeEffectType.ToString()
+                            : effectWithIndex.Effect.Id,
+                    };
+
+                    var singleEffectDefinition = CloneCardDefinitionWithSingleEffect(sourceCardDefinition, effectWithIndex.Effect);
+
+                    var context = new GameCardEffectContext(
+                        game: instance,
+                        actingPlayer: new Player { Id = playerId },
+                        sourceCardDefinition: singleEffectDefinition,
+                        sourceCardInstance: sourceCardInstance,
+                        arguments: arguments,
+                        selectedTargets: []);
+
+                    var executeResult = sequentialEffectExecutor.Execute(context);
+                    if (executeResult.IsError)
+                    {
+                        throw new InvalidOperationException(executeResult.FirstError.Description);
+                    }
+                }
+            }
+        }
+
+        var defenderPlayerId = instance.State.PendingAttackDefenderPlayerId;
+        ClearPendingOptionalAttackEffectState(instance.State);
+        EnterSupportCutInWindow(instance.State, defenderPlayerId);
+    }
+
+    private static bool TryParseResolveOptionalAttackEffectActionId(string actionId, out string sourceCardInstanceId, out string decision)
+    {
+        sourceCardInstanceId = string.Empty;
+        decision = string.Empty;
+
+        if (!actionId.StartsWith(ResolveOptionalAttackEffectActionPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var payload = actionId[ResolveOptionalAttackEffectActionPrefix.Length..].Trim();
+        var delimiterIndex = payload.IndexOf(':');
+        if (delimiterIndex <= 0 || delimiterIndex >= payload.Length - 1)
+        {
+            return false;
+        }
+
+        sourceCardInstanceId = payload[..delimiterIndex].Trim();
+        decision = payload[(delimiterIndex + 1)..].Trim();
+        return !string.IsNullOrWhiteSpace(sourceCardInstanceId)
+            && (string.Equals(decision, "yes", StringComparison.Ordinal) || string.Equals(decision, "no", StringComparison.Ordinal));
+    }
+
+    private static void EnterSupportCutInWindow(GameState state, string defenderPlayerId)
+    {
+        state.Phase = GamePhase.ActionStep;
+        state.PriorityPlayerId = defenderPlayerId;
+        state.ConsecutivePasses = 0;
+    }
+
+    private static void ClearPendingOptionalAttackEffectState(GameState state)
+    {
+        state.PendingAttackOptionalEffectSourceCardInstanceId = string.Empty;
+        state.PendingAttackOptionalEffectId = string.Empty;
+        state.PendingAttackOptionalEffectPlayerId = string.Empty;
+    }
+
+    private static void ExecuteAutomaticWhenAttackingEffectsForSource(
+        GameInstance instance,
+        string actingPlayerId,
+        Card sourceCardDefinition,
+        CardInstance? sourceCardInstance,
+        IGameSequentialEffectExecutor sequentialEffectExecutor)
+    {
+        foreach (var effectSpec in sourceCardDefinition.Effects)
+        {
+            if (effectSpec.Timing != EffectTiming.WhenAttacking || effectSpec.IsOptional)
+            {
+                continue;
+            }
+
+            var arguments = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument] = string.IsNullOrWhiteSpace(effectSpec.Id)
+                    ? effectSpec.RuntimeEffectType.ToString()
+                    : effectSpec.Id,
+            };
+
+            // Sequential executor evaluates all effects on the supplied definition.
+            // Wrap to a single effect so only this mandatory WhenAttacking effect auto-triggers.
+            var singleEffectDefinition = CloneCardDefinitionWithSingleEffect(sourceCardDefinition, effectSpec);
+
+            var context = new GameCardEffectContext(
+                game: instance,
+                actingPlayer: new Player { Id = actingPlayerId },
+                sourceCardDefinition: singleEffectDefinition,
+                sourceCardInstance: sourceCardInstance,
+                arguments: arguments,
+                selectedTargets: []);
+
+            var executeResult = sequentialEffectExecutor.Execute(context);
+            if (executeResult.IsError)
+            {
+                throw new InvalidOperationException(executeResult.FirstError.Description);
+            }
+        }
+    }
+
+    private static Card CloneCardDefinitionWithSingleEffect(Card sourceCardDefinition, EffectSpec effectSpec)
+    {
+        var clonedDefinition = sourceCardDefinition switch
+        {
+            LeaderCard leader => new LeaderCard
+            {
+                Life = leader.Life,
+                RecoveryEffect = leader.RecoveryEffect,
+            },
+            CharacterCard character => new CharacterCard
+            {
+                Health = character.Health,
+                SupportName = character.SupportName,
+                SupportEffect = character.SupportEffect,
+            },
+            _ => new Card(),
+        };
+
+        clonedDefinition.Id = sourceCardDefinition.Id;
+        clonedDefinition.Image = sourceCardDefinition.Image;
+        clonedDefinition.OriginalId = sourceCardDefinition.OriginalId;
+        clonedDefinition.MainAlternate = sourceCardDefinition.MainAlternate;
+        clonedDefinition.Attribute = sourceCardDefinition.Attribute;
+        clonedDefinition.Name = sourceCardDefinition.Name.ToList();
+        clonedDefinition.DisplayName = sourceCardDefinition.DisplayName;
+        clonedDefinition.Type = sourceCardDefinition.Type;
+        clonedDefinition.Traits = sourceCardDefinition.Traits.ToList();
+        clonedDefinition.Color = sourceCardDefinition.Color;
+        clonedDefinition.Description = sourceCardDefinition.Description;
+        clonedDefinition.MainEffect = sourceCardDefinition.MainEffect;
+        clonedDefinition.Damage = sourceCardDefinition.Damage;
+        clonedDefinition.Power = sourceCardDefinition.Power;
+        clonedDefinition.CannotBeNormalSummoned = sourceCardDefinition.CannotBeNormalSummoned;
+        clonedDefinition.Conditions = sourceCardDefinition.Conditions.ToList();
+        clonedDefinition.Effects = [effectSpec];
+
+        return clonedDefinition;
     }
 
     private static void ResolveLeaderAttack(GameInstance instance, CardInstance attacker, PlayerState defenderPlayer)
@@ -1252,6 +1523,7 @@ public sealed class InMemoryGameInstanceRegistry
         state.PendingAttackDefenderPlayerId = string.Empty;
         state.PendingAttackDefenderInstanceId = string.Empty;
         state.PendingAttackDefenderZone = null;
+        ClearPendingOptionalAttackEffectState(state);
     }
 
     private static bool IsSupportEffectTimingAvailable(

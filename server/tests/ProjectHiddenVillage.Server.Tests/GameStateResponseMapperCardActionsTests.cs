@@ -300,7 +300,7 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
-    public void ToGameStateResponse_DisablesOpponentSupportActions_InAttackDeclarationWindow()
+    public void ToGameStateResponse_DisablesOpponentSupportActions_InAttackDeclaration()
     {
         var requesterId = Guid.NewGuid().ToString("N");
         var opponentId = Guid.NewGuid().ToString("N");
@@ -376,13 +376,13 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
-    public void ToGameStateResponse_EnablesWhenAttackingLeaderEffect_InEffectDeclarationStage()
+    public void ToGameStateResponse_DoesNotMapManualWhenAttackingLeaderEffectAction()
     {
         var requesterId = Guid.NewGuid().ToString("N");
         var opponentId = Guid.NewGuid().ToString("N");
 
         var state = BuildState(requesterId, opponentId);
-        state.Phase = GamePhase.BlockerDeclaration;
+        state.Phase = GamePhase.ActionStep;
         state.ActivePlayerId = requesterId;
         state.HasPendingAttack = true;
 
@@ -401,8 +401,7 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
-        Assert.IsTrue(requester.Leader.AvailableActions[0].IsEnabled);
+        Assert.AreEqual(0, requester.Leader.AvailableActions.Count);
     }
 
     [TestMethod]
@@ -412,7 +411,7 @@ public sealed class GameStateResponseMapperCardActionsTests
         var opponentId = Guid.NewGuid().ToString("N");
 
         var state = BuildState(requesterId, opponentId);
-        state.Phase = GamePhase.BlockerDeclaration;
+        state.Phase = GamePhase.ActionStep;
         state.ActivePlayerId = requesterId;
         state.HasPendingAttack = false;
 

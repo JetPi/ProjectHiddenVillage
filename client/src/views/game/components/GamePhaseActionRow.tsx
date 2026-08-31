@@ -20,22 +20,17 @@ const PhaseValues = {
 
 const AttackSequenceStepMeta = {
   AttackDeclaration: {
-    stepLabel: 'Step 1/4',
+    stepLabel: 'Step 1/3',
     detail: 'Attack target has been declared.',
     owner: 'active',
   },
-  EffectDeclaration: {
-    stepLabel: 'Step 2/4',
-    detail: 'When Attacking effects can be declared.',
-    owner: 'active',
-  },
   SupportCutIn: {
-    stepLabel: 'Step 3/4',
+    stepLabel: 'Step 2/3',
     detail: 'Quick/support responses resolve via priority.',
     owner: 'priority',
   },
   DamageStep: {
-    stepLabel: 'Step 4/4',
+    stepLabel: 'Step 3/3',
     detail: 'Damage resolves automatically.',
     owner: 'system',
   },

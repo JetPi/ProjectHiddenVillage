@@ -15,6 +15,7 @@ public static class GameStateResponseMapper
     private const string SummonToFieldActionPrefix = "summon-to-field:";
     private const string SetSupportActionPrefix = "set-support:";
     private const string LeaderEffectActionPrefix = "leader-effect:";
+    private const string ResolveOptionalAttackEffectActionPrefix = "resolve-optional-attack-effect:";
 
     public static GameStateResponse ToGameStateResponse(GameInstance game, string requestingPlayerId)
     {
@@ -74,8 +75,6 @@ public static class GameStateResponseMapper
 
         return state.Phase switch
         {
-            GamePhase.AttackDeclaration => "AttackDeclaration",
-            GamePhase.BlockerDeclaration => "EffectDeclaration",
             GamePhase.ActionStep => "SupportCutIn",
             GamePhase.AttackResolution => "DamageStep",
             _ => null,
@@ -134,6 +133,7 @@ public static class GameStateResponseMapper
 
         AddActivePlayerPhaseOptionActions(actions, phaseData, isRequestingPlayerActive);
         AddActionStepPriorityActions(actions, state.Phase, isRequestingPlayerPriority);
+        AddOptionalAttackEffectChoiceActions(actions, state, requestingPlayerId);
         AddDefaultAdvancePhaseAction(actions, phaseData, isRequestingPlayerActive);
 
         return actions;
@@ -201,6 +201,33 @@ public static class GameStateResponseMapper
         }
 
         actions.Add(new GameActionOptionResponse(ActionId: "advance-phase", Label: "Advance Phase", IsEnabled: true));
+    }
+
+    private static void AddOptionalAttackEffectChoiceActions(
+        List<GameActionOptionResponse> actions,
+        GameState state,
+        string requestingPlayerId)
+    {
+        if (state.Phase != GamePhase.AttackDeclaration)
+        {
+            return;
+        }
+
+        if (!IsSamePlayerId(state.PendingAttackOptionalEffectPlayerId, requestingPlayerId)
+            || string.IsNullOrWhiteSpace(state.PendingAttackOptionalEffectSourceCardInstanceId))
+        {
+            return;
+        }
+
+        var sourceCardInstanceId = state.PendingAttackOptionalEffectSourceCardInstanceId;
+        actions.Add(new GameActionOptionResponse(
+            ActionId: $"{ResolveOptionalAttackEffectActionPrefix}{sourceCardInstanceId}:yes",
+            Label: "Want to activate On Attack effect?",
+            IsEnabled: true));
+        actions.Add(new GameActionOptionResponse(
+            ActionId: $"{ResolveOptionalAttackEffectActionPrefix}{sourceCardInstanceId}:no",
+            Label: "Skip On Attack Effect",
+            IsEnabled: true));
     }
 
     private static PlayerZonesResponse ToPlayerZonesResponse(
