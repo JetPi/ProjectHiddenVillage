@@ -294,6 +294,26 @@ async function completeEndStepViaHub(gameCode: string, player: PlayerAuth): Prom
   }
 }
 
+async function declarePassInActionStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
+  const connection = buildHubConnection(player.session.accessToken, player.userId)
+
+  try {
+    await connection.start()
+
+    const result = await connection.invoke<{
+      succeeded: boolean
+      errorCode?: string | null
+      errorDescription?: string | null
+    }>('DeclarePassInActionStep', gameCode.toUpperCase(), {
+      playerId: player.normalizedUserId,
+    })
+
+    expect(result.succeeded, `${result.errorCode ?? 'Hub.DeclarePassInActionStep'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
+  } finally {
+    await connection.stop()
+  }
+}
+
 async function setupMultiplayerGame(request: APIRequestContext): Promise<MultiplayerSetup> {
   const [playerOneLogin, playerTwoLogin] = await Promise.all([
     login(request, SEEDED_PLAYER_ONE.email, SEEDED_PLAYER_ONE.password),
@@ -717,6 +737,20 @@ async function resolveActorWithBottomHandAction(
     if (canEndTurn) {
       await declareEndStepViaHub(setup.gameCode, activePlayer)
       await completeEndStepViaHub(setup.gameCode, activePlayer)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const playerOneCanPass = playerOneState.availableActions.some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    if (playerOneCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerOne)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const playerTwoCanPass = playerTwoState.availableActions.some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    if (playerTwoCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerTwo)
       await new Promise((resolve) => setTimeout(resolve, 300))
       continue
     }
