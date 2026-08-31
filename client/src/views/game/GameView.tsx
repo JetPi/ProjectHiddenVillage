@@ -41,9 +41,9 @@ export function GameView() {
     'RefreshPhase',
     'StartOfMainPhase',
     'DrawPhase',
-    'AttackDeclaration',
     'AttackResolution',
     'BattleEndStep',
+    'EndStep',
   ]), [])
 
   const boardZoneRef = useRef<HTMLDivElement | null>(null)
@@ -220,8 +220,8 @@ export function GameView() {
   const isActionPendingFlag = isActionPending
 
   const mappedAvailableActions = shouldShowPromptOverlay
-    ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:') && action.actionId !== 'declare-attack')
-    : gameState.availableActions.filter((action) => action.actionId !== 'declare-attack')
+    ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:'))
+    : gameState.availableActions
 
   const canShowHandNoActionsMessage =
     Boolean(authUserId)
@@ -394,6 +394,33 @@ export function GameView() {
           actionId: intentRequest.actionId,
           sourceCardInstanceId: intentRequest.sourceCardInstanceId,
           selectedTargets: autoSelectedTargets,
+        })
+      })()
+
+      return
+    }
+
+    if (action.actionId.startsWith('battle-action:')) {
+      const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
+      if (!intentRequest || intentRequest.intent !== 'execute-card-action') {
+        return
+      }
+
+      void (async () => {
+        const targetsResponse = await getCardActionTargets({
+          actionId: intentRequest.actionId,
+          sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+        })
+
+        if (!targetsResponse || !targetsResponse.isEnabled || targetsResponse.validTargets.length === 0) {
+          return
+        }
+
+        await submitHubIntent({
+          intent: 'execute-card-action',
+          actionId: intentRequest.actionId,
+          sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+          selectedTargets: [targetsResponse.validTargets[0]],
         })
       })()
 

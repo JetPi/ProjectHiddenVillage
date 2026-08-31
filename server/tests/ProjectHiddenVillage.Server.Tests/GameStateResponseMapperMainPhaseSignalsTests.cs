@@ -15,9 +15,73 @@ public sealed class GameStateResponseMapperMainPhaseSignalsTests
 
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
 
+        Assert.IsNull(response.AttackSequenceStage);
+        Assert.IsFalse(response.IsAttackSequencePending);
         Assert.AreEqual(1, response.AvailableActions.Count);
         Assert.IsTrue(response.AvailableActions.Any(action => action.ActionId == "turn-end" && action.Label == "End Turn"));
         Assert.IsFalse(response.AvailableActions.Any(action => action.ActionId == "declare-attack"));
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_AttackDeclaration_DoesNotMapAttackSequenceStage()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+        var state = BuildState(GamePhase.AttackDeclaration, requesterId, requesterId, requesterId, opponentId);
+        state.HasPendingAttack = true;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+
+        Assert.IsNull(response.AttackSequenceStage);
+        Assert.IsTrue(response.IsAttackSequencePending);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_ActionStep_MapsSupportCutInStage_WhenAttackPending()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+        var state = BuildState(GamePhase.ActionStep, requesterId, requesterId, requesterId, opponentId);
+        state.HasPendingAttack = true;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+
+        Assert.AreEqual("SupportCutIn", response.AttackSequenceStage);
+        Assert.IsTrue(response.IsAttackSequencePending);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_AttackDeclaration_MapsOptionalAttackEffectChoiceActions_ForAttackingPlayer()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+        var state = BuildState(GamePhase.AttackDeclaration, requesterId, string.Empty, requesterId, opponentId);
+        state.HasPendingAttack = true;
+        state.PendingAttackOptionalEffectPlayerId = requesterId;
+        state.PendingAttackOptionalEffectSourceCardInstanceId = "attacker-1";
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+
+        Assert.IsTrue(response.AvailableActions.Any(action => action.ActionId == "resolve-optional-attack-effect:attacker-1:yes"));
+        Assert.IsTrue(response.AvailableActions.Any(action => action.ActionId == "resolve-optional-attack-effect:attacker-1:no"));
+        Assert.IsTrue(response.AvailableActions.Any(action =>
+            action.ActionId == "resolve-optional-attack-effect:attacker-1:yes"
+            && action.Label == "Want to activate On Attack effect?"));
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_AttackDeclaration_DoesNotMapOptionalAttackEffectChoiceActions_ForOpponent()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+        var state = BuildState(GamePhase.AttackDeclaration, requesterId, string.Empty, requesterId, opponentId);
+        state.HasPendingAttack = true;
+        state.PendingAttackOptionalEffectPlayerId = requesterId;
+        state.PendingAttackOptionalEffectSourceCardInstanceId = "attacker-1";
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, opponentId);
+
+        Assert.IsFalse(response.AvailableActions.Any(action => action.ActionId.StartsWith("resolve-optional-attack-effect:", StringComparison.Ordinal)));
     }
 
     private static GameState BuildState(

@@ -12,6 +12,12 @@ const PhaseValues = {
   'opponent-turn': "Opponent's turn",
   'w-for-opponent-to-choose': 'Waiting for opponent to choose',
   'w-for-opponent-to-mulligan': 'Waiting for opponent to choose mulligan',
+  'your-attack-declaration': 'Your Attack Declaration',
+  'opponent-attack-declaration': "Opponent Attack Declaration",
+  'effect-declaration': 'Effect Declaration',
+  'your-support-cut-in': 'Your Support Cut-In',
+  'opponent-support-cut-in': "Opponent Support Cut-In",
+  'damage-step': 'Damage Step',
 }
 
 function getPhaseValue(gameInstance: IGameStateResponse, authUserId?: string): string {
@@ -24,6 +30,28 @@ function getPhaseValue(gameInstance: IGameStateResponse, authUserId?: string): s
   if (!otherPlayer) {
     return PhaseValues['w-for-players']
   } else {
+    if (gameInstance.isAttackSequencePending && gameInstance.attackSequenceStage) {
+      if (gameInstance.attackSequenceStage === 'AttackDeclaration') {
+        return isPlayerTurn
+          ? PhaseValues['your-attack-declaration']
+          : PhaseValues['opponent-attack-declaration']
+      }
+
+      if (gameInstance.attackSequenceStage === 'EffectDeclaration') {
+        return PhaseValues['effect-declaration']
+      }
+
+      if (gameInstance.attackSequenceStage === 'SupportCutIn') {
+        const normalizedPriorityPlayerId = normalizeId(gameInstance.priorityPlayerId)
+        const isPlayerPriority = normalizedAuthUserId.length > 0 && normalizedAuthUserId === normalizedPriorityPlayerId
+        return isPlayerPriority ? PhaseValues['your-support-cut-in'] : PhaseValues['opponent-support-cut-in']
+      }
+
+      if (gameInstance.attackSequenceStage === 'DamageStep') {
+        return PhaseValues['damage-step']
+      }
+    }
+
     if (gameInstance.pendingPrompt && !gameInstance.pendingPrompt.isAwaitingRequestingPlayer) {
       if (gameInstance.pendingPrompt.type.toLowerCase() === 'mulligan') {
         return PhaseValues['w-for-opponent-to-mulligan']
@@ -35,15 +63,27 @@ function getPhaseValue(gameInstance: IGameStateResponse, authUserId?: string): s
   return isPlayerTurn ? PhaseValues['player-turn'] : PhaseValues['opponent-turn']
 }
 
-function getPhaseThemeClasses(phaseValue: string): string {
-  switch (phaseValue) {
-    case PhaseValues['w-for-players']:
-      return 'turn-indicator-light-gray turn-indicator-text-black'
-    case PhaseValues['player-turn']:
-      return 'turn-indicator-orange turn-indicator-text-light-theme'
-    default:
-      return 'turn-indicator-blue turn-indicator-text-dark-theme'
+function getPhaseThemeClasses(gameInstance: IGameStateResponse, phaseValue: string, authUserId?: string): string {
+  if (phaseValue === PhaseValues['your-support-cut-in']) {
+    return 'turn-indicator-orange turn-indicator-text-light-theme'
   }
+
+  if (phaseValue === PhaseValues['opponent-support-cut-in']) {
+    return 'turn-indicator-blue turn-indicator-text-dark-theme'
+  }
+
+  const normalizedAuthUserId = normalizeId(authUserId)
+  const normalizedActivePlayerId = normalizeId(gameInstance.activePlayerId)
+  const hasBothPlayers = gameInstance.players.length > 1
+  const isPlayerTurn = normalizedAuthUserId.length > 0 && normalizedAuthUserId === normalizedActivePlayerId
+
+  if (!hasBothPlayers) {
+    return 'turn-indicator-light-gray turn-indicator-text-black'
+  }
+
+  return isPlayerTurn
+    ? 'turn-indicator-orange turn-indicator-text-light-theme'
+    : 'turn-indicator-blue turn-indicator-text-dark-theme'
 }
 
 function GamePhaseActionRow({
@@ -56,7 +96,7 @@ function GamePhaseActionRow({
   phaseTestId,
 }: IGamePhaseActionRowProps) {
   const phaseValue = getPhaseValue(gameInstance, authUserId)
-  const phaseThemeClasses = getPhaseThemeClasses(phaseValue)
+  const phaseThemeClasses = getPhaseThemeClasses(gameInstance, phaseValue, authUserId)
   const hasOptions = availableActions.length > 0
 
   return (
@@ -87,9 +127,9 @@ function GamePhaseActionRow({
 
         <div
           data-testid={phaseTestId}
-          className={`min-w-0 flex-1 rounded-md border border-[var(--border-subtle)] py-0.5 text-center text-[12px] font-extrabold leading-none transition-[max-width,transform,opacity] duration-300 ease-out ${phaseThemeClasses}`}
+          className={`min-w-0 flex-1 rounded-md border border-[var(--border-subtle)] py-0.5 text-center transition-[max-width,transform,opacity] duration-300 ease-out ${phaseThemeClasses}`}
         >
-          <span key={phaseValue} className="phase-indicator-text-swap inline-block">
+          <span key={phaseValue} className="phase-indicator-text-swap inline-block text-[12px] font-extrabold leading-none">
             {phaseValue}
           </span>
         </div>

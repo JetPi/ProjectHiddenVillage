@@ -43,6 +43,20 @@ public sealed class GameState
 
     public string PendingAttackDeclarationId { get; set; } = string.Empty;
 
+    public string PendingAttackAttackerInstanceId { get; set; } = string.Empty;
+
+    public string PendingAttackDefenderPlayerId { get; set; } = string.Empty;
+
+    public string PendingAttackDefenderInstanceId { get; set; } = string.Empty;
+
+    public PlayerZone? PendingAttackDefenderZone { get; set; }
+
+    public string PendingAttackOptionalEffectSourceCardInstanceId { get; set; } = string.Empty;
+
+    public string PendingAttackOptionalEffectId { get; set; } = string.Empty;
+
+    public string PendingAttackOptionalEffectPlayerId { get; set; } = string.Empty;
+
     public void InsertPhase(GamePhase phase)
     {
         InsertedPhases.Enqueue(phase);

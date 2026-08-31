@@ -6,6 +6,7 @@
     <NoWarn>$(NoWarn);NU1903</NoWarn>
     <NuGetAudit>false</NuGetAudit>
     <UserSecretsId>b9bb24d1-4ad1-4335-b4eb-c787c7f26833</UserSecretsId>
+    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,5 +24,8 @@
 
   <ItemGroup>
     <Compile Remove="tests/**/*.cs" />
+    <Content Remove="tests/**" />
+    <None Remove="tests/**" />
+    <EmbeddedResource Remove="tests/**" />
   </ItemGroup>
 </Project>

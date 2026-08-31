@@ -86,6 +86,8 @@ export type IGameStateResponse = {
   activePlayerId: string
   priorityPlayerId: string
   phase: string
+  attackSequenceStage: string | null
+  isAttackSequencePending: boolean
   pendingPrompt: IPendingPromptResponse | null
   availableActions: IGameActionOptionResponse[]
   activeTemporaryEffects: IActiveTemporaryEffectResponse[]

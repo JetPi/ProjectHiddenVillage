@@ -6,6 +6,8 @@ public sealed record GameStateResponse(
     string ActivePlayerId,
     string PriorityPlayerId,
     string Phase,
+    string? AttackSequenceStage,
+    bool IsAttackSequencePending,
     PendingPromptResponse? PendingPrompt,
     IReadOnlyList<GameActionOptionResponse> AvailableActions,
     IReadOnlyList<ActiveTemporaryEffectResponse> ActiveTemporaryEffects,
