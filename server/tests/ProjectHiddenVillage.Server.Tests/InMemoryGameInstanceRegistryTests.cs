@@ -201,6 +201,55 @@ public sealed class InMemoryGameInstanceRegistryTests
     }
 
     [TestMethod]
+    public void ExecuteCardAction_BattleAction_AllowsEquivalentGuidPlayerIdFormats()
+    {
+        var activePlayerGuid = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var opponentPlayerGuid = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var activePlayerDashed = activePlayerGuid.ToString();
+        var activePlayerCompact = activePlayerGuid.ToString("N");
+        var opponentPlayerDashed = opponentPlayerGuid.ToString();
+
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = activePlayerDashed, Deck = ["leader-def", "card-1"] },
+                new Player { Id = opponentPlayerDashed, Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = activePlayerDashed;
+        game.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "attacker-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = activePlayerDashed,
+            ControllerPlayerId = activePlayerDashed,
+            IsRested = false,
+        });
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: activePlayerCompact,
+                ActionId: "battle-action:attacker-1",
+                SourceCardInstanceId: "attacker-1",
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: opponentPlayerDashed,
+                        Zone: PlayerZone.Leader,
+                        CardInstanceId: game.State.Players[1].LeaderCardInstance!.InstanceId)
+                ]),
+            new RecordingSequentialExecutor());
+
+        Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
+        Assert.AreEqual(opponentPlayerDashed, game.State.PriorityPlayerId);
+    }
+
+    [TestMethod]
     public void ExecuteCardAction_BattleAction_ThrowsWithoutExplicitTarget()
     {
         var game = registry.Create(

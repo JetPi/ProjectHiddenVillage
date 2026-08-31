@@ -242,7 +242,7 @@ public sealed class InMemoryGameInstanceRegistry
             }
 
             var actingPlayer = instance.State.Players.FirstOrDefault(player =>
-                string.Equals(player.PlayerId, request.PlayerId, StringComparison.Ordinal));
+                IsSamePlayerId(player.PlayerId, request.PlayerId));
             if (actingPlayer is null)
             {
                 throw new InvalidOperationException($"Player '{request.PlayerId}' was not found in game.");
@@ -327,7 +327,7 @@ public sealed class InMemoryGameInstanceRegistry
             }
 
             var actingPlayer = instance.State.Players.FirstOrDefault(player =>
-                string.Equals(player.PlayerId, request.PlayerId, StringComparison.Ordinal));
+                IsSamePlayerId(player.PlayerId, request.PlayerId));
             if (actingPlayer is null)
             {
                 throw new InvalidOperationException($"Player '{request.PlayerId}' was not found in game.");
@@ -470,7 +470,7 @@ public sealed class InMemoryGameInstanceRegistry
                 throw new InvalidOperationException("Hand card actions can only be executed during MainPhase.");
             }
 
-            if (!string.Equals(instance.State.ActivePlayerId, playerId, StringComparison.Ordinal))
+            if (!IsSamePlayerId(instance.State.ActivePlayerId, playerId))
             {
                 throw new InvalidOperationException("Only the active player can execute hand card actions.");
             }
@@ -485,7 +485,7 @@ public sealed class InMemoryGameInstanceRegistry
                 throw new InvalidOperationException("Battle actions can only be executed during MainPhase.");
             }
 
-            if (!string.Equals(instance.State.ActivePlayerId, playerId, StringComparison.Ordinal))
+            if (!IsSamePlayerId(instance.State.ActivePlayerId, playerId))
             {
                 throw new InvalidOperationException("Only the active player can execute battle actions.");
             }
@@ -500,7 +500,7 @@ public sealed class InMemoryGameInstanceRegistry
                 throw new InvalidOperationException("Optional attack effect choice can only be resolved during attack declaration.");
             }
 
-            if (!string.Equals(instance.State.PendingAttackOptionalEffectPlayerId, playerId, StringComparison.Ordinal))
+            if (!IsSamePlayerId(instance.State.PendingAttackOptionalEffectPlayerId, playerId))
             {
                 throw new InvalidOperationException("Only the attacking player can resolve optional attack effect choice.");
             }
@@ -515,13 +515,13 @@ public sealed class InMemoryGameInstanceRegistry
 
         if (actionPrefix == ActivateSupportActionPrefix)
         {
-            var isActivePlayer = string.Equals(instance.State.ActivePlayerId, playerId, StringComparison.Ordinal);
+            var isActivePlayer = IsSamePlayerId(instance.State.ActivePlayerId, playerId);
             if (isActivePlayer)
             {
                 if (instance.State.Phase is GamePhase.MainPhase or GamePhase.ActionStep)
                 {
                     if (instance.State.Phase == GamePhase.ActionStep
-                        && !string.Equals(instance.State.PriorityPlayerId, playerId, StringComparison.Ordinal))
+                        && !IsSamePlayerId(instance.State.PriorityPlayerId, playerId))
                     {
                         throw new InvalidOperationException("Only the priority player can execute card actions.");
                     }
@@ -539,7 +539,7 @@ public sealed class InMemoryGameInstanceRegistry
             }
 
             if (instance.State.Phase == GamePhase.ActionStep
-                && !string.Equals(instance.State.PriorityPlayerId, playerId, StringComparison.Ordinal))
+                && !IsSamePlayerId(instance.State.PriorityPlayerId, playerId))
             {
                 throw new InvalidOperationException("Only the priority player can execute card actions.");
             }
@@ -552,10 +552,25 @@ public sealed class InMemoryGameInstanceRegistry
             throw new InvalidOperationException("Card actions can only be executed during ActionStep.");
         }
 
-        if (!string.Equals(instance.State.PriorityPlayerId, playerId, StringComparison.Ordinal))
+        if (!IsSamePlayerId(instance.State.PriorityPlayerId, playerId))
         {
             throw new InvalidOperationException("Only the priority player can execute card actions.");
         }
+    }
+
+    private static bool IsSamePlayerId(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+
+        if (Guid.TryParse(left, out var leftGuid) && Guid.TryParse(right, out var rightGuid))
+        {
+            return leftGuid == rightGuid;
+        }
+
+        return string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ResolveActionSourceCardInstanceId(string actionId, string actionPrefix)
@@ -614,8 +629,8 @@ public sealed class InMemoryGameInstanceRegistry
 
     private static bool IsLeaderEffectTimingAvailable(EffectTiming timing, GameState state, string actingPlayerId)
     {
-        var isActivePlayer = string.Equals(state.ActivePlayerId, actingPlayerId, StringComparison.Ordinal);
-        var isPriorityPlayer = string.Equals(state.PriorityPlayerId, actingPlayerId, StringComparison.Ordinal);
+        var isActivePlayer = IsSamePlayerId(state.ActivePlayerId, actingPlayerId);
+        var isPriorityPlayer = IsSamePlayerId(state.PriorityPlayerId, actingPlayerId);
 
         return timing switch
         {
@@ -753,7 +768,7 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         var defenderPlayer = instance.State.Players.FirstOrDefault(player =>
-            !string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
+            !IsSamePlayerId(player.PlayerId, playerId));
         if (defenderPlayer is null || defenderPlayer.LeaderCardInstance is null)
         {
             return new GameCardActionTargetsResponse(
@@ -986,7 +1001,7 @@ public sealed class InMemoryGameInstanceRegistry
                 $"Support card instance '{request.SourceCardInstanceId}' was not found for player '{playerId}'.");
         }
 
-        if (string.Equals(instance.State.ActivePlayerId, playerId, StringComparison.Ordinal))
+        if (IsSamePlayerId(instance.State.ActivePlayerId, playerId))
         {
             // Your turn support can be activated from hand or support area.
         }
@@ -1068,7 +1083,7 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         var defenderPlayer = instance.State.Players.FirstOrDefault(player =>
-            !string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
+            !IsSamePlayerId(player.PlayerId, playerId));
         if (defenderPlayer is null)
         {
             throw new InvalidOperationException("A defender could not be resolved for this attack.");
@@ -1187,7 +1202,7 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         if (!string.Equals(sourceCardInstanceId, instance.State.PendingAttackOptionalEffectSourceCardInstanceId, StringComparison.Ordinal)
-            || !string.Equals(playerId, instance.State.PendingAttackOptionalEffectPlayerId, StringComparison.Ordinal))
+            || !IsSamePlayerId(playerId, instance.State.PendingAttackOptionalEffectPlayerId))
         {
             throw new InvalidOperationException("Optional attack effect choice does not match pending attack context.");
         }
@@ -1195,7 +1210,7 @@ public sealed class InMemoryGameInstanceRegistry
         if (string.Equals(decision, "yes", StringComparison.Ordinal))
         {
             var actingPlayer = instance.State.Players.FirstOrDefault(player =>
-                string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
+                IsSamePlayerId(player.PlayerId, playerId));
 
             var sourceCardInstance = actingPlayer?.Battlefield.FirstOrDefault(card =>
                 string.Equals(card.InstanceId, sourceCardInstanceId, StringComparison.Ordinal));
@@ -1418,7 +1433,7 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         var activePlayer = instance.State.Players.FirstOrDefault(player =>
-            string.Equals(player.PlayerId, instance.State.ActivePlayerId, StringComparison.Ordinal));
+            IsSamePlayerId(player.PlayerId, instance.State.ActivePlayerId));
         if (activePlayer is null)
         {
             return false;
@@ -1532,8 +1547,8 @@ public sealed class InMemoryGameInstanceRegistry
         string actingPlayerId,
         bool isFromSupportZone)
     {
-        var isActivePlayer = string.Equals(state.ActivePlayerId, actingPlayerId, StringComparison.Ordinal);
-        var isPriorityPlayer = string.Equals(state.PriorityPlayerId, actingPlayerId, StringComparison.Ordinal);
+        var isActivePlayer = IsSamePlayerId(state.ActivePlayerId, actingPlayerId);
+        var isPriorityPlayer = IsSamePlayerId(state.PriorityPlayerId, actingPlayerId);
 
         if (!isActivePlayer && !isFromSupportZone)
         {
