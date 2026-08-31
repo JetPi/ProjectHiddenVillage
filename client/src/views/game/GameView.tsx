@@ -31,7 +31,7 @@ import {
   HAND_TO_PILE_DURATION_MS,
 } from '@/views/game/utils/contants'
 import { mapActionToHubIntent } from '@/views/game/utils/functions/gameState'
-import { runHandToElementAnimation, runHandToPileAnimation, runRectToDynamicElementAnimation, waitMillis } from '@/views/game/utils/functions/animations'
+import { runHandToPileAnimation, runRectToDynamicElementAnimation, waitMillis } from '@/views/game/utils/functions/animations'
 import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions/cards'
 import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 
@@ -438,6 +438,42 @@ export function GameView() {
     submitHubIntent,
   })
 
+  async function runSubmitThenZoneEntryAnimation({
+    intentRequest,
+    sourceRect,
+    beforeAnimation,
+    resolveDestinationElement,
+    resolveFallbackElement,
+    durationMs,
+    timeoutMs,
+    maxFrames,
+  }: {
+    intentRequest: NonNullable<ReturnType<typeof mapActionToHubIntent>>
+    sourceRect: DOMRect | null
+    beforeAnimation?: () => void
+    resolveDestinationElement: () => HTMLElement | null
+    resolveFallbackElement?: () => HTMLElement | null
+    durationMs?: number
+    timeoutMs?: number
+    maxFrames?: number
+  }): Promise<void> {
+    await submitHubIntent(intentRequest)
+    beforeAnimation?.()
+
+    if (!sourceRect) {
+      return
+    }
+
+    await runRectToDynamicElementAnimation({
+      sourceRect,
+      resolveDestinationElement,
+      resolveFallbackElement,
+      durationMs,
+      timeoutMs,
+      maxFrames,
+    })
+  }
+
   function submitMappedAction(action: IGameActionOptionResponse): void {
     if (!action.isEnabled) {
       return
@@ -536,75 +572,37 @@ export function GameView() {
       const sourceCardElement = sourceHandRowElement?.querySelector<HTMLDivElement>(
         `[data-hand-instance-id="${cardInstanceId}"]`,
       ) ?? null
-
-      function createPredictedBattlefieldSlotAnchor(): HTMLDivElement | null {
-        const battlefieldRowElement = boardZoneRef.current?.querySelector<HTMLElement>(
-          '[data-zone="character-field-row"][data-slot-side="bottom"]',
-        ) ?? null
-
-        if (!battlefieldRowElement || !sourceCardElement) {
-          return null
-        }
-
-        const sourceRect = sourceCardElement.getBoundingClientRect()
-        const rowRect = battlefieldRowElement.getBoundingClientRect()
-        if (sourceRect.width <= 0 || sourceRect.height <= 0 || rowRect.width <= 0 || rowRect.height <= 0) {
-          return null
-        }
-
-        const rowComputedStyle = window.getComputedStyle(battlefieldRowElement)
-        const gapPx = Number.parseFloat(rowComputedStyle.columnGap || rowComputedStyle.gap || '0') || 0
-        const leftInset = Number.parseFloat(rowComputedStyle.paddingLeft || '0') || 0
-        const rightInset = Number.parseFloat(rowComputedStyle.paddingRight || '0') || 0
-        const usableWidth = Math.max(rowRect.width - leftInset - rightInset, sourceRect.width)
-        const unclampedLeft = rowRect.left + leftInset + expectedBattlefieldSlotIndex * (sourceRect.width + gapPx)
-        const maxLeft = rowRect.left + leftInset + usableWidth - sourceRect.width
-        const targetLeft = Math.min(Math.max(unclampedLeft, rowRect.left + leftInset), maxLeft)
-        const targetTop = rowRect.top + (rowRect.height - sourceRect.height) / 2
-
-        const anchor = document.createElement('div')
-        anchor.setAttribute('data-zone', 'summon-predicted-anchor')
-        anchor.style.position = 'fixed'
-        anchor.style.left = `${targetLeft}px`
-        anchor.style.top = `${targetTop}px`
-        anchor.style.width = `${sourceRect.width}px`
-        anchor.style.height = `${sourceRect.height}px`
-        anchor.style.pointerEvents = 'none'
-        anchor.style.opacity = '0'
-        anchor.style.zIndex = '-1'
-        document.body.appendChild(anchor)
-
-        return anchor
-      }
+      const sourceRect = sourceCardElement?.getBoundingClientRect() ?? null
 
       void (async () => {
-        const predictedSlotAnchor = createPredictedBattlefieldSlotAnchor()
-        let movementPromise: Promise<void> | null = null
-        if (predictedSlotAnchor) {
-          movementPromise = runHandToElementAnimation({
-            side: 'bottom',
-            cardInstanceId,
-            destinationElement: predictedSlotAnchor,
-            topHandRowRef,
-            bottomHandRowRef,
-          })
-        }
+        await runSubmitThenZoneEntryAnimation({
+          intentRequest,
+          sourceRect,
+          beforeAnimation: () => {
+            setBottomBattlefieldDisplayOrder((previousOrder) => {
+              const knownIds = new Set(currentBottomBattlefieldRawCards.map((card) => card.instanceId))
+              const preservedIds = previousOrder.filter((instanceId) => knownIds.has(instanceId))
+              if (preservedIds.includes(cardInstanceId)) {
+                return preservedIds
+              }
 
-        await waitMillis(180)
-        predictedSlotAnchor?.remove()
-        await submitHubIntent(intentRequest)
-        if (movementPromise) {
-          await movementPromise
-        }
+              return [...preservedIds, cardInstanceId]
+            })
+          },
+          resolveDestinationElement: () => {
+            const exactCardElement = boardZoneRef.current?.querySelector<HTMLElement>(
+              `[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${cardInstanceId}"]`,
+            ) ?? null
+            if (exactCardElement) {
+              return exactCardElement
+            }
 
-        setBottomBattlefieldDisplayOrder((previousOrder) => {
-          const knownIds = new Set(currentBottomBattlefieldRawCards.map((card) => card.instanceId))
-          const preservedIds = previousOrder.filter((instanceId) => knownIds.has(instanceId))
-          if (preservedIds.includes(cardInstanceId)) {
-            return preservedIds
-          }
-
-          return [...preservedIds, cardInstanceId]
+            return boardZoneRef.current?.querySelector<HTMLElement>(
+              `[data-zone="character-field-card"][data-slot-side="bottom"][data-slot-index="${expectedBattlefieldSlotIndex}"]`,
+            ) ?? null
+          },
+          timeoutMs: 1800,
+          maxFrames: 120,
         })
       })()
 
@@ -668,24 +666,23 @@ export function GameView() {
     setPendingSetSupportCardInstanceId(null)
 
     void (async () => {
-      await submitHubIntent(intentRequest)
-
-      if (!sourceRect) {
-        return
-      }
-
-      await runRectToDynamicElementAnimation({
+      await runSubmitThenZoneEntryAnimation({
+        intentRequest,
         sourceRect,
         resolveDestinationElement: () => {
-          return boardZoneRef.current?.querySelector<HTMLElement>(
+          const exactCardElement = boardZoneRef.current?.querySelector<HTMLElement>(
             `[data-zone="support"][data-slot-side="bottom"][data-card-instance-id="${cardInstanceId}"]`,
           ) ?? null
-        },
-        resolveFallbackElement: () => {
+          if (exactCardElement) {
+            return exactCardElement
+          }
+
           return boardZoneRef.current?.querySelector<HTMLElement>(
-            `[data-zone="support"][data-slot-side="bottom"][data-slot-index="${slotIndex}"][data-slot-card="true"]`,
+            `[data-zone="support"][data-slot-side="bottom"][data-slot-index="${slotIndex}"][data-card-instance-id]`,
           ) ?? null
         },
+        timeoutMs: 1800,
+        maxFrames: 120,
       })
     })()
   }

@@ -197,7 +197,11 @@ export async function runRectToDynamicElementAnimation({
     return
   }
 
-  const fallbackElement = resolveFallbackElement()
+  const fallbackElement = await waitForElement({
+    resolveElement: resolveFallbackElement,
+    timeoutMs,
+    maxFrames,
+  })
   if (!fallbackElement) {
     return
   }
