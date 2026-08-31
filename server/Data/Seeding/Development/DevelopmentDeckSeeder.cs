@@ -38,6 +38,7 @@ public sealed class DevelopmentDeckSeeder
             Type: DeckType.Public,
             Cards:
             [
+                new SeedDeckCardDefinition("N-008", 3),
                 new SeedDeckCardDefinition("N-010", 3),
                 new SeedDeckCardDefinition("N-012", 1),
                 new SeedDeckCardDefinition("N-013", 3),
