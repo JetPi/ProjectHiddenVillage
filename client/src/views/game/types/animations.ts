@@ -29,6 +29,27 @@ export type IHandToElementAnimationArgs = {
   bottomHandRowRef: RefObject<HTMLDivElement | null>
 }
 
+export type IRectToElementAnimationArgs = {
+  sourceRect: DOMRect
+  destinationElement: HTMLElement | null
+  durationMs?: number
+}
+
+export type IWaitForElementArgs = {
+  resolveElement: () => HTMLElement | null
+  timeoutMs?: number
+  maxFrames?: number
+}
+
+export type IRectToDynamicElementAnimationArgs = {
+  sourceRect: DOMRect
+  resolveDestinationElement: () => HTMLElement | null
+  resolveFallbackElement?: () => HTMLElement | null
+  durationMs?: number
+  timeoutMs?: number
+  maxFrames?: number
+}
+
 export type IHandZoneSnapshot = {
   topHandInstanceIds: Set<string>
   bottomHandInstanceIds: Set<string>

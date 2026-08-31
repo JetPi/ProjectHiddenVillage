@@ -47,10 +47,20 @@ type GameActionOptionResponse = {
   isEnabled: boolean
 }
 
+type GameCardInstanceStateResponse = {
+  instanceId: string
+  cardDefinitionId?: string
+  availableActions?: GameActionOptionResponse[]
+}
+
 type GamePlayerStateResponse = {
+  playerId: string
   leader: {
     displayName: string
   }
+  hand: GameCardInstanceStateResponse[]
+  characterField: GameCardInstanceStateResponse[]
+  supportZone: GameCardInstanceStateResponse[]
 }
 
 type GameStateResponse = {
@@ -248,6 +258,62 @@ async function advancePhaseViaHub(gameCode: string, player: PlayerAuth): Promise
   }
 }
 
+async function declareEndStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
+  const connection = buildHubConnection(player.session.accessToken, player.userId)
+
+  try {
+    await connection.start()
+
+    const result = await connection.invoke<{
+      succeeded: boolean
+      errorCode?: string | null
+      errorDescription?: string | null
+    }>('DeclareEndStep', gameCode.toUpperCase())
+
+    expect(result.succeeded, `${result.errorCode ?? 'Hub.DeclareEndStep'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
+  } finally {
+    await connection.stop()
+  }
+}
+
+async function completeEndStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
+  const connection = buildHubConnection(player.session.accessToken, player.userId)
+
+  try {
+    await connection.start()
+
+    const result = await connection.invoke<{
+      succeeded: boolean
+      errorCode?: string | null
+      errorDescription?: string | null
+    }>('CompleteEndStep', gameCode.toUpperCase())
+
+    expect(result.succeeded, `${result.errorCode ?? 'Hub.CompleteEndStep'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
+  } finally {
+    await connection.stop()
+  }
+}
+
+async function declarePassInActionStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
+  const connection = buildHubConnection(player.session.accessToken, player.userId)
+
+  try {
+    await connection.start()
+
+    const result = await connection.invoke<{
+      succeeded: boolean
+      errorCode?: string | null
+      errorDescription?: string | null
+    }>('DeclarePassInActionStep', gameCode.toUpperCase(), {
+      playerId: player.normalizedUserId,
+    })
+
+    expect(result.succeeded, `${result.errorCode ?? 'Hub.DeclarePassInActionStep'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
+  } finally {
+    await connection.stop()
+  }
+}
+
 async function setupMultiplayerGame(request: APIRequestContext): Promise<MultiplayerSetup> {
   const [playerOneLogin, playerTwoLogin] = await Promise.all([
     login(request, SEEDED_PLAYER_ONE.email, SEEDED_PLAYER_ONE.password),
@@ -256,7 +322,7 @@ async function setupMultiplayerGame(request: APIRequestContext): Promise<Multipl
 
   let gameCode = ''
 
-  for (let attempt = 0; attempt < 50; attempt += 1) {
+  for (let attempt = 0; attempt < 250; attempt += 1) {
     const candidateCode = await createGame(
       request,
       SEEDED_PLAYER_ONE.id,
@@ -449,6 +515,33 @@ async function waitUntilMulliganPromptOwner(
   return owner === 'playerTwo' ? 'playerTwo' : 'playerOne'
 }
 
+async function resolveAllMulliganPrompts(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  selectedOption: 'mulligan' | 'noMulligan',
+): Promise<void> {
+  const maxPromptResolutions = 4
+
+  for (let resolutionIndex = 0; resolutionIndex < maxPromptResolutions; resolutionIndex += 1) {
+    const promptOwner = await getPromptOwnerByType(request, setup, 'Mulligan')
+    if (promptOwner === 'none') {
+      return
+    }
+
+    const owner = promptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+    await resolvePromptViaHub(setup.gameCode, owner, selectedOption)
+
+    await expect.poll(async () => {
+      const state = await fetchGameState(request, setup.gameCode, owner.session.accessToken)
+      return state.pendingPrompt?.type ?? 'none'
+    }, {
+      timeout: 20_000,
+    }).not.toBe('Mulligan')
+  }
+
+  throw new Error('Failed to fully resolve mulligan prompts within retry limit.')
+}
+
 async function advanceToMulliganPromptIfNeeded(
   request: APIRequestContext,
   setup: MultiplayerSetup,
@@ -476,6 +569,212 @@ async function advanceToMulliganPromptIfNeeded(
   }
 
   throw new Error('Failed to reach Mulligan prompt after advancing phases.')
+}
+
+async function installAnimationCounter(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const marker = '__phvAnimateCounterInstalled'
+    const state = window as unknown as {
+      [key: string]: unknown
+      __phvAnimateCount?: number
+    }
+
+    if (state[marker] === true) {
+      return
+    }
+
+    const originalAnimate = Element.prototype.animate
+    Element.prototype.animate = function patchedAnimate(
+      keyframes: PropertyIndexedKeyframes | Keyframe[],
+      options?: number | KeyframeAnimationOptions,
+    ): Animation {
+      const currentCount = typeof state.__phvAnimateCount === 'number' ? state.__phvAnimateCount : 0
+      state.__phvAnimateCount = currentCount + 1
+      return originalAnimate.call(this, keyframes, options)
+    }
+
+    state.__phvAnimateCount = 0
+    state[marker] = true
+  })
+}
+
+async function getAnimationCount(page: Page): Promise<number> {
+  return await page.evaluate(() => {
+    const state = window as unknown as { __phvAnimateCount?: number }
+    return typeof state.__phvAnimateCount === 'number' ? state.__phvAnimateCount : 0
+  })
+}
+
+async function getBottomBattlefieldInstanceOrder(page: Page): Promise<string[]> {
+  return await page
+    .locator('[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id]')
+    .evaluateAll((nodes) => {
+      return nodes
+        .map((node) => node.getAttribute('data-card-instance-id'))
+        .filter((value): value is string => Boolean(value))
+    })
+}
+
+async function getBottomSupportCardsBySlot(page: Page): Promise<Array<{ slotIndex: number; instanceId: string }>> {
+  return await page
+    .locator('[data-zone="support"][data-slot-side="bottom"][data-card-instance-id]')
+    .evaluateAll((nodes) => {
+      return nodes
+        .map((node) => {
+          const slotIndexRaw = node.getAttribute('data-slot-index')
+          const instanceId = node.getAttribute('data-card-instance-id')
+          return {
+            slotIndex: slotIndexRaw ? Number.parseInt(slotIndexRaw, 10) : Number.NaN,
+            instanceId,
+          }
+        })
+        .filter((entry): entry is { slotIndex: number; instanceId: string } => {
+          return Number.isInteger(entry.slotIndex) && entry.instanceId !== null
+        })
+    })
+}
+
+async function findBottomHandCardWithAction(page: Page, actionLabel: string): Promise<string | null> {
+  return await page.evaluate((normalizedActionLabel) => {
+    const normalizedLabel = normalizedActionLabel.trim().toLowerCase()
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="bottom-hand-card-"]'))
+
+    for (const card of cards) {
+      const cardInstanceId = card.getAttribute('data-hand-instance-id')
+      if (!cardInstanceId) {
+        continue
+      }
+
+      const actionButtons = Array.from(card.querySelectorAll<HTMLButtonElement>('.card-overlay-controls button'))
+      const hasAction = actionButtons.some((button) => {
+        const buttonText = (button.textContent ?? '').trim().toLowerCase()
+        return buttonText === normalizedLabel && !button.disabled
+      })
+
+      if (hasAction) {
+        return cardInstanceId
+      }
+    }
+
+    return null
+  }, actionLabel)
+}
+
+async function resolveActorWithBottomHandAction(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+  actionLabel: 'Summon' | 'Set Support',
+): Promise<{ actor: PlayerAuth; actorPage: Page; cardInstanceId: string; actionId: string }> {
+  const maxCycles = 180
+  const actionPrefix = actionLabel === 'Summon' ? 'summon-to-field:' : 'set-support:'
+  const normalizedLabel = actionLabel.trim().toLowerCase()
+
+  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+    const [playerOneState, playerTwoState] = await Promise.all([
+      fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+      fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+    ])
+
+    const activePlayer = normalizeUserId(playerOneState.activePlayerId) === setup.playerOne.normalizedUserId
+      ? setup.playerOne
+      : setup.playerTwo
+
+    const playerOneCanUseHandActions =
+      playerOneState.phase === 'MainPhase'
+      && playerOneState.pendingPrompt === null
+      && normalizeUserId(playerOneState.activePlayerId) === setup.playerOne.normalizedUserId
+    const playerTwoCanUseHandActions =
+      playerTwoState.phase === 'MainPhase'
+      && playerTwoState.pendingPrompt === null
+      && normalizeUserId(playerTwoState.activePlayerId) === setup.playerTwo.normalizedUserId
+
+    const resolveHandActionFromState = (state: GameStateResponse, actor: PlayerAuth) => {
+      const actorState = resolvePlayerState(state, actor)
+      for (const handCard of actorState.hand) {
+        const availableActions = handCard.availableActions ?? []
+        const matchedAction = availableActions.find((action) => {
+          return action.isEnabled && action.label.trim().toLowerCase() === normalizedLabel
+        })
+
+        if (matchedAction) {
+          return {
+            cardInstanceId: handCard.instanceId,
+            actionId: matchedAction.actionId,
+          }
+        }
+      }
+
+      return null
+    }
+
+    if (playerOneCanUseHandActions) {
+      const resolvedAction = resolveHandActionFromState(playerOneState, setup.playerOne)
+      if (resolvedAction) {
+        return {
+          actor: setup.playerOne,
+          actorPage: pages.playerOnePage,
+          cardInstanceId: resolvedAction.cardInstanceId,
+          actionId: resolvedAction.actionId || `${actionPrefix}${resolvedAction.cardInstanceId}`,
+        }
+      }
+    }
+
+    if (playerTwoCanUseHandActions) {
+      const resolvedAction = resolveHandActionFromState(playerTwoState, setup.playerTwo)
+      if (resolvedAction) {
+        return {
+          actor: setup.playerTwo,
+          actorPage: pages.playerTwoPage,
+          cardInstanceId: resolvedAction.cardInstanceId,
+          actionId: resolvedAction.actionId || `${actionPrefix}${resolvedAction.cardInstanceId}`,
+        }
+      }
+    }
+
+    const activePlayerState = activePlayer.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+    const canEndTurn = activePlayerState.availableActions.some((action) => action.actionId === 'turn-end' && action.isEnabled)
+    if (canEndTurn) {
+      await declareEndStepViaHub(setup.gameCode, activePlayer)
+      await completeEndStepViaHub(setup.gameCode, activePlayer)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const playerOneCanPass = playerOneState.availableActions.some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    if (playerOneCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerOne)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const playerTwoCanPass = playerTwoState.availableActions.some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    if (playerTwoCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerTwo)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const canAdvance = activePlayerState.availableActions.some((action) => action.actionId === 'advance-phase' && action.isEnabled)
+    if (!canAdvance) {
+      await new Promise((resolve) => setTimeout(resolve, 350))
+      continue
+    }
+
+    await advancePhaseViaHub(setup.gameCode, activePlayer)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+  }
+
+  throw new Error(`No '${actionLabel}' action found in bottom hand after deterministic phase advancement.`)
+}
+
+function resolvePlayerState(state: GameStateResponse, player: PlayerAuth): GamePlayerStateResponse {
+  const matchedPlayer = state.players.find((entry) => normalizeUserId(entry.playerId) === player.normalizedUserId)
+  if (!matchedPlayer) {
+    throw new Error(`Player state '${player.userId}' was not found in game state response.`)
+  }
+
+  return matchedPlayer
 }
 
 test.describe('GameView multiplayer game-start flow', () => {
@@ -609,6 +908,166 @@ test.describe('GameView multiplayer game-start flow', () => {
       }, {
         timeout: 20_000,
       }).toBe(true)
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  test('mulligan resolution triggers transfer animations on the prompt owner view', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+
+      await advanceToMulliganPromptIfNeeded(request, setup)
+
+      const mulliganPromptOwner = await waitUntilMulliganPromptOwner(request, setup)
+      const mulliganOwnerPage = mulliganPromptOwner === 'playerOne' ? pages.playerOnePage : pages.playerTwoPage
+      const mulliganOwner = mulliganPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+
+      await expect(mulliganOwnerPage.getByTestId('prompt-overlay')).toBeVisible()
+      await expect(mulliganOwnerPage.getByTestId('prompt-option-mulligan')).toBeEnabled()
+
+      await installAnimationCounter(mulliganOwnerPage)
+      const initialAnimationCount = await getAnimationCount(mulliganOwnerPage)
+
+      await resolvePromptViaHub(setup.gameCode, mulliganOwner, 'mulligan')
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, mulliganOwner.session.accessToken)
+        return state.pendingPrompt === null && state.phase !== 'Mulligan'
+      }, {
+        timeout: 20_000,
+      }).toBe(true)
+
+      await expect.poll(async () => {
+        return await getAnimationCount(mulliganOwnerPage)
+      }, {
+        timeout: 8_000,
+      }).toBeGreaterThan(initialAnimationCount)
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  test('summon transition animates and appends to rightmost battlefield slot', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+
+      await advanceToMulliganPromptIfNeeded(request, setup)
+      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon')
+      const ownerPage = summonActor.actorPage
+      const summonCardInstanceId = summonActor.cardInstanceId
+
+      await installAnimationCounter(ownerPage)
+      const initialAnimationCount = await getAnimationCount(ownerPage)
+      const initialBattlefieldOrder = await getBottomBattlefieldInstanceOrder(ownerPage)
+
+      const summonCard = ownerPage.locator(`[data-testid="bottom-hand-card-${summonCardInstanceId}"]`)
+      await summonCard.hover()
+      await summonCard.getByRole('button', { name: /^summon$/i }).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, summonActor.actor.session.accessToken)
+        const actorState = resolvePlayerState(state, summonActor.actor)
+        return actorState.characterField.some((card) => card.instanceId === summonCardInstanceId)
+      }, {
+        timeout: 12_000,
+      }).toBe(true)
+
+      await expect.poll(async () => {
+        return await getBottomBattlefieldInstanceOrder(ownerPage)
+      }, {
+        timeout: 12_000,
+      }).toHaveLength(initialBattlefieldOrder.length + 1)
+
+      const finalBattlefieldOrder = await getBottomBattlefieldInstanceOrder(ownerPage)
+      expect(finalBattlefieldOrder[finalBattlefieldOrder.length - 1]).toBe(summonCardInstanceId)
+
+      await expect.poll(async () => {
+        return await getAnimationCount(ownerPage)
+      }, {
+        timeout: 6_000,
+      }).toBeGreaterThan(initialAnimationCount)
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  test('set support requires slot selection and places card in selected slot with animation', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+
+      await advanceToMulliganPromptIfNeeded(request, setup)
+      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+      const supportActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Set Support')
+      const ownerPage = supportActor.actorPage
+      const supportCardInstanceId = supportActor.cardInstanceId
+
+      await installAnimationCounter(ownerPage)
+      const initialAnimationCount = await getAnimationCount(ownerPage)
+
+      const initialSupportCards = await getBottomSupportCardsBySlot(ownerPage)
+      const occupiedSlots = new Set(initialSupportCards.map((entry) => entry.slotIndex))
+      const emptySlotIndex = [0, 1, 2, 3, 4].find((slotIndex) => !occupiedSlots.has(slotIndex))
+
+      expect(typeof emptySlotIndex).toBe('number')
+      if (typeof emptySlotIndex !== 'number') {
+        return
+      }
+
+      const supportCard = ownerPage.locator(`[data-testid="bottom-hand-card-${supportCardInstanceId}"]`)
+      await supportCard.hover()
+      await supportCard.getByRole('button', { name: /^set support$/i }).click()
+
+      await expect.poll(async () => {
+        return (await getBottomSupportCardsBySlot(ownerPage)).length
+      }, {
+        timeout: 2_000,
+      }).toBe(initialSupportCards.length)
+
+      await ownerPage.locator(`button[data-zone="support"][data-slot-side="bottom"][data-slot-index="${emptySlotIndex}"]`).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, supportActor.actor.session.accessToken)
+        const actorState = resolvePlayerState(state, supportActor.actor)
+        return actorState.supportZone.some((card) => card.instanceId === supportCardInstanceId)
+      }, {
+        timeout: 12_000,
+      }).toBe(true)
+
+      await expect.poll(async () => {
+        return await getBottomSupportCardsBySlot(ownerPage)
+      }, {
+        timeout: 12_000,
+      }).toEqual(expect.arrayContaining([
+        {
+          slotIndex: emptySlotIndex,
+          instanceId: supportCardInstanceId,
+        },
+      ]))
+
+      await expect.poll(async () => {
+        return await getAnimationCount(ownerPage)
+      }, {
+        timeout: 6_000,
+      }).toBeGreaterThan(initialAnimationCount)
     } finally {
       await closeMultiplayerPages(pages)
     }

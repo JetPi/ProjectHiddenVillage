@@ -11,7 +11,7 @@ import type {
   IUseHandZoneAnimationEffectsArgs,
 } from '@/views/game/types/hooks'
 import { buildCardPreloadPayload } from '@/views/game/utils/functions/gameState'
-import { runDeckToHandAnimation, runHandToPileAnimation } from '@/views/game/utils/functions/animations'
+import { runDeckToHandAnimation, runRectToDynamicElementAnimation } from '@/views/game/utils/functions/animations'
 const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackImage]
 
 function useIdleRevalidationPoll(
@@ -115,22 +115,39 @@ function useHandZoneAnimationEffects({
         animController.pendingMulliganDrawReplay = false
       }
 
+      function runInferredHandToTrashAnimation(side: 'top' | 'bottom', cardInstanceId: string): void {
+        const sourceHandRowElement = side === 'top' ? topHandRowRef.current : bottomHandRowRef.current
+        const sourceCardElement = sourceHandRowElement?.querySelector<HTMLDivElement>(
+          `[data-hand-instance-id="${cardInstanceId}"]`,
+        ) ?? null
+
+        if (!sourceCardElement) {
+          return
+        }
+
+        const sourceRect = sourceCardElement.getBoundingClientRect()
+        if (sourceRect.width <= 0 || sourceRect.height <= 0) {
+          return
+        }
+
+        void runRectToDynamicElementAnimation({
+          sourceRect,
+          durationMs: 340,
+          resolveDestinationElement: () => {
+            return side === 'top' ? topTrashCardRef.current : bottomTrashCardRef.current
+          },
+          resolveFallbackElement: () => {
+            return side === 'top' ? topTrashCardRef.current : bottomTrashCardRef.current
+          },
+        })
+      }
+
       if (topHandToTrashCards.length > 0 || bottomHandToTrashCards.length > 0) {
         animController.pendingDrawAnimationFrameId = window.requestAnimationFrame(() => {
           topHandToTrashCards.forEach((instanceId, index) => {
             const movementDelay = index * handToPileStaggerMs
             const timeoutId = window.setTimeout(() => {
-              runHandToPileAnimation({
-                side: 'top',
-                destination: 'trash',
-                cardInstanceId: instanceId,
-                topDeckCardRef,
-                bottomDeckCardRef,
-                topTrashCardRef,
-                bottomTrashCardRef,
-                topHandRowRef,
-                bottomHandRowRef,
-              })
+              runInferredHandToTrashAnimation('top', instanceId)
             }, movementDelay)
             animController.pendingDrawTimeoutIds.push(timeoutId)
           })
@@ -138,17 +155,7 @@ function useHandZoneAnimationEffects({
           bottomHandToTrashCards.forEach((instanceId, index) => {
             const movementDelay = index * handToPileStaggerMs
             const timeoutId = window.setTimeout(() => {
-              runHandToPileAnimation({
-                side: 'bottom',
-                destination: 'trash',
-                cardInstanceId: instanceId,
-                topDeckCardRef,
-                bottomDeckCardRef,
-                topTrashCardRef,
-                bottomTrashCardRef,
-                topHandRowRef,
-                bottomHandRowRef,
-              })
+              runInferredHandToTrashAnimation('bottom', instanceId)
             }, movementDelay)
             animController.pendingDrawTimeoutIds.push(timeoutId)
           })

@@ -20,6 +20,18 @@ async function openReadyGameView(page: Page, gameCode: string): Promise<void> {
   throw new Error('GameView route stayed in 400 Route Error state after retries.')
 }
 
+async function getBottomHandInstanceOrder(page: Page): Promise<string[]> {
+  const order = await page
+    .locator('[data-testid="bottom-hand-row"] [data-hand-instance-id]')
+    .evaluateAll((nodes) => {
+      return nodes
+        .map((node) => node.getAttribute('data-hand-instance-id'))
+        .filter((value): value is string => Boolean(value))
+    })
+
+  return order
+}
+
 test.describe('GameView', () => {
   test.describe.configure({ timeout: 120_000 })
 
@@ -63,6 +75,38 @@ test.describe('GameView', () => {
       await expect(page.getByText('Waiting for player')).toBeVisible()
       await expect(page.getByText('Unexpected Application Error')).toHaveCount(0)
     })
-  })
 
+    test('allows long-press reordering in bottom hand', async ({ page }) => {
+      await expect(page.getByTestId('game-board')).toBeVisible()
+
+      const initialOrder = await getBottomHandInstanceOrder(page)
+      test.skip(initialOrder.length <= 1, 'Seeded TEST1 hand must contain at least two cards for reorder validation.')
+
+      const firstCardInstanceId = initialOrder[0]
+      const secondCardInstanceId = initialOrder[1]
+
+      const draggedCard = page.locator(`[data-testid="bottom-hand-card-${firstCardInstanceId}"]`)
+      const secondCard = page.locator(`[data-testid="bottom-hand-card-${secondCardInstanceId}"]`)
+
+      const draggedBox = await draggedCard.boundingBox()
+      const secondBox = await secondCard.boundingBox()
+
+      expect(draggedBox).not.toBeNull()
+      expect(secondBox).not.toBeNull()
+
+      if (!draggedBox || !secondBox) {
+        return
+      }
+
+      await page.mouse.move(draggedBox.x + draggedBox.width / 2, draggedBox.y + draggedBox.height / 2)
+      await page.mouse.down()
+      await page.waitForTimeout(320)
+      await page.mouse.move(secondBox.x + secondBox.width * 0.85, secondBox.y + secondBox.height / 2)
+      await page.mouse.up()
+
+      const nextOrder = await getBottomHandInstanceOrder(page)
+      expect(nextOrder[0]).toBe(secondCardInstanceId)
+      expect(nextOrder[1]).toBe(firstCardInstanceId)
+    })
+  })
 })

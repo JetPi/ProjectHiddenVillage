@@ -16,6 +16,7 @@ import type { IGameViewAnimController } from '@/views/game/types/hooks'
 import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from '@/views/game/hooks/useGameViewEffects'
 import { useDerivedGameViewState } from '@/views/game/hooks/useDerivedGameViewState'
 import { useGameHubState } from '@/views/game/hooks/useGameHubState'
+import { useLongPressHandReorder } from '@/views/game/hooks/useLongPressHandReorder'
 import { GameHandRow } from '@/views/game/components/GameHandRow'
 import { NonLeaderCardOverlay } from '@/views/game/components/NonLeaderCardOverlay'
 import { GameZones } from '@/views/game/components/GameZones'
@@ -30,7 +31,7 @@ import {
   HAND_TO_PILE_DURATION_MS,
 } from '@/views/game/utils/contants'
 import { mapActionToHubIntent } from '@/views/game/utils/functions/gameState'
-import { runHandToElementAnimation, runHandToPileAnimation, waitMillis } from '@/views/game/utils/functions/animations'
+import { runHandToPileAnimation, runRectToDynamicElementAnimation, waitMillis } from '@/views/game/utils/functions/animations'
 import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions/cards'
 import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 
@@ -54,7 +55,7 @@ export function GameView() {
   const topHandRowRef = useRef<HTMLDivElement | null>(null)
   const bottomHandRowRef = useRef<HTMLDivElement | null>(null)
   const [topHandAutoAnimateRef] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
-  const [bottomHandAutoAnimateRef] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
+  const [bottomHandAutoAnimateRef, setBottomHandAutoAnimateEnabled] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
   const animControllerRef = useRef<IGameViewAnimController>({
     lastAutoSignalKey: '',
     pendingDrawAnimationFrameId: null,
@@ -75,6 +76,8 @@ export function GameView() {
   const [bottomHandFaceUpByInstanceId, setBottomHandFaceUpByInstanceId] = useState<Record<string, boolean>>({})
   const [isMulliganAnimationPending, setIsMulliganAnimationPending] = useState(false)
   const [pendingSetSupportCardInstanceId, setPendingSetSupportCardInstanceId] = useState<string | null>(null)
+  const [topBattlefieldDisplayOrder, setTopBattlefieldDisplayOrder] = useState<string[]>([])
+  const [bottomBattlefieldDisplayOrder, setBottomBattlefieldDisplayOrder] = useState<string[]>([])
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const authUserId = useAuthSessionStore((state) => state.session?.userId)
 
@@ -192,17 +195,96 @@ export function GameView() {
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
   const topHandCards = useMemo(() => derivedGameState.opponentPlayer?.hand ?? [], [derivedGameState.opponentPlayer?.hand])
   const bottomHandCards = useMemo(() => derivedGameState.currentPlayer?.hand ?? [], [derivedGameState.currentPlayer?.hand])
+  const {
+    orderedCards: orderedBottomHandCards,
+    activeDraggedInstanceId,
+    isReorderDragging,
+    getCardPointerHandlers,
+  } = useLongPressHandReorder({
+    cards: bottomHandCards,
+    rowRef: bottomHandRowRef,
+  })
   const topHandInstanceIds = useMemo(() => topHandCards.map((card) => card.instanceId), [topHandCards])
-  const bottomHandInstanceIds = useMemo(() => bottomHandCards.map((card) => card.instanceId), [bottomHandCards])
+  const bottomHandInstanceIds = useMemo(() => orderedBottomHandCards.map((card) => card.instanceId), [orderedBottomHandCards])
   const topDeckCount = derivedGameState.opponentPlayer?.deckCount ?? 0
   const bottomDeckCount = derivedGameState.currentPlayer?.deckCount ?? 0
   const topTrashCount = derivedGameState.opponentPlayer?.trash.length ?? 0
   const bottomTrashCount = derivedGameState.currentPlayer?.trash.length ?? 0
+  const currentTopBattlefieldRawCards = useMemo(
+    () => derivedGameState.opponentPlayer?.characterField ?? [],
+    [derivedGameState.opponentPlayer?.characterField],
+  )
+  const topBattlefieldCards = useMemo(() => {
+    const baseCards = currentTopBattlefieldRawCards
+    const knownIds = new Set(baseCards.map((card) => card.instanceId))
+    const preservedIds = topBattlefieldDisplayOrder.filter((instanceId) => knownIds.has(instanceId))
+    const preservedIdSet = new Set(preservedIds)
+    const appendedIds = baseCards.map((card) => card.instanceId).filter((instanceId) => !preservedIdSet.has(instanceId))
+    const orderedIds = [...preservedIds, ...appendedIds]
+    const cardsById = new Map(baseCards.map((card) => [card.instanceId, card]))
+    return orderedIds
+      .map((instanceId) => cardsById.get(instanceId))
+      .filter((card): card is typeof baseCards[number] => Boolean(card))
+  }, [currentTopBattlefieldRawCards, topBattlefieldDisplayOrder])
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setTopBattlefieldDisplayOrder((previousOrder) => {
+        const knownIds = new Set(currentTopBattlefieldRawCards.map((card) => card.instanceId))
+        const preservedIds = previousOrder.filter((instanceId) => knownIds.has(instanceId))
+        const preservedIdSet = new Set(preservedIds)
+        const appendedIds = currentTopBattlefieldRawCards
+          .map((card) => card.instanceId)
+          .filter((instanceId) => !preservedIdSet.has(instanceId))
+        return [...preservedIds, ...appendedIds]
+      })
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [currentTopBattlefieldRawCards])
+  const currentBottomBattlefieldRawCards = useMemo(
+    () => derivedGameState.currentPlayer?.characterField ?? [],
+    [derivedGameState.currentPlayer?.characterField],
+  )
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setBottomBattlefieldDisplayOrder((previousOrder) => {
+        const knownIds = new Set(currentBottomBattlefieldRawCards.map((card) => card.instanceId))
+        const preservedIds = previousOrder.filter((instanceId) => knownIds.has(instanceId))
+        const preservedIdSet = new Set(preservedIds)
+        const appendedIds = currentBottomBattlefieldRawCards
+          .map((card) => card.instanceId)
+          .filter((instanceId) => !preservedIdSet.has(instanceId))
+        return [...preservedIds, ...appendedIds]
+      })
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [currentBottomBattlefieldRawCards])
+  const bottomBattlefieldCards = useMemo(() => {
+    const baseCards = currentBottomBattlefieldRawCards
+    const knownIds = new Set(baseCards.map((card) => card.instanceId))
+    const preservedIds = bottomBattlefieldDisplayOrder.filter((instanceId) => knownIds.has(instanceId))
+    const preservedIdSet = new Set(preservedIds)
+    const appendedIds = baseCards.map((card) => card.instanceId).filter((instanceId) => !preservedIdSet.has(instanceId))
+    const orderedIds = [...preservedIds, ...appendedIds]
+    const cardsById = new Map(baseCards.map((card) => [card.instanceId, card]))
+    return orderedIds
+      .map((instanceId) => cardsById.get(instanceId))
+      .filter((card): card is typeof baseCards[number] => Boolean(card))
+  }, [bottomBattlefieldDisplayOrder, currentBottomBattlefieldRawCards])
 
   const topLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(topLeaderCard))
   const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
 
   useCardCatalogPreload(liveGameCards)
+
+  useEffect(() => {
+    setBottomHandAutoAnimateEnabled(!isReorderDragging)
+  }, [isReorderDragging, setBottomHandAutoAnimateEnabled])
 
   useEffect(() => {
     if (!import.meta.env.DEV) {
@@ -356,6 +438,42 @@ export function GameView() {
     submitHubIntent,
   })
 
+  async function runSubmitThenZoneEntryAnimation({
+    intentRequest,
+    sourceRect,
+    beforeAnimation,
+    resolveDestinationElement,
+    resolveFallbackElement,
+    durationMs,
+    timeoutMs,
+    maxFrames,
+  }: {
+    intentRequest: NonNullable<ReturnType<typeof mapActionToHubIntent>>
+    sourceRect: DOMRect | null
+    beforeAnimation?: () => void
+    resolveDestinationElement: () => HTMLElement | null
+    resolveFallbackElement?: () => HTMLElement | null
+    durationMs?: number
+    timeoutMs?: number
+    maxFrames?: number
+  }): Promise<void> {
+    await submitHubIntent(intentRequest)
+    beforeAnimation?.()
+
+    if (!sourceRect) {
+      return
+    }
+
+    await runRectToDynamicElementAnimation({
+      sourceRect,
+      resolveDestinationElement,
+      resolveFallbackElement,
+      durationMs,
+      timeoutMs,
+      maxFrames,
+    })
+  }
+
   function submitMappedAction(action: IGameActionOptionResponse): void {
     if (!action.isEnabled) {
       return
@@ -443,80 +561,52 @@ export function GameView() {
         return
       }
 
+      const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
+      if (!intentRequest) {
+        return
+      }
+
       const cardInstanceId = action.actionId.slice(delimiterIndex + 1)
-      const battlefieldRowElement = boardZoneRef.current?.querySelector<HTMLElement>(
-        '[data-zone="character-field-row"][data-slot-side="bottom"]',
-      ) ?? null
+      const expectedBattlefieldSlotIndex = currentBottomBattlefieldRawCards.length
       const sourceHandRowElement = bottomHandRowRef.current
       const sourceCardElement = sourceHandRowElement?.querySelector<HTMLDivElement>(
         `[data-hand-instance-id="${cardInstanceId}"]`,
       ) ?? null
+      const sourceRect = sourceCardElement?.getBoundingClientRect() ?? null
 
-      const lastBattlefieldCardElement = boardZoneRef.current?.querySelectorAll<HTMLElement>(
-        '[data-zone="character-field-card"][data-slot-side="bottom"]',
-      )
+      void (async () => {
+        await runSubmitThenZoneEntryAnimation({
+          intentRequest,
+          sourceRect,
+          beforeAnimation: () => {
+            setBottomBattlefieldDisplayOrder((previousOrder) => {
+              const knownIds = new Set(currentBottomBattlefieldRawCards.map((card) => card.instanceId))
+              const preservedIds = previousOrder.filter((instanceId) => knownIds.has(instanceId))
+              if (preservedIds.includes(cardInstanceId)) {
+                return preservedIds
+              }
 
-      let summonTargetElement: HTMLElement | null = battlefieldRowElement
-      let temporarySummonTargetElement: HTMLDivElement | null = null
-
-      if (battlefieldRowElement && sourceCardElement) {
-        const rowRect = battlefieldRowElement.getBoundingClientRect()
-        const sourceRect = sourceCardElement.getBoundingClientRect()
-
-        if (rowRect.width > 0 && rowRect.height > 0 && sourceRect.width > 0 && sourceRect.height > 0) {
-          temporarySummonTargetElement = document.createElement('div')
-          temporarySummonTargetElement.style.position = 'fixed'
-
-          let targetLeft = rowRect.left
-          let targetTop = rowRect.top
-          let targetWidth = sourceRect.width
-          let targetHeight = sourceRect.height
-
-          if (lastBattlefieldCardElement && lastBattlefieldCardElement.length > 0) {
-            const lastCard = lastBattlefieldCardElement[lastBattlefieldCardElement.length - 1]
-            const lastCardRect = lastCard.getBoundingClientRect()
-            const rowStyle = window.getComputedStyle(battlefieldRowElement)
-            const laneGap = Number.parseFloat(rowStyle.columnGap || rowStyle.gap || '0') || 0
-
-            if (lastCardRect.width > 0 && lastCardRect.height > 0) {
-              targetWidth = lastCardRect.width
-              targetHeight = lastCardRect.height
-              targetLeft = lastCardRect.left + lastCardRect.width + laneGap
-              targetTop = lastCardRect.top
+              return [...preservedIds, cardInstanceId]
+            })
+          },
+          resolveDestinationElement: () => {
+            const exactCardElement = boardZoneRef.current?.querySelector<HTMLElement>(
+              `[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${cardInstanceId}"]`,
+            ) ?? null
+            if (exactCardElement) {
+              return exactCardElement
             }
-          } else {
-            const rowStyle = window.getComputedStyle(battlefieldRowElement)
-            const rowPaddingLeft = Number.parseFloat(rowStyle.paddingLeft || '0') || 0
-            const targetCardHeight = rowRect.height
-            const targetCardWidth = targetCardHeight * (200 / 277)
 
-            targetWidth = targetCardWidth
-            targetHeight = targetCardHeight
-            targetLeft = rowRect.left + rowPaddingLeft
-            targetTop = rowRect.top
-          }
+            return boardZoneRef.current?.querySelector<HTMLElement>(
+              `[data-zone="character-field-card"][data-slot-side="bottom"][data-slot-index="${expectedBattlefieldSlotIndex}"]`,
+            ) ?? null
+          },
+          timeoutMs: 1800,
+          maxFrames: 120,
+        })
+      })()
 
-          temporarySummonTargetElement.style.left = `${targetLeft}px`
-          temporarySummonTargetElement.style.top = `${targetTop}px`
-          temporarySummonTargetElement.style.width = `${targetWidth}px`
-          temporarySummonTargetElement.style.height = `${targetHeight}px`
-          temporarySummonTargetElement.style.pointerEvents = 'none'
-          temporarySummonTargetElement.style.opacity = '0'
-          temporarySummonTargetElement.style.zIndex = '-1'
-          document.body.appendChild(temporarySummonTargetElement)
-          summonTargetElement = temporarySummonTargetElement
-        }
-      }
-
-      runHandToElementAnimation({
-        side: 'bottom',
-        cardInstanceId,
-        destinationElement: summonTargetElement,
-        topHandRowRef,
-        bottomHandRowRef,
-      })
-
-      temporarySummonTargetElement?.remove()
+      return
     }
 
     const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
@@ -563,25 +653,38 @@ export function GameView() {
       { supportSlotIndex: slotIndex.toString() },
     )
 
-    const supportSlotElement = boardZoneRef.current?.querySelector<HTMLElement>(
-      `[data-zone="support"][data-slot-side="bottom"][data-slot-index="${slotIndex}"][data-slot-card="true"]`,
+    const sourceCardElement = bottomHandRowRef.current?.querySelector<HTMLDivElement>(
+      `[data-hand-instance-id="${pendingSetSupportCardInstanceId}"]`,
     ) ?? null
-
-    runHandToElementAnimation({
-      side: 'bottom',
-      cardInstanceId: pendingSetSupportCardInstanceId,
-      destinationElement: supportSlotElement,
-      topHandRowRef,
-      bottomHandRowRef,
-    })
-
-    setPendingSetSupportCardInstanceId(null)
+    const sourceRect = sourceCardElement?.getBoundingClientRect() ?? null
 
     if (!intentRequest) {
       return
     }
 
-    void submitHubIntent(intentRequest)
+    const cardInstanceId = pendingSetSupportCardInstanceId
+    setPendingSetSupportCardInstanceId(null)
+
+    void (async () => {
+      await runSubmitThenZoneEntryAnimation({
+        intentRequest,
+        sourceRect,
+        resolveDestinationElement: () => {
+          const exactCardElement = boardZoneRef.current?.querySelector<HTMLElement>(
+            `[data-zone="support"][data-slot-side="bottom"][data-card-instance-id="${cardInstanceId}"]`,
+          ) ?? null
+          if (exactCardElement) {
+            return exactCardElement
+          }
+
+          return boardZoneRef.current?.querySelector<HTMLElement>(
+            `[data-zone="support"][data-slot-side="bottom"][data-slot-index="${slotIndex}"][data-card-instance-id]`,
+          ) ?? null
+        },
+        timeoutMs: 1800,
+        maxFrames: 120,
+      })
+    })()
   }
 
   function handlePassLikeAction(): void {
@@ -608,7 +711,7 @@ export function GameView() {
     const currentBottomHandInstanceIds = bottomHandCards.map((card) => card.instanceId)
     currentBottomHandInstanceIds.forEach((instanceId, index) => {
       const animationTimeoutId = window.setTimeout(() => {
-        runHandToPileAnimation({
+        void runHandToPileAnimation({
           side: 'bottom',
           destination: 'deck',
           cardInstanceId: instanceId,
@@ -677,6 +780,8 @@ export function GameView() {
               boardZoneRef={boardZoneRef}
               joinCode={joinCode}
               derivedGameState={derivedGameState}
+              topBattlefieldCardsOverride={topBattlefieldCards}
+              bottomBattlefieldCardsOverride={bottomBattlefieldCards}
               topDeckCardRef={topDeckCardRef}
               bottomDeckCardRef={bottomDeckCardRef}
               topTrashCardRef={topTrashCardRef}
@@ -697,10 +802,10 @@ export function GameView() {
             />
 
             <GameHandRow
-              cards={bottomHandCards}
+              cards={orderedBottomHandCards}
               rowRef={setBottomHandRowRefs}
               rowTestId="bottom-hand-row"
-              rowClassName="overflow-hidden"
+              rowClassName="overflow-visible"
               renderCard={(card) => {
                 const previewCard = derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null
                 const cardActionOptions = resolveCardActionOptionsForInstanceId(
@@ -708,12 +813,19 @@ export function GameView() {
                   card.instanceId,
                   card.availableActions,
                 )
+                const cardPointerHandlers = getCardPointerHandlers(card.instanceId)
 
                 return (
                   <div
                     key={`bottom-hand-${card.instanceId}`}
                     data-hand-instance-id={card.instanceId}
-                    className="h-full aspect-[200/277] shrink-0"
+                    data-testid={`bottom-hand-card-${card.instanceId}`}
+                    draggable={false}
+                    onDragStart={(event) => {
+                      event.preventDefault()
+                    }}
+                    className={`h-full aspect-[200/277] shrink-0 select-none ${activeDraggedInstanceId === card.instanceId ? 'z-[260] touch-none' : 'touch-manipulation'}`}
+                    {...cardPointerHandlers}
                   >
                     <FlippableCard
                       isFlipped={bottomHandFaceUpByInstanceId[card.instanceId] ?? true}
@@ -734,6 +846,7 @@ export function GameView() {
                             visibilityMode="hover"
                             actionOptions={cardActionOptions}
                             showEmptyActionMessage={canShowHandNoActionsMessage}
+                            disableInteractions={isReorderDragging}
                             isConnected={isConnected}
                             isActionPending={isActionPending}
                             onSelectActionOption={(actionId) => {

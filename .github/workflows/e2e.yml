@@ -86,6 +86,12 @@ jobs:
       - name: Run typecheck
         run: npm run typecheck
 
+      - name: Preflight support metadata (N-008)
+        run: npm run e2e:preflight
+
+      - name: Reset ports before Playwright webServer
+        run: npm run dev:prepare
+
       - name: Run Playwright e2e
         run: npm run test:e2e
 

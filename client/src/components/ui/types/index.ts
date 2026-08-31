@@ -93,7 +93,7 @@ export type IPlayPileZoneProps = {
 export type IPlayCardProps = {
   className?: string
   children?: ReactNode
-}
+} & React.HTMLAttributes<HTMLDivElement>
 
 export type IFlippableCardProps = {
   isFlipped: boolean

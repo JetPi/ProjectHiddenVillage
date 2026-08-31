@@ -11,6 +11,13 @@ public sealed class DevelopmentDeckSeeder
         "N-012"
     ];
 
+    // Keep deterministic support metadata for known support-capable cards even
+    // when development placeholder entries are used.
+    private static readonly HashSet<string> PlaceholderSupportCapableCardIds =
+    [
+        "N-008"
+    ];
+
     private static readonly Guid SeedDeckOneId = Guid.Parse("10000000-0000-0000-0000-000000000001");
     private static readonly Guid SeedDeckTwoId = Guid.Parse("10000000-0000-0000-0000-000000000002");
 
@@ -38,6 +45,7 @@ public sealed class DevelopmentDeckSeeder
             Type: DeckType.Public,
             Cards:
             [
+                new SeedDeckCardDefinition("N-008", 3),
                 new SeedDeckCardDefinition("N-010", 3),
                 new SeedDeckCardDefinition("N-012", 1),
                 new SeedDeckCardDefinition("N-013", 3),
@@ -210,6 +218,7 @@ public sealed class DevelopmentDeckSeeder
             }
 
             var isLeader = PlaceholderLeaderCardIds.Contains(normalizedCardId);
+            var isSupportCapablePlaceholder = PlaceholderSupportCapableCardIds.Contains(normalizedCardId);
 
             dbContext.CardCatalogEntries.Add(new CardCatalogEntry
             {
@@ -228,8 +237,10 @@ public sealed class DevelopmentDeckSeeder
                 Power = 0,
                 Life = isLeader ? 15 : null,
                 Health = isLeader ? null : 1,
-                SupportName = string.Empty,
-                SupportEffect = string.Empty,
+                SupportName = isSupportCapablePlaceholder ? "Support Placeholder" : string.Empty,
+                SupportEffect = isSupportCapablePlaceholder
+                    ? "Development seed support effect placeholder for deterministic CI and local tests."
+                    : string.Empty,
                 MainAlternate = false,
                 CannotBeNormalSummoned = false,
                 CreatedAtUtc = utcNow,

@@ -9,6 +9,7 @@
     "e2e:start:client": "npm --prefix client run dev -- --host 127.0.0.1 --port 5173 --strictPort",
     "e2e:start:server": "ASPNETCORE_ENVIRONMENT=Development DOTNET_ENVIRONMENT=Development dotnet run --project server/ProjectHiddenVillage.Server.csproj --urls http://127.0.0.1:3001",
     "e2e:start": "npm run e2e:prepare && concurrently -n client,server -c cyan,green \"npm run e2e:start:client\" \"npm run e2e:start:server\"",
+    "e2e:preflight": "bash ./scripts/e2e-preflight.sh",
     "dev:prod": "npm run dev:prepare && concurrently -n client,server -c cyan,green \"npm --prefix client run dev\" \"dotnet watch --project server/ProjectHiddenVillage.Server.csproj run --urls http://127.0.0.1:3001\"",
     "lint": "npm run lint:client",
     "lint:client": "npm --prefix client run lint",

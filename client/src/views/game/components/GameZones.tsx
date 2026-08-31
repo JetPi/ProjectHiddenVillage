@@ -14,6 +14,8 @@ function GameZones({
   boardZoneRef,
   joinCode,
   derivedGameState,
+  topBattlefieldCardsOverride,
+  bottomBattlefieldCardsOverride,
   topDeckCardRef,
   bottomDeckCardRef,
   topTrashCardRef,
@@ -39,7 +41,7 @@ function GameZones({
     derivedGameState.cardById,
   )
   const topBattlefieldCards = resolveNonLeaderCards(
-    derivedGameState.opponentPlayer?.characterField ?? [],
+    topBattlefieldCardsOverride ?? derivedGameState.opponentPlayer?.characterField ?? [],
     derivedGameState.cardTypeById,
     derivedGameState.cardById,
   )
@@ -49,7 +51,7 @@ function GameZones({
     derivedGameState.cardById,
   )
   const bottomBattlefieldCards = resolveNonLeaderCards(
-    derivedGameState.currentPlayer?.characterField ?? [],
+    bottomBattlefieldCardsOverride ?? derivedGameState.currentPlayer?.characterField ?? [],
     derivedGameState.cardTypeById,
     derivedGameState.cardById,
   )
@@ -169,6 +171,7 @@ function GameZones({
               data-zone={zone}
               data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
               data-slot-index={index}
+              data-card-instance-id={card.instanceId}
               data-slot-card="true"
               className={twMerge(
                 'group relative h-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
@@ -240,7 +243,7 @@ function GameZones({
         data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
         className="flex h-full min-h-0 w-full items-center justify-start gap-2.5 overflow-visible rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5"
       >
-        {cards.map((card) => {
+        {cards.map((card, index) => {
           const actionOptions = resolveCardActionOptionsForInstanceId(
             availableActions,
             card.instanceId,
@@ -252,6 +255,8 @@ function GameZones({
               key={`character-field-${card.instanceId}`}
               data-zone="character-field-card"
               data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
+              data-slot-index={index}
+              data-card-instance-id={card.instanceId}
               className={twMerge(
                 'group relative h-full shrink-0 overflow-hidden rounded-lg bg-[var(--surface-elevated)] transition-transform duration-300 ease-out will-change-transform origin-center',
                 card.isExhausted ? 'opacity-80 saturate-75 rotate-[14deg]' : 'rotate-0',

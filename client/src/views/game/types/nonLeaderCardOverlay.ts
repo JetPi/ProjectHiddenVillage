@@ -12,6 +12,7 @@ export type INonLeaderCardOverlayProps = {
   actionOptions: IGameActionOptionResponse[]
   showEmptyActionMessage?: boolean
   suppressActionFallback?: boolean
+  disableInteractions?: boolean
   isConnected: boolean
   isActionPending: boolean
   onSelectActionOption: (actionId: string) => void
