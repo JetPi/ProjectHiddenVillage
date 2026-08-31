@@ -1,4 +1,4 @@
-import type { IDeckToHandAnimationArgs, IHandToElementAnimationArgs, IHandToPileAnimationArgs } from "@/views/game/types/animations"
+import type { IDeckToHandAnimationArgs, IHandToElementAnimationArgs, IHandToPileAnimationArgs, IRectToElementAnimationArgs } from "@/views/game/types/animations"
 
 const MIN_HAND_TO_ELEMENT_DURATION_MS = 220
 const MAX_HAND_TO_ELEMENT_DURATION_MS = 520
@@ -113,6 +113,73 @@ function animateCardEntityToDestination(
       sourceCardElement.style.zIndex = previousZIndex
       sourceCardElement.style.pointerEvents = previousPointerEvents
       sourceCardElement.style.filter = previousFilter
+      restoreOverflowAncestors(overflowSnapshots)
+      resolve()
+    }
+
+    animation.onfinish = cleanup
+    animation.oncancel = cleanup
+  })
+}
+
+export function runRectToElementAnimation({
+  sourceRect,
+  destinationElement,
+  durationMs = 360,
+}: IRectToElementAnimationArgs): Promise<void> {
+  if (!destinationElement) {
+    return Promise.resolve()
+  }
+
+  const destinationRect = destinationElement.getBoundingClientRect()
+  if (sourceRect.width <= 0 || sourceRect.height <= 0 || destinationRect.width <= 0 || destinationRect.height <= 0) {
+    return Promise.resolve()
+  }
+
+  const sourceCenterX = sourceRect.left + sourceRect.width / 2
+  const sourceCenterY = sourceRect.top + sourceRect.height / 2
+  const destinationCenterX = destinationRect.left + destinationRect.width / 2
+  const destinationCenterY = destinationRect.top + destinationRect.height / 2
+  const fromTranslateX = sourceCenterX - destinationCenterX
+  const fromTranslateY = sourceCenterY - destinationCenterY
+
+  const targetElement = destinationElement as HTMLElement
+  const previousTransition = targetElement.style.transition
+  const previousTransform = targetElement.style.transform
+  const previousZIndex = targetElement.style.zIndex
+  const previousPointerEvents = targetElement.style.pointerEvents
+  const previousFilter = targetElement.style.filter
+  const overflowSnapshots = resolveOverflowAncestors(targetElement)
+
+  targetElement.style.zIndex = '260'
+  targetElement.style.pointerEvents = 'none'
+  targetElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
+  targetElement.style.transition = 'none'
+
+  return new Promise<void>((resolve) => {
+    const animation = targetElement.animate(
+      [
+        {
+          transform: `translate(${fromTranslateX}px, ${fromTranslateY}px) scale(0.92)`,
+          opacity: 0.96,
+        },
+        {
+          transform: 'translate(0px, 0px) scale(1)',
+          opacity: 1,
+        },
+      ],
+      {
+        duration: durationMs,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      },
+    )
+
+    const cleanup = () => {
+      targetElement.style.transition = previousTransition
+      targetElement.style.transform = previousTransform
+      targetElement.style.zIndex = previousZIndex
+      targetElement.style.pointerEvents = previousPointerEvents
+      targetElement.style.filter = previousFilter
       restoreOverflowAncestors(overflowSnapshots)
       resolve()
     }
