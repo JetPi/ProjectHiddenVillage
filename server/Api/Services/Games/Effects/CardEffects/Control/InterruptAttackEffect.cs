@@ -93,8 +93,28 @@ public sealed class InterruptAttackEffect(
                 description: "InterruptAttack requires an active pending attack.");
         }
 
+        var pendingAttackerInstanceId = context.Game.State.PendingAttackAttackerInstanceId;
+        if (!string.IsNullOrWhiteSpace(pendingAttackerInstanceId))
+        {
+            var attacker = context.Game.State.Players
+                .SelectMany(player => player.Battlefield)
+                .FirstOrDefault(card => string.Equals(card.InstanceId, pendingAttackerInstanceId, StringComparison.Ordinal));
+
+            if (attacker is not null)
+            {
+                attacker.IsRested = true;
+            }
+        }
+
         context.Game.State.HasPendingAttack = false;
         context.Game.State.PendingAttackDeclarationId = string.Empty;
+        context.Game.State.PendingAttackAttackerInstanceId = string.Empty;
+        context.Game.State.PendingAttackDefenderPlayerId = string.Empty;
+        context.Game.State.PendingAttackDefenderInstanceId = string.Empty;
+        context.Game.State.PendingAttackDefenderZone = null;
+        context.Game.State.PendingAttackOptionalEffectSourceCardInstanceId = string.Empty;
+        context.Game.State.PendingAttackOptionalEffectId = string.Empty;
+        context.Game.State.PendingAttackOptionalEffectPlayerId = string.Empty;
         context.Game.State.Phase = GamePhase.BattleEndStep;
         context.Game.State.PriorityPlayerId = string.Empty;
         context.Game.State.ConsecutivePasses = 0;

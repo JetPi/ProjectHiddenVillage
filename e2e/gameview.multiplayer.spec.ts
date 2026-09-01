@@ -50,6 +50,8 @@ type GameActionOptionResponse = {
 type GameCardInstanceStateResponse = {
   instanceId: string
   cardDefinitionId?: string
+  isExhausted?: boolean
+  isRested?: boolean
   availableActions?: GameActionOptionResponse[]
 }
 
@@ -309,6 +311,58 @@ async function declarePassInActionStepViaHub(gameCode: string, player: PlayerAut
     })
 
     expect(result.succeeded, `${result.errorCode ?? 'Hub.DeclarePassInActionStep'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
+  } finally {
+    await connection.stop()
+  }
+}
+
+async function executeBattleActionViaHub(
+  gameCode: string,
+  player: PlayerAuth,
+  actionId: string,
+  sourceCardInstanceId: string,
+): Promise<void> {
+  const connection = buildHubConnection(player.session.accessToken, player.userId)
+
+  try {
+    await connection.start()
+
+    const targetsResult = await connection.invoke<{
+      succeeded: boolean
+      value?: {
+        validTargets: Array<{
+          playerId: string
+          zone: string
+          cardInstanceId: string
+        }>
+      }
+      errorCode?: string | null
+      errorDescription?: string | null
+    }>('GetCardActionTargets', gameCode.toUpperCase(), {
+      playerId: player.normalizedUserId,
+      actionId,
+      sourceCardInstanceId,
+    })
+
+    expect(targetsResult.succeeded, `${targetsResult.errorCode ?? 'Hub.GetCardActionTargets'}: ${targetsResult.errorDescription ?? 'Unknown error'}`).toBeTruthy()
+
+    const validTargets = targetsResult.value?.validTargets ?? []
+    expect(validTargets.length).toBeGreaterThan(0)
+
+    const selectedTarget = validTargets.find((target) => target.zone === 'Leader') ?? validTargets[0]
+
+    const result = await connection.invoke<{
+      succeeded: boolean
+      errorCode?: string | null
+      errorDescription?: string | null
+    }>('ExecuteCardAction', gameCode.toUpperCase(), {
+      playerId: player.normalizedUserId,
+      actionId,
+      sourceCardInstanceId,
+      selectedTargets: [selectedTarget],
+    })
+
+    expect(result.succeeded, `${result.errorCode ?? 'Hub.ExecuteCardAction'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
   } finally {
     await connection.stop()
   }
@@ -859,7 +913,7 @@ async function resolveActorWithBottomBattleAction(
   request: APIRequestContext,
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
-): Promise<{ actor: PlayerAuth; actorPage: Page; cardInstanceId: string; actionLabel: string }> {
+): Promise<{ actor: PlayerAuth; actorPage: Page; cardInstanceId: string; actionLabel: string; actionId: string }> {
   const maxCycles = 180
 
   const resolveBattleActionFromState = (state: GameStateResponse, actor: PlayerAuth) => {
@@ -874,6 +928,7 @@ async function resolveActorWithBottomBattleAction(
         return {
           cardInstanceId: battleCard.instanceId,
           actionLabel: matchedAction.label,
+          actionId: matchedAction.actionId,
         }
       }
     }
@@ -906,6 +961,7 @@ async function resolveActorWithBottomBattleAction(
           actorPage: activePlayer.userId === setup.playerOne.userId ? pages.playerOnePage : pages.playerTwoPage,
           cardInstanceId: resolvedAction.cardInstanceId,
           actionLabel: resolvedAction.actionLabel,
+          actionId: resolvedAction.actionId,
         }
       }
     }
@@ -943,6 +999,95 @@ async function resolveActorWithBottomBattleAction(
   }
 
   throw new Error('No enabled battlefield Battle action was found within retry limit.')
+}
+
+async function resolveBattleActionForSpecificCard(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+  actor: PlayerAuth,
+  cardInstanceId: string,
+): Promise<{ actor: PlayerAuth; actorPage: Page; cardInstanceId: string; actionLabel: string; actionId: string }> {
+  const maxCycles = 180
+
+  const resolveSpecificBattleActionFromState = (state: GameStateResponse) => {
+    const actorState = resolvePlayerState(state, actor)
+    const actorCard = actorState.characterField.find((card) => card.instanceId === cardInstanceId)
+    if (!actorCard) {
+      return null
+    }
+
+    const matchedAction = (actorCard.availableActions ?? []).find((action) => {
+      return action.isEnabled && action.label.trim().toLowerCase() === 'battle'
+    })
+
+    if (!matchedAction) {
+      return null
+    }
+
+    return {
+      cardInstanceId,
+      actionLabel: matchedAction.label,
+      actionId: matchedAction.actionId,
+    }
+  }
+
+  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+    const [playerOneState, playerTwoState] = await Promise.all([
+      fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+      fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+    ])
+
+    const actorState = actor.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+    const resolvedAction = resolveSpecificBattleActionFromState(actorState)
+    if (resolvedAction) {
+      return {
+        actor,
+        actorPage: actor.userId === setup.playerOne.userId ? pages.playerOnePage : pages.playerTwoPage,
+        cardInstanceId: resolvedAction.cardInstanceId,
+        actionLabel: resolvedAction.actionLabel,
+        actionId: resolvedAction.actionId,
+      }
+    }
+
+    const activePlayer = normalizeUserId(playerOneState.activePlayerId) === setup.playerOne.normalizedUserId
+      ? setup.playerOne
+      : setup.playerTwo
+    const activePlayerState = activePlayer.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+
+    const canEndTurn = activePlayerState.availableActions.some((action) => action.actionId === 'turn-end' && action.isEnabled)
+    if (canEndTurn) {
+      await declareEndStepViaHub(setup.gameCode, activePlayer)
+      await completeEndStepViaHub(setup.gameCode, activePlayer)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const playerOneCanPass = playerOneState.availableActions.some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    if (playerOneCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerOne)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const playerTwoCanPass = playerTwoState.availableActions.some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    if (playerTwoCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerTwo)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const canAdvance = activePlayerState.availableActions.some((action) => action.actionId === 'advance-phase' && action.isEnabled)
+    if (!canAdvance) {
+      await new Promise((resolve) => setTimeout(resolve, 350))
+      continue
+    }
+
+    await advancePhaseViaHub(setup.gameCode, activePlayer)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+  }
+
+  throw new Error(`No enabled Battle action was found for card '${cardInstanceId}' within retry limit.`)
 }
 
 function resolvePlayerState(state: GameStateResponse, player: PlayerAuth): GamePlayerStateResponse {
@@ -1316,6 +1461,100 @@ test.describe('GameView multiplayer game-start flow', () => {
       }, {
         timeout: 8_000,
       }).toBeGreaterThan(0)
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  test('refresh during pending attack keeps attacker rested from backend state', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+
+      await advanceToMulliganPromptIfNeeded(request, setup)
+      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon')
+      const summonCard = summonActor.actorPage.locator(`[data-testid="bottom-hand-card-${summonActor.cardInstanceId}"]`)
+      await summonCard.hover()
+      await summonCard.getByRole('button', { name: /^summon$/i }).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, summonActor.actor.session.accessToken)
+        const actorState = resolvePlayerState(state, summonActor.actor)
+        return actorState.characterField.some((card) => card.instanceId === summonActor.cardInstanceId)
+      }, {
+        timeout: 12_000,
+      }).toBe(true)
+
+      const battleActor = await resolveBattleActionForSpecificCard(
+        request,
+        setup,
+        pages,
+        summonActor.actor,
+        summonActor.cardInstanceId,
+      )
+
+      await executeBattleActionViaHub(
+        setup.gameCode,
+        battleActor.actor,
+        battleActor.actionId,
+        battleActor.cardInstanceId,
+      )
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, battleActor.actor.session.accessToken)
+        const actorState = resolvePlayerState(state, battleActor.actor)
+        const attackerCard = actorState.characterField.find((card) => card.instanceId === battleActor.cardInstanceId)
+
+        return {
+          found: Boolean(attackerCard),
+          hasRestFlag: attackerCard ? Object.prototype.hasOwnProperty.call(attackerCard, 'isRested') : false,
+          isRested: attackerCard?.isRested ?? false,
+        }
+      }, {
+        timeout: 12_000,
+      }).toEqual({
+        found: true,
+        hasRestFlag: true,
+        isRested: true,
+      })
+
+      await battleActor.actorPage.reload()
+      await expect(battleActor.actorPage.getByTestId('game-board')).toBeVisible()
+
+      const attackerAfterReload = battleActor.actorPage.locator(
+        `[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${battleActor.cardInstanceId}"]`,
+      )
+
+      await expect(attackerAfterReload).toBeVisible()
+      await expect.poll(async () => {
+        return await attackerAfterReload.getAttribute('class')
+      }, {
+        timeout: 8_000,
+      }).toContain('rotate-[14deg]')
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, battleActor.actor.session.accessToken)
+        const actorState = resolvePlayerState(state, battleActor.actor)
+        const attackerCard = actorState.characterField.find((card) => card.instanceId === battleActor.cardInstanceId)
+
+        return {
+          found: Boolean(attackerCard),
+          hasRestFlag: attackerCard ? Object.prototype.hasOwnProperty.call(attackerCard, 'isRested') : false,
+          isRested: attackerCard?.isRested ?? false,
+        }
+      }, {
+        timeout: 8_000,
+      }).toEqual({
+        found: true,
+        hasRestFlag: true,
+        isRested: true,
+      })
     } finally {
       await closeMultiplayerPages(pages)
     }

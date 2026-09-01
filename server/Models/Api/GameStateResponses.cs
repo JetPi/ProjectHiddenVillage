@@ -72,6 +72,10 @@ public record CardInstanceResponse(
 {
     public bool IsFaceUp { get; init; } = true;
 
+    public bool IsExhausted { get; init; }
+
+    public bool IsRested { get; init; }
+
     public int? SupportSlotIndex { get; init; }
 
     public bool IsConcealedFromOpponent { get; init; }
@@ -84,7 +88,6 @@ public sealed record LeaderCardInstanceResponse(
     string CardDefinitionId,
     string OwnerPlayerId,
     string ControllerPlayerId,
-    bool IsExhausted,
     string DisplayName,
     CardColor Color,
     IReadOnlyList<string> Traits,
@@ -104,8 +107,6 @@ public sealed record EnrichedCardInstanceResponse(
     string CardDefinitionId,
     string OwnerPlayerId,
     string ControllerPlayerId,
-    bool IsExhausted,
-    bool IsRested,
     string DisplayName,
     CardType Type,
     CardColor Color,

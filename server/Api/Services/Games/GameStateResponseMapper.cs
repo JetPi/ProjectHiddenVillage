@@ -370,8 +370,6 @@ public static class GameStateResponseMapper
                     CardDefinitionId: card.CardDefinitionId,
                     OwnerPlayerId: card.OwnerPlayerId,
                     ControllerPlayerId: card.ControllerPlayerId,
-                    IsExhausted: card.IsExhausted,
-                    IsRested: card.IsRested,
                     DisplayName: definition.DisplayName,
                     Type: definition.Type,
                     Color: definition.Color,
@@ -382,6 +380,8 @@ public static class GameStateResponseMapper
                     Power: resolvedPower)
                 {
                     IsFaceUp = card.IsFaceUp,
+                    IsExhausted = card.IsExhausted,
+                    IsRested = card.IsRested,
                     AvailableActions = cardActions
                 },
             PlayerZone.SupportZone =>
@@ -391,8 +391,6 @@ public static class GameStateResponseMapper
                             CardDefinitionId: card.CardDefinitionId,
                             OwnerPlayerId: card.OwnerPlayerId,
                             ControllerPlayerId: card.ControllerPlayerId,
-                            IsExhausted: card.IsExhausted,
-                            IsRested: card.IsRested,
                             DisplayName: definition.DisplayName,
                             Type: definition.Type,
                             Color: definition.Color,
@@ -403,6 +401,8 @@ public static class GameStateResponseMapper
                             Power: resolvedPower)
                         {
                             IsFaceUp = card.IsFaceUp,
+                            IsExhausted = card.IsExhausted,
+                            IsRested = card.IsRested,
                             SupportSlotIndex = card.SupportSlotIndex,
                             AvailableActions = cardActions
                         }
@@ -728,7 +728,6 @@ public static class GameStateResponseMapper
             CardDefinitionId: leader!.CardDefinitionId,
             OwnerPlayerId: leader!.OwnerPlayerId,
             ControllerPlayerId: leader!.ControllerPlayerId,
-            IsExhausted: false,
             DisplayName: leader!.Name,
             Color: leader!.Color,
             Traits: leader!.Traits,
@@ -738,6 +737,8 @@ public static class GameStateResponseMapper
             CurrentLife: resolvedCurrentLife,
             RecoveryEffect: leader!.RecoveryEffect)
         {
+            IsExhausted = false,
+            IsRested = false,
             AvailableActions = availableActions
         };
     }
