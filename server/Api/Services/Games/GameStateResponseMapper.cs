@@ -44,6 +44,7 @@ public static class GameStateResponseMapper
             Phase: state.Phase.ToString(),
             AttackSequenceStage: ResolveAttackSequenceStage(state),
             IsAttackSequencePending: state.HasPendingAttack,
+            PendingAttackVisualState: ResolvePendingAttackVisualState(state),
             PendingPrompt: ToPendingPromptResponse(pendingPrompt, requestingPlayerId),
             AvailableActions: BuildAvailableActions(state, phaseData, requestingPlayerId, pendingPrompt),
             ActiveTemporaryEffects: CardRuntimeEffectStateService
@@ -79,6 +80,27 @@ public static class GameStateResponseMapper
             GamePhase.AttackResolution => "DamageStep",
             _ => null,
         };
+    }
+
+    private static PendingAttackVisualStateResponse? ResolvePendingAttackVisualState(GameState state)
+    {
+        if (!state.HasPendingAttack)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(state.PendingAttackAttackerInstanceId)
+            || string.IsNullOrWhiteSpace(state.PendingAttackDefenderPlayerId)
+            || state.PendingAttackDefenderZone is null)
+        {
+            return null;
+        }
+
+        return new PendingAttackVisualStateResponse(
+            AttackerCardInstanceId: state.PendingAttackAttackerInstanceId,
+            DefenderPlayerId: state.PendingAttackDefenderPlayerId,
+            DefenderCardInstanceId: state.PendingAttackDefenderInstanceId,
+            DefenderZone: state.PendingAttackDefenderZone.Value.ToString());
     }
 
     private static PendingPromptResponse? ToPendingPromptResponse(GamePrompt? pendingPrompt, string requestingPlayerId)

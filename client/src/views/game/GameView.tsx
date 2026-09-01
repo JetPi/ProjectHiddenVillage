@@ -37,6 +37,14 @@ import { runHandToPileAnimation, runRectToDynamicElementAnimation, waitMillis } 
 import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions/cards'
 import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 
+function normalizeCardInstanceId(value: string | undefined): string {
+  return (value ?? '').trim().toLowerCase()
+}
+
+function normalizePlayerId(value: string | undefined): string {
+  return (value ?? '').trim().toLowerCase().replace(/-/g, '')
+}
+
 
 export function GameView() {
   const AUTO_SIGNAL_PHASES = useMemo(() => new Set([
@@ -98,6 +106,10 @@ export function GameView() {
   
   const { joinCode, gameCards, gameState: initialGameState } = useLoaderData() as IGameLoaderData
   const [liveGameCards, setLiveGameCards] = useState<IGameLoaderData['gameCards']>(gameCards)
+  const battlefieldDisplayOrderStorageKey = useMemo(() => {
+    const normalizedUserId = normalizePlayerId(authUserId)
+    return `phv:battlefield-display-order:${joinCode}:${normalizedUserId || 'anonymous'}`
+  }, [authUserId, joinCode])
 
   const {
     gameState,
@@ -107,6 +119,47 @@ export function GameView() {
     submitHubIntent,
     getCardActionTargets,
   } = useGameHubState(joinCode, initialGameState, authUserId)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const serializedOrder = window.sessionStorage.getItem(battlefieldDisplayOrderStorageKey)
+    if (!serializedOrder) {
+      return
+    }
+
+    try {
+      const parsedOrder = JSON.parse(serializedOrder) as {
+        top?: unknown
+        bottom?: unknown
+      }
+
+      if (Array.isArray(parsedOrder.top)) {
+        setTopBattlefieldDisplayOrder(parsedOrder.top.filter((entry): entry is string => typeof entry === 'string'))
+      }
+
+      if (Array.isArray(parsedOrder.bottom)) {
+        setBottomBattlefieldDisplayOrder(parsedOrder.bottom.filter((entry): entry is string => typeof entry === 'string'))
+      }
+    } catch {
+      // Ignore malformed persisted order payloads and let runtime rebuild order.
+    }
+  }, [battlefieldDisplayOrderStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const payload = JSON.stringify({
+      top: topBattlefieldDisplayOrder,
+      bottom: bottomBattlefieldDisplayOrder,
+    })
+
+    window.sessionStorage.setItem(battlefieldDisplayOrderStorageKey, payload)
+  }, [battlefieldDisplayOrderStorageKey, bottomBattlefieldDisplayOrder, topBattlefieldDisplayOrder])
   const lastSubmittedAttackSourceRef = useRef<string | null>(null)
 
   const players = gameState.players
@@ -516,6 +569,66 @@ export function GameView() {
     setActiveAttackLink(null)
     lastSubmittedAttackSourceRef.current = null
   }, [actionError, gameState.isAttackSequencePending])
+
+  const backendAttackLink = useMemo<IAttackFlowLinkState | null>(() => {
+    if (!gameState.isAttackSequencePending) {
+      return null
+    }
+
+    const pendingAttackVisualState = gameState.pendingAttackVisualState
+    if (!pendingAttackVisualState) {
+      return null
+    }
+
+    const sourceCardInstanceId = pendingAttackVisualState.attackerCardInstanceId
+    const sourceCardLookupId = normalizeCardInstanceId(sourceCardInstanceId)
+    if (!sourceCardLookupId) {
+      return null
+    }
+
+    const flattenedCharacterFieldCards = gameState.players.flatMap((player) => player.characterField)
+    const sourceCardExists = flattenedCharacterFieldCards.some((card) =>
+      normalizeCardInstanceId(card.instanceId) === sourceCardLookupId)
+
+    if (!sourceCardExists) {
+      return null
+    }
+
+    const normalizedDefenderPlayerId = normalizePlayerId(pendingAttackVisualState.defenderPlayerId)
+    const defenderPlayer = gameState.players.find((player) => normalizePlayerId(player.playerId) === normalizedDefenderPlayerId)
+
+    if (!defenderPlayer) {
+      return null
+    }
+
+    const defenderZone = pendingAttackVisualState.defenderZone
+    const pendingDefenderCardInstanceId = normalizeCardInstanceId(pendingAttackVisualState.defenderCardInstanceId)
+
+    if (defenderZone === 'Leader') {
+      return {
+        sourceCardInstanceId,
+        targetCardInstanceId: defenderPlayer.leader.instanceId,
+        targetZone: defenderZone,
+        targetPlayerId: defenderPlayer.playerId,
+      }
+    }
+
+    const fallbackTargetCard = defenderPlayer.characterField.find((card) =>
+      normalizeCardInstanceId(card.instanceId) === pendingDefenderCardInstanceId)
+
+    if (!fallbackTargetCard) {
+      return null
+    }
+
+    return {
+      sourceCardInstanceId,
+      targetCardInstanceId: fallbackTargetCard.instanceId,
+      targetZone: defenderZone,
+      targetPlayerId: defenderPlayer.playerId,
+    }
+  }, [gameState.isAttackSequencePending, gameState.pendingAttackVisualState, gameState.players])
+
+  const renderedAttackLink = activeAttackLink ?? backendAttackLink
 
   function beginBattleTargeting(targeting: IAttackTargetingState): void {
     setPendingSetSupportCardInstanceId(null)
@@ -979,7 +1092,7 @@ export function GameView() {
               pendingSetSupportCardInstanceId={pendingSetSupportCardInstanceId}
               pendingAttackTargeting={pendingAttackTargeting}
               optimisticRestedByInstanceId={optimisticRestedByInstanceId}
-              activeAttackLink={activeAttackLink}
+              activeAttackLink={renderedAttackLink}
               isBattleActionTargeting={isBattleActionTargeting}
               isConnected={isConnected}
               isActionPending={isActionPending}

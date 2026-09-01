@@ -321,7 +321,7 @@ async function executeBattleActionViaHub(
   player: PlayerAuth,
   actionId: string,
   sourceCardInstanceId: string,
-): Promise<void> {
+): Promise<{ targetCardInstanceId: string; targetZone: string; targetPlayerId: string }> {
   const connection = buildHubConnection(player.session.accessToken, player.userId)
 
   try {
@@ -363,6 +363,12 @@ async function executeBattleActionViaHub(
     })
 
     expect(result.succeeded, `${result.errorCode ?? 'Hub.ExecuteCardAction'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
+
+    return {
+      targetCardInstanceId: selectedTarget.cardInstanceId,
+      targetZone: selectedTarget.zone,
+      targetPlayerId: selectedTarget.playerId,
+    }
   } finally {
     await connection.stop()
   }
@@ -1499,12 +1505,18 @@ test.describe('GameView multiplayer game-start flow', () => {
         summonActor.cardInstanceId,
       )
 
-      await executeBattleActionViaHub(
+      const selectedTarget = await executeBattleActionViaHub(
         setup.gameCode,
         battleActor.actor,
         battleActor.actionId,
         battleActor.cardInstanceId,
       )
+
+      await expect.poll(async () => {
+        return await battleActor.actorPage.locator('#attack-link-overlay').count()
+      }, {
+        timeout: 8_000,
+      }).toBeGreaterThan(0)
 
       await expect.poll(async () => {
         const state = await fetchGameState(request, setup.gameCode, battleActor.actor.session.accessToken)
@@ -1530,13 +1542,35 @@ test.describe('GameView multiplayer game-start flow', () => {
       const attackerAfterReload = battleActor.actorPage.locator(
         `[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${battleActor.cardInstanceId}"]`,
       )
+      const targetAfterReload = battleActor.actorPage.locator(
+        `[data-card-instance-id="${selectedTarget.targetCardInstanceId}"]`,
+      )
 
       await expect(attackerAfterReload).toBeVisible()
+      await expect(targetAfterReload).toBeVisible()
+      await expect.poll(async () => {
+        return await battleActor.actorPage.locator('#attack-link-overlay').count()
+      }, {
+        timeout: 8_000,
+      }).toBeGreaterThan(0)
+
       await expect.poll(async () => {
         return await attackerAfterReload.getAttribute('class')
       }, {
         timeout: 8_000,
       }).toContain('rotate-[14deg]')
+
+      await expect.poll(async () => {
+        return await attackerAfterReload.getAttribute('class')
+      }, {
+        timeout: 8_000,
+      }).toContain('attack-link-card-outline')
+
+      await expect.poll(async () => {
+        return await targetAfterReload.getAttribute('class')
+      }, {
+        timeout: 8_000,
+      }).toContain('attack-link-card-outline')
 
       await expect.poll(async () => {
         const state = await fetchGameState(request, setup.gameCode, battleActor.actor.session.accessToken)

@@ -35,6 +35,10 @@ type IAttackLinkRenderConfig = {
   endAnchor: IAttackAnchorConfig
   path: IAttackLinkPathMode
   curveness: number
+  controlPointOffsets?: {
+    cpx1: number
+    cpx2: number
+  }
 }
 
 function withTargetGap(anchor: IAttackAnchorPosition, gap: number): IAttackAnchorConfig {
@@ -195,46 +199,24 @@ function GameZones({
     const alignedThreshold = Math.max(12, Math.min(sourceRect.width, targetRect.width) * 0.18)
     const isVerticallyAligned = Math.abs(sourceCenter.x - targetCenter.x) <= alignedThreshold
 
-    const phaseIndicatorElement = boardElement.querySelector<HTMLElement>('[data-testid="phase-indicator"]')
-    let intersectsMiddleIndicator = false
-
-    if (phaseIndicatorElement) {
-      const phaseRect = phaseIndicatorElement.getBoundingClientRect()
-      const obstacleLeft = phaseRect.left - 12
-      const obstacleRight = phaseRect.right + 12
-      const obstacleTop = phaseRect.top - 8
-      const obstacleBottom = phaseRect.bottom + 8
-      const segmentTop = Math.min(sourceRect.top, targetRect.top)
-      const segmentBottom = Math.max(sourceRect.top, targetRect.top)
-      const verticalTopAnchorX = sourceRect.left + sourceRect.width * 0.5
-      const overlapsY = segmentBottom >= obstacleTop && segmentTop <= obstacleBottom
-      const overlapsX = verticalTopAnchorX >= obstacleLeft && verticalTopAnchorX <= obstacleRight
-      intersectsMiddleIndicator = overlapsX && overlapsY
-    }
-
-    if (isVerticallyAligned && !intersectsMiddleIndicator) {
-      return {
-        startId,
-        endId,
-        startAnchor: withSourceGap('top', 10),
-        endAnchor: withTargetGap('top', 10),
-        path: 'straight',
-        curveness: 0,
-      }
-    }
-
-    if (isVerticallyAligned && intersectsMiddleIndicator) {
-      const detourSide: 'left' | 'right' = sourceCenter.x < boardElement.getBoundingClientRect().left + boardElement.getBoundingClientRect().width * 0.5
-        ? 'left'
-        : 'right'
+    if (isVerticallyAligned) {
+      const boardRect = boardElement.getBoundingClientRect()
+      const boardCenterX = boardRect.left + boardRect.width * 0.5
+      const linkCenterX = (sourceCenter.x + targetCenter.x) * 0.5
+      const inwardSide: 'left' | 'right' = linkCenterX <= boardCenterX ? 'right' : 'left'
+      const sideBend = inwardSide === 'right' ? 56 : -56
 
       return {
         startId,
         endId,
-        startAnchor: withSourceGap(detourSide, 10),
-        endAnchor: withTargetGap(detourSide, 10),
+        startAnchor: withSourceGap(inwardSide, 10),
+        endAnchor: withTargetGap(inwardSide, 10),
         path: 'smooth',
-        curveness: 0.62,
+        curveness: 0.86,
+        controlPointOffsets: {
+          cpx1: sideBend,
+          cpx2: sideBend,
+        },
       }
     }
 
@@ -551,6 +533,9 @@ function GameZones({
               showHead
               zIndex={50}
               _extendSVGcanvas={16}
+              divContainerProps={{
+                id: 'attack-link-overlay',
+              }}
               passProps={{
                 style: {
                   pointerEvents: 'none',
@@ -559,6 +544,8 @@ function GameZones({
                   filter: 'drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 5px rgba(0, 0, 0, 0.42))',
                 },
               }}
+              _cpx1Offset={attackLinkRenderConfig.controlPointOffsets?.cpx1 ?? 0}
+              _cpx2Offset={attackLinkRenderConfig.controlPointOffsets?.cpx2 ?? 0}
             />
           </>
         ) : null}

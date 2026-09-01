@@ -80,6 +80,13 @@ export type IPendingPromptResponse = {
   options: string[]
 }
 
+export type IPendingAttackVisualStateResponse = {
+  attackerCardInstanceId: string
+  defenderPlayerId: string
+  defenderCardInstanceId: string
+  defenderZone: string
+}
+
 export type IGameStateResponse = {
   gameId: string
   turnNumber: number
@@ -88,6 +95,7 @@ export type IGameStateResponse = {
   phase: string
   attackSequenceStage: string | null
   isAttackSequencePending: boolean
+  pendingAttackVisualState: IPendingAttackVisualStateResponse | null
   pendingPrompt: IPendingPromptResponse | null
   availableActions: IGameActionOptionResponse[]
   activeTemporaryEffects: IActiveTemporaryEffectResponse[]
