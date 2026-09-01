@@ -693,7 +693,7 @@ function GameZones({
       <div
         ref={boardZoneRef}
         data-testid="game-board"
-        className="relative grid min-h-0 overflow-visible grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1 rounded-2xl border border-dashed border-[var(--border-subtle)] p-0.5 turn-zone-split"
+        className="game-board-spill relative grid min-h-0 overflow-visible grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1 rounded-2xl pt-0.5 pr-0.5 pb-2 pl-2 turn-zone-split"
       >
         {attackLinkRenderConfig ? (
           <>
@@ -741,7 +741,7 @@ function GameZones({
           </>
         ) : null}
 
-        <div className="row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
+        <div className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
             <PlayPileZone
               side="top"
@@ -807,7 +807,7 @@ function GameZones({
           </div>
         </div>
 
-        <div className="my-0.5">
+        <div className="relative z-10 my-0.5">
           <GamePhaseActionRow
             gameInstance={gameState}
             authUserId={authUserId}
@@ -819,7 +819,7 @@ function GameZones({
           />
         </div>
 
-        <div className="row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
+        <div className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
           <div className="min-h-0 w-full">
             <div
               className={twMerge(
