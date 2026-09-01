@@ -229,9 +229,9 @@ html[data-theme='light'] {
 }
 
 .attack-link-card-outline {
-  outline: 3px dotted rgba(251, 146, 60, 0.95);
+  outline: 4.5px dashed rgba(251, 146, 60, 0.98);
   outline-offset: 4px;
-  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.28);
+  box-shadow: 0 0 1px rgba(0, 0, 0, 0.88), 0 0 7px rgba(0, 0, 0, 0.34);
   z-index: 45;
 }
 

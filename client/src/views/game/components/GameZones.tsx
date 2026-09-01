@@ -319,6 +319,8 @@ function GameZones({
           const isAttackLinkTarget = normalizedAttackLinkTargetCardId.length > 0
             && normalizedAttackLinkTargetCardId === card.instanceId.trim().toLowerCase()
           const isCardRested = card.isRested || card.isExhausted || optimisticRestedByInstanceId[card.instanceId] === true
+          const shouldDelayRestedDimming = Boolean(gameState.isAttackSequencePending) && isAttackLinkSource
+          const shouldDimRestedCard = isCardRested && !shouldDelayRestedDimming
           const isOwnConcealedSupportCard = zone === 'support' && isCurrentPlayerZone && card.isConcealedFromOpponent === true
           const isConcealedSupportCard = zone === 'support' && !isCurrentPlayerZone && !card.isFaceUp
           const shouldHideOverlayDetails = isConcealedSupportCard
@@ -335,7 +337,7 @@ function GameZones({
               className={twMerge(
                 'group relative h-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
                 zone === 'support' ? 'border-transparent' : 'border border-[var(--border-subtle)]',
-                isCardRested ? 'opacity-80 saturate-75' : '',
+                shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
                 isSelectionBlocked ? 'opacity-45' : '',
                 isBattleTarget ? 'ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
                 isAttackLinkSource || isAttackLinkTarget ? 'attack-link-card-outline' : '',
@@ -417,6 +419,8 @@ function GameZones({
           const isAttackLinkTarget = normalizedAttackLinkTargetCardId.length > 0
             && normalizedAttackLinkTargetCardId === card.instanceId.trim().toLowerCase()
           const isCardRested = card.isRested || card.isExhausted || optimisticRestedByInstanceId[card.instanceId] === true
+          const shouldDelayRestedDimming = Boolean(gameState.isAttackSequencePending) && isAttackLinkSource
+          const shouldDimRestedCard = isCardRested && !shouldDelayRestedDimming
 
           return (
             <PlayCard
@@ -428,7 +432,8 @@ function GameZones({
               data-card-instance-id={card.instanceId}
               className={twMerge(
                 'group relative h-full shrink-0 overflow-hidden rounded-lg bg-[var(--surface-elevated)] transition-transform duration-300 ease-out will-change-transform origin-center',
-                isCardRested ? 'opacity-80 saturate-75 rotate-[14deg]' : 'rotate-0',
+                isCardRested ? 'rotate-[14deg]' : 'rotate-0',
+                shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
                 isBattleTarget ? 'ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
                 isAttackLinkSource || isAttackLinkTarget ? 'attack-link-card-outline' : '',
               )}
@@ -476,31 +481,34 @@ function GameZones({
       <div
         ref={boardZoneRef}
         data-testid="game-board"
-        className="relative grid min-h-0 overflow-hidden grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1 rounded-2xl border border-dashed border-[var(--border-subtle)] p-0.5 turn-zone-split"
+        className="relative grid min-h-0 overflow-visible grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1 rounded-2xl border border-dashed border-[var(--border-subtle)] p-0.5 turn-zone-split"
       >
         {attackLinkRenderConfig ? (
-          <Xarrow
-            start={attackLinkRenderConfig.startId}
-            end={attackLinkRenderConfig.endId}
-            startAnchor={attackLinkRenderConfig.startAnchor}
-            endAnchor={attackLinkRenderConfig.endAnchor}
-            path={attackLinkRenderConfig.path}
-            curveness={attackLinkRenderConfig.curveness}
-            strokeWidth={4.5}
-            color="rgba(251, 146, 60, 0.95)"
-            dashness={{ strokeLen: 12, nonStrokeLen: 10 }}
-            headSize={2}
-            showHead
-            zIndex={50}
-            _extendSVGcanvas={16}
-            passProps={{
-              style: {
-                pointerEvents: 'none',
-                strokeLinecap: 'butt',
-                strokeLinejoin: 'miter',
-              },
-            }}
-          />
+          <>
+            <Xarrow
+              start={attackLinkRenderConfig.startId}
+              end={attackLinkRenderConfig.endId}
+              startAnchor={attackLinkRenderConfig.startAnchor}
+              endAnchor={attackLinkRenderConfig.endAnchor}
+              path={attackLinkRenderConfig.path}
+              curveness={attackLinkRenderConfig.curveness}
+              strokeWidth={4.5}
+              color="rgba(251, 146, 60, 0.98)"
+              dashness={{ strokeLen: 12, nonStrokeLen: 10 }}
+              headSize={2}
+              showHead
+              zIndex={50}
+              _extendSVGcanvas={16}
+              passProps={{
+                style: {
+                  pointerEvents: 'none',
+                  strokeLinecap: 'butt',
+                  strokeLinejoin: 'miter',
+                  filter: 'drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 5px rgba(0, 0, 0, 0.42))',
+                },
+              }}
+            />
+          </>
         ) : null}
 
         <div className="row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
@@ -532,6 +540,7 @@ function GameZones({
               onClick={isTopLeaderBattleTarget && topLeaderCard ? () => onSelectAttackTarget(topLeaderCard.instanceId) : undefined}
               className={twMerge(
                 topLeaderCardFrameClassName,
+                'relative z-60',
                 isTopLeaderBattleTarget ? 'cursor-pointer ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
                 normalizedAttackLinkSourceCardId.length > 0 && topLeaderCard && normalizedAttackLinkSourceCardId === topLeaderCard.instanceId.trim().toLowerCase()
                   ? 'attack-link-card-outline'
@@ -585,6 +594,7 @@ function GameZones({
               onClick={isBottomLeaderBattleTarget && bottomLeaderCard ? () => onSelectAttackTarget(bottomLeaderCard.instanceId) : undefined}
               className={twMerge(
                 bottomLeaderCardFrameClassName,
+                'relative z-60',
                 isBottomLeaderBattleTarget ? 'cursor-pointer ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
                 normalizedAttackLinkSourceCardId.length > 0 && bottomLeaderCard && normalizedAttackLinkSourceCardId === bottomLeaderCard.instanceId.trim().toLowerCase()
                   ? 'attack-link-card-outline'
