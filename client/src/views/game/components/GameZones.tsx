@@ -1,5 +1,6 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import Xarrow from 'react-xarrows'
 import { AppButton } from '@/components/ui'
 import { CardBack, CardImage, LeaderCard } from '@/components/ui/cards'
 import { PlayBottomResourceZone, PlayCard, PlayPileZone, PlayTopResourceZone } from '@/components/ui/game'
@@ -9,6 +10,34 @@ import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
 import { GamePhaseActionRow } from '@/views/game/components/GamePhaseActionRow'
 import { NonLeaderCardOverlay } from '@/views/game/components/NonLeaderCardOverlay'
 import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions/cards'
+
+type IBoardPoint = {
+  x: number
+  y: number
+}
+
+type IAttackLinkPathMode = 'smooth' | 'straight'
+
+type IAttackLinkRenderConfig = {
+  startId: string
+  endId: string
+  startAnchor: 'top' | 'left' | 'right'
+  endAnchor: 'top' | 'left' | 'right'
+  path: IAttackLinkPathMode
+  curveness: number
+}
+
+function toAnchorId(instanceId: string): string {
+  return `attack-anchor-${instanceId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`
+}
+
+function getElementCenter(element: HTMLElement): IBoardPoint {
+  const rect = element.getBoundingClientRect()
+  return {
+    x: rect.left + rect.width * 0.5,
+    y: rect.top + rect.height * 0.5,
+  }
+}
 
 function GameZones({
   boardZoneRef,
@@ -76,9 +105,96 @@ function GameZones({
     )
     : []
 
-  const [attackLinkPath, setAttackLinkPath] = useState<string | null>(null)
-  const [attackLinkViewBox, setAttackLinkViewBox] = useState<string>('0 0 1 1')
-  const attackLinkMarkerId = `attack-link-arrow-${joinCode}`
+  const normalizedAttackLinkSourceCardId = activeAttackLink?.sourceCardInstanceId.trim().toLowerCase() ?? ''
+  const normalizedAttackLinkTargetCardId = activeAttackLink?.targetCardInstanceId.trim().toLowerCase() ?? ''
+  const attackLinkRenderConfig = useMemo<IAttackLinkRenderConfig | null>(() => {
+    if (!activeAttackLink) {
+      return null
+    }
+
+    const startId = toAnchorId(activeAttackLink.sourceCardInstanceId)
+    const endId = toAnchorId(activeAttackLink.targetCardInstanceId)
+    const defaultConfig: IAttackLinkRenderConfig = {
+      startId,
+      endId,
+      startAnchor: 'top',
+      endAnchor: 'left',
+      path: 'smooth',
+      curveness: 0.68,
+    }
+
+    if (!boardZoneRef.current) {
+      return defaultConfig
+    }
+
+    const boardElement = boardZoneRef.current
+    const sourceCard = boardElement.querySelector<HTMLElement>(`#${startId}`)
+    const targetCard = boardElement.querySelector<HTMLElement>(`#${endId}`)
+    if (!sourceCard || !targetCard) {
+      return defaultConfig
+    }
+
+    const sourceCenter = getElementCenter(sourceCard)
+    const targetCenter = getElementCenter(targetCard)
+    const endAnchor: 'left' | 'right' = sourceCenter.x <= targetCenter.x ? 'left' : 'right'
+
+    const sourceRect = sourceCard.getBoundingClientRect()
+    const targetRect = targetCard.getBoundingClientRect()
+    const alignedThreshold = Math.max(12, Math.min(sourceRect.width, targetRect.width) * 0.18)
+    const isVerticallyAligned = Math.abs(sourceCenter.x - targetCenter.x) <= alignedThreshold
+
+    const phaseIndicatorElement = boardElement.querySelector<HTMLElement>('[data-testid="phase-indicator"]')
+    let intersectsMiddleIndicator = false
+
+    if (phaseIndicatorElement) {
+      const phaseRect = phaseIndicatorElement.getBoundingClientRect()
+      const obstacleLeft = phaseRect.left - 12
+      const obstacleRight = phaseRect.right + 12
+      const obstacleTop = phaseRect.top - 8
+      const obstacleBottom = phaseRect.bottom + 8
+      const segmentTop = Math.min(sourceRect.top, targetRect.top)
+      const segmentBottom = Math.max(sourceRect.top, targetRect.top)
+      const verticalTopAnchorX = sourceRect.left + sourceRect.width * 0.5
+      const overlapsY = segmentBottom >= obstacleTop && segmentTop <= obstacleBottom
+      const overlapsX = verticalTopAnchorX >= obstacleLeft && verticalTopAnchorX <= obstacleRight
+      intersectsMiddleIndicator = overlapsX && overlapsY
+    }
+
+    if (isVerticallyAligned && !intersectsMiddleIndicator) {
+      return {
+        startId,
+        endId,
+        startAnchor: 'top',
+        endAnchor: 'top',
+        path: 'straight',
+        curveness: 0,
+      }
+    }
+
+    if (isVerticallyAligned && intersectsMiddleIndicator) {
+      const detourSide: 'left' | 'right' = sourceCenter.x < boardElement.getBoundingClientRect().left + boardElement.getBoundingClientRect().width * 0.5
+        ? 'left'
+        : 'right'
+
+      return {
+        startId,
+        endId,
+        startAnchor: detourSide,
+        endAnchor: detourSide,
+        path: 'smooth',
+        curveness: 0.62,
+      }
+    }
+
+    return {
+      startId,
+      endId,
+      startAnchor: 'top',
+      endAnchor,
+      path: 'smooth',
+      curveness: 0.74,
+    }
+  }, [activeAttackLink, boardZoneRef])
 
   const validBattleTargetsByCardId = useMemo(() => {
     const targets = pendingAttackTargeting?.validTargets ?? []
@@ -135,54 +251,6 @@ function GameZones({
 
     return cardsBySlot
   }, [bottomSupportCards])
-
-  useEffect(() => {
-    if (!activeAttackLink || !boardZoneRef.current) {
-      setAttackLinkPath(null)
-      return
-    }
-
-    const boardElement = boardZoneRef.current
-
-    const computePath = () => {
-      if (!boardElement || !activeAttackLink) {
-        setAttackLinkPath(null)
-        return
-      }
-
-      const sourceCard = boardElement.querySelector<HTMLElement>(
-        `[data-zone="character-field-card"][data-card-instance-id="${activeAttackLink.sourceCardInstanceId}"]`,
-      )
-
-      const targetCard = boardElement.querySelector<HTMLElement>(
-        `[data-card-instance-id="${activeAttackLink.targetCardInstanceId}"]`,
-      )
-
-      if (!sourceCard || !targetCard) {
-        setAttackLinkPath(null)
-        return
-      }
-
-      const boardRect = boardElement.getBoundingClientRect()
-      setAttackLinkViewBox(`0 0 ${Math.max(1, boardRect.width)} ${Math.max(1, boardRect.height)}`)
-      const sourceRect = sourceCard.getBoundingClientRect()
-      const targetRect = targetCard.getBoundingClientRect()
-      const sourceX = sourceRect.left - boardRect.left + sourceRect.width * 0.5
-      const sourceY = sourceRect.top - boardRect.top + sourceRect.height * 0.5
-      const targetX = targetRect.left - boardRect.left + targetRect.width * 0.5
-      const targetY = targetRect.top - boardRect.top + targetRect.height * 0.5
-      const curveOffset = Math.max(36, Math.abs(targetY - sourceY) * 0.2)
-
-      setAttackLinkPath(`M ${sourceX} ${sourceY} C ${sourceX} ${sourceY + curveOffset}, ${targetX} ${targetY - curveOffset}, ${targetX} ${targetY}`)
-    }
-
-    computePath()
-    window.addEventListener('resize', computePath)
-
-    return () => {
-      window.removeEventListener('resize', computePath)
-    }
-  }, [activeAttackLink, boardZoneRef, topBattlefieldCards, bottomBattlefieldCards, topLeaderCard, bottomLeaderCard])
 
   function renderZoneCardSlots(
     cards: ReturnType<typeof resolveNonLeaderCards>,
@@ -246,6 +314,10 @@ function GameZones({
             card.availableActions,
           )
           const isBattleTarget = validBattleTargetsByCardId.has(card.instanceId.trim().toLowerCase())
+          const isAttackLinkSource = normalizedAttackLinkSourceCardId.length > 0
+            && normalizedAttackLinkSourceCardId === card.instanceId.trim().toLowerCase()
+          const isAttackLinkTarget = normalizedAttackLinkTargetCardId.length > 0
+            && normalizedAttackLinkTargetCardId === card.instanceId.trim().toLowerCase()
           const isCardRested = card.isRested || card.isExhausted || optimisticRestedByInstanceId[card.instanceId] === true
           const isOwnConcealedSupportCard = zone === 'support' && isCurrentPlayerZone && card.isConcealedFromOpponent === true
           const isConcealedSupportCard = zone === 'support' && !isCurrentPlayerZone && !card.isFaceUp
@@ -254,6 +326,7 @@ function GameZones({
           return (
             <PlayCard
               key={`${zone}-${card.instanceId}`}
+              id={toAnchorId(card.instanceId)}
               data-zone={zone}
               data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
               data-slot-index={index}
@@ -265,6 +338,7 @@ function GameZones({
                 isCardRested ? 'opacity-80 saturate-75' : '',
                 isSelectionBlocked ? 'opacity-45' : '',
                 isBattleTarget ? 'ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
+                isAttackLinkSource || isAttackLinkTarget ? 'attack-link-card-outline' : '',
               )}
               onClick={isBattleTarget ? () => onSelectAttackTarget(card.instanceId) : undefined}
             >
@@ -338,11 +412,16 @@ function GameZones({
             card.availableActions,
           )
           const isBattleTarget = validBattleTargetsByCardId.has(card.instanceId.trim().toLowerCase())
+          const isAttackLinkSource = normalizedAttackLinkSourceCardId.length > 0
+            && normalizedAttackLinkSourceCardId === card.instanceId.trim().toLowerCase()
+          const isAttackLinkTarget = normalizedAttackLinkTargetCardId.length > 0
+            && normalizedAttackLinkTargetCardId === card.instanceId.trim().toLowerCase()
           const isCardRested = card.isRested || card.isExhausted || optimisticRestedByInstanceId[card.instanceId] === true
 
           return (
             <PlayCard
               key={`character-field-${card.instanceId}`}
+              id={toAnchorId(card.instanceId)}
               data-zone="character-field-card"
               data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
               data-slot-index={index}
@@ -351,6 +430,7 @@ function GameZones({
                 'group relative h-full shrink-0 overflow-hidden rounded-lg bg-[var(--surface-elevated)] transition-transform duration-300 ease-out will-change-transform origin-center',
                 isCardRested ? 'opacity-80 saturate-75 rotate-[14deg]' : 'rotate-0',
                 isBattleTarget ? 'ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
+                isAttackLinkSource || isAttackLinkTarget ? 'attack-link-card-outline' : '',
               )}
               onClick={isBattleTarget ? () => onSelectAttackTarget(card.instanceId) : undefined}
             >
@@ -398,28 +478,29 @@ function GameZones({
         data-testid="game-board"
         className="relative grid min-h-0 overflow-hidden grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1 rounded-2xl border border-dashed border-[var(--border-subtle)] p-0.5 turn-zone-split"
       >
-        {attackLinkPath ? (
-          <svg
-            className="pointer-events-none absolute inset-0 z-30 h-full w-full"
-            viewBox={attackLinkViewBox}
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <defs>
-              <marker
-                id={attackLinkMarkerId}
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="5"
-                markerHeight="5"
-                orient="auto-start-reverse"
-              >
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(251, 146, 60, 0.95)" />
-              </marker>
-            </defs>
-            <path d={attackLinkPath} stroke="rgba(251, 146, 60, 0.95)" strokeWidth="3" fill="none" markerEnd={`url(#${attackLinkMarkerId})`} className="attack-link-path" />
-          </svg>
+        {attackLinkRenderConfig ? (
+          <Xarrow
+            start={attackLinkRenderConfig.startId}
+            end={attackLinkRenderConfig.endId}
+            startAnchor={attackLinkRenderConfig.startAnchor}
+            endAnchor={attackLinkRenderConfig.endAnchor}
+            path={attackLinkRenderConfig.path}
+            curveness={attackLinkRenderConfig.curveness}
+            strokeWidth={4.5}
+            color="rgba(251, 146, 60, 0.95)"
+            dashness={{ strokeLen: 12, nonStrokeLen: 10 }}
+            headSize={2}
+            showHead
+            zIndex={50}
+            _extendSVGcanvas={16}
+            passProps={{
+              style: {
+                pointerEvents: 'none',
+                strokeLinecap: 'butt',
+                strokeLinejoin: 'miter',
+              },
+            }}
+          />
         ) : null}
 
         <div className="row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
@@ -444,6 +525,7 @@ function GameZones({
 
           <div className="flex min-h-0 w-full justify-end">
             <div
+              id={topLeaderCard ? toAnchorId(topLeaderCard.instanceId) : undefined}
               data-card-instance-id={topLeaderCard?.instanceId}
               data-zone="leader-card"
               data-slot-side="top"
@@ -451,6 +533,12 @@ function GameZones({
               className={twMerge(
                 topLeaderCardFrameClassName,
                 isTopLeaderBattleTarget ? 'cursor-pointer ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
+                normalizedAttackLinkSourceCardId.length > 0 && topLeaderCard && normalizedAttackLinkSourceCardId === topLeaderCard.instanceId.trim().toLowerCase()
+                  ? 'attack-link-card-outline'
+                  : '',
+                normalizedAttackLinkTargetCardId.length > 0 && topLeaderCard && normalizedAttackLinkTargetCardId === topLeaderCard.instanceId.trim().toLowerCase()
+                  ? 'attack-link-card-outline'
+                  : '',
               )}
             >
               <LeaderCard
@@ -490,6 +578,7 @@ function GameZones({
         <div className="row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
           <div className="min-h-0 w-full">
             <div
+              id={bottomLeaderCard ? toAnchorId(bottomLeaderCard.instanceId) : undefined}
               data-card-instance-id={bottomLeaderCard?.instanceId}
               data-zone="leader-card"
               data-slot-side="bottom"
@@ -497,6 +586,12 @@ function GameZones({
               className={twMerge(
                 bottomLeaderCardFrameClassName,
                 isBottomLeaderBattleTarget ? 'cursor-pointer ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
+                normalizedAttackLinkSourceCardId.length > 0 && bottomLeaderCard && normalizedAttackLinkSourceCardId === bottomLeaderCard.instanceId.trim().toLowerCase()
+                  ? 'attack-link-card-outline'
+                  : '',
+                normalizedAttackLinkTargetCardId.length > 0 && bottomLeaderCard && normalizedAttackLinkTargetCardId === bottomLeaderCard.instanceId.trim().toLowerCase()
+                  ? 'attack-link-card-outline'
+                  : '',
               )}
             >
               <LeaderCard

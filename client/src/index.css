@@ -228,6 +228,13 @@ html[data-theme='light'] {
   animation: phase-indicator-text-swap 220ms ease-out;
 }
 
+.attack-link-card-outline {
+  outline: 3px dotted rgba(251, 146, 60, 0.95);
+  outline-offset: 4px;
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.28);
+  z-index: 45;
+}
+
 .card-preview-slide-in {
   animation: card-preview-slide-in 220ms ease-out;
 }
