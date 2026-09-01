@@ -18,13 +18,65 @@ type IBoardPoint = {
 
 type IAttackLinkPathMode = 'smooth' | 'straight'
 
+type IAttackAnchorPosition = 'top' | 'left' | 'right'
+
+type IAttackAnchorConfig = IAttackAnchorPosition | {
+  position: IAttackAnchorPosition
+  offset: {
+    x: number
+    y: number
+  }
+}
+
 type IAttackLinkRenderConfig = {
   startId: string
   endId: string
-  startAnchor: 'top' | 'left' | 'right'
-  endAnchor: 'top' | 'left' | 'right'
+  startAnchor: IAttackAnchorConfig
+  endAnchor: IAttackAnchorConfig
   path: IAttackLinkPathMode
   curveness: number
+}
+
+function withTargetGap(anchor: IAttackAnchorPosition, gap: number): IAttackAnchorConfig {
+  if (anchor === 'left') {
+    return {
+      position: 'left',
+      offset: { x: -gap, y: 0 },
+    }
+  }
+
+  if (anchor === 'right') {
+    return {
+      position: 'right',
+      offset: { x: gap, y: 0 },
+    }
+  }
+
+  return {
+    position: 'top',
+    offset: { x: 0, y: -gap },
+  }
+}
+
+function withSourceGap(anchor: IAttackAnchorPosition, gap: number): IAttackAnchorConfig {
+  if (anchor === 'left') {
+    return {
+      position: 'left',
+      offset: { x: -gap, y: 0 },
+    }
+  }
+
+  if (anchor === 'right') {
+    return {
+      position: 'right',
+      offset: { x: gap, y: 0 },
+    }
+  }
+
+  return {
+    position: 'top',
+    offset: { x: 0, y: -gap },
+  }
 }
 
 function toAnchorId(instanceId: string): string {
@@ -117,8 +169,8 @@ function GameZones({
     const defaultConfig: IAttackLinkRenderConfig = {
       startId,
       endId,
-      startAnchor: 'top',
-      endAnchor: 'left',
+      startAnchor: withSourceGap('top', 10),
+      endAnchor: withTargetGap('left', 10),
       path: 'smooth',
       curveness: 0.68,
     }
@@ -164,8 +216,8 @@ function GameZones({
       return {
         startId,
         endId,
-        startAnchor: 'top',
-        endAnchor: 'top',
+        startAnchor: withSourceGap('top', 10),
+        endAnchor: withTargetGap('top', 10),
         path: 'straight',
         curveness: 0,
       }
@@ -179,8 +231,8 @@ function GameZones({
       return {
         startId,
         endId,
-        startAnchor: detourSide,
-        endAnchor: detourSide,
+        startAnchor: withSourceGap(detourSide, 10),
+        endAnchor: withTargetGap(detourSide, 10),
         path: 'smooth',
         curveness: 0.62,
       }
@@ -189,8 +241,8 @@ function GameZones({
     return {
       startId,
       endId,
-      startAnchor: 'top',
-      endAnchor,
+      startAnchor: withSourceGap('top', 10),
+      endAnchor: withTargetGap(endAnchor, 10),
       path: 'smooth',
       curveness: 0.74,
     }
@@ -495,7 +547,7 @@ function GameZones({
               strokeWidth={4.5}
               color="rgba(251, 146, 60, 0.98)"
               dashness={{ strokeLen: 12, nonStrokeLen: 10 }}
-              headSize={2}
+              headSize={2.25}
               showHead
               zIndex={50}
               _extendSVGcanvas={16}
