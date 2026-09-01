@@ -1,6 +1,6 @@
 export type DescriptionKeywordColor = 'green' | 'yellow' | 'amber' | 'blue' | 'neutral' | 'black' | 'red'
 
-export const CARD_ART_IMAGE_CLASS = 'h-[102%] w-[102%] -m-[1%] rounded-none object-contain [image-rendering:auto]'
+export const CARD_ART_IMAGE_CLASS = 'block h-full w-full rounded-none object-contain [image-rendering:auto]'
 
 export const DESCRIPTION_KEYWORDS_BY_COLOR: Record<DescriptionKeywordColor, string[]> = {
 	green: ['summon'],

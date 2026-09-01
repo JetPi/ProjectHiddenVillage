@@ -207,6 +207,10 @@ function getElementCenter(element: HTMLElement): IBoardPoint {
   }
 }
 
+function getBattleTargetHighlightClass(side: 'top' | 'bottom'): string {
+  return side === 'top' ? 'battle-target-top' : 'battle-target-bottom'
+}
+
 function GameZones({
   boardZoneRef,
   joinCode,
@@ -551,7 +555,7 @@ function GameZones({
                 zone === 'support' ? 'border-transparent' : 'border border-[var(--border-subtle)]',
                 shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
                 isSelectionBlocked ? 'opacity-45' : '',
-                isBattleTarget ? 'ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
+                isBattleTarget ? getBattleTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
                 isAttackLinkSource || isAttackLinkTarget ? 'attack-link-card-outline' : '',
               )}
               onClick={isBattleTarget ? () => onSelectAttackTarget(card.instanceId) : undefined}
@@ -588,6 +592,7 @@ function GameZones({
                   zone={zone}
                   visibilityMode={visibilityMode}
                   actionOptions={actionOptions}
+                  hidePreviewButton={isBattleActionTargeting && isBattleTarget}
                   showEmptyActionMessage={isCurrentPlayerZone}
                   suppressActionFallback={!isCurrentPlayerZone}
                   isConnected={isConnected}
@@ -646,7 +651,7 @@ function GameZones({
                 'group relative h-full shrink-0 overflow-hidden rounded-lg bg-[var(--surface-elevated)] transition-transform duration-300 ease-out will-change-transform origin-center',
                 isCardRested ? 'rotate-[14deg]' : 'rotate-0',
                 shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
-                isBattleTarget ? 'ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
+                isBattleTarget ? getBattleTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
                 isAttackLinkSource || isAttackLinkTarget ? 'attack-link-card-outline' : '',
               )}
               onClick={isBattleTarget ? () => onSelectAttackTarget(card.instanceId) : undefined}
@@ -668,6 +673,7 @@ function GameZones({
                 zone="character-field"
                 visibilityMode="hover"
                 actionOptions={actionOptions}
+                hidePreviewButton={isBattleActionTargeting && isBattleTarget}
                 showEmptyActionMessage={isCurrentPlayerZone}
                 suppressActionFallback={!isCurrentPlayerZone}
                 isConnected={isConnected}
@@ -693,7 +699,7 @@ function GameZones({
       <div
         ref={boardZoneRef}
         data-testid="game-board"
-        className="game-board-spill relative grid min-h-0 overflow-visible grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1 rounded-2xl pt-0.5 pr-0.5 pb-2 pl-2 turn-zone-split"
+        className="game-board-spill relative grid min-h-0 overflow-visible grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1 rounded-2xl pt-2 pr-0.5 pb-2 pl-2 turn-zone-split"
       >
         {attackLinkRenderConfig ? (
           <>
@@ -765,6 +771,7 @@ function GameZones({
             <div
               className={twMerge(
                 topLeaderCardFrameClassName,
+                isTopLeaderBattleTarget ? 'battle-target-leader-top' : '',
                 'relative overflow-visible',
               )}
             >
@@ -778,7 +785,7 @@ function GameZones({
                   onClick: isTopLeaderBattleTarget && topLeaderCard ? () => onSelectAttackTarget(topLeaderCard.instanceId) : undefined,
                   className: twMerge(
                     'h-full',
-                    isTopLeaderBattleTarget ? 'cursor-pointer ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
+                    isTopLeaderBattleTarget ? 'cursor-pointer' : '',
                     normalizedAttackLinkSourceCardId.length > 0 && topLeaderCard && normalizedAttackLinkSourceCardId === topLeaderCard.instanceId.trim().toLowerCase()
                       ? 'attack-link-leader-outline'
                       : '',
@@ -788,6 +795,7 @@ function GameZones({
                   ),
                 }}
                 imageClassName={LEADER_CARD_IMAGE_CLASS}
+                hidePreviewButton={isBattleActionTargeting && Boolean(isTopLeaderBattleTarget)}
                 leaderCard={topLeaderCard}
                 previewCard={topLeaderCard ? (derivedGameState.cardById.get(topLeaderCard.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
                 showBadgeWhenLifeMissing
@@ -824,6 +832,7 @@ function GameZones({
             <div
               className={twMerge(
                 bottomLeaderCardFrameClassName,
+                isBottomLeaderBattleTarget ? 'battle-target-leader-bottom' : '',
                 'relative overflow-visible',
               )}
             >
@@ -837,7 +846,7 @@ function GameZones({
                   onClick: isBottomLeaderBattleTarget && bottomLeaderCard ? () => onSelectAttackTarget(bottomLeaderCard.instanceId) : undefined,
                   className: twMerge(
                     'h-full',
-                    isBottomLeaderBattleTarget ? 'cursor-pointer ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
+                    isBottomLeaderBattleTarget ? 'cursor-pointer' : '',
                     normalizedAttackLinkSourceCardId.length > 0 && bottomLeaderCard && normalizedAttackLinkSourceCardId === bottomLeaderCard.instanceId.trim().toLowerCase()
                       ? 'attack-link-leader-outline'
                       : '',
@@ -847,6 +856,7 @@ function GameZones({
                   ),
                 }}
                 imageClassName={LEADER_CARD_IMAGE_CLASS}
+                hidePreviewButton={isBattleActionTargeting && Boolean(isBottomLeaderBattleTarget)}
                 leaderCard={bottomLeaderCard}
                 previewCard={bottomLeaderCard ? (derivedGameState.cardById.get(bottomLeaderCard.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
                 actionOptions={bottomLeaderActionOptions}
