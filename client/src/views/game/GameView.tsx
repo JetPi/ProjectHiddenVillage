@@ -421,10 +421,17 @@ export function GameView() {
     const matchingBattleAction = mappedAvailableActions.find((option) =>
       option.actionId === pendingAttackTargeting.actionId)
 
+    const sourceCard = (derivedGameState.currentPlayer?.characterField ?? []).find((card) =>
+      card.instanceId.trim().toLowerCase() === pendingAttackTargeting.sourceCardInstanceId.trim().toLowerCase())
+
+    const matchingSourceCardAction = (sourceCard?.availableActions ?? []).find((option) =>
+      option.actionId === pendingAttackTargeting.actionId)
+
     const sourceCardStillControlledByCurrentPlayer = (derivedGameState.currentPlayer?.characterField ?? []).some((card) =>
       card.instanceId.trim().toLowerCase() === pendingAttackTargeting.sourceCardInstanceId.trim().toLowerCase())
 
-    const stillAvailable = Boolean(matchingBattleAction?.isEnabled) && sourceCardStillControlledByCurrentPlayer
+    const stillAvailable = sourceCardStillControlledByCurrentPlayer
+      && (Boolean(matchingBattleAction?.isEnabled) || Boolean(matchingSourceCardAction?.isEnabled))
 
     if (stillAvailable) {
       return
@@ -649,7 +656,10 @@ export function GameView() {
       return
     }
 
-    if (action.actionId.startsWith('battle-action:')) {
+    const isBattleAction = action.actionId.startsWith('battle-action:')
+      || action.label.trim().toLowerCase() === 'battle'
+
+    if (isBattleAction) {
       const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
       if (!intentRequest || intentRequest.intent !== 'execute-card-action') {
         return

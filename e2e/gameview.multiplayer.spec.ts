@@ -855,6 +855,96 @@ async function resolvePlayerHandActionWithoutReload(
   throw new Error(`No enabled bottom-hand Summon/Set Support action found for player '${player.userId}' within retry limit.`)
 }
 
+async function resolveActorWithBottomBattleAction(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+): Promise<{ actor: PlayerAuth; actorPage: Page; cardInstanceId: string; actionLabel: string }> {
+  const maxCycles = 180
+
+  const resolveBattleActionFromState = (state: GameStateResponse, actor: PlayerAuth) => {
+    const actorState = resolvePlayerState(state, actor)
+    for (const battleCard of actorState.characterField) {
+      const availableActions = battleCard.availableActions ?? []
+      const matchedAction = availableActions.find((action) => {
+        return action.isEnabled && action.label.trim().toLowerCase() === 'battle'
+      })
+
+      if (matchedAction) {
+        return {
+          cardInstanceId: battleCard.instanceId,
+          actionLabel: matchedAction.label,
+        }
+      }
+    }
+
+    return null
+  }
+
+  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+    const [playerOneState, playerTwoState] = await Promise.all([
+      fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+      fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+    ])
+
+    const activePlayer = normalizeUserId(playerOneState.activePlayerId) === setup.playerOne.normalizedUserId
+      ? setup.playerOne
+      : setup.playerTwo
+    const activePlayerState = activePlayer.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+
+    if (
+      activePlayerState.phase === 'MainPhase'
+      && activePlayerState.pendingPrompt === null
+    ) {
+      const resolvedAction = activePlayer.userId === setup.playerOne.userId
+        ? resolveBattleActionFromState(playerOneState, setup.playerOne)
+        : resolveBattleActionFromState(playerTwoState, setup.playerTwo)
+
+      if (resolvedAction) {
+        return {
+          actor: activePlayer,
+          actorPage: activePlayer.userId === setup.playerOne.userId ? pages.playerOnePage : pages.playerTwoPage,
+          cardInstanceId: resolvedAction.cardInstanceId,
+          actionLabel: resolvedAction.actionLabel,
+        }
+      }
+    }
+
+    const canEndTurn = activePlayerState.availableActions.some((action) => action.actionId === 'turn-end' && action.isEnabled)
+    if (canEndTurn) {
+      await declareEndStepViaHub(setup.gameCode, activePlayer)
+      await completeEndStepViaHub(setup.gameCode, activePlayer)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const playerOneCanPass = playerOneState.availableActions.some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    if (playerOneCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerOne)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const playerTwoCanPass = playerTwoState.availableActions.some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    if (playerTwoCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerTwo)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      continue
+    }
+
+    const canAdvance = activePlayerState.availableActions.some((action) => action.actionId === 'advance-phase' && action.isEnabled)
+    if (!canAdvance) {
+      await new Promise((resolve) => setTimeout(resolve, 350))
+      continue
+    }
+
+    await advancePhaseViaHub(setup.gameCode, activePlayer)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+  }
+
+  throw new Error('No enabled battlefield Battle action was found within retry limit.')
+}
+
 function resolvePlayerState(state: GameStateResponse, player: PlayerAuth): GamePlayerStateResponse {
   const matchedPlayer = state.players.find((entry) => normalizeUserId(entry.playerId) === player.normalizedUserId)
   if (!matchedPlayer) {
@@ -1180,6 +1270,52 @@ test.describe('GameView multiplayer game-start flow', () => {
 
       await expect(playerTwoCard.getByRole('button', { name: new RegExp(`^${playerTwoAction.actionLabel}$`, 'i') })).toBeVisible({ timeout: 10_000 })
       await expect(playerTwoCard.getByRole('button', { name: new RegExp(`^${playerTwoAction.actionLabel}$`, 'i') })).toBeEnabled()
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  test('battle action click enters target selection mode', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+
+      await advanceToMulliganPromptIfNeeded(request, setup)
+      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon')
+      const summonCard = summonActor.actorPage.locator(`[data-testid="bottom-hand-card-${summonActor.cardInstanceId}"]`)
+      await summonCard.hover()
+      await summonCard.getByRole('button', { name: /^summon$/i }).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, summonActor.actor.session.accessToken)
+        const actorState = resolvePlayerState(state, summonActor.actor)
+        return actorState.characterField.some((card) => card.instanceId === summonActor.cardInstanceId)
+      }, {
+        timeout: 12_000,
+      }).toBe(true)
+
+      const battleActor = await resolveActorWithBottomBattleAction(request, setup, pages)
+      const battleCard = battleActor.actorPage.locator(`[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${battleActor.cardInstanceId}"]`)
+
+      await expect(battleCard).toBeVisible()
+      await battleCard.hover()
+      await battleCard.getByRole('button', { name: new RegExp(`^${battleActor.actionLabel}$`, 'i') }).click()
+
+      await expect(battleActor.actorPage.getByRole('button', { name: /cancel attack target selection/i })).toBeVisible({ timeout: 8_000 })
+
+      await expect.poll(async () => {
+        return await battleActor.actorPage
+          .locator('[data-zone="character-field-card"][class*="ring-amber-400"], [data-zone="leader-card"][class*="ring-amber-400"]')
+          .count()
+      }, {
+        timeout: 8_000,
+      }).toBeGreaterThan(0)
     } finally {
       await closeMultiplayerPages(pages)
     }
