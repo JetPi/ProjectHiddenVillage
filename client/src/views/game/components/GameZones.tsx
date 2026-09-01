@@ -35,11 +35,26 @@ type IAttackLinkRenderConfig = {
   endAnchor: IAttackAnchorConfig
   path: IAttackLinkPathMode
   curveness: number
+  headOffsetForward: number
   controlPointOffsets?: {
     cpx1: number
     cpx2: number
   }
 }
+
+const ATTACK_OUTLINE_WIDTH_PX = 4.5
+const ATTACK_OUTLINE_OFFSET_PX = 4
+const ATTACK_OUTLINE_OUTER_REACH_PX = ATTACK_OUTLINE_WIDTH_PX + ATTACK_OUTLINE_OFFSET_PX
+const ATTACK_ARROW_HEAD_RETRACTION_COMPENSATION_PX = 7.5
+const ATTACK_LINK_SOURCE_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX
+const ATTACK_LINK_TARGET_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX + ATTACK_ARROW_HEAD_RETRACTION_COMPENSATION_PX
+const ATTACK_VERTICAL_DIRECTION_BIAS_PX = 2
+const ATTACK_VERTICAL_TARGET_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX + 2
+const ATTACK_HEAD_OFFSET_DEFAULT = 0.25
+const ATTACK_HEAD_OFFSET_RESTED_RIGHT_TO_LEFT = 0.31
+const ATTACK_HEAD_OFFSET_RESTED_LEFT_TO_RIGHT = 0.22
+const ATTACK_RESTED_TARGET_NUDGE_RIGHT_TO_LEFT_PX = 5
+const ATTACK_RESTED_TARGET_NUDGE_LEFT_TO_RIGHT_PX = 10
 
 function withTargetGap(anchor: IAttackAnchorPosition, gap: number): IAttackAnchorConfig {
   if (anchor === 'left') {
@@ -59,6 +74,31 @@ function withTargetGap(anchor: IAttackAnchorPosition, gap: number): IAttackAncho
   return {
     position: 'top',
     offset: { x: 0, y: -gap },
+  }
+}
+
+function withTargetGapAndHorizontalNudge(
+  anchor: IAttackAnchorPosition,
+  gap: number,
+  horizontalNudge: number,
+): IAttackAnchorConfig {
+  if (anchor === 'left') {
+    return {
+      position: 'left',
+      offset: { x: -gap + horizontalNudge, y: 0 },
+    }
+  }
+
+  if (anchor === 'right') {
+    return {
+      position: 'right',
+      offset: { x: gap + horizontalNudge, y: 0 },
+    }
+  }
+
+  return {
+    position: 'top',
+    offset: { x: horizontalNudge, y: -gap },
   }
 }
 
@@ -163,6 +203,42 @@ function GameZones({
 
   const normalizedAttackLinkSourceCardId = activeAttackLink?.sourceCardInstanceId.trim().toLowerCase() ?? ''
   const normalizedAttackLinkTargetCardId = activeAttackLink?.targetCardInstanceId.trim().toLowerCase() ?? ''
+  const cardRestedStateByInstanceId = useMemo(() => {
+    const restedById = new Map<string, boolean>()
+    const allCards = [
+      topLeaderCard,
+      bottomLeaderCard,
+      ...topSupportCards,
+      ...bottomSupportCards,
+      ...topBattlefieldCards,
+      ...bottomBattlefieldCards,
+    ]
+
+    for (const card of allCards) {
+      if (!card) {
+        continue
+      }
+
+      const normalizedId = card.instanceId.trim().toLowerCase()
+      const isCardRested = (
+        ('isRested' in card && card.isRested)
+        || ('isExhausted' in card && card.isExhausted)
+        || optimisticRestedByInstanceId[card.instanceId] === true
+      )
+      restedById.set(normalizedId, isCardRested)
+    }
+
+    return restedById
+  }, [
+    topLeaderCard,
+    bottomLeaderCard,
+    topSupportCards,
+    bottomSupportCards,
+    topBattlefieldCards,
+    bottomBattlefieldCards,
+    optimisticRestedByInstanceId,
+  ])
+
   const attackLinkRenderConfig = useMemo<IAttackLinkRenderConfig | null>(() => {
     if (!activeAttackLink) {
       return null
@@ -173,10 +249,11 @@ function GameZones({
     const defaultConfig: IAttackLinkRenderConfig = {
       startId,
       endId,
-      startAnchor: withSourceGap('top', 10),
-      endAnchor: withTargetGap('left', 10),
+      startAnchor: withSourceGap('top', ATTACK_LINK_SOURCE_GAP_PX),
+      endAnchor: withTargetGap('left', ATTACK_LINK_TARGET_GAP_PX),
       path: 'smooth',
       curveness: 0.68,
+      headOffsetForward: ATTACK_HEAD_OFFSET_DEFAULT,
     }
 
     if (!boardZoneRef.current) {
@@ -193,6 +270,21 @@ function GameZones({
     const sourceCenter = getElementCenter(sourceCard)
     const targetCenter = getElementCenter(targetCard)
     const endAnchor: 'left' | 'right' = sourceCenter.x <= targetCenter.x ? 'left' : 'right'
+    const isTargetRested = cardRestedStateByInstanceId.get(normalizedAttackLinkTargetCardId) === true
+    const isRightToLeftAttack = sourceCenter.x > targetCenter.x
+    const restedTargetAnchorNudgeMagnitude = isRightToLeftAttack
+      ? ATTACK_RESTED_TARGET_NUDGE_RIGHT_TO_LEFT_PX
+      : ATTACK_RESTED_TARGET_NUDGE_LEFT_TO_RIGHT_PX
+    const resolvedTargetAnchorNudge = isTargetRested
+      ? (isRightToLeftAttack
+        ? (endAnchor === 'right' ? -restedTargetAnchorNudgeMagnitude : restedTargetAnchorNudgeMagnitude)
+        : (endAnchor === 'left' ? -restedTargetAnchorNudgeMagnitude : restedTargetAnchorNudgeMagnitude))
+      : 0
+    const resolvedHeadOffsetForward = isTargetRested
+      ? (isRightToLeftAttack
+        ? ATTACK_HEAD_OFFSET_RESTED_RIGHT_TO_LEFT
+        : ATTACK_HEAD_OFFSET_RESTED_LEFT_TO_RIGHT)
+      : ATTACK_HEAD_OFFSET_DEFAULT
 
     const sourceRect = sourceCard.getBoundingClientRect()
     const targetRect = targetCard.getBoundingClientRect()
@@ -204,18 +296,24 @@ function GameZones({
       const boardCenterX = boardRect.left + boardRect.width * 0.5
       const linkCenterX = (sourceCenter.x + targetCenter.x) * 0.5
       const inwardSide: 'left' | 'right' = linkCenterX <= boardCenterX ? 'right' : 'left'
-      const sideBend = inwardSide === 'right' ? 56 : -56
+      const sideBend = inwardSide === 'right' ? 110 : -110
+      const verticalSourceGap = ATTACK_VERTICAL_TARGET_GAP_PX + ATTACK_VERTICAL_DIRECTION_BIAS_PX
 
       return {
         startId,
         endId,
-        startAnchor: withSourceGap(inwardSide, 10),
-        endAnchor: withTargetGap(inwardSide, 10),
+        startAnchor: withSourceGap(inwardSide, verticalSourceGap),
+        endAnchor: withTargetGapAndHorizontalNudge(
+          inwardSide,
+          ATTACK_VERTICAL_TARGET_GAP_PX,
+          resolvedTargetAnchorNudge,
+        ),
         path: 'smooth',
         curveness: 0.86,
+        headOffsetForward: resolvedHeadOffsetForward,
         controlPointOffsets: {
           cpx1: sideBend,
-          cpx2: sideBend,
+          cpx2: sideBend * 1.25,
         },
       }
     }
@@ -223,12 +321,22 @@ function GameZones({
     return {
       startId,
       endId,
-      startAnchor: withSourceGap('top', 10),
-      endAnchor: withTargetGap(endAnchor, 10),
+      startAnchor: withSourceGap('top', ATTACK_LINK_SOURCE_GAP_PX),
+      endAnchor: withTargetGapAndHorizontalNudge(
+        endAnchor,
+        ATTACK_LINK_TARGET_GAP_PX,
+        resolvedTargetAnchorNudge,
+      ),
       path: 'smooth',
       curveness: 0.74,
+      headOffsetForward: resolvedHeadOffsetForward,
     }
-  }, [activeAttackLink, boardZoneRef])
+  }, [
+    activeAttackLink,
+    boardZoneRef,
+    cardRestedStateByInstanceId,
+    normalizedAttackLinkTargetCardId,
+  ])
 
   const validBattleTargetsByCardId = useMemo(() => {
     const targets = pendingAttackTargeting?.validTargets ?? []
@@ -530,6 +638,10 @@ function GameZones({
               color="rgba(251, 146, 60, 0.98)"
               dashness={{ strokeLen: 12, nonStrokeLen: 10 }}
               headSize={2.25}
+              headShape={{
+                svgElem: <path d="M 0 0 L 1 0.5 L 0 1 L 0.25 0.5 z" />,
+                offsetForward: attackLinkRenderConfig.headOffsetForward,
+              }}
               showHead
               zIndex={50}
               _extendSVGcanvas={16}
