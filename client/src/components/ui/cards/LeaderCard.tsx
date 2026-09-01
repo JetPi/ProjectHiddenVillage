@@ -9,6 +9,7 @@ import type { ILeaderCardProps } from '@/components/ui/types'
 
 export function LeaderCard({
   className,
+  surfaceProps,
   imageClassName,
   leaderCard,
   placeholderLabel = 'Leader',
@@ -20,10 +21,11 @@ export function LeaderCard({
   onSelectActionOption,
 }: ILeaderCardProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const { className: surfaceClassName, ...surfaceRestProps } = surfaceProps ?? {}
 
   if (!leaderCard) {
     return (
-      <PlayCard className={className}>
+      <PlayCard className={twMerge(className, surfaceClassName)} {...surfaceRestProps}>
         <div className="flex h-full items-center justify-center text-center">{placeholderLabel}</div>
       </PlayCard>
     )
@@ -34,7 +36,7 @@ export function LeaderCard({
 
   return (
     <>
-      <PlayCard className={twMerge('group', className)}>
+      <PlayCard className={twMerge('group', className, surfaceClassName)} {...surfaceRestProps}>
         {shouldRenderBadge ? <CardOverlayBadge value={badgeValue} /> : null}
 
         {previewCard ? (

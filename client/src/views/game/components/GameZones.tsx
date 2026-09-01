@@ -18,7 +18,7 @@ type IBoardPoint = {
 
 type IAttackLinkPathMode = 'smooth' | 'straight'
 
-type IAttackAnchorPosition = 'top' | 'left' | 'right'
+type IAttackAnchorPosition = 'top' | 'bottom' | 'left' | 'right'
 
 type IAttackAnchorConfig = IAttackAnchorPosition | {
   position: IAttackAnchorPosition
@@ -53,8 +53,6 @@ const ATTACK_VERTICAL_TARGET_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX + 2
 const ATTACK_HEAD_OFFSET_DEFAULT = 0.25
 const ATTACK_HEAD_OFFSET_RESTED_RIGHT_TO_LEFT = 0.31
 const ATTACK_HEAD_OFFSET_RESTED_LEFT_TO_RIGHT = 0.22
-const ATTACK_RESTED_TARGET_NUDGE_RIGHT_TO_LEFT_PX = 5
-const ATTACK_RESTED_TARGET_NUDGE_LEFT_TO_RIGHT_PX = 10
 
 function withTargetGap(anchor: IAttackAnchorPosition, gap: number): IAttackAnchorConfig {
   if (anchor === 'left') {
@@ -68,6 +66,13 @@ function withTargetGap(anchor: IAttackAnchorPosition, gap: number): IAttackAncho
     return {
       position: 'right',
       offset: { x: gap, y: 0 },
+    }
+  }
+
+  if (anchor === 'bottom') {
+    return {
+      position: 'bottom',
+      offset: { x: 0, y: gap },
     }
   }
 
@@ -96,10 +101,70 @@ function withTargetGapAndHorizontalNudge(
     }
   }
 
+  if (anchor === 'bottom') {
+    return {
+      position: 'bottom',
+      offset: { x: horizontalNudge, y: gap },
+    }
+  }
+
   return {
     position: 'top',
     offset: { x: horizontalNudge, y: -gap },
   }
+}
+
+function getRotationRadians(element: HTMLElement): number {
+  const transform = window.getComputedStyle(element).transform
+  if (!transform || transform === 'none') {
+    return 0
+  }
+
+  const matrixMatch = transform.match(/^matrix\(([^)]+)\)$/)
+  if (matrixMatch) {
+    const values = matrixMatch[1].split(',').map((value) => Number.parseFloat(value.trim()))
+    if (values.length >= 2 && Number.isFinite(values[0]) && Number.isFinite(values[1])) {
+      return Math.atan2(values[1], values[0])
+    }
+  }
+
+  const matrix3dMatch = transform.match(/^matrix3d\(([^)]+)\)$/)
+  if (matrix3dMatch) {
+    const values = matrix3dMatch[1].split(',').map((value) => Number.parseFloat(value.trim()))
+    if (values.length >= 2 && Number.isFinite(values[0]) && Number.isFinite(values[1])) {
+      return Math.atan2(values[1], values[0])
+    }
+  }
+
+  return 0
+}
+
+function getHorizontalVisualEdgeInset(element: HTMLElement): number {
+  const layoutWidth = element.offsetWidth
+  const layoutHeight = element.offsetHeight
+  if (layoutWidth <= 0 || layoutHeight <= 0) {
+    return 0
+  }
+
+  const angle = getRotationRadians(element)
+  if (Math.abs(angle) < 0.001) {
+    return 0
+  }
+
+  const absTan = Math.abs(Math.tan(angle))
+  const intersectsVerticalSides = layoutWidth * absTan <= layoutHeight
+  if (!intersectsVerticalSides) {
+    return 0
+  }
+
+  const absCos = Math.abs(Math.cos(angle))
+  if (absCos < 0.001) {
+    return 0
+  }
+
+  const actualHalfWidthAtMidline = layoutWidth / (2 * absCos)
+  const boundingHalfWidth = element.getBoundingClientRect().width * 0.5
+  return Math.max(0, boundingHalfWidth - actualHalfWidthAtMidline)
 }
 
 function withSourceGap(anchor: IAttackAnchorPosition, gap: number): IAttackAnchorConfig {
@@ -114,6 +179,13 @@ function withSourceGap(anchor: IAttackAnchorPosition, gap: number): IAttackAncho
     return {
       position: 'right',
       offset: { x: gap, y: 0 },
+    }
+  }
+
+  if (anchor === 'bottom') {
+    return {
+      position: 'bottom',
+      offset: { x: 0, y: gap },
     }
   }
 
@@ -269,17 +341,15 @@ function GameZones({
 
     const sourceCenter = getElementCenter(sourceCard)
     const targetCenter = getElementCenter(targetCard)
+    const sourceSlotSide = sourceCard.getAttribute('data-slot-side')
+    const startAnchor: 'top' | 'bottom' = sourceSlotSide === 'top' ? 'bottom' : 'top'
     const endAnchor: 'left' | 'right' = sourceCenter.x <= targetCenter.x ? 'left' : 'right'
     const isTargetRested = cardRestedStateByInstanceId.get(normalizedAttackLinkTargetCardId) === true
     const isRightToLeftAttack = sourceCenter.x > targetCenter.x
-    const restedTargetAnchorNudgeMagnitude = isRightToLeftAttack
-      ? ATTACK_RESTED_TARGET_NUDGE_RIGHT_TO_LEFT_PX
-      : ATTACK_RESTED_TARGET_NUDGE_LEFT_TO_RIGHT_PX
-    const resolvedTargetAnchorNudge = isTargetRested
-      ? (isRightToLeftAttack
-        ? (endAnchor === 'right' ? -restedTargetAnchorNudgeMagnitude : restedTargetAnchorNudgeMagnitude)
-        : (endAnchor === 'left' ? -restedTargetAnchorNudgeMagnitude : restedTargetAnchorNudgeMagnitude))
-      : 0
+    const horizontalVisualEdgeInset = getHorizontalVisualEdgeInset(targetCard)
+    const resolvedTargetAnchorNudge = horizontalVisualEdgeInset === 0
+      ? 0
+      : (endAnchor === 'left' ? horizontalVisualEdgeInset : -horizontalVisualEdgeInset)
     const resolvedHeadOffsetForward = isTargetRested
       ? (isRightToLeftAttack
         ? ATTACK_HEAD_OFFSET_RESTED_RIGHT_TO_LEFT
@@ -321,7 +391,7 @@ function GameZones({
     return {
       startId,
       endId,
-      startAnchor: withSourceGap('top', ATTACK_LINK_SOURCE_GAP_PX),
+      startAnchor: withSourceGap(startAnchor, ATTACK_LINK_SOURCE_GAP_PX),
       endAnchor: withTargetGapAndHorizontalNudge(
         endAnchor,
         ATTACK_LINK_TARGET_GAP_PX,
@@ -642,6 +712,15 @@ function GameZones({
                 svgElem: <path d="M 0 0 L 1 0.5 L 0 1 L 0.25 0.5 z" />,
                 offsetForward: attackLinkRenderConfig.headOffsetForward,
               }}
+              arrowHeadProps={{
+                stroke: 'rgba(0, 0, 0, 0.24)',
+                strokeWidth: 0.16,
+                strokeLinejoin: 'round',
+                paintOrder: 'stroke fill',
+                style: {
+                  filter: 'drop-shadow(0 0 1px rgba(0, 0, 0, 0.86)) drop-shadow(0 0 4px rgba(0, 0, 0, 0.42)) drop-shadow(0 0 9px rgba(0, 0, 0, 0.24)) drop-shadow(0 0 16px rgba(0, 0, 0, 0.13))',
+                },
+              }}
               showHead
               zIndex={50}
               _extendSVGcanvas={16}
@@ -684,25 +763,30 @@ function GameZones({
 
           <div className="flex min-h-0 w-full justify-end">
             <div
-              id={topLeaderCard ? toAnchorId(topLeaderCard.instanceId) : undefined}
-              data-card-instance-id={topLeaderCard?.instanceId}
-              data-zone="leader-card"
-              data-slot-side="top"
-              onClick={isTopLeaderBattleTarget && topLeaderCard ? () => onSelectAttackTarget(topLeaderCard.instanceId) : undefined}
               className={twMerge(
                 topLeaderCardFrameClassName,
-                'relative z-60',
-                isTopLeaderBattleTarget ? 'cursor-pointer ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
-                normalizedAttackLinkSourceCardId.length > 0 && topLeaderCard && normalizedAttackLinkSourceCardId === topLeaderCard.instanceId.trim().toLowerCase()
-                  ? 'attack-link-card-outline'
-                  : '',
-                normalizedAttackLinkTargetCardId.length > 0 && topLeaderCard && normalizedAttackLinkTargetCardId === topLeaderCard.instanceId.trim().toLowerCase()
-                  ? 'attack-link-card-outline'
-                  : '',
+                'relative overflow-visible',
               )}
             >
               <LeaderCard
                 className="h-full"
+                surfaceProps={{
+                  id: topLeaderCard ? toAnchorId(topLeaderCard.instanceId) : undefined,
+                  'data-card-instance-id': topLeaderCard?.instanceId,
+                  'data-zone': 'leader-card',
+                  'data-slot-side': 'top',
+                  onClick: isTopLeaderBattleTarget && topLeaderCard ? () => onSelectAttackTarget(topLeaderCard.instanceId) : undefined,
+                  className: twMerge(
+                    'h-full',
+                    isTopLeaderBattleTarget ? 'cursor-pointer ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
+                    normalizedAttackLinkSourceCardId.length > 0 && topLeaderCard && normalizedAttackLinkSourceCardId === topLeaderCard.instanceId.trim().toLowerCase()
+                      ? 'attack-link-leader-outline'
+                      : '',
+                    normalizedAttackLinkTargetCardId.length > 0 && topLeaderCard && normalizedAttackLinkTargetCardId === topLeaderCard.instanceId.trim().toLowerCase()
+                      ? 'attack-link-leader-outline'
+                      : '',
+                  ),
+                }}
                 imageClassName={LEADER_CARD_IMAGE_CLASS}
                 leaderCard={topLeaderCard}
                 previewCard={topLeaderCard ? (derivedGameState.cardById.get(topLeaderCard.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
@@ -738,25 +822,30 @@ function GameZones({
         <div className="row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
           <div className="min-h-0 w-full">
             <div
-              id={bottomLeaderCard ? toAnchorId(bottomLeaderCard.instanceId) : undefined}
-              data-card-instance-id={bottomLeaderCard?.instanceId}
-              data-zone="leader-card"
-              data-slot-side="bottom"
-              onClick={isBottomLeaderBattleTarget && bottomLeaderCard ? () => onSelectAttackTarget(bottomLeaderCard.instanceId) : undefined}
               className={twMerge(
                 bottomLeaderCardFrameClassName,
-                'relative z-60',
-                isBottomLeaderBattleTarget ? 'cursor-pointer ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
-                normalizedAttackLinkSourceCardId.length > 0 && bottomLeaderCard && normalizedAttackLinkSourceCardId === bottomLeaderCard.instanceId.trim().toLowerCase()
-                  ? 'attack-link-card-outline'
-                  : '',
-                normalizedAttackLinkTargetCardId.length > 0 && bottomLeaderCard && normalizedAttackLinkTargetCardId === bottomLeaderCard.instanceId.trim().toLowerCase()
-                  ? 'attack-link-card-outline'
-                  : '',
+                'relative overflow-visible',
               )}
             >
               <LeaderCard
                 className="h-full"
+                surfaceProps={{
+                  id: bottomLeaderCard ? toAnchorId(bottomLeaderCard.instanceId) : undefined,
+                  'data-card-instance-id': bottomLeaderCard?.instanceId,
+                  'data-zone': 'leader-card',
+                  'data-slot-side': 'bottom',
+                  onClick: isBottomLeaderBattleTarget && bottomLeaderCard ? () => onSelectAttackTarget(bottomLeaderCard.instanceId) : undefined,
+                  className: twMerge(
+                    'h-full',
+                    isBottomLeaderBattleTarget ? 'cursor-pointer ring-2 ring-amber-400/90 ring-offset-1 ring-offset-transparent' : '',
+                    normalizedAttackLinkSourceCardId.length > 0 && bottomLeaderCard && normalizedAttackLinkSourceCardId === bottomLeaderCard.instanceId.trim().toLowerCase()
+                      ? 'attack-link-leader-outline'
+                      : '',
+                    normalizedAttackLinkTargetCardId.length > 0 && bottomLeaderCard && normalizedAttackLinkTargetCardId === bottomLeaderCard.instanceId.trim().toLowerCase()
+                      ? 'attack-link-leader-outline'
+                      : '',
+                  ),
+                }}
                 imageClassName={LEADER_CARD_IMAGE_CLASS}
                 leaderCard={bottomLeaderCard}
                 previewCard={bottomLeaderCard ? (derivedGameState.cardById.get(bottomLeaderCard.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
