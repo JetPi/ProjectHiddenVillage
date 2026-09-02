@@ -41,22 +41,33 @@ public sealed class DevelopmentDeckSeederTests
             .AsNoTracking()
             .SingleAsync(entry => entry.CardId == "N-008");
 
+        var n015Catalog = await dbContext.CardCatalogEntries
+            .AsNoTracking()
+            .SingleAsync(entry => entry.CardId == "N-015");
+
         Assert.AreEqual(CardType.Character, n008Catalog.Type);
         Assert.IsFalse(string.IsNullOrWhiteSpace(n008Catalog.SupportName));
         Assert.IsFalse(string.IsNullOrWhiteSpace(n008Catalog.SupportEffect));
+        Assert.AreEqual(CardType.Character, n015Catalog.Type);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(n015Catalog.SupportName));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(n015Catalog.SupportEffect));
 
         var seededDeckOne = await dbContext.Decks
             .AsNoTracking()
             .Include(deck => deck.Cards)
+            .ThenInclude(deckCard => deckCard.CardCatalogEntry)
             .SingleAsync(deck => deck.Id == Guid.Parse("10000000-0000-0000-0000-000000000001"));
 
         var seededDeckTwo = await dbContext.Decks
             .AsNoTracking()
             .Include(deck => deck.Cards)
+            .ThenInclude(deckCard => deckCard.CardCatalogEntry)
             .SingleAsync(deck => deck.Id == Guid.Parse("10000000-0000-0000-0000-000000000002"));
 
         Assert.IsTrue(seededDeckOne.Cards.Count > 0);
         Assert.IsTrue(seededDeckTwo.Cards.Count > 0);
+        Assert.IsTrue(seededDeckTwo.Cards.Any(card => card.CardCatalogEntry.CardId == "N-015"));
+        Assert.IsFalse(seededDeckTwo.Cards.Any(card => card.CardCatalogEntry.CardId == "N-008"));
     }
 
     private static ApplicationDbContext CreateDbContext()

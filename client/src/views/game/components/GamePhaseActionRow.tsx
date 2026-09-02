@@ -97,7 +97,8 @@ function GamePhaseActionRow({
 }: IGamePhaseActionRowProps) {
   const phaseValue = getPhaseValue(gameInstance, authUserId)
   const phaseThemeClasses = getPhaseThemeClasses(gameInstance, phaseValue, authUserId)
-  const hasOptions = availableActions.length > 0
+  const renderedActions = availableActions.filter((action) => action.actionId !== 'declare-action')
+  const hasOptions = renderedActions.length > 0
 
   return (
     <div className="grid min-h-0 grid-cols-6">
@@ -108,7 +109,7 @@ function GamePhaseActionRow({
           }`}
         >
           <div className="flex h-full w-max items-stretch gap-1 overflow-x-auto">
-            {availableActions.map((action) => (
+            {renderedActions.map((action) => (
               <button
                 key={action.actionId}
                 type="button"

@@ -15,7 +15,8 @@ public sealed class DevelopmentDeckSeeder
     // when development placeholder entries are used.
     private static readonly HashSet<string> PlaceholderSupportCapableCardIds =
     [
-        "N-008"
+        "N-008",
+        "N-015"
     ];
 
     private static readonly Guid SeedDeckOneId = Guid.Parse("10000000-0000-0000-0000-000000000001");
@@ -45,7 +46,6 @@ public sealed class DevelopmentDeckSeeder
             Type: DeckType.Public,
             Cards:
             [
-                new SeedDeckCardDefinition("N-008", 3),
                 new SeedDeckCardDefinition("N-010", 3),
                 new SeedDeckCardDefinition("N-012", 1),
                 new SeedDeckCardDefinition("N-013", 3),
@@ -73,15 +73,8 @@ public sealed class DevelopmentDeckSeeder
     {
         foreach (var seedDeck in SeedDecks)
         {
-            var alreadyExists = await dbContext.Decks
-                .AsNoTracking()
-                .AnyAsync(deck => deck.Id == seedDeck.DeckId, cancellationToken);
-
-            if (alreadyExists)
-            {
-                logger.LogInformation("Skipping seed deck {DeckId} because it already exists.", seedDeck.DeckId);
-                continue;
-            }
+            var existingDeck = await dbContext.Decks
+                .SingleOrDefaultAsync(deck => deck.Id == seedDeck.DeckId, cancellationToken);
 
             if (seedDeck.Cards.Count == 0)
             {
@@ -169,25 +162,44 @@ public sealed class DevelopmentDeckSeeder
                 continue;
             }
 
-            var deck = new Deck
+            if (existingDeck is null)
             {
-                Id = seedDeck.DeckId,
-                Type = seedDeck.Type,
-                UserId = null,
-                Cards = normalizedCards.Select(card => new DeckCard
+                var newDeck = new Deck
                 {
-                    CardCatalogEntryId = catalogByCardId[card.CardId.Trim().ToUpperInvariant()],
-                    Quantity = card.Quantity
-                }).ToList()
-            };
+                    Id = seedDeck.DeckId,
+                    Type = seedDeck.Type,
+                    UserId = null,
+                };
 
-            dbContext.Decks.Add(deck);
+                dbContext.Decks.Add(newDeck);
+                existingDeck = newDeck;
+            }
+
+            existingDeck.Type = seedDeck.Type;
+            existingDeck.UserId = null;
+
+            var existingDeckCards = await dbContext.DeckCards
+                .Where(deckCard => deckCard.DeckId == existingDeck.Id)
+                .ToListAsync(cancellationToken);
+
+            if (existingDeckCards.Count > 0)
+            {
+                dbContext.DeckCards.RemoveRange(existingDeckCards);
+            }
+
+            dbContext.DeckCards.AddRange(normalizedCards.Select(card => new DeckCard
+            {
+                DeckId = existingDeck.Id,
+                CardCatalogEntryId = catalogByCardId[card.CardId.Trim().ToUpperInvariant()],
+                Quantity = card.Quantity
+            }));
+
             await dbContext.SaveChangesAsync(cancellationToken);
 
             logger.LogInformation(
-                "Seeded development deck {DeckId} with {CardCount} card rows.",
-                deck.Id,
-                deck.Cards.Count);
+                "Synchronized development deck {DeckId} with {CardCount} card rows.",
+                existingDeck.Id,
+                normalizedCards.Count);
         }
     }
 

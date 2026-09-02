@@ -1139,6 +1139,7 @@ public sealed class InMemoryGameInstanceRegistry
         instance.State.PendingAttackDefenderZone = targetZone;
 
         ExecuteAutomaticWhenAttackingEffects(instance, playerId, attacker, sequentialEffectExecutor);
+        EnsurePendingAttackAttackerRemainsRested(instance.State);
 
         if (TryPrepareOptionalWhenAttackingChoice(instance, playerId, attacker))
         {
@@ -1253,9 +1254,28 @@ public sealed class InMemoryGameInstanceRegistry
             }
         }
 
+        EnsurePendingAttackAttackerRemainsRested(instance.State);
+
         var defenderPlayerId = instance.State.PendingAttackDefenderPlayerId;
         ClearPendingOptionalAttackEffectState(instance.State);
         EnterSupportCutInWindow(instance.State, defenderPlayerId);
+    }
+
+    private static void EnsurePendingAttackAttackerRemainsRested(GameState state)
+    {
+        if (!state.HasPendingAttack || string.IsNullOrWhiteSpace(state.PendingAttackAttackerInstanceId))
+        {
+            return;
+        }
+
+        var attacker = state.Players
+            .SelectMany(player => player.Battlefield)
+            .FirstOrDefault(card => string.Equals(card.InstanceId, state.PendingAttackAttackerInstanceId, StringComparison.Ordinal));
+
+        if (attacker is not null)
+        {
+            attacker.IsRested = true;
+        }
     }
 
     private static bool TryParseResolveOptionalAttackEffectActionId(string actionId, out string sourceCardInstanceId, out string decision)

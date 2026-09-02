@@ -87,6 +87,7 @@ function useGameHubState(
   const resetConnectionState = useGameHubStore((state) => state.resetConnectionState)
 
   const gameState = gameStateFromStore ?? initialGameState
+  const hubConnectionScopeKey = `${gameId}|${authUserId?.trim().toLowerCase() ?? ''}`
 
   useEffect(() => {
     initializeGameSession(gameId, initialGameState)
@@ -107,6 +108,11 @@ function useGameHubState(
   )
 
   useEffect(() => {
+    if (!authUserId) {
+      setConnected(false)
+      return
+    }
+
     const nextConnection = createGameHubConnection()
     connectionRef.current = nextConnection
 
@@ -178,7 +184,7 @@ function useGameHubState(
         await disconnectGameHub(nextConnection)
       })()
     }
-  }, [gameId, refreshCurrentGameState, resetConnectionState, setConnected, setConnectionError])
+  }, [authUserId, gameId, hubConnectionScopeKey, refreshCurrentGameState, resetConnectionState, setConnected, setConnectionError])
 
   const submitHubIntent = useCallback(
     async (request: ISubmitHubIntentRequest): Promise<void> => {

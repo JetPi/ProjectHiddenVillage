@@ -78,7 +78,8 @@ npm run test:e2e:report
 Notes:
 
 - E2E boot uses dedicated non-watch scripts through `npm run e2e:start`.
-- Tests target seeded Development game route `http://127.0.0.1:5173/game/TEST1`.
+- E2E uses isolated ports to avoid conflicts with local dev (`client:4173`, `server:3101`).
+- Tests target seeded Development game route `http://127.0.0.1:4173/game/TEST1`.
 - Backend is started with `ASPNETCORE_ENVIRONMENT=Development` for deterministic local seed behavior.
 
 ## Manage EF migrations from root

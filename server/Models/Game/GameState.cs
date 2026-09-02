@@ -4,6 +4,8 @@ public sealed class GameState
 {
     public string GameId { get; set; } = Guid.NewGuid().ToString("N");
 
+    public int GameSeed { get; set; }
+
     public int TurnNumber { get; set; } = 1;
 
     public string ActivePlayerId { get; set; } = string.Empty;

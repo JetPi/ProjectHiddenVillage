@@ -4,6 +4,10 @@ public sealed class PlayerState
 {
     public string PlayerId { get; set; } = string.Empty;
 
+    public int DeckShuffleSeed { get; set; }
+
+    public int DeckShuffleCount { get; set; }
+
     public int TurnCount { get; set; }
 
     public int ResourcePool { get; set; }

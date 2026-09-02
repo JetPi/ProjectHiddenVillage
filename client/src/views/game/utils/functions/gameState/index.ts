@@ -89,6 +89,14 @@ function resolveSourceCardInstanceId(actionId: string): string | null {
   return actionId.slice(delimiterIndex + 1)
 }
 
+function isBattleActionOption(action: IGameActionOptionResponse): boolean {
+  if (action.actionId.startsWith('battle-action:')) {
+    return true
+  }
+
+  return action.label.trim().toLowerCase() === 'battle'
+}
+
 function buildCardPreloadPayload(gameCards: IGameLoaderData['gameCards']): ICardPreloadPayload | null {
   const cardIds = Array.from(
     new Set(
@@ -122,7 +130,7 @@ export function mapActionToHubIntent(
   if (action.actionId.startsWith('activate-support:')
     || action.actionId.startsWith('play-card:')
     || action.actionId.startsWith('summon-to-field:')
-    || action.actionId.startsWith('battle-action:')
+    || isBattleActionOption(action)
     || action.actionId.startsWith('leader-effect:')
     || action.actionId.startsWith('resolve-optional-attack-effect:')) {
     const sourceCardInstanceId = resolveSourceCardInstanceId(action.actionId)

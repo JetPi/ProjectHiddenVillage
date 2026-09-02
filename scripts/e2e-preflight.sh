@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SERVER_LOG="${SERVER_LOG:-/tmp/phv-e2e-preflight-server.log}"
-API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:3001}"
+API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:3101}"
 SEED_EMAIL="${E2E_SEED_EMAIL:-test-user-1@hiddenvillage.local}"
 SEED_PASSWORD="${E2E_SEED_PASSWORD:-TestUser1!}"
 SEED_USER_ID="${E2E_SEED_USER_ID:-20000000-0000-0000-0000-000000000001}"

@@ -101,7 +101,8 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 	public List<CardInstance> ToRuntimeDeck(
 		IReadOnlyList<string> cardDefinitionIds,
 		IReadOnlyDictionary<string, Card> cardDefinitions,
-		string playerId)
+		string playerId,
+		Random? random = null)
 	{
 		if (string.IsNullOrWhiteSpace(playerId))
 		{
@@ -148,7 +149,7 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 			});
 		}
 
-		return DeckShuffle(rawDeck);
+		return DeckShuffle(rawDeck, random);
 	}
 
 	public List<CardInstance> DeckShuffle(List<CardInstance> deck, Random? random = null)

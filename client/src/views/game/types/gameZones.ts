@@ -1,6 +1,7 @@
 import type { RefObject } from 'react'
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGameActionOptionResponse, IGameCardInstanceResponse } from '@/services/api/types/game'
+import type { IAttackFlowLinkState, IAttackTargetingState } from '@/views/game/types/attackTargeting'
 import type { IDerivedGameViewState } from '@/views/game/types/viewModels'
 
 export type IGameZonesProps = {
@@ -19,11 +20,17 @@ export type IGameZonesProps = {
   authUserId?: string
   availableActions: IGameActionOptionResponse[]
   pendingSetSupportCardInstanceId: string | null
+  pendingAttackTargeting: IAttackTargetingState | null
+  optimisticRestedByInstanceId: Record<string, boolean>
+  activeAttackLink: IAttackFlowLinkState | null
+  isBattleActionTargeting: boolean
   isConnected: boolean
   isActionPending: boolean
   onSelectAction: (action: IGameActionOptionResponse) => void
   onSelectSupportSlotForSet: (slotIndex: number) => void
   onCancelSetSupportSelection: () => void
+  onSelectAttackTarget: (targetCardInstanceId: string) => void
+  onCancelAttackTargetSelection: () => void
   onToggleTheme: () => void
   onPassTurn: () => void
 }

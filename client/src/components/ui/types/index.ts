@@ -108,7 +108,11 @@ export type IFlippableCardProps = {
 
 export type ILeaderCardProps = {
   className?: string
+  surfaceProps?: React.HTMLAttributes<HTMLDivElement> & {
+    [key: `data-${string}`]: string | undefined
+  }
   imageClassName: string
+  hidePreviewButton?: boolean
   placeholderLabel?: string
   showBadgeWhenLifeMissing?: boolean
   previewCard?: ICardCatalogItemResponse | null

@@ -9,7 +9,9 @@ import type { ILeaderCardProps } from '@/components/ui/types'
 
 export function LeaderCard({
   className,
+  surfaceProps,
   imageClassName,
+  hidePreviewButton = false,
   leaderCard,
   placeholderLabel = 'Leader',
   showBadgeWhenLifeMissing = false,
@@ -20,10 +22,11 @@ export function LeaderCard({
   onSelectActionOption,
 }: ILeaderCardProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const { className: surfaceClassName, ...surfaceRestProps } = surfaceProps ?? {}
 
   if (!leaderCard) {
     return (
-      <PlayCard className={className}>
+      <PlayCard className={twMerge(className, surfaceClassName)} {...surfaceRestProps}>
         <div className="flex h-full items-center justify-center text-center">{placeholderLabel}</div>
       </PlayCard>
     )
@@ -34,11 +37,11 @@ export function LeaderCard({
 
   return (
     <>
-      <PlayCard className={twMerge('group', className)}>
+      <PlayCard className={twMerge('group', className, surfaceClassName)} {...surfaceRestProps}>
         {shouldRenderBadge ? <CardOverlayBadge value={badgeValue} /> : null}
 
-        {previewCard ? (
-          <div className="pointer-events-none absolute right-1 top-1 z-30 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
+        {previewCard && !hidePreviewButton ? (
+          <div className="pointer-events-none absolute right-2 top-2 z-30 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
             <button
               type="button"
               onClick={() => setIsPreviewOpen(true)}

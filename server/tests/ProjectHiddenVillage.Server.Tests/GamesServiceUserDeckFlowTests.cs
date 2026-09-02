@@ -206,6 +206,39 @@ public sealed class GamesServiceUserDeckFlowTests
             cardsResult.Value.Select(card => card.Id).ToArray());
     }
 
+    [TestMethod]
+    public async Task CreateGameForUser_GuaranteesOpeningSupportCard_ForDevelopmentSeedDecks()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var user = CreateUser("seeded@example.com", "seeded-user");
+        var fillerOne = CreateCatalogEntry("S-001", "Filler One");
+        var fillerTwo = CreateCatalogEntry("S-002", "Filler Two");
+        var support = CreateSupportCatalogEntry("S-003", "Support Card");
+
+        dbContext.Users.Add(user);
+        dbContext.Decks.Add(CreatePublicDeck(
+            deckId: Guid.Parse("10000000-0000-0000-0000-000000000002"),
+            cards:
+            [
+                (fillerOne, 2),
+                (support, 1),
+                (fillerTwo, 2)
+            ]));
+        await dbContext.SaveChangesAsync();
+
+        var services = CreateServices(dbContext);
+
+        var result = await services.InstanceService.CreateGameForUser(new CreateGameForUserRequest(
+            user.Id,
+            Guid.Parse("10000000-0000-0000-0000-000000000002")));
+
+        Assert.IsFalse(result.IsError);
+        var playerDeck = result.Value.State.Players.Single().Deck;
+        Assert.IsTrue(playerDeck.Count > 0);
+        Assert.IsTrue(playerDeck.Take(5).Any(card => card.CardDefinitionId == "S-003"));
+    }
+
     private static TestGameServices CreateServices(ApplicationDbContext dbContext)
     {
         var registry = new InMemoryGameInstanceRegistry(
@@ -250,6 +283,21 @@ public sealed class GamesServiceUserDeckFlowTests
         };
     }
 
+    private static Deck CreatePublicDeck(Guid deckId, IReadOnlyList<(CardCatalogEntry Card, int Quantity)> cards)
+    {
+        return new Deck
+        {
+            Id = deckId,
+            Type = DeckType.Public,
+            UserId = null,
+            Cards = cards.Select(card => new DeckCard
+            {
+                CardCatalogEntry = card.Card,
+                Quantity = card.Quantity
+            }).ToList()
+        };
+    }
+
     private static CardCatalogEntry CreateCatalogEntry(string cardId, string displayName)
     {
         return new CardCatalogEntry
@@ -261,6 +309,28 @@ public sealed class GamesServiceUserDeckFlowTests
             Type = CardType.Character,
             Color = CardColor.Red,
             Description = "desc",
+            NameJson = $"[\"{displayName}\"]",
+            TraitsJson = "[]",
+            ConditionsJson = "[]",
+            EffectsJson = "[]",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        };
+    }
+
+    private static CardCatalogEntry CreateSupportCatalogEntry(string cardId, string displayName)
+    {
+        return new CardCatalogEntry
+        {
+            CardId = cardId,
+            Image = $"https://example.com/{cardId.ToLowerInvariant()}.webp",
+            OriginalId = cardId,
+            DisplayName = displayName,
+            Type = CardType.Character,
+            Color = CardColor.Red,
+            Description = "desc",
+            SupportName = "Support",
+            SupportEffect = "Do something",
             NameJson = $"[\"{displayName}\"]",
             TraitsJson = "[]",
             ConditionsJson = "[]",

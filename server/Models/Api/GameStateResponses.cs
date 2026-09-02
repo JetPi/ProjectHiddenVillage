@@ -8,10 +8,17 @@ public sealed record GameStateResponse(
     string Phase,
     string? AttackSequenceStage,
     bool IsAttackSequencePending,
+    PendingAttackVisualStateResponse? PendingAttackVisualState,
     PendingPromptResponse? PendingPrompt,
     IReadOnlyList<GameActionOptionResponse> AvailableActions,
     IReadOnlyList<ActiveTemporaryEffectResponse> ActiveTemporaryEffects,
     IReadOnlyList<PlayerZonesResponse> Players);
+
+public sealed record PendingAttackVisualStateResponse(
+    string AttackerCardInstanceId,
+    string DefenderPlayerId,
+    string DefenderCardInstanceId,
+    string DefenderZone);
 
 public sealed record ActiveTemporaryEffectResponse(
     string EffectId,
@@ -72,6 +79,10 @@ public record CardInstanceResponse(
 {
     public bool IsFaceUp { get; init; } = true;
 
+    public bool IsExhausted { get; init; }
+
+    public bool IsRested { get; init; }
+
     public int? SupportSlotIndex { get; init; }
 
     public bool IsConcealedFromOpponent { get; init; }
@@ -84,7 +95,6 @@ public sealed record LeaderCardInstanceResponse(
     string CardDefinitionId,
     string OwnerPlayerId,
     string ControllerPlayerId,
-    bool IsExhausted,
     string DisplayName,
     CardColor Color,
     IReadOnlyList<string> Traits,
@@ -104,8 +114,6 @@ public sealed record EnrichedCardInstanceResponse(
     string CardDefinitionId,
     string OwnerPlayerId,
     string ControllerPlayerId,
-    bool IsExhausted,
-    bool IsRested,
     string DisplayName,
     CardType Type,
     CardColor Color,

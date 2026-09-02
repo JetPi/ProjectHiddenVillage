@@ -9,6 +9,7 @@ function NonLeaderCardOverlay({
   zone,
   visibilityMode,
   actionOptions,
+  hidePreviewButton = false,
   showEmptyActionMessage = true,
   suppressActionFallback = false,
   disableInteractions = false,
@@ -37,18 +38,20 @@ function NonLeaderCardOverlay({
           disableInteractions ? 'pointer-events-none opacity-0' : overlayVisibilityClassName,
         )}
       >
-        <div className="absolute right-1 top-1 z-30">
-          <button
-            type="button"
-            onClick={() => {
-              setIsCardPreviewOpen(true)
-            }}
-            aria-label="Open card details"
-            className="inline-flex h-5 w-5 items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80"
-          >
-            <Eye size={10} />
-          </button>
-        </div>
+        {hidePreviewButton ? null : (
+          <div className="absolute right-2 top-2 z-30">
+            <button
+              type="button"
+              onClick={() => {
+                setIsCardPreviewOpen(true)
+              }}
+              aria-label="Open card details"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80"
+            >
+              <Eye size={10} />
+            </button>
+          </div>
+        )}
 
         <div className="flex h-full w-full items-start justify-center pt-6">
           {hasActions ? (

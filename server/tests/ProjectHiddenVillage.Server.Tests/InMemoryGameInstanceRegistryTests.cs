@@ -501,6 +501,63 @@ public sealed class InMemoryGameInstanceRegistryTests
     }
 
     [TestMethod]
+    public void ExecuteCardAction_BattleAction_StaysRested_WhenAttackingEffectAttemptsToReadyAttacker()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "attacker-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = false,
+        });
+
+        var attackerDefinition = game.State.CardDefinitions["card-1"];
+        attackerDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "attacker-on-attack-mandatory",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.WhenAttacking,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+                IsOptional = false,
+            }
+        ];
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: "battle-action:attacker-1",
+                SourceCardInstanceId: "attacker-1",
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.Leader,
+                        CardInstanceId: game.State.Players[1].LeaderCardInstance!.InstanceId)
+                ]),
+            new AttackerUnrestingSequentialExecutor());
+
+        Assert.IsTrue(game.State.Players[0].Battlefield[0].IsRested);
+        Assert.IsTrue(game.State.HasPendingAttack);
+        Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
+    }
+
+    [TestMethod]
     public void ExecuteCardAction_BattleAction_WithOptionalAttackerAttackEffect_RequiresChoiceThenTransitionsToActionStep()
     {
         var game = registry.Create(
@@ -1535,6 +1592,19 @@ public sealed class InMemoryGameInstanceRegistryTests
         public ErrorOr<Success> Execute(GameCardEffectContext context)
         {
             Contexts.Add(context);
+            return Result.Success;
+        }
+    }
+
+    private sealed class AttackerUnrestingSequentialExecutor : IGameSequentialEffectExecutor
+    {
+        public ErrorOr<Success> Execute(GameCardEffectContext context)
+        {
+            if (context.SourceCardInstance is not null)
+            {
+                context.SourceCardInstance.IsRested = false;
+            }
+
             return Result.Success;
         }
     }

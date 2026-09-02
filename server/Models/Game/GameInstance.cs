@@ -390,7 +390,9 @@ public sealed class GameInstance
             var returnedCards = player.Hand.ToList();
             player.Hand.Clear();
             player.Deck.AddRange(returnedCards);
-            GameDeckShuffle.Shuffle(player.Deck);
+            player.DeckShuffleCount++;
+            var mulliganSeed = HashCode.Combine(player.DeckShuffleSeed, player.DeckShuffleCount);
+            GameDeckShuffle.Shuffle(player.Deck, new Random(mulliganSeed));
 
             var drawCount = Math.Min(5, player.Deck.Count);
             if (drawCount > 0)
