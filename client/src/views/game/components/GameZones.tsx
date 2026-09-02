@@ -314,7 +314,6 @@ function GameZones({
     bottomBattlefieldCards,
     optimisticRestedByInstanceId,
   ])
-
   const attackLinkRenderConfig = useMemo<IAttackLinkRenderConfig | null>(() => {
     if (!activeAttackLink) {
       return null
@@ -332,11 +331,15 @@ function GameZones({
       headOffsetForward: ATTACK_HEAD_OFFSET_DEFAULT,
     }
 
-    if (!boardZoneRef.current) {
+    if (typeof document === 'undefined') {
       return defaultConfig
     }
 
-    const boardElement = boardZoneRef.current
+    const boardElement = document.querySelector<HTMLElement>('[data-testid="game-board"]')
+    if (!boardElement) {
+      return defaultConfig
+    }
+
     const sourceCard = boardElement.querySelector<HTMLElement>(`#${startId}`)
     const targetCard = boardElement.querySelector<HTMLElement>(`#${endId}`)
     if (!sourceCard || !targetCard) {
@@ -405,12 +408,7 @@ function GameZones({
       curveness: 0.74,
       headOffsetForward: resolvedHeadOffsetForward,
     }
-  }, [
-    activeAttackLink,
-    boardZoneRef,
-    cardRestedStateByInstanceId,
-    normalizedAttackLinkTargetCardId,
-  ])
+  }, [activeAttackLink, cardRestedStateByInstanceId, normalizedAttackLinkTargetCardId])
 
   const validBattleTargetsByCardId = useMemo(() => {
     const targets = pendingAttackTargeting?.validTargets ?? []

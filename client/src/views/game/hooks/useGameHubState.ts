@@ -184,7 +184,7 @@ function useGameHubState(
         await disconnectGameHub(nextConnection)
       })()
     }
-  }, [hubConnectionScopeKey, refreshCurrentGameState, resetConnectionState, setConnected, setConnectionError])
+  }, [authUserId, gameId, hubConnectionScopeKey, refreshCurrentGameState, resetConnectionState, setConnected, setConnectionError])
 
   const submitHubIntent = useCallback(
     async (request: ISubmitHubIntentRequest): Promise<void> => {

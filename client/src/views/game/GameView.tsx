@@ -45,6 +45,38 @@ function normalizePlayerId(value: string | undefined): string {
   return (value ?? '').trim().toLowerCase().replace(/-/g, '')
 }
 
+function readPersistedBattlefieldDisplayOrder(storageKey: string): {
+  top: string[]
+  bottom: string[]
+} {
+  if (typeof window === 'undefined') {
+    return { top: [], bottom: [] }
+  }
+
+  const serializedOrder = window.sessionStorage.getItem(storageKey)
+  if (!serializedOrder) {
+    return { top: [], bottom: [] }
+  }
+
+  try {
+    const parsedOrder = JSON.parse(serializedOrder) as {
+      top?: unknown
+      bottom?: unknown
+    }
+
+    return {
+      top: Array.isArray(parsedOrder.top)
+        ? parsedOrder.top.filter((entry): entry is string => typeof entry === 'string')
+        : [],
+      bottom: Array.isArray(parsedOrder.bottom)
+        ? parsedOrder.bottom.filter((entry): entry is string => typeof entry === 'string')
+        : [],
+    }
+  } catch {
+    return { top: [], bottom: [] }
+  }
+}
+
 
 export function GameView() {
   const AUTO_SIGNAL_PHASES = useMemo(() => new Set([
@@ -89,8 +121,6 @@ export function GameView() {
   const [pendingAttackTargeting, setPendingAttackTargeting] = useState<IAttackTargetingState | null>(null)
   const [optimisticRestedByInstanceId, setOptimisticRestedByInstanceId] = useState<Record<string, boolean>>({})
   const [activeAttackLink, setActiveAttackLink] = useState<IAttackFlowLinkState | null>(null)
-  const [topBattlefieldDisplayOrder, setTopBattlefieldDisplayOrder] = useState<string[]>([])
-  const [bottomBattlefieldDisplayOrder, setBottomBattlefieldDisplayOrder] = useState<string[]>([])
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const authUserId = useAuthSessionStore((state) => state.session?.userId)
 
@@ -110,6 +140,12 @@ export function GameView() {
     const normalizedUserId = normalizePlayerId(authUserId)
     return `phv:battlefield-display-order:${joinCode}:${normalizedUserId || 'anonymous'}`
   }, [authUserId, joinCode])
+  const [topBattlefieldDisplayOrder, setTopBattlefieldDisplayOrder] = useState<string[]>(() => {
+    return readPersistedBattlefieldDisplayOrder(battlefieldDisplayOrderStorageKey).top
+  })
+  const [bottomBattlefieldDisplayOrder, setBottomBattlefieldDisplayOrder] = useState<string[]>(() => {
+    return readPersistedBattlefieldDisplayOrder(battlefieldDisplayOrderStorageKey).bottom
+  })
 
   const {
     gameState,
@@ -119,34 +155,6 @@ export function GameView() {
     submitHubIntent,
     getCardActionTargets,
   } = useGameHubState(joinCode, initialGameState, authUserId)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    const serializedOrder = window.sessionStorage.getItem(battlefieldDisplayOrderStorageKey)
-    if (!serializedOrder) {
-      return
-    }
-
-    try {
-      const parsedOrder = JSON.parse(serializedOrder) as {
-        top?: unknown
-        bottom?: unknown
-      }
-
-      if (Array.isArray(parsedOrder.top)) {
-        setTopBattlefieldDisplayOrder(parsedOrder.top.filter((entry): entry is string => typeof entry === 'string'))
-      }
-
-      if (Array.isArray(parsedOrder.bottom)) {
-        setBottomBattlefieldDisplayOrder(parsedOrder.bottom.filter((entry): entry is string => typeof entry === 'string'))
-      }
-    } catch {
-      // Ignore malformed persisted order payloads and let runtime rebuild order.
-    }
-  }, [battlefieldDisplayOrderStorageKey])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -563,7 +571,8 @@ export function GameView() {
     }
 
     setOptimisticRestedByInstanceId((previous) => {
-      const { [sourceCardInstanceId]: _, ...nextState } = previous
+      const nextState = { ...previous }
+      delete nextState[sourceCardInstanceId]
       return nextState
     })
     setActiveAttackLink(null)
