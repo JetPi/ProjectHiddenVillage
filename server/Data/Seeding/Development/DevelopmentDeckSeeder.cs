@@ -7,6 +7,8 @@ namespace ProjectHiddenVillage.Server.Data.Seeding.Development;
 public sealed class DevelopmentDeckSeeder
 {
     private const string SeedProfilesRelativePath = "../test-data/seed-profiles.json";
+    private const string IncludeTestSeedProfilesEnvironmentVariable = "PHV_INCLUDE_TEST_SEED_PROFILES";
+    private const string DefaultSeedProfileName = "default";
 
     private static readonly HashSet<string> PlaceholderLeaderCardIds =
     [
@@ -43,9 +45,51 @@ public sealed class DevelopmentDeckSeeder
     {
         var seedManifest = LoadSeedManifest();
 
-        await EnsureSuiteSpecificCatalogEntriesAsync(seedManifest.CatalogEntries, cancellationToken);
+        var includeTestProfiles = ShouldIncludeTestProfiles();
+        var profilesToSeed = includeTestProfiles
+            ? seedManifest.Profiles
+            : seedManifest.Profiles
+                .Where(profile => string.Equals(profile.Name, DefaultSeedProfileName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
-        foreach (var seedDeck in seedManifest.Profiles.SelectMany(profile => new[]
+        if (profilesToSeed.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Seed manifest must include a '{DefaultSeedProfileName}' profile when '{IncludeTestSeedProfilesEnvironmentVariable}' is disabled.");
+        }
+
+        if (includeTestProfiles)
+        {
+            logger.LogInformation(
+                "Seeding all development seed profiles because {EnvironmentVariable}=true.",
+                IncludeTestSeedProfilesEnvironmentVariable);
+        }
+        else
+        {
+            logger.LogInformation(
+                "Seeding only the '{ProfileName}' development profile. Enable {EnvironmentVariable}=true to include test-only profiles.",
+                DefaultSeedProfileName,
+                IncludeTestSeedProfilesEnvironmentVariable);
+        }
+
+        var selectedProfileCardIds = profilesToSeed
+            .SelectMany(profile => new[]
+            {
+                profile.Decks.One,
+                profile.Decks.Two,
+            })
+            .SelectMany(deck => deck.Cards)
+            .Select(card => card.CardId.Trim().ToUpperInvariant())
+            .Where(cardId => !string.IsNullOrWhiteSpace(cardId))
+            .ToHashSet(StringComparer.Ordinal);
+
+        var catalogEntriesToSeed = seedManifest.CatalogEntries
+            .Where(entry => selectedProfileCardIds.Contains(entry.CardId.Trim().ToUpperInvariant()))
+            .ToList();
+
+        await EnsureSuiteSpecificCatalogEntriesAsync(catalogEntriesToSeed, cancellationToken);
+
+        foreach (var seedDeck in profilesToSeed.SelectMany(profile => new[]
                  {
                      ToSeedDeckDefinition(profile.Decks.One),
                      ToSeedDeckDefinition(profile.Decks.Two),
@@ -247,6 +291,20 @@ public sealed class DevelopmentDeckSeeder
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         options.Converters.Add(new Api.Serialization.FlexibleEnumJsonConverterFactory());
         return options;
+    }
+
+    private static bool ShouldIncludeTestProfiles()
+    {
+        var rawValue = Environment.GetEnvironmentVariable(IncludeTestSeedProfilesEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return false;
+        }
+
+        return rawValue.Equals("1", StringComparison.OrdinalIgnoreCase)
+            || rawValue.Equals("true", StringComparison.OrdinalIgnoreCase)
+            || rawValue.Equals("yes", StringComparison.OrdinalIgnoreCase)
+            || rawValue.Equals("on", StringComparison.OrdinalIgnoreCase);
     }
 
     private static SeedDeckDefinition ToSeedDeckDefinition(SeedDeckManifest manifestDeck)

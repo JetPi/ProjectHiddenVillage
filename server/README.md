@@ -56,6 +56,34 @@ Example response:
 dotnet build ProjectHiddenVillage.Server.csproj
 ```
 
+## Development Seeding Isolation
+
+- Normal development startup seeds only the `default` profile from `test-data/seed-profiles.json`.
+- This preserves the manual-testing baseline decks (the original two 31-card decks).
+- Test-only profiles are excluded unless explicitly enabled with `PHV_INCLUDE_TEST_SEED_PROFILES=true`.
+
+## E2E Dedicated Database
+
+- E2E server startup uses a dedicated database via `scripts/e2e-start-server.sh`.
+- The script sets:
+  - `PHV_INCLUDE_TEST_SEED_PROFILES=true`
+  - `ConnectionStrings__DefaultConnection` to an e2e-specific DB
+- It runs `dotnet ef database update` before launching the server.
+
+Default e2e DB settings:
+
+- Host: `localhost`
+- Port: `5432`
+- Database: `project_hidden_village_e2e`
+- Username: `postgres`
+
+Override with environment variables:
+
+- `PHV_E2E_DB_HOST`
+- `PHV_E2E_DB_PORT`
+- `PHV_E2E_DB_NAME`
+- `PHV_E2E_DB_USER`
+
 ## Card Mapping Notes (2026-08)
 
 This branch added a datasource-to-domain mapping flow for card imports and an upsert persistence path.
