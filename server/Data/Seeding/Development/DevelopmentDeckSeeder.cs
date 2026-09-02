@@ -1,14 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using ProjectHiddenVillage.Server.Data.Entities;
 
 namespace ProjectHiddenVillage.Server.Data.Seeding.Development;
 
 public sealed class DevelopmentDeckSeeder
 {
-    public static readonly Guid DefaultDeckOneId = Guid.Parse("10000000-0000-0000-0000-000000000001");
-    public static readonly Guid DefaultDeckTwoId = Guid.Parse("10000000-0000-0000-0000-000000000002");
-    public static readonly Guid SummonRequirementsDeckOneId = Guid.Parse("10000000-0000-0000-0000-000000000101");
-    public static readonly Guid SummonRequirementsDeckTwoId = Guid.Parse("10000000-0000-0000-0000-000000000102");
+    private const string SeedProfilesRelativePath = "../test-data/seed-profiles.json";
 
     private static readonly HashSet<string> PlaceholderLeaderCardIds =
     [
@@ -25,93 +23,33 @@ public sealed class DevelopmentDeckSeeder
         "N-015"
     ];
 
-    private static readonly IReadOnlyList<SeedDeckSuiteDefinition> SeedDeckSuites =
-    [
-        new SeedDeckSuiteDefinition(
-            SuiteKey: "default",
-            Decks:
-            [
-                new SeedDeckDefinition(
-                    DeckId: DefaultDeckOneId,
-                    Type: DeckType.Public,
-                    Cards:
-                    [
-                        new SeedDeckCardDefinition("N-001", 1),
-                        new SeedDeckCardDefinition("N-002", 3),
-                        new SeedDeckCardDefinition("N-003", 3),
-                        new SeedDeckCardDefinition("N-004", 3),
-                        new SeedDeckCardDefinition("N-005", 3),
-                        new SeedDeckCardDefinition("N-006", 3),
-                        new SeedDeckCardDefinition("N-007", 3),
-                        new SeedDeckCardDefinition("N-008", 3),
-                        new SeedDeckCardDefinition("N-009", 3),
-                        new SeedDeckCardDefinition("N-011", 3),
-                        new SeedDeckCardDefinition("N-018", 3)
-                    ]),
-                new SeedDeckDefinition(
-                    DeckId: DefaultDeckTwoId,
-                    Type: DeckType.Public,
-                    Cards:
-                    [
-                        new SeedDeckCardDefinition("N-010", 3),
-                        new SeedDeckCardDefinition("N-012", 1),
-                        new SeedDeckCardDefinition("N-013", 3),
-                        new SeedDeckCardDefinition("N-014", 3),
-                        new SeedDeckCardDefinition("N-015", 3),
-                        new SeedDeckCardDefinition("N-016", 3),
-                        new SeedDeckCardDefinition("N-017", 3),
-                        new SeedDeckCardDefinition("N-019", 3),
-                        new SeedDeckCardDefinition("N-020", 3),
-                        new SeedDeckCardDefinition("N-021", 3),
-                        new SeedDeckCardDefinition("N-022", 3)
-                    ])
-            ]),
-        new SeedDeckSuiteDefinition(
-            SuiteKey: "summon-requirements",
-            Decks:
-            [
-                new SeedDeckDefinition(
-                    DeckId: SummonRequirementsDeckOneId,
-                    Type: DeckType.Public,
-                    Cards:
-                    [
-                        new SeedDeckCardDefinition("T-001", 1),
-                        new SeedDeckCardDefinition("T-100", 3),
-                        new SeedDeckCardDefinition("T-900", 3)
-                    ]),
-                new SeedDeckDefinition(
-                    DeckId: SummonRequirementsDeckTwoId,
-                    Type: DeckType.Public,
-                    Cards:
-                    [
-                        new SeedDeckCardDefinition("N-012", 1),
-                        new SeedDeckCardDefinition("N-013", 3),
-                        new SeedDeckCardDefinition("N-014", 3),
-                        new SeedDeckCardDefinition("N-015", 3),
-                        new SeedDeckCardDefinition("N-016", 3),
-                        new SeedDeckCardDefinition("N-017", 3),
-                        new SeedDeckCardDefinition("N-019", 3),
-                        new SeedDeckCardDefinition("N-020", 3),
-                        new SeedDeckCardDefinition("N-021", 3),
-                        new SeedDeckCardDefinition("N-022", 3)
-                    ])
-            ])
-    ];
+    private static readonly JsonSerializerOptions SeedManifestSerializerOptions = CreateSeedManifestSerializerOptions();
 
     private readonly ApplicationDbContext dbContext;
     private readonly ILogger<DevelopmentDeckSeeder> logger;
+    private readonly string contentRootPath;
 
-    public DevelopmentDeckSeeder(ApplicationDbContext dbContext, ILogger<DevelopmentDeckSeeder> logger)
+    public DevelopmentDeckSeeder(
+        ApplicationDbContext dbContext,
+        ILogger<DevelopmentDeckSeeder> logger,
+        IWebHostEnvironment environment)
     {
         this.dbContext = dbContext;
         this.logger = logger;
+        contentRootPath = environment.ContentRootPath;
     }
 
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
-        await EnsureSuiteSpecificCatalogEntriesAsync(cancellationToken);
+        var seedManifest = LoadSeedManifest();
 
-        foreach (var seedDeck in SeedDeckSuites.SelectMany(suite => suite.Decks))
+        await EnsureSuiteSpecificCatalogEntriesAsync(seedManifest.CatalogEntries, cancellationToken);
+
+        foreach (var seedDeck in seedManifest.Profiles.SelectMany(profile => new[]
+                 {
+                     ToSeedDeckDefinition(profile.Decks.One),
+                     ToSeedDeckDefinition(profile.Decks.Two),
+                 }))
         {
             var existingDeck = await dbContext.Decks
                 .SingleOrDefaultAsync(deck => deck.Id == seedDeck.DeckId, cancellationToken);
@@ -243,125 +181,109 @@ public sealed class DevelopmentDeckSeeder
         }
     }
 
-    private async Task EnsureSuiteSpecificCatalogEntriesAsync(CancellationToken cancellationToken)
+    private async Task EnsureSuiteSpecificCatalogEntriesAsync(
+        IReadOnlyList<SeedCatalogEntryDefinition> entries,
+        CancellationToken cancellationToken)
     {
-        var entries = CreateSuiteSpecificCatalogEntries();
         foreach (var entry in entries)
         {
             var normalizedCardId = entry.CardId.Trim().ToUpperInvariant();
             var existingEntry = await dbContext.CardCatalogEntries
                 .SingleOrDefaultAsync(card => card.CardId.ToUpper() == normalizedCardId, cancellationToken);
 
+            var mappedEntry = ToCardCatalogEntry(entry);
+
             if (existingEntry is null)
             {
-                dbContext.CardCatalogEntries.Add(entry);
+                dbContext.CardCatalogEntries.Add(mappedEntry);
                 continue;
             }
 
-            existingEntry.Image = entry.Image;
-            existingEntry.OriginalId = entry.OriginalId;
-            existingEntry.MainAlternate = entry.MainAlternate;
-            existingEntry.Attribute = entry.Attribute;
-            existingEntry.DisplayName = entry.DisplayName;
-            existingEntry.Type = entry.Type;
-            existingEntry.Color = entry.Color;
-            existingEntry.Description = entry.Description;
-            existingEntry.Damage = entry.Damage;
-            existingEntry.Power = entry.Power;
-            existingEntry.NameJson = entry.NameJson;
-            existingEntry.TraitsJson = entry.TraitsJson;
-            existingEntry.ConditionsJson = entry.ConditionsJson;
-            existingEntry.EffectsJson = entry.EffectsJson;
-            existingEntry.Life = entry.Life;
-            existingEntry.Health = entry.Health;
-            existingEntry.CannotBeNormalSummoned = entry.CannotBeNormalSummoned;
-            existingEntry.SupportName = entry.SupportName;
-            existingEntry.SupportEffect = entry.SupportEffect;
-            existingEntry.UpdatedAtUtc = entry.UpdatedAtUtc;
+            existingEntry.Image = mappedEntry.Image;
+            existingEntry.OriginalId = mappedEntry.OriginalId;
+            existingEntry.MainAlternate = mappedEntry.MainAlternate;
+            existingEntry.Attribute = mappedEntry.Attribute;
+            existingEntry.DisplayName = mappedEntry.DisplayName;
+            existingEntry.Type = mappedEntry.Type;
+            existingEntry.Color = mappedEntry.Color;
+            existingEntry.Description = mappedEntry.Description;
+            existingEntry.Damage = mappedEntry.Damage;
+            existingEntry.Power = mappedEntry.Power;
+            existingEntry.NameJson = mappedEntry.NameJson;
+            existingEntry.TraitsJson = mappedEntry.TraitsJson;
+            existingEntry.ConditionsJson = mappedEntry.ConditionsJson;
+            existingEntry.EffectsJson = mappedEntry.EffectsJson;
+            existingEntry.Life = mappedEntry.Life;
+            existingEntry.Health = mappedEntry.Health;
+            existingEntry.CannotBeNormalSummoned = mappedEntry.CannotBeNormalSummoned;
+            existingEntry.SupportName = mappedEntry.SupportName;
+            existingEntry.SupportEffect = mappedEntry.SupportEffect;
+            existingEntry.UpdatedAtUtc = mappedEntry.UpdatedAtUtc;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private static IReadOnlyList<CardCatalogEntry> CreateSuiteSpecificCatalogEntries()
+    private SeedManifestDefinition LoadSeedManifest()
+    {
+        var manifestPath = Path.GetFullPath(Path.Combine(contentRootPath, SeedProfilesRelativePath));
+        if (!File.Exists(manifestPath))
+        {
+            throw new InvalidOperationException($"Seed manifest '{manifestPath}' was not found.");
+        }
+
+        var json = File.ReadAllText(manifestPath);
+        var manifest = JsonSerializer.Deserialize<SeedManifestDefinition>(json, SeedManifestSerializerOptions);
+        if (manifest is null)
+        {
+            throw new InvalidOperationException("Seed manifest could not be parsed.");
+        }
+
+        return manifest;
+    }
+
+    private static JsonSerializerOptions CreateSeedManifestSerializerOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new Api.Serialization.FlexibleEnumJsonConverterFactory());
+        return options;
+    }
+
+    private static SeedDeckDefinition ToSeedDeckDefinition(SeedDeckManifest manifestDeck)
+    {
+        return new SeedDeckDefinition(
+            DeckId: Guid.Parse(manifestDeck.DeckId),
+            Type: DeckType.Public,
+            Cards: manifestDeck.Cards.Select(card => new SeedDeckCardDefinition(card.CardId, card.Quantity)).ToList());
+    }
+
+    private static CardCatalogEntry ToCardCatalogEntry(SeedCatalogEntryDefinition definition)
     {
         var utcNow = DateTimeOffset.UtcNow;
-
-        return
-        [
-            new CardCatalogEntry
-            {
-                CardId = "T-001",
-                OriginalId = "T-001",
-                DisplayName = "Training Commander",
-                Image = "https://example.com/cards/T-001.webp",
-                Type = CardType.Leader,
-                Color = CardColor.Blue,
-                Description = "Development leader for summon requirement suite.",
-                NameJson = "[\"Training Commander\"]",
-                TraitsJson = "[\"Leader\"]",
-                ConditionsJson = "[]",
-                EffectsJson = "[]",
-                Damage = 0,
-                Power = 0,
-                Life = 5,
-                Health = null,
-                SupportName = string.Empty,
-                SupportEffect = string.Empty,
-                MainAlternate = false,
-                CannotBeNormalSummoned = false,
-                CreatedAtUtc = utcNow,
-                UpdatedAtUtc = utcNow,
-            },
-            new CardCatalogEntry
-            {
-                CardId = "T-100",
-                OriginalId = "T-100",
-                DisplayName = "Academy Adept",
-                Image = "https://example.com/cards/T-100.webp",
-                Type = CardType.Character,
-                Color = CardColor.Blue,
-                Description = "Development tribute material for summon requirement suite.",
-                NameJson = "[\"Academy Adept\"]",
-                TraitsJson = "[\"Shinobi\"]",
-                ConditionsJson = "[]",
-                EffectsJson = "[]",
-                Damage = 1,
-                Power = 2,
-                Life = null,
-                Health = 2,
-                SupportName = string.Empty,
-                SupportEffect = string.Empty,
-                MainAlternate = false,
-                CannotBeNormalSummoned = false,
-                CreatedAtUtc = utcNow,
-                UpdatedAtUtc = utcNow,
-            },
-            new CardCatalogEntry
-            {
-                CardId = "T-900",
-                OriginalId = "T-900",
-                DisplayName = "Ancient Toad Sage",
-                Image = "https://example.com/cards/T-900.webp",
-                Type = CardType.Character,
-                Color = CardColor.Green,
-                Description = "[Summon Requirements] Select 1 of your characters in the field and send it to the trash to summon this card.",
-                NameJson = "[\"Ancient Toad Sage\"]",
-                TraitsJson = "[\"Toad\",\"Sage\"]",
-                ConditionsJson = "[\"Summon Requirements\"]",
-                EffectsJson = "[{\"id\":\"summon-requirement-tribute\",\"runtimeEffectType\":\"Tribute\",\"effectType\":\"Activated\",\"timing\":\"ActivateMain\",\"targetRules\":{\"tributeComposition\":{\"exactTributeCount\":1,\"requireSingleSummonTarget\":false,\"requireDistinctSummonAndTributes\":true},\"rules\":[{\"scope\":\"Self\",\"inZone\":\"CharacterField\",\"tributeRole\":\"TributeMaterial\",\"exactSelectedTargetCount\":1,\"restriction\":{\"predicates\":[],\"matchMode\":\"Any\"}}]}}]",
-                Damage = 3,
-                Power = 5,
-                Life = null,
-                Health = 5,
-                SupportName = string.Empty,
-                SupportEffect = string.Empty,
-                MainAlternate = false,
-                CannotBeNormalSummoned = true,
-                CreatedAtUtc = utcNow,
-                UpdatedAtUtc = utcNow,
-            }
-        ];
+        return new CardCatalogEntry
+        {
+            CardId = definition.CardId,
+            OriginalId = definition.OriginalId,
+            DisplayName = definition.DisplayName,
+            Image = definition.Image,
+            Type = definition.Type,
+            Color = definition.Color,
+            Description = definition.Description,
+            NameJson = JsonSerializer.Serialize(definition.Name),
+            TraitsJson = JsonSerializer.Serialize(definition.Traits),
+            ConditionsJson = JsonSerializer.Serialize(definition.Conditions),
+            EffectsJson = JsonSerializer.Serialize(definition.Effects, SeedManifestSerializerOptions),
+            Damage = definition.Damage,
+            Power = definition.Power,
+            Life = definition.Life,
+            Health = definition.Health,
+            SupportName = definition.SupportName,
+            SupportEffect = definition.SupportEffect,
+            MainAlternate = definition.MainAlternate,
+            CannotBeNormalSummoned = definition.CannotBeNormalSummoned,
+            CreatedAtUtc = utcNow,
+            UpdatedAtUtc = utcNow,
+        };
     }
 
     private async Task SeedPlaceholderCatalogEntriesAsync(
@@ -428,16 +350,51 @@ public sealed class DevelopmentDeckSeeder
             string.Join(", ", missingCardIds));
     }
 
-    private sealed record SeedDeckSuiteDefinition(
-        string SuiteKey,
-        IReadOnlyList<SeedDeckDefinition> Decks);
-
     private sealed record SeedDeckDefinition(
         Guid DeckId,
         DeckType Type,
         IReadOnlyList<SeedDeckCardDefinition> Cards);
 
     private sealed record SeedDeckCardDefinition(string CardId, int Quantity);
+
+    private sealed record SeedManifestDefinition(
+        IReadOnlyList<SeedProfileDefinition> Profiles,
+        IReadOnlyList<SeedCatalogEntryDefinition> CatalogEntries);
+
+    private sealed record SeedProfileDefinition(
+        string Name,
+        SeedDeckPairManifest Decks);
+
+    private sealed record SeedDeckPairManifest(
+        SeedDeckManifest One,
+        SeedDeckManifest Two);
+
+    private sealed record SeedDeckManifest(
+        string DeckId,
+        IReadOnlyList<SeedCardManifest> Cards);
+
+    private sealed record SeedCardManifest(string CardId, int Quantity);
+
+    private sealed record SeedCatalogEntryDefinition(
+        string CardId,
+        string OriginalId,
+        string DisplayName,
+        string Image,
+        CardType Type,
+        CardColor Color,
+        string Description,
+        IReadOnlyList<string> Name,
+        IReadOnlyList<string> Traits,
+        IReadOnlyList<string> Conditions,
+        IReadOnlyList<EffectSpec> Effects,
+        int Damage,
+        int Power,
+        int? Life,
+        int? Health,
+        string SupportName,
+        string SupportEffect,
+        bool MainAlternate,
+        bool CannotBeNormalSummoned);
 
     private static CardNormalizationResult NormalizeCards(IReadOnlyList<SeedDeckCardDefinition> cards)
     {

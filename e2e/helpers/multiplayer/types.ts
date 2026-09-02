@@ -15,7 +15,7 @@ export type PlayerAuth = {
   seedProfile: MultiplayerSeedPlayerProfile
 }
 
-export type MultiplayerSeedProfileName = 'default' | 'summon-requirements'
+export type MultiplayerSeedProfileName = 'default' | 'summon-requirements' | 'summon-requirements-strict'
 
 export type MultiplayerSeedPlayerProfile = {
   id: string

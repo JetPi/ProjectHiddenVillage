@@ -3,6 +3,7 @@ import {
   advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   fetchGameState,
+  getCardActionTargetsViaHub,
   getAnimationCount,
   getBottomBattlefieldInstanceOrder,
   getBottomSupportCardsBySlot,
@@ -234,6 +235,97 @@ test.describe('GameView multiplayer actions', () => {
       }, {
         timeout: 6_000,
       }).toBeGreaterThan(initialAnimationCount)
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  test('strict summon requirement only allows trait-matching tribute targets', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request, 'summon-requirements-strict')
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+
+      await advanceToMulliganPromptIfNeeded(request, setup)
+      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+      const toadMaterialActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
+        actorUserId: setup.playerOne.userId,
+        cardDefinitionId: 'T-110',
+      })
+      const toadMaterialCard = toadMaterialActor.actorPage.locator(`[data-testid="bottom-hand-card-${toadMaterialActor.cardInstanceId}"]`)
+      await toadMaterialCard.hover()
+      await toadMaterialCard.getByRole('button', { name: /^summon$/i }).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, toadMaterialActor.actor.session.accessToken)
+        const actorState = resolvePlayerState(state, toadMaterialActor.actor)
+        return actorState.characterField.some((card) => card.instanceId === toadMaterialActor.cardInstanceId)
+      }, {
+        timeout: 12_000,
+      }).toBe(true)
+
+      const nonToadMaterialActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
+        actorUserId: setup.playerOne.userId,
+        cardDefinitionId: 'T-111',
+      })
+      const nonToadMaterialCard = nonToadMaterialActor.actorPage.locator(`[data-testid="bottom-hand-card-${nonToadMaterialActor.cardInstanceId}"]`)
+      await nonToadMaterialCard.hover()
+      await nonToadMaterialCard.getByRole('button', { name: /^summon$/i }).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, nonToadMaterialActor.actor.session.accessToken)
+        const actorState = resolvePlayerState(state, nonToadMaterialActor.actor)
+        return actorState.characterField.some((card) => card.instanceId === nonToadMaterialActor.cardInstanceId)
+      }, {
+        timeout: 12_000,
+      }).toBe(true)
+
+      const strictSummonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
+        actorUserId: setup.playerOne.userId,
+        cardDefinitionId: 'T-910',
+      })
+      const ownerPage = strictSummonActor.actorPage
+      const strictSummonCard = ownerPage.locator(`[data-testid="bottom-hand-card-${strictSummonActor.cardInstanceId}"]`)
+      await strictSummonCard.hover()
+      await strictSummonCard.getByRole('button', { name: /^summon$/i }).click()
+
+      const strictTargets = await getCardActionTargetsViaHub(
+        setup.gameCode,
+        strictSummonActor.actor,
+        strictSummonActor.actionId,
+        strictSummonActor.cardInstanceId,
+      )
+      expect(strictTargets.map((target) => target.cardInstanceId)).toContain(toadMaterialActor.cardInstanceId)
+      expect(strictTargets.map((target) => target.cardInstanceId)).not.toContain(nonToadMaterialActor.cardInstanceId)
+
+      const validToadTarget = ownerPage.locator(`[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${toadMaterialActor.cardInstanceId}"]`)
+      const invalidLeafTarget = ownerPage.locator(`[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${nonToadMaterialActor.cardInstanceId}"]`)
+
+      await expect(validToadTarget).toBeVisible({ timeout: 5_000 })
+      await expect(invalidLeafTarget).toBeVisible({ timeout: 5_000 })
+
+      await validToadTarget.click()
+      await ownerPage.getByRole('button', { name: /confirm tribute selection/i }).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, strictSummonActor.actor.session.accessToken)
+        const actorState = resolvePlayerState(state, strictSummonActor.actor)
+        return {
+          summoned: actorState.characterField.some((card) => card.instanceId === strictSummonActor.cardInstanceId),
+          trashedToad: actorState.trash.some((card) => card.instanceId === toadMaterialActor.cardInstanceId),
+          leafStillInField: actorState.characterField.some((card) => card.instanceId === nonToadMaterialActor.cardInstanceId),
+        }
+      }, {
+        timeout: 12_000,
+      }).toEqual({
+        summoned: true,
+        trashedToad: true,
+        leafStillInField: true,
+      })
     } finally {
       await closeMultiplayerPages(pages)
     }

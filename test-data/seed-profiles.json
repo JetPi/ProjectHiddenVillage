@@ -1,0 +1,284 @@
+{
+  "profiles": [
+    {
+      "name": "default",
+      "decks": {
+        "one": {
+          "deckId": "10000000-0000-0000-0000-000000000001",
+          "cards": [
+            { "cardId": "N-001", "quantity": 1 },
+            { "cardId": "N-002", "quantity": 3 },
+            { "cardId": "N-003", "quantity": 3 },
+            { "cardId": "N-004", "quantity": 3 },
+            { "cardId": "N-005", "quantity": 3 },
+            { "cardId": "N-006", "quantity": 3 },
+            { "cardId": "N-007", "quantity": 3 },
+            { "cardId": "N-008", "quantity": 3 },
+            { "cardId": "N-009", "quantity": 3 },
+            { "cardId": "N-011", "quantity": 3 },
+            { "cardId": "N-018", "quantity": 3 }
+          ]
+        },
+        "two": {
+          "deckId": "10000000-0000-0000-0000-000000000002",
+          "cards": [
+            { "cardId": "N-010", "quantity": 3 },
+            { "cardId": "N-012", "quantity": 1 },
+            { "cardId": "N-013", "quantity": 3 },
+            { "cardId": "N-014", "quantity": 3 },
+            { "cardId": "N-015", "quantity": 3 },
+            { "cardId": "N-016", "quantity": 3 },
+            { "cardId": "N-017", "quantity": 3 },
+            { "cardId": "N-019", "quantity": 3 },
+            { "cardId": "N-020", "quantity": 3 },
+            { "cardId": "N-021", "quantity": 3 },
+            { "cardId": "N-022", "quantity": 3 }
+          ]
+        }
+      }
+    },
+    {
+      "name": "summon-requirements",
+      "decks": {
+        "one": {
+          "deckId": "10000000-0000-0000-0000-000000000101",
+          "cards": [
+            { "cardId": "T-001", "quantity": 1 },
+            { "cardId": "T-100", "quantity": 3 },
+            { "cardId": "T-900", "quantity": 3 }
+          ]
+        },
+        "two": {
+          "deckId": "10000000-0000-0000-0000-000000000102",
+          "cards": [
+            { "cardId": "N-012", "quantity": 1 },
+            { "cardId": "N-013", "quantity": 3 },
+            { "cardId": "N-014", "quantity": 3 },
+            { "cardId": "N-015", "quantity": 3 },
+            { "cardId": "N-016", "quantity": 3 },
+            { "cardId": "N-017", "quantity": 3 },
+            { "cardId": "N-019", "quantity": 3 },
+            { "cardId": "N-020", "quantity": 3 },
+            { "cardId": "N-021", "quantity": 3 },
+            { "cardId": "N-022", "quantity": 3 }
+          ]
+        }
+      }
+    },
+    {
+      "name": "summon-requirements-strict",
+      "decks": {
+        "one": {
+          "deckId": "10000000-0000-0000-0000-000000000201",
+          "cards": [
+            { "cardId": "T-001", "quantity": 1 },
+            { "cardId": "T-110", "quantity": 3 },
+            { "cardId": "T-111", "quantity": 3 },
+            { "cardId": "T-910", "quantity": 2 }
+          ]
+        },
+        "two": {
+          "deckId": "10000000-0000-0000-0000-000000000202",
+          "cards": [
+            { "cardId": "N-012", "quantity": 1 },
+            { "cardId": "N-013", "quantity": 3 },
+            { "cardId": "N-014", "quantity": 3 },
+            { "cardId": "N-015", "quantity": 3 },
+            { "cardId": "N-016", "quantity": 3 },
+            { "cardId": "N-017", "quantity": 3 },
+            { "cardId": "N-019", "quantity": 3 },
+            { "cardId": "N-020", "quantity": 3 },
+            { "cardId": "N-021", "quantity": 3 },
+            { "cardId": "N-022", "quantity": 3 }
+          ]
+        }
+      }
+    }
+  ],
+  "catalogEntries": [
+    {
+      "cardId": "T-001",
+      "originalId": "T-001",
+      "displayName": "Training Commander",
+      "image": "https://example.com/cards/T-001.webp",
+      "type": "Leader",
+      "color": "Blue",
+      "description": "Development leader for summon requirement suites.",
+      "name": ["Training Commander"],
+      "traits": ["Leader"],
+      "conditions": [],
+      "effects": [],
+      "damage": 0,
+      "power": 0,
+      "life": 5,
+      "health": null,
+      "supportName": "",
+      "supportEffect": "",
+      "mainAlternate": false,
+      "cannotBeNormalSummoned": false
+    },
+    {
+      "cardId": "T-100",
+      "originalId": "T-100",
+      "displayName": "Academy Adept",
+      "image": "https://example.com/cards/T-100.webp",
+      "type": "Character",
+      "color": "Blue",
+      "description": "Development tribute material for summon requirement suites.",
+      "name": ["Academy Adept"],
+      "traits": ["Shinobi"],
+      "conditions": [],
+      "effects": [],
+      "damage": 1,
+      "power": 2,
+      "life": null,
+      "health": 2,
+      "supportName": "",
+      "supportEffect": "",
+      "mainAlternate": false,
+      "cannotBeNormalSummoned": false
+    },
+    {
+      "cardId": "T-110",
+      "originalId": "T-110",
+      "displayName": "Toad Disciple",
+      "image": "https://example.com/cards/T-110.webp",
+      "type": "Character",
+      "color": "Green",
+      "description": "Development strict tribute material for summon requirement suites.",
+      "name": ["Toad Disciple"],
+      "traits": ["Toad"],
+      "conditions": [],
+      "effects": [],
+      "damage": 2,
+      "power": 3,
+      "life": null,
+      "health": 3,
+      "supportName": "",
+      "supportEffect": "",
+      "mainAlternate": false,
+      "cannotBeNormalSummoned": false
+    },
+    {
+      "cardId": "T-111",
+      "originalId": "T-111",
+      "displayName": "Leaf Adept",
+      "image": "https://example.com/cards/T-111.webp",
+      "type": "Character",
+      "color": "Blue",
+      "description": "Development non-matching tribute material for stricter summon requirement suite.",
+      "name": ["Leaf Adept"],
+      "traits": ["Leaf"],
+      "conditions": [],
+      "effects": [],
+      "damage": 1,
+      "power": 2,
+      "life": null,
+      "health": 2,
+      "supportName": "",
+      "supportEffect": "",
+      "mainAlternate": false,
+      "cannotBeNormalSummoned": false
+    },
+    {
+      "cardId": "T-900",
+      "originalId": "T-900",
+      "displayName": "Ancient Toad Sage",
+      "image": "https://example.com/cards/T-900.webp",
+      "type": "Character",
+      "color": "Green",
+      "description": "[Summon Requirements] Select 1 of your characters in the field and send it to the trash to summon this card.",
+      "name": ["Ancient Toad Sage"],
+      "traits": ["Toad", "Sage"],
+      "conditions": ["Summon Requirements"],
+      "effects": [
+        {
+          "id": "summon-requirement-tribute",
+          "runtimeEffectType": "Tribute",
+          "effectType": "Activated",
+          "timing": "ActivateMain",
+          "targetRules": {
+            "tributeComposition": {
+              "exactTributeCount": 1,
+              "requireSingleSummonTarget": false,
+              "requireDistinctSummonAndTributes": true
+            },
+            "rules": [
+              {
+                "scope": "Self",
+                "inZone": "CharacterField",
+                "tributeRole": "TributeMaterial",
+                "exactSelectedTargetCount": 1,
+                "restriction": {
+                  "predicates": [],
+                  "matchMode": "Any"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "damage": 3,
+      "power": 5,
+      "life": null,
+      "health": 5,
+      "supportName": "",
+      "supportEffect": "",
+      "mainAlternate": false,
+      "cannotBeNormalSummoned": true
+    },
+    {
+      "cardId": "T-910",
+      "originalId": "T-910",
+      "displayName": "Elder Marsh Sage",
+      "image": "https://example.com/cards/T-910.webp",
+      "type": "Character",
+      "color": "Green",
+      "description": "[Summon Requirements] Select exactly 1 of your Toad characters in the field and send it to the trash to summon this card.",
+      "name": ["Elder Marsh Sage"],
+      "traits": ["Toad", "Sage"],
+      "conditions": ["Summon Requirements"],
+      "effects": [
+        {
+          "id": "summon-requirement-toad-tribute",
+          "runtimeEffectType": "Tribute",
+          "effectType": "Activated",
+          "timing": "ActivateMain",
+          "targetRules": {
+            "tributeComposition": {
+              "exactTributeCount": 1,
+              "requireSingleSummonTarget": false,
+              "requireDistinctSummonAndTributes": true
+            },
+            "rules": [
+              {
+                "scope": "Self",
+                "inZone": "CharacterField",
+                "tributeRole": "TributeMaterial",
+                "exactSelectedTargetCount": 1,
+                "restriction": {
+                  "predicates": [
+                    {
+                      "property": "Trait",
+                      "operator": "In",
+                      "values": ["Toad"]
+                    }
+                  ],
+                  "matchMode": "Any"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "damage": 4,
+      "power": 6,
+      "life": null,
+      "health": 5,
+      "supportName": "",
+      "supportEffect": "",
+      "mainAlternate": false,
+      "cannotBeNormalSummoned": true
+    }
+  ]
+}
