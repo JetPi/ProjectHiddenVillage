@@ -8,6 +8,9 @@ public sealed class GameInstanceService(
     InMemoryGameInstanceRegistry registry,
     IGameReadService gameReadService) : IGameInstanceService
 {
+    private const int OpeningHandSize = 5;
+    private const int MaxShuffleSeedAttempts = 8192;
+
     private static readonly HashSet<Guid> DevelopmentSeedDeckIds =
     [
         Guid.Parse("10000000-0000-0000-0000-000000000001"),
@@ -34,7 +37,7 @@ public sealed class GameInstanceService(
         try
         {
             var gameInstance = registry.Create([playerDeck.Player], playerDeck.CardDefinitions, preferredGameCode);
-            EnsureSupportCardIsInOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId);
+            EnsureSupportCardSeededIntoOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId);
             return gameInstance;
         }
         catch (ArgumentException ex)
@@ -92,7 +95,7 @@ public sealed class GameInstanceService(
         try
         {
             var gameInstance = registry.Join(normalizedGameCode, playerDeck.Player, playerDeck.CardDefinitions);
-            EnsureSupportCardIsInOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId.Value);
+            EnsureSupportCardSeededIntoOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId.Value);
             return gameInstance;
         }
         catch (KeyNotFoundException ex)
@@ -114,7 +117,7 @@ public sealed class GameInstanceService(
         return playerState.Deck.Any(card => !string.IsNullOrWhiteSpace(card.CardDefinitionId));
     }
 
-    private static void EnsureSupportCardIsInOpeningDrawWindow(GameInstance gameInstance, string playerId, Guid deckId)
+    private static void EnsureSupportCardSeededIntoOpeningDrawWindow(GameInstance gameInstance, string playerId, Guid deckId)
     {
         if (!DevelopmentSeedDeckIds.Contains(deckId))
         {
@@ -129,7 +132,37 @@ public sealed class GameInstanceService(
             return;
         }
 
-        var supportCardIndex = playerState.Deck.FindIndex(card => IsSupportCapableCard(gameInstance, card.CardDefinitionId));
+        var supportCardInstanceIds = playerState.Deck
+            .Where(card => IsSupportCapableCard(gameInstance, card.CardDefinitionId))
+            .Select(card => card.InstanceId)
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (supportCardInstanceIds.Count == 0)
+        {
+            return;
+        }
+
+        var openingDrawWindow = Math.Min(OpeningHandSize, playerState.Deck.Count);
+        if (ContainsSupportInOpeningWindow(playerState.Deck, supportCardInstanceIds, openingDrawWindow))
+        {
+            return;
+        }
+
+        var gameSeed = HashCode.Combine(gameInstance.State.GameSeed, playerId, deckId);
+        var selectedSeed = FindOpeningSupportShuffleSeed(
+            playerState.Deck,
+            supportCardInstanceIds,
+            openingDrawWindow,
+            gameSeed);
+
+        if (selectedSeed.HasValue)
+        {
+            GameDeckShuffle.Shuffle(playerState.Deck, new Random(selectedSeed.Value));
+            return;
+        }
+
+        // Safety fallback: keep deterministic startup behavior even if no suitable seed was found.
+        var supportCardIndex = playerState.Deck.FindIndex(card => supportCardInstanceIds.Contains(card.InstanceId));
         if (supportCardIndex <= 0)
         {
             return;
@@ -138,6 +171,35 @@ public sealed class GameInstanceService(
         var supportCard = playerState.Deck[supportCardIndex];
         playerState.Deck.RemoveAt(supportCardIndex);
         playerState.Deck.Insert(0, supportCard);
+    }
+
+    private static int? FindOpeningSupportShuffleSeed(
+        List<CardInstance> deck,
+        HashSet<string> supportCardInstanceIds,
+        int openingDrawWindow,
+        int baseSeed)
+    {
+        for (var attempt = 0; attempt < MaxShuffleSeedAttempts; attempt++)
+        {
+            var candidateSeed = unchecked(baseSeed + (attempt * 7919));
+            var candidateDeck = deck.ToList();
+            GameDeckShuffle.Shuffle(candidateDeck, new Random(candidateSeed));
+
+            if (ContainsSupportInOpeningWindow(candidateDeck, supportCardInstanceIds, openingDrawWindow))
+            {
+                return candidateSeed;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool ContainsSupportInOpeningWindow(
+        List<CardInstance> deck,
+        HashSet<string> supportCardInstanceIds,
+        int openingDrawWindow)
+    {
+        return deck.Take(openingDrawWindow).Any(card => supportCardInstanceIds.Contains(card.InstanceId));
     }
 
     private static bool IsSupportCapableCard(GameInstance gameInstance, string cardDefinitionId)

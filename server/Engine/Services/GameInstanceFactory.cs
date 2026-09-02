@@ -1,10 +1,13 @@
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
+using System.Security.Cryptography;
 
 namespace ProjectHiddenVillage.Server;
 
 public sealed class GameInstanceFactory
 {
+    private const int DeckSeedSalt = 104_729;
+
     private readonly IGameRuntimeDeckService gameRuntimeDeckService;
 
     public GameInstanceFactory()
@@ -32,11 +35,17 @@ public sealed class GameInstanceFactory
             ValidateJoinablePlayer(player, knownPlayerIds, cardDefinitions);
         }
 
-        var playerStates = players.Select(player => BuildPlayerState(player, cardDefinitions)).ToList();
+        var gameSeed = RandomNumberGenerator.GetInt32(int.MinValue, int.MaxValue);
+        var gameId = Guid.NewGuid().ToString("N");
+
+        var playerStates = players
+            .Select((player, index) => BuildPlayerState(player, cardDefinitions, gameSeed, index))
+            .ToList();
 
         var state = new GameState
         {
-            GameId = Guid.NewGuid().ToString("N"),
+            GameId = gameId,
+            GameSeed = gameSeed,
             TurnNumber = 1,
             Phase = GamePhase.ChooseStartingPlayer,
             ActivePlayerId = string.Empty,
@@ -70,7 +79,11 @@ public sealed class GameInstanceFactory
 
         ValidateJoinablePlayer(player, knownPlayerIds, instance.State.CardDefinitions);
 
-        instance.State.Players.Add(BuildPlayerState(player, instance.State.CardDefinitions));
+        instance.State.Players.Add(BuildPlayerState(
+            player,
+            instance.State.CardDefinitions,
+            instance.State.GameSeed,
+            playerIndex: instance.State.Players.Count));
         instance.State.EnsureSummonCardStateForPlayers();
         LogAction(
             instance,
@@ -143,15 +156,26 @@ public sealed class GameInstanceFactory
         }
     }
 
-    private PlayerState BuildPlayerState(Player player, IReadOnlyDictionary<string, Card> cardDefinitions)
+    private PlayerState BuildPlayerState(
+        Player player,
+        IReadOnlyDictionary<string, Card> cardDefinitions,
+        int gameSeed,
+        int playerIndex)
     {
-        var deckInstances = gameRuntimeDeckService.ToRuntimeDeck(player.Deck, cardDefinitions, player.Id);
+        var deckSeed = ResolveDeckSeed(gameSeed, player.Id, playerIndex);
+        var deckInstances = gameRuntimeDeckService.ToRuntimeDeck(
+            player.Deck,
+            cardDefinitions,
+            player.Id,
+            new Random(deckSeed));
 
         var leaderCardInstance = BuildLeaderCardInstance(player.Deck, cardDefinitions, player.Id);
 
         return new PlayerState
         {
             PlayerId = player.Id,
+            DeckShuffleSeed = deckSeed,
+            DeckShuffleCount = 1,
             TurnCount = 0,
             ResourcePool = 0,
             LeaderCardInstance = leaderCardInstance,
@@ -160,6 +184,16 @@ public sealed class GameInstanceFactory
             Battlefield = [],
             DiscardPile = []
         };
+    }
+
+    private static int ResolveDeckSeed(int gameSeed, string playerId, int playerIndex)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return HashCode.Combine(gameSeed, DeckSeedSalt, playerIndex);
+        }
+
+        return HashCode.Combine(gameSeed, playerId, playerIndex, DeckSeedSalt);
     }
 
     private static LeaderCardInstanceState? BuildLeaderCardInstance(

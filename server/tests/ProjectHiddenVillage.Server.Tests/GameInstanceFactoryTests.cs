@@ -180,6 +180,30 @@ public sealed class GameInstanceFactoryTests
     }
 
     [TestMethod]
+    public void Create_UsesDeterministicPerPlayerDeckSeeds()
+    {
+        var players = new List<Player>
+        {
+            new() { Id = "p1", Deck = ["card-1", "card-2", "card-3", "card-4", "card-5", "card-6"] },
+            new() { Id = "p2", Deck = ["card-1", "card-2", "card-3", "card-4", "card-5", "card-6"] }
+        };
+
+        var cardDefinitions = BuildDefinitions("card-1", "card-2", "card-3", "card-4", "card-5", "card-6");
+
+        var game = factory.Create(players, cardDefinitions, new FixedIndexRandom(0));
+
+        var p1 = game.State.Players.Single(player => player.PlayerId == "p1");
+        var p2 = game.State.Players.Single(player => player.PlayerId == "p2");
+
+        Assert.AreNotEqual(0, game.State.GameSeed);
+        Assert.AreNotEqual(0, p1.DeckShuffleSeed);
+        Assert.AreNotEqual(0, p2.DeckShuffleSeed);
+        Assert.AreEqual(1, p1.DeckShuffleCount);
+        Assert.AreEqual(1, p2.DeckShuffleCount);
+        Assert.AreNotEqual(p1.DeckShuffleSeed, p2.DeckShuffleSeed);
+    }
+
+    [TestMethod]
     public void Create_BuildsLeaderCardInstance_WithRuntimeLeaderData()
     {
         var players = new List<Player>

@@ -207,7 +207,7 @@ public sealed class GamesServiceUserDeckFlowTests
     }
 
     [TestMethod]
-    public async Task CreateGameForUser_PromotesSupportCardToTop_ForDevelopmentSeedDecks()
+    public async Task CreateGameForUser_GuaranteesOpeningSupportCard_ForDevelopmentSeedDecks()
     {
         await using var dbContext = CreateDbContext();
 
@@ -236,7 +236,7 @@ public sealed class GamesServiceUserDeckFlowTests
         Assert.IsFalse(result.IsError);
         var playerDeck = result.Value.State.Players.Single().Deck;
         Assert.IsTrue(playerDeck.Count > 0);
-        Assert.AreEqual("S-003", playerDeck[0].CardDefinitionId);
+        Assert.IsTrue(playerDeck.Take(5).Any(card => card.CardDefinitionId == "S-003"));
     }
 
     private static TestGameServices CreateServices(ApplicationDbContext dbContext)
