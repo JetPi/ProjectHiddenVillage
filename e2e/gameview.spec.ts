@@ -130,5 +130,52 @@ test.describe('GameView', () => {
 
       expect(reordered).toBe(true)
     })
+
+    test('closing the card details overlay does not trap the game in a drag state', async () => {
+      await expect(page.getByTestId('game-board')).toBeVisible()
+
+      const instanceOrder = await getBottomHandInstanceOrder(page)
+      expect(instanceOrder.length).toBeGreaterThanOrEqual(1)
+
+      const handCard = page.locator(`[data-testid="bottom-hand-card-${instanceOrder[0]}"]`)
+      await handCard.hover()
+
+      const openDetailsButton = handCard.getByRole('button', { name: 'Open card details' })
+      await expect(openDetailsButton).toBeVisible()
+      await openDetailsButton.click()
+
+      const detailsDialog = page.getByRole('dialog')
+      await expect(detailsDialog).toBeVisible()
+
+      // Click a spot on the dimmed details-overlay backdrop that sits over the
+      // bottom hand row. This is how the player "clicks back in" after reading a
+      // card; it must only dismiss the overlay and never start a hand-card drag.
+      const handCards = page.locator('[data-testid="bottom-hand-row"] [data-hand-instance-id]')
+      const lastHandCardBox = await handCards.last().boundingBox()
+      expect(lastHandCardBox).not.toBeNull()
+      if (lastHandCardBox) {
+        await page.mouse.click(
+          lastHandCardBox.x + lastHandCardBox.width / 2,
+          lastHandCardBox.y + lastHandCardBox.height / 2,
+        )
+      }
+
+      await expect(detailsDialog).toHaveCount(0)
+
+      // The dismissed overlay must not have left a hand card lifted/stuck in the
+      // reorder drag visual state (fixed positioning is applied while dragging).
+      const stuckDragState = await handCards.evaluateAll((nodes) =>
+        nodes.some((node) => (node as HTMLElement).style.position === 'fixed'))
+      expect(stuckDragState).toBe(false)
+      expect(await page.evaluate(() => document.body.style.cursor)).not.toBe('grabbing')
+
+      // The game must still accept interactions on the same card afterwards.
+      await handCard.hover()
+      await expect(openDetailsButton).toBeVisible()
+      await openDetailsButton.click()
+      await expect(detailsDialog).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(detailsDialog).toHaveCount(0)
+    })
   })
 })

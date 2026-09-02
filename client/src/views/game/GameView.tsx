@@ -19,9 +19,8 @@ import type { IGameViewAnimController } from '@/views/game/types/hooks'
 import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from '@/views/game/hooks/useGameViewEffects'
 import { useDerivedGameViewState } from '@/views/game/hooks/useDerivedGameViewState'
 import { useGameHubState } from '@/views/game/hooks/useGameHubState'
-import { useLongPressHandReorder } from '@/views/game/hooks/useLongPressHandReorder'
 import { GameHandRow } from '@/views/game/components/GameHandRow'
-import { NonLeaderCardOverlay } from '@/views/game/components/NonLeaderCardOverlay'
+import { BottomHandReorderRow } from '@/views/game/components/BottomHandReorderRow'
 import { GameZones } from '@/views/game/components/GameZones'
 import { GamePromptOverlay } from '@/views/game/components/GamePromptOverlay'
 import {
@@ -35,8 +34,7 @@ import {
 } from '@/views/game/utils/contants'
 import { mapActionToHubIntent } from '@/views/game/utils/functions/gameState'
 import { runHandToPileAnimation, runRectToDynamicElementAnimation, waitMillis } from '@/views/game/utils/functions/animations'
-import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions/cards'
-import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
+import { CardBack } from '@/components/ui/cards'
 
 function normalizeCardInstanceId(value: string | undefined): string {
   return (value ?? '').trim().toLowerCase()
@@ -98,7 +96,6 @@ export function GameView() {
   const topHandRowRef = useRef<HTMLDivElement | null>(null)
   const bottomHandRowRef = useRef<HTMLDivElement | null>(null)
   const [topHandAutoAnimateRef] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
-  const [bottomHandAutoAnimateRef, setBottomHandAutoAnimateEnabled] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
   const animControllerRef = useRef<IGameViewAnimController>({
     lastAutoSignalKey: '',
     pendingDrawAnimationFrameId: null,
@@ -133,8 +130,7 @@ export function GameView() {
 
   const setBottomHandRowRefs = useCallback((node: HTMLDivElement | null) => {
     bottomHandRowRef.current = node
-    bottomHandAutoAnimateRef(node)
-  }, [bottomHandAutoAnimateRef])
+  }, [])
   
   const { joinCode, gameCards, gameState: initialGameState } = useLoaderData() as IGameLoaderData
   const [liveGameCards, setLiveGameCards] = useState<IGameLoaderData['gameCards']>(gameCards)
@@ -265,17 +261,8 @@ export function GameView() {
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
   const topHandCards = useMemo(() => derivedGameState.opponentPlayer?.hand ?? [], [derivedGameState.opponentPlayer?.hand])
   const bottomHandCards = useMemo(() => derivedGameState.currentPlayer?.hand ?? [], [derivedGameState.currentPlayer?.hand])
-  const {
-    orderedCards: orderedBottomHandCards,
-    activeDraggedInstanceId,
-    isReorderDragging,
-    getCardPointerHandlers,
-  } = useLongPressHandReorder({
-    cards: bottomHandCards,
-    rowRef: bottomHandRowRef,
-  })
   const topHandInstanceIds = useMemo(() => topHandCards.map((card) => card.instanceId), [topHandCards])
-  const bottomHandInstanceIds = useMemo(() => orderedBottomHandCards.map((card) => card.instanceId), [orderedBottomHandCards])
+  const bottomHandInstanceIds = useMemo(() => bottomHandCards.map((card) => card.instanceId), [bottomHandCards])
   const topDeckCount = derivedGameState.opponentPlayer?.deckCount ?? 0
   const bottomDeckCount = derivedGameState.currentPlayer?.deckCount ?? 0
   const topTrashCount = derivedGameState.opponentPlayer?.trash.length ?? 0
@@ -353,10 +340,6 @@ export function GameView() {
   useCardCatalogPreload(liveGameCards)
 
   useEffect(() => {
-    setBottomHandAutoAnimateEnabled(!isReorderDragging)
-  }, [isReorderDragging, setBottomHandAutoAnimateEnabled])
-
-  useEffect(() => {
     if (!import.meta.env.DEV) {
       return
     }
@@ -385,36 +368,6 @@ export function GameView() {
     if (!import.meta.env.DEV) {
       return
     }
-
-    const currentPlayerRaw = gameState.players.find((player) =>
-      player.playerId.trim().toLowerCase() === authUserId?.trim().toLowerCase())
-
-    const rawLeaderActions = currentPlayerRaw?.leader?.availableActions ?? []
-    const resolvedLeaderActions = bottomLeaderCard
-      ? resolveCardActionOptionsForInstanceId(
-        mappedAvailableActions,
-        bottomLeaderCard.instanceId,
-        bottomLeaderCard.availableActions,
-      )
-      : []
-
-    const currentPlayerBattlefieldActions = (derivedGameState.currentPlayer?.characterField ?? []).map((card) => ({
-      instanceId: card.instanceId,
-      availableActions: card.availableActions ?? [],
-    }))
-
-    console.log('[GameView][ActionDebug] Leader and battlefield action states', {
-      gameId: gameState.gameId,
-      phase: gameState.phase,
-      turnNumber: gameState.turnNumber,
-      activePlayerId: gameState.activePlayerId,
-      priorityPlayerId: gameState.priorityPlayerId,
-      authUserId,
-      rawLeaderActions,
-      resolvedLeaderActions,
-      currentPlayerBattlefieldActions,
-      globalAvailableActions: mappedAvailableActions,
-    })
   }, [
     authUserId,
     bottomLeaderCard,
@@ -1362,70 +1315,16 @@ export function GameView() {
               onPassTurn={handlePassLikeAction}
             />
 
-            <GameHandRow
-              cards={orderedBottomHandCards}
+            <BottomHandReorderRow
+              cards={bottomHandCards}
               rowRef={setBottomHandRowRefs}
-              rowTestId="bottom-hand-row"
-              rowClassName="overflow-visible"
-              renderCard={(card) => {
-                const previewCard = derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null
-                const cardActionOptions = resolveCardActionOptionsForInstanceId(
-                  mappedAvailableActions,
-                  card.instanceId,
-                  card.availableActions,
-                )
-                const cardPointerHandlers = getCardPointerHandlers(card.instanceId)
-
-                return (
-                  <div
-                    key={`bottom-hand-${card.instanceId}`}
-                    data-hand-instance-id={card.instanceId}
-                    data-testid={`bottom-hand-card-${card.instanceId}`}
-                    draggable={false}
-                    onDragStart={(event) => {
-                      event.preventDefault()
-                    }}
-                    className={`h-full aspect-[200/277] shrink-0 select-none ${activeDraggedInstanceId === card.instanceId ? 'z-[260] touch-none' : 'touch-manipulation'}`}
-                    {...cardPointerHandlers}
-                  >
-                    <FlippableCard
-                      isFlipped={bottomHandFaceUpByInstanceId[card.instanceId] ?? true}
-                      durationMs={340}
-                      front={
-                        <div className="group relative h-full w-full overflow-hidden rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]">
-                          <CardImage
-                            src={previewCard?.image ?? null}
-                            alt={previewCard?.displayName ?? 'Hand card'}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full rounded-md object-contain"
-                          />
-
-                          <NonLeaderCardOverlay
-                            previewCard={previewCard}
-                            zone="hand"
-                            visibilityMode="hover"
-                            actionOptions={cardActionOptions}
-                            showEmptyActionMessage={canShowHandNoActionsMessage}
-                            disableInteractions={isReorderDragging}
-                            isConnected={isConnected}
-                            isActionPending={isActionPending}
-                            onSelectActionOption={(actionId) => {
-                              const actionOption = cardActionOptions.find((action) => action.actionId === actionId)
-                              if (!actionOption) {
-                                return
-                              }
-
-                              submitMappedAction(actionOption)
-                            }}
-                          />
-                        </div>
-                      }
-                      back={<CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />}
-                    />
-                  </div>
-                )
-              }}
+              cardById={derivedGameState.cardById}
+              availableActions={mappedAvailableActions}
+              faceUpByInstanceId={bottomHandFaceUpByInstanceId}
+              showNoActionsMessage={canShowHandNoActionsMessage}
+              isConnected={isConnected}
+              isActionPending={isActionPending}
+              onSelectCardActionOption={submitMappedAction}
             />
           </div>
         </Panel>

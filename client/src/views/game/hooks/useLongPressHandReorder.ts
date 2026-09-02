@@ -27,29 +27,51 @@ function hasInteractiveTarget(target: EventTarget | null): boolean {
   return Boolean(target.closest('button,[role="button"],[data-prevent-hand-drag="true"]'))
 }
 
-function resolveInsertionIndex(
-  rowElement: HTMLDivElement,
-  pointerX: number,
-  fallbackIndex: number,
-  draggedCardInstanceId: string,
-): number {
-  const cardNodes = Array.from(rowElement.querySelectorAll<HTMLElement>('[data-hand-instance-id]')).filter((node) => {
-    return node.getAttribute('data-hand-instance-id') !== draggedCardInstanceId
-  })
+type IDragRowGeometry = {
+  rowRect: { left: number; right: number; top: number; bottom: number }
+  cards: { instanceId: string; centerX: number }[]
+}
 
-  if (cardNodes.length === 0) {
-    return fallbackIndex
+function readDragRowGeometry(rowElement: HTMLElement, draggedCardInstanceId: string): IDragRowGeometry {
+  const rowRect = rowElement.getBoundingClientRect()
+  const geometry: IDragRowGeometry = {
+    rowRect: {
+      left: rowRect.left,
+      right: rowRect.right,
+      top: rowRect.top,
+      bottom: rowRect.bottom,
+    },
+    cards: [],
   }
 
-  for (let index = 0; index < cardNodes.length; index += 1) {
-    const rect = cardNodes[index].getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
-    if (pointerX < centerX) {
+  const cardNodes = rowElement.querySelectorAll<HTMLElement>('[data-hand-instance-id]')
+  for (const node of cardNodes) {
+    if (node.getAttribute('data-hand-instance-id') === draggedCardInstanceId) {
+      continue
+    }
+
+    const rect = node.getBoundingClientRect()
+    geometry.cards.push({
+      instanceId: node.getAttribute('data-hand-instance-id') ?? '',
+      centerX: rect.left + rect.width / 2,
+    })
+  }
+
+  return geometry
+}
+
+function resolveInsertionIndexFromGeometry(
+  cards: IDragRowGeometry['cards'],
+  pointerX: number,
+  fallbackIndex: number,
+): number {
+  for (let index = 0; index < cards.length; index += 1) {
+    if (pointerX < cards[index].centerX) {
       return index
     }
   }
 
-  return cardNodes.length
+  return cards.length === 0 ? fallbackIndex : cards.length
 }
 
 function isPointerInsideElement(element: HTMLElement, clientX: number, clientY: number): boolean {
@@ -125,13 +147,30 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
   const bodyUserSelectRef = useRef<string | null>(null)
   const bodyCursorRef = useRef<string | null>(null)
   const suppressClickAfterDragRef = useRef(false)
+  const pendingPointerMoveRef = useRef<{ pointerId: number; clientX: number; clientY: number } | null>(null)
+  const moveRafIdRef = useRef<number | null>(null)
+  const handlePointerMoveRef = useRef<(pointerId: number, clientX: number, clientY: number) => void>(() => {})
+  const dragGeometryRef = useRef<IDragRowGeometry | null>(null)
+  const previousCardsCountRef = useRef(cards.length)
 
   useEffect(() => {
     latestCardsRef.current = cards
+
+    // If a card enters/leaves the hand mid-drag, the cached row geometry is stale.
+    if (dragPointerRef.current !== null && previousCardsCountRef.current !== cards.length) {
+      dragGeometryRef.current = null
+    }
+
+    previousCardsCountRef.current = cards.length
   }, [cards])
 
   useEffect(() => {
     return () => {
+      if (moveRafIdRef.current !== null) {
+        window.cancelAnimationFrame(moveRafIdRef.current)
+        moveRafIdRef.current = null
+      }
+
       if (longPressTimeoutIdRef.current !== null) {
         window.clearTimeout(longPressTimeoutIdRef.current)
       }
@@ -210,6 +249,7 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
 
     pendingDragRef.current = null
     dragPointerRef.current = activeDragState
+    dragGeometryRef.current = null
     hasSeenValidReorderTargetRef.current = false
     setDisplayOrder((previousOrder) => {
       const reconciledOrder = reconcileOrder(previousOrder, latestCardsRef.current)
@@ -234,6 +274,7 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
     }
 
     dragPointerRef.current = null
+    dragGeometryRef.current = null
     hasSeenValidReorderTargetRef.current = false
     setIsReorderDragging(false)
     setActiveDraggedInstanceId(null)
@@ -306,10 +347,21 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
       return
     }
 
+    const pointerTarget = event.target
+    if (!(pointerTarget instanceof Node) || !event.currentTarget.contains(pointerTarget)) {
+      // Pointer events dispatched inside DOM that lives outside this card's subtree still
+      // bubble through this card in the React tree when they originate from a portal
+      // rendered by this card (e.g. the card-details overlay is createPortal'd into <body>).
+      // Such events must never arm or activate a reorder drag, otherwise a click meant to
+      // dismiss the details overlay would instead lift/drag the card underneath it.
+      return
+    }
+
     clearPendingState()
 
     const nextPendingState: IDragPointerState = {
       pointerId: event.pointerId,
+      pointerType: event.pointerType,
       cardInstanceId,
       start: { x: event.clientX, y: event.clientY },
       wasOverInteractiveTarget: hasInteractiveTarget(event.target),
@@ -318,6 +370,10 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
     pendingDragRef.current = nextPendingState
 
     if (event.pointerType === MOUSE_POINTER_TYPE && !nextPendingState.wasOverInteractiveTarget) {
+      // The heavy activation work used to re-render the whole GameView/board, which made
+      // starting a drag stutter. The bottom hand row is now an isolated component and row
+      // geometry is cached, so activating synchronously here is cheap AND keeps drag
+      // starts deterministic (no cross-frame races between press/move/up).
       activateDrag(nextPendingState)
       return
     }
@@ -347,6 +403,7 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
         // moved far enough to express a drag intent instead of a plain click on that control.
         activateDrag(pendingState)
       } else if (movedBeyondTolerance) {
+        // Touch/pen drags that move before the long-press delay are treated as scrolls.
         clearPendingState()
       }
     }
@@ -359,14 +416,23 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
 
     positionDraggedCardElement(dragState, clientX, clientY)
 
-    const rowRect = rowElement.getBoundingClientRect()
-    const isWithinVerticalBounds = clientY >= rowRect.top && clientY <= rowRect.bottom
+    // The dragged card is taken out of flow (position: fixed), so the remaining cards'
+    // layout stays constant for the whole drag. Snapshot the row geometry once and reuse
+    // it instead of walking the DOM and forcing layout for every card on every pointer
+    // frame (that was the main source of frame drops while dragging).
+    let geometry = dragGeometryRef.current
+    if (!geometry) {
+      geometry = readDragRowGeometry(rowElement, dragState.cardInstanceId)
+      dragGeometryRef.current = geometry
+    }
+
+    const isWithinVerticalBounds = clientY >= geometry.rowRect.top && clientY <= geometry.rowRect.bottom
     if (!isWithinVerticalBounds) {
       return
     }
 
     hasSeenValidReorderTargetRef.current = true
-    const clampedClientX = clamp(clientX, rowRect.left, rowRect.right)
+    const clampedClientX = clamp(clientX, geometry.rowRect.left, geometry.rowRect.right)
 
     const currentOrder = reconcileOrder(displayOrder, latestCardsRef.current)
     const currentIndex = currentOrder.indexOf(dragState.cardInstanceId)
@@ -374,7 +440,7 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
       return
     }
 
-    const nextIndex = resolveInsertionIndex(rowElement, clampedClientX, currentIndex, dragState.cardInstanceId)
+    const nextIndex = resolveInsertionIndexFromGeometry(geometry.cards, clampedClientX, currentIndex)
     if (nextIndex === currentIndex) {
       return
     }
@@ -398,14 +464,51 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
     })
   }, [activateDrag, clearPendingState, displayOrder, rowRef, startMovementTolerancePx])
 
+  useEffect(() => {
+    handlePointerMoveRef.current = handlePointerMove
+  }, [handlePointerMove])
+
+  const flushScheduledPointerMove = useCallback(() => {
+    moveRafIdRef.current = null
+
+    const pendingMove = pendingPointerMoveRef.current
+    pendingPointerMoveRef.current = null
+    if (!pendingMove) {
+      return
+    }
+
+    handlePointerMoveRef.current(pendingMove.pointerId, pendingMove.clientX, pendingMove.clientY)
+  }, [])
+
   const handlePointerUp = useCallback((pointerId: number, clientX: number, clientY: number) => {
-    if (pendingDragRef.current?.pointerId === pointerId) {
+    const pendingState = pendingDragRef.current
+    if (pendingState && pendingState.pointerId === pointerId) {
+      const deltaX = clientX - pendingState.start.x
+      const deltaY = clientY - pendingState.start.y
+      const movedBeyondTolerance = Math.hypot(deltaX, deltaY) > startMovementTolerancePx
+      const qualifiesAsDragIntent = pendingState.pointerType === MOUSE_POINTER_TYPE || pendingState.wasOverInteractiveTarget
+
+      if (movedBeyondTolerance && qualifiesAsDragIntent) {
+        // The pointer was released before the scheduled move frame could activate the
+        // drag (e.g. a very fast drag). Commit the drag intent and process the release
+        // point through the move pipeline so the insertion index is still computed and
+        // the drop finalizes deterministically.
+        activateDrag(pendingState)
+        handlePointerMoveRef.current(pointerId, clientX, clientY)
+      }
+
       clearPendingState()
     }
 
     const activeDragState = dragPointerRef.current
     const rowElement = activeDragState?.rowElement ?? rowRef.current
     if (activeDragState && activeDragState.pointerId === pointerId && rowElement) {
+      // Fast releases can arrive before the scheduled move frame runs, which would make
+      // the drop finalize without the reorder ever being computed. Re-running the move
+      // pipeline with the release coordinates is idempotent when it already ran and
+      // guarantees the insertion index is applied before the drop finalizes.
+      handlePointerMoveRef.current(pointerId, clientX, clientY)
+
       const hasValidDrop = isPointerInsideElement(rowElement, clientX, clientY) || hasSeenValidReorderTargetRef.current
       if (hasValidDrop) {
         finalizeValidDrop(pointerId, activeDragState)
@@ -418,7 +521,7 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
     }
 
     finalizeDrag(pointerId)
-  }, [armClickSuppression, clearPendingState, finalizeDrag, finalizeInvalidDrop, finalizeValidDrop, rowRef])
+  }, [activateDrag, armClickSuppression, clearPendingState, finalizeDrag, finalizeInvalidDrop, finalizeValidDrop, rowRef, startMovementTolerancePx])
 
   const handlePointerCancel = useCallback((pointerId: number) => {
     if (pendingDragRef.current?.pointerId === pointerId) {
@@ -442,7 +545,17 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
       }
 
       event.preventDefault()
-      handlePointerMove(event.pointerId, event.clientX, event.clientY)
+      // Coalesce high-frequency pointer moves into a single update per animation
+      // frame so dragging only does DOM/layout/render work once per frame.
+      pendingPointerMoveRef.current = {
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      }
+
+      if (moveRafIdRef.current === null) {
+        moveRafIdRef.current = window.requestAnimationFrame(flushScheduledPointerMove)
+      }
     }
 
     function handleWindowPointerUp(event: PointerEvent): void {
@@ -470,7 +583,7 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
       window.removeEventListener('pointerup', handleWindowPointerUp)
       window.removeEventListener('pointercancel', handleWindowPointerCancel)
     }
-  }, [handlePointerCancel, handlePointerMove, handlePointerUp])
+  }, [flushScheduledPointerMove, handlePointerCancel, handlePointerUp])
 
   const getCardPointerHandlers = useCallback((cardInstanceId: string): ICardReorderPointerHandlers => {
     return {

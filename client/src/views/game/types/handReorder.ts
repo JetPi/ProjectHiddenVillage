@@ -32,6 +32,7 @@ export type IPointerStartSnapshot = {
 
 export type IDragPointerState = {
   pointerId: number
+  pointerType: string
   cardInstanceId: string
   start: IPointerStartSnapshot
   wasOverInteractiveTarget: boolean
