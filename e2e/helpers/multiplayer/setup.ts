@@ -1,8 +1,8 @@
 import { expect } from '@playwright/test'
 import type { APIRequestContext, Browser, BrowserContext, Page } from '@playwright/test'
-import { createGame, fetchGameState, joinGame, login, SEEDED_PLAYERS } from './api'
+import { createGame, fetchGameState, joinGame, login, SEEDED_PLAYER_PROFILES } from './api'
 import { normalizeUserId } from './core'
-import type { AuthSession, MultiplayerPages, MultiplayerSetup } from './types'
+import type { AuthSession, MultiplayerPages, MultiplayerSeedProfileName, MultiplayerSetup } from './types'
 
 const AUTH_STORAGE_KEY = 'phv-auth-session'
 
@@ -29,10 +29,15 @@ async function openReadyGameView(page: Page, gameCode: string): Promise<void> {
   throw new Error('GameView route stayed in 400 Route Error state after retries.')
 }
 
-export async function setupMultiplayerGame(request: APIRequestContext): Promise<MultiplayerSetup> {
+export async function setupMultiplayerGame(
+  request: APIRequestContext,
+  seedProfileName: MultiplayerSeedProfileName = 'default',
+): Promise<MultiplayerSetup> {
+  const selectedPlayers = SEEDED_PLAYER_PROFILES[seedProfileName]
+
   const [playerOneLogin, playerTwoLogin] = await Promise.all([
-    login(request, SEEDED_PLAYERS.one.email, SEEDED_PLAYERS.one.password),
-    login(request, SEEDED_PLAYERS.two.email, SEEDED_PLAYERS.two.password),
+    login(request, selectedPlayers.one.email, selectedPlayers.one.password),
+    login(request, selectedPlayers.two.email, selectedPlayers.two.password),
   ])
 
   let gameCode = ''
@@ -40,8 +45,8 @@ export async function setupMultiplayerGame(request: APIRequestContext): Promise<
   for (let attempt = 0; attempt < 250; attempt += 1) {
     const candidateCode = await createGame(
       request,
-      SEEDED_PLAYERS.one.id,
-      SEEDED_PLAYERS.one.deckId,
+      selectedPlayers.one.id,
+      selectedPlayers.one.deckId,
       playerOneLogin.accessToken,
     )
 
@@ -52,8 +57,8 @@ export async function setupMultiplayerGame(request: APIRequestContext): Promise<
     await joinGame(
       request,
       candidateCode,
-      SEEDED_PLAYERS.two.id,
-      SEEDED_PLAYERS.two.deckId,
+      selectedPlayers.two.id,
+      selectedPlayers.two.deckId,
       playerTwoLogin.accessToken,
     )
 
@@ -67,9 +72,11 @@ export async function setupMultiplayerGame(request: APIRequestContext): Promise<
 
   return {
     gameCode,
+    seedProfileName,
     playerOne: {
       userId: playerOneLogin.id,
       normalizedUserId: normalizeUserId(playerOneLogin.id),
+      seedProfile: selectedPlayers.one,
       session: {
         userId: playerOneLogin.id,
         username: playerOneLogin.username,
@@ -81,6 +88,7 @@ export async function setupMultiplayerGame(request: APIRequestContext): Promise<
     playerTwo: {
       userId: playerTwoLogin.id,
       normalizedUserId: normalizeUserId(playerTwoLogin.id),
+      seedProfile: selectedPlayers.two,
       session: {
         userId: playerTwoLogin.id,
         username: playerTwoLogin.username,

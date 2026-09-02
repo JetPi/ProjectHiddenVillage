@@ -12,12 +12,23 @@ export type PlayerAuth = {
   userId: string
   normalizedUserId: string
   session: AuthSession
+  seedProfile: MultiplayerSeedPlayerProfile
+}
+
+export type MultiplayerSeedProfileName = 'default' | 'summon-requirements'
+
+export type MultiplayerSeedPlayerProfile = {
+  id: string
+  email: string
+  password: string
+  deckId: string
 }
 
 export type MultiplayerSetup = {
   gameCode: string
   playerOne: PlayerAuth
   playerTwo: PlayerAuth
+  seedProfileName: MultiplayerSeedProfileName
 }
 
 export type MultiplayerPages = {
@@ -55,6 +66,7 @@ export type GamePlayerStateResponse = {
   hand: GameCardInstanceStateResponse[]
   characterField: GameCardInstanceStateResponse[]
   supportZone: GameCardInstanceStateResponse[]
+  trash: GameCardInstanceStateResponse[]
 }
 
 export type GameStateResponse = {

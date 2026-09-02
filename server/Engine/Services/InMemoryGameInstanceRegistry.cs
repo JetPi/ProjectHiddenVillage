@@ -18,8 +18,11 @@ public sealed class InMemoryGameInstanceRegistry
     private const string ResolveOptionalAttackEffectActionPrefix = "resolve-optional-attack-effect:";
     private const string SupportSlotIndexArgumentKey = "supportSlotIndex";
     private const string FallbackEffectKeyArgument = "__leaderEffectKey";
+    private const string SummonTargetIdArgumentKey = "summonTargetId";
     private const int MaxSupportSlots = 5;
     private static readonly Regex GameCodePattern = new("^[A-Za-z0-9]{5}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly IGameRuntimeEffectSpecResolver RuntimeEffectSpecResolver = new GameRuntimeEffectSpecResolver();
+    private static readonly IGameEffectTargetResolver EffectTargetResolver = new EffectTargetResolver();
 
     private readonly ConcurrentDictionary<string, GameInstance> instances =
         new(StringComparer.Ordinal);
@@ -259,7 +262,7 @@ public sealed class InMemoryGameInstanceRegistry
                     ExecuteActivateSupportAction(instance, request.PlayerId, request, sequentialEffectExecutor, actingPlayer, arguments);
                     break;
                 case SummonToFieldActionPrefix:
-                    ExecuteSummonToFieldAction(instance, request.PlayerId, request.SourceCardInstanceId, actingPlayer);
+                    ExecuteSummonToFieldAction(instance, request.PlayerId, request, actingPlayer);
                     break;
                 case SetSupportActionPrefix:
                     ExecuteSetSupportAction(instance, request.PlayerId, request.SourceCardInstanceId, actingPlayer, arguments);
@@ -339,6 +342,14 @@ public sealed class InMemoryGameInstanceRegistry
 
             return actionPrefix switch
             {
+                SummonToFieldActionPrefix => BuildSummonCardActionTargets(
+                    instance,
+                    request.ActionId,
+                    request.SourceCardInstanceId,
+                    request.PlayerId,
+                    actingPlayer,
+                    arguments,
+                    canExecuteEvaluator),
                 ActivateSupportActionPrefix => BuildSupportCardActionTargets(
                     instance,
                     request.ActionId,
@@ -373,6 +384,90 @@ public sealed class InMemoryGameInstanceRegistry
                     ValidTargets: []),
             };
         }
+    }
+
+    private GameCardActionTargetsResponse BuildSummonCardActionTargets(
+        GameInstance instance,
+        string actionId,
+        string sourceCardInstanceId,
+        string playerId,
+        PlayerState actingPlayer,
+        IReadOnlyDictionary<string, string> arguments,
+        IGameEffectCanExecuteEvaluator canExecuteEvaluator)
+    {
+        var sourceCardInstance = actingPlayer.Hand.FirstOrDefault(card =>
+            string.Equals(card.InstanceId, sourceCardInstanceId, StringComparison.Ordinal));
+        if (sourceCardInstance is null)
+        {
+            throw new InvalidOperationException(
+                $"Hand card instance '{sourceCardInstanceId}' was not found for player '{playerId}'.");
+        }
+
+        if (!instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
+        {
+            throw new InvalidOperationException($"Card definition '{sourceCardInstance.CardDefinitionId}' was not found.");
+        }
+
+        if (sourceCardDefinition.Type is CardType.Chakra or CardType.Summon or CardType.Leader)
+        {
+            return new GameCardActionTargetsResponse(
+                ActionId: actionId,
+                SourceCardInstanceId: sourceCardInstanceId,
+                IsEnabled: false,
+                DisabledReason: $"Card '{sourceCardDefinition.Id}' cannot be summoned to the battlefield from hand.",
+                MinimumTargetCount: null,
+                MaximumTargetCount: null,
+                ExactTargetCount: null,
+                AutoSelectAllValidTargets: false,
+                ValidTargets: []);
+        }
+
+        if (!sourceCardDefinition.CannotBeNormalSummoned)
+        {
+            var summonReady = instance.State.IsSummonCardReady(playerId);
+            return new GameCardActionTargetsResponse(
+                ActionId: actionId,
+                SourceCardInstanceId: sourceCardInstanceId,
+                IsEnabled: summonReady,
+                DisabledReason: summonReady ? null : "Your summon card is rested.",
+                MinimumTargetCount: null,
+                MaximumTargetCount: null,
+                ExactTargetCount: null,
+                AutoSelectAllValidTargets: false,
+                ValidTargets: []);
+        }
+
+        var summonRequirement = TryCreateSummonRequirementActionContext(
+            instance,
+            playerId,
+            sourceCardInstance,
+            sourceCardDefinition,
+            arguments,
+            selectedTargets: [],
+            out var context,
+            out var effectSpec,
+            out var failureResponse);
+
+        if (!summonRequirement)
+        {
+            return failureResponse!;
+        }
+
+        var canExecuteResult = canExecuteEvaluator.Evaluate(context!, effectSpec!, includeValidTargets: true);
+        var validTributeTargets = ResolveTributeMaterialTargets(context!, effectSpec!, canExecuteResult);
+
+        return new GameCardActionTargetsResponse(
+            ActionId: actionId,
+            SourceCardInstanceId: sourceCardInstanceId,
+            IsEnabled: canExecuteResult.CanExecute,
+            DisabledReason: canExecuteResult.CanExecute
+                ? null
+                : canExecuteResult.FailedConditions.FirstOrDefault(),
+            MinimumTargetCount: ResolveTributeMinimumTargetCount(effectSpec!.TargetRules),
+            MaximumTargetCount: ResolveTributeMaximumTargetCount(effectSpec.TargetRules),
+            ExactTargetCount: ResolveTributeExactTargetCount(effectSpec.TargetRules),
+            AutoSelectAllValidTargets: effectSpec.TargetRules.AutoSelectAllValidTargets,
+            ValidTargets: validTributeTargets);
     }
 
     public GameInstance DeclareEndStep(string gameId)
@@ -1473,7 +1568,7 @@ public sealed class InMemoryGameInstanceRegistry
 
             if (definition.CannotBeNormalSummoned)
             {
-                return CanSpecialSummonWithoutNormalSummon(definition) || IsSupportCapable(definition);
+                return CanExecuteSummonRequirement(instance, activePlayer.PlayerId, card, definition) || IsSupportCapable(definition);
             }
 
             return instance.State.IsSummonCardReady(activePlayer.PlayerId) || IsSupportCapable(definition);
@@ -1615,9 +1710,10 @@ public sealed class InMemoryGameInstanceRegistry
     private void ExecuteSummonToFieldAction(
         GameInstance instance,
         string playerId,
-        string sourceCardInstanceId,
+        GameCardActionExecutionRequest request,
         PlayerState actingPlayer)
     {
+        var sourceCardInstanceId = request.SourceCardInstanceId;
         var sourceCardInstance = actingPlayer.Hand.FirstOrDefault(card =>
             string.Equals(card.InstanceId, sourceCardInstanceId, StringComparison.Ordinal));
         if (sourceCardInstance is null)
@@ -1644,10 +1740,10 @@ public sealed class InMemoryGameInstanceRegistry
             throw new InvalidOperationException("Your summon card is rested.");
         }
 
-        if (sourceCardDefinition.CannotBeNormalSummoned && !CanSpecialSummonWithoutNormalSummon(sourceCardDefinition))
+        if (sourceCardDefinition.CannotBeNormalSummoned)
         {
-            throw new InvalidOperationException(
-                $"Card '{sourceCardDefinition.Id}' cannot be summoned because its summon condition is not satisfiable.");
+            ExecuteSummonRequirementAction(instance, playerId, request, actingPlayer, sourceCardInstance, sourceCardDefinition);
+            return;
         }
 
         var movedCard = MoveCardToZone(
@@ -1664,6 +1760,77 @@ public sealed class InMemoryGameInstanceRegistry
         {
             instance.State.SetSummonCardReady(playerId, false);
         }
+    }
+
+    private void ExecuteSummonRequirementAction(
+        GameInstance instance,
+        string playerId,
+        GameCardActionExecutionRequest request,
+        PlayerState actingPlayer,
+        CardInstance sourceCardInstance,
+        Card sourceCardDefinition)
+    {
+        var selectedTargets = request.SelectedTargets ?? [];
+        if (selectedTargets.Count == 0)
+        {
+            throw new InvalidOperationException("Summon requirements require selecting tribute targets before summoning.");
+        }
+
+        if (!TryCreateSummonRequirementActionContext(
+                instance,
+                playerId,
+                sourceCardInstance,
+                sourceCardDefinition,
+                request.Arguments,
+                selectedTargets,
+                out var context,
+                out var effectSpec,
+                out var failureResponse))
+        {
+            throw new InvalidOperationException(failureResponse!.DisabledReason ?? "Summon requirements are not currently satisfiable.");
+        }
+
+        var canExecuteEvaluator = new GameEffectCanExecuteEvaluator(
+            new EffectContextConditionEvaluator(),
+            new EffectTargetResolver(),
+            new GameValidTargetResultFactory(),
+            new GameEffectConditionDiagnostics());
+
+        var canExecuteResult = canExecuteEvaluator.Evaluate(context!, effectSpec!, includeValidTargets: true);
+        if (!canExecuteResult.CanExecute)
+        {
+            throw new InvalidOperationException(canExecuteResult.FailedConditions.FirstOrDefault() ?? "Summon requirements are not currently satisfiable.");
+        }
+
+        var validTributeTargets = ResolveTributeMaterialTargets(context!, effectSpec!, canExecuteResult);
+        if (!selectedTargets.All(selected => validTributeTargets.Any(valid =>
+            string.Equals(valid.PlayerId, selected.PlayerId, StringComparison.Ordinal)
+            && valid.Zone == selected.Zone
+            && string.Equals(valid.CardInstanceId, selected.CardInstanceId, StringComparison.Ordinal))))
+        {
+            throw new InvalidOperationException("One or more selected tribute targets are invalid.");
+        }
+
+        foreach (var tributeTarget in selectedTargets)
+        {
+            runtimeDeckService.MoveCardToZone(
+                instance,
+                tributeTarget.PlayerId,
+                tributeTarget.Zone,
+                PlayerZone.Trash,
+                tributeTarget.CardInstanceId);
+        }
+
+        var movedCard = MoveCardToZone(
+            instance,
+            playerId,
+            sourceCardInstance.InstanceId,
+            PlayerZone.Hand,
+            PlayerZone.CharacterField,
+            destinationIndex: null);
+
+        movedCard.IsRested = false;
+        movedCard.EnteredFieldTurnNumber = instance.State.TurnNumber;
     }
 
     private void ExecuteSetSupportAction(
@@ -1747,15 +1914,224 @@ public sealed class InMemoryGameInstanceRegistry
             || !string.IsNullOrWhiteSpace(characterCard.SupportEffect);
     }
 
-    private static bool CanSpecialSummonWithoutNormalSummon(Card card)
+    private static bool CanExecuteSummonRequirement(
+        GameInstance instance,
+        string playerId,
+        CardInstance sourceCardInstance,
+        Card cardDefinition)
     {
-        if (card.Conditions.Count == 0)
+        if (!TryCreateSummonRequirementActionContext(
+                instance,
+                playerId,
+                sourceCardInstance,
+                cardDefinition,
+                arguments: null,
+                selectedTargets: [],
+                out var context,
+                out var effectSpec,
+                out _))
         {
             return false;
         }
 
-        return card.Conditions.Any(condition =>
+        var canExecuteEvaluator = new GameEffectCanExecuteEvaluator(
+            new EffectContextConditionEvaluator(),
+            new EffectTargetResolver(),
+            new GameValidTargetResultFactory(),
+            new GameEffectConditionDiagnostics());
+        var result = canExecuteEvaluator.Evaluate(context!, effectSpec!, includeValidTargets: true);
+        return result.CanExecute;
+    }
+
+    private static bool TryCreateSummonRequirementActionContext(
+        GameInstance instance,
+        string playerId,
+        CardInstance sourceCardInstance,
+        Card sourceCardDefinition,
+        IReadOnlyDictionary<string, string>? arguments,
+        IReadOnlyList<GameEffectTargetReference> selectedTargets,
+        out GameCardEffectContext? context,
+        out EffectSpec? effectSpec,
+        out GameCardActionTargetsResponse? failureResponse)
+    {
+        context = null;
+        effectSpec = null;
+        failureResponse = null;
+
+        if (sourceCardDefinition.Conditions.Count == 0)
+        {
+            failureResponse = BuildSummonRequirementDisabledResponse(sourceCardInstance.InstanceId, "Summon requirements are not currently satisfiable.");
+            return false;
+        }
+
+        var hasSummonRequirementMarker = sourceCardDefinition.Conditions.Any(condition =>
             string.Equals(condition, EffectConditionKeywords.SummonRequirements, StringComparison.OrdinalIgnoreCase)
             || string.Equals(condition, "hasSummonTarget", StringComparison.OrdinalIgnoreCase));
+
+        if (!hasSummonRequirementMarker)
+        {
+            failureResponse = BuildSummonRequirementDisabledResponse(sourceCardInstance.InstanceId, "Summon requirements are not currently satisfiable.");
+            return false;
+        }
+
+        var normalizedArguments = arguments is null
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : new Dictionary<string, string>(arguments, StringComparer.Ordinal);
+        normalizedArguments[ReactiveEffectExecutionConstants.EnforceTargetCountArgument] = bool.TrueString;
+        normalizedArguments[SummonTargetIdArgumentKey] = sourceCardInstance.InstanceId;
+
+        context = new GameCardEffectContext(
+            game: instance,
+            actingPlayer: new Player { Id = playerId },
+            sourceCardDefinition: sourceCardDefinition,
+            sourceCardInstance: sourceCardInstance,
+            arguments: normalizedArguments,
+            selectedTargets: selectedTargets);
+
+        effectSpec = RuntimeEffectSpecResolver.Resolve(context, RuntimeEffects.Tribute);
+        if (effectSpec is null)
+        {
+            failureResponse = BuildSummonRequirementDisabledResponse(sourceCardInstance.InstanceId, "Summon requirements are not currently satisfiable.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private static GameCardActionTargetsResponse BuildSummonRequirementDisabledResponse(string sourceCardInstanceId, string disabledReason)
+    {
+        return new GameCardActionTargetsResponse(
+            ActionId: $"{SummonToFieldActionPrefix}{sourceCardInstanceId}",
+            SourceCardInstanceId: sourceCardInstanceId,
+            IsEnabled: false,
+            DisabledReason: disabledReason,
+            MinimumTargetCount: null,
+            MaximumTargetCount: null,
+            ExactTargetCount: null,
+            AutoSelectAllValidTargets: false,
+            ValidTargets: []);
+    }
+
+    private static IReadOnlyList<GameEffectTargetReference> ResolveTributeMaterialTargets(
+        GameCardEffectContext context,
+        EffectSpec effectSpec,
+        CanExecuteResult canExecuteResult)
+    {
+        if (!canExecuteResult.CanExecute)
+        {
+            return [];
+        }
+
+        var validTargets = EffectTargetResolver.ResolveTargets(context, effectSpec);
+        var tributeRules = effectSpec.TargetRules.Rules
+            .Where(rule => rule.TributeRole == TributeTargetRole.TributeMaterial)
+            .ToList();
+
+        if (tributeRules.Count == 0)
+        {
+            return validTargets;
+        }
+
+        var actingPlayerState = context.Game.State.Players.FirstOrDefault(player =>
+            string.Equals(player.PlayerId, context.ActingPlayer.Id, StringComparison.Ordinal));
+        if (actingPlayerState is null)
+        {
+            return [];
+        }
+
+        return validTargets
+            .Where(target => tributeRules.Any(rule => TargetMatchesRuleForSummonRequirement(
+                target,
+                rule,
+                actingPlayerState,
+                context.Game.State,
+                context.SourceCardInstance)))
+            .ToList();
+    }
+
+    private static bool TargetMatchesRuleForSummonRequirement(
+        GameEffectTargetReference target,
+        EffectTargetRule rule,
+        PlayerState actingPlayerState,
+        GameState gameState,
+        CardInstance? sourceCardInstance)
+    {
+        if (target.Zone != rule.InZone)
+        {
+            return false;
+        }
+
+        if (rule.Scope == EffectTargetRange.Self
+            && !string.Equals(target.PlayerId, actingPlayerState.PlayerId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (rule.Scope == EffectTargetRange.Opponent
+            && string.Equals(target.PlayerId, actingPlayerState.PlayerId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var targetPlayerState = gameState.Players.FirstOrDefault(player =>
+            string.Equals(player.PlayerId, target.PlayerId, StringComparison.Ordinal));
+        if (targetPlayerState is null)
+        {
+            return false;
+        }
+
+        var zoneCards = PlayerZoneCardAccessor.GetCards(rule.InZone, targetPlayerState);
+        var cardInstance = zoneCards.FirstOrDefault(card =>
+            string.Equals(card.InstanceId, target.CardInstanceId, StringComparison.Ordinal));
+        if (cardInstance is null)
+        {
+            return false;
+        }
+
+        if (!gameState.CardDefinitions.TryGetValue(cardInstance.CardDefinitionId, out var cardDefinition))
+        {
+            return false;
+        }
+
+        return ZoneCardRestrictionMatcher.Matches(gameState, cardDefinition, rule.Restriction, cardInstance, sourceCardInstance);
+    }
+
+    private static int? ResolveTributeExactTargetCount(EffectTargetRuleSet targetRules)
+    {
+        return targetRules.TributeComposition?.ExactTributeCount
+            ?? targetRules.Rules
+                .Where(rule => rule.TributeRole == TributeTargetRole.TributeMaterial)
+                .Select(rule => rule.ExactSelectedTargetCount)
+                .FirstOrDefault(count => count.HasValue);
+    }
+
+    private static int? ResolveTributeMinimumTargetCount(EffectTargetRuleSet targetRules)
+    {
+        if (targetRules.TributeComposition?.ExactTributeCount is int exact)
+        {
+            return exact;
+        }
+
+        return targetRules.TributeComposition?.MinimumTributeCount
+            ?? targetRules.Rules
+                .Where(rule => rule.TributeRole == TributeTargetRole.TributeMaterial)
+                .Select(rule => rule.MinimumSelectedTargetCount)
+                .FirstOrDefault(count => count.HasValue)
+            ?? targetRules.MinimumTargetCount;
+    }
+
+    private static int? ResolveTributeMaximumTargetCount(EffectTargetRuleSet targetRules)
+    {
+        if (targetRules.TributeComposition?.ExactTributeCount is int exact)
+        {
+            return exact;
+        }
+
+        return targetRules.TributeComposition?.MaximumTributeCount
+            ?? targetRules.Rules
+                .Where(rule => rule.TributeRole == TributeTargetRole.TributeMaterial)
+                .Select(rule => rule.MaximumSelectedTargetCount)
+                .FirstOrDefault(count => count.HasValue)
+            ?? targetRules.MaximumTargetCount;
     }
 }

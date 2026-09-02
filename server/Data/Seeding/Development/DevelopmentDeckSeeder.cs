@@ -5,10 +5,16 @@ namespace ProjectHiddenVillage.Server.Data.Seeding.Development;
 
 public sealed class DevelopmentDeckSeeder
 {
+    public static readonly Guid DefaultDeckOneId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+    public static readonly Guid DefaultDeckTwoId = Guid.Parse("10000000-0000-0000-0000-000000000002");
+    public static readonly Guid SummonRequirementsDeckOneId = Guid.Parse("10000000-0000-0000-0000-000000000101");
+    public static readonly Guid SummonRequirementsDeckTwoId = Guid.Parse("10000000-0000-0000-0000-000000000102");
+
     private static readonly HashSet<string> PlaceholderLeaderCardIds =
     [
         "N-001",
-        "N-012"
+        "N-012",
+        "T-001"
     ];
 
     // Keep deterministic support metadata for known support-capable cards even
@@ -19,44 +25,76 @@ public sealed class DevelopmentDeckSeeder
         "N-015"
     ];
 
-    private static readonly Guid SeedDeckOneId = Guid.Parse("10000000-0000-0000-0000-000000000001");
-    private static readonly Guid SeedDeckTwoId = Guid.Parse("10000000-0000-0000-0000-000000000002");
-
-    private static readonly IReadOnlyList<SeedDeckDefinition> SeedDecks =
+    private static readonly IReadOnlyList<SeedDeckSuiteDefinition> SeedDeckSuites =
     [
-        new SeedDeckDefinition(
-            DeckId: SeedDeckOneId,
-            Type: DeckType.Public,
-            Cards:
+        new SeedDeckSuiteDefinition(
+            SuiteKey: "default",
+            Decks:
             [
-                new SeedDeckCardDefinition("N-001", 1),
-                new SeedDeckCardDefinition("N-002", 3),
-                new SeedDeckCardDefinition("N-003", 3),
-                new SeedDeckCardDefinition("N-004", 3),
-                new SeedDeckCardDefinition("N-005", 3),
-                new SeedDeckCardDefinition("N-006", 3),
-                new SeedDeckCardDefinition("N-007", 3),
-                new SeedDeckCardDefinition("N-008", 3),
-                new SeedDeckCardDefinition("N-009", 3),
-                new SeedDeckCardDefinition("N-011", 3),
-                new SeedDeckCardDefinition("N-018", 3)
+                new SeedDeckDefinition(
+                    DeckId: DefaultDeckOneId,
+                    Type: DeckType.Public,
+                    Cards:
+                    [
+                        new SeedDeckCardDefinition("N-001", 1),
+                        new SeedDeckCardDefinition("N-002", 3),
+                        new SeedDeckCardDefinition("N-003", 3),
+                        new SeedDeckCardDefinition("N-004", 3),
+                        new SeedDeckCardDefinition("N-005", 3),
+                        new SeedDeckCardDefinition("N-006", 3),
+                        new SeedDeckCardDefinition("N-007", 3),
+                        new SeedDeckCardDefinition("N-008", 3),
+                        new SeedDeckCardDefinition("N-009", 3),
+                        new SeedDeckCardDefinition("N-011", 3),
+                        new SeedDeckCardDefinition("N-018", 3)
+                    ]),
+                new SeedDeckDefinition(
+                    DeckId: DefaultDeckTwoId,
+                    Type: DeckType.Public,
+                    Cards:
+                    [
+                        new SeedDeckCardDefinition("N-010", 3),
+                        new SeedDeckCardDefinition("N-012", 1),
+                        new SeedDeckCardDefinition("N-013", 3),
+                        new SeedDeckCardDefinition("N-014", 3),
+                        new SeedDeckCardDefinition("N-015", 3),
+                        new SeedDeckCardDefinition("N-016", 3),
+                        new SeedDeckCardDefinition("N-017", 3),
+                        new SeedDeckCardDefinition("N-019", 3),
+                        new SeedDeckCardDefinition("N-020", 3),
+                        new SeedDeckCardDefinition("N-021", 3),
+                        new SeedDeckCardDefinition("N-022", 3)
+                    ])
             ]),
-        new SeedDeckDefinition(
-            DeckId: SeedDeckTwoId,
-            Type: DeckType.Public,
-            Cards:
+        new SeedDeckSuiteDefinition(
+            SuiteKey: "summon-requirements",
+            Decks:
             [
-                new SeedDeckCardDefinition("N-010", 3),
-                new SeedDeckCardDefinition("N-012", 1),
-                new SeedDeckCardDefinition("N-013", 3),
-                new SeedDeckCardDefinition("N-014", 3),
-                new SeedDeckCardDefinition("N-015", 3),
-                new SeedDeckCardDefinition("N-016", 3),
-                new SeedDeckCardDefinition("N-017", 3),
-                new SeedDeckCardDefinition("N-019", 3),
-                new SeedDeckCardDefinition("N-020", 3),
-                new SeedDeckCardDefinition("N-021", 3),
-                new SeedDeckCardDefinition("N-022", 3)
+                new SeedDeckDefinition(
+                    DeckId: SummonRequirementsDeckOneId,
+                    Type: DeckType.Public,
+                    Cards:
+                    [
+                        new SeedDeckCardDefinition("T-001", 1),
+                        new SeedDeckCardDefinition("T-100", 3),
+                        new SeedDeckCardDefinition("T-900", 3)
+                    ]),
+                new SeedDeckDefinition(
+                    DeckId: SummonRequirementsDeckTwoId,
+                    Type: DeckType.Public,
+                    Cards:
+                    [
+                        new SeedDeckCardDefinition("N-012", 1),
+                        new SeedDeckCardDefinition("N-013", 3),
+                        new SeedDeckCardDefinition("N-014", 3),
+                        new SeedDeckCardDefinition("N-015", 3),
+                        new SeedDeckCardDefinition("N-016", 3),
+                        new SeedDeckCardDefinition("N-017", 3),
+                        new SeedDeckCardDefinition("N-019", 3),
+                        new SeedDeckCardDefinition("N-020", 3),
+                        new SeedDeckCardDefinition("N-021", 3),
+                        new SeedDeckCardDefinition("N-022", 3)
+                    ])
             ])
     ];
 
@@ -71,7 +109,9 @@ public sealed class DevelopmentDeckSeeder
 
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
-        foreach (var seedDeck in SeedDecks)
+        await EnsureSuiteSpecificCatalogEntriesAsync(cancellationToken);
+
+        foreach (var seedDeck in SeedDeckSuites.SelectMany(suite => suite.Decks))
         {
             var existingDeck = await dbContext.Decks
                 .SingleOrDefaultAsync(deck => deck.Id == seedDeck.DeckId, cancellationToken);
@@ -203,6 +243,127 @@ public sealed class DevelopmentDeckSeeder
         }
     }
 
+    private async Task EnsureSuiteSpecificCatalogEntriesAsync(CancellationToken cancellationToken)
+    {
+        var entries = CreateSuiteSpecificCatalogEntries();
+        foreach (var entry in entries)
+        {
+            var normalizedCardId = entry.CardId.Trim().ToUpperInvariant();
+            var existingEntry = await dbContext.CardCatalogEntries
+                .SingleOrDefaultAsync(card => card.CardId.ToUpper() == normalizedCardId, cancellationToken);
+
+            if (existingEntry is null)
+            {
+                dbContext.CardCatalogEntries.Add(entry);
+                continue;
+            }
+
+            existingEntry.Image = entry.Image;
+            existingEntry.OriginalId = entry.OriginalId;
+            existingEntry.MainAlternate = entry.MainAlternate;
+            existingEntry.Attribute = entry.Attribute;
+            existingEntry.DisplayName = entry.DisplayName;
+            existingEntry.Type = entry.Type;
+            existingEntry.Color = entry.Color;
+            existingEntry.Description = entry.Description;
+            existingEntry.Damage = entry.Damage;
+            existingEntry.Power = entry.Power;
+            existingEntry.NameJson = entry.NameJson;
+            existingEntry.TraitsJson = entry.TraitsJson;
+            existingEntry.ConditionsJson = entry.ConditionsJson;
+            existingEntry.EffectsJson = entry.EffectsJson;
+            existingEntry.Life = entry.Life;
+            existingEntry.Health = entry.Health;
+            existingEntry.CannotBeNormalSummoned = entry.CannotBeNormalSummoned;
+            existingEntry.SupportName = entry.SupportName;
+            existingEntry.SupportEffect = entry.SupportEffect;
+            existingEntry.UpdatedAtUtc = entry.UpdatedAtUtc;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static IReadOnlyList<CardCatalogEntry> CreateSuiteSpecificCatalogEntries()
+    {
+        var utcNow = DateTimeOffset.UtcNow;
+
+        return
+        [
+            new CardCatalogEntry
+            {
+                CardId = "T-001",
+                OriginalId = "T-001",
+                DisplayName = "Training Commander",
+                Image = "https://example.com/cards/T-001.webp",
+                Type = CardType.Leader,
+                Color = CardColor.Blue,
+                Description = "Development leader for summon requirement suite.",
+                NameJson = "[\"Training Commander\"]",
+                TraitsJson = "[\"Leader\"]",
+                ConditionsJson = "[]",
+                EffectsJson = "[]",
+                Damage = 0,
+                Power = 0,
+                Life = 5,
+                Health = null,
+                SupportName = string.Empty,
+                SupportEffect = string.Empty,
+                MainAlternate = false,
+                CannotBeNormalSummoned = false,
+                CreatedAtUtc = utcNow,
+                UpdatedAtUtc = utcNow,
+            },
+            new CardCatalogEntry
+            {
+                CardId = "T-100",
+                OriginalId = "T-100",
+                DisplayName = "Academy Adept",
+                Image = "https://example.com/cards/T-100.webp",
+                Type = CardType.Character,
+                Color = CardColor.Blue,
+                Description = "Development tribute material for summon requirement suite.",
+                NameJson = "[\"Academy Adept\"]",
+                TraitsJson = "[\"Shinobi\"]",
+                ConditionsJson = "[]",
+                EffectsJson = "[]",
+                Damage = 1,
+                Power = 2,
+                Life = null,
+                Health = 2,
+                SupportName = string.Empty,
+                SupportEffect = string.Empty,
+                MainAlternate = false,
+                CannotBeNormalSummoned = false,
+                CreatedAtUtc = utcNow,
+                UpdatedAtUtc = utcNow,
+            },
+            new CardCatalogEntry
+            {
+                CardId = "T-900",
+                OriginalId = "T-900",
+                DisplayName = "Ancient Toad Sage",
+                Image = "https://example.com/cards/T-900.webp",
+                Type = CardType.Character,
+                Color = CardColor.Green,
+                Description = "[Summon Requirements] Select 1 of your characters in the field and send it to the trash to summon this card.",
+                NameJson = "[\"Ancient Toad Sage\"]",
+                TraitsJson = "[\"Toad\",\"Sage\"]",
+                ConditionsJson = "[\"Summon Requirements\"]",
+                EffectsJson = "[{\"id\":\"summon-requirement-tribute\",\"runtimeEffectType\":\"Tribute\",\"effectType\":\"Activated\",\"timing\":\"ActivateMain\",\"targetRules\":{\"tributeComposition\":{\"exactTributeCount\":1,\"requireSingleSummonTarget\":false,\"requireDistinctSummonAndTributes\":true},\"rules\":[{\"scope\":\"Self\",\"inZone\":\"CharacterField\",\"tributeRole\":\"TributeMaterial\",\"exactSelectedTargetCount\":1,\"restriction\":{\"predicates\":[],\"matchMode\":\"Any\"}}]}}]",
+                Damage = 3,
+                Power = 5,
+                Life = null,
+                Health = 5,
+                SupportName = string.Empty,
+                SupportEffect = string.Empty,
+                MainAlternate = false,
+                CannotBeNormalSummoned = true,
+                CreatedAtUtc = utcNow,
+                UpdatedAtUtc = utcNow,
+            }
+        ];
+    }
+
     private async Task SeedPlaceholderCatalogEntriesAsync(
         IReadOnlyList<string> missingCardIds,
         CancellationToken cancellationToken)
@@ -266,6 +427,10 @@ public sealed class DevelopmentDeckSeeder
             "Seeded placeholder catalog entries for missing development deck card ids: {CardIds}",
             string.Join(", ", missingCardIds));
     }
+
+    private sealed record SeedDeckSuiteDefinition(
+        string SuiteKey,
+        IReadOnlyList<SeedDeckDefinition> Decks);
 
     private sealed record SeedDeckDefinition(
         Guid DeckId,

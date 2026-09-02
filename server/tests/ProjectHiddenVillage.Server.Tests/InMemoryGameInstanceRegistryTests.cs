@@ -1203,6 +1203,107 @@ public sealed class InMemoryGameInstanceRegistryTests
     }
 
     [TestMethod]
+    public void GetCardActionTargets_SummonRequirementSummon_ReturnsTributeTargets()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "tribute-card"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithSummonRequirement(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
+        game.State.PriorityPlayerId = "p2";
+        game.State.Players[1].Hand.Add(new CardInstance
+        {
+            InstanceId = "hand-tribute",
+            CardDefinitionId = "tribute-card",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+        game.State.Players[1].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "tribute-material-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        var targets = registry.GetCardActionTargets(
+            game.Id,
+            new GameCardActionTargetsRequest(
+                PlayerId: "p2",
+                ActionId: "summon-to-field:hand-tribute",
+                SourceCardInstanceId: "hand-tribute"),
+            new GameEffectCanExecuteEvaluator(
+                new EffectContextConditionEvaluator(),
+                new EffectTargetResolver(),
+                new GameValidTargetResultFactory(),
+                new GameEffectConditionDiagnostics()));
+
+        Assert.IsTrue(targets.IsEnabled);
+        Assert.AreEqual(1, targets.ExactTargetCount);
+        Assert.AreEqual(1, targets.ValidTargets.Count);
+        Assert.AreEqual("tribute-material-1", targets.ValidTargets[0].CardInstanceId);
+        Assert.AreEqual(PlayerZone.CharacterField, targets.ValidTargets[0].Zone);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_SummonRequirementSummon_ConsumesTributeAndDoesNotRestSummonCard()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "tribute-card"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithSummonRequirement(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
+        game.State.PriorityPlayerId = "p2";
+        game.State.SetSummonCardReady("p2", true);
+        game.State.Players[1].Hand.Add(new CardInstance
+        {
+            InstanceId = "hand-tribute",
+            CardDefinitionId = "tribute-card",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+        game.State.Players[1].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "tribute-material-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: "summon-to-field:hand-tribute",
+                SourceCardInstanceId: "hand-tribute",
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference("p2", PlayerZone.CharacterField, "tribute-material-1")
+                ]),
+            new RecordingSequentialExecutor());
+
+        Assert.AreEqual(0, game.State.Players[1].Hand.Count);
+        Assert.IsTrue(game.State.Players[1].Battlefield.Any(card => card.InstanceId == "hand-tribute"));
+        Assert.AreEqual(1, game.State.Players[1].DiscardPile.Count);
+        Assert.AreEqual("tribute-material-1", game.State.Players[1].DiscardPile[0].InstanceId);
+        Assert.IsTrue(game.State.IsSummonCardReady("p2"));
+    }
+
+    [TestMethod]
     public void ExecuteCardAction_SetSupport_MovesCardFromHandToSelectedSupportSlot()
     {
         var game = registry.Create(
@@ -1555,6 +1656,94 @@ public sealed class InMemoryGameInstanceRegistryTests
                 SupportEffect = "Deal 1",
             },
             comparer: StringComparer.Ordinal);
+    }
+
+    private static Dictionary<string, Card> BuildDefinitionsWithSummonRequirement()
+    {
+        return new Dictionary<string, Card>(StringComparer.Ordinal)
+        {
+            ["card-1"] = new CharacterCard
+            {
+                Id = "card-1",
+                DisplayName = "Tribute Material",
+                Name = ["Tribute Material"],
+                Type = CardType.Character,
+                Traits = [],
+                Color = CardColor.Red,
+                Description = string.Empty,
+                Damage = 2,
+                Power = 2,
+                Health = 2,
+                Conditions = [],
+                Effects = []
+            },
+            ["tribute-card"] = new CharacterCard
+            {
+                Id = "tribute-card",
+                DisplayName = "Tribute Summon Card",
+                Name = ["Tribute Summon Card"],
+                Type = CardType.Character,
+                Traits = [],
+                Color = CardColor.Blue,
+                Description = string.Empty,
+                Damage = 3,
+                Power = 3,
+                Health = 3,
+                CannotBeNormalSummoned = true,
+                Conditions = [EffectConditionKeywords.SummonRequirements],
+                Effects =
+                [
+                    new EffectSpec
+                    {
+                        Id = "tribute-1",
+                        EffectType = EffectKind.Activated,
+                        Timing = EffectTiming.ActivateMain,
+                        RuntimeEffectType = RuntimeEffects.Tribute,
+                        TargetRules = new EffectTargetRuleSet
+                        {
+                            TributeComposition = new TributeTargetComposition
+                            {
+                                ExactTributeCount = 1,
+                                RequireSingleSummonTarget = false,
+                                RequireDistinctSummonAndTributes = true,
+                            },
+                            Rules =
+                            [
+                                new EffectTargetRule
+                                {
+                                    Scope = EffectTargetRange.Self,
+                                    InZone = PlayerZone.CharacterField,
+                                    TributeRole = TributeTargetRole.TributeMaterial,
+                                    ExactSelectedTargetCount = 1,
+                                    Restriction = new ZoneCardRestriction(),
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            ["leader-def"] = new LeaderCard
+            {
+                Id = "leader-def",
+                DisplayName = "Leader",
+                Name = ["Leader"],
+                Type = CardType.Leader,
+                Traits = ["Leader"],
+                Color = CardColor.Blue,
+                Life = 5,
+                RecoveryEffect = "Recover 1",
+                Effects =
+                [
+                    new EffectSpec
+                    {
+                        Id = "leader-main",
+                        EffectType = EffectKind.Activated,
+                        Timing = EffectTiming.ActivateMain,
+                        RuntimeEffectType = RuntimeEffects.AlterResources,
+                    }
+                ]
+            }
+        };
     }
 
     private static void SetQuickSupportEffect(GameState state, string cardDefinitionId, string effectTypeKey)

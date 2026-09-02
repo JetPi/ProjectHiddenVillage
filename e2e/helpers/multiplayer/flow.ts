@@ -120,10 +120,16 @@ export async function resolveActorWithBottomHandAction(
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
   actionLabel: 'Summon' | 'Set Support',
+  options?: {
+    actorUserId?: string
+    cardDefinitionId?: string
+  },
 ): Promise<{ actor: PlayerAuth; actorPage: Page; cardInstanceId: string; actionId: string }> {
   const maxCycles = 180
   const actionPrefix = actionLabel === 'Summon' ? 'summon-to-field:' : 'set-support:'
   const normalizedLabel = actionLabel.trim().toLowerCase()
+  const normalizedRequestedActorUserId = options?.actorUserId?.trim().toLowerCase() ?? ''
+  const normalizedRequestedCardDefinitionId = options?.cardDefinitionId?.trim().toLowerCase() ?? ''
 
   for (let cycle = 0; cycle < maxCycles; cycle += 1) {
     const [playerOneState, playerTwoState] = await Promise.all([
@@ -134,6 +140,13 @@ export async function resolveActorWithBottomHandAction(
     const resolveHandActionFromState = (state: GameStateResponse, actor: PlayerAuth) => {
       const actorState = resolvePlayerState(state, actor)
       for (const handCard of actorState.hand) {
+        if (
+          normalizedRequestedCardDefinitionId.length > 0
+          && handCard.cardDefinitionId?.trim().toLowerCase() !== normalizedRequestedCardDefinitionId
+        ) {
+          continue
+        }
+
         const availableActions = handCard.availableActions ?? []
         const matchedAction = availableActions.find((action) => {
           return action.isEnabled && action.label.trim().toLowerCase() === normalizedLabel
@@ -151,6 +164,8 @@ export async function resolveActorWithBottomHandAction(
     }
 
     const playerOneCanUseHandActions =
+      (normalizedRequestedActorUserId.length === 0 || setup.playerOne.userId.trim().toLowerCase() === normalizedRequestedActorUserId)
+      &&
       playerOneState.phase === 'MainPhase'
       && playerOneState.pendingPrompt === null
       && normalizeUserId(playerOneState.activePlayerId) === setup.playerOne.normalizedUserId
@@ -167,6 +182,8 @@ export async function resolveActorWithBottomHandAction(
     }
 
     const playerTwoCanUseHandActions =
+      (normalizedRequestedActorUserId.length === 0 || setup.playerTwo.userId.trim().toLowerCase() === normalizedRequestedActorUserId)
+      &&
       playerTwoState.phase === 'MainPhase'
       && playerTwoState.pendingPrompt === null
       && normalizeUserId(playerTwoState.activePlayerId) === setup.playerTwo.normalizedUserId
@@ -185,7 +202,10 @@ export async function resolveActorWithBottomHandAction(
     await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
   }
 
-  throw new Error(`No '${actionLabel}' action found in bottom hand after deterministic phase advancement.`)
+  const filterSuffix = normalizedRequestedCardDefinitionId.length > 0
+    ? ` for card definition '${normalizedRequestedCardDefinitionId}'`
+    : ''
+  throw new Error(`No '${actionLabel}' action found in bottom hand${filterSuffix} after deterministic phase advancement.`)
 }
 
 export async function resolvePlayerHandActionWithoutReload(

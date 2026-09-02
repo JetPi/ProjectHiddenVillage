@@ -211,6 +211,12 @@ function getBattleTargetHighlightClass(side: 'top' | 'bottom'): string {
   return side === 'top' ? 'battle-target-top' : 'battle-target-bottom'
 }
 
+function getSummonTargetHighlightClass(side: 'top' | 'bottom'): string {
+  return side === 'top'
+    ? 'ring-2 ring-emerald-300/90 ring-offset-2 ring-offset-slate-900'
+    : 'ring-2 ring-amber-300/90 ring-offset-2 ring-offset-slate-900'
+}
+
 function GameZones({
   boardZoneRef,
   joinCode,
@@ -228,9 +234,11 @@ function GameZones({
   availableActions,
   pendingSetSupportCardInstanceId,
   pendingAttackTargeting,
+  pendingSummonTargeting,
   optimisticRestedByInstanceId,
   activeAttackLink,
   isBattleActionTargeting,
+  isSummonActionTargeting,
   isConnected,
   isActionPending,
   onSelectAction,
@@ -238,6 +246,10 @@ function GameZones({
   onCancelSetSupportSelection,
   onSelectAttackTarget,
   onCancelAttackTargetSelection,
+  onToggleSummonTarget,
+  canConfirmSummonTargetSelection,
+  onConfirmSummonTargetSelection,
+  onCancelSummonTargetSelection,
   onToggleTheme,
   onPassTurn,
 }: IGameZonesProps) {
@@ -420,6 +432,27 @@ function GameZones({
     return targetIds
   }, [pendingAttackTargeting])
 
+  const validSummonTargetsByCardId = useMemo(() => {
+    const targets = pendingSummonTargeting?.validTargets ?? []
+    const targetIds = new Set<string>()
+
+    for (const target of targets) {
+      targetIds.add(target.cardInstanceId.trim().toLowerCase())
+    }
+
+    return targetIds
+  }, [pendingSummonTargeting])
+
+  const selectedSummonTargetsByCardId = useMemo(() => {
+    const targetIds = new Set<string>()
+
+    for (const target of pendingSummonTargeting?.selectedTargets ?? []) {
+      targetIds.add(target.cardInstanceId.trim().toLowerCase())
+    }
+
+    return targetIds
+  }, [pendingSummonTargeting])
+
   const isTopLeaderBattleTarget = useMemo(() => {
     if (!topLeaderCard) {
       return false
@@ -528,6 +561,8 @@ function GameZones({
             card.availableActions,
           )
           const isBattleTarget = validBattleTargetsByCardId.has(card.instanceId.trim().toLowerCase())
+          const isSummonTarget = validSummonTargetsByCardId.has(card.instanceId.trim().toLowerCase())
+          const isSelectedSummonTarget = selectedSummonTargetsByCardId.has(card.instanceId.trim().toLowerCase())
           const isAttackLinkSource = normalizedAttackLinkSourceCardId.length > 0
             && normalizedAttackLinkSourceCardId === card.instanceId.trim().toLowerCase()
           const isAttackLinkTarget = normalizedAttackLinkTargetCardId.length > 0
@@ -554,9 +589,15 @@ function GameZones({
                 shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
                 isSelectionBlocked ? 'opacity-45' : '',
                 isBattleTarget ? getBattleTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
+                isSummonTarget ? getSummonTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
+                isSelectedSummonTarget ? 'scale-[1.01] bg-amber-200/10' : '',
                 isAttackLinkSource || isAttackLinkTarget ? 'attack-link-card-outline' : '',
               )}
-              onClick={isBattleTarget ? () => onSelectAttackTarget(card.instanceId) : undefined}
+              onClick={
+                isBattleTarget
+                  ? () => onSelectAttackTarget(card.instanceId)
+                  : (isSummonTarget ? () => onToggleSummonTarget(card.instanceId) : undefined)
+              }
             >
               {card.isFaceUp ? (
                 <CardImage
@@ -629,6 +670,8 @@ function GameZones({
             card.availableActions,
           )
           const isBattleTarget = validBattleTargetsByCardId.has(card.instanceId.trim().toLowerCase())
+          const isSummonTarget = validSummonTargetsByCardId.has(card.instanceId.trim().toLowerCase())
+          const isSelectedSummonTarget = selectedSummonTargetsByCardId.has(card.instanceId.trim().toLowerCase())
           const isAttackLinkSource = normalizedAttackLinkSourceCardId.length > 0
             && normalizedAttackLinkSourceCardId === card.instanceId.trim().toLowerCase()
           const isAttackLinkTarget = normalizedAttackLinkTargetCardId.length > 0
@@ -650,9 +693,15 @@ function GameZones({
                 isCardRested ? 'rotate-[14deg]' : 'rotate-0',
                 shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
                 isBattleTarget ? getBattleTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
+                isSummonTarget ? getSummonTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
+                isSelectedSummonTarget ? 'scale-[1.01] bg-amber-200/10' : '',
                 isAttackLinkSource || isAttackLinkTarget ? 'attack-link-card-outline' : '',
               )}
-              onClick={isBattleTarget ? () => onSelectAttackTarget(card.instanceId) : undefined}
+              onClick={
+                isBattleTarget
+                  ? () => onSelectAttackTarget(card.instanceId)
+                  : (isSummonTarget ? () => onToggleSummonTarget(card.instanceId) : undefined)
+              }
             >
               {card.isFaceUp ? (
                 <CardImage
@@ -968,6 +1017,41 @@ function GameZones({
               Cancel Attack Target
             </span>
           </div>
+        ) : null}
+
+        {isSummonActionTargeting ? (
+          <>
+            <div className="group relative">
+              <AppButton
+                type="button"
+                variant="ghost"
+                aria-label="Confirm tribute selection"
+                onClick={onConfirmSummonTargetSelection}
+                disabled={!isConnected || isActionPending || !canConfirmSummonTargetSelection}
+                className="h-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-1.5 py-0 text-[8px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]"
+              >
+                Go
+              </AppButton>
+              <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
+                Confirm Tribute
+              </span>
+            </div>
+
+            <div className="group relative">
+              <AppButton
+                type="button"
+                variant="ghost"
+                aria-label="Cancel tribute selection"
+                onClick={onCancelSummonTargetSelection}
+                className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+              >
+                <span className="text-[10px] font-bold leading-none">X</span>
+              </AppButton>
+              <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
+                Cancel Tribute
+              </span>
+            </div>
+          </>
         ) : null}
 
         <div className="group relative">

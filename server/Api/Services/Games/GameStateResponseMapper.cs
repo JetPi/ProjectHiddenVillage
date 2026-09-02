@@ -11,6 +11,7 @@ public static class GameStateResponseMapper
         new EffectTargetResolver(),
         new GameValidTargetResultFactory(),
         new GameEffectConditionDiagnostics());
+    private static readonly GameRuntimeEffectSpecResolver RuntimeEffectSpecResolver = new();
     private const string ConcealedCardDefinitionId = "concealed-card";
     private const string SummonToFieldActionPrefix = "summon-to-field:";
     private const string SetSupportActionPrefix = "set-support:";
@@ -593,14 +594,12 @@ public static class GameStateResponseMapper
 
         if (cardDefinition.CannotBeNormalSummoned)
         {
-            var specialSummonAllowed = CanSpecialSummonWithoutNormalSummon(cardDefinition);
+            var (specialSummonAllowed, disabledReason) = EvaluateSummonRequirementAvailability(state, card, cardDefinition);
             actions.Add(new GameActionOptionResponse(
                 ActionId: $"{SummonToFieldActionPrefix}{card.InstanceId}",
                 Label: "Summon",
                 IsEnabled: specialSummonAllowed,
-                DisabledReason: specialSummonAllowed
-                    ? null
-                    : "Summon requirements are not currently satisfiable."));
+                DisabledReason: specialSummonAllowed ? null : disabledReason));
         }
         else
         {
@@ -638,16 +637,68 @@ public static class GameStateResponseMapper
             || !string.IsNullOrWhiteSpace(characterCard.SupportEffect);
     }
 
-    private static bool CanSpecialSummonWithoutNormalSummon(Card cardDefinition)
+    private static (bool IsEnabled, string DisabledReason) EvaluateSummonRequirementAvailability(
+        GameState state,
+        CardInstance sourceCardInstance,
+        Card cardDefinition)
     {
         if (cardDefinition.Conditions.Count == 0)
         {
-            return false;
+            return (false, "Summon requirements are not currently satisfiable.");
         }
 
-        return cardDefinition.Conditions.Any(condition =>
+        var hasSummonRequirementMarker = cardDefinition.Conditions.Any(condition =>
             string.Equals(condition, EffectConditionKeywords.SummonRequirements, StringComparison.OrdinalIgnoreCase)
             || string.Equals(condition, "hasSummonTarget", StringComparison.OrdinalIgnoreCase));
+
+        if (!hasSummonRequirementMarker)
+        {
+            return (false, "Summon requirements are not currently satisfiable.");
+        }
+
+        var actingPlayer = state.Players.FirstOrDefault(player =>
+            IsSamePlayerId(player.PlayerId, sourceCardInstance.ControllerPlayerId));
+        if (actingPlayer is null)
+        {
+            return (false, "Summon requirements are not currently satisfiable.");
+        }
+
+        GameInstance? evaluationGame = null;
+        try
+        {
+            evaluationGame = new GameInstance(state);
+        }
+        catch (InvalidOperationException)
+        {
+            return (true, string.Empty);
+        }
+
+        var context = new GameCardEffectContext(
+            game: evaluationGame,
+            actingPlayer: new Player { Id = actingPlayer.PlayerId },
+            sourceCardDefinition: cardDefinition,
+            sourceCardInstance: sourceCardInstance,
+            arguments: new Dictionary<string, string>(StringComparer.Ordinal),
+            selectedTargets: []);
+
+        var tributeEffectSpec = RuntimeEffectSpecResolver.Resolve(context, RuntimeEffects.Tribute);
+        if (tributeEffectSpec is null)
+        {
+            return (false, "Summon requirements are not currently satisfiable.");
+        }
+
+        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, tributeEffectSpec, includeValidTargets: true);
+        if (!canExecuteResult.CanExecute)
+        {
+            return (false, canExecuteResult.FailedConditions.FirstOrDefault() ?? "Summon requirements are not currently satisfiable.");
+        }
+
+        if (canExecuteResult.ValidTargets.Count == 0)
+        {
+            return (false, "No valid tribute targets available.");
+        }
+
+        return (true, string.Empty);
     }
 
     private static bool CanDeclareBattleAction(CardInstance card, GameState state)

@@ -1,26 +1,43 @@
 import { expect } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
 import type { GameStateResponse, LoginResponse } from './types'
+import type { MultiplayerSeedPlayerProfile, MultiplayerSeedProfileName } from './types'
 
 export const API_BASE_URL = 'http://127.0.0.1:3101'
 
-const SEEDED_PLAYER_ONE = {
+const DEFAULT_PLAYER_ONE: MultiplayerSeedPlayerProfile = {
   id: '20000000-0000-0000-0000-000000000001',
   email: 'test-user-1@hiddenvillage.local',
   password: 'TestUser1!',
   deckId: '10000000-0000-0000-0000-000000000001',
 }
 
-const SEEDED_PLAYER_TWO = {
+const DEFAULT_PLAYER_TWO: MultiplayerSeedPlayerProfile = {
   id: '20000000-0000-0000-0000-000000000002',
   email: 'test-user-2@hiddenvillage.local',
   password: 'TestUser2!',
   deckId: '10000000-0000-0000-0000-000000000002',
 }
 
-export const SEEDED_PLAYERS = {
-  one: SEEDED_PLAYER_ONE,
-  two: SEEDED_PLAYER_TWO,
+const SUMMON_REQUIREMENTS_PLAYER_ONE: MultiplayerSeedPlayerProfile = {
+  ...DEFAULT_PLAYER_ONE,
+  deckId: '10000000-0000-0000-0000-000000000101',
+}
+
+const SUMMON_REQUIREMENTS_PLAYER_TWO: MultiplayerSeedPlayerProfile = {
+  ...DEFAULT_PLAYER_TWO,
+  deckId: '10000000-0000-0000-0000-000000000102',
+}
+
+export const SEEDED_PLAYER_PROFILES: Record<MultiplayerSeedProfileName, { one: MultiplayerSeedPlayerProfile; two: MultiplayerSeedPlayerProfile }> = {
+  default: {
+    one: DEFAULT_PLAYER_ONE,
+    two: DEFAULT_PLAYER_TWO,
+  },
+  'summon-requirements': {
+    one: SUMMON_REQUIREMENTS_PLAYER_ONE,
+    two: SUMMON_REQUIREMENTS_PLAYER_TWO,
+  },
 }
 
 export async function login(request: APIRequestContext, email: string, password: string): Promise<LoginResponse> {
