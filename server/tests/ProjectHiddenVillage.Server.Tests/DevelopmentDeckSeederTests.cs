@@ -41,9 +41,16 @@ public sealed class DevelopmentDeckSeederTests
             .AsNoTracking()
             .SingleAsync(entry => entry.CardId == "N-008");
 
+        var n015Catalog = await dbContext.CardCatalogEntries
+            .AsNoTracking()
+            .SingleAsync(entry => entry.CardId == "N-015");
+
         Assert.AreEqual(CardType.Character, n008Catalog.Type);
         Assert.IsFalse(string.IsNullOrWhiteSpace(n008Catalog.SupportName));
         Assert.IsFalse(string.IsNullOrWhiteSpace(n008Catalog.SupportEffect));
+        Assert.AreEqual(CardType.Character, n015Catalog.Type);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(n015Catalog.SupportName));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(n015Catalog.SupportEffect));
 
         var seededDeckOne = await dbContext.Decks
             .AsNoTracking()

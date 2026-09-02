@@ -15,7 +15,8 @@ public sealed class DevelopmentDeckSeeder
     // when development placeholder entries are used.
     private static readonly HashSet<string> PlaceholderSupportCapableCardIds =
     [
-        "N-008"
+        "N-008",
+        "N-015"
     ];
 
     private static readonly Guid SeedDeckOneId = Guid.Parse("10000000-0000-0000-0000-000000000001");
@@ -177,9 +178,14 @@ public sealed class DevelopmentDeckSeeder
             existingDeck.Type = seedDeck.Type;
             existingDeck.UserId = null;
 
-            await dbContext.DeckCards
+            var existingDeckCards = await dbContext.DeckCards
                 .Where(deckCard => deckCard.DeckId == existingDeck.Id)
-                .ExecuteDeleteAsync(cancellationToken);
+                .ToListAsync(cancellationToken);
+
+            if (existingDeckCards.Count > 0)
+            {
+                dbContext.DeckCards.RemoveRange(existingDeckCards);
+            }
 
             dbContext.DeckCards.AddRange(normalizedCards.Select(card => new DeckCard
             {

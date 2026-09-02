@@ -8,6 +8,12 @@ public sealed class GameInstanceService(
     InMemoryGameInstanceRegistry registry,
     IGameReadService gameReadService) : IGameInstanceService
 {
+    private static readonly HashSet<Guid> DevelopmentSeedDeckIds =
+    [
+        Guid.Parse("10000000-0000-0000-0000-000000000001"),
+        Guid.Parse("10000000-0000-0000-0000-000000000002")
+    ];
+
     public Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request)
     {
         return CreateGameForUser(request, preferredGameCode: null);
@@ -27,7 +33,9 @@ public sealed class GameInstanceService(
 
         try
         {
-            return registry.Create([playerDeck.Player], playerDeck.CardDefinitions, preferredGameCode);
+            var gameInstance = registry.Create([playerDeck.Player], playerDeck.CardDefinitions, preferredGameCode);
+            EnsureSupportCardIsInOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId);
+            return gameInstance;
         }
         catch (ArgumentException ex)
         {
@@ -83,7 +91,9 @@ public sealed class GameInstanceService(
         var playerDeck = playerDeckResult.Value;
         try
         {
-            return registry.Join(normalizedGameCode, playerDeck.Player, playerDeck.CardDefinitions);
+            var gameInstance = registry.Join(normalizedGameCode, playerDeck.Player, playerDeck.CardDefinitions);
+            EnsureSupportCardIsInOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId.Value);
+            return gameInstance;
         }
         catch (KeyNotFoundException ex)
         {
@@ -102,5 +112,47 @@ public sealed class GameInstanceService(
     private static bool HasStoredDeck(PlayerState playerState)
     {
         return playerState.Deck.Any(card => !string.IsNullOrWhiteSpace(card.CardDefinitionId));
+    }
+
+    private static void EnsureSupportCardIsInOpeningDrawWindow(GameInstance gameInstance, string playerId, Guid deckId)
+    {
+        if (!DevelopmentSeedDeckIds.Contains(deckId))
+        {
+            return;
+        }
+
+        var playerState = gameInstance.State.Players
+            .SingleOrDefault(player => string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
+
+        if (playerState is null || playerState.Deck.Count == 0)
+        {
+            return;
+        }
+
+        var supportCardIndex = playerState.Deck.FindIndex(card => IsSupportCapableCard(gameInstance, card.CardDefinitionId));
+        if (supportCardIndex <= 0)
+        {
+            return;
+        }
+
+        var supportCard = playerState.Deck[supportCardIndex];
+        playerState.Deck.RemoveAt(supportCardIndex);
+        playerState.Deck.Insert(0, supportCard);
+    }
+
+    private static bool IsSupportCapableCard(GameInstance gameInstance, string cardDefinitionId)
+    {
+        if (!gameInstance.State.CardDefinitions.TryGetValue(cardDefinitionId, out var cardDefinition))
+        {
+            return false;
+        }
+
+        if (cardDefinition is not CharacterCard characterCard)
+        {
+            return false;
+        }
+
+        return !string.IsNullOrWhiteSpace(characterCard.SupportName)
+            || !string.IsNullOrWhiteSpace(characterCard.SupportEffect);
     }
 }
