@@ -34,6 +34,7 @@ export type IDragPointerState = {
   pointerId: number
   cardInstanceId: string
   start: IPointerStartSnapshot
+  wasOverInteractiveTarget: boolean
 }
 
 export type IElementStyleSnapshot = {

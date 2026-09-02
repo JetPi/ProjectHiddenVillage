@@ -124,6 +124,7 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
   const hasSeenValidReorderTargetRef = useRef(false)
   const bodyUserSelectRef = useRef<string | null>(null)
   const bodyCursorRef = useRef<string | null>(null)
+  const suppressClickAfterDragRef = useRef(false)
 
   useEffect(() => {
     latestCardsRef.current = cards
@@ -268,11 +269,39 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
     finalizeDrag(pointerId)
   }, [finalizeDrag])
 
-  const handlePointerDown = useCallback((cardInstanceId: string, event: ReactPointerEvent<HTMLDivElement>) => {
-    if (hasInteractiveTarget(event.target)) {
-      return
+  // After a real drag ends, the browser may synthesize a click at the release point
+  // (for example over the same card action button the drag started on). Suppress that
+  // one click so releasing a reorder drag cannot accidentally trigger card controls.
+  const armClickSuppression = useCallback(() => {
+    suppressClickAfterDragRef.current = true
+    window.setTimeout(() => {
+      suppressClickAfterDragRef.current = false
+    }, 0)
+  }, [])
+
+  useEffect(() => {
+    function handleWindowClickCapture(event: MouseEvent): void {
+      if (event.detail === 0) {
+        // Keyboard/assistive-tech activation is not a drag-release click.
+        return
+      }
+
+      if (!suppressClickAfterDragRef.current) {
+        return
+      }
+
+      suppressClickAfterDragRef.current = false
+      event.preventDefault()
+      event.stopPropagation()
     }
 
+    window.addEventListener('click', handleWindowClickCapture, true)
+    return () => {
+      window.removeEventListener('click', handleWindowClickCapture, true)
+    }
+  }, [])
+
+  const handlePointerDown = useCallback((cardInstanceId: string, event: ReactPointerEvent<HTMLDivElement>) => {
     if (cards.length <= 1) {
       return
     }
@@ -283,12 +312,20 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
       pointerId: event.pointerId,
       cardInstanceId,
       start: { x: event.clientX, y: event.clientY },
+      wasOverInteractiveTarget: hasInteractiveTarget(event.target),
     }
 
     pendingDragRef.current = nextPendingState
 
-    if (event.pointerType === MOUSE_POINTER_TYPE) {
+    if (event.pointerType === MOUSE_POINTER_TYPE && !nextPendingState.wasOverInteractiveTarget) {
       activateDrag(nextPendingState)
+      return
+    }
+
+    if (nextPendingState.wasOverInteractiveTarget) {
+      // The pointer went down on an interactive control (e.g. a card action button that
+      // the hover overlay exposes). Simple clicks must still activate the control, so the
+      // reorder drag is deferred until the pointer moves beyond the drag-intent tolerance.
       return
     }
 
@@ -303,7 +340,13 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
     if (pendingState && pendingState.pointerId === pointerId) {
       const deltaX = clientX - pendingState.start.x
       const deltaY = clientY - pendingState.start.y
-      if (Math.hypot(deltaX, deltaY) > startMovementTolerancePx) {
+      const movedBeyondTolerance = Math.hypot(deltaX, deltaY) > startMovementTolerancePx
+
+      if (movedBeyondTolerance && pendingState.wasOverInteractiveTarget) {
+        // Drag started on an interactive control; activation was deferred until the pointer
+        // moved far enough to express a drag intent instead of a plain click on that control.
+        activateDrag(pendingState)
+      } else if (movedBeyondTolerance) {
         clearPendingState()
       }
     }
@@ -353,7 +396,7 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
       nextOrder.splice(boundedToIndex, 0, movedId)
       return nextOrder
     })
-  }, [clearPendingState, displayOrder, rowRef, startMovementTolerancePx])
+  }, [activateDrag, clearPendingState, displayOrder, rowRef, startMovementTolerancePx])
 
   const handlePointerUp = useCallback((pointerId: number, clientX: number, clientY: number) => {
     if (pendingDragRef.current?.pointerId === pointerId) {
@@ -370,11 +413,12 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
         finalizeInvalidDrop(pointerId, activeDragState)
       }
 
+      armClickSuppression()
       return
     }
 
     finalizeDrag(pointerId)
-  }, [clearPendingState, finalizeDrag, finalizeInvalidDrop, finalizeValidDrop, rowRef])
+  }, [armClickSuppression, clearPendingState, finalizeDrag, finalizeInvalidDrop, finalizeValidDrop, rowRef])
 
   const handlePointerCancel = useCallback((pointerId: number) => {
     if (pendingDragRef.current?.pointerId === pointerId) {
@@ -384,11 +428,12 @@ export function useLongPressHandReorder<TCard extends IHandReorderCard>({
     const activeDragState = dragPointerRef.current
     if (activeDragState && activeDragState.pointerId === pointerId) {
       finalizeInvalidDrop(pointerId, activeDragState)
+      armClickSuppression()
       return
     }
 
     finalizeDrag(pointerId)
-  }, [clearPendingState, finalizeDrag, finalizeInvalidDrop])
+  }, [armClickSuppression, clearPendingState, finalizeDrag, finalizeInvalidDrop])
 
   useEffect(() => {
     function handleWindowPointerMove(event: PointerEvent): void {
