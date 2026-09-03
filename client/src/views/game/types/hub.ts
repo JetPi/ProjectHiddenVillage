@@ -49,4 +49,5 @@ export type IUseGameHubStateResult = {
   getCardActionTargets: (
     request: Omit<IGameCardActionTargetsRequest, 'playerId'>,
   ) => Promise<IGameCardActionTargetsResponse | null>
+  refreshGameState: () => Promise<boolean>
 }

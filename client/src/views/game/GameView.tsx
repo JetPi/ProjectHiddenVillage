@@ -152,6 +152,7 @@ export function GameView() {
     actionError,
     submitHubIntent,
     getCardActionTargets,
+    refreshGameState,
   } = useGameHubState(joinCode, initialGameState, authUserId)
 
   useEffect(() => {
@@ -355,6 +356,59 @@ export function GameView() {
     && gameState.phase === 'MainPhase'
     && gameState.activePlayerId.trim().toLowerCase() === authUserId?.trim().toLowerCase()
     && !gameState.pendingPrompt
+
+  // When it is our Main Phase and the hub is connected, the per-card options
+  // (Summon / Set Support, Leader effects) are part of the mapped game state. If
+  // the board is showing a state where we are active but every hand card/leader
+  // has no options, that state is stale (the hub update announcing our Main Phase
+  // was missed). Re-request the current state so the options appear without a
+  // manual reload.
+  const isMissingActiveMainPhaseOptions =
+    Boolean(authUserId)
+    && isConnected
+    && !isActionPendingFlag
+    && !hasPendingPromptFlag
+    && gameState.phase === 'MainPhase'
+    && normalizePlayerId(gameState.activePlayerId) === normalizePlayerId(authUserId)
+    && bottomHandCards.length > 0
+    && bottomHandCards.every((card) => (card.availableActions ?? []).length === 0)
+    && !(bottomLeaderCard?.availableActions && bottomLeaderCard.availableActions.length > 0)
+
+  const missingOptionsRefreshAttemptsRef = useRef<Record<string, number>>({})
+  const isMissingOptionsRefreshInFlightRef = useRef(false)
+
+  useEffect(() => {
+    if (!isMissingActiveMainPhaseOptions) {
+      return
+    }
+
+    const snapshotKey = `${gameState.turnNumber}:${gameState.phase}`
+    const attempts = missingOptionsRefreshAttemptsRef.current[snapshotKey] ?? 0
+    if (attempts >= 3 || isMissingOptionsRefreshInFlightRef.current) {
+      return
+    }
+
+    missingOptionsRefreshAttemptsRef.current[snapshotKey] = attempts + 1
+    isMissingOptionsRefreshInFlightRef.current = true
+
+    void refreshGameState()
+      .catch(() => {
+        // Best effort only; a later hub event will refresh the state again.
+      })
+      .finally(() => {
+        isMissingOptionsRefreshInFlightRef.current = false
+      })
+  }, [
+    bottomHandCards,
+    bottomLeaderCard,
+    gameState.phase,
+    gameState.turnNumber,
+    hasPendingPromptFlag,
+    isActionPendingFlag,
+    isConnected,
+    isMissingActiveMainPhaseOptions,
+    refreshGameState,
+  ])
 
   const passLikeAction = useMemo(
     () => mappedAvailableActions.find((action) =>

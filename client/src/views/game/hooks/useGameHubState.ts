@@ -413,6 +413,16 @@ function useGameHubState(
     [authUserId, gameId, setActionError],
   )
 
+  const refreshGameState = useCallback(async (): Promise<boolean> => {
+    const currentConnection = connectionRef.current
+    if (!currentConnection || currentConnection.state !== HubConnectionState.Connected) {
+      return false
+    }
+
+    await refreshCurrentGameState(currentConnection)
+    return true
+  }, [refreshCurrentGameState])
+
   return useMemo(
     () => ({
       gameState,
@@ -422,6 +432,7 @@ function useGameHubState(
       actionError,
       submitHubIntent,
       getCardActionTargets: getCardActionTargetsForRequest,
+      refreshGameState,
     }),
     [
       actionError,
@@ -430,6 +441,7 @@ function useGameHubState(
       getCardActionTargetsForRequest,
       isActionPending,
       isConnected,
+      refreshGameState,
       submitHubIntent,
     ],
   )
