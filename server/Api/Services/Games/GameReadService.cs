@@ -24,11 +24,6 @@ public sealed class GamesReadService(
 
         if (registry.TryGet(normalizedGameCode, out var runtimeGame) && runtimeGame is not null)
         {
-            // Use the runtime game's full set of card definitions rather than only the
-            // cards that are still in each player's deck. Cards are moved out of the deck
-            // every time a hand is drawn, a mulligan is taken, or a card is summoned/played,
-            // so restricting the catalog to the current deck would make the board stop
-            // resolving those cards after a page reload (missing images/actions).
             var runtimeCardIds = runtimeGame.State.CardDefinitions.Keys
                 .Select(cardId => cardId?.Trim())
                 .Where(cardId => !string.IsNullOrWhiteSpace(cardId))

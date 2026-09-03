@@ -129,10 +129,6 @@ function useGameHubState(
       }
 
       try {
-        // SignalR does not restore server-side group membership automatically when a
-        // connection reconnects. Without re-subscribing (and refreshing the current
-        // game state) the board would silently stop receiving GameStateInvalidated
-        // events, so per-card options would only appear again after a page reload.
         await subscribeToGame(nextConnection, gameId)
         if (isDisposed) {
           return
@@ -246,12 +242,6 @@ function useGameHubState(
       connectionRef.current = null
 
       void (async () => {
-        // In development, React StrictMode mounts effects twice: the first cleanup
-        // runs while this connection's start() is still negotiating. Calling stop()
-        // at that moment aborts the negotiation ("The connection was stopped during
-        // negotiation") and can leave the page detached from game broadcasts until a
-        // reload. Wait for the connection to finish starting (or fail) first so the
-        // teardown is clean and never races an in-flight start.
         const settleDeadlineMs = Date.now() + 2_000
         while (nextConnection.state === HubConnectionState.Connecting && Date.now() < settleDeadlineMs) {
           await new Promise<void>((resolve) => {

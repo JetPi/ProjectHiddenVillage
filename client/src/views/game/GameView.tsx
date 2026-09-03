@@ -357,12 +357,6 @@ export function GameView() {
     && gameState.activePlayerId.trim().toLowerCase() === authUserId?.trim().toLowerCase()
     && !gameState.pendingPrompt
 
-  // When it is our Main Phase and the hub is connected, the per-card options
-  // (Summon / Set Support, Leader effects) are part of the mapped game state. If
-  // the board is showing a state where we are active but every hand card/leader
-  // has no options, that state is stale (the hub update announcing our Main Phase
-  // was missed). Re-request the current state so the options appear without a
-  // manual reload.
   const isMissingActiveMainPhaseOptions =
     Boolean(authUserId)
     && isConnected
