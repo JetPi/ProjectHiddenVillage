@@ -339,14 +339,6 @@ export function GameView() {
 
   useCardCatalogPreload(liveGameCards)
 
-  useEffect(() => {
-    if (!import.meta.env.DEV) {
-      return
-    }
-
-    console.log('[GameView] Received gameState update', gameState)
-  }, [gameState])
-
   const promptPresentation = toPromptPresentation(gameState.pendingPrompt)
   const shouldShowPromptOverlay =
     promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
@@ -363,23 +355,6 @@ export function GameView() {
     && gameState.phase === 'MainPhase'
     && gameState.activePlayerId.trim().toLowerCase() === authUserId?.trim().toLowerCase()
     && !gameState.pendingPrompt
-
-  useEffect(() => {
-    if (!import.meta.env.DEV) {
-      return
-    }
-  }, [
-    authUserId,
-    bottomLeaderCard,
-    derivedGameState.currentPlayer?.characterField,
-    gameState.activePlayerId,
-    gameState.gameId,
-    gameState.phase,
-    gameState.players,
-    gameState.priorityPlayerId,
-    gameState.turnNumber,
-    mappedAvailableActions,
-  ])
 
   const passLikeAction = useMemo(
     () => mappedAvailableActions.find((action) =>
