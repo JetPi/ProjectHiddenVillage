@@ -224,6 +224,70 @@ public sealed class GamesServiceGetCardsForGameTests
         Assert.AreEqual("Game.NotFound", result.FirstError.Code);
     }
 
+    [TestMethod]
+    public async Task GetCardsForGame_ReturnsRuntimeCardIds_WhenCardsMovedOutOfDeck()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var cardA = CreateCatalogEntry("RUNTIME-A-001", "Runtime Card A");
+        var cardB = CreateCatalogEntry("RUNTIME-B-001", "Runtime Card B");
+        dbContext.CardCatalogEntries.AddRange(cardA, cardB);
+        await dbContext.SaveChangesAsync();
+
+        var registry = CreateRegistry();
+
+        var runtimeGame = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["RUNTIME-A-001", "RUNTIME-B-001"] }
+            ],
+            cardDefinitions: new Dictionary<string, Card>(StringComparer.Ordinal)
+            {
+                ["RUNTIME-A-001"] = new Card
+                {
+                    Id = "RUNTIME-A-001",
+                    DisplayName = "Runtime Card A",
+                    Name = ["Runtime Card A"],
+                    Type = CardType.Character
+                },
+                ["RUNTIME-B-001"] = new Card
+                {
+                    Id = "RUNTIME-B-001",
+                    DisplayName = "Runtime Card B",
+                    Name = ["Runtime Card B"],
+                    Type = CardType.Character
+                }
+            },
+            preferredGameCode: "Cd123");
+
+        var player = runtimeGame.State.Players.Single(entry => entry.PlayerId == "p1");
+        Assert.AreEqual(2, player.Deck.Count);
+
+        var movedToHand = player.Deck[0];
+        player.Deck.RemoveAt(0);
+        player.Hand.Add(movedToHand);
+
+        var movedToBattlefield = player.Deck[0];
+        player.Deck.RemoveAt(0);
+        player.Battlefield.Add(movedToBattlefield);
+
+        Assert.AreEqual(0, player.Deck.Count);
+
+        var service = new GamesReadService(
+            registry,
+            new CardMappingService(dbContext),
+            dbContext,
+            new GameRuntimeDeckService(new GameEffectHandlingService()));
+
+        var result = await service.GetCardDataForGame(runtimeGame.Id);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(2, result.Value.Count);
+        CollectionAssert.AreEquivalent(
+            new[] { "RUNTIME-A-001", "RUNTIME-B-001" },
+            result.Value.Select(card => card.Id).ToArray());
+    }
+
     private static InMemoryGameInstanceRegistry CreateRegistry()
     {
         return new InMemoryGameInstanceRegistry(

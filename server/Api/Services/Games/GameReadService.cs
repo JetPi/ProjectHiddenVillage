@@ -24,15 +24,12 @@ public sealed class GamesReadService(
 
         if (registry.TryGet(normalizedGameCode, out var runtimeGame) && runtimeGame is not null)
         {
-            var runtimeCardIds = runtimeGame.State.Players
-                .SelectMany(player =>
-                    player.Deck
-                        .Select(card => card.CardDefinitionId)
-                        .Append(player.LeaderCardInstance?.CardDefinitionId))
+            var runtimeCardIds = runtimeGame.State.CardDefinitions.Keys
                 .Select(cardId => cardId?.Trim())
                 .Where(cardId => !string.IsNullOrWhiteSpace(cardId))
                 .Cast<string>()
                 .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(cardId => cardId, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             if (runtimeCardIds.Count == 0)

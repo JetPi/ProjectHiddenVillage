@@ -152,6 +152,7 @@ export function GameView() {
     actionError,
     submitHubIntent,
     getCardActionTargets,
+    refreshGameState,
   } = useGameHubState(joinCode, initialGameState, authUserId)
 
   useEffect(() => {
@@ -339,14 +340,6 @@ export function GameView() {
 
   useCardCatalogPreload(liveGameCards)
 
-  useEffect(() => {
-    if (!import.meta.env.DEV) {
-      return
-    }
-
-    console.log('[GameView] Received gameState update', gameState)
-  }, [gameState])
-
   const promptPresentation = toPromptPresentation(gameState.pendingPrompt)
   const shouldShowPromptOverlay =
     promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
@@ -364,21 +357,51 @@ export function GameView() {
     && gameState.activePlayerId.trim().toLowerCase() === authUserId?.trim().toLowerCase()
     && !gameState.pendingPrompt
 
+  const isMissingActiveMainPhaseOptions =
+    Boolean(authUserId)
+    && isConnected
+    && !isActionPendingFlag
+    && !hasPendingPromptFlag
+    && gameState.phase === 'MainPhase'
+    && normalizePlayerId(gameState.activePlayerId) === normalizePlayerId(authUserId)
+    && bottomHandCards.length > 0
+    && bottomHandCards.every((card) => (card.availableActions ?? []).length === 0)
+    && !(bottomLeaderCard?.availableActions && bottomLeaderCard.availableActions.length > 0)
+
+  const missingOptionsRefreshAttemptsRef = useRef<Record<string, number>>({})
+  const isMissingOptionsRefreshInFlightRef = useRef(false)
+
   useEffect(() => {
-    if (!import.meta.env.DEV) {
+    if (!isMissingActiveMainPhaseOptions) {
       return
     }
+
+    const snapshotKey = `${gameState.turnNumber}:${gameState.phase}`
+    const attempts = missingOptionsRefreshAttemptsRef.current[snapshotKey] ?? 0
+    if (attempts >= 3 || isMissingOptionsRefreshInFlightRef.current) {
+      return
+    }
+
+    missingOptionsRefreshAttemptsRef.current[snapshotKey] = attempts + 1
+    isMissingOptionsRefreshInFlightRef.current = true
+
+    void refreshGameState()
+      .catch(() => {
+        // Best effort only; a later hub event will refresh the state again.
+      })
+      .finally(() => {
+        isMissingOptionsRefreshInFlightRef.current = false
+      })
   }, [
-    authUserId,
+    bottomHandCards,
     bottomLeaderCard,
-    derivedGameState.currentPlayer?.characterField,
-    gameState.activePlayerId,
-    gameState.gameId,
     gameState.phase,
-    gameState.players,
-    gameState.priorityPlayerId,
     gameState.turnNumber,
-    mappedAvailableActions,
+    hasPendingPromptFlag,
+    isActionPendingFlag,
+    isConnected,
+    isMissingActiveMainPhaseOptions,
+    refreshGameState,
   ])
 
   const passLikeAction = useMemo(

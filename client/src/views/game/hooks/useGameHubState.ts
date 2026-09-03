@@ -24,6 +24,9 @@ import type { IGameCardActionTargetsResponse } from '@/services/api/types/gameHu
 import { useGameHubStore } from '@/state/gameHubStore'
 import type { ISubmitHubIntentRequest, IUseGameHubStateResult } from '@/views/game/types/hub'
 
+const HUB_CONNECT_MAX_ATTEMPTS = 3
+const HUB_CONNECT_RETRY_DELAY_MS = 600
+
 function resolveHubErrorMessage(result: IHubOperationResult<IGameStateResponse>): string {
   if (result.errorDescription) {
     return result.errorDescription
@@ -120,46 +123,110 @@ function useGameHubState(
     let disposeInvalidationHandler = () => {}
     let disposeParticipantJoinedHandler = () => {}
 
-    async function connectAndSubscribe(): Promise<void> {
-      try {
-        await connectGameHub(nextConnection)
-        if (isDisposed) {
-          return
-        }
+    const handleReconnected = async (): Promise<void> => {
+      if (isDisposed) {
+        return
+      }
 
+      try {
         await subscribeToGame(nextConnection, gameId)
         if (isDisposed) {
           return
         }
-
-        disposeInvalidationHandler = onGameStateInvalidated(nextConnection, (updatedGameId) => {
-          if (updatedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
-            return
-          }
-
-          void refreshCurrentGameState(nextConnection)
-        })
-
-        disposeParticipantJoinedHandler = onGameParticipantJoined(nextConnection, (updatedGameId) => {
-          if (updatedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
-            return
-          }
-
-          void refreshCurrentGameState(nextConnection)
-        })
 
         await refreshCurrentGameState(nextConnection)
         if (isDisposed) {
           return
         }
 
+        setConnectionError(null)
         setConnected(nextConnection.state === HubConnectionState.Connected)
       } catch (error) {
         if (isDisposed) {
           return
         }
 
-        const message = error instanceof Error ? error.message : 'Unable to connect to game hub.'
+        const message = error instanceof Error ? error.message : 'Reconnected to the game hub, but resubscribing failed.'
+        setConnectionError(message)
+        setConnected(false)
+      }
+    }
+
+    nextConnection.onreconnecting(() => {
+      if (!isDisposed) {
+        setConnected(false)
+      }
+    })
+    nextConnection.onreconnected(handleReconnected)
+    nextConnection.onclose(() => {
+      if (!isDisposed) {
+        setConnected(false)
+      }
+    })
+
+    async function connectAndSubscribe(): Promise<void> {
+      let lastError: unknown
+
+      for (let attempt = 0; attempt < HUB_CONNECT_MAX_ATTEMPTS; attempt += 1) {
+        if (isDisposed) {
+          return
+        }
+
+        try {
+          await connectGameHub(nextConnection)
+          if (isDisposed) {
+            return
+          }
+
+          await subscribeToGame(nextConnection, gameId)
+          if (isDisposed) {
+            return
+          }
+
+          disposeInvalidationHandler = onGameStateInvalidated(nextConnection, (updatedGameId) => {
+            if (updatedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
+              return
+            }
+
+            void refreshCurrentGameState(nextConnection)
+          })
+
+          disposeParticipantJoinedHandler = onGameParticipantJoined(nextConnection, (updatedGameId) => {
+            if (updatedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
+              return
+            }
+
+            void refreshCurrentGameState(nextConnection)
+          })
+
+          await refreshCurrentGameState(nextConnection)
+          if (isDisposed) {
+            return
+          }
+
+          setConnected(nextConnection.state === HubConnectionState.Connected)
+          return
+        } catch (error) {
+          lastError = error
+
+          if (isDisposed) {
+            return
+          }
+
+          if (nextConnection.state === HubConnectionState.Connected) {
+            return
+          }
+
+          if (attempt < HUB_CONNECT_MAX_ATTEMPTS - 1) {
+            await new Promise<void>((resolve) => {
+              window.setTimeout(resolve, HUB_CONNECT_RETRY_DELAY_MS)
+            })
+          }
+        }
+      }
+
+      if (!isDisposed) {
+        const message = lastError instanceof Error ? lastError.message : 'Unable to connect to game hub.'
         setConnectionError(message)
         setConnected(false)
       }
@@ -175,6 +242,13 @@ function useGameHubState(
       connectionRef.current = null
 
       void (async () => {
+        const settleDeadlineMs = Date.now() + 2_000
+        while (nextConnection.state === HubConnectionState.Connecting && Date.now() < settleDeadlineMs) {
+          await new Promise<void>((resolve) => {
+            window.setTimeout(resolve, 150)
+          })
+        }
+
         try {
           await unsubscribeFromGame(nextConnection, gameId)
         } catch {
@@ -329,6 +403,16 @@ function useGameHubState(
     [authUserId, gameId, setActionError],
   )
 
+  const refreshGameState = useCallback(async (): Promise<boolean> => {
+    const currentConnection = connectionRef.current
+    if (!currentConnection || currentConnection.state !== HubConnectionState.Connected) {
+      return false
+    }
+
+    await refreshCurrentGameState(currentConnection)
+    return true
+  }, [refreshCurrentGameState])
+
   return useMemo(
     () => ({
       gameState,
@@ -338,6 +422,7 @@ function useGameHubState(
       actionError,
       submitHubIntent,
       getCardActionTargets: getCardActionTargetsForRequest,
+      refreshGameState,
     }),
     [
       actionError,
@@ -346,6 +431,7 @@ function useGameHubState(
       getCardActionTargetsForRequest,
       isActionPending,
       isConnected,
+      refreshGameState,
       submitHubIntent,
     ],
   )

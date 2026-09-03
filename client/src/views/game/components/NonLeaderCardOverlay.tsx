@@ -30,10 +30,6 @@ function NonLeaderCardOverlay({
 
   const hasActions = actionOptions.length > 0
 
-  if(previewCard?.type === 'EX Character'){
-    console.log(actionOptions, previewCard?.type, 'actionOptions')
-  }
-
   return (
     <>
       <div
