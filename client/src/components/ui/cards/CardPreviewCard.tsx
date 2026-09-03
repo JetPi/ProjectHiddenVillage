@@ -20,9 +20,45 @@ export function CardPreviewCard({
     onClose,
 }: ICardPreviewCardProps) {
     const dialogTitleId = useId()
+    const [keywordTooltipState, setKeywordTooltipState] = useState<IKeywordTooltipState>(null)
+
+    useEffect(() => {
+        if (!isOpen) {
+            return
+        }
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onClose()
+            }
+        }
+
+        window.addEventListener('keydown', handleEscape)
+        return () => window.removeEventListener('keydown', handleEscape)
+    }, [isOpen, onClose])
+
+    useEffect(() => {
+        if (!isOpen) {
+            return
+        }
+
+        const previousOverflow = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
+
+        return () => {
+            document.body.style.overflow = previousOverflow
+        }
+    }, [isOpen])
+
+    if (!isOpen) {
+        // Keep the closed-state render as cheap as possible: the card-details modal is
+        // mounted (and thus rendered) for every playable card on the board, so none of
+        // the expensive preview derivation below should run unless the modal is open.
+        return null
+    }
+
     const primaryName = getPrimaryName(card)
     const cardHasLife = card.life !== null
-    const [keywordTooltipState, setKeywordTooltipState] = useState<IKeywordTooltipState>(null)
     const vitalityLabel = cardHasLife ? 'LIFE' : 'HEALTH'
     const vitalityValue = cardHasLife ? (card.life ?? '-') : (card.health ?? '-')
     const descriptionLines = splitDescriptionLines(card.description)
@@ -75,38 +111,6 @@ export function CardPreviewCard({
                   </Fragment>
               ))
             : 'No card description provided yet.'
-
-    useEffect(() => {
-        if (!isOpen) {
-            return
-        }
-
-        const handleEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                onClose()
-            }
-        }
-
-        window.addEventListener('keydown', handleEscape)
-        return () => window.removeEventListener('keydown', handleEscape)
-    }, [isOpen, onClose])
-
-    useEffect(() => {
-        if (!isOpen) {
-            return
-        }
-
-        const previousOverflow = document.body.style.overflow
-        document.body.style.overflow = 'hidden'
-
-        return () => {
-            document.body.style.overflow = previousOverflow
-        }
-    }, [isOpen])
-
-    if (!isOpen) {
-        return null
-    }
 
     return createPortal(
               <div

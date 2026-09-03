@@ -184,3 +184,39 @@ export async function executeBattleActionViaHub(
     await connection.stop()
   }
 }
+
+export async function getCardActionTargetsViaHub(
+  gameCode: string,
+  player: PlayerAuth,
+  actionId: string,
+  sourceCardInstanceId: string,
+): Promise<Array<{ playerId: string; zone: string; cardInstanceId: string }>> {
+  const connection = buildHubConnection(player.session.accessToken, player.userId)
+
+  try {
+    await connection.start()
+
+    const targetsResult = await connection.invoke<{
+      succeeded: boolean
+      value?: {
+        validTargets: Array<{
+          playerId: string
+          zone: string
+          cardInstanceId: string
+        }>
+      }
+      errorCode?: string | null
+      errorDescription?: string | null
+    }>('GetCardActionTargets', gameCode.toUpperCase(), {
+      playerId: player.normalizedUserId,
+      actionId,
+      sourceCardInstanceId,
+    })
+
+    expect(targetsResult.succeeded, `${targetsResult.errorCode ?? 'Hub.GetCardActionTargets'}: ${targetsResult.errorDescription ?? 'Unknown error'}`).toBeTruthy()
+
+    return targetsResult.value?.validTargets ?? []
+  } finally {
+    await connection.stop()
+  }
+}

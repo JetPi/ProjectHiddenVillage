@@ -264,6 +264,64 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
+    public void ToGameStateResponse_DisablesSummonRequirementSummon_WhenTributeRequirementsAreUnsatisfied()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var requesterHandCard = CreateCardInstance("hand-1", "card-tribute-hand", requesterId);
+        var state = BuildState(requesterId, opponentId, handCards: [requesterHandCard]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+
+        var tributeCard = (CharacterCard)state.CardDefinitions["card-tribute-hand"];
+        tributeCard.CannotBeNormalSummoned = true;
+        tributeCard.Conditions = [EffectConditionKeywords.SummonRequirements];
+        tributeCard.Effects =
+        [
+            CreateTributeRequirementEffectSpec("tribute-need-target")
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var summonAction = requester.Hand[0].AvailableActions.Single(action => action.ActionId == "summon-to-field:hand-1");
+
+        Assert.IsFalse(summonAction.IsEnabled);
+        Assert.AreEqual("No valid tribute targets available.", summonAction.DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_EnablesSummonRequirementSummon_WhenTributeRequirementsAreSatisfied()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var requesterHandCard = CreateCardInstance("hand-1", "card-tribute-hand", requesterId);
+        var tributeMaterial = CreateCardInstance("battle-tribute-1", "card-battle", requesterId);
+        var state = BuildState(requesterId, opponentId, handCards: [requesterHandCard], battlefieldCards: [tributeMaterial]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+
+        var tributeCard = (CharacterCard)state.CardDefinitions["card-tribute-hand"];
+        tributeCard.CannotBeNormalSummoned = true;
+        tributeCard.Conditions = [EffectConditionKeywords.SummonRequirements];
+        tributeCard.Effects =
+        [
+            CreateTributeRequirementEffectSpec("tribute-need-target")
+        ];
+
+        var battleCard = (CharacterCard)state.CardDefinitions["card-battle"];
+        battleCard.Name = ["Battle Card"];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var summonAction = requester.Hand[0].AvailableActions.Single(action => action.ActionId == "summon-to-field:hand-1");
+
+        Assert.IsTrue(summonAction.IsEnabled);
+        Assert.IsNull(summonAction.DisabledReason);
+    }
+
+    [TestMethod]
     public void ToGameStateResponse_MapsHandActions_InMainPhase_ForActivePlayer()
     {
         var requesterId = Guid.NewGuid().ToString("N");
@@ -810,6 +868,7 @@ public sealed class GameStateResponseMapperCardActionsTests
                     ]
                 },
                 ["card-hand"] = CreateCharacterDefinition("card-hand", "Hand Card"),
+                ["card-tribute-hand"] = CreateCharacterDefinition("card-tribute-hand", "Tribute Hand Card"),
                 ["card-support"] = CreateCharacterDefinition("card-support", "Support Card"),
                 ["card-support-capable"] = CreateSupportCapableCharacterDefinition("card-support-capable", "Support Capable Card"),
                 ["card-battle"] = CreateCharacterDefinition("card-battle", "Battle Card")
@@ -904,5 +963,31 @@ public sealed class GameStateResponseMapperCardActionsTests
         var card = CreateCharacterDefinition(id, displayName);
         card.SupportEffect = "Deal 1";
         return card;
+    }
+
+    private static EffectSpec CreateTributeRequirementEffectSpec(string effectId)
+    {
+        return new EffectSpec
+        {
+            Id = effectId,
+            EffectType = EffectKind.Activated,
+            Timing = EffectTiming.ActivateMain,
+            RuntimeEffectType = RuntimeEffects.Tribute,
+            TargetRules = new EffectTargetRuleSet
+            {
+                MinimumTargetCount = 1,
+                MaximumTargetCount = 1,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        TributeRole = TributeTargetRole.TributeMaterial,
+                        Restriction = new ZoneCardRestriction(),
+                    }
+                ]
+            }
+        };
     }
 }

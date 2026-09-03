@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProjectHiddenVillage.Server.Data;
@@ -33,7 +35,11 @@ public sealed class DevelopmentDeckSeederTests
             });
         await dbContext.SaveChangesAsync();
 
-        var seeder = new DevelopmentDeckSeeder(dbContext, NullLogger<DevelopmentDeckSeeder>.Instance);
+        var environment = new TestWebHostEnvironment
+        {
+            ContentRootPath = ResolveServerProjectRootPath(),
+        };
+        var seeder = new DevelopmentDeckSeeder(dbContext, NullLogger<DevelopmentDeckSeeder>.Instance, environment);
 
         await seeder.SeedAsync();
 
@@ -77,5 +83,31 @@ public sealed class DevelopmentDeckSeederTests
             .Options;
 
         return new ApplicationDbContext(options);
+    }
+
+    private static string ResolveServerProjectRootPath()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "ProjectHiddenVillage.Server.csproj")))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new InvalidOperationException("Unable to locate server project root containing ProjectHiddenVillage.Server.csproj.");
+    }
+
+    private sealed class TestWebHostEnvironment : IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = string.Empty;
+        public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
+        public string WebRootPath { get; set; } = string.Empty;
+        public string EnvironmentName { get; set; } = "Development";
+        public string ContentRootPath { get; set; } = string.Empty;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

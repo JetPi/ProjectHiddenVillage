@@ -18,7 +18,12 @@ public sealed class TributeSummonCardEffectTests
             canExecuteEvaluator: new StubCanExecuteEvaluator(),
             targetResolver: new StubTargetResolver());
 
-        var result = effect.Execute(context, [new GameEffectTargetReference("p1", PlayerZone.CharacterField, "ninja-a-inst")]);
+        var result = effect.Execute(
+            context,
+            [
+                new GameEffectTargetReference("p1", PlayerZone.CharacterField, "ninja-a-inst"),
+                new GameEffectTargetReference("p1", PlayerZone.CharacterField, "source-inst"),
+            ]);
 
         Assert.IsTrue(result.IsError);
         Assert.AreEqual("Game.Effect.TributeSummon.InvalidTargetComposition", result.FirstError.Code);

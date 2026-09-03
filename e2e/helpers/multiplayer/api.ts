@@ -1,27 +1,55 @@
 import { expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import type { APIRequestContext } from '@playwright/test'
 import type { GameStateResponse, LoginResponse } from './types'
+import type { MultiplayerSeedPlayerProfile, MultiplayerSeedProfileName } from './types'
 
 export const API_BASE_URL = 'http://127.0.0.1:3101'
 
-const SEEDED_PLAYER_ONE = {
+type SeedManifest = {
+  profiles: Array<{
+    name: MultiplayerSeedProfileName
+    decks: {
+      one: { deckId: string }
+      two: { deckId: string }
+    }
+  }>
+}
+
+const BASE_PLAYER_ONE = {
   id: '20000000-0000-0000-0000-000000000001',
   email: 'test-user-1@hiddenvillage.local',
   password: 'TestUser1!',
-  deckId: '10000000-0000-0000-0000-000000000001',
 }
 
-const SEEDED_PLAYER_TWO = {
+const BASE_PLAYER_TWO = {
   id: '20000000-0000-0000-0000-000000000002',
   email: 'test-user-2@hiddenvillage.local',
   password: 'TestUser2!',
-  deckId: '10000000-0000-0000-0000-000000000002',
 }
 
-export const SEEDED_PLAYERS = {
-  one: SEEDED_PLAYER_ONE,
-  two: SEEDED_PLAYER_TWO,
+function loadSeedProfiles(): Record<MultiplayerSeedProfileName, { one: MultiplayerSeedPlayerProfile; two: MultiplayerSeedPlayerProfile }> {
+  const manifestPath = resolve(process.cwd(), 'test-data/seed-profiles.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8')) as SeedManifest
+
+  return manifest.profiles.reduce((profiles, profile) => {
+    profiles[profile.name] = {
+      one: {
+        ...BASE_PLAYER_ONE,
+        deckId: profile.decks.one.deckId,
+      },
+      two: {
+        ...BASE_PLAYER_TWO,
+        deckId: profile.decks.two.deckId,
+      },
+    }
+
+    return profiles
+  }, {} as Record<MultiplayerSeedProfileName, { one: MultiplayerSeedPlayerProfile; two: MultiplayerSeedPlayerProfile }>)
 }
+
+export const SEEDED_PLAYER_PROFILES = loadSeedProfiles()
 
 export async function login(request: APIRequestContext, email: string, password: string): Promise<LoginResponse> {
   const maxAttempts = 20

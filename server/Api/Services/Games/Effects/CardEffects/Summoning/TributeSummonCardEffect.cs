@@ -33,7 +33,35 @@ public sealed class TributeSummonCardEffect(
             };
         }
 
-        return canExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+        var hasTributeComposition = effectSpec.TargetRules.TributeComposition is not null;
+
+        // The summon candidate is never part of the tribute material selection, so tribute
+        // compositions bypass the generic available-target count check and are gated by the
+        // distinct material assignment solver instead.
+        var canExecuteResult = canExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: !hasTributeComposition);
+        if (!canExecuteResult.CanExecute)
+        {
+            return canExecuteResult;
+        }
+
+        if (hasTributeComposition)
+        {
+            var materialTargets = targetResolver.ResolveTargets(context, effectSpec);
+            if (!TributeTargetCompositionValidator.TryValidateMaterialAvailability(
+                    context,
+                    effectSpec,
+                    materialTargets,
+                    out var materialAvailabilityError))
+            {
+                return new CanExecuteResult
+                {
+                    CanExecute = false,
+                    FailedConditions = [materialAvailabilityError],
+                };
+            }
+        }
+
+        return canExecuteResult;
     }
 
     public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)

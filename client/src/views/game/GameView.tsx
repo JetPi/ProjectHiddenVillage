@@ -13,14 +13,14 @@ import type { IGameLoaderData } from '@/views/game/types/routeData'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
 import type { ISubmitHubIntentRequest } from '@/views/game/types/hub'
 import type { IAttackFlowLinkState, IAttackTargetingState } from '@/views/game/types/attackTargeting'
+import type { ISummonTargetingState } from '@/views/game/types/summonTargeting'
 import { fetchGameCards } from '@/services/api/gameApi'
 import type { IGameViewAnimController } from '@/views/game/types/hooks'
 import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from '@/views/game/hooks/useGameViewEffects'
 import { useDerivedGameViewState } from '@/views/game/hooks/useDerivedGameViewState'
 import { useGameHubState } from '@/views/game/hooks/useGameHubState'
-import { useLongPressHandReorder } from '@/views/game/hooks/useLongPressHandReorder'
 import { GameHandRow } from '@/views/game/components/GameHandRow'
-import { NonLeaderCardOverlay } from '@/views/game/components/NonLeaderCardOverlay'
+import { BottomHandReorderRow } from '@/views/game/components/BottomHandReorderRow'
 import { GameZones } from '@/views/game/components/GameZones'
 import { GamePromptOverlay } from '@/views/game/components/GamePromptOverlay'
 import {
@@ -34,8 +34,7 @@ import {
 } from '@/views/game/utils/contants'
 import { mapActionToHubIntent } from '@/views/game/utils/functions/gameState'
 import { runHandToPileAnimation, runRectToDynamicElementAnimation, waitMillis } from '@/views/game/utils/functions/animations'
-import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions/cards'
-import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
+import { CardBack } from '@/components/ui/cards'
 
 function normalizeCardInstanceId(value: string | undefined): string {
   return (value ?? '').trim().toLowerCase()
@@ -97,7 +96,6 @@ export function GameView() {
   const topHandRowRef = useRef<HTMLDivElement | null>(null)
   const bottomHandRowRef = useRef<HTMLDivElement | null>(null)
   const [topHandAutoAnimateRef] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
-  const [bottomHandAutoAnimateRef, setBottomHandAutoAnimateEnabled] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
   const animControllerRef = useRef<IGameViewAnimController>({
     lastAutoSignalKey: '',
     pendingDrawAnimationFrameId: null,
@@ -119,6 +117,7 @@ export function GameView() {
   const [isMulliganAnimationPending, setIsMulliganAnimationPending] = useState(false)
   const [pendingSetSupportCardInstanceId, setPendingSetSupportCardInstanceId] = useState<string | null>(null)
   const [pendingAttackTargeting, setPendingAttackTargeting] = useState<IAttackTargetingState | null>(null)
+  const [pendingSummonTargeting, setPendingSummonTargeting] = useState<ISummonTargetingState | null>(null)
   const [optimisticRestedByInstanceId, setOptimisticRestedByInstanceId] = useState<Record<string, boolean>>({})
   const [activeAttackLink, setActiveAttackLink] = useState<IAttackFlowLinkState | null>(null)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
@@ -131,8 +130,7 @@ export function GameView() {
 
   const setBottomHandRowRefs = useCallback((node: HTMLDivElement | null) => {
     bottomHandRowRef.current = node
-    bottomHandAutoAnimateRef(node)
-  }, [bottomHandAutoAnimateRef])
+  }, [])
   
   const { joinCode, gameCards, gameState: initialGameState } = useLoaderData() as IGameLoaderData
   const [liveGameCards, setLiveGameCards] = useState<IGameLoaderData['gameCards']>(gameCards)
@@ -263,17 +261,8 @@ export function GameView() {
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
   const topHandCards = useMemo(() => derivedGameState.opponentPlayer?.hand ?? [], [derivedGameState.opponentPlayer?.hand])
   const bottomHandCards = useMemo(() => derivedGameState.currentPlayer?.hand ?? [], [derivedGameState.currentPlayer?.hand])
-  const {
-    orderedCards: orderedBottomHandCards,
-    activeDraggedInstanceId,
-    isReorderDragging,
-    getCardPointerHandlers,
-  } = useLongPressHandReorder({
-    cards: bottomHandCards,
-    rowRef: bottomHandRowRef,
-  })
   const topHandInstanceIds = useMemo(() => topHandCards.map((card) => card.instanceId), [topHandCards])
-  const bottomHandInstanceIds = useMemo(() => orderedBottomHandCards.map((card) => card.instanceId), [orderedBottomHandCards])
+  const bottomHandInstanceIds = useMemo(() => bottomHandCards.map((card) => card.instanceId), [bottomHandCards])
   const topDeckCount = derivedGameState.opponentPlayer?.deckCount ?? 0
   const bottomDeckCount = derivedGameState.currentPlayer?.deckCount ?? 0
   const topTrashCount = derivedGameState.opponentPlayer?.trash.length ?? 0
@@ -351,10 +340,6 @@ export function GameView() {
   useCardCatalogPreload(liveGameCards)
 
   useEffect(() => {
-    setBottomHandAutoAnimateEnabled(!isReorderDragging)
-  }, [isReorderDragging, setBottomHandAutoAnimateEnabled])
-
-  useEffect(() => {
     if (!import.meta.env.DEV) {
       return
     }
@@ -383,36 +368,6 @@ export function GameView() {
     if (!import.meta.env.DEV) {
       return
     }
-
-    const currentPlayerRaw = gameState.players.find((player) =>
-      player.playerId.trim().toLowerCase() === authUserId?.trim().toLowerCase())
-
-    const rawLeaderActions = currentPlayerRaw?.leader?.availableActions ?? []
-    const resolvedLeaderActions = bottomLeaderCard
-      ? resolveCardActionOptionsForInstanceId(
-        mappedAvailableActions,
-        bottomLeaderCard.instanceId,
-        bottomLeaderCard.availableActions,
-      )
-      : []
-
-    const currentPlayerBattlefieldActions = (derivedGameState.currentPlayer?.characterField ?? []).map((card) => ({
-      instanceId: card.instanceId,
-      availableActions: card.availableActions ?? [],
-    }))
-
-    console.log('[GameView][ActionDebug] Leader and battlefield action states', {
-      gameId: gameState.gameId,
-      phase: gameState.phase,
-      turnNumber: gameState.turnNumber,
-      activePlayerId: gameState.activePlayerId,
-      priorityPlayerId: gameState.priorityPlayerId,
-      authUserId,
-      rawLeaderActions,
-      resolvedLeaderActions,
-      currentPlayerBattlefieldActions,
-      globalAvailableActions: mappedAvailableActions,
-    })
   }, [
     authUserId,
     bottomLeaderCard,
@@ -437,6 +392,7 @@ export function GameView() {
   )
 
   const isBattleActionTargeting = pendingAttackTargeting !== null
+  const isSummonActionTargeting = pendingSummonTargeting !== null
 
   const occupiedBottomSupportSlots = useMemo(() => {
     const occupied = new Set<number>()
@@ -507,6 +463,29 @@ export function GameView() {
       window.clearTimeout(timeoutId)
     }
   }, [derivedGameState.currentPlayer?.characterField, mappedAvailableActions, pendingAttackTargeting])
+
+  useEffect(() => {
+    if (!pendingSummonTargeting) {
+      return
+    }
+
+    const pendingActionId = pendingSummonTargeting.actionId
+    const pendingCard = bottomHandCards.find((card) =>
+      card.instanceId.trim().toLowerCase() === pendingSummonTargeting.sourceCardInstanceId.trim().toLowerCase())
+    const matchingAction = (pendingCard?.availableActions ?? []).find((option) => option.actionId === pendingActionId)
+
+    if (matchingAction?.isEnabled) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setPendingSummonTargeting(null)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [bottomHandCards, pendingSummonTargeting])
 
   useEffect(() => {
     setOptimisticRestedByInstanceId((previous) => {
@@ -642,12 +621,144 @@ export function GameView() {
   function beginBattleTargeting(targeting: IAttackTargetingState): void {
     setPendingSetSupportCardInstanceId(null)
     setActiveAttackLink(null)
+    setPendingSummonTargeting(null)
     setPendingAttackTargeting(targeting)
   }
 
   function cancelBattleTargeting(): void {
     setPendingAttackTargeting(null)
     setActiveAttackLink(null)
+  }
+
+  function beginSummonTargeting(targeting: ISummonTargetingState): void {
+    setPendingSetSupportCardInstanceId(null)
+    setPendingAttackTargeting(null)
+    setActiveAttackLink(null)
+    setPendingSummonTargeting(targeting)
+  }
+
+  function cancelSummonTargeting(): void {
+    setPendingSummonTargeting(null)
+  }
+
+  function toggleSummonTargetSelection(targetCardInstanceId: string): void {
+    setPendingSummonTargeting((previous) => {
+      if (!previous) {
+        return previous
+      }
+
+      const target = previous.validTargets.find((entry) =>
+        entry.cardInstanceId.trim().toLowerCase() === targetCardInstanceId.trim().toLowerCase())
+
+      if (!target) {
+        return previous
+      }
+
+      const existingIndex = previous.selectedTargets.findIndex((entry) =>
+        entry.cardInstanceId.trim().toLowerCase() === targetCardInstanceId.trim().toLowerCase())
+
+      if (existingIndex >= 0) {
+        return {
+          ...previous,
+          selectedTargets: previous.selectedTargets.filter((_, index) => index !== existingIndex),
+        }
+      }
+
+      const nextSelectedTargets = [
+        ...previous.selectedTargets,
+        {
+          playerId: target.playerId,
+          zone: target.zone,
+          cardInstanceId: target.cardInstanceId,
+          isEffectResolutionStackTarget: target.isEffectResolutionStackTarget,
+          effectResolutionEntryId: target.effectResolutionEntryId,
+        },
+      ]
+
+      const maximumTargetCount = previous.exactTargetCount ?? previous.maximumTargetCount
+      if (typeof maximumTargetCount === 'number' && nextSelectedTargets.length > maximumTargetCount) {
+        return {
+          ...previous,
+          selectedTargets: nextSelectedTargets.slice(nextSelectedTargets.length - maximumTargetCount),
+        }
+      }
+
+      return {
+        ...previous,
+        selectedTargets: nextSelectedTargets,
+      }
+    })
+  }
+
+  function canConfirmSummonTargetSelection(targeting: ISummonTargetingState): boolean {
+    const selectedCount = targeting.selectedTargets.length
+
+    if (typeof targeting.exactTargetCount === 'number') {
+      return selectedCount === targeting.exactTargetCount
+    }
+
+    if (typeof targeting.minimumTargetCount === 'number' && selectedCount < targeting.minimumTargetCount) {
+      return false
+    }
+
+    if (typeof targeting.maximumTargetCount === 'number' && selectedCount > targeting.maximumTargetCount) {
+      return false
+    }
+
+    return selectedCount > 0 || targeting.validTargets.length === 0
+  }
+
+  function submitSummonTargetSelection(): void {
+    if (!pendingSummonTargeting || !canConfirmSummonTargetSelection(pendingSummonTargeting)) {
+      return
+    }
+
+    const sourceCardInstanceId = pendingSummonTargeting.sourceCardInstanceId
+    const sourceCardElement = bottomHandRowRef.current?.querySelector<HTMLDivElement>(
+      `[data-hand-instance-id="${sourceCardInstanceId}"]`,
+    ) ?? null
+    const sourceRect = sourceCardElement?.getBoundingClientRect() ?? null
+    const expectedBattlefieldSlotIndex = currentBottomBattlefieldRawCards.length
+    const intentRequest: ISubmitHubIntentRequest = {
+      intent: 'execute-card-action',
+      actionId: pendingSummonTargeting.actionId,
+      sourceCardInstanceId,
+      selectedTargets: pendingSummonTargeting.selectedTargets,
+    }
+
+    setPendingSummonTargeting(null)
+
+    void (async () => {
+      await runSubmitThenZoneEntryAnimation({
+        intentRequest,
+        sourceRect,
+        beforeAnimation: () => {
+          setBottomBattlefieldDisplayOrder((previousOrder) => {
+            const knownIds = new Set(currentBottomBattlefieldRawCards.map((card) => card.instanceId))
+            const preservedIds = previousOrder.filter((instanceId) => knownIds.has(instanceId))
+            if (preservedIds.includes(sourceCardInstanceId)) {
+              return preservedIds
+            }
+
+            return [...preservedIds, sourceCardInstanceId]
+          })
+        },
+        resolveDestinationElement: () => {
+          const exactCardElement = boardZoneRef.current?.querySelector<HTMLElement>(
+            `[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${sourceCardInstanceId}"]`,
+          ) ?? null
+          if (exactCardElement) {
+            return exactCardElement
+          }
+
+          return boardZoneRef.current?.querySelector<HTMLElement>(
+            `[data-zone="character-field-card"][data-slot-side="bottom"][data-slot-index="${expectedBattlefieldSlotIndex}"]`,
+          ) ?? null
+        },
+        timeoutMs: 1800,
+        maxFrames: 120,
+      })
+    })()
   }
 
   function submitBattleTargetSelection(targetCardInstanceId: string): void {
@@ -865,19 +976,99 @@ export function GameView() {
       }
 
       const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
-      if (!intentRequest) {
+      if (!intentRequest || intentRequest.intent !== 'execute-card-action') {
         return
       }
 
       const cardInstanceId = action.actionId.slice(delimiterIndex + 1)
-      const expectedBattlefieldSlotIndex = currentBottomBattlefieldRawCards.length
-      const sourceHandRowElement = bottomHandRowRef.current
-      const sourceCardElement = sourceHandRowElement?.querySelector<HTMLDivElement>(
-        `[data-hand-instance-id="${cardInstanceId}"]`,
-      ) ?? null
-      const sourceRect = sourceCardElement?.getBoundingClientRect() ?? null
 
       void (async () => {
+        const targetsResponse = await getCardActionTargets({
+          actionId: intentRequest.actionId,
+          sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+        })
+
+        if (!targetsResponse || !targetsResponse.isEnabled) {
+          return
+        }
+
+        const shouldAutoSelectAll = targetsResponse.autoSelectAllValidTargets && targetsResponse.validTargets.length > 0
+        const requiresSelection = typeof targetsResponse.exactTargetCount === 'number'
+          || typeof targetsResponse.minimumTargetCount === 'number'
+          || typeof targetsResponse.maximumTargetCount === 'number'
+          || targetsResponse.validTargets.length > 0
+
+        if (shouldAutoSelectAll) {
+          const sourceCardElement = bottomHandRowRef.current?.querySelector<HTMLDivElement>(
+            `[data-hand-instance-id="${cardInstanceId}"]`,
+          ) ?? null
+          const sourceRect = sourceCardElement?.getBoundingClientRect() ?? null
+          const expectedBattlefieldSlotIndex = currentBottomBattlefieldRawCards.length
+
+          await runSubmitThenZoneEntryAnimation({
+            intentRequest: {
+              intent: 'execute-card-action',
+              actionId: intentRequest.actionId,
+              sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+              selectedTargets: targetsResponse.validTargets.map((target) => ({
+                playerId: target.playerId,
+                zone: target.zone,
+                cardInstanceId: target.cardInstanceId,
+                isEffectResolutionStackTarget: target.isEffectResolutionStackTarget,
+                effectResolutionEntryId: target.effectResolutionEntryId,
+              })),
+            },
+            sourceRect,
+            beforeAnimation: () => {
+              setBottomBattlefieldDisplayOrder((previousOrder) => {
+                const knownIds = new Set(currentBottomBattlefieldRawCards.map((card) => card.instanceId))
+                const preservedIds = previousOrder.filter((instanceId) => knownIds.has(instanceId))
+                if (preservedIds.includes(cardInstanceId)) {
+                  return preservedIds
+                }
+
+                return [...preservedIds, cardInstanceId]
+              })
+            },
+            resolveDestinationElement: () => {
+              const exactCardElement = boardZoneRef.current?.querySelector<HTMLElement>(
+                `[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${cardInstanceId}"]`,
+              ) ?? null
+              if (exactCardElement) {
+                return exactCardElement
+              }
+
+              return boardZoneRef.current?.querySelector<HTMLElement>(
+                `[data-zone="character-field-card"][data-slot-side="bottom"][data-slot-index="${expectedBattlefieldSlotIndex}"]`,
+              ) ?? null
+            },
+            timeoutMs: 1800,
+            maxFrames: 120,
+          })
+          return
+        }
+
+        if (requiresSelection) {
+          beginSummonTargeting({
+            actionId: intentRequest.actionId,
+            sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+            validTargets: targetsResponse.validTargets,
+            minimumTargetCount: targetsResponse.minimumTargetCount,
+            maximumTargetCount: targetsResponse.maximumTargetCount,
+            exactTargetCount: targetsResponse.exactTargetCount,
+            autoSelectAllValidTargets: targetsResponse.autoSelectAllValidTargets,
+            selectedTargets: [],
+          })
+          return
+        }
+
+        const sourceHandRowElement = bottomHandRowRef.current
+        const sourceCardElement = sourceHandRowElement?.querySelector<HTMLDivElement>(
+          `[data-hand-instance-id="${cardInstanceId}"]`,
+        ) ?? null
+        const sourceRect = sourceCardElement?.getBoundingClientRect() ?? null
+        const expectedBattlefieldSlotIndex = currentBottomBattlefieldRawCards.length
+
         await runSubmitThenZoneEntryAnimation({
           intentRequest,
           sourceRect,
@@ -923,6 +1114,10 @@ export function GameView() {
 
     if (pendingAttackTargeting) {
       setPendingAttackTargeting(null)
+    }
+
+    if (pendingSummonTargeting) {
+      setPendingSummonTargeting(null)
     }
 
     void submitHubIntent(intentRequest)
@@ -1100,9 +1295,11 @@ export function GameView() {
               availableActions={mappedAvailableActions}
               pendingSetSupportCardInstanceId={pendingSetSupportCardInstanceId}
               pendingAttackTargeting={pendingAttackTargeting}
+              pendingSummonTargeting={pendingSummonTargeting}
               optimisticRestedByInstanceId={optimisticRestedByInstanceId}
               activeAttackLink={renderedAttackLink}
               isBattleActionTargeting={isBattleActionTargeting}
+              isSummonActionTargeting={isSummonActionTargeting}
               isConnected={isConnected}
               isActionPending={isActionPending}
               onSelectAction={submitMappedAction}
@@ -1110,74 +1307,24 @@ export function GameView() {
               onCancelSetSupportSelection={() => setPendingSetSupportCardInstanceId(null)}
               onSelectAttackTarget={submitBattleTargetSelection}
               onCancelAttackTargetSelection={cancelBattleTargeting}
+              onToggleSummonTarget={toggleSummonTargetSelection}
+              canConfirmSummonTargetSelection={pendingSummonTargeting ? canConfirmSummonTargetSelection(pendingSummonTargeting) : false}
+              onConfirmSummonTargetSelection={submitSummonTargetSelection}
+              onCancelSummonTargetSelection={cancelSummonTargeting}
               onToggleTheme={toggleTheme}
               onPassTurn={handlePassLikeAction}
             />
 
-            <GameHandRow
-              cards={orderedBottomHandCards}
+            <BottomHandReorderRow
+              cards={bottomHandCards}
               rowRef={setBottomHandRowRefs}
-              rowTestId="bottom-hand-row"
-              rowClassName="overflow-visible"
-              renderCard={(card) => {
-                const previewCard = derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null
-                const cardActionOptions = resolveCardActionOptionsForInstanceId(
-                  mappedAvailableActions,
-                  card.instanceId,
-                  card.availableActions,
-                )
-                const cardPointerHandlers = getCardPointerHandlers(card.instanceId)
-
-                return (
-                  <div
-                    key={`bottom-hand-${card.instanceId}`}
-                    data-hand-instance-id={card.instanceId}
-                    data-testid={`bottom-hand-card-${card.instanceId}`}
-                    draggable={false}
-                    onDragStart={(event) => {
-                      event.preventDefault()
-                    }}
-                    className={`h-full aspect-[200/277] shrink-0 select-none ${activeDraggedInstanceId === card.instanceId ? 'z-[260] touch-none' : 'touch-manipulation'}`}
-                    {...cardPointerHandlers}
-                  >
-                    <FlippableCard
-                      isFlipped={bottomHandFaceUpByInstanceId[card.instanceId] ?? true}
-                      durationMs={340}
-                      front={
-                        <div className="group relative h-full w-full overflow-hidden rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]">
-                          <CardImage
-                            src={previewCard?.image ?? null}
-                            alt={previewCard?.displayName ?? 'Hand card'}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full rounded-md object-contain"
-                          />
-
-                          <NonLeaderCardOverlay
-                            previewCard={previewCard}
-                            zone="hand"
-                            visibilityMode="hover"
-                            actionOptions={cardActionOptions}
-                            showEmptyActionMessage={canShowHandNoActionsMessage}
-                            disableInteractions={isReorderDragging}
-                            isConnected={isConnected}
-                            isActionPending={isActionPending}
-                            onSelectActionOption={(actionId) => {
-                              const actionOption = cardActionOptions.find((action) => action.actionId === actionId)
-                              if (!actionOption) {
-                                return
-                              }
-
-                              submitMappedAction(actionOption)
-                            }}
-                          />
-                        </div>
-                      }
-                      back={<CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />}
-                    />
-                  </div>
-                )
-              }}
+              cardById={derivedGameState.cardById}
+              availableActions={mappedAvailableActions}
+              faceUpByInstanceId={bottomHandFaceUpByInstanceId}
+              showNoActionsMessage={canShowHandNoActionsMessage}
+              isConnected={isConnected}
+              isActionPending={isActionPending}
+              onSelectCardActionOption={submitMappedAction}
             />
           </div>
         </Panel>

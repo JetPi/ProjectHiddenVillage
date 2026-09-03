@@ -28,4 +28,11 @@
     <None Remove="tests/**" />
     <EmbeddedResource Remove="tests/**" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\test-data\seed-profiles.json">
+      <Link>test-data\seed-profiles.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

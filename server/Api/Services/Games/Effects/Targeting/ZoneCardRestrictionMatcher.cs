@@ -7,8 +7,14 @@ internal static class ZoneCardRestrictionMatcher
         Card cardDefinition,
         ZoneCardRestriction restriction,
         CardInstance? cardInstance = null,
-        CardInstance? sourceCardInstance = null)
+        CardInstance? sourceCardInstance = null,
+        bool excludeSelfIdentityPredicates = false)
     {
+        if (excludeSelfIdentityPredicates && restriction.Predicates is { Count: > 0 })
+        {
+            restriction = StripSelfIdentityPredicates(restriction);
+        }
+
         var hasPredicateSelector = restriction.Predicates?.Any() is true;
 
         if (!hasPredicateSelector)
@@ -143,5 +149,34 @@ internal static class ZoneCardRestrictionMatcher
             left,
             right,
             ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Returns a copy of the restriction without <see cref="ZoneCardProperty.Self"/> identity
+    /// predicates. Identity predicates compare a candidate card against the effect source card
+    /// and are only meaningful when a rule represents the source/summon-candidate itself. When a
+    /// rule describes tribute material cards (cards being sacrificed), membership should be decided
+    /// by the rule's zone plus its remaining card predicates; the summon candidate is kept separate
+    /// through the tribute role partitioning and the distinctness flag instead.
+    /// </summary>
+    private static ZoneCardRestriction StripSelfIdentityPredicates(ZoneCardRestriction restriction)
+    {
+        if (restriction.Predicates is not { Count: > 0 } predicates)
+        {
+            return restriction;
+        }
+
+        if (predicates.All(predicate => predicate.Property != ZoneCardProperty.Self))
+        {
+            return restriction;
+        }
+
+        return new ZoneCardRestriction
+        {
+            MatchMode = restriction.MatchMode,
+            Predicates = predicates
+                .Where(predicate => predicate.Property != ZoneCardProperty.Self)
+                .ToList(),
+        };
     }
 }
