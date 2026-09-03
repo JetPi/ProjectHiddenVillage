@@ -12,6 +12,7 @@ public static class GameStateResponseMapper
         new GameValidTargetResultFactory(),
         new GameEffectConditionDiagnostics());
     private static readonly GameRuntimeEffectSpecResolver RuntimeEffectSpecResolver = new();
+    private static readonly EffectTargetResolver EffectTargetResolver = new();
     private const string ConcealedCardDefinitionId = "concealed-card";
     private const string SummonToFieldActionPrefix = "summon-to-field:";
     private const string SetSupportActionPrefix = "set-support:";
@@ -687,13 +688,31 @@ public static class GameStateResponseMapper
             return (false, "Summon requirements are not currently satisfiable.");
         }
 
-        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, tributeEffectSpec, includeValidTargets: true);
+        var hasTributeComposition = tributeEffectSpec.TargetRules.TributeComposition is not null;
+
+        // includeValidTargets:false keeps the generic evaluator from comparing the (empty) target
+        // selection against the effect-level target counts. For tribute compositions the summon
+        // candidate is the hand card being summoned and never appears in the material selection, so
+        // availability is determined by the tribute composition's distinct-material solver below.
+        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, tributeEffectSpec, includeValidTargets: false);
         if (!canExecuteResult.CanExecute)
         {
             return (false, canExecuteResult.FailedConditions.FirstOrDefault() ?? "Summon requirements are not currently satisfiable.");
         }
 
-        if (canExecuteResult.ValidTargets.Count == 0)
+        var materialTargets = EffectTargetResolver.ResolveTargets(context, tributeEffectSpec);
+
+        if (hasTributeComposition
+            && !TributeTargetCompositionValidator.TryValidateMaterialAvailability(
+                context,
+                tributeEffectSpec,
+                materialTargets,
+                out var materialAvailabilityError))
+        {
+            return (false, materialAvailabilityError);
+        }
+
+        if (materialTargets.Count == 0)
         {
             return (false, "No valid tribute targets available.");
         }

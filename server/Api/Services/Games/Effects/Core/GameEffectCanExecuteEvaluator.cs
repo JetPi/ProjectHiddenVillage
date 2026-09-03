@@ -40,27 +40,10 @@ public sealed class GameEffectCanExecuteEvaluator : IGameEffectCanExecuteEvaluat
 
         var cardConditions = effectSpec.ContextRules;
 
-        for (var index = 0; index < cardConditions.Count; index++)
+        foreach (var conditionRuleSet in cardConditions)
         {
-            var conditionRuleSet = cardConditions[index];
-
-            if (conditionRuleSet.Player is not null)
-            {
-                var playerConditionResult = GetOrEvaluateConditionResult(conditionRuleSet.Player, requestingPlayerState, gameState, conditionResultCache);
-                if (!playerConditionResult.CanExecute)
-                {
-                    result.FailedConditions.AddRange(playerConditionResult.FailedConditions);
-                }
-            }
-
-            if (conditionRuleSet.Opponent is not null)
-            {
-                var opponentConditionResult = GetOrEvaluateConditionResult(conditionRuleSet.Opponent, opposingPlayerState, gameState, conditionResultCache);
-                if (!opponentConditionResult.CanExecute)
-                {
-                    result.FailedConditions.AddRange(opponentConditionResult.FailedConditions);
-                }
-            }
+            EvaluatePlayerCondition(conditionRuleSet.Player, requestingPlayerState, gameState, conditionResultCache, ref result);
+            EvaluatePlayerCondition(conditionRuleSet.Opponent, opposingPlayerState, gameState, conditionResultCache, ref result);
         }
 
         result.CanExecute = result.FailedConditions.Count == 0;
@@ -69,19 +52,16 @@ public sealed class GameEffectCanExecuteEvaluator : IGameEffectCanExecuteEvaluat
             return result;
         }
 
-        if (!TryResolveTargetCountBounds(effectSpec.TargetRules, out var targetCountBounds, out var targetCountError))
+        var targetCountBounds = TryResolveTargetCountBounds(effectSpec.TargetRules);
+        var shouldEnforceSelectedTargetCount = ShouldEnforceSelectedTargetCount(effectSpec.TargetRules, context.Arguments);
+
+        if (shouldEnforceSelectedTargetCount)
         {
-            result.CanExecute = false;
-            result.FailedConditions.Add(targetCountError);
-            return result;
+            IsSelectedTargetCountValid(context.SelectedTargets.Count, targetCountBounds, context, ref result);
         }
 
-        var shouldEnforceSelectedTargetCount = ShouldEnforceSelectedTargetCount(effectSpec.TargetRules, context.Arguments);
-        if (shouldEnforceSelectedTargetCount
-            && !IsSelectedTargetCountValid(context.SelectedTargets.Count, targetCountBounds, out var selectedTargetCountError))
+        if (!result.CanExecute)
         {
-            result.CanExecute = false;
-            result.FailedConditions.Add(selectedTargetCountError);
             return result;
         }
 
@@ -109,65 +89,19 @@ public sealed class GameEffectCanExecuteEvaluator : IGameEffectCanExecuteEvaluat
         return result;
     }
 
-    private static bool TryResolveTargetCountBounds(
-        EffectTargetRuleSet targetRules,
-        out TargetCountBounds bounds,
-        out string error)
+    private static TargetCountBounds TryResolveTargetCountBounds(EffectTargetRuleSet targetRules)
     {
-        bounds = new TargetCountBounds(0, int.MaxValue);
-        error = string.Empty;
-
         var hasExact = targetRules.ExactTargetCount.HasValue;
-        var hasMinimum = targetRules.MinimumTargetCount.HasValue;
-        var hasMaximum = targetRules.MaximumTargetCount.HasValue;
-
-        if (!hasExact && !hasMinimum && !hasMaximum)
-        {
-            return true;
-        }
 
         if (hasExact)
         {
-            var exact = targetRules.ExactTargetCount!.Value;
-            if (exact < 0)
-            {
-                error = "ExactTargetCount must be greater than or equal to zero.";
-                return false;
-            }
-
-            if (hasMinimum || hasMaximum)
-            {
-                error = "ExactTargetCount cannot be combined with MinimumTargetCount or MaximumTargetCount.";
-                return false;
-            }
-
-            bounds = new TargetCountBounds(exact, exact);
-            return true;
+            return new TargetCountBounds(targetRules.ExactTargetCount!.Value);
         }
 
-        var minimum = targetRules.MinimumTargetCount ?? 0;
-        var maximum = targetRules.MaximumTargetCount ?? int.MaxValue;
+        var minimum = targetRules.MinimumTargetCount ?? 1;
+        var maximum = targetRules.MaximumTargetCount ?? minimum;
 
-        if (minimum < 0)
-        {
-            error = "MinimumTargetCount must be greater than or equal to zero.";
-            return false;
-        }
-
-        if (maximum < 0)
-        {
-            error = "MaximumTargetCount must be greater than or equal to zero.";
-            return false;
-        }
-
-        if (minimum > maximum)
-        {
-            error = "MinimumTargetCount cannot be greater than MaximumTargetCount.";
-            return false;
-        }
-
-        bounds = new TargetCountBounds(minimum, maximum);
-        return true;
+        return new TargetCountBounds(minimum, maximum);
     }
 
     private static bool ShouldEnforceSelectedTargetCount(EffectTargetRuleSet targetRules, IReadOnlyDictionary<string, string> arguments)
@@ -182,23 +116,32 @@ public sealed class GameEffectCanExecuteEvaluator : IGameEffectCanExecuteEvaluat
             && shouldEnforce;
     }
 
-    private static bool IsSelectedTargetCountValid(int selectedTargetCount, TargetCountBounds bounds, out string error)
+    private static void IsSelectedTargetCountValid(int selectedTargetCount, TargetCountBounds bounds, GameCardEffectContext context, ref CanExecuteResult result)
     {
-        error = string.Empty;
-
         if (selectedTargetCount < bounds.Minimum)
         {
-            error = $"Select at least {bounds.Minimum} target(s).";
-            return false;
+            var selectedTargetCountError = $"Select at least {bounds.Minimum} target(s).";
+            result.CanExecute = false;
+            result.FailedConditions.Add(selectedTargetCountError);
         }
 
         if (selectedTargetCount > bounds.Maximum)
         {
-            error = $"Select no more than {bounds.Maximum} target(s).";
-            return false;
+            var selectedTargetCountError = $"Select no more than {bounds.Maximum} target(s).";
+            result.CanExecute = false;
+            result.FailedConditions.Add(selectedTargetCountError);
         }
+    }
 
-        return true;
+    private void EvaluatePlayerCondition(EffectContextCondition? condition, PlayerState playerState, GameState gameState, Dictionary<(PlayerState PlayerState, EffectContextCondition Condition), CanExecuteResult> cache, ref CanExecuteResult result)
+    {
+        if (condition is null) return;
+
+        var playerConditionResult = GetOrEvaluateConditionResult(condition, playerState, gameState, cache);
+        if (!playerConditionResult.CanExecute)
+        {
+            result.FailedConditions.AddRange(playerConditionResult.FailedConditions);
+        }
     }
 
     private static bool IsAvailableTargetCountValid(int availableTargetCount, TargetCountBounds bounds, out string error)
@@ -278,5 +221,8 @@ public sealed class GameEffectCanExecuteEvaluator : IGameEffectCanExecuteEvaluat
         return conditionResult;
     }
 
-    private sealed record TargetCountBounds(int Minimum, int Maximum);
+    private sealed record TargetCountBounds(int Minimum, int Maximum)
+    {
+        public TargetCountBounds(int exact) : this(exact, exact) { }
+    }
 }

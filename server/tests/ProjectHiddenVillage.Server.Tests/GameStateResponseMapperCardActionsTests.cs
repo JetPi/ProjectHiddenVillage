@@ -287,7 +287,7 @@ public sealed class GameStateResponseMapperCardActionsTests
         var summonAction = requester.Hand[0].AvailableActions.Single(action => action.ActionId == "summon-to-field:hand-1");
 
         Assert.IsFalse(summonAction.IsEnabled);
-        Assert.AreEqual("Not enough valid targets. Requires at least 1 target(s).", summonAction.DisabledReason);
+        Assert.AreEqual("No valid tribute targets available.", summonAction.DisabledReason);
     }
 
     [TestMethod]

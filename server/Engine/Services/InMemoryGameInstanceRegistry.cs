@@ -453,8 +453,36 @@ public sealed class InMemoryGameInstanceRegistry
             return failureResponse!;
         }
 
-        var canExecuteResult = canExecuteEvaluator.Evaluate(context!, effectSpec!, includeValidTargets: true);
-        var validTributeTargets = ResolveTributeMaterialTargets(context!, effectSpec!, canExecuteResult);
+        var hasTributeComposition = effectSpec!.TargetRules.TributeComposition is not null;
+
+        // For tribute compositions the generic target-count gate would compare the (currently
+        // empty) selection against the effect-level target counts. Those counts describe the whole
+        // selection including the summon candidate, which is the hand card being summoned and is
+        // never part of the material selection - so availability is decided below by the tribute
+        // composition's distinct-material solver instead.
+        var canExecuteResult = canExecuteEvaluator.Evaluate(context!, effectSpec!, includeValidTargets: !hasTributeComposition);
+
+        IReadOnlyList<GameEffectTargetReference> validTributeTargets;
+
+        if (hasTributeComposition)
+        {
+            validTributeTargets = EffectTargetResolver.ResolveTargets(context!, effectSpec!);
+
+            if (canExecuteResult.CanExecute
+                && !TributeTargetCompositionValidator.TryValidateMaterialAvailability(
+                    context!,
+                    effectSpec!,
+                    validTributeTargets,
+                    out var materialAvailabilityError))
+            {
+                canExecuteResult.CanExecute = false;
+                canExecuteResult.FailedConditions.Add(materialAvailabilityError);
+            }
+        }
+        else
+        {
+            validTributeTargets = ResolveTributeMaterialTargets(context!, effectSpec!, canExecuteResult);
+        }
 
         return new GameCardActionTargetsResponse(
             ActionId: actionId,
@@ -1796,7 +1824,8 @@ public sealed class InMemoryGameInstanceRegistry
             new GameValidTargetResultFactory(),
             new GameEffectConditionDiagnostics());
 
-        var canExecuteResult = canExecuteEvaluator.Evaluate(context!, effectSpec!, includeValidTargets: true);
+        var hasTributeComposition = effectSpec!.TargetRules.TributeComposition is not null;
+        var canExecuteResult = canExecuteEvaluator.Evaluate(context!, effectSpec!, includeValidTargets: !hasTributeComposition);
         if (!canExecuteResult.CanExecute)
         {
             throw new InvalidOperationException(canExecuteResult.FailedConditions.FirstOrDefault() ?? "Summon requirements are not currently satisfiable.");
@@ -1939,8 +1968,24 @@ public sealed class InMemoryGameInstanceRegistry
             new EffectTargetResolver(),
             new GameValidTargetResultFactory(),
             new GameEffectConditionDiagnostics());
-        var result = canExecuteEvaluator.Evaluate(context!, effectSpec!, includeValidTargets: true);
-        return result.CanExecute;
+
+        var result = canExecuteEvaluator.Evaluate(context!, effectSpec!, includeValidTargets: false);
+        if (!result.CanExecute)
+        {
+            return false;
+        }
+
+        if (effectSpec!.TargetRules.TributeComposition is not null)
+        {
+            var materialTargets = EffectTargetResolver.ResolveTargets(context!, effectSpec!);
+            return TributeTargetCompositionValidator.TryValidateMaterialAvailability(
+                context!,
+                effectSpec!,
+                materialTargets,
+                out _);
+        }
+
+        return true;
     }
 
     private static bool TryCreateSummonRequirementActionContext(
@@ -1977,7 +2022,6 @@ public sealed class InMemoryGameInstanceRegistry
         var normalizedArguments = arguments is null
             ? new Dictionary<string, string>(StringComparer.Ordinal)
             : new Dictionary<string, string>(arguments, StringComparer.Ordinal);
-        normalizedArguments[ReactiveEffectExecutionConstants.EnforceTargetCountArgument] = bool.TrueString;
         normalizedArguments[SummonTargetIdArgumentKey] = sourceCardInstance.InstanceId;
 
         context = new GameCardEffectContext(
@@ -2023,6 +2067,15 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         var validTargets = EffectTargetResolver.ResolveTargets(context, effectSpec);
+
+        // When a tribute composition is declared, EffectTargetResolver already returns only cards
+        // eligible as tribute material (summon-candidate rules are skipped, identity predicates are
+        // ignored, and the summon candidate itself is excluded when distinctness is required).
+        if (effectSpec.TargetRules.TributeComposition is not null)
+        {
+            return validTargets;
+        }
+
         var tributeRules = effectSpec.TargetRules.Rules
             .Where(rule => rule.TributeRole == TributeTargetRole.TributeMaterial)
             .ToList();

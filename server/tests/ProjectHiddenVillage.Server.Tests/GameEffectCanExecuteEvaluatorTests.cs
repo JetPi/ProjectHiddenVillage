@@ -235,7 +235,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
     }
 
     [TestMethod]
-    public void Evaluate_ReturnsCannotExecute_WhenTributeCompositionRequiresDistinctTargets()
+    public void Evaluate_ReturnsCannotExecute_WhenMaterialRulesCannotBeSatisfiedByDistinctCards()
     {
         var evaluator = CreateEvaluator();
         var effectSpec = new EffectSpec
@@ -250,7 +250,8 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                     {
                         Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
-                        TributeRole = TributeTargetRole.SummonCandidate,
+                        TributeRole = TributeTargetRole.TributeMaterial,
+                        ExactSelectedTargetCount = 1,
                         Restriction = new ZoneCardRestriction
                         {
                             Predicates =
@@ -269,6 +270,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                         Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
                         TributeRole = TributeTargetRole.TributeMaterial,
+                        ExactSelectedTargetCount = 1,
                         Restriction = new ZoneCardRestriction
                         {
                             Predicates =
@@ -277,7 +279,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                                 {
                                     Property = ZoneCardProperty.Name,
                                     Operator = ZoneCardPredicateOperator.In,
-                                    Values = ["Ninja A", "Ninja B"]
+                                    Values = ["Ninja A"]
                                 }
                             ]
                         }
@@ -286,7 +288,6 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                 TributeComposition = new TributeTargetComposition
                 {
                     ExactTributeCount = 1,
-                    RequireSingleSummonTarget = true,
                     RequireDistinctSummonAndTributes = true,
                 }
             }
@@ -305,15 +306,13 @@ public sealed class GameEffectCanExecuteEvaluatorTests
             playerOneFieldCards:
             [
                 CreateCardOnField("ninja-a", "ninja-a-inst", "p1", "Ninja A"),
-                CreateCardOnField("ninja-b", "ninja-b-inst", "p1", "Ninja B"),
             ]);
 
         var result = evaluator.Evaluate(context, effectSpec, includeValidTargets: false);
 
         Assert.IsFalse(result.CanExecute);
         Assert.IsTrue(result.FailedConditions.Any(message =>
-            message.Contains("distinct", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("exactly 1 tribute", StringComparison.OrdinalIgnoreCase)));
+            message.Contains("distinct cards", StringComparison.OrdinalIgnoreCase)));
     }
 
     [TestMethod]
@@ -332,24 +331,6 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                     {
                         Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
-                        TributeRole = TributeTargetRole.SummonCandidate,
-                        Restriction = new ZoneCardRestriction
-                        {
-                            Predicates =
-                            [
-                                new ZoneCardPropertyPredicate
-                                {
-                                    Property = ZoneCardProperty.Name,
-                                    Operator = ZoneCardPredicateOperator.In,
-                                    Values = ["Ninja A"]
-                                }
-                            ]
-                        }
-                    },
-                    new EffectTargetRule
-                    {
-                        Scope = EffectTargetRange.Self,
-                        InZone = PlayerZone.CharacterField,
                         TributeRole = TributeTargetRole.TributeMaterial,
                         Restriction = new ZoneCardRestriction
                         {
@@ -368,7 +349,6 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                 TributeComposition = new TributeTargetComposition
                 {
                     ExactTributeCount = 1,
-                    RequireSingleSummonTarget = true,
                     RequireDistinctSummonAndTributes = true,
                 }
             }
@@ -378,7 +358,6 @@ public sealed class GameEffectCanExecuteEvaluatorTests
             playerOneResource: 0,
             selectedTargets:
             [
-                new("p1", PlayerZone.CharacterField, "ninja-a-inst"),
                 new("p1", PlayerZone.CharacterField, "ninja-b-inst"),
             ],
             arguments: new Dictionary<string, string>(StringComparer.Ordinal),
@@ -395,7 +374,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
     }
 
     [TestMethod]
-    public void Evaluate_ReturnsCannotExecute_WhenSummonCandidateMustBeSelfButDifferentInstanceIsSelected()
+    public void Evaluate_ReturnsCannotExecute_WhenSummonCandidateIsSelectedAsTributeMaterial()
     {
         var evaluator = CreateEvaluator();
         var effectSpec = new EffectSpec
@@ -410,42 +389,13 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                     {
                         Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
-                        TributeRole = TributeTargetRole.SummonCandidate,
-                        Restriction = new ZoneCardRestriction
-                        {
-                            Predicates =
-                            [
-                                new ZoneCardPropertyPredicate
-                                {
-                                    Property = ZoneCardProperty.Self,
-                                    Operator = ZoneCardPredicateOperator.Equals,
-                                }
-                            ]
-                        }
-                    },
-                    new EffectTargetRule
-                    {
-                        Scope = EffectTargetRange.Self,
-                        InZone = PlayerZone.CharacterField,
                         TributeRole = TributeTargetRole.TributeMaterial,
-                        Restriction = new ZoneCardRestriction
-                        {
-                            Predicates =
-                            [
-                                new ZoneCardPropertyPredicate
-                                {
-                                    Property = ZoneCardProperty.Name,
-                                    Operator = ZoneCardPredicateOperator.In,
-                                    Values = ["Ninja B"]
-                                }
-                            ]
-                        }
+                        Restriction = new ZoneCardRestriction(),
                     }
                 ],
                 TributeComposition = new TributeTargetComposition
                 {
                     ExactTributeCount = 1,
-                    RequireSingleSummonTarget = true,
                     RequireDistinctSummonAndTributes = true,
                 }
             }
@@ -455,13 +405,11 @@ public sealed class GameEffectCanExecuteEvaluatorTests
             playerOneResource: 0,
             selectedTargets:
             [
-                new("p1", PlayerZone.CharacterField, "ninja-a-inst"),
-                new("p1", PlayerZone.CharacterField, "ninja-b-inst"),
+                new("p1", PlayerZone.CharacterField, "source-1"),
             ],
             arguments: new Dictionary<string, string>(StringComparer.Ordinal),
             playerOneFieldCards:
             [
-                CreateCardOnField("ninja-a", "ninja-a-inst", "p1", "Ninja A"),
                 CreateCardOnField("ninja-b", "ninja-b-inst", "p1", "Ninja B"),
             ]);
 
@@ -469,8 +417,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
 
         Assert.IsFalse(result.CanExecute);
         Assert.IsTrue(result.FailedConditions.Any(message =>
-            message.Contains("summon candidate", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("exactly one", StringComparison.OrdinalIgnoreCase)));
+            message.Contains("does not satisfy any tribute material rule", StringComparison.OrdinalIgnoreCase)));
     }
 
     [TestMethod]
@@ -489,24 +436,6 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                     {
                         Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
-                        TributeRole = TributeTargetRole.SummonCandidate,
-                        Restriction = new ZoneCardRestriction
-                        {
-                            Predicates =
-                            [
-                                new ZoneCardPropertyPredicate
-                                {
-                                    Property = ZoneCardProperty.Name,
-                                    Operator = ZoneCardPredicateOperator.In,
-                                    Values = ["Summon Target"]
-                                }
-                            ]
-                        }
-                    },
-                    new EffectTargetRule
-                    {
-                        Scope = EffectTargetRange.Self,
-                        InZone = PlayerZone.CharacterField,
                         TributeRole = TributeTargetRole.TributeMaterial,
                         MinimumSelectedTargetCount = 1,
                         Restriction = new ZoneCardRestriction
@@ -551,7 +480,6 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                 TributeComposition = new TributeTargetComposition
                 {
                     ExactTributeCount = 2,
-                    RequireSingleSummonTarget = true,
                     RequireDistinctSummonAndTributes = true,
                 }
             }
@@ -561,14 +489,12 @@ public sealed class GameEffectCanExecuteEvaluatorTests
             playerOneResource: 0,
             selectedTargets:
             [
-                new("p1", PlayerZone.CharacterField, "summon-inst"),
                 new("p1", PlayerZone.CharacterField, "tribute-low-a-inst"),
                 new("p1", PlayerZone.CharacterField, "tribute-low-b-inst"),
             ],
             arguments: new Dictionary<string, string>(StringComparer.Ordinal),
             playerOneFieldCards:
             [
-                CreateCardOnField("summon", "summon-inst", "p1", "Summon Target", power: 5),
                 CreateCardOnField("tribute-low-a", "tribute-low-a-inst", "p1", "Low A", power: 4),
                 CreateCardOnField("tribute-low-b", "tribute-low-b-inst", "p1", "Low B", power: 3),
             ]);
@@ -577,8 +503,7 @@ public sealed class GameEffectCanExecuteEvaluatorTests
 
         Assert.IsFalse(result.CanExecute);
         Assert.IsTrue(result.FailedConditions.Any(message =>
-            message.Contains("Target rule", StringComparison.OrdinalIgnoreCase)
-            && message.Contains("at least 1", StringComparison.OrdinalIgnoreCase)));
+            message.Contains("cannot be assigned", StringComparison.OrdinalIgnoreCase)));
     }
 
     [TestMethod]
@@ -597,24 +522,6 @@ public sealed class GameEffectCanExecuteEvaluatorTests
                     {
                         Scope = EffectTargetRange.Self,
                         InZone = PlayerZone.CharacterField,
-                        TributeRole = TributeTargetRole.SummonCandidate,
-                        Restriction = new ZoneCardRestriction
-                        {
-                            Predicates =
-                            [
-                                new ZoneCardPropertyPredicate
-                                {
-                                    Property = ZoneCardProperty.Name,
-                                    Operator = ZoneCardPredicateOperator.In,
-                                    Values = ["Summon Target"]
-                                }
-                            ]
-                        }
-                    },
-                    new EffectTargetRule
-                    {
-                        Scope = EffectTargetRange.Self,
-                        InZone = PlayerZone.CharacterField,
                         TributeRole = TributeTargetRole.TributeMaterial,
                         MinimumSelectedTargetCount = 1,
                         Restriction = new ZoneCardRestriction
@@ -669,7 +576,6 @@ public sealed class GameEffectCanExecuteEvaluatorTests
             playerOneResource: 0,
             selectedTargets:
             [
-                new("p1", PlayerZone.CharacterField, "summon-inst"),
                 new("p1", PlayerZone.CharacterField, "tribute-high-inst"),
                 new("p1", PlayerZone.CharacterField, "tribute-low-inst"),
             ],
@@ -686,6 +592,288 @@ public sealed class GameEffectCanExecuteEvaluatorTests
         Assert.IsTrue(result.CanExecute);
         Assert.AreEqual(0, result.FailedConditions.Count);
     }
+
+    [TestMethod]
+    public void Evaluate_ReturnsCanExecute_WhenTributeMaterialsAreOneUnrestrictedAndOneTraitRestrictedCard()
+    {
+        var evaluator = CreateEvaluator();
+
+        // Mirrors the example summon-requirement effect: a summon-candidate rule that the runtime
+        // ignores (the summon candidate is the hand card being summoned), an unrestricted material
+        // rule expressed with a Self-Equals predicate, and a material rule restricted to the
+        // "The Taka" trait. The runtime must find that 2 distinct cards - one "The Taka" and one
+        // other - satisfy the material rules.
+        var effectSpec = new EffectSpec
+        {
+            RuntimeEffectType = RuntimeEffects.Tribute,
+            ContextRules = [],
+            TargetRules = new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.All,
+                ExactTargetCount = 3,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        TributeRole = TributeTargetRole.SummonCandidate,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction(),
+                    },
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        TributeRole = TributeTargetRole.TributeMaterial,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            MatchMode = ZoneRestrictionMatchMode.Any,
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Self,
+                                    Operator = ZoneCardPredicateOperator.Equals,
+                                    IgnoreCase = true,
+                                }
+                            ]
+                        }
+                    },
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        TributeRole = TributeTargetRole.TributeMaterial,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            MatchMode = ZoneRestrictionMatchMode.Any,
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Trait,
+                                    Operator = ZoneCardPredicateOperator.Equals,
+                                    Value = "The Taka",
+                                    IgnoreCase = true,
+                                }
+                            ]
+                        }
+                    }
+                ],
+                TributeComposition = new TributeTargetComposition
+                {
+                    ExactTributeCount = 2,
+                    RequireSingleSummonTarget = true,
+                    RequireDistinctSummonAndTributes = true,
+                }
+            }
+        };
+
+        var taka = CreateCardOnField("taka-a", "taka-a-inst", "p1", "Taka A");
+        ((CharacterCard)taka.Card).Traits = ["The Taka"];
+        var other = CreateCardOnField("other", "other-inst", "p1", "Other Shinobi");
+        ((CharacterCard)other.Card).Traits = ["Shinobi"];
+
+        var context = CreateContext(
+            playerOneResource: 0,
+            selectedTargets:
+            [
+                new("p1", PlayerZone.CharacterField, "taka-a-inst"),
+                new("p1", PlayerZone.CharacterField, "other-inst"),
+            ],
+            arguments: new Dictionary<string, string>(StringComparer.Ordinal),
+            playerOneFieldCards:
+            [
+                taka,
+                other,
+            ]);
+
+        var result = evaluator.Evaluate(context, effectSpec, includeValidTargets: false);
+
+        Assert.IsTrue(result.CanExecute);
+        Assert.AreEqual(0, result.FailedConditions.Count);
+    }
+
+
+    [TestMethod]
+    public void Evaluate_ReturnsCannotExecute_WhenOnlyATraitRestrictedMaterialIsSelected()
+    {
+        var evaluator = CreateEvaluator();
+        var effectSpec = new EffectSpec
+        {
+            RuntimeEffectType = RuntimeEffects.Tribute,
+            ContextRules = [],
+            TargetRules = new EffectTargetRuleSet
+            {
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        TributeRole = TributeTargetRole.SummonCandidate,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction(),
+                    },
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        TributeRole = TributeTargetRole.TributeMaterial,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Self,
+                                    Operator = ZoneCardPredicateOperator.Equals,
+                                    IgnoreCase = true,
+                                }
+                            ]
+                        }
+                    },
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        TributeRole = TributeTargetRole.TributeMaterial,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Trait,
+                                    Operator = ZoneCardPredicateOperator.Equals,
+                                    Value = "The Taka",
+                                    IgnoreCase = true,
+                                }
+                            ]
+                        }
+                    }
+                ],
+                TributeComposition = new TributeTargetComposition
+                {
+                    ExactTributeCount = 2,
+                    RequireDistinctSummonAndTributes = true,
+                }
+            }
+        };
+
+        var taka = CreateCardOnField("taka-a", "taka-a-inst", "p1", "Taka A");
+        ((CharacterCard)taka.Card).Traits = ["The Taka"];
+
+        var context = CreateContext(
+            playerOneResource: 0,
+            selectedTargets:
+            [
+                new("p1", PlayerZone.CharacterField, "taka-a-inst"),
+            ],
+            arguments: new Dictionary<string, string>(StringComparer.Ordinal),
+            playerOneFieldCards:
+            [
+                taka,
+            ]);
+
+        var result = evaluator.Evaluate(context, effectSpec, includeValidTargets: false);
+
+        Assert.IsFalse(result.CanExecute);
+        Assert.IsTrue(result.FailedConditions.Any(message =>
+            message.Contains("exactly 2 tribute material", StringComparison.OrdinalIgnoreCase)));
+    }
+
+
+    [TestMethod]
+    public void Evaluate_ReturnsCanExecute_WhenTwoTraitRestrictedCardsAreSelectedAsMaterials()
+    {
+        var evaluator = CreateEvaluator();
+        var effectSpec = new EffectSpec
+        {
+            RuntimeEffectType = RuntimeEffects.Tribute,
+            ContextRules = [],
+            TargetRules = new EffectTargetRuleSet
+            {
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        TributeRole = TributeTargetRole.TributeMaterial,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Self,
+                                    Operator = ZoneCardPredicateOperator.Equals,
+                                    IgnoreCase = true,
+                                }
+                            ]
+                        }
+                    },
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        TributeRole = TributeTargetRole.TributeMaterial,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Trait,
+                                    Operator = ZoneCardPredicateOperator.Equals,
+                                    Value = "The Taka",
+                                    IgnoreCase = true,
+                                }
+                            ]
+                        }
+                    }
+                ],
+                TributeComposition = new TributeTargetComposition
+                {
+                    ExactTributeCount = 2,
+                    RequireDistinctSummonAndTributes = true,
+                }
+            }
+        };
+
+        var takaA = CreateCardOnField("taka-a", "taka-a-inst", "p1", "Taka A");
+        ((CharacterCard)takaA.Card).Traits = ["The Taka"];
+        var takaB = CreateCardOnField("taka-b", "taka-b-inst", "p1", "Taka B");
+        ((CharacterCard)takaB.Card).Traits = ["The Taka"];
+
+        var context = CreateContext(
+            playerOneResource: 0,
+            selectedTargets:
+            [
+                new("p1", PlayerZone.CharacterField, "taka-a-inst"),
+                new("p1", PlayerZone.CharacterField, "taka-b-inst"),
+            ],
+            arguments: new Dictionary<string, string>(StringComparer.Ordinal),
+            playerOneFieldCards:
+            [
+                takaA,
+                takaB,
+            ]);
+
+        var result = evaluator.Evaluate(context, effectSpec, includeValidTargets: false);
+
+        Assert.IsTrue(result.CanExecute);
+        Assert.AreEqual(0, result.FailedConditions.Count);
+    }
+
 
     private static GameEffectCanExecuteEvaluator CreateEvaluator(IReadOnlyList<GameEffectTargetReference>? resolvedTargets = null)
     {
