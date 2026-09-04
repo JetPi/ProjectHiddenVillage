@@ -9,6 +9,8 @@ export type ILeaderCardViewModel = {
   cardDefinitionId: string
   ownerPlayerId: string
   controllerPlayerId: string
+  isRested: boolean
+  isExhausted: boolean
   id: string
   image: string
   attribute: string | null
@@ -55,4 +57,35 @@ export type IDerivedGameViewState = {
 export type ICardPreloadPayload = {
   cardIds: string[]
   signature: string
+}
+
+export type IBoardPoint = {
+  x: number
+  y: number
+}
+
+export type IAttackLinkPathMode = 'smooth' | 'straight'
+
+export type IAttackAnchorPosition = 'top' | 'bottom' | 'left' | 'right'
+
+export type IAttackAnchorConfig = IAttackAnchorPosition | {
+  position: IAttackAnchorPosition
+  offset: {
+    x: number
+    y: number
+  }
+}
+
+export type IAttackLinkRenderConfig = {
+  startId: string
+  endId: string
+  startAnchor: IAttackAnchorConfig
+  endAnchor: IAttackAnchorConfig
+  path: IAttackLinkPathMode
+  curveness: number
+  headOffsetForward: number
+  controlPointOffsets?: {
+    cpx1: number
+    cpx2: number
+  }
 }
