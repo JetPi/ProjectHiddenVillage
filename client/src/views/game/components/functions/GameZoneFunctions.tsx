@@ -1,7 +1,10 @@
-import type { IGameStateResponse } from '@/services/api/types/game'
-import type { IGameZonesProps } from '../../types/gameZones'
-import type { IAttackAnchorPosition, IAttackAnchorConfig, IBoardPoint, INonLeaderCardViewModel, ILeaderCardViewModel } from '../../types/viewModels'
-import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '../../utils/functions/cards'
+import { twMerge } from 'tailwind-merge'
+import type { ILeaderCardProps } from '@/components/ui/types'
+import type { IGameActionOptionResponse, IGameStateResponse } from '@/services/api/types/game'
+import type { IGameZonesProps } from '@/views/game/types/gameZones'
+import type { IAttackAnchorPosition, IAttackAnchorConfig, IBoardPoint, INonLeaderCardViewModel, ILeaderCardViewModel } from '@/views/game/types/viewModels'
+import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
+import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions/cards'
 
 const ATTACK_HEAD_OFFSET_DEFAULT = 0.25
 const ATTACK_HEAD_OFFSET_RESTED_RIGHT_TO_LEFT = 0.31
@@ -227,6 +230,56 @@ function getCardsAndOptions(props: IGameZonesProps) {
       }
 }
 
+function buildLeaderCardProps(
+  props: IGameZonesProps,
+  config: {
+    card: ILeaderCardViewModel | null
+    slotSide: 'top' | 'bottom'
+    isBattleTarget: boolean
+    actionOptions: IGameActionOptionResponse[]
+    showBadgeWhenLifeMissing?: boolean
+  }
+): ILeaderCardProps {
+  const { card, slotSide, isBattleTarget, actionOptions, showBadgeWhenLifeMissing = false } = config
+  const normalizedInstanceId = card?.instanceId.trim().toLowerCase()
+  const normalizedAttackLinkSourceCardId = props.activeAttackLink?.sourceCardInstanceId.trim().toLowerCase() ?? ''
+  const normalizedAttackLinkTargetCardId = props.activeAttackLink?.targetCardInstanceId.trim().toLowerCase() ?? ''
+  const isAttackLinkEndpoint =
+    Boolean(normalizedInstanceId) &&
+    (normalizedInstanceId === normalizedAttackLinkSourceCardId ||
+      normalizedInstanceId === normalizedAttackLinkTargetCardId)
+
+  return {
+    className: 'h-full',
+    surfaceProps: {
+      id: card ? toAnchorId(card.instanceId) : undefined,
+      'data-card-instance-id': card?.instanceId,
+      'data-zone': 'leader-card',
+      'data-slot-side': slotSide,
+      onClick: isBattleTarget && card ? () => props.onSelectAttackTarget(card.instanceId) : undefined,
+      className: twMerge(
+        'h-full',
+        isBattleTarget ? 'cursor-pointer' : '',
+        isAttackLinkEndpoint ? 'attack-link-leader-outline' : ''
+      ),
+    },
+    imageClassName: LEADER_CARD_IMAGE_CLASS,
+    hidePreviewButton: props.isBattleActionTargeting && isBattleTarget,
+    leaderCard: card,
+    previewCard: card ? (props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null) : null,
+    showBadgeWhenLifeMissing,
+    actionOptions,
+    isConnected: props.isConnected,
+    isActionPending: props.isActionPending,
+    onSelectActionOption: (actionId) => {
+      const selectedAction = actionOptions.find((action) => action.actionId === actionId)
+      if (selectedAction) {
+        props.onSelectAction(selectedAction)
+      }
+    },
+  }
+}
+
 const isMatchingInstance = (targetId: string, cardId: string) =>
   targetId.length > 0 && targetId === cardId;
 
@@ -337,6 +390,7 @@ export {
   getSummonTargetHighlightClass,
   getHorizontalVisualEdgeInset,
   getCardsAndOptions,
+  buildLeaderCardProps,
   isMatchingInstance,
   isCardRestedState,
 }

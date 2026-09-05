@@ -1,16 +1,15 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { useMemo } from 'react'
-import Xarrow from 'react-xarrows'
 import { AppButton } from '@/components/ui'
 import { LeaderCard } from '@/components/ui/cards'
 import { PlayBottomResourceZone, PlayPileZone, PlayTopResourceZone } from '@/components/ui/game'
 import { twMerge } from 'tailwind-merge'
 import type { IGameZonesProps } from '@/views/game/types/gameZones'
-import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
 import { GamePhaseActionRow } from '@/views/game/components/GamePhaseActionRow'
-import type { IAttackLinkRenderConfig } from '../types/viewModels'
+import type { IAttackLinkRenderConfig } from '@/views/game/types/viewModels'
 import { renderBattlefieldRow } from './BattleFieldRow'
 import {
+  buildLeaderCardProps,
   extractTargetIds,
   getCardsAndOptions,
   isCardInstanceBattleTarget,
@@ -23,6 +22,7 @@ import {
 } from './functions/GameZoneFunctions'
 import { renderZoneCardSlots } from './ZoneCardSlots'
 import { AttackLinkArrow } from './AttackLinkArrow'
+import { SideBarButtons } from './functions/SidebarButtons'
 
 const ATTACK_OUTLINE_WIDTH_PX = 4.5
 const ATTACK_OUTLINE_OFFSET_PX = 4
@@ -148,6 +148,21 @@ function GameZones(props: IGameZonesProps) {
     [bottomLeaderCard, validBattleTargetsByCardId]
   );
 
+  const topLeaderCardProps = buildLeaderCardProps(props, {
+    card: cardOptions.topLeaderCard,
+    slotSide: 'top',
+    isBattleTarget: isTopLeaderBattleTarget,
+    actionOptions: cardOptions.topLeaderActionOptions,
+    showBadgeWhenLifeMissing: true,
+  })
+
+  const bottomLeaderCardProps = buildLeaderCardProps(props, {
+    card: cardOptions.bottomLeaderCard,
+    slotSide: 'bottom',
+    isBattleTarget: isBottomLeaderBattleTarget,
+    actionOptions: cardOptions.bottomLeaderActionOptions,
+  })
+
   const battlefieldRowProps = {
     cards: cardOptions.topBattlefieldCards,
     validBattleTargetsByCardId,
@@ -212,42 +227,7 @@ function GameZones(props: IGameZonesProps) {
                 'relative overflow-visible',
               )}
             >
-              <LeaderCard
-                className="h-full"
-                surfaceProps={{
-                  id: cardOptions.topLeaderCard ? toAnchorId(cardOptions.topLeaderCard.instanceId) : undefined,
-                  'data-card-instance-id': cardOptions.topLeaderCard?.instanceId,
-                  'data-zone': 'leader-card',
-                  'data-slot-side': 'top',
-                  onClick: isTopLeaderBattleTarget && cardOptions.topLeaderCard ? () => props.onSelectAttackTarget(cardOptions.topLeaderCard!.instanceId) : undefined,
-                  className: twMerge(
-                    'h-full',
-                    isTopLeaderBattleTarget ? 'cursor-pointer' : '',
-                    cardOptions.normalizedAttackLinkSourceCardId.length > 0 && cardOptions.topLeaderCard && cardOptions.normalizedAttackLinkSourceCardId === cardOptions.topLeaderCard.instanceId.trim().toLowerCase()
-                      ? 'attack-link-leader-outline'
-                      : '',
-                    cardOptions.normalizedAttackLinkTargetCardId.length > 0 && cardOptions.topLeaderCard && cardOptions.normalizedAttackLinkTargetCardId === cardOptions.topLeaderCard.instanceId.trim().toLowerCase()
-                      ? 'attack-link-leader-outline'
-                      : '',
-                  ),
-                }}
-                imageClassName={LEADER_CARD_IMAGE_CLASS}
-                hidePreviewButton={props.isBattleActionTargeting && Boolean(isTopLeaderBattleTarget)}
-                leaderCard={cardOptions.topLeaderCard}
-                previewCard={cardOptions.topLeaderCard ? (props.derivedGameState.cardById.get(cardOptions.topLeaderCard.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
-                showBadgeWhenLifeMissing
-                actionOptions={cardOptions.topLeaderActionOptions}
-                isConnected={props.isConnected}
-                isActionPending={props.isActionPending}
-                onSelectActionOption={(actionId) => {
-                  const selectedAction = cardOptions.topLeaderActionOptions.find((action) => action.actionId === actionId)
-                  if (!selectedAction) {
-                    return
-                  }
-
-                  props.onSelectAction(selectedAction)
-                }}
-              />
+              <LeaderCard {...topLeaderCardProps} />
             </div>
           </div>
         </div>
@@ -273,41 +253,7 @@ function GameZones(props: IGameZonesProps) {
                 'relative overflow-visible',
               )}
             >
-              <LeaderCard
-                className="h-full"
-                surfaceProps={{
-                  id: bottomLeaderCard ? toAnchorId(bottomLeaderCard.instanceId) : undefined,
-                  'data-card-instance-id': bottomLeaderCard?.instanceId,
-                  'data-zone': 'leader-card',
-                  'data-slot-side': 'bottom',
-                  onClick: isBottomLeaderBattleTarget && bottomLeaderCard ? () => props.onSelectAttackTarget(bottomLeaderCard.instanceId) : undefined,
-                  className: twMerge(
-                    'h-full',
-                    isBottomLeaderBattleTarget ? 'cursor-pointer' : '',
-                    cardOptions.normalizedAttackLinkSourceCardId.length > 0 && cardOptions.bottomLeaderCard && cardOptions.normalizedAttackLinkSourceCardId === cardOptions.bottomLeaderCard.instanceId.trim().toLowerCase()
-                      ? 'attack-link-leader-outline'
-                      : '',
-                    cardOptions.normalizedAttackLinkTargetCardId.length > 0 && cardOptions.bottomLeaderCard && cardOptions.normalizedAttackLinkTargetCardId === cardOptions.bottomLeaderCard.instanceId.trim().toLowerCase()
-                      ? 'attack-link-leader-outline'
-                      : '',
-                  ),
-                }}
-                imageClassName={LEADER_CARD_IMAGE_CLASS}
-                hidePreviewButton={props.isBattleActionTargeting && Boolean(isBottomLeaderBattleTarget)}
-                leaderCard={cardOptions.bottomLeaderCard}
-                previewCard={cardOptions.bottomLeaderCard ? (props.derivedGameState.cardById.get(cardOptions.bottomLeaderCard.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
-                actionOptions={cardOptions.bottomLeaderActionOptions}
-                isConnected={props.isConnected}
-                isActionPending={props.isActionPending}
-                onSelectActionOption={(actionId) => {
-                  const selectedAction = cardOptions.bottomLeaderActionOptions.find((action) => action.actionId === actionId)
-                  if (!selectedAction) {
-                    return
-                  }
-
-                  props.onSelectAction(selectedAction)
-                }}
-              />
+              <LeaderCard {...bottomLeaderCardProps} />
             </div>
           </div>
 
@@ -338,148 +284,7 @@ function GameZones(props: IGameZonesProps) {
         </div>
       </div>
 
-      <div className="flex flex-col items-end justify-center gap-1">
-        {props.joinCode ? (
-          <div
-            data-testid="game-join-code"
-            className="mb-1 px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] [writing-mode:vertical-rl] rotate-180"
-          >
-            {props.joinCode}
-          </div>
-        ) : null}
-
-        <div className="group relative">
-          <AppButton
-            type="button"
-            variant="ghost"
-            data-testid="theme-toggle-button"
-            onClick={props.onToggleTheme}
-            aria-label="Toggle light and dark mode"
-            className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-          >
-            <Lightbulb size={10} />
-          </AppButton>
-          <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-            Toggle Theme
-          </span>
-        </div>
-
-        <div className="group relative">
-          <AppButton
-            type="button"
-            variant="ghost"
-            data-testid="pass-turn-button"
-            aria-label="Pass turn"
-            onClick={props.onPassTurn}
-            disabled={!props.isConnected || props.isActionPending}
-            className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-          >
-            <SkipForward size={10} />
-          </AppButton>
-          <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-            Do Nothing / Pass
-          </span>
-        </div>
-
-        {props.pendingSetSupportCardInstanceId ? (
-          <div className="group relative">
-            <AppButton
-              type="button"
-              variant="ghost"
-              aria-label="Cancel support slot selection"
-              onClick={props.onCancelSetSupportSelection}
-              className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-            >
-              <span className="text-[10px] font-bold leading-none">X</span>
-            </AppButton>
-            <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-              Cancel Set Support
-            </span>
-          </div>
-        ) : null}
-
-        {props.isBattleActionTargeting ? (
-          <div className="group relative">
-            <AppButton
-              type="button"
-              variant="ghost"
-              aria-label="Cancel attack target selection"
-              onClick={props.onCancelAttackTargetSelection}
-              className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-            >
-              <span className="text-[10px] font-bold leading-none">X</span>
-            </AppButton>
-            <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-              Cancel Attack Target
-            </span>
-          </div>
-        ) : null}
-
-        {props.isSummonActionTargeting ? (
-          <>
-            <div className="group relative">
-              <AppButton
-                type="button"
-                variant="ghost"
-                aria-label="Confirm tribute selection"
-                onClick={props.onConfirmSummonTargetSelection}
-                disabled={!props.isConnected || props.isActionPending || !props.canConfirmSummonTargetSelection}
-                className="h-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-1.5 py-0 text-[8px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]"
-              >
-                Go
-              </AppButton>
-              <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-                Confirm Tribute
-              </span>
-            </div>
-
-            <div className="group relative">
-              <AppButton
-                type="button"
-                variant="ghost"
-                aria-label="Cancel tribute selection"
-                onClick={props.onCancelSummonTargetSelection}
-                className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-              >
-                <span className="text-[10px] font-bold leading-none">X</span>
-              </AppButton>
-              <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-                Cancel Tribute
-              </span>
-            </div>
-          </>
-        ) : null}
-
-        <div className="group relative">
-          <AppButton
-            type="button"
-            variant="ghost"
-            aria-label="Undo action"
-            disabled={!props.isConnected || props.isActionPending}
-            className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-          >
-            <RotateCcw size={10} />
-          </AppButton>
-          <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-            Undo Action
-          </span>
-        </div>
-
-        <div className="group relative">
-          <AppButton
-            type="button"
-            variant="ghost"
-            aria-label="Open log"
-            disabled={!props.isConnected || props.isActionPending}
-            className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-          >
-            <ScrollText size={10} />
-          </AppButton>
-          <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-            Open Log
-          </span>
-        </div>
-      </div>
+      <SideBarButtons {...props} />
     </div>
   )
 }
