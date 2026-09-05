@@ -1,6 +1,4 @@
-import { Lightbulb, RotateCcw, ScrollText, SkipForward } from 'lucide-react'
 import { useMemo } from 'react'
-import { AppButton } from '@/components/ui'
 import { LeaderCard } from '@/components/ui/cards'
 import { PlayBottomResourceZone, PlayPileZone, PlayTopResourceZone } from '@/components/ui/game'
 import { twMerge } from 'tailwind-merge'

@@ -55,6 +55,8 @@ function resolveLeaderCard(
     cardDefinitionId: player?.leader?.cardDefinitionId ?? leaderId,
     ownerPlayerId: player?.leader?.ownerPlayerId ?? player?.playerId ?? '',
     controllerPlayerId: player?.leader?.controllerPlayerId ?? player?.playerId ?? '',
+    isRested: false,
+    isExhausted: player?.leader?.isExhausted ?? false,
     id: leaderId,
     image: catalogCard.image,
     attribute: catalogCard.attribute ?? null,
