@@ -61,6 +61,7 @@ public sealed record PlayerZonesResponse(
     string PlayerId,
     int TurnCount,
     bool IsSummonCardReady,
+    int ResourcePool,
     LeaderCardInstanceResponse Leader,
     IReadOnlyList<CardInstanceResponse> Deck,
     int DeckCount,

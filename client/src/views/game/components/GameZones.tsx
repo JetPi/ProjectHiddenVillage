@@ -178,6 +178,8 @@ function GameZones(props: IGameZonesProps) {
     props,
   }
 
+  console.log(props.gameState)
+
   return (
     <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-0.5">
       <div
