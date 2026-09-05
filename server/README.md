@@ -1,7 +1,5 @@
 # Server
 
-Minimal backend runtime for Project Hidden Village.
-
 ## Stack
 
 - .NET SDK

@@ -177,7 +177,7 @@ public sealed class GameInstanceFactory
             DeckShuffleSeed = deckSeed,
             DeckShuffleCount = 1,
             TurnCount = 0,
-            ResourcePool = 0,
+            ResourcePool = 5,
             LeaderCardInstance = leaderCardInstance,
             Deck = deckInstances,
             Hand = [],

@@ -2,24 +2,16 @@ using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server.Api.Services.Games;
 
-public sealed class GameEffectCanExecuteEvaluator : IGameEffectCanExecuteEvaluator
+public sealed class GameEffectCanExecuteEvaluator(
+    IGameEffectContextConditionEvaluator conditionEvaluator,
+    IGameEffectTargetResolver targetResolver,
+    IGameValidTargetResultFactory validTargetResultFactory,
+    IGameEffectConditionDiagnostics conditionDiagnostics) : IGameEffectCanExecuteEvaluator
 {
-    private readonly IGameEffectContextConditionEvaluator conditionEvaluator;
-    private readonly IGameEffectTargetResolver targetResolver;
-    private readonly IGameValidTargetResultFactory validTargetResultFactory;
-    private readonly IGameEffectConditionDiagnostics conditionDiagnostics;
-
-    public GameEffectCanExecuteEvaluator(
-        IGameEffectContextConditionEvaluator conditionEvaluator,
-        IGameEffectTargetResolver targetResolver,
-        IGameValidTargetResultFactory validTargetResultFactory,
-        IGameEffectConditionDiagnostics conditionDiagnostics)
-    {
-        this.conditionEvaluator = conditionEvaluator;
-        this.targetResolver = targetResolver;
-        this.validTargetResultFactory = validTargetResultFactory;
-        this.conditionDiagnostics = conditionDiagnostics;
-    }
+    private readonly IGameEffectContextConditionEvaluator conditionEvaluator = conditionEvaluator;
+    private readonly IGameEffectTargetResolver targetResolver = targetResolver;
+    private readonly IGameValidTargetResultFactory validTargetResultFactory = validTargetResultFactory;
+    private readonly IGameEffectConditionDiagnostics conditionDiagnostics = conditionDiagnostics;
 
     public CanExecuteResult Evaluate(GameCardEffectContext context, EffectSpec effectSpec, bool includeValidTargets)
     {

@@ -1,0 +1,37 @@
+# Project Hidden Village - Agent Rules & Standards
+
+## 1. Tech Stack & Environment
+- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS (located in `client/`).
+- **Backend**: ASP.NET Core Minimal API, Entity Framework Core, PostgreSQL (located in `server/`).
+- **OS/Tools**: Linux, Code OSS / Cursor, Node.js, .NET SDK.
+
+## 2. Architecture & Code Structure
+- **Frontend Paths**: 
+  - Views: `client/src/views/`
+  - UI Components: `client/src/components/ui/`
+  - Services/State: `client/src/services/`, `client/src/state/`
+- **Component Refactoring Patterns**:
+  - Move pure helper functions and math calculations **outside** component scopes.
+  - Keep `useMemo` hooks inside components for Sets/lookups, but extract mapping logic into reusable external helpers (e.g., `extractTargetIds`).
+  - Extract massive inline JSX blocks, styles, or SVG markup into clean, standalone child components or local layout blocks.
+- **Backend Patterns**:
+  - Minimal API structure with EF Core mapping services (e.g., `CardMappingService`, `CardDataSourceMapper`).
+  - Strict adherence to domain-to-DTO separation (`Card` vs `CardDataSourceRecord`).
+
+## 3. Key Commands Reference
+- **Frontend Development**: `cd client && npm run dev`
+- **Frontend Build & Typecheck**: `cd client && npm run build` (runs `tsc -b && vite build`)
+- **Backend Run**: `dotnet watch run --project server/ProjectHiddenVillage.Server.csproj --urls http://127.0.0.1:3001`
+- **Backend Tests**: `dotnet test server/tests/ProjectHiddenVillage.Server.Tests/ProjectHiddenVillage.Server.Tests.csproj`
+- **E2E Tests (Playwright)**: `npm run test:e2e` (targets `http://127.0.0.1:4173/game/TEST1`)
+
+## 4. Game Contract Conventions
+- **Action Scopes**: Support both global actions (`GameStateResponse.AvailableActions`) and per-card actions (`CardInstanceResponse.AvailableActions`).
+- **Action ID Formats**:
+  - Hand card: `play-card:{instanceId}`
+  - Support card: `activate-support:{instanceId}`
+  - Battlefield card: `battle-action:{instanceId}`
+
+## 5. Workflow Constraints
+- **Efficient File Access**: Never use exploratory searches (`find`, `grep`) for file paths already established in conversation history. Directly read or edit known file paths. Targeted searches are permitted only when locating newly created or previously unreferenced files.
+- **Atomic Changes**: Keep refactoring tasks structured, scoped, and validated via local type checks before completion.
