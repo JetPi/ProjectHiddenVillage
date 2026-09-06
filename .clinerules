@@ -3,7 +3,8 @@
 ## 1. Tech Stack & Environment
 - **Frontend**: React 19, TypeScript, Vite, Tailwind CSS (located in `client/`).
 - **Backend**: ASP.NET Core Minimal API, Entity Framework Core, PostgreSQL (located in `server/`).
-- **OS/Tools**: Linux, Code OSS / Cursor, Node.js, .NET SDK.
+- **OS/Tools**: Linux, Code OSS / Cursor, Node.js (fnm), .NET SDK.
+- **Default shell is fish**; tool output capture for long-running commands is unreliable (see §6).
 
 ## 2. Architecture & Code Structure
 - **Frontend Paths**: 
@@ -18,6 +19,20 @@
   - Minimal API structure with EF Core mapping services (e.g., `CardMappingService`, `CardDataSourceMapper`).
   - Strict adherence to domain-to-DTO separation (`Card` vs `CardDataSourceRecord`).
 
+- **Barrel / Import Conventions (no cycles)**:
+  - Public barrels: `client/src/views/game/components/index.ts` (all board components) and `client/src/views/game/types/index.ts` (domain types).
+  - **External files import from the barrel only** (e.g. `@/views/game/components`, `@/views/game/types`). Never deep-import an individual module the barrel already re-exports.
+  - **Never import a barrel from inside the folder it aggregates** (creates cycles). Sibling modules inside a folder import each other via direct relative paths (e.g. `./BattleFieldRow`, `../targeting/attackTargeting`).
+- **Game board / zone structure** (`client/src/views/game/components/`):
+  - `GameZones.tsx` renders the board; shared board helpers live in `components/functions/GameZoneFunctions.tsx` (highlight classes `battle-target-*`, `summon-target-*`, `toAnchorId`, target-set builders).
+  - Zones/rows: `BattleFieldRow` (character field), `ZoneCardSlots` (support/hand slots), `BottomHandReorderRow` + `GameHandRow` (hand), `NonLeaderCardOverlay` (per-card hover actions/preview), `LeaderCard` under `client/src/components/ui/cards/`, `SidebarButtons`, `GamePhaseActionRow`/`GamePhaseIndicator`.
+- **Game types map** (`client/src/views/game/types/`, subfolders each with their own barrel):
+  - `targeting/`: `animations.ts`, `attackTargeting.ts` (incl. `IPendingCardTargetingState`), `summonTargeting.ts`
+  - `game/`: `gameZones.ts`, `gamePhaseActionRow.ts`, `gamePhaseIndicator.ts`, `gameHandRow.ts`
+  - `hub/`: `hub.ts` (hub intents), `hooks.ts`, `routeData.ts`, `viewModels.ts`
+  - `prompts/`, `hands/`, `card/`
+  - Top-level `index.ts` re-exports every subfolder.
+
 ## 3. Key Commands Reference
 - **Frontend Development**: `cd client && npm run dev`
 - **Frontend Build & Typecheck**: `cd client && npm run build` (runs `tsc -b && vite build`)
@@ -31,7 +46,23 @@
   - Hand card: `play-card:{instanceId}`
   - Support card: `activate-support:{instanceId}`
   - Battlefield card: `battle-action:{instanceId}`
+  - Leader effect: `leader-effect:{leaderInstanceId}:{effectKey}` (effectKey = effect `Id` or `index-{i}`)
+- **Targeting flow (attack AND single-target effects share one UX)**:
+  - `GameView` tracks a single picker state, `pendingCardTargeting`, shaped `{ actionId, sourceCardInstanceId, validTargets, kind: 'battle' | 'effect' }` (`kind` distinguishes attack-only side effects — optimistic rest + attack-link arrow — from plain effect submit).
+  - Board highlighting/clicking is driven purely off this state; clicking a valid target submits `execute-card-action` with that target in `selectedTargets`.
+  - Effect activations (`leader-effect:*`, `activate-support:*`) resolve their choices via the hub `GetCardActionTargets` first: auto-apply when no target list, all-targets, or `autoSelectAllValidTargets`; otherwise enter targeting (`kind: 'effect'`) when exactly one target must be picked. Multi-target effects (>1) are not yet client-driven.
+- **Server target responses**: `GetCardActionTargets` returns `GameCardActionTargetsResponse` (`IsEnabled`, `ValidTargets`, `Minimum/Maximum/ExactTargetCount`, `AutoSelectAllValidTargets`) for the `summon-to-field`, `activate-support`, `battle-action`, and `leader-effect` prefixes (see `InMemoryGameInstanceRegistry.GetCardActionTargets` and its `Build*CardActionTargets` methods). `ExecuteCardAction` applies effects to the request's `SelectedTargets`; effects auto-resolve targets only when `TargetRules.AutoSelectAllValidTargets` is set.
 
 ## 5. Workflow Constraints
 - **Efficient File Access**: Never use exploratory searches (`find`, `grep`) for file paths already established in conversation history. Directly read or edit known file paths. Targeted searches are permitted only when locating newly created or previously unreferenced files.
 - **Atomic Changes**: Keep refactoring tasks structured, scoped, and validated via local type checks before completion.
+- **Cold-Start Shortcuts** (stable anchors discovered):
+  - Frontend action submission/targeting is centralized in `client/src/views/game/GameView.tsx` (`submitMappedAction`, `trySubmitTargetedCardEffect`, `submitCardTargetSelection`); board UI flows through `GameZones.tsx`.
+  - Server available-actions/leader actions: `GameStateResponseMapper` (`BuildLeaderAvailableActions`, `BuildEffectOptionLabel`) and the registry's leader/support/battle target builders. The leader "Recovery" action = `EffectKind.Recovery`, surfaced with label `"Recovery"`.
+
+## 6. Environment & Tooling Tips (verified this project)
+- **Long-running commands** (`npm run build`, `tsc`) time out in the tool and may appear to "not run". Launch them detached and poll the log instead:
+  `cd client && nohup npm run build > /path/build.log 2>&1 & disown`, then read `/path/build.log` with `read_files`.
+- Fast commands work fine; quote grep patterns in single quotes and write output to a file when capture is mangled.
+- Prefer `read_files` / `search_codebase` over shell greps; the `tsc` binary lives at `client/node_modules/.bin/tsc`.
+- Re-run `npm run build` after import refactors — barrel cycles surface as runtime/TDZ issues, not type errors.
