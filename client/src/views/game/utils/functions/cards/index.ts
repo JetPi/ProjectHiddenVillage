@@ -1,6 +1,5 @@
 import type { IGameActionOptionResponse, IGameCardInstanceResponse, IGamePlayerStateResponse } from "@/services/api/types/game"
-import type { IGameLoaderData } from "@/views/game/types/routeData"
-import type { IGameCard, ILeaderCardViewModel, INonLeaderCardViewModel } from "@/views/game/types/viewModels"
+import type { IGameLoaderData, IGameCard, ILeaderCardViewModel, INonLeaderCardViewModel } from "@/views/game/types"
 
 function resolveLeaderCardId(
   player: IGamePlayerStateResponse | null,
@@ -55,6 +54,8 @@ function resolveLeaderCard(
     cardDefinitionId: player?.leader?.cardDefinitionId ?? leaderId,
     ownerPlayerId: player?.leader?.ownerPlayerId ?? player?.playerId ?? '',
     controllerPlayerId: player?.leader?.controllerPlayerId ?? player?.playerId ?? '',
+    isRested: false,
+    isExhausted: player?.leader?.isExhausted ?? false,
     id: leaderId,
     image: catalogCard.image,
     attribute: catalogCard.attribute ?? null,

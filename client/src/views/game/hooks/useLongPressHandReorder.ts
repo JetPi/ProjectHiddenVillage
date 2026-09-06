@@ -8,7 +8,7 @@ import type {
   IHandReorderCard,
   IUseLongPressHandReorderArgs,
   IUseLongPressHandReorderResult,
-} from '@/views/game/types/handReorder'
+} from '@/views/game/types'
 
 const DEFAULT_LONG_PRESS_DELAY_MS = 260
 const DEFAULT_START_MOVEMENT_TOLERANCE_PX = 14

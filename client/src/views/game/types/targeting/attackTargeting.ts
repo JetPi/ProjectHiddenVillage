@@ -12,3 +12,7 @@ export type IAttackFlowLinkState = {
   targetZone: string
   targetPlayerId: string
 }
+
+export type IPendingCardTargetingState = IAttackTargetingState & {
+  kind: 'battle' | 'effect'
+}

@@ -1,4 +1,4 @@
-import { Eye } from 'lucide-react'
+import { Eye, Flame } from 'lucide-react'
 import { useState } from 'react'
 import { twMerge } from 'tailwind-merge'
 import { CardImage } from '@/components/ui/cards/CardImage'
@@ -6,6 +6,28 @@ import { CardOverlayBadge } from '@/components/ui/cards/CardOverlayBadge'
 import { CardPreviewCard } from '@/components/ui/cards/CardPreviewCard'
 import { PlayCard } from '@/components/ui/game/PlayCard'
 import type { ILeaderCardProps } from '@/components/ui/types'
+import type { IGameActionOptionResponse } from '@/services/api/types/game'
+
+const RECOVERY_ACTION_LABEL = 'Recovery'
+
+function splitRecoveryAction(actionOptions: IGameActionOptionResponse[]): {
+  actionOptions: IGameActionOptionResponse[]
+  recoveryAction: IGameActionOptionResponse | null
+} {
+  const recoveryAction =
+    actionOptions.find(
+      (action) => action.label.trim().toLowerCase() === RECOVERY_ACTION_LABEL.toLowerCase(),
+    ) ?? null
+
+  if (!recoveryAction) {
+    return { actionOptions, recoveryAction: null }
+  }
+
+  return {
+    actionOptions: actionOptions.filter((action) => action.actionId !== recoveryAction.actionId),
+    recoveryAction,
+  }
+}
 
 export function LeaderCard({
   className,
@@ -34,6 +56,7 @@ export function LeaderCard({
 
   const shouldRenderBadge = showBadgeWhenLifeMissing || typeof leaderCard.currentLife === 'number'
   const badgeValue = leaderCard.currentLife ?? 0
+  const { actionOptions: leaderActionOptions, recoveryAction } = splitRecoveryAction(actionOptions)
 
   return (
     <>
@@ -60,10 +83,14 @@ export function LeaderCard({
           className={imageClassName}
         />
 
-        {actionOptions.length > 0 ? (
-          <div className="pointer-events-none absolute inset-0 z-20 flex items-end justify-center p-1 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
-            <div className="grid w-full gap-0.5 rounded-md bg-black/45 p-1 backdrop-blur-[1px]">
-              {actionOptions.map((action) => (
+        {leaderActionOptions.length > 0 ? (
+          <div
+            className={twMerge(
+              'pointer-events-none absolute mx-auto inset-0 z-20 w-fit flex items-center content-center justify-center opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100',
+              
+            )}
+          >
+              {leaderActionOptions.map((action) => (
                 <button
                   key={action.actionId}
                   type="button"
@@ -77,7 +104,24 @@ export function LeaderCard({
                   {action.label}
                 </button>
               ))}
-            </div>
+            
+          </div>
+        ) : null}
+        
+        {recoveryAction ? (
+          <div className="absolute bottom-0 left-0 z-30">
+            <button
+              type="button"
+              disabled={!isConnected || isActionPending || !recoveryAction.isEnabled}
+              aria-label="Activate leader recovery"
+              title={recoveryAction.disabledReason ?? recoveryAction.label}
+              onClick={() => {
+                onSelectActionOption?.(recoveryAction.actionId)
+              }}
+              className="mx-2 inline-flex h-7 w-7 items-center justify-center rounded-md bg-slate-700/92 text-orange-300 transition-colors duration-150 hover:bg-slate-600/92 disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-100"
+            >
+              <Flame size={14} />
+            </button>
           </div>
         ) : null}
       </PlayCard>

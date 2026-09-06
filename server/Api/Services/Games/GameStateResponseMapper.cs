@@ -266,6 +266,7 @@ public static class GameStateResponseMapper
             PlayerId: player.PlayerId,
             TurnCount: player.TurnCount,
             IsSummonCardReady: state.IsSummonCardReady(player.PlayerId),
+            ResourcePool: player.ResourcePool,
             Leader: ToLeaderCardInstanceResponse(player.LeaderCardInstance, state, player, isRequestingPlayer, pendingPrompt),
             Deck: isRequestingPlayer
                 ? player.Deck.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Deck))
@@ -277,15 +278,13 @@ public static class GameStateResponseMapper
             Hand: isRequestingPlayer
                 ? player.Hand.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Hand, state, pendingPrompt, isRequestingPlayer))
                 : player.Hand
-                    .Select(card => IsVisibleToRequestingPlayer(card, PlayerZone.Hand, isRequestingPlayer)
+                    .ConvertAll(card => IsVisibleToRequestingPlayer(card, PlayerZone.Hand, isRequestingPlayer)
                         ? ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Hand, state, pendingPrompt, isRequestingPlayer)
-                        : ToConcealedCardInstanceResponse(card))
-                    .ToList(),
+                        : ToConcealedCardInstanceResponse(card)),
             HandCount: player.Hand.Count,
             CharacterField: player.Battlefield.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.CharacterField, state, pendingPrompt, isRequestingPlayer)),
             SupportZone: player.SupportZone
-                .Select(card => ToSupportCardInstanceResponse(card, state.CardDefinitions, state, pendingPrompt, isRequestingPlayer))
-                .ToList(),
+                .ConvertAll(card => ToSupportCardInstanceResponse(card, state.CardDefinitions, state, pendingPrompt, isRequestingPlayer)),
             Trash: player.DiscardPile.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Trash)),
             ExileZone: player.ExileZone.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.ExileZone)));
     }

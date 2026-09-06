@@ -149,11 +149,3 @@ Build backend:
 cd server
 dotnet build ProjectHiddenVillage.Server.csproj
 ```
-
-## Not included yet
-
-- Card game rules engine
-- Deck builder features
-- Authentication
-- Database or persistence
-- Realtime multiplayer

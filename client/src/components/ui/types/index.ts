@@ -3,12 +3,12 @@ import type {
   HTMLAttributes,
   ImgHTMLAttributes,
   PropsWithChildren,
-  RefObject,
+  RefCallback,
   ReactNode,
 } from 'react'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
-import type { IDerivedGameViewState } from '@/views/game/types/viewModels'
+import type { IDerivedGameViewState } from '@/views/game/types'
 
 export type ICardOverlayBadgeProps = {
   value: number
@@ -86,8 +86,8 @@ export type IPlayPileZoneProps = {
   className?: string
   cardBackTone?: ICardBackTone
   gameState?: IDerivedGameViewState | null
-  deckCardRef?: RefObject<HTMLDivElement | null>
-  trashCardRef?: RefObject<HTMLDivElement | null>
+  deckCardRef?: RefCallback<HTMLDivElement>
+  trashCardRef?: RefCallback<HTMLDivElement>
 }
 
 export type IPlayCardProps = {

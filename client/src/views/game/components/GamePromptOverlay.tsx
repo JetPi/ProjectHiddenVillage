@@ -1,5 +1,5 @@
 import { AppButton, Panel } from '@/components/ui'
-import type { IGamePromptOverlayProps } from '@/views/game/types/promptOverlay'
+import type { IGamePromptOverlayProps } from '@/views/game/types'
 
 function GamePromptOverlay({
   isOpen,

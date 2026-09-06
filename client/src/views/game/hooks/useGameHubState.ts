@@ -22,7 +22,7 @@ import {
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGameCardActionTargetsResponse } from '@/services/api/types/gameHub'
 import { useGameHubStore } from '@/state/gameHubStore'
-import type { ISubmitHubIntentRequest, IUseGameHubStateResult } from '@/views/game/types/hub'
+import type { ISubmitHubIntentRequest, IUseGameHubStateResult } from '@/views/game/types'
 
 const HUB_CONNECT_MAX_ATTEMPTS = 3
 const HUB_CONNECT_RETRY_DELAY_MS = 600

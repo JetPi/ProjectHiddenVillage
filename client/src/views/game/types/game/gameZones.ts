@@ -1,20 +1,32 @@
-import type { RefObject } from 'react'
+import type { RefCallback } from 'react'
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGameActionOptionResponse, IGameCardInstanceResponse } from '@/services/api/types/game'
-import type { IAttackFlowLinkState, IAttackTargetingState } from '@/views/game/types/attackTargeting'
-import type { ISummonTargetingState } from '@/views/game/types/summonTargeting'
-import type { IDerivedGameViewState } from '@/views/game/types/viewModels'
+import type { resolveNonLeaderCards } from '@/views/game/utils/functions'
+import type { IAttackFlowLinkState, IAttackTargetingState } from '@/views/game/types/targeting/attackTargeting'
+import type { ISummonTargetingState } from '@/views/game/types/targeting/summonTargeting'
+import type { IDerivedGameViewState } from '@/views/game/types/hub/viewModels'
+
+export type IZoneCardSlotsProps = {
+    cards: ReturnType<typeof resolveNonLeaderCards>,
+    zone: 'support',
+    visibilityMode: 'hover',
+    isCurrentPlayerZone: boolean,
+    validBattleTargetsByCardId: Set<string>,
+    validSummonTargetsByCardId: Set<string>,
+    selectedSummonTargetsByCardId: Set<string>,
+    props: IGameZonesProps,
+  }
 
 export type IGameZonesProps = {
-  boardZoneRef: RefObject<HTMLDivElement | null>
+  boardZoneRef: RefCallback<HTMLDivElement>
   joinCode: string
   derivedGameState: IDerivedGameViewState
   topBattlefieldCardsOverride?: IGameCardInstanceResponse[]
   bottomBattlefieldCardsOverride?: IGameCardInstanceResponse[]
-  topDeckCardRef: RefObject<HTMLDivElement | null>
-  bottomDeckCardRef: RefObject<HTMLDivElement | null>
-  topTrashCardRef: RefObject<HTMLDivElement | null>
-  bottomTrashCardRef: RefObject<HTMLDivElement | null>
+  topDeckCardRef: RefCallback<HTMLDivElement>
+  bottomDeckCardRef: RefCallback<HTMLDivElement>
+  topTrashCardRef: RefCallback<HTMLDivElement>
+  bottomTrashCardRef: RefCallback<HTMLDivElement>
   topLeaderCardFrameClassName: string
   bottomLeaderCardFrameClassName: string
   gameState: IGameStateResponse
