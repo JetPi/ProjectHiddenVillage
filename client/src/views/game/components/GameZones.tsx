@@ -15,7 +15,7 @@ import {
   withSourceGap,
   withTargetGap,
   withTargetGapAndHorizontalNudge
-} from '../utils/functions'
+} from '@/views/game/utils/functions'
 import { renderBattlefieldRow } from './BattleFieldRow'
 import { renderZoneCardSlots } from './ZoneCardSlots'
 import { AttackLinkArrow } from './AttackLinkArrow'

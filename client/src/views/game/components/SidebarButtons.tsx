@@ -1,5 +1,5 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from "lucide-react";
-import type { IGameZonesProps } from "../types";
+import type { IGameZonesProps } from "@/views/game/types";
 import { AppButton } from "@/components/ui";
 
 export function SideBarButtons(props: IGameZonesProps){
