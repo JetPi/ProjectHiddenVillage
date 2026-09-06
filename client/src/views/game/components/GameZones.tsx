@@ -1,11 +1,9 @@
 import { useMemo } from 'react'
+import { twMerge } from 'tailwind-merge'
 import { LeaderCard } from '@/components/ui/cards'
 import { PlayBottomResourceZone, PlayPileZone, PlayTopResourceZone } from '@/components/ui/game'
-import { twMerge } from 'tailwind-merge'
-import type { IGameZonesProps } from '@/views/game/types/gameZones'
 import { GamePhaseActionRow } from '@/views/game/components/GamePhaseActionRow'
-import type { IAttackLinkRenderConfig } from '@/views/game/types/viewModels'
-import { renderBattlefieldRow } from './BattleFieldRow'
+import type { IAttackLinkRenderConfig, IGameZonesProps  } from '@/views/game/types'
 import {
   buildLeaderCardProps,
   extractTargetIds,
@@ -17,10 +15,11 @@ import {
   withSourceGap,
   withTargetGap,
   withTargetGapAndHorizontalNudge
-} from './functions/GameZoneFunctions'
+} from '../utils/functions'
+import { renderBattlefieldRow } from './BattleFieldRow'
 import { renderZoneCardSlots } from './ZoneCardSlots'
 import { AttackLinkArrow } from './AttackLinkArrow'
-import { SideBarButtons } from './functions/SidebarButtons'
+import { SideBarButtons } from './SidebarButtons'
 
 const ATTACK_OUTLINE_WIDTH_PX = 4.5
 const ATTACK_OUTLINE_OFFSET_PX = 4

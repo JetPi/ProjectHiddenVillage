@@ -2,7 +2,7 @@ import { Eye } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { twMerge } from 'tailwind-merge'
 import { CardPreviewCard } from '@/components/ui/cards'
-import type { INonLeaderCardOverlayProps } from '@/views/game/types/nonLeaderCardOverlay'
+import type { INonLeaderCardOverlayProps } from '@/views/game/types'
 
 function NonLeaderCardOverlay({
   previewCard,

@@ -1,9 +1,9 @@
 import type { RefObject } from 'react'
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGameActionOptionResponse, IGameCardInstanceResponse } from '@/services/api/types/game'
-import type { IAttackFlowLinkState, IAttackTargetingState } from '@/views/game/types/attackTargeting'
-import type { ISummonTargetingState } from '@/views/game/types/summonTargeting'
-import type { IDerivedGameViewState } from '@/views/game/types/viewModels'
+import type { IAttackFlowLinkState, IAttackTargetingState } from '@/views/game/types/targeting/attackTargeting'
+import type { ISummonTargetingState } from '@/views/game/types/targeting/summonTargeting'
+import type { IDerivedGameViewState } from '@/views/game/types/hub/viewModels'
 
 export type IGameZonesProps = {
   boardZoneRef: RefObject<HTMLDivElement | null>

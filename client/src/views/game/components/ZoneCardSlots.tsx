@@ -1,9 +1,9 @@
+import { twMerge } from 'tailwind-merge'
+import { useMemo } from 'react'
 import { CardBack, CardImage } from '@/components/ui/cards'
 import {PlayCard } from '@/components/ui/game'
-import { twMerge } from 'tailwind-merge'
 import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
 import { NonLeaderCardOverlay } from '@/views/game/components/NonLeaderCardOverlay'
-import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions/cards'
 import { 
   getBattleTargetHighlightClass, 
   getCardsAndOptions, 
@@ -11,9 +11,10 @@ import {
   isCardRestedState, 
   isMatchingInstance, 
   toAnchorId, 
-} from './functions/GameZoneFunctions'
-import { useMemo } from 'react'
-import type { IGameZonesProps } from '../types/gameZones'
+  resolveCardActionOptionsForInstanceId, 
+  resolveNonLeaderCards
+} from '../utils/functions'
+import type { IGameZonesProps } from '../types'
 
 export function renderZoneCardSlots(data: IZoneCardSlotsProps) {
     const { cards, zone, visibilityMode, isCurrentPlayerZone, validBattleTargetsByCardId, validSummonTargetsByCardId, selectedSummonTargetsByCardId, props } = data

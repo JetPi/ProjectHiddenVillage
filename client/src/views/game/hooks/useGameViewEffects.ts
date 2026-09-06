@@ -4,14 +4,13 @@ import { preloadImageSources } from '@/services/imagePreloadCache'
 import chakraCardImage from '@/assets/ChakraCard.webp'
 import summonCardImage from '@/assets/SummonCard.webp'
 import cardBackImage from '@/assets/CardBackside.webp'
-import type { IGameLoaderData } from '@/views/game/types/routeData'
 import type {
+  IGameLoaderData,
   IRevalidatorState,
   IUseAutoAdvancePhaseEffectArgs,
   IUseHandZoneAnimationEffectsArgs,
-} from '@/views/game/types/hooks'
-import { buildCardPreloadPayload } from '@/views/game/utils/functions/gameState'
-import { runDeckToHandAnimation, runRectToDynamicElementAnimation } from '@/views/game/utils/functions/animations'
+} from '@/views/game/types'
+import { buildCardPreloadPayload, runDeckToHandAnimation, runRectToDynamicElementAnimation } from '@/views/game/utils/functions'
 const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackImage]
 
 function useIdleRevalidationPoll(

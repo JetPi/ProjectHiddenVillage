@@ -1,4 +1,4 @@
-import type { IPromptPresentation } from '@/views/game/types/promptPresentation'
+import type { IPromptPresentation } from '@/views/game/types/prompts/promptPresentation'
 
 export type IGamePromptOverlayProps = {
   isOpen: boolean

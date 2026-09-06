@@ -4,18 +4,9 @@ import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 import { GameHandRow } from '@/views/game/components/GameHandRow'
 import { NonLeaderCardOverlay } from '@/views/game/components/NonLeaderCardOverlay'
 import { useLongPressHandReorder } from '@/views/game/hooks/useLongPressHandReorder'
-import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions/cards'
-import type { IBottomHandReorderRowProps } from '@/views/game/types/bottomHandReorderRow'
+import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions'
+import type { IBottomHandReorderRowProps } from '@/views/game/types'
 
-/**
- * Bottom hand row that owns the long-press reorder state internally.
- *
- * Keeping the reorder display order in this component (instead of the parent
- * GameView) means each reorder step while dragging only re-renders this row
- * rather than the entire GameView plus the whole game board (GameZones, attack
- * links, all zone cards). This keeps drag/reorder smooth regardless of how much
- * else is happening on the board.
- */
 export function BottomHandReorderRow({
   cards,
   rowRef,

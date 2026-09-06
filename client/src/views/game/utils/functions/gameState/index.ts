@@ -1,9 +1,9 @@
 import type { IGamePlayerStateResponse } from "@/services/api/gameApi"
 import type { IGameActionOptionResponse } from "@/services/api/types/game"
 import type { IGameCardActionExecutionRequest } from "@/services/api/types/gameHub"
-import type { ISubmitHubIntentRequest } from "@/views/game/types/hub"
-import type { IGameLoaderData } from "@/views/game/types/routeData"
-import type { ICardPreloadPayload, IDerivedGameViewState } from "@/views/game/types/viewModels"
+import type { ISubmitHubIntentRequest } from "@/views/game/types/hub/hub"
+import type { IGameLoaderData } from "@/views/game/types/hub/routeData"
+import type { ICardPreloadPayload, IDerivedGameViewState } from "@/views/game/types/hub/viewModels"
 import { buildCardById, buildCardTypeById, resolveLeaderCard } from "@/views/game/utils/functions/cards"
 
 function normalizePlayerId(value: string): string {
@@ -205,11 +205,16 @@ export function mapActionToHubIntent(
   return null
 }
 
+function buildLeaderCardFrameClass(baseClassName: string, hasCard: boolean): string {
+  return `${baseClassName} ${hasCard ? 'border-transparent' : ''}`.trim()
+}
 
+export * from './GameZoneFunctions'
 export {
   normalizePlayerId,
   resolveCurrentPlayer,
   resolveOpponentPlayer,
   deriveGameViewState,
   buildCardPreloadPayload,
+  buildLeaderCardFrameClass,
 }

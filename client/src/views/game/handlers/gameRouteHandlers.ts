@@ -5,7 +5,7 @@ import {
 } from '@/services/api/gameApi'
 import { readAuthSession } from '@/state/authSession'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
-import type { IGameActionData, IGameLoaderData } from '@/views/game/types/routeData'
+import type { IGameActionData, IGameLoaderData } from '@/views/game/types'
 
 function resolveJoinCode(params: LoaderFunctionArgs['params']): string {
   const joinCode = params.joinCode?.trim() ?? ''

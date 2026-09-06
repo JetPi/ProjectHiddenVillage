@@ -1,11 +1,10 @@
 import { CardBack, CardImage } from '@/components/ui/cards'
 import { PlayCard } from '@/components/ui/game'
 import { twMerge } from 'tailwind-merge'
-import type { IGameZonesProps } from '@/views/game/types/gameZones'
+import type { IGameZonesProps } from '@/views/game/types'
 import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
 import { NonLeaderCardOverlay } from '@/views/game/components/NonLeaderCardOverlay'
-import { getBattleTargetHighlightClass, getSummonTargetHighlightClass, toAnchorId } from '@/views/game/components/functions/GameZoneFunctions'
-import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions/cards'
+import { getBattleTargetHighlightClass, getSummonTargetHighlightClass, toAnchorId, resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions'
 
 export function renderBattlefieldRow(data: IBattleFieldRowProps) {
     const { props } = data

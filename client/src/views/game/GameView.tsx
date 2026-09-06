@@ -9,13 +9,13 @@ import {
   buildLeaderCardFrameClass,
 } from '@/views/game/utils/functions'
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
-import type { IGameLoaderData } from '@/views/game/types/routeData'
+import type { IGameLoaderData } from '@/views/game/types/hub/routeData'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
-import type { ISubmitHubIntentRequest } from '@/views/game/types/hub'
-import type { IAttackFlowLinkState, IAttackTargetingState } from '@/views/game/types/attackTargeting'
-import type { ISummonTargetingState } from '@/views/game/types/summonTargeting'
+import type { ISubmitHubIntentRequest } from '@/views/game/types/hub/hub'
+import type { IAttackFlowLinkState, IAttackTargetingState, IPendingCardTargetingState } from '@/views/game/types/targeting/attackTargeting'
+import type { ISummonTargetingState } from '@/views/game/types/targeting/summonTargeting'
 import { fetchGameCards } from '@/services/api/gameApi'
-import type { IGameViewAnimController } from '@/views/game/types/hooks'
+import type { IGameViewAnimController } from '@/views/game/types/hub/hooks'
 import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from '@/views/game/hooks/useGameViewEffects'
 import { useDerivedGameViewState } from '@/views/game/hooks/useDerivedGameViewState'
 import { useGameHubState } from '@/views/game/hooks/useGameHubState'
@@ -116,7 +116,7 @@ export function GameView() {
   const [bottomHandFaceUpByInstanceId, setBottomHandFaceUpByInstanceId] = useState<Record<string, boolean>>({})
   const [isMulliganAnimationPending, setIsMulliganAnimationPending] = useState(false)
   const [pendingSetSupportCardInstanceId, setPendingSetSupportCardInstanceId] = useState<string | null>(null)
-  const [pendingAttackTargeting, setPendingAttackTargeting] = useState<IAttackTargetingState | null>(null)
+  const [pendingCardTargeting, setPendingCardTargeting] = useState<IPendingCardTargetingState | null>(null)
   const [pendingSummonTargeting, setPendingSummonTargeting] = useState<ISummonTargetingState | null>(null)
   const [optimisticRestedByInstanceId, setOptimisticRestedByInstanceId] = useState<Record<string, boolean>>({})
   const [activeAttackLink, setActiveAttackLink] = useState<IAttackFlowLinkState | null>(null)
@@ -414,7 +414,7 @@ export function GameView() {
     [mappedAvailableActions],
   )
 
-  const isBattleActionTargeting = pendingAttackTargeting !== null
+  const isBattleActionTargeting = pendingCardTargeting !== null
   const isSummonActionTargeting = pendingSummonTargeting !== null
 
   const occupiedBottomSupportSlots = useMemo(() => {
@@ -455,21 +455,21 @@ export function GameView() {
   }, [bottomHandCards, mappedAvailableActions, pendingSetSupportCardInstanceId])
 
   useEffect(() => {
-    if (!pendingAttackTargeting) {
+    if (!pendingCardTargeting || pendingCardTargeting.kind !== 'battle') {
       return
     }
 
     const matchingBattleAction = mappedAvailableActions.find((option) =>
-      option.actionId === pendingAttackTargeting.actionId)
+      option.actionId === pendingCardTargeting.actionId)
 
     const sourceCard = (derivedGameState.currentPlayer?.characterField ?? []).find((card) =>
-      card.instanceId.trim().toLowerCase() === pendingAttackTargeting.sourceCardInstanceId.trim().toLowerCase())
+      card.instanceId.trim().toLowerCase() === pendingCardTargeting.sourceCardInstanceId.trim().toLowerCase())
 
     const matchingSourceCardAction = (sourceCard?.availableActions ?? []).find((option) =>
-      option.actionId === pendingAttackTargeting.actionId)
+      option.actionId === pendingCardTargeting.actionId)
 
     const sourceCardStillControlledByCurrentPlayer = (derivedGameState.currentPlayer?.characterField ?? []).some((card) =>
-      card.instanceId.trim().toLowerCase() === pendingAttackTargeting.sourceCardInstanceId.trim().toLowerCase())
+      card.instanceId.trim().toLowerCase() === pendingCardTargeting.sourceCardInstanceId.trim().toLowerCase())
 
     const stillAvailable = sourceCardStillControlledByCurrentPlayer
       && (Boolean(matchingBattleAction?.isEnabled) || Boolean(matchingSourceCardAction?.isEnabled))
@@ -479,13 +479,13 @@ export function GameView() {
     }
 
     const timeoutId = window.setTimeout(() => {
-      setPendingAttackTargeting(null)
+      setPendingCardTargeting(null)
     }, 0)
 
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [derivedGameState.currentPlayer?.characterField, mappedAvailableActions, pendingAttackTargeting])
+  }, [derivedGameState.currentPlayer?.characterField, mappedAvailableActions, pendingCardTargeting])
 
   useEffect(() => {
     if (!pendingSummonTargeting) {
@@ -645,17 +645,24 @@ export function GameView() {
     setPendingSetSupportCardInstanceId(null)
     setActiveAttackLink(null)
     setPendingSummonTargeting(null)
-    setPendingAttackTargeting(targeting)
+    setPendingCardTargeting({ ...targeting, kind: 'battle' })
+  }
+
+  function beginEffectTargeting(targeting: IAttackTargetingState): void {
+    setPendingSetSupportCardInstanceId(null)
+    setActiveAttackLink(null)
+    setPendingSummonTargeting(null)
+    setPendingCardTargeting({ ...targeting, kind: 'effect' })
   }
 
   function cancelBattleTargeting(): void {
-    setPendingAttackTargeting(null)
+    setPendingCardTargeting(null)
     setActiveAttackLink(null)
   }
 
   function beginSummonTargeting(targeting: ISummonTargetingState): void {
     setPendingSetSupportCardInstanceId(null)
-    setPendingAttackTargeting(null)
+    setPendingCardTargeting(null)
     setActiveAttackLink(null)
     setPendingSummonTargeting(targeting)
   }
@@ -784,39 +791,42 @@ export function GameView() {
     })()
   }
 
-  function submitBattleTargetSelection(targetCardInstanceId: string): void {
-    if (!pendingAttackTargeting) {
+  function submitCardTargetSelection(targetCardInstanceId: string): void {
+    if (!pendingCardTargeting) {
       return
     }
 
-    const selectedTarget = pendingAttackTargeting.validTargets.find((target) =>
+    const selectedTarget = pendingCardTargeting.validTargets.find((target) =>
       target.cardInstanceId.trim().toLowerCase() === targetCardInstanceId.trim().toLowerCase())
 
     if (!selectedTarget) {
       return
     }
 
-    const sourceCardInstanceId = pendingAttackTargeting.sourceCardInstanceId
-    const selectedTargetForLink = selectedTarget
+    const sourceCardInstanceId = pendingCardTargeting.sourceCardInstanceId
     const intentRequest: ISubmitHubIntentRequest = {
       intent: 'execute-card-action',
-      actionId: pendingAttackTargeting.actionId,
+      actionId: pendingCardTargeting.actionId,
       sourceCardInstanceId,
-      selectedTargets: [selectedTargetForLink],
+      selectedTargets: [selectedTarget],
     }
 
-    lastSubmittedAttackSourceRef.current = sourceCardInstanceId
-    setPendingAttackTargeting(null)
-    setOptimisticRestedByInstanceId((previous) => ({
-      ...previous,
-      [sourceCardInstanceId]: true,
-    }))
-    setActiveAttackLink({
-      sourceCardInstanceId,
-      targetCardInstanceId: selectedTargetForLink.cardInstanceId,
-      targetZone: selectedTargetForLink.zone,
-      targetPlayerId: selectedTargetForLink.playerId,
-    })
+    const isBattle = pendingCardTargeting.kind === 'battle'
+    if (isBattle) {
+      lastSubmittedAttackSourceRef.current = sourceCardInstanceId
+      setOptimisticRestedByInstanceId((previous) => ({
+        ...previous,
+        [sourceCardInstanceId]: true,
+      }))
+      setActiveAttackLink({
+        sourceCardInstanceId,
+        targetCardInstanceId: selectedTarget.cardInstanceId,
+        targetZone: selectedTarget.zone,
+        targetPlayerId: selectedTarget.playerId,
+      })
+    }
+
+    setPendingCardTargeting(null)
 
     void (async () => {
       await submitHubIntent(intentRequest)
@@ -909,47 +919,68 @@ export function GameView() {
     })
   }
 
+  async function trySubmitTargetedCardEffect(action: IGameActionOptionResponse): Promise<void> {
+    if (!action.isEnabled) {
+      return
+    }
+
+    const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
+    if (!intentRequest || intentRequest.intent !== 'execute-card-action') {
+      return
+    }
+
+    const targetsResponse = await getCardActionTargets({
+      actionId: intentRequest.actionId,
+      sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+    })
+
+    if (!targetsResponse || !targetsResponse.isEnabled) {
+      return
+    }
+
+    const validTargets = targetsResponse.validTargets
+    const exactTargetCount = targetsResponse.exactTargetCount
+    const minimumTargetCount = targetsResponse.minimumTargetCount
+    const maximumTargetCount = targetsResponse.maximumTargetCount
+    const autoSelectAll = targetsResponse.autoSelectAllValidTargets && validTargets.length > 0
+
+    const shouldAutoSubmit =
+      autoSelectAll
+      || validTargets.length === 0
+      || (typeof exactTargetCount === 'number' && validTargets.length === exactTargetCount)
+
+    if (shouldAutoSubmit) {
+      await submitHubIntent({
+        intent: 'execute-card-action',
+        actionId: intentRequest.actionId,
+        sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+        selectedTargets: validTargets,
+      })
+      return
+    }
+
+    const requiresSingleTargetPick =
+      validTargets.length > 0
+      && (exactTargetCount === null || exactTargetCount === 1)
+      && (minimumTargetCount === null || minimumTargetCount === 1)
+      && (maximumTargetCount === null || maximumTargetCount === 1)
+
+    if (requiresSingleTargetPick) {
+      beginEffectTargeting({
+        actionId: intentRequest.actionId,
+        sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+        validTargets,
+      })
+    }
+  }
+
   function submitMappedAction(action: IGameActionOptionResponse): void {
     if (!action.isEnabled) {
       return
     }
 
     if (action.actionId.startsWith('leader-effect:')) {
-      const intentRequest = mapActionToHubIntent(action, canResolvePrompt)
-      if (!intentRequest || intentRequest.intent !== 'execute-card-action') {
-        return
-      }
-
-      void (async () => {
-        const targetsResponse = await getCardActionTargets({
-          actionId: intentRequest.actionId,
-          sourceCardInstanceId: intentRequest.sourceCardInstanceId,
-        })
-
-        if (!targetsResponse || !targetsResponse.isEnabled) {
-          return
-        }
-
-        const autoSelectedTargets = targetsResponse.validTargets
-        const exactTargetCount = targetsResponse.exactTargetCount
-        const minimumTargetCount = targetsResponse.minimumTargetCount
-
-        if (typeof exactTargetCount === 'number' && autoSelectedTargets.length !== exactTargetCount) {
-          return
-        }
-
-        if (typeof minimumTargetCount === 'number' && autoSelectedTargets.length < minimumTargetCount) {
-          return
-        }
-
-        await submitHubIntent({
-          intent: 'execute-card-action',
-          actionId: intentRequest.actionId,
-          sourceCardInstanceId: intentRequest.sourceCardInstanceId,
-          selectedTargets: autoSelectedTargets,
-        })
-      })()
-
+      void trySubmitTargetedCardEffect(action)
       return
     }
 
@@ -979,6 +1010,11 @@ export function GameView() {
         })
       })()
 
+      return
+    }
+
+    if (action.actionId.startsWith('activate-support:')) {
+      void trySubmitTargetedCardEffect(action)
       return
     }
 
@@ -1135,8 +1171,8 @@ export function GameView() {
       setPendingSetSupportCardInstanceId(null)
     }
 
-    if (pendingAttackTargeting) {
-      setPendingAttackTargeting(null)
+    if (pendingCardTargeting) {
+      setPendingCardTargeting(null)
     }
 
     if (pendingSummonTargeting) {
@@ -1317,7 +1353,7 @@ export function GameView() {
               authUserId={authUserId}
               availableActions={mappedAvailableActions}
               pendingSetSupportCardInstanceId={pendingSetSupportCardInstanceId}
-              pendingAttackTargeting={pendingAttackTargeting}
+              pendingAttackTargeting={pendingCardTargeting}
               pendingSummonTargeting={pendingSummonTargeting}
               optimisticRestedByInstanceId={optimisticRestedByInstanceId}
               activeAttackLink={renderedAttackLink}
@@ -1328,7 +1364,7 @@ export function GameView() {
               onSelectAction={submitMappedAction}
               onSelectSupportSlotForSet={submitSetSupportToSlot}
               onCancelSetSupportSelection={() => setPendingSetSupportCardInstanceId(null)}
-              onSelectAttackTarget={submitBattleTargetSelection}
+              onSelectAttackTarget={submitCardTargetSelection}
               onCancelAttackTargetSelection={cancelBattleTargeting}
               onToggleSummonTarget={toggleSummonTargetSelection}
               canConfirmSummonTargetSelection={pendingSummonTargeting ? canConfirmSummonTargetSelection(pendingSummonTargeting) : false}

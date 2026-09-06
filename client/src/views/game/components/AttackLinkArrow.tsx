@@ -1,5 +1,5 @@
 import Xarrow from "react-xarrows";
-import type { IAttackLinkRenderConfig } from "../types/viewModels";
+import type { IAttackLinkRenderConfig } from "../types";
 
 interface AttackLinkArrowProps {
   config: IAttackLinkRenderConfig;

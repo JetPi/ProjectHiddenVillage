@@ -1,8 +1,7 @@
 import { useMemo } from 'react'
 import type { IGamePlayerStateResponse } from '@/services/api/gameApi'
-import type { IGameLoaderData } from '@/views/game/types/routeData'
-import type { IDerivedGameViewState } from '@/views/game/types/viewModels'
-import { deriveGameViewState } from '@/views/game/utils/functions/gameState'
+import type { IDerivedGameViewState, IGameLoaderData  } from '@/views/game/types'
+import { deriveGameViewState } from '@/views/game/utils/functions'
 
 function useDerivedGameViewState(
   gameCards: IGameLoaderData['gameCards'],

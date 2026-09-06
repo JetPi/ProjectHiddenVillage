@@ -1,5 +1,5 @@
 import type { IGameStateResponse } from '@/services/api/gameApi'
-import type { IGamePhaseIndicatorProps } from '@/views/game/types/gamePhaseIndicator'
+import type { IGamePhaseIndicatorProps } from '@/views/game/types'
 
 function normalizeId(value: string | undefined): string {
   return (value ?? '').trim().toLowerCase().replace(/-/g, '')

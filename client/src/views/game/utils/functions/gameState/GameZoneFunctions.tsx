@@ -1,8 +1,8 @@
 import { twMerge } from 'tailwind-merge'
 import type { ILeaderCardProps } from '@/components/ui/types'
 import type { IGameActionOptionResponse, IGameStateResponse } from '@/services/api/types/game'
-import type { IGameZonesProps } from '@/views/game/types/gameZones'
-import type { IAttackAnchorPosition, IAttackAnchorConfig, IBoardPoint, INonLeaderCardViewModel, ILeaderCardViewModel } from '@/views/game/types/viewModels'
+import type { IGameZonesProps } from '@/views/game/types/game/gameZones'
+import type { IAttackAnchorPosition, IAttackAnchorConfig, IBoardPoint, INonLeaderCardViewModel, ILeaderCardViewModel } from '@/views/game/types/hub/viewModels'
 import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
 import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions/cards'
 

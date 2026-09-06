@@ -8,7 +8,7 @@ import type {
 } from 'react'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
-import type { IDerivedGameViewState } from '@/views/game/types/viewModels'
+import type { IDerivedGameViewState } from '@/views/game/types/hub/viewModels'
 
 export type ICardOverlayBadgeProps = {
   value: number
