@@ -33,9 +33,15 @@
   - `prompts/`, `hands/`, `card/`
   - Top-level `index.ts` re-exports every subfolder.
 
+- **Refs & React Compiler lint (strict-clean — no eslint-disables)**:
+  - `eslint-plugin-react-hooks` v7 enables the React Compiler rules (incl. `react-hooks/refs`) via `flat.recommended`, so refs may **never** be read/forwarded during render.
+  - Pattern in use: the owner keeps `useRef` storage and exposes **stable `RefCallback` mount handlers** (`useCallback`) that assign `.current` (e.g. GameView `setBoardZoneRef`/`setBottomHandRowRefs`). Children receive those callbacks as props and attach them with `ref=` on DOM nodes (e.g. `GameZones` `ref={boardZoneRef}`, `PlayPileZone` `deckCardRef`/`trashCardRef`).
+  - Never pass `RefObject`s through component props, spread them into children, or read `.current` during render. `.current` reads are allowed only inside effects/handlers (e.g. animation helpers in `useGameViewEffects`).
+
 ## 3. Key Commands Reference
 - **Frontend Development**: `cd client && npm run dev`
 - **Frontend Build & Typecheck**: `cd client && npm run build` (runs `tsc -b && vite build`)
+- **Frontend Lint**: `cd client && npm run lint` (runs `eslint .` with `client/eslint.config.js`; whole `client/src` is lint-clean)
 - **Backend Run**: `dotnet watch run --project server/ProjectHiddenVillage.Server.csproj --urls http://127.0.0.1:3001`
 - **Backend Tests**: `dotnet test server/tests/ProjectHiddenVillage.Server.Tests/ProjectHiddenVillage.Server.Tests.csproj`
 - **E2E Tests (Playwright)**: `npm run test:e2e` (targets `http://127.0.0.1:4173/game/TEST1`)
@@ -66,3 +72,5 @@
 - Fast commands work fine; quote grep patterns in single quotes and write output to a file when capture is mangled.
 - Prefer `read_files` / `search_codebase` over shell greps; the `tsc` binary lives at `client/node_modules/.bin/tsc`.
 - Re-run `npm run build` after import refactors — barrel cycles surface as runtime/TDZ issues, not type errors.
+- Run `cd client && npm run lint` (or `client/node_modules/.bin/eslint src`) after React/ref changes; the whole `client/src` lints clean and is the source of truth for the React Compiler rules.
+- Watch import hygiene: switching `RefObject` → `RefCallback` requires removing the now-unused `RefObject` import (`@typescript-eslint/no-unused-vars`).
