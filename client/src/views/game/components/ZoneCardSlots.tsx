@@ -16,7 +16,7 @@ import {
 } from '@/views/game/utils/functions'
 import type { IZoneCardSlotsProps } from '@/views/game/types'
 
-export function renderZoneCardSlots(data: IZoneCardSlotsProps) {
+export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
     const { cards, zone, visibilityMode, isCurrentPlayerZone, validBattleTargetsByCardId, validSummonTargetsByCardId, selectedSummonTargetsByCardId, props } = data
     const cardOptions = getCardsAndOptions(data.props)
     

@@ -17,7 +17,7 @@ import {
   withTargetGapAndHorizontalNudge
 } from '@/views/game/utils/functions'
 import { renderBattlefieldRow } from './BattleFieldRow'
-import { renderZoneCardSlots } from './ZoneCardSlots'
+import { RenderZoneCardSlots } from './ZoneCardSlots'
 import { AttackLinkArrow } from './AttackLinkArrow'
 import { SideBarButtons } from './SidebarButtons'
 
@@ -33,7 +33,14 @@ const ATTACK_HEAD_OFFSET_DEFAULT = 0.25
 
 function GameZones(props: IGameZonesProps) {
   const { topLeaderCard, bottomLeaderCard } = props.derivedGameState
-  const { optimisticRestedByInstanceId } = props
+  const {
+    optimisticRestedByInstanceId,
+    boardZoneRef,
+    topDeckCardRef,
+    bottomDeckCardRef,
+    topTrashCardRef,
+    bottomTrashCardRef,
+  } = props
   const cardOptions = getCardsAndOptions(props)
 
   const cardRestedStateByInstanceId = useMemo(() => {
@@ -182,7 +189,7 @@ function GameZones(props: IGameZonesProps) {
   return (
     <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-0.5">
       <div
-        ref={props.boardZoneRef}
+        ref={boardZoneRef}
         data-testid="game-board"
         className="game-board-spill relative grid min-h-0 overflow-visible grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1 rounded-2xl pt-2 pr-0.5 pb-2 pl-2 turn-zone-split"
       >
@@ -199,8 +206,8 @@ function GameZones(props: IGameZonesProps) {
               labels={['Deck', 'Trash']}
               cardBackTone="blue"
               gameState={props.derivedGameState}
-              deckCardRef={props.topDeckCardRef}
-              trashCardRef={props.topTrashCardRef}
+              deckCardRef={topDeckCardRef}
+              trashCardRef={topTrashCardRef}
             />
             <PlayTopResourceZone
               isSummonCardReady={props.derivedGameState.opponentPlayer?.isSummonCardReady ?? true}
@@ -208,7 +215,7 @@ function GameZones(props: IGameZonesProps) {
           </div>
 
           <div className="grid min-h-0 grid-rows-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-2">
-            {renderZoneCardSlots({ ...renderZoneCardSlotsProps, zone: 'support', visibilityMode: 'hover', isCurrentPlayerZone: false })}
+            {RenderZoneCardSlots({ ...renderZoneCardSlotsProps, zone: 'support', visibilityMode: 'hover', isCurrentPlayerZone: false })}
             {renderBattlefieldRow({
               ...battlefieldRowProps,
               cards: cardOptions.topBattlefieldCards,
@@ -264,7 +271,7 @@ function GameZones(props: IGameZonesProps) {
               normalizedAttackLinkSourceCardId: cardOptions.normalizedAttackLinkSourceCardId,
               normalizedAttackLinkTargetCardId: cardOptions.normalizedAttackLinkTargetCardId,
             })}
-            {renderZoneCardSlots({ ...renderZoneCardSlotsProps, zone: 'support', visibilityMode: 'hover', isCurrentPlayerZone: true })}
+            {RenderZoneCardSlots({ ...renderZoneCardSlotsProps, zone: 'support', visibilityMode: 'hover', isCurrentPlayerZone: true })}
           </div>
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
@@ -276,8 +283,8 @@ function GameZones(props: IGameZonesProps) {
               labels={['Trash', 'Deck']}
               cardBackTone="orange"
               gameState={props.derivedGameState}
-              deckCardRef={props.bottomDeckCardRef}
-              trashCardRef={props.bottomTrashCardRef}
+              deckCardRef={bottomDeckCardRef}
+              trashCardRef={bottomTrashCardRef}
             />
           </div>
         </div>

@@ -124,6 +124,26 @@ export function GameView() {
   const setBottomHandRowRefs = useCallback((node: HTMLDivElement | null) => {
     bottomHandRowRef.current = node
   }, [])
+
+  const setBoardZoneRef = useCallback((node: HTMLDivElement | null) => {
+    boardZoneRef.current = node
+  }, [])
+
+  const setTopDeckCardRef = useCallback((node: HTMLDivElement | null) => {
+    topDeckCardRef.current = node
+  }, [])
+
+  const setBottomDeckCardRef = useCallback((node: HTMLDivElement | null) => {
+    bottomDeckCardRef.current = node
+  }, [])
+
+  const setTopTrashCardRef = useCallback((node: HTMLDivElement | null) => {
+    topTrashCardRef.current = node
+  }, [])
+
+  const setBottomTrashCardRef = useCallback((node: HTMLDivElement | null) => {
+    bottomTrashCardRef.current = node
+  }, [])
   
   const { joinCode, gameCards, gameState: initialGameState } = useLoaderData() as IGameLoaderData
   const [liveGameCards, setLiveGameCards] = useState<IGameLoaderData['gameCards']>(gameCards)
@@ -1331,15 +1351,15 @@ export function GameView() {
             />
 
             <GameZones
-              boardZoneRef={boardZoneRef}
+              boardZoneRef={setBoardZoneRef}
               joinCode={joinCode}
               derivedGameState={derivedGameState}
               topBattlefieldCardsOverride={topBattlefieldCards}
               bottomBattlefieldCardsOverride={bottomBattlefieldCards}
-              topDeckCardRef={topDeckCardRef}
-              bottomDeckCardRef={bottomDeckCardRef}
-              topTrashCardRef={topTrashCardRef}
-              bottomTrashCardRef={bottomTrashCardRef}
+              topDeckCardRef={setTopDeckCardRef}
+              bottomDeckCardRef={setBottomDeckCardRef}
+              topTrashCardRef={setTopTrashCardRef}
+              bottomTrashCardRef={setBottomTrashCardRef}
               topLeaderCardFrameClassName={topLeaderCardFrameClassName}
               bottomLeaderCardFrameClassName={bottomLeaderCardFrameClassName}
               gameState={gameState}

@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import type { RefCallback } from 'react'
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGameActionOptionResponse, IGameCardInstanceResponse } from '@/services/api/types/game'
 import type { resolveNonLeaderCards } from '@/views/game/utils/functions'
@@ -18,15 +18,15 @@ export type IZoneCardSlotsProps = {
   }
 
 export type IGameZonesProps = {
-  boardZoneRef: RefObject<HTMLDivElement | null>
+  boardZoneRef: RefCallback<HTMLDivElement>
   joinCode: string
   derivedGameState: IDerivedGameViewState
   topBattlefieldCardsOverride?: IGameCardInstanceResponse[]
   bottomBattlefieldCardsOverride?: IGameCardInstanceResponse[]
-  topDeckCardRef: RefObject<HTMLDivElement | null>
-  bottomDeckCardRef: RefObject<HTMLDivElement | null>
-  topTrashCardRef: RefObject<HTMLDivElement | null>
-  bottomTrashCardRef: RefObject<HTMLDivElement | null>
+  topDeckCardRef: RefCallback<HTMLDivElement>
+  bottomDeckCardRef: RefCallback<HTMLDivElement>
+  topTrashCardRef: RefCallback<HTMLDivElement>
+  bottomTrashCardRef: RefCallback<HTMLDivElement>
   topLeaderCardFrameClassName: string
   bottomLeaderCardFrameClassName: string
   gameState: IGameStateResponse
