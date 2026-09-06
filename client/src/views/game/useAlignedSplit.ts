@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react'
-import type { IUseAlignedSplitOptions } from '@/views/game/types/hub/hooks'
+import type { IUseAlignedSplitOptions } from '@/views/game/types'
 
 export function useAlignedSplit(
   options: IUseAlignedSplitOptions = {},

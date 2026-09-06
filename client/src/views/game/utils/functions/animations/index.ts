@@ -5,7 +5,7 @@ import type {
   IRectToDynamicElementAnimationArgs,
   IRectToElementAnimationArgs,
   IWaitForElementArgs,
-} from "@/views/game/types/targeting/animations"
+} from "@/views/game/types"
 
 const MIN_HAND_TO_ELEMENT_DURATION_MS = 220
 const MAX_HAND_TO_ELEMENT_DURATION_MS = 520

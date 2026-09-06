@@ -9,20 +9,13 @@ import {
   buildLeaderCardFrameClass,
 } from '@/views/game/utils/functions'
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
-import type { IGameLoaderData } from '@/views/game/types/hub/routeData'
+import type { IAttackFlowLinkState, IAttackTargetingState, IGameLoaderData, IGameViewAnimController, IPendingCardTargetingState, ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
-import type { ISubmitHubIntentRequest } from '@/views/game/types/hub/hub'
-import type { IAttackFlowLinkState, IAttackTargetingState, IPendingCardTargetingState } from '@/views/game/types/targeting/attackTargeting'
-import type { ISummonTargetingState } from '@/views/game/types/targeting/summonTargeting'
 import { fetchGameCards } from '@/services/api/gameApi'
-import type { IGameViewAnimController } from '@/views/game/types/hub/hooks'
 import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from '@/views/game/hooks/useGameViewEffects'
 import { useDerivedGameViewState } from '@/views/game/hooks/useDerivedGameViewState'
 import { useGameHubState } from '@/views/game/hooks/useGameHubState'
-import { GameHandRow } from '@/views/game/components/GameHandRow'
-import { BottomHandReorderRow } from '@/views/game/components/BottomHandReorderRow'
-import { GameZones } from '@/views/game/components/GameZones'
-import { GamePromptOverlay } from '@/views/game/components/GamePromptOverlay'
+import { BottomHandReorderRow, GameHandRow, GamePromptOverlay, GameZones } from '@/views/game/components'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,

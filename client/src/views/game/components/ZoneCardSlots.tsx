@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import { CardBack, CardImage } from '@/components/ui/cards'
 import {PlayCard } from '@/components/ui/game'
 import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
-import { NonLeaderCardOverlay } from '@/views/game/components/NonLeaderCardOverlay'
+import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
 import { 
   getBattleTargetHighlightClass, 
   getCardsAndOptions, 

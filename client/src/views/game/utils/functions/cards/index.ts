@@ -1,6 +1,5 @@
 import type { IGameActionOptionResponse, IGameCardInstanceResponse, IGamePlayerStateResponse } from "@/services/api/types/game"
-import type { IGameLoaderData } from "@/views/game/types/hub/routeData"
-import type { IGameCard, ILeaderCardViewModel, INonLeaderCardViewModel } from "@/views/game/types/hub/viewModels"
+import type { IGameLoaderData, IGameCard, ILeaderCardViewModel, INonLeaderCardViewModel } from "@/views/game/types"
 
 function resolveLeaderCardId(
   player: IGamePlayerStateResponse | null,

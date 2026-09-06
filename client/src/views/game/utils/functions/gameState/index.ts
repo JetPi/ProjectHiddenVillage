@@ -1,9 +1,7 @@
 import type { IGamePlayerStateResponse } from "@/services/api/gameApi"
 import type { IGameActionOptionResponse } from "@/services/api/types/game"
 import type { IGameCardActionExecutionRequest } from "@/services/api/types/gameHub"
-import type { ISubmitHubIntentRequest } from "@/views/game/types/hub/hub"
-import type { IGameLoaderData } from "@/views/game/types/hub/routeData"
-import type { ICardPreloadPayload, IDerivedGameViewState } from "@/views/game/types/hub/viewModels"
+import type { ISubmitHubIntentRequest, IGameLoaderData, ICardPreloadPayload, IDerivedGameViewState } from "@/views/game/types"
 import { buildCardById, buildCardTypeById, resolveLeaderCard } from "@/views/game/utils/functions/cards"
 
 function normalizePlayerId(value: string): string {

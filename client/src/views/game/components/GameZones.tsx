@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { twMerge } from 'tailwind-merge'
 import { LeaderCard } from '@/components/ui/cards'
 import { PlayBottomResourceZone, PlayPileZone, PlayTopResourceZone } from '@/components/ui/game'
-import { GamePhaseActionRow } from '@/views/game/components/GamePhaseActionRow'
+import { GamePhaseActionRow } from './GamePhaseActionRow'
 import type { IAttackLinkRenderConfig, IGameZonesProps  } from '@/views/game/types'
 import {
   buildLeaderCardProps,

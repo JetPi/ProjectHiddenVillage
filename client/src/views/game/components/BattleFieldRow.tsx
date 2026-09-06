@@ -3,7 +3,7 @@ import { PlayCard } from '@/components/ui/game'
 import { twMerge } from 'tailwind-merge'
 import type { IGameZonesProps } from '@/views/game/types'
 import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
-import { NonLeaderCardOverlay } from '@/views/game/components/NonLeaderCardOverlay'
+import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
 import { getBattleTargetHighlightClass, getSummonTargetHighlightClass, toAnchorId, resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions'
 
 export function renderBattlefieldRow(data: IBattleFieldRowProps) {
