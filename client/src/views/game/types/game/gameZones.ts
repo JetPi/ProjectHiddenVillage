@@ -1,9 +1,21 @@
 import type { RefObject } from 'react'
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGameActionOptionResponse, IGameCardInstanceResponse } from '@/services/api/types/game'
-import type { IAttackFlowLinkState, IAttackTargetingState } from '../targeting/attackTargeting'
-import type { ISummonTargetingState } from '../targeting/summonTargeting'
-import type { IDerivedGameViewState } from '../hub/viewModels'
+import type { resolveNonLeaderCards } from '@/views/game/utils/functions'
+import type { IAttackFlowLinkState, IAttackTargetingState } from '@/views/game/types/targeting/attackTargeting'
+import type { ISummonTargetingState } from '@/views/game/types/targeting/summonTargeting'
+import type { IDerivedGameViewState } from '@/views/game/types/hub/viewModels'
+
+export type IZoneCardSlotsProps = {
+    cards: ReturnType<typeof resolveNonLeaderCards>,
+    zone: 'support',
+    visibilityMode: 'hover',
+    isCurrentPlayerZone: boolean,
+    validBattleTargetsByCardId: Set<string>,
+    validSummonTargetsByCardId: Set<string>,
+    selectedSummonTargetsByCardId: Set<string>,
+    props: IGameZonesProps,
+  }
 
 export type IGameZonesProps = {
   boardZoneRef: RefObject<HTMLDivElement | null>

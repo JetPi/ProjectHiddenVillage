@@ -13,8 +13,8 @@ import {
   toAnchorId, 
   resolveCardActionOptionsForInstanceId, 
   resolveNonLeaderCards
-} from '../utils/functions'
-import type { IGameZonesProps } from '../types'
+} from '@/views/game/utils/functions'
+import type { IZoneCardSlotsProps } from '@/views/game/types'
 
 export function renderZoneCardSlots(data: IZoneCardSlotsProps) {
     const { cards, zone, visibilityMode, isCurrentPlayerZone, validBattleTargetsByCardId, validSummonTargetsByCardId, selectedSummonTargetsByCardId, props } = data
@@ -208,15 +208,4 @@ export function renderZoneCardSlots(data: IZoneCardSlotsProps) {
         })}
       </div>
     )
-  }
-
-  export type IZoneCardSlotsProps = {
-    cards: ReturnType<typeof resolveNonLeaderCards>,
-    zone: 'support',
-    visibilityMode: 'hover',
-    isCurrentPlayerZone: boolean,
-    validBattleTargetsByCardId: Set<string>,
-    validSummonTargetsByCardId: Set<string>,
-    selectedSummonTargetsByCardId: Set<string>,
-    props: IGameZonesProps,
   }
