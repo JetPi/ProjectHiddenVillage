@@ -1,7 +1,6 @@
 import type { IGameActionOptionResponse, IGameCardInstanceResponse } from "@/services/api/types/game"
 import { useEffect } from "react"
 
-
 function usePendingActions({
   pendingSetSupportCardInstanceId,
   mappedAvailableActions,

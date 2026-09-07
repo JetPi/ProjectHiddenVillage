@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useLoaderData } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
 import { Panel } from '@/components/ui'
@@ -9,7 +9,7 @@ import {
   readPersistedBattlefieldDisplayOrder,
 } from '@/views/game/utils/functions'
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
-import type { IAttackFlowLinkState, IAttackTargetingState, IGameLoaderData, ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
+import type { IAttackTargetingState, IGameLoaderData, ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
 import { BottomHandReorderRow, GameHandRow, GamePromptOverlay, GameZones } from '@/views/game/components'
 import {
@@ -21,7 +21,7 @@ import {
   HAND_TO_PILE_STAGGER_MS,
   HAND_TO_PILE_DURATION_MS,
 } from '@/views/game/utils/contants'
-import { runHandToPileAnimation, runRectToDynamicElementAnimation, waitMillis, normalizePlayerId, normalizeCardInstanceId, mapActionToHubIntent } from '@/views/game/utils/functions'
+import { runHandToPileAnimation, runRectToDynamicElementAnimation, waitMillis, mapActionToHubIntent, toggleSummonTargetSelection } from '@/views/game/utils/functions'
 import { CardBack } from '@/components/ui/cards'
 import {
   useAutoAdvancePhaseEffect,
@@ -42,7 +42,11 @@ import {
   usePassLikeAction,
   useOccupiedSupportSlots,
   usePendingActions,
-  useAvailableActionMapper
+  useAvailableActionMapper,
+  usePendingSummon,
+  useOptimisticResting,
+  useBackendAttackLink,
+  useActiveAttackSequence
 } from '@/views/game/hooks'
 
 export function GameView() {
@@ -186,7 +190,7 @@ export function GameView() {
     bottomHandCards,
     setPendingSetSupportCardInstanceId,
   })
-  
+
   useAvailableActionMapper({
     pendingCardTargeting,
     mappedAvailableActions,
@@ -194,158 +198,28 @@ export function GameView() {
     setPendingCardTargeting,
   })
 
-  useEffect(() => {
-    if (!pendingSummonTargeting) {
-      return
-    }
+  usePendingSummon({
+    pendingSummonTargeting,
+    bottomHandCards,
+    setPendingSummonTargeting,
+  })
 
-    const pendingActionId = pendingSummonTargeting.actionId
-    const pendingCard = bottomHandCards.find((card) =>
-      card.instanceId.trim().toLowerCase() === pendingSummonTargeting.sourceCardInstanceId.trim().toLowerCase())
-    const matchingAction = (pendingCard?.availableActions ?? []).find((option) => option.actionId === pendingActionId)
+  useOptimisticResting({
+    gameState,
+    setActiveAttackLink,
+    setOptimisticRestedByInstanceId,
+    lastSubmittedAttackSourceRef,
+  })
 
-    if (matchingAction?.isEnabled) {
-      return
-    }
+  useActiveAttackSequence({
+    gameState,
+    setActiveAttackLink,
+    setOptimisticRestedByInstanceId,
+    lastSubmittedAttackSourceRef,
+    actionError,
+  })
 
-    const timeoutId = window.setTimeout(() => {
-      setPendingSummonTargeting(null)
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [bottomHandCards, pendingSummonTargeting, setPendingSummonTargeting])
-
-  useEffect(() => {
-    setOptimisticRestedByInstanceId((previous) => {
-      const previousKeys = Object.keys(previous)
-      if (previousKeys.length === 0) {
-        return previous
-      }
-
-      const nextState: Record<string, boolean> = {}
-
-      for (const [instanceId, shouldRemainOptimistic] of Object.entries(previous)) {
-        if (!shouldRemainOptimistic) {
-          continue
-        }
-
-        const normalizedInstanceId = instanceId.trim().toLowerCase()
-        const matchedCard = gameState.players
-          .flatMap((player) => player.characterField)
-          .find((card) => card.instanceId.trim().toLowerCase() === normalizedInstanceId)
-
-        if (!matchedCard) {
-          continue
-        }
-
-        if (matchedCard.isRested || matchedCard.isExhausted) {
-          continue
-        }
-
-        nextState[instanceId] = true
-      }
-
-      const nextKeys = Object.keys(nextState)
-      if (nextKeys.length === 0) {
-        lastSubmittedAttackSourceRef.current = null
-        return {}
-      }
-
-      if (
-        nextKeys.length === previousKeys.length
-        && nextKeys.every((key) => previous[key] === true)
-      ) {
-        return previous
-      }
-
-      return nextState
-    })
-
-    if (!gameState.isAttackSequencePending) {
-      setActiveAttackLink(null)
-      return
-    }
-  }, [gameState.isAttackSequencePending, gameState.players, setActiveAttackLink, setOptimisticRestedByInstanceId])
-
-  useEffect(() => {
-    if (!actionError || gameState.isAttackSequencePending) {
-      return
-    }
-
-    const sourceCardInstanceId = lastSubmittedAttackSourceRef.current
-    if (!sourceCardInstanceId) {
-      return
-    }
-
-    setOptimisticRestedByInstanceId((previous) => {
-      const nextState = { ...previous }
-      delete nextState[sourceCardInstanceId]
-      return nextState
-    })
-    setActiveAttackLink(null)
-    lastSubmittedAttackSourceRef.current = null
-  }, [actionError, gameState.isAttackSequencePending, setActiveAttackLink, setOptimisticRestedByInstanceId])
-
-  const backendAttackLink = useMemo<IAttackFlowLinkState | null>(() => {
-    if (!gameState.isAttackSequencePending) {
-      return null
-    }
-
-    const pendingAttackVisualState = gameState.pendingAttackVisualState
-    if (!pendingAttackVisualState) {
-      return null
-    }
-
-    const sourceCardInstanceId = pendingAttackVisualState.attackerCardInstanceId
-    const sourceCardLookupId = normalizeCardInstanceId(sourceCardInstanceId)
-    if (!sourceCardLookupId) {
-      return null
-    }
-
-    const flattenedCharacterFieldCards = gameState.players.flatMap((player) => player.characterField)
-    const sourceCardExists = flattenedCharacterFieldCards.some((card) =>
-      normalizeCardInstanceId(card.instanceId) === sourceCardLookupId)
-
-    if (!sourceCardExists) {
-      return null
-    }
-
-    const normalizedDefenderPlayerId = normalizePlayerId(pendingAttackVisualState.defenderPlayerId)
-    const defenderPlayer = gameState.players.find((player) => normalizePlayerId(player.playerId) === normalizedDefenderPlayerId)
-
-    if (!defenderPlayer) {
-      return null
-    }
-
-    const defenderZone = pendingAttackVisualState.defenderZone
-    const pendingDefenderCardInstanceId = normalizeCardInstanceId(pendingAttackVisualState.defenderCardInstanceId)
-
-    if (defenderZone === 'Leader') {
-      return {
-        sourceCardInstanceId,
-        targetCardInstanceId: defenderPlayer.leader.instanceId,
-        targetZone: defenderZone,
-        targetPlayerId: defenderPlayer.playerId,
-      }
-    }
-
-    const fallbackTargetCard = defenderPlayer.characterField.find((card) =>
-      normalizeCardInstanceId(card.instanceId) === pendingDefenderCardInstanceId)
-
-    if (!fallbackTargetCard) {
-      return null
-    }
-
-    return {
-      sourceCardInstanceId,
-      targetCardInstanceId: fallbackTargetCard.instanceId,
-      targetZone: defenderZone,
-      targetPlayerId: defenderPlayer.playerId,
-    }
-  }, [gameState.isAttackSequencePending, gameState.pendingAttackVisualState, gameState.players])
-
+  const backendAttackLink = useBackendAttackLink({ gameState })
   const renderedAttackLink = activeAttackLink ?? backendAttackLink
 
   function beginBattleTargeting(targeting: IAttackTargetingState): void {
@@ -378,53 +252,8 @@ export function GameView() {
     setPendingSummonTargeting(null)
   }
 
-  function toggleSummonTargetSelection(targetCardInstanceId: string): void {
-    setPendingSummonTargeting((previous) => {
-      if (!previous) {
-        return previous
-      }
-
-      const target = previous.validTargets.find((entry) =>
-        entry.cardInstanceId.trim().toLowerCase() === targetCardInstanceId.trim().toLowerCase())
-
-      if (!target) {
-        return previous
-      }
-
-      const existingIndex = previous.selectedTargets.findIndex((entry) =>
-        entry.cardInstanceId.trim().toLowerCase() === targetCardInstanceId.trim().toLowerCase())
-
-      if (existingIndex >= 0) {
-        return {
-          ...previous,
-          selectedTargets: previous.selectedTargets.filter((_, index) => index !== existingIndex),
-        }
-      }
-
-      const nextSelectedTargets = [
-        ...previous.selectedTargets,
-        {
-          playerId: target.playerId,
-          zone: target.zone,
-          cardInstanceId: target.cardInstanceId,
-          isEffectResolutionStackTarget: target.isEffectResolutionStackTarget,
-          effectResolutionEntryId: target.effectResolutionEntryId,
-        },
-      ]
-
-      const maximumTargetCount = previous.exactTargetCount ?? previous.maximumTargetCount
-      if (typeof maximumTargetCount === 'number' && nextSelectedTargets.length > maximumTargetCount) {
-        return {
-          ...previous,
-          selectedTargets: nextSelectedTargets.slice(nextSelectedTargets.length - maximumTargetCount),
-        }
-      }
-
-      return {
-        ...previous,
-        selectedTargets: nextSelectedTargets,
-      }
-    })
+  function handleToggleSummonTarget(targetCardInstanceId: string): void {
+    toggleSummonTargetSelection({ targetCardInstanceId, setPendingSummonTargeting })
   }
 
   function canConfirmSummonTargetSelection(targeting: ISummonTargetingState): boolean {
@@ -1073,7 +902,7 @@ export function GameView() {
               onCancelSetSupportSelection={() => setPendingSetSupportCardInstanceId(null)}
               onSelectAttackTarget={submitCardTargetSelection}
               onCancelAttackTargetSelection={cancelBattleTargeting}
-              onToggleSummonTarget={toggleSummonTargetSelection}
+              onToggleSummonTarget={handleToggleSummonTarget}
               canConfirmSummonTargetSelection={pendingSummonTargeting ? canConfirmSummonTargetSelection(pendingSummonTargeting) : false}
               onConfirmSummonTargetSelection={submitSummonTargetSelection}
               onCancelSummonTargetSelection={cancelSummonTargeting}
