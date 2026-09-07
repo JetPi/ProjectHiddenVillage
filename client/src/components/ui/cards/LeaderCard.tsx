@@ -34,6 +34,7 @@ export function LeaderCard({
   surfaceProps,
   imageClassName,
   hidePreviewButton = false,
+  disableInteractions = false,
   leaderCard,
   placeholderLabel = 'Leader',
   showBadgeWhenLifeMissing = false,
@@ -63,7 +64,7 @@ export function LeaderCard({
       <PlayCard className={twMerge('group', className, surfaceClassName)} {...surfaceRestProps}>
         {shouldRenderBadge ? <CardOverlayBadge value={badgeValue} /> : null}
 
-        {previewCard && !hidePreviewButton ? (
+        {previewCard && !hidePreviewButton && !disableInteractions ? (
           <div className="pointer-events-none absolute right-2 top-2 z-30 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
             <button
               type="button"
@@ -83,7 +84,7 @@ export function LeaderCard({
           className={imageClassName}
         />
 
-        {leaderActionOptions.length > 0 ? (
+        {!disableInteractions && leaderActionOptions.length > 0 ? (
           <div
             className={twMerge(
               'pointer-events-none absolute mx-auto inset-0 z-20 w-fit flex items-center content-center justify-center opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100',
@@ -108,7 +109,7 @@ export function LeaderCard({
           </div>
         ) : null}
         
-        {recoveryAction ? (
+        {!disableInteractions && recoveryAction ? (
           <div className="absolute bottom-0 left-0 z-30">
             <button
               type="button"

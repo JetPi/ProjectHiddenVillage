@@ -23,6 +23,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
     const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
     const optimisticRestedByInstanceId = useGameUIStore((state) => state.optimisticRestedByInstanceId)
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
+    const isEffectActionTargeting = useGameUIStore((state) => state.pendingCardTargeting?.kind === 'effect')
     
     const bottomSupportCardsBySlotIndex = useMemo(() => {
     const cardsBySlot = new Map<number, ReturnType<typeof resolveNonLeaderCards>[number]>()
@@ -193,6 +194,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                   visibilityMode={visibilityMode}
                   actionOptions={actionOptions}
                   hidePreviewButton={isBattleActionTargeting && targetFlags.isBattleTarget}
+                  disableInteractions={isEffectActionTargeting && targetFlags.isBattleTarget}
                   showEmptyActionMessage={isCurrentPlayerZone}
                   suppressActionFallback={!isCurrentPlayerZone}
                   isConnected={props.isConnected}

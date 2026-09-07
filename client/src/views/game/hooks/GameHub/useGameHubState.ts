@@ -1,20 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { HubConnection, HubConnectionState } from '@microsoft/signalr'
 import {
-  advancePhase,
-  completeEndStep,
   connectGameHub,
   createGameHubConnection,
-  declareEndStep,
-  declareActionInActionStep,
-  declarePassInActionStep,
   disconnectGameHub,
-  executeCardAction,
   getCardActionTargets,
   getCurrentGameState,
   onGameParticipantJoined,
   onGameStateInvalidated,
-  resolvePrompt,
   subscribeToGame,
   unsubscribeFromGame,
   type IHubOperationResult,
@@ -23,7 +16,8 @@ import { useGameStateQuery } from '@/services/queries/gameStateQueries'
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGameCardActionTargetsResponse } from '@/services/api/types/gameHub'
 import { useGameHubStore } from '@/state/gameHubStore'
-import type { ISubmitHubIntentRequest, IUseGameHubStateResult } from '@/views/game/types'
+import type { IUseGameHubStateResult } from '@/views/game/types'
+import { useSubmitHubIntent } from './useSubmitHubIntent'
 
 const HUB_CONNECT_MAX_ATTEMPTS = 3
 const HUB_CONNECT_RETRY_DELAY_MS = 600
@@ -56,25 +50,6 @@ function resolveGenericHubErrorMessage(result: IHubOperationResult<unknown>): st
   return 'Hub operation failed.'
 }
 
-function isAdvanceWhilePromptPendingMessage(message: string | null | undefined): boolean {
-  if (!message) {
-    return false
-  }
-
-  return message.toLowerCase().includes('cannot advance phase while a prompt is pending')
-}
-
-function shouldSuppressAdvancePromptPendingError(
-  request: ISubmitHubIntentRequest,
-  result: IHubOperationResult<IGameStateResponse>,
-): boolean {
-  if (request.intent !== 'advance-phase') {
-    return false
-  }
-
-  return isAdvanceWhilePromptPendingMessage(result.errorDescription)
-}
-
 function useGameHubState(
   gameId: string,
   initialGameState: IGameStateResponse,
@@ -89,7 +64,6 @@ function useGameHubState(
   const initializeGameSession = useGameHubStore((state) => state.initializeGameSession)
   const setGameState = useGameHubStore((state) => state.setGameState)
   const setConnected = useGameHubStore((state) => state.setConnected)
-  const setActionPending = useGameHubStore((state) => state.setActionPending)
   const setConnectionError = useGameHubStore((state) => state.setConnectionError)
   const setActionError = useGameHubStore((state) => state.setActionError)
   const resetConnectionState = useGameHubStore((state) => state.resetConnectionState)
@@ -278,104 +252,7 @@ function useGameHubState(
     }
   }, [authUserId, gameId, hubConnectionScopeKey, refreshCurrentGameState, refetchGameStateSnapshot, resetConnectionState, setConnected, setConnectionError, setGameState])
 
-  const submitHubIntent = useCallback(
-    async (request: ISubmitHubIntentRequest): Promise<void> => {
-      const currentConnection = connectionRef.current
-      const currentStoreState = useGameHubStore.getState()
-      const currentGameState = currentStoreState.gameState ?? gameState
-
-      if (!currentConnection || currentConnection.state !== HubConnectionState.Connected) {
-        setActionError('Game hub is not connected.')
-        return
-      }
-
-      if (currentStoreState.isActionPending) {
-        return
-      }
-
-      if (request.intent === 'advance-phase' && currentGameState?.pendingPrompt) {
-        return
-      }
-
-      if (request.intent === 'advance-phase') {
-        const hasEnabledAdvancePhaseAction = (currentGameState?.availableActions ?? []).some(
-          (action) => action.actionId === 'advance-phase' && action.isEnabled,
-        )
-
-        if (!hasEnabledAdvancePhaseAction) {
-          return
-        }
-      }
-
-      if (!authUserId && request.intent !== 'advance-phase') {
-        setActionError('You must be logged in to perform this action.')
-        return
-      }
-
-      setActionPending(true)
-      setActionError(null)
-
-      try {
-        let result: IHubOperationResult<IGameStateResponse>
-
-        if (request.intent === 'pass-turn') {
-          result = await declarePassInActionStep(currentConnection, gameId, authUserId ?? '')
-        } else if (request.intent === 'declare-action') {
-          result = await declareActionInActionStep(currentConnection, gameId, authUserId ?? '')
-        } else if (request.intent === 'execute-card-action') {
-          result = await executeCardAction(
-            currentConnection,
-            gameId,
-            authUserId ?? '',
-            request.actionId,
-            request.sourceCardInstanceId,
-            request.selectedTargets,
-            request.arguments,
-          )
-        } else if (request.intent === 'declare-end-step') {
-          result = await declareEndStep(currentConnection, gameId)
-        } else if (request.intent === 'complete-end-step') {
-          result = await completeEndStep(currentConnection, gameId)
-        } else if (request.intent === 'resolve-prompt') {
-          result = await resolvePrompt(currentConnection, gameId, authUserId ?? '', request.selectedOption)
-        } else {
-          result = await advancePhase(currentConnection, gameId)
-        }
-
-        if (!result.succeeded || !result.value) {
-          if (shouldSuppressAdvancePromptPendingError(request, result)) {
-            console.warn('[GameHub] advance-phase ignored because a prompt is pending.', {
-              gameId,
-              errorCode: result.errorCode,
-              errorDescription: result.errorDescription,
-            })
-            return
-          }
-
-          setActionError(resolveHubErrorMessage(result))
-          return
-        }
-
-        setActionError(null)
-        setGameState(result.value)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Hub action failed.'
-
-        if (request.intent === 'advance-phase' && isAdvanceWhilePromptPendingMessage(message)) {
-          console.warn('[GameHub] advance-phase ignored because a prompt is pending.', {
-            gameId,
-            errorMessage: message,
-          })
-          return
-        }
-
-        setActionError(message)
-      } finally {
-        setActionPending(false)
-      }
-    },
-    [authUserId, gameId, gameState, setActionError, setActionPending, setGameState],
-  )
+  const submitHubIntent = useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId })
 
   const getCardActionTargetsForRequest = useCallback(
     async (request: {

@@ -40,6 +40,7 @@ function GameZones(props: IGameZonesProps) {
   const optimisticRestedByInstanceId = useGameUIStore((state) => state.optimisticRestedByInstanceId)
   const optimisticActiveAttackLink = useGameUIStore((state) => state.activeAttackLink)
   const isBattleActionTargeting = pendingCardTargeting !== null
+  const isEffectActionTargeting = pendingCardTargeting?.kind === 'effect'
   const backendAttackLink = useBackendAttackLink({ gameState: props.gameState })
   const renderedAttackLink = optimisticActiveAttackLink ?? backendAttackLink
   const {
@@ -167,6 +168,7 @@ function GameZones(props: IGameZonesProps) {
     actionOptions: cardOptions.topLeaderActionOptions,
     activeAttackLink: renderedAttackLink,
     hidePreviewWhenBattleTarget: isBattleActionTargeting,
+    isEffectActionTargeting,
     showBadgeWhenLifeMissing: true,
   })
 
@@ -177,6 +179,7 @@ function GameZones(props: IGameZonesProps) {
     actionOptions: cardOptions.bottomLeaderActionOptions,
     activeAttackLink: renderedAttackLink,
     hidePreviewWhenBattleTarget: isBattleActionTargeting,
+    isEffectActionTargeting,
   })
 
   const battlefieldRowProps = {
@@ -186,6 +189,7 @@ function GameZones(props: IGameZonesProps) {
     selectedSummonTargetsByCardId,
     optimisticRestedByInstanceId,
     isBattleActionTargeting,
+    isEffectActionTargeting,
     props,
   }
 

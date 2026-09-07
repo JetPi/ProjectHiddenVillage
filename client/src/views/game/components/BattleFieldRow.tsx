@@ -14,7 +14,7 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
         <div
             data-zone="character-field-row"
             data-slot-side={data.isCurrentPlayerZone ? 'bottom' : 'top'}
-            className="flex h-full min-h-0 w-full items-center justify-start gap-2.5 overflow-visible rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5"
+            className="flex h-full min-h-0 w-full items-center justify-start gap-5 overflow-visible rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5"
         >
             {data.cards.map((card, index) => {
                 const actionOptions = resolveCardActionOptionsForInstanceId(
@@ -74,6 +74,7 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                             visibilityMode="hover"
                             actionOptions={actionOptions}
                             hidePreviewButton={data.isBattleActionTargeting && isBattleTarget}
+                            disableInteractions={data.isEffectActionTargeting && isBattleTarget}
                             showEmptyActionMessage={data.isCurrentPlayerZone}
                             suppressActionFallback={!data.isCurrentPlayerZone}
                             isConnected={props.isConnected}
@@ -104,5 +105,6 @@ export type IBattleFieldRowProps = {
     normalizedAttackLinkTargetCardId: string,
     optimisticRestedByInstanceId: Record<string, boolean>,
     isBattleActionTargeting: boolean,
+    isEffectActionTargeting: boolean,
     props: IGameZonesProps,
 }

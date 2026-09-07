@@ -113,6 +113,7 @@ export type ILeaderCardProps = {
   }
   imageClassName: string
   hidePreviewButton?: boolean
+  disableInteractions?: boolean
   placeholderLabel?: string
   showBadgeWhenLifeMissing?: boolean
   previewCard?: ICardCatalogItemResponse | null
