@@ -6,17 +6,11 @@ import { useAuthSessionStore } from '@/state/authSession'
 import { useThemeStore } from '@/state/themeStore'
 import {
   buildLeaderCardFrameClass,
-  getIsMissingActiveMainPhaseOptions,
   readPersistedBattlefieldDisplayOrder,
 } from '@/views/game/utils/functions'
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IAttackFlowLinkState, IAttackTargetingState, IGameLoaderData, ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
-import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from '@/views/game/hooks/GameView/useGameViewEffects'
-import { useDerivedGameViewState } from '@/views/game/hooks/useDerivedGameViewState'
-import { useGameHubState } from '@/views/game/hooks/useGameHubState'
-import { useGameAnimationController, useGameRefs } from '@/views/game/hooks/GameView/useGameRefs'
-import { useGameUIState } from '@/views/game/hooks/GameView/useGameUIState'
 import { BottomHandReorderRow, GameHandRow, GamePromptOverlay, GameZones } from '@/views/game/components'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
@@ -29,9 +23,27 @@ import {
 } from '@/views/game/utils/contants'
 import { runHandToPileAnimation, runRectToDynamicElementAnimation, waitMillis, normalizePlayerId, normalizeCardInstanceId, mapActionToHubIntent } from '@/views/game/utils/functions'
 import { CardBack } from '@/components/ui/cards'
-import { useLiveCatalogRefresh } from './hooks/GameView/useLiveCatalogRefresh'
-import { useBattlefieldCardReorderEffect, useBattlefieldCards, useCurrentBattlefieldRawCards } from './hooks/GameView/useBattleFieldCards'
-import { useGetBattlefieldDisplayOrderStorageKey, usePersistedBattlefieldDisplayOrderEffect } from './hooks/GameView/usePersistedDisplayOrder'
+import {
+  useAutoAdvancePhaseEffect,
+  useCardCatalogPreload,
+  useHandZoneAnimationEffects,
+  useGameUIState,
+  useDerivedGameViewState,
+  useGameAnimationController,
+  useGameRefs,
+  useGameHubState,
+  useGetBattlefieldDisplayOrderStorageKey,
+  usePersistedBattlefieldDisplayOrderEffect,
+  useBattlefieldCardReorderEffect,
+  useBattlefieldCards,
+  useCurrentBattlefieldRawCards,
+  useLiveCatalogRefresh,
+  useGetMainPhaseActions,
+  usePassLikeAction,
+  useOccupiedSupportSlots,
+  usePendingActions,
+  useAvailableActionMapper
+} from '@/views/game/hooks'
 
 export function GameView() {
   const { joinCode, gameCards, gameState: initialGameState } = useLoaderData() as IGameLoaderData
@@ -70,7 +82,7 @@ export function GameView() {
   } = useGameUIState()
   const isCardCatalogRefreshInFlightRef = useRef(false)
   const lastRequestedMissingCardIdsKeyRef = useRef('')
-  
+
   const [liveGameCards, setLiveGameCards] = useState<IGameLoaderData['gameCards']>(gameCards)
 
   const persistedBattlefieldOrder = readPersistedBattlefieldDisplayOrder(battlefieldDisplayOrderStorageKey)
@@ -109,6 +121,9 @@ export function GameView() {
 
   const derivedGameState = useDerivedGameViewState(liveGameCards, players, authUserId)
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
+
+  const occupiedBottomSupportSlots = useOccupiedSupportSlots({ derivedGameState })
+
   const topHandCards = useMemo(() => derivedGameState.opponentPlayer?.hand ?? [], [derivedGameState.opponentPlayer?.hand])
   const bottomHandCards = useMemo(() => derivedGameState.currentPlayer?.hand ?? [], [derivedGameState.currentPlayer?.hand])
   const topHandInstanceIds = useMemo(() => topHandCards.map((card) => card.instanceId), [topHandCards])
@@ -150,126 +165,34 @@ export function GameView() {
     && gameState.activePlayerId.trim().toLowerCase() === authUserId?.trim().toLowerCase()
     && !gameState.pendingPrompt
 
-  const isMissingActiveMainPhaseOptions = getIsMissingActiveMainPhaseOptions({gameHubState, derivedGameState, bottomHandCards, authUserId})
-
-  const missingOptionsRefreshAttemptsRef = useRef<Record<string, number>>({})
-  const isMissingOptionsRefreshInFlightRef = useRef(false)
-
-  useEffect(() => {
-    if (!isMissingActiveMainPhaseOptions) {
-      return
-    }
-
-    const snapshotKey = `${gameState.turnNumber}:${gameState.phase}`
-    const attempts = missingOptionsRefreshAttemptsRef.current[snapshotKey] ?? 0
-    if (attempts >= 3 || isMissingOptionsRefreshInFlightRef.current) {
-      return
-    }
-
-    missingOptionsRefreshAttemptsRef.current[snapshotKey] = attempts + 1
-    isMissingOptionsRefreshInFlightRef.current = true
-
-    void refreshGameState()
-      .catch(() => {
-        // Best effort only; a later hub event will refresh the state again.
-      })
-      .finally(() => {
-        isMissingOptionsRefreshInFlightRef.current = false
-      })
-  }, [
-    bottomHandCards,
-    bottomLeaderCard,
-    gameState.phase,
-    gameState.turnNumber,
+  useGetMainPhaseActions({
+    gameHubState,
+    derivedGameState,
+    authUserId,
+    isActionPending,
     hasPendingPromptFlag,
-    isActionPendingFlag,
-    isConnected,
-    isMissingActiveMainPhaseOptions,
+    bottomHandCards,
     refreshGameState,
-  ])
+  })
 
-  const passLikeAction = useMemo(
-    () => mappedAvailableActions.find((action) =>
-      action.actionId === 'pass-turn'
-      || action.actionId === 'turn-end'
-      || action.actionId === 'endPhase'
-      || action.actionId === 'declare-end-step'
-      || action.actionId === 'advance-phase'),
-    [mappedAvailableActions],
-  )
+  const passLikeAction = usePassLikeAction({ mappedAvailableActions })
 
   const isBattleActionTargeting = pendingCardTargeting !== null
   const isSummonActionTargeting = pendingSummonTargeting !== null
 
-  const occupiedBottomSupportSlots = useMemo(() => {
-    const occupied = new Set<number>()
-    const supportCards = derivedGameState.currentPlayer?.supportZone ?? []
-    for (const [currentIndex, supportCard] of supportCards.entries()) {
-      if (typeof supportCard.supportSlotIndex === 'number') {
-        occupied.add(supportCard.supportSlotIndex)
-      } else {
-        occupied.add(currentIndex)
-      }
-    }
-
-    return occupied
-  }, [derivedGameState.currentPlayer?.supportZone])
-
-  useEffect(() => {
-    if (!pendingSetSupportCardInstanceId) {
-      return
-    }
-
-    const pendingActionId = `set-support:${pendingSetSupportCardInstanceId}`
-    const stillAvailableInGlobalActions = mappedAvailableActions.some((option) =>
-      option.actionId === pendingActionId)
-    const pendingCard = bottomHandCards.find((card) => card.instanceId === pendingSetSupportCardInstanceId)
-    const stillAvailableOnCard = (pendingCard?.availableActions ?? []).some((option) => option.actionId === pendingActionId)
-    const stillAvailable = stillAvailableInGlobalActions || stillAvailableOnCard
-
-    if (!stillAvailable) {
-      const timeoutId = window.setTimeout(() => {
-        setPendingSetSupportCardInstanceId(null)
-      }, 0)
-
-      return () => {
-        window.clearTimeout(timeoutId)
-      }
-    }
-  }, [bottomHandCards, mappedAvailableActions, pendingSetSupportCardInstanceId, setPendingSetSupportCardInstanceId])
-
-  useEffect(() => {
-    if (!pendingCardTargeting || pendingCardTargeting.kind !== 'battle') {
-      return
-    }
-
-    const matchingBattleAction = mappedAvailableActions.find((option) =>
-      option.actionId === pendingCardTargeting.actionId)
-
-    const sourceCard = (derivedGameState.currentPlayer?.characterField ?? []).find((card) =>
-      card.instanceId.trim().toLowerCase() === pendingCardTargeting.sourceCardInstanceId.trim().toLowerCase())
-
-    const matchingSourceCardAction = (sourceCard?.availableActions ?? []).find((option) =>
-      option.actionId === pendingCardTargeting.actionId)
-
-    const sourceCardStillControlledByCurrentPlayer = (derivedGameState.currentPlayer?.characterField ?? []).some((card) =>
-      card.instanceId.trim().toLowerCase() === pendingCardTargeting.sourceCardInstanceId.trim().toLowerCase())
-
-    const stillAvailable = sourceCardStillControlledByCurrentPlayer
-      && (Boolean(matchingBattleAction?.isEnabled) || Boolean(matchingSourceCardAction?.isEnabled))
-
-    if (stillAvailable) {
-      return
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setPendingCardTargeting(null)
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [derivedGameState.currentPlayer?.characterField, mappedAvailableActions, pendingCardTargeting, setPendingCardTargeting])
+  usePendingActions({
+    pendingSetSupportCardInstanceId,
+    mappedAvailableActions,
+    bottomHandCards,
+    setPendingSetSupportCardInstanceId,
+  })
+  
+  useAvailableActionMapper({
+    pendingCardTargeting,
+    mappedAvailableActions,
+    derivedGameState,
+    setPendingCardTargeting,
+  })
 
   useEffect(() => {
     if (!pendingSummonTargeting) {
