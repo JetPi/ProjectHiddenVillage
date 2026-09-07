@@ -4,6 +4,7 @@ import { twMerge } from 'tailwind-merge'
 import type { IGameZonesProps } from '@/views/game/types'
 import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
 import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
+import { useGameUIStore } from '@/state/gameUIStore'
 import { getBattleTargetHighlightClass, getSummonTargetHighlightClass, toAnchorId, resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions'
 
 export function renderBattlefieldRow(data: IBattleFieldRowProps) {
@@ -52,7 +53,7 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                         onClick={
                             isBattleTarget
                                 ? () => props.onSelectAttackTarget(card.instanceId)
-                                : (isSummonTarget ? () => props.onToggleSummonTarget(card.instanceId) : undefined)
+                                : (isSummonTarget ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId) : undefined)
                         }
                     >
                         {card.isFaceUp ? (
@@ -72,7 +73,7 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                             zone="character-field"
                             visibilityMode="hover"
                             actionOptions={actionOptions}
-                            hidePreviewButton={props.isBattleActionTargeting && isBattleTarget}
+                            hidePreviewButton={data.isBattleActionTargeting && isBattleTarget}
                             showEmptyActionMessage={data.isCurrentPlayerZone}
                             suppressActionFallback={!data.isCurrentPlayerZone}
                             isConnected={props.isConnected}
@@ -102,5 +103,6 @@ export type IBattleFieldRowProps = {
     normalizedAttackLinkSourceCardId: string,
     normalizedAttackLinkTargetCardId: string,
     optimisticRestedByInstanceId: Record<string, boolean>,
+    isBattleActionTargeting: boolean,
     props: IGameZonesProps,
 }

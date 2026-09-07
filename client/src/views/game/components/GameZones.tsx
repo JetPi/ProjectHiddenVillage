@@ -20,6 +20,8 @@ import { renderBattlefieldRow } from './BattleFieldRow'
 import { RenderZoneCardSlots } from './ZoneCardSlots'
 import { AttackLinkArrow } from './AttackLinkArrow'
 import { SideBarButtons } from './SidebarButtons'
+import { useGameUIStore } from '@/state/gameUIStore'
+import { useBackendAttackLink } from '@/views/game/hooks/GameView/memos/useBackendAttackLink'
 
 const ATTACK_OUTLINE_WIDTH_PX = 4.5
 const ATTACK_OUTLINE_OFFSET_PX = 4
@@ -33,15 +35,21 @@ const ATTACK_HEAD_OFFSET_DEFAULT = 0.25
 
 function GameZones(props: IGameZonesProps) {
   const { topLeaderCard, bottomLeaderCard } = props.derivedGameState
+  const pendingCardTargeting = useGameUIStore((state) => state.pendingCardTargeting)
+  const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
+  const optimisticRestedByInstanceId = useGameUIStore((state) => state.optimisticRestedByInstanceId)
+  const optimisticActiveAttackLink = useGameUIStore((state) => state.activeAttackLink)
+  const isBattleActionTargeting = pendingCardTargeting !== null
+  const backendAttackLink = useBackendAttackLink({ gameState: props.gameState })
+  const renderedAttackLink = optimisticActiveAttackLink ?? backendAttackLink
   const {
-    optimisticRestedByInstanceId,
     boardZoneRef,
     topDeckCardRef,
     bottomDeckCardRef,
     topTrashCardRef,
     bottomTrashCardRef,
   } = props
-  const cardOptions = getCardsAndOptions(props)
+  const cardOptions = getCardsAndOptions(props, renderedAttackLink)
 
   const cardRestedStateByInstanceId = useMemo(() => {
     const restedById = new Map<string, boolean>();
@@ -57,7 +65,7 @@ function GameZones(props: IGameZonesProps) {
     for (const card of allCards) {
       if (!card) continue;
       const normalizedId = card.instanceId.trim().toLowerCase();
-      restedById.set(normalizedId, isCardRestedState(card, props.optimisticRestedByInstanceId));
+      restedById.set(normalizedId, isCardRestedState(card, optimisticRestedByInstanceId));
     }
 
     return restedById;
@@ -68,14 +76,14 @@ function GameZones(props: IGameZonesProps) {
     cardOptions.bottomSupportCards,
     cardOptions.topBattlefieldCards,
     cardOptions.bottomBattlefieldCards,
-    props.optimisticRestedByInstanceId,
+    optimisticRestedByInstanceId,
   ]);
 
   const attackLinkRenderConfig = useMemo<IAttackLinkRenderConfig | null>(() => {
-    if (!props.activeAttackLink) return null;
+    if (!renderedAttackLink) return null;
 
-    const startId = toAnchorId(props.activeAttackLink.sourceCardInstanceId);
-    const endId = toAnchorId(props.activeAttackLink.targetCardInstanceId);
+    const startId = toAnchorId(renderedAttackLink.sourceCardInstanceId);
+    const endId = toAnchorId(renderedAttackLink.targetCardInstanceId);
     const defaultConfig: IAttackLinkRenderConfig = {
       startId,
       endId,
@@ -93,7 +101,7 @@ function GameZones(props: IGameZonesProps) {
     const targetCard = boardElement?.querySelector<HTMLElement>(`#${endId}`);
     if (!boardElement || !sourceCard || !targetCard) return defaultConfig;
 
-    const isTargetRested = cardRestedStateByInstanceId.get(props.activeAttackLink.targetCardInstanceId.trim().toLowerCase()) === true;
+    const isTargetRested = cardRestedStateByInstanceId.get(renderedAttackLink.targetCardInstanceId.trim().toLowerCase()) === true;
     const metrics = resolveAttackAnchorConfig(sourceCard, targetCard, isTargetRested);
 
     if (metrics.isVerticallyAligned) {
@@ -125,21 +133,21 @@ function GameZones(props: IGameZonesProps) {
       curveness: 0.68,
       headOffsetForward: metrics.resolvedHeadOffsetForward,
     };
-  }, [props.activeAttackLink, cardRestedStateByInstanceId]);
+  }, [renderedAttackLink, cardRestedStateByInstanceId]);
 
   const validBattleTargetsByCardId = useMemo(
-    () => extractTargetIds(props.pendingAttackTargeting?.validTargets),
-    [props.pendingAttackTargeting]
+    () => extractTargetIds(pendingCardTargeting?.validTargets),
+    [pendingCardTargeting]
   );
 
   const validSummonTargetsByCardId = useMemo(
-    () => extractTargetIds(props.pendingSummonTargeting?.validTargets),
-    [props.pendingSummonTargeting]
+    () => extractTargetIds(pendingSummonTargeting?.validTargets),
+    [pendingSummonTargeting]
   );
 
   const selectedSummonTargetsByCardId = useMemo(
-    () => extractTargetIds(props.pendingSummonTargeting?.selectedTargets),
-    [props.pendingSummonTargeting]
+    () => extractTargetIds(pendingSummonTargeting?.selectedTargets),
+    [pendingSummonTargeting]
   );
 
   const isTopLeaderBattleTarget = useMemo(
@@ -157,6 +165,8 @@ function GameZones(props: IGameZonesProps) {
     slotSide: 'top',
     isBattleTarget: isTopLeaderBattleTarget,
     actionOptions: cardOptions.topLeaderActionOptions,
+    activeAttackLink: renderedAttackLink,
+    hidePreviewWhenBattleTarget: isBattleActionTargeting,
     showBadgeWhenLifeMissing: true,
   })
 
@@ -165,6 +175,8 @@ function GameZones(props: IGameZonesProps) {
     slotSide: 'bottom',
     isBattleTarget: isBottomLeaderBattleTarget,
     actionOptions: cardOptions.bottomLeaderActionOptions,
+    activeAttackLink: renderedAttackLink,
+    hidePreviewWhenBattleTarget: isBattleActionTargeting,
   })
 
   const battlefieldRowProps = {
@@ -173,6 +185,7 @@ function GameZones(props: IGameZonesProps) {
     validSummonTargetsByCardId,
     selectedSummonTargetsByCardId,
     optimisticRestedByInstanceId,
+    isBattleActionTargeting,
     props,
   }
 

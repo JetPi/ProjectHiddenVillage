@@ -1,8 +1,17 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from "lucide-react";
 import type { IGameZonesProps } from "@/views/game/types";
 import { AppButton } from "@/components/ui";
+import { canConfirmSummonTargetSelection } from "@/views/game/utils/functions";
+import { useGameUIStore } from "@/state/gameUIStore";
 
 export function SideBarButtons(props: IGameZonesProps){
+    const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
+    const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
+    const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
+    const isSummonActionTargeting = useGameUIStore((state) => state.pendingSummonTargeting !== null)
+    const canConfirmTributeSelection = pendingSummonTargeting
+        ? canConfirmSummonTargetSelection(pendingSummonTargeting)
+        : false
     return<div className="flex flex-col items-end justify-center gap-1">
         {props.joinCode ? (
           <div
@@ -46,13 +55,13 @@ export function SideBarButtons(props: IGameZonesProps){
           </span>
         </div>
 
-        {props.pendingSetSupportCardInstanceId ? (
+        {pendingSetSupportCardInstanceId ? (
           <div className="group relative">
             <AppButton
               type="button"
               variant="ghost"
               aria-label="Cancel support slot selection"
-              onClick={props.onCancelSetSupportSelection}
+              onClick={() => useGameUIStore.getState().cancelSetSupportSelection()}
               className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
             >
               <span className="text-[10px] font-bold leading-none">X</span>
@@ -63,13 +72,13 @@ export function SideBarButtons(props: IGameZonesProps){
           </div>
         ) : null}
 
-        {props.isBattleActionTargeting ? (
+        {isBattleActionTargeting ? (
           <div className="group relative">
             <AppButton
               type="button"
               variant="ghost"
               aria-label="Cancel attack target selection"
-              onClick={props.onCancelAttackTargetSelection}
+              onClick={() => useGameUIStore.getState().cancelBattleTargeting()}
               className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
             >
               <span className="text-[10px] font-bold leading-none">X</span>
@@ -80,7 +89,7 @@ export function SideBarButtons(props: IGameZonesProps){
           </div>
         ) : null}
 
-        {props.isSummonActionTargeting ? (
+        {isSummonActionTargeting ? (
           <>
             <div className="group relative">
               <AppButton
@@ -88,7 +97,7 @@ export function SideBarButtons(props: IGameZonesProps){
                 variant="ghost"
                 aria-label="Confirm tribute selection"
                 onClick={props.onConfirmSummonTargetSelection}
-                disabled={!props.isConnected || props.isActionPending || !props.canConfirmSummonTargetSelection}
+                disabled={!props.isConnected || props.isActionPending || !canConfirmTributeSelection}
                 className="h-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-1.5 py-0 text-[8px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]"
               >
                 Go
@@ -103,7 +112,7 @@ export function SideBarButtons(props: IGameZonesProps){
                 type="button"
                 variant="ghost"
                 aria-label="Cancel tribute selection"
-                onClick={props.onCancelSummonTargetSelection}
+                onClick={() => useGameUIStore.getState().cancelSummonTargeting()}
                 className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
               >
                 <span className="text-[10px] font-bold leading-none">X</span>

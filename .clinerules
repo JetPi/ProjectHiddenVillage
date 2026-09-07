@@ -74,3 +74,28 @@
 - Re-run `npm run build` after import refactors — barrel cycles surface as runtime/TDZ issues, not type errors.
 - Run `cd client && npm run lint` (or `client/node_modules/.bin/eslint src`) after React/ref changes; the whole `client/src` lints clean and is the source of truth for the React Compiler rules.
 - Watch import hygiene: switching `RefObject` → `RefCallback` requires removing the now-unused `RefObject` import (`@typescript-eslint/no-unused-vars`).
+
+## 7. Game-Screen State Architecture (Zustand + TanStack Query) — TrimGameView refactor
+- **Two Zustand stores own all game screen state** (`client/src/state/`):
+  - `gameHubStore` = server mirror (SignalR push). **Single writer for `gameState`**; hub events write here and nowhere else.
+  - `gameUIStore` = client interaction state: `pendingCardTargeting`/`pendingSummonTargeting`/`pendingSetSupportCardInstanceId`, `optimisticRestedByInstanceId`, `activeAttackLink`, `lastSubmittedAttackSourceInstanceId`, `bottomHandFaceUpByInstanceId`, `isMulliganAnimationPending`. All targeting/summon transitions live here as actions (`beginBattleTargeting`, `beginEffectTargeting`, `beginSummonTargeting`, `cancel*`, `toggleSummonTarget`, …).
+- **Store-driven self-healing, not cleanup effects**: `gameUIStore` module subscribes to `gameHubStore` (`gameState`, `actionError`) and to itself, then runs `pruneStaleGameUIState()` in a `queueMicrotask` guard. It clears stale targeting, reconciles optimistic resting, rolls back on `actionError`, and clears `activeAttackLink` when `isAttackSequencePending` drops. All the old "clear stale pending state" `useEffect`s were deleted — do **not** recreate them as effects.
+- **Zustand v5 gotchas**:
+  - `set()` notifies subscribers even when the value is unchanged → guard before writing in pruners (e.g. `recordsEqual(...)` helper) or you get subscription loops.
+  - Cross-store subscriptions are fine; batch work through a `queueMicrotask`-based guard so bursts coalesce.
+  - In event handlers prefer `useGameUIStore.getState().action(...)` to avoid needless re-renders; use `useGameUIStore(selector)` for values you render.
+  - Keep raw `RefObject`s out of stores; when a marker must be shared across effects/handlers/store-pruning, store the plain value (e.g. `lastSubmittedAttackSourceInstanceId: string | null`) instead of a component `useRef`.
+- **Store setters are updater-style (`Dispatch<SetStateAction<T>>` compatible)** so the extracted utils (`utils/functions/gameState/*.ts`) can keep receiving "setter" params unchanged; setters accept either a value or `(prev) => next`.
+- **TanStack Query is for REST cache only**:
+  - Loader seeds the caches: `appQueryClient.setQueryData(cardQueryKeys.gameCards(code), gameCards)` and `setQueryData(gameStateQueryKeys.byCode(code), gameState)` in `gameRouteHandlers.ts` so mounts don't double-fetch.
+  - `useGameCardsQuery` + `useGameCardsBackfill` replaced the old hand-rolled catalog merge effect.
+  - `useGameStateQuery(code, { enabled: false })` is a manual fallback: `useGameHubState` `refetch()`es it only when hub (re)connect fails, and applies it **only if the connection is still down** (never overwrite a live hub push).
+- **React Compiler lint (react-hooks v7) lessons**:
+  - `react-hooks/immutability` forbids mutating through a value returned from a hook → mount handlers that assign `ref.current` must live in the hook that owns the ref (e.g. `useGameRefs` builds `setBoardZoneRef`, `setTopHandRowRefs`, … and returns them). GameView only reads `viewRefs.<ref>` / `viewRefs.set*`.
+  - `react-hooks/exhaustive-deps` v7 treats **anything destructured from a custom hook** as non-stable, so include refs/setters in dependency arrays, or keep/use the identifier inside the defining hook.
+  - **Never call hooks from a lowercase render function** (e.g. `renderBattlefieldRow`) — only from `useX` hooks or capitalized components. Pass extra values through that function's own data/args instead (e.g. `IBattleFieldRowProps.isBattleActionTargeting`).
+- **`IGameZonesProps` is interaction-state-free**: it only carries display data, hub/refs, connection flags, and the submit callbacks (`onSelectAction`, `onSelectSupportSlotForSet`, `onSelectAttackTarget`, `onConfirmSummonTargetSelection`, `onToggleTheme`, `onPassTurn`). GameZones/rows/sidebar read targeting/rested/attack-link slices straight from `gameUIStore`.
+- **Pure board utils** (`utils/functions/gameState/gameZoneFunctions.ts`) must receive values explicitly (e.g. `getCardsAndOptions(props, attackLink)`, `buildLeaderCardProps(..., { activeAttackLink, hidePreviewWhenBattleTarget })`) — do not read interaction state out of component props there.
+- **Updated cold-start anchors** (supersede §5): action/submit logic lives in `utils/functions/gameState/{submitMappedAction,submitCardTargetSelection,submitSummonTargetSelection,submitSetSupportToSlot,handlePromptResolve,toggleSummonTargetSelection}.ts`; GameView keeps thin wrappers + a single `gameActionDeps` object; side-effect plumbing is consolidated in `hooks/GameView/effects/useGameViewSideEffects.ts` + the `gameUIStore` prune.
+- **Editing gotchas hit repeatedly**: several files use CRLF and single-quote mismatches make `editor` fail to match — rewrite whole files via a small python writer (`open(path,'w',encoding='utf-8',newline='\n').write(content)`) rather than fighting old_text; avoid `heredoc` in run_commands (it mangles in fish); keep editor payloads < ~6000 chars (split large new files into chunks with a sentinel like `/*__MORE__*/`).
+- **E2E**: `npm run test:e2e` targets `http://127.0.0.1:4173/game/TEST1`. After big state refactors, Playwright is the trusted gate for targeting/summon/set-support/mulligan flows.
