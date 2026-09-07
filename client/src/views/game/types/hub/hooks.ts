@@ -54,7 +54,6 @@ export type IUseAutoAdvancePhaseEffectArgs = {
   phase: string
   turnNumber: number
   activePlayerId: string
-  autoSignalPhases: ReadonlySet<string>
   animControllerRef: RefObject<IGameViewAnimController>
   submitHubIntent: (request: ISubmitHubIntentRequest) => Promise<void>
   advancePhaseIntent?: IGameHubActionIntent

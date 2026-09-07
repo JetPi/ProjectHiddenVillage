@@ -47,7 +47,6 @@ export type IGameZonesProps = {
   onSelectAttackTarget: (targetCardInstanceId: string) => void
   onCancelAttackTargetSelection: () => void
   onToggleSummonTarget: (targetCardInstanceId: string) => void
-  canConfirmSummonTargetSelection: boolean
   onConfirmSummonTargetSelection: () => void
   onCancelSummonTargetSelection: () => void
   onToggleTheme: () => void

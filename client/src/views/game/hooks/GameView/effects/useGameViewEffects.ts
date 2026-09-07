@@ -12,6 +12,15 @@ import type {
 } from '@/views/game/types'
 import { buildCardPreloadPayload, runDeckToHandAnimation, runRectToDynamicElementAnimation } from '@/views/game/utils/functions'
 const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackImage]
+const AUTO_SIGNAL_PHASES = new Set([
+  'DrawInitialHand',
+  'RefreshPhase',
+  'StartOfMainPhase',
+  'DrawPhase',
+  'AttackResolution',
+  'BattleEndStep',
+  'EndStep',
+])
 
 function useIdleRevalidationPoll(
   revalidatorState: IRevalidatorState,
@@ -287,7 +296,6 @@ function useAutoAdvancePhaseEffect({
   phase,
   turnNumber,
   activePlayerId,
-  autoSignalPhases,
   animControllerRef,
   submitHubIntent,
 }: IUseAutoAdvancePhaseEffectArgs): void {
@@ -303,7 +311,7 @@ function useAutoAdvancePhaseEffect({
       return
     }
 
-    if (!autoSignalPhases.has(phase)) {
+    if (!AUTO_SIGNAL_PHASES.has(phase)) {
       return
     }
 
@@ -328,7 +336,6 @@ function useAutoAdvancePhaseEffect({
   }, [
     activePlayerId,
     animControllerRef,
-    autoSignalPhases,
     availableActions,
     hasPendingPromptFlag,
     isActionPendingFlag,

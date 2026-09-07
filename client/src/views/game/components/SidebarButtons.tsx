@@ -1,8 +1,12 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from "lucide-react";
 import type { IGameZonesProps } from "@/views/game/types";
 import { AppButton } from "@/components/ui";
+import { canConfirmSummonTargetSelection } from "@/views/game/utils/functions";
 
 export function SideBarButtons(props: IGameZonesProps){
+    const canConfirmTributeSelection = props.pendingSummonTargeting
+        ? canConfirmSummonTargetSelection(props.pendingSummonTargeting)
+        : false
     return<div className="flex flex-col items-end justify-center gap-1">
         {props.joinCode ? (
           <div
@@ -88,7 +92,7 @@ export function SideBarButtons(props: IGameZonesProps){
                 variant="ghost"
                 aria-label="Confirm tribute selection"
                 onClick={props.onConfirmSummonTargetSelection}
-                disabled={!props.isConnected || props.isActionPending || !props.canConfirmSummonTargetSelection}
+                disabled={!props.isConnected || props.isActionPending || !canConfirmTributeSelection}
                 className="h-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-1.5 py-0 text-[8px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]"
               >
                 Go
