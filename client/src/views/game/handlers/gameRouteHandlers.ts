@@ -3,6 +3,9 @@ import {
   fetchGameCards,
   fetchGameState,
 } from '@/services/api/gameApi'
+import { appQueryClient } from '@/services/queryClient'
+import { cardQueryKeys } from '@/services/queries/cardQueries'
+import { gameStateQueryKeys } from '@/services/queries/gameStateQueries'
 import { readAuthSession } from '@/state/authSession'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import type { IGameActionData, IGameLoaderData } from '@/views/game/types'
@@ -38,6 +41,9 @@ export async function gameLoader({ params }: LoaderFunctionArgs): Promise<IGameL
       fetchGameCards(joinCode),
       fetchGameState(joinCode),
     ])
+
+    appQueryClient.setQueryData(cardQueryKeys.gameCards(joinCode), gameCards)
+    appQueryClient.setQueryData(gameStateQueryKeys.byCode(joinCode), gameState)
 
     return {
       joinCode,

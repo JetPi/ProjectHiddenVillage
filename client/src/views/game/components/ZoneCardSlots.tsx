@@ -15,10 +15,14 @@ import {
   resolveNonLeaderCards
 } from '@/views/game/utils/functions'
 import type { IZoneCardSlotsProps } from '@/views/game/types'
+import { useGameUIStore } from '@/state/gameUIStore'
 
 export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
     const { cards, zone, visibilityMode, isCurrentPlayerZone, validBattleTargetsByCardId, validSummonTargetsByCardId, selectedSummonTargetsByCardId, props } = data
-    const cardOptions = getCardsAndOptions(data.props)
+    const cardOptions = getCardsAndOptions(data.props, null)
+    const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
+    const optimisticRestedByInstanceId = useGameUIStore((state) => state.optimisticRestedByInstanceId)
+    const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
     
     const bottomSupportCardsBySlotIndex = useMemo(() => {
     const cardsBySlot = new Map<number, ReturnType<typeof resolveNonLeaderCards>[number]>()
@@ -59,11 +63,11 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               : (topSupportCardsBySlotIndex.get(index) ?? null))
             : (cards[index] ?? null)
           const isSelectionSlot = isCurrentPlayerZone
-            && props.pendingSetSupportCardInstanceId !== null
+            && pendingSetSupportCardInstanceId !== null
             && card === null
 
           const isSelectionBlocked = isCurrentPlayerZone
-            && props.pendingSetSupportCardInstanceId !== null
+            && pendingSetSupportCardInstanceId !== null
             && !isSelectionSlot
 
           if (!card) {
@@ -118,7 +122,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
           };
 
           const cardStateFlags = {
-            isRested: isCardRestedState(card, props.optimisticRestedByInstanceId),
+            isRested: isCardRestedState(card, optimisticRestedByInstanceId),
             shouldDelayRestedDimming: Boolean(props.gameState.isAttackSequencePending) && targetFlags.isAttackLinkSource,
             isConcealedSupportCard: zone === 'support' && !isCurrentPlayerZone && !card.isFaceUp,
           };
@@ -153,7 +157,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               onClick={
                 targetFlags.isBattleTarget
                   ? () => props.onSelectAttackTarget(card.instanceId)
-                  : (targetFlags.isSummonTarget ? () => props.onToggleSummonTarget(card.instanceId) : undefined)
+                  : (targetFlags.isSummonTarget ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId) : undefined)
               }
             >
               {card.isFaceUp ? (
@@ -188,7 +192,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                   zone={zone}
                   visibilityMode={visibilityMode}
                   actionOptions={actionOptions}
-                  hidePreviewButton={props.isBattleActionTargeting && targetFlags.isBattleTarget}
+                  hidePreviewButton={isBattleActionTargeting && targetFlags.isBattleTarget}
                   showEmptyActionMessage={isCurrentPlayerZone}
                   suppressActionFallback={!isCurrentPlayerZone}
                   isConnected={props.isConnected}

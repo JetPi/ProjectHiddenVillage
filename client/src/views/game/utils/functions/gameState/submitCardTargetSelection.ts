@@ -1,11 +1,11 @@
-import type { Dispatch, RefObject, SetStateAction } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import type { IAttackFlowLinkState, IPendingCardTargetingState, ISubmitHubIntentRequest } from '@/views/game/types'
 
 function submitCardTargetSelection({
   targetCardInstanceId,
   pendingCardTargeting,
   setPendingCardTargeting,
-  lastSubmittedAttackSourceRef,
+  setLastSubmittedAttackSourceInstanceId,
   setOptimisticRestedByInstanceId,
   setActiveAttackLink,
   submitHubIntent,
@@ -31,7 +31,7 @@ function submitCardTargetSelection({
 
   const isBattle = pendingCardTargeting.kind === 'battle'
   if (isBattle) {
-    lastSubmittedAttackSourceRef.current = sourceCardInstanceId
+    setLastSubmittedAttackSourceInstanceId(sourceCardInstanceId)
     setOptimisticRestedByInstanceId((previous) => ({
       ...previous,
       [sourceCardInstanceId]: true,
@@ -55,7 +55,7 @@ interface ISubmitCardTargetSelectionArgs {
   targetCardInstanceId: string
   pendingCardTargeting: IPendingCardTargetingState | null
   setPendingCardTargeting: Dispatch<SetStateAction<IPendingCardTargetingState | null>>
-  lastSubmittedAttackSourceRef: RefObject<string | null>
+  setLastSubmittedAttackSourceInstanceId: Dispatch<SetStateAction<string | null>>
   setOptimisticRestedByInstanceId: Dispatch<SetStateAction<Record<string, boolean>>>
   setActiveAttackLink: Dispatch<SetStateAction<IAttackFlowLinkState | null>>
   submitHubIntent: (request: ISubmitHubIntentRequest) => Promise<void>

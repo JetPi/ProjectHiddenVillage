@@ -2,8 +2,6 @@ import type { RefCallback } from 'react'
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGameActionOptionResponse, IGameCardInstanceResponse } from '@/services/api/types/game'
 import type { resolveNonLeaderCards } from '@/views/game/utils/functions'
-import type { IAttackFlowLinkState, IAttackTargetingState } from '@/views/game/types/targeting/attackTargeting'
-import type { ISummonTargetingState } from '@/views/game/types/targeting/summonTargeting'
 import type { IDerivedGameViewState } from '@/views/game/types/hub/viewModels'
 
 export type IZoneCardSlotsProps = {
@@ -32,23 +30,12 @@ export type IGameZonesProps = {
   gameState: IGameStateResponse
   authUserId?: string
   availableActions: IGameActionOptionResponse[]
-  pendingSetSupportCardInstanceId: string | null
-  pendingAttackTargeting: IAttackTargetingState | null
-  pendingSummonTargeting: ISummonTargetingState | null
-  optimisticRestedByInstanceId: Record<string, boolean>
-  activeAttackLink: IAttackFlowLinkState | null
-  isBattleActionTargeting: boolean
-  isSummonActionTargeting: boolean
   isConnected: boolean
   isActionPending: boolean
   onSelectAction: (action: IGameActionOptionResponse) => void
   onSelectSupportSlotForSet: (slotIndex: number) => void
-  onCancelSetSupportSelection: () => void
   onSelectAttackTarget: (targetCardInstanceId: string) => void
-  onCancelAttackTargetSelection: () => void
-  onToggleSummonTarget: (targetCardInstanceId: string) => void
   onConfirmSummonTargetSelection: () => void
-  onCancelSummonTargetSelection: () => void
   onToggleTheme: () => void
   onPassTurn: () => void
 }

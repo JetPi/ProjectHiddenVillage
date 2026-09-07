@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
+import { useGameCardsQuery } from '@/services/queries/cardQueries'
+import { useMemo, useState } from 'react'
 import { useLoaderData } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
 import { Panel } from '@/components/ui'
@@ -17,10 +18,10 @@ import {
   GAMEBOARD_COLUMNS_CLASS,
   LEADER_CARD_FRAME_CLASS,
 } from '@/views/game/utils/contants'
-import { toggleSummonTargetSelection, handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitMappedAction as submitMappedGameAction, submitSetSupportToSlot as submitSetSupportAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
+import { handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitMappedAction as submitMappedGameAction, submitSetSupportToSlot as submitSetSupportAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
 import { CardBack } from '@/components/ui/cards'
+import { useGameUIStore } from '@/state/gameUIStore'
 import {
-  useGameUIState,
   useDerivedGameViewState,
   useGameAnimationController,
   useGameRefs,
@@ -31,7 +32,7 @@ import {
   useCurrentBattlefieldRawCards,
   useOccupiedSupportSlots,
   usePassLikeAction,
-  useBackendAttackLink,
+  useGameCardsBackfill,
   useGameViewSideEffects
 } from '@/views/game/hooks'
 
@@ -44,7 +45,7 @@ export function GameView() {
 
   const viewRefs = useGameRefs()
   const animControllerRef = useGameAnimationController()
-  const ui = useGameUIState()
+  const ui = useGameUIStore()
   const {
     bottomHandFaceUpByInstanceId,
     isMulliganAnimationPending,
@@ -55,15 +56,13 @@ export function GameView() {
     setPendingCardTargeting,
     pendingSummonTargeting,
     setPendingSummonTargeting,
-    optimisticRestedByInstanceId,
     setOptimisticRestedByInstanceId,
-    activeAttackLink,
     setActiveAttackLink,
   } = ui
-  const isCardCatalogRefreshInFlightRef = useRef(false)
-  const lastRequestedMissingCardIdsKeyRef = useRef('')
+  const setLastSubmittedAttackSourceInstanceId = useGameUIStore((state) => state.setLastSubmittedAttackSourceInstanceId)
 
-  const [liveGameCards, setLiveGameCards] = useState<IGameLoaderData['gameCards']>(gameCards)
+  const gameCardsQuery = useGameCardsQuery(joinCode)
+  const liveGameCards = gameCardsQuery.data ?? gameCards
 
   const persistedBattlefieldOrder = readPersistedBattlefieldDisplayOrder(battlefieldDisplayOrderStorageKey)
   const [topBattlefieldDisplayOrder, setTopBattlefieldDisplayOrder] = useState<string[]>(() => {
@@ -84,9 +83,9 @@ export function GameView() {
   } = gameHubState
 
   usePersistedBattlefieldDisplayOrderEffect(battlefieldDisplayOrderStorageKey, topBattlefieldDisplayOrder, bottomBattlefieldDisplayOrder)
-  const lastSubmittedAttackSourceRef = useRef<string | null>(null)
 
   const players = gameState.players
+  useGameCardsBackfill({ players, liveGameCards, gameCardsQuery })
 
   const derivedGameState = useDerivedGameViewState(liveGameCards, players, authUserId)
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
@@ -122,34 +121,22 @@ export function GameView() {
     && !gameState.pendingPrompt
 
   useGameViewSideEffects({
-    joinCode,
     authUserId,
     gameState,
     gameHubState,
     ui,
     derivedGameState,
-    mappedAvailableActions,
     bottomHandCards,
     liveGameCards,
-    setLiveGameCards,
-    lastRequestedMissingCardIdsKeyRef,
-    isCardCatalogRefreshInFlightRef,
     viewRefs,
     animControllerRef,
     currentTopBattlefieldRawCards,
     currentBottomBattlefieldRawCards,
     setTopBattlefieldDisplayOrder,
     setBottomBattlefieldDisplayOrder,
-    lastSubmittedAttackSourceRef,
   })
 
   const passLikeAction = usePassLikeAction({ mappedAvailableActions })
-
-  const isBattleActionTargeting = pendingCardTargeting !== null
-  const isSummonActionTargeting = pendingSummonTargeting !== null
-
-  const backendAttackLink = useBackendAttackLink({ gameState })
-  const renderedAttackLink = activeAttackLink ?? backendAttackLink
 
   function beginBattleTargeting(targeting: IAttackTargetingState): void {
     setPendingSetSupportCardInstanceId(null)
@@ -165,24 +152,11 @@ export function GameView() {
     setPendingCardTargeting({ ...targeting, kind: 'effect' })
   }
 
-  function cancelBattleTargeting(): void {
-    setPendingCardTargeting(null)
-    setActiveAttackLink(null)
-  }
-
   function beginSummonTargeting(targeting: ISummonTargetingState): void {
     setPendingSetSupportCardInstanceId(null)
     setPendingCardTargeting(null)
     setActiveAttackLink(null)
     setPendingSummonTargeting(targeting)
-  }
-
-  function cancelSummonTargeting(): void {
-    setPendingSummonTargeting(null)
-  }
-
-  function handleToggleSummonTarget(targetCardInstanceId: string): void {
-    toggleSummonTargetSelection({ targetCardInstanceId, setPendingSummonTargeting })
   }
 
   const gameActionDeps = {
@@ -206,7 +180,7 @@ export function GameView() {
     setOptimisticRestedByInstanceId,
     setActiveAttackLink,
     setIsMulliganAnimationPending,
-    lastSubmittedAttackSourceRef,
+    setLastSubmittedAttackSourceInstanceId,
     characterFieldCards: derivedGameState.currentPlayer?.characterField ?? [],
     beginBattleTargeting,
     beginEffectTargeting,
@@ -288,23 +262,12 @@ export function GameView() {
               gameState={gameState}
               authUserId={authUserId}
               availableActions={mappedAvailableActions}
-              pendingSetSupportCardInstanceId={pendingSetSupportCardInstanceId}
-              pendingAttackTargeting={pendingCardTargeting}
-              pendingSummonTargeting={pendingSummonTargeting}
-              optimisticRestedByInstanceId={optimisticRestedByInstanceId}
-              activeAttackLink={renderedAttackLink}
-              isBattleActionTargeting={isBattleActionTargeting}
-              isSummonActionTargeting={isSummonActionTargeting}
               isConnected={isConnected}
               isActionPending={isActionPending}
               onSelectAction={submitMappedAction}
               onSelectSupportSlotForSet={submitSetSupportToSlot}
-              onCancelSetSupportSelection={() => setPendingSetSupportCardInstanceId(null)}
               onSelectAttackTarget={submitCardTargetSelection}
-              onCancelAttackTargetSelection={cancelBattleTargeting}
-              onToggleSummonTarget={handleToggleSummonTarget}
               onConfirmSummonTargetSelection={submitSummonTargetSelection}
-              onCancelSummonTargetSelection={cancelSummonTargeting}
               onToggleTheme={toggleTheme}
               onPassTurn={handlePassLikeAction}
             />

@@ -1,6 +1,5 @@
 import { useMemo, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type {
-  IGameActionOptionResponse,
   IGameCardInstanceResponse,
   IGameStateResponse,
 } from '@/services/api/types/game'
@@ -12,52 +11,29 @@ import type {
 } from '@/views/game/types'
 import { DRAW_TO_HAND_REVEAL_DELAY_MS, DRAW_TO_HAND_STAGGER_MS, HAND_TO_PILE_STAGGER_MS } from '@/views/game/utils/contants'
 import type { useGameRefs } from '@/views/game/hooks/GameView/memos/useGameRefs'
-import type { useGameUIState } from '@/views/game/hooks/GameView/states/useGameUIState'
-import { useLiveCatalogRefresh } from './useLiveCatalogRefresh'
+import type { IGameUIStoreState } from '@/state/types/gameUIStore'
 import { useBattlefieldCardReorderEffect } from './useBattleFieldCards'
 import { useGetMainPhaseActions } from './useGetMainPhaseActions'
-import { usePendingActions } from './usePendingActions'
-import { useAvailableActionMapper } from './useAvailableActionMapper'
-import { usePendingSummon } from './usePendingSummon'
-import { useOptimisticResting } from './useOptimisticResting'
-import { useActiveAttackSequence } from './useActiveAttackSequence'
 import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from './useGameViewEffects'
 
 function useGameViewSideEffects({
-  joinCode,
   authUserId,
   gameState,
   gameHubState,
   ui,
   derivedGameState,
-  mappedAvailableActions,
   bottomHandCards,
   liveGameCards,
-  setLiveGameCards,
-  lastRequestedMissingCardIdsKeyRef,
-  isCardCatalogRefreshInFlightRef,
   viewRefs,
   animControllerRef,
   currentTopBattlefieldRawCards,
   currentBottomBattlefieldRawCards,
   setTopBattlefieldDisplayOrder,
   setBottomBattlefieldDisplayOrder,
-  lastSubmittedAttackSourceRef,
 }: IUseGameViewSideEffectsArgs) {
-  const { isConnected, isActionPending, actionError, refreshGameState } = gameHubState
-  const {
-    setBottomHandFaceUpByInstanceId,
-    pendingSetSupportCardInstanceId,
-    setPendingSetSupportCardInstanceId,
-    pendingCardTargeting,
-    setPendingCardTargeting,
-    pendingSummonTargeting,
-    setPendingSummonTargeting,
-    setActiveAttackLink,
-    setOptimisticRestedByInstanceId,
-  } = ui
+  const { isConnected, isActionPending, refreshGameState } = gameHubState
+  const { setBottomHandFaceUpByInstanceId } = ui
   const hasPendingPromptFlag = Boolean(gameState.pendingPrompt)
-  const players = gameState.players
   const opponentPlayer = derivedGameState.opponentPlayer
   const currentPlayer = derivedGameState.currentPlayer
   const topHandInstanceIds = useMemo(
@@ -72,16 +48,8 @@ function useGameViewSideEffects({
   const bottomDeckCount = currentPlayer?.deckCount ?? 0
   const topTrashCount = opponentPlayer?.trash.length ?? 0
   const bottomTrashCount = currentPlayer?.trash.length ?? 0
-  useCardCatalogPreload(liveGameCards)
 
-  useLiveCatalogRefresh({
-    setLiveGameCards,
-    liveGameCards,
-    players,
-    joinCode,
-    lastRequestedMissingCardIdsKeyRef,
-    isCardCatalogRefreshInFlightRef,
-  })
+  useCardCatalogPreload(liveGameCards)
 
   useHandZoneAnimationEffects({
     topHandInstanceIds,
@@ -127,64 +95,22 @@ function useGameViewSideEffects({
     bottomHandCards,
     refreshGameState,
   })
-
-  usePendingActions({
-    pendingSetSupportCardInstanceId,
-    mappedAvailableActions,
-    bottomHandCards,
-    setPendingSetSupportCardInstanceId,
-  })
-
-  useAvailableActionMapper({
-    pendingCardTargeting,
-    mappedAvailableActions,
-    derivedGameState,
-    setPendingCardTargeting,
-  })
-
-  usePendingSummon({
-    pendingSummonTargeting,
-    bottomHandCards,
-    setPendingSummonTargeting,
-  })
-
-  useOptimisticResting({
-    gameState,
-    setActiveAttackLink,
-    setOptimisticRestedByInstanceId,
-    lastSubmittedAttackSourceRef,
-  })
-
-  useActiveAttackSequence({
-    gameState,
-    setActiveAttackLink,
-    setOptimisticRestedByInstanceId,
-    lastSubmittedAttackSourceRef,
-    actionError,
-  })
 }
 
 type IUseGameViewSideEffectsArgs = {
-  joinCode: string
   authUserId: string | undefined
   gameState: IGameStateResponse
   gameHubState: IUseGameHubStateResult
-  ui: ReturnType<typeof useGameUIState>
+  ui: IGameUIStoreState
   derivedGameState: IDerivedGameViewState
-  mappedAvailableActions: IGameActionOptionResponse[]
   bottomHandCards: IGameCardInstanceResponse[]
   liveGameCards: IGameLoaderData['gameCards']
-  setLiveGameCards: Dispatch<SetStateAction<IGameLoaderData['gameCards']>>
-  lastRequestedMissingCardIdsKeyRef: RefObject<string>
-  isCardCatalogRefreshInFlightRef: RefObject<boolean>
   viewRefs: ReturnType<typeof useGameRefs>
   animControllerRef: RefObject<IGameViewAnimController>
   currentTopBattlefieldRawCards: IGameCardInstanceResponse[]
   currentBottomBattlefieldRawCards: IGameCardInstanceResponse[]
   setTopBattlefieldDisplayOrder: Dispatch<SetStateAction<string[]>>
   setBottomBattlefieldDisplayOrder: Dispatch<SetStateAction<string[]>>
-  lastSubmittedAttackSourceRef: RefObject<string | null>
 }
 
 export { useGameViewSideEffects }
-

@@ -19,6 +19,7 @@ import {
   unsubscribeFromGame,
   type IHubOperationResult,
 } from '@/services/api/gameHubApi'
+import { useGameStateQuery } from '@/services/queries/gameStateQueries'
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGameCardActionTargetsResponse } from '@/services/api/types/gameHub'
 import { useGameHubStore } from '@/state/gameHubStore'
@@ -26,6 +27,10 @@ import type { ISubmitHubIntentRequest, IUseGameHubStateResult } from '@/views/ga
 
 const HUB_CONNECT_MAX_ATTEMPTS = 3
 const HUB_CONNECT_RETRY_DELAY_MS = 600
+
+function isConnectionConnected(connection: HubConnection): boolean {
+  return connection.state === HubConnectionState.Connected
+}
 
 function resolveHubErrorMessage(result: IHubOperationResult<IGameStateResponse>): string {
   if (result.errorDescription) {
@@ -88,6 +93,7 @@ function useGameHubState(
   const setConnectionError = useGameHubStore((state) => state.setConnectionError)
   const setActionError = useGameHubStore((state) => state.setActionError)
   const resetConnectionState = useGameHubStore((state) => state.resetConnectionState)
+  const { refetch: refetchGameStateSnapshot } = useGameStateQuery(gameId, { enabled: false })
 
   const gameState = gameStateFromStore ?? initialGameState
   const hubConnectionScopeKey = `${gameId}|${authUserId?.trim().toLowerCase() ?? ''}`
@@ -147,6 +153,12 @@ function useGameHubState(
         }
 
         const message = error instanceof Error ? error.message : 'Reconnected to the game hub, but resubscribing failed.'
+        if (!isConnectionConnected(nextConnection)) {
+          const snapshotResult = await refetchGameStateSnapshot()
+          if (!isDisposed && snapshotResult.data && !isConnectionConnected(nextConnection)) {
+            setGameState(snapshotResult.data)
+          }
+        }
         setConnectionError(message)
         setConnected(false)
       }
@@ -225,10 +237,16 @@ function useGameHubState(
         }
       }
 
-      if (!isDisposed) {
+      if (!isDisposed && !isConnectionConnected(nextConnection)) {
         const message = lastError instanceof Error ? lastError.message : 'Unable to connect to game hub.'
-        setConnectionError(message)
-        setConnected(false)
+        const snapshotResult = await refetchGameStateSnapshot()
+        if (!isDisposed && !isConnectionConnected(nextConnection)) {
+          if (snapshotResult.data) {
+            setGameState(snapshotResult.data)
+          }
+          setConnectionError(message)
+          setConnected(false)
+        }
       }
     }
 
@@ -258,7 +276,7 @@ function useGameHubState(
         await disconnectGameHub(nextConnection)
       })()
     }
-  }, [authUserId, gameId, hubConnectionScopeKey, refreshCurrentGameState, resetConnectionState, setConnected, setConnectionError])
+  }, [authUserId, gameId, hubConnectionScopeKey, refreshCurrentGameState, refetchGameStateSnapshot, resetConnectionState, setConnected, setConnectionError, setGameState])
 
   const submitHubIntent = useCallback(
     async (request: ISubmitHubIntentRequest): Promise<void> => {

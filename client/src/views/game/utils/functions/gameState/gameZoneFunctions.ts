@@ -1,7 +1,7 @@
 import { twMerge } from 'tailwind-merge'
 import type { ILeaderCardProps } from '@/components/ui/types'
 import type { IGameActionOptionResponse, IGameStateResponse } from '@/services/api/types/game'
-import type { IGameZonesProps, IAttackAnchorPosition, IAttackAnchorConfig, IBoardPoint, INonLeaderCardViewModel, ILeaderCardViewModel } from '@/views/game/types'
+import type { IGameZonesProps, IAttackAnchorPosition, IAttackAnchorConfig, IBoardPoint, IAttackFlowLinkState, INonLeaderCardViewModel, ILeaderCardViewModel } from '@/views/game/types'
 import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
 import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions/cards'
 
@@ -172,7 +172,7 @@ function getSummonTargetHighlightClass(side: 'top' | 'bottom'): string {
     : 'ring-2 ring-amber-300/90 ring-offset-2 ring-offset-slate-900'
 }
 
-function getCardsAndOptions(props: IGameZonesProps) {
+function getCardsAndOptions(props: IGameZonesProps, attackLink: IAttackFlowLinkState | null) {
     const { topLeaderCard, bottomLeaderCard } = props.derivedGameState
 
     const topSupportCards = resolveNonLeaderCards(
@@ -212,8 +212,8 @@ function getCardsAndOptions(props: IGameZonesProps) {
         )
         : []
     
-      const normalizedAttackLinkSourceCardId = props.activeAttackLink?.sourceCardInstanceId.trim().toLowerCase() ?? ''
-      const normalizedAttackLinkTargetCardId = props.activeAttackLink?.targetCardInstanceId.trim().toLowerCase() ?? ''
+      const normalizedAttackLinkSourceCardId = attackLink?.sourceCardInstanceId.trim().toLowerCase() ?? ''
+      const normalizedAttackLinkTargetCardId = attackLink?.targetCardInstanceId.trim().toLowerCase() ?? ''
 
       return {
         topLeaderCard,
@@ -236,13 +236,23 @@ function buildLeaderCardProps(
     slotSide: 'top' | 'bottom'
     isBattleTarget: boolean
     actionOptions: IGameActionOptionResponse[]
+    activeAttackLink?: IAttackFlowLinkState | null
+    hidePreviewWhenBattleTarget?: boolean
     showBadgeWhenLifeMissing?: boolean
   }
 ): ILeaderCardProps {
-  const { card, slotSide, isBattleTarget, actionOptions, showBadgeWhenLifeMissing = false } = config
+  const {
+    card,
+    slotSide,
+    isBattleTarget,
+    actionOptions,
+    activeAttackLink = null,
+    hidePreviewWhenBattleTarget = false,
+    showBadgeWhenLifeMissing = false,
+  } = config
   const normalizedInstanceId = card?.instanceId.trim().toLowerCase()
-  const normalizedAttackLinkSourceCardId = props.activeAttackLink?.sourceCardInstanceId.trim().toLowerCase() ?? ''
-  const normalizedAttackLinkTargetCardId = props.activeAttackLink?.targetCardInstanceId.trim().toLowerCase() ?? ''
+  const normalizedAttackLinkSourceCardId = activeAttackLink?.sourceCardInstanceId.trim().toLowerCase() ?? ''
+  const normalizedAttackLinkTargetCardId = activeAttackLink?.targetCardInstanceId.trim().toLowerCase() ?? ''
   const isAttackLinkEndpoint =
     Boolean(normalizedInstanceId) &&
     (normalizedInstanceId === normalizedAttackLinkSourceCardId ||
@@ -263,7 +273,7 @@ function buildLeaderCardProps(
       ),
     },
     imageClassName: LEADER_CARD_IMAGE_CLASS,
-    hidePreviewButton: props.isBattleActionTargeting && isBattleTarget,
+    hidePreviewButton: hidePreviewWhenBattleTarget && isBattleTarget,
     leaderCard: card,
     previewCard: card ? (props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null) : null,
     showBadgeWhenLifeMissing,
