@@ -67,7 +67,7 @@ public sealed record PlayerZonesResponse(
     int DeckCount,
     IReadOnlyList<CardInstanceResponse> Hand,
     int HandCount,
-    IReadOnlyList<CardInstanceResponse> CharacterField,
+    IReadOnlyList<EnrichedCardInstanceResponse> CharacterField,
     IReadOnlyList<CardInstanceResponse> SupportZone,
     IReadOnlyList<CardInstanceResponse> Trash,
     IReadOnlyList<CardInstanceResponse> ExileZone);

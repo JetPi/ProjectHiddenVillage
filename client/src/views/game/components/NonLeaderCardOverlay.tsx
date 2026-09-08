@@ -1,7 +1,7 @@
 import { Eye } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { twMerge } from 'tailwind-merge'
-import { CardPreviewCard } from '@/components/ui/cards'
+import { CardOverlayBadge, CardPreviewCard } from '@/components/ui/cards'
 import type { INonLeaderCardOverlayProps } from '@/views/game/types'
 
 function NonLeaderCardOverlay({
@@ -13,12 +13,14 @@ function NonLeaderCardOverlay({
   showEmptyActionMessage = true,
   suppressActionFallback = false,
   disableInteractions = false,
+  card,
   isConnected,
   isActionPending,
   onSelectActionOption,
 }: INonLeaderCardOverlayProps) {
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false)
   const isHandZone = zone === 'hand'
+  const showZoneHud = card !== undefined && zone === 'battlefield'
 
   const overlayVisibilityClassName = useMemo(() => {
     if (visibilityMode === 'mixed') {
@@ -32,6 +34,17 @@ function NonLeaderCardOverlay({
 
   return (
     <>
+      {showZoneHud && card ? (
+        <>
+          <CardOverlayBadge position="top-left" value={card.currentDamage} />
+          <CardOverlayBadge position="top-right" value={card.currentPower} />
+          <CardOverlayBadge
+            position="top-right"
+            value={card.currentHealth}
+            className="-translate-x-8"
+          />
+        </>
+      ) : null}
       <div
         className={twMerge(
           'card-overlay-controls absolute inset-0 z-20 rounded-md p-1 text-[9px] text-[var(--text-primary)] transition-opacity duration-200 ease-out',

@@ -1,5 +1,6 @@
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
+import type { INonLeaderCardViewModel } from '@/views/game/types'
 
 export type ICardOverlayVisibilityMode = 'hover' | 'mixed'
 
@@ -7,6 +8,7 @@ export type ICardOverlayZone = 'hand' | 'support' | 'battlefield' | 'character-f
 
 export type INonLeaderCardOverlayProps = {
   previewCard: ICardCatalogItemResponse | null
+  card?: INonLeaderCardViewModel
   zone: ICardOverlayZone
   visibilityMode: ICardOverlayVisibilityMode
   actionOptions: IGameActionOptionResponse[]

@@ -43,6 +43,9 @@ export type INonLeaderCardViewModel = {
   availableActions?: IGameActionOptionResponse[]
   isRested: boolean
   supportSlotIndex?: number | null
+  currentPower: number
+  currentHealth: number
+  currentDamage: number
 }
 
 export type IDerivedGameViewState = {

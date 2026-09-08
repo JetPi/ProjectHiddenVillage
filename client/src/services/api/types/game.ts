@@ -39,6 +39,15 @@ export type IGameCardInstanceResponse = {
   availableActions?: IGameActionOptionResponse[]
   isRested: boolean
   supportSlotIndex?: number | null
+  // Live (enriched) instance stats — present on battlefield/hand cards.
+  displayName?: string
+  type?: string
+  color?: string
+  traits?: string[]
+  health?: number
+  maxHealth?: number
+  damage?: number
+  power?: number
 }
 
 export type IGameLeaderCardInstanceResponse = {

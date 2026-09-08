@@ -190,6 +190,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               {!cardStateFlags.isConcealedSupportCard ? (
                 <NonLeaderCardOverlay
                   previewCard={card.isFaceUp ? (props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
+                  card={card}
                   zone={zone}
                   visibilityMode={visibilityMode}
                   actionOptions={actionOptions}

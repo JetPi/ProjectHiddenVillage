@@ -34,61 +34,62 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                 const shouldDimRestedCard = isCardRested && !shouldDelayRestedDimming
 
                 return (
-                    <PlayCard
-                        key={`character-field-${card.instanceId}`}
-                        id={toAnchorId(card.instanceId)}
-                        data-zone="character-field-card"
-                        data-slot-side={data.isCurrentPlayerZone ? 'bottom' : 'top'}
-                        data-slot-index={index}
-                        data-card-instance-id={card.instanceId}
-                        className={twMerge(
-                            'group relative h-full shrink-0 overflow-hidden rounded-lg bg-[var(--surface-elevated)] transition-transform duration-300 ease-out will-change-transform origin-center',
-                            isCardRested ? 'rotate-[14deg]' : 'rotate-0',
-                            shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
-                            isBattleTarget ? getBattleTargetHighlightClass(data.isCurrentPlayerZone ? 'bottom' : 'top') : '',
-                            isSummonTarget ? getSummonTargetHighlightClass(data.isCurrentPlayerZone ? 'bottom' : 'top') : '',
-                            isSelectedSummonTarget ? 'scale-[1.01] bg-amber-200/10' : '',
-                            isAttackLinkSource || isAttackLinkTarget ? 'attack-link-card-outline' : '',
-                        )}
-                        onClick={
-                            isBattleTarget
-                                ? () => props.onSelectAttackTarget(card.instanceId)
-                                : (isSummonTarget ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId) : undefined)
-                        }
-                    >
-                        {card.isFaceUp ? (
-                            <CardImage
-                                src={card.image}
-                                alt={card.displayName}
-                                loading="lazy"
-                                decoding="async"
-                                className={LEADER_CARD_IMAGE_CLASS}
+                        <PlayCard
+                            key={`character-field-${card.instanceId}`}
+                            id={toAnchorId(card.instanceId)}
+                            data-zone="character-field-card"
+                            data-slot-side={data.isCurrentPlayerZone ? 'bottom' : 'top'}
+                            data-slot-index={index}
+                            data-card-instance-id={card.instanceId}
+                            className={twMerge(
+                                'group relative h-full shrink-0 overflow-hidden rounded-lg bg-[var(--surface-elevated)] transition-transform duration-300 ease-out will-change-transform origin-center',
+                                isCardRested ? 'rotate-[14deg]' : 'rotate-0',
+                                shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
+                                isBattleTarget ? getBattleTargetHighlightClass(data.isCurrentPlayerZone ? 'bottom' : 'top') : '',
+                                isSummonTarget ? getSummonTargetHighlightClass(data.isCurrentPlayerZone ? 'bottom' : 'top') : '',
+                                isSelectedSummonTarget ? 'scale-[1.01] bg-amber-200/10' : '',
+                                isAttackLinkSource || isAttackLinkTarget ? 'attack-link-card-outline' : '',
+                            )}
+                            onClick={
+                                isBattleTarget
+                                    ? () => props.onSelectAttackTarget(card.instanceId)
+                                    : (isSummonTarget ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId) : undefined)
+                            }
+                        >
+                            {card.isFaceUp ? (
+                                <CardImage
+                                    src={card.image}
+                                    alt={card.displayName}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className={LEADER_CARD_IMAGE_CLASS}
+                                />
+                            ) : (
+                                <CardBack className="h-full w-full rounded-lg bg-[var(--surface-elevated)]" />
+                            )}
+
+                            <NonLeaderCardOverlay
+                                previewCard={props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null}
+                                card={card}
+                                zone="battlefield"
+                                visibilityMode="hover"
+                                actionOptions={actionOptions}
+                                hidePreviewButton={data.isBattleActionTargeting && isBattleTarget}
+                                disableInteractions={data.isEffectActionTargeting && isBattleTarget}
+                                showEmptyActionMessage={data.isCurrentPlayerZone}
+                                suppressActionFallback={!data.isCurrentPlayerZone}
+                                isConnected={props.isConnected}
+                                isActionPending={props.isActionPending}
+                                onSelectActionOption={(actionId) => {
+                                    const selectedAction = actionOptions.find((action) => action.actionId === actionId)
+                                    if (!selectedAction) {
+                                        return
+                                    }
+
+                                    props.onSelectAction(selectedAction)
+                                }}
                             />
-                        ) : (
-                            <CardBack className="h-full w-full rounded-lg bg-[var(--surface-elevated)]" />
-                        )}
-
-                        <NonLeaderCardOverlay
-                            previewCard={props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null}
-                            zone="character-field"
-                            visibilityMode="hover"
-                            actionOptions={actionOptions}
-                            hidePreviewButton={data.isBattleActionTargeting && isBattleTarget}
-                            disableInteractions={data.isEffectActionTargeting && isBattleTarget}
-                            showEmptyActionMessage={data.isCurrentPlayerZone}
-                            suppressActionFallback={!data.isCurrentPlayerZone}
-                            isConnected={props.isConnected}
-                            isActionPending={props.isActionPending}
-                            onSelectActionOption={(actionId) => {
-                                const selectedAction = actionOptions.find((action) => action.actionId === actionId)
-                                if (!selectedAction) {
-                                    return
-                                }
-
-                                props.onSelectAction(selectedAction)
-                            }}
-                        />
-                    </PlayCard>
+                        </PlayCard>
                 )
             })}
         </div>

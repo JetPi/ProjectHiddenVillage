@@ -282,7 +282,7 @@ public static class GameStateResponseMapper
                         ? ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Hand, state, pendingPrompt, isRequestingPlayer)
                         : ToConcealedCardInstanceResponse(card)),
             HandCount: player.Hand.Count,
-            CharacterField: player.Battlefield.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.CharacterField, state, pendingPrompt, isRequestingPlayer)),
+            CharacterField: player.Battlefield.ConvertAll(card => (EnrichedCardInstanceResponse)ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.CharacterField, state, pendingPrompt, isRequestingPlayer)),
             SupportZone: player.SupportZone
                 .ConvertAll(card => ToSupportCardInstanceResponse(card, state.CardDefinitions, state, pendingPrompt, isRequestingPlayer)),
             Trash: player.DiscardPile.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Trash)),

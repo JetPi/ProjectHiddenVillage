@@ -334,6 +334,7 @@ function useAutoAdvancePhaseEffect({
     const hasEnabledAdvancePhaseAction = availableActions.some(
       (action) => action.actionId === 'advance-phase' && action.isEnabled,
     )
+    
     if (!hasEnabledAdvancePhaseAction) {
       return
     }

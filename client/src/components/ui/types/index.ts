@@ -10,8 +10,11 @@ import type { IGameActionOptionResponse } from '@/services/api/types/game'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import type { IDerivedGameViewState } from '@/views/game/types'
 
+export type CardOverlayPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+
 export type ICardOverlayBadgeProps = {
-  value: number
+  value: number | string
+  position?: CardOverlayPosition
   className?: string
 }
 
