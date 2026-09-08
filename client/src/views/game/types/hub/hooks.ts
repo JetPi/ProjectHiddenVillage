@@ -20,6 +20,7 @@ export type ILeaderCardsViewModel = {
 
 export type IGameViewAnimController = {
   lastAutoSignalKey: string
+  drawAnimationEndsAt: number | null
   pendingDrawAnimationFrameId: number | null
   pendingDrawTimeoutIds: number[]
   pendingMulliganDrawReplay: boolean

@@ -62,6 +62,7 @@ export type IResourceTrackerShellProps = {
 }
 
 export type IResourceChakraGridProps = {
+  currentChakra?: number
   cardClassName: string
   className?: string
   slotClassName?: string
@@ -76,6 +77,7 @@ export type IResourceSummonCardProps = {
 
 export type IPlayResourceZoneProps = {
   className?: string
+  currentChakra?: number
   isSummonCardReady?: boolean
   chakraCardClassName?: string
 }

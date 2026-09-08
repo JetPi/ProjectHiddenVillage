@@ -71,6 +71,7 @@ export type IGamePlayerStateResponse = {
   supportZone: IGameCardInstanceResponse[]
   trash: IGameCardInstanceResponse[]
   exileZone: IGameCardInstanceResponse[]
+  resourcePool: number
 }
 
 export type IPendingPromptResponse = {

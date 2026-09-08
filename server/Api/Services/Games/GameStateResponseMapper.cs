@@ -984,7 +984,7 @@ public static class GameStateResponseMapper
             arguments: arguments,
             selectedTargets: []);
 
-        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: effectSpec.ExecutionTargetSource is EffectExecutionTargetSource.SelectedTargets or EffectExecutionTargetSource.SourceCard);
         var requiresTargets = RequiresTargets(effectSpec);
 
         if (!canExecuteResult.CanExecute)
@@ -1014,19 +1014,9 @@ public static class GameStateResponseMapper
         var playerIndex = state.Players.FindIndex(player =>
             string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
 
-        var chakraStates = playerIndex switch
-        {
-            0 => state.Player1CurrentChakras,
-            1 => state.Player2CurrentChakras,
-            _ => null,
-        };
+        var chakraStates = state.Players[playerIndex].ResourcePool;
 
-        if (chakraStates is null)
-        {
-            return false;
-        }
-
-        return chakraStates.Any(isFaceUp => !isFaceUp);
+        return chakraStates < 5;
     }
 
     private static bool RequiresTargets(EffectSpec effectSpec)

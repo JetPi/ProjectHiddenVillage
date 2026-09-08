@@ -227,6 +227,7 @@ function GameZones(props: IGameZonesProps) {
               trashCardRef={topTrashCardRef}
             />
             <PlayTopResourceZone
+            currentChakra={props.derivedGameState.opponentPlayer?.resourcePool ?? 0}
               isSummonCardReady={props.derivedGameState.opponentPlayer?.isSummonCardReady ?? true}
             />
           </div>
@@ -293,6 +294,7 @@ function GameZones(props: IGameZonesProps) {
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
             <PlayBottomResourceZone
+              currentChakra={props.derivedGameState.currentPlayer?.resourcePool ?? 0}
               isSummonCardReady={props.derivedGameState.currentPlayer?.isSummonCardReady ?? true}
             />
             <PlayPileZone
