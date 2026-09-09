@@ -155,9 +155,9 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                 targetFlags.isAttackLinkSource || targetFlags.isAttackLinkTarget ? 'attack-link-card-outline' : '',
               )}
               onClick={
-                targetFlags.isBattleTarget
-                  ? () => props.onSelectAttackTarget(card.instanceId)
-                  : (targetFlags.isSummonTarget ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId) : undefined)
+                targetFlags.isSummonTarget
+                  ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId)
+                  : undefined
               }
             >
               {card.isFaceUp ? (
@@ -189,10 +189,12 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               {!cardStateFlags.isConcealedSupportCard ? (
                 <NonLeaderCardOverlay
                   previewCard={card.isFaceUp ? (props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
+                  card={card}
                   zone={zone}
                   visibilityMode={visibilityMode}
                   actionOptions={actionOptions}
-                  hidePreviewButton={isBattleActionTargeting && targetFlags.isBattleTarget}
+                  isTargetCandidate={isBattleActionTargeting && targetFlags.isBattleTarget}
+                  onChooseTarget={() => props.onSelectAttackTarget(card.instanceId)}
                   showEmptyActionMessage={isCurrentPlayerZone}
                   suppressActionFallback={!isCurrentPlayerZone}
                   isConnected={props.isConnected}

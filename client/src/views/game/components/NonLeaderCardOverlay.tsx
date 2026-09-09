@@ -1,7 +1,7 @@
 import { Eye } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { twMerge } from 'tailwind-merge'
-import { CardPreviewCard } from '@/components/ui/cards'
+import { CardOverlayBadge, CardPreviewCard } from '@/components/ui/cards'
 import type { INonLeaderCardOverlayProps } from '@/views/game/types'
 
 function NonLeaderCardOverlay({
@@ -13,12 +13,18 @@ function NonLeaderCardOverlay({
   showEmptyActionMessage = true,
   suppressActionFallback = false,
   disableInteractions = false,
+  isTargetCandidate = false,
+  onChooseTarget,
+  card,
   isConnected,
   isActionPending,
   onSelectActionOption,
 }: INonLeaderCardOverlayProps) {
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false)
   const isHandZone = zone === 'hand'
+  const showZoneHud = card !== undefined && zone === 'battlefield'
+  const isChoosingTarget = isTargetCandidate === true
+  const showPreviewButton = isChoosingTarget || !hidePreviewButton
 
   const overlayVisibilityClassName = useMemo(() => {
     if (visibilityMode === 'mixed') {
@@ -32,13 +38,22 @@ function NonLeaderCardOverlay({
 
   return (
     <>
+      {showZoneHud && card ? (
+        <>
+          <CardOverlayBadge position="top-left" size='sm' className='w-4 text-red-900 bg-white'>{card.currentDamage}</CardOverlayBadge>
+          <CardOverlayBadge position="top-right" size='sm'>
+            <span className="text-red-300">{card.currentPower}</span>:<span className="text-green-300">{card.currentHealth}</span>
+          </CardOverlayBadge>
+
+        </>
+      ) : null}
       <div
         className={twMerge(
           'card-overlay-controls absolute inset-0 z-20 rounded-md p-1 text-[9px] text-[var(--text-primary)] transition-opacity duration-200 ease-out',
           disableInteractions ? 'pointer-events-none opacity-0' : overlayVisibilityClassName,
         )}
       >
-        {hidePreviewButton ? null : (
+        {!showPreviewButton ? null : (
           <div className="absolute right-2 top-2 z-30">
             <button
               type="button"
@@ -54,7 +69,18 @@ function NonLeaderCardOverlay({
         )}
 
         <div className="flex h-full w-full items-start justify-center pt-6">
-          {hasActions ? (
+          {isChoosingTarget && onChooseTarget ? (
+            <button
+              type="button"
+              onClick={() => {
+                onChooseTarget()
+              }}
+              disabled={!isConnected || isActionPending}
+              className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Choose
+            </button>
+          ) : hasActions ? (
             <div className="grid w-full place-items-center gap-0.5">
               {actionOptions.map((action) => (
                 <button

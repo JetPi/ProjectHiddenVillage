@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { useGameHubStore } from '@/state/gameHubStore'
 import { preloadCardsByIds } from '@/services/cardPreloadService'
 import { preloadImageSources } from '@/services/imagePreloadCache'
 import chakraCardImage from '@/assets/ChakraCard.webp'
@@ -21,6 +22,9 @@ const AUTO_SIGNAL_PHASES = new Set([
   'BattleEndStep',
   'EndStep',
 ])
+const DECK_TO_HAND_FLY_DURATION_MS = 420
+const DRAW_ANIMATION_COMPLETE_PADDING_MS = 140
+const AUTO_ADVANCE_RECHECK_MS = 80
 
 function useIdleRevalidationPoll(
   revalidatorState: IRevalidatorState,
@@ -187,6 +191,16 @@ function useHandZoneAnimationEffects({
       }
 
       if (topDeckToHandCards.length > 0 || bottomDeckToHandCards.length > 0) {
+        const lastDeckToHandIndex = Math.max(
+          topDeckToHandCards.length > 0 ? topDeckToHandCards.length - 1 : -1,
+          bottomDeckToHandCards.length > 0 ? bottomDeckToHandCards.length - 1 : -1,
+        )
+        animController.drawAnimationEndsAt = Date.now()
+          + Math.max(lastDeckToHandIndex, 0) * drawToHandStaggerMs
+          + DECK_TO_HAND_FLY_DURATION_MS
+          + drawToHandRevealDelayMs
+          + DRAW_ANIMATION_COMPLETE_PADDING_MS
+
         animController.pendingDrawAnimationFrameId = window.requestAnimationFrame(() => {
           topDeckToHandCards.forEach((instanceId, index) => {
             const movementDelay = index * drawToHandStaggerMs
@@ -299,7 +313,20 @@ function useAutoAdvancePhaseEffect({
   animControllerRef,
   submitHubIntent,
 }: IUseAutoAdvancePhaseEffectArgs): void {
+  const advanceTimerRef = useRef<number | null>(null)
+
   useEffect(() => {
+    const animController = animControllerRef.current
+
+    function clearPendingAdvanceTimer(): void {
+      if (advanceTimerRef.current !== null) {
+        window.clearTimeout(advanceTimerRef.current)
+        advanceTimerRef.current = null
+      }
+    }
+
+    clearPendingAdvanceTimer()
+
     if (!isConnected || isActionPendingFlag || hasPendingPromptFlag) {
       return
     }
@@ -307,6 +334,7 @@ function useAutoAdvancePhaseEffect({
     const hasEnabledAdvancePhaseAction = availableActions.some(
       (action) => action.actionId === 'advance-phase' && action.isEnabled,
     )
+    
     if (!hasEnabledAdvancePhaseAction) {
       return
     }
@@ -316,23 +344,50 @@ function useAutoAdvancePhaseEffect({
     }
 
     const phaseSnapshotKey = `${turnNumber}:${phase}:${activePlayerId}`
-    if (animControllerRef.current.lastAutoSignalKey === phaseSnapshotKey) {
+    if (animController.lastAutoSignalKey === phaseSnapshotKey) {
       return
     }
 
-    animControllerRef.current.lastAutoSignalKey = phaseSnapshotKey
+    // The initial hand deal, per-turn draws, and mulligan re-draws all animate
+    // cards from the deck into the hand. Auto-advancing to the next phase while
+    // one of those animations is still in flight would cut it, so every auto
+    // signal waits until the last scheduled deck→hand animation has finished.
+    // The signal is re-armed until it actually dispatches, so the user should
+    // never have to click an "Advance Phase" button in these flows.
+    function isDrawAnimationInFlight(): boolean {
+      return animController.drawAnimationEndsAt !== null && Date.now() < animController.drawAnimationEndsAt
+    }
 
-    const timerId = window.setTimeout(() => {
-      if (hasPendingPromptFlag || isActionPendingFlag) {
+    function scheduleAutoAdvance(): void {
+      const drawAnimationEndsAt = animController.drawAnimationEndsAt
+      const waitDelayMs = drawAnimationEndsAt === null
+        ? AUTO_ADVANCE_RECHECK_MS
+        : Math.max(AUTO_ADVANCE_RECHECK_MS, drawAnimationEndsAt - Date.now())
+
+      advanceTimerRef.current = window.setTimeout(() => {
+        advanceTimerRef.current = null
+        dispatchAutoAdvance()
+      }, waitDelayMs)
+    }
+
+    function dispatchAutoAdvance(): void {
+      const currentStoreState = useGameHubStore.getState()
+      const isDispatchBlocked = currentStoreState.isActionPending
+        || Boolean(currentStoreState.gameState?.pendingPrompt)
+        || isDrawAnimationInFlight()
+
+      if (isDispatchBlocked) {
+        scheduleAutoAdvance()
         return
       }
 
+      advanceTimerRef.current = null
+      animController.lastAutoSignalKey = phaseSnapshotKey
       void submitHubIntent({ intent: 'advance-phase' })
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timerId)
     }
+
+    scheduleAutoAdvance()
+    return clearPendingAdvanceTimer
   }, [
     activePlayerId,
     animControllerRef,

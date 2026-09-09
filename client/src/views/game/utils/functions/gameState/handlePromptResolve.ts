@@ -30,6 +30,14 @@ async function handlePromptResolve({
 
   setIsMulliganAnimationPending(true)
 
+  const pendingDrawAnimationEndsAt = animControllerRef.current.drawAnimationEndsAt
+  if (pendingDrawAnimationEndsAt !== null) {
+    const remainingDrawAnimationMs = Math.max(0, pendingDrawAnimationEndsAt - Date.now())
+    if (remainingDrawAnimationMs > 0) {
+      await waitMillis(remainingDrawAnimationMs)
+    }
+  }
+
   const currentBottomHandInstanceIds = bottomHandCards.map((card) => card.instanceId)
   currentBottomHandInstanceIds.forEach((instanceId, index) => {
     const animationTimeoutId = window.setTimeout(() => {

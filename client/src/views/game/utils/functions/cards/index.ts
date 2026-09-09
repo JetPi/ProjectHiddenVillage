@@ -69,6 +69,8 @@ function resolveLeaderCard(
     power: catalogCard.power,
     life,
     currentLife,
+    currentPower: player?.leader?.power ?? catalogCard.power ?? 0,
+    currentDamage: player?.leader?.damage ?? catalogCard.damage ?? 0,
     recoveryEffect: player?.leader?.recoveryEffect ?? '',
     availableActions: player?.leader?.availableActions,
   }
@@ -107,6 +109,9 @@ function resolveNonLeaderCards(
       availableActions: card.availableActions,
       isRested: card.isRested,
       supportSlotIndex: card.supportSlotIndex,
+      currentPower: card.power ?? catalogCard.power ?? 0,
+      currentHealth: card.health ?? catalogCard.health ?? catalogCard.life ?? 0,
+      currentDamage: card.damage ?? catalogCard.damage ?? 0,
     })
   }
 

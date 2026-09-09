@@ -81,6 +81,7 @@ export function useGameRefs() {
 export function useGameAnimationController() {
   return useRef<IGameViewAnimController>({
     lastAutoSignalKey: '',
+    drawAnimationEndsAt: null,
     pendingDrawAnimationFrameId: null,
     pendingDrawTimeoutIds: [],
     pendingMulliganDrawReplay: false,

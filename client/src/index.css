@@ -364,6 +364,20 @@ html[data-theme='light'] {
   z-index: 2;
 }
 
+/* HUD/overlay children are intentionally absolutely positioned. Re-assert
+   `absolute` while a targeting highlight is active so the generic
+   `.battle-target-* > *` rule above cannot push them out of their corners. */
+.battle-target-top > .card-overlay-badge,
+.battle-target-bottom > .card-overlay-badge,
+.battle-target-leader-top > .card-overlay-badge,
+.battle-target-leader-bottom > .card-overlay-badge,
+.battle-target-top > .card-overlay-controls,
+.battle-target-bottom > .card-overlay-controls,
+.battle-target-leader-top > .card-overlay-controls,
+.battle-target-leader-bottom > .card-overlay-controls {
+  position: absolute;
+}
+
 .card-preview-slide-in {
   animation: card-preview-slide-in 220ms ease-out;
 }

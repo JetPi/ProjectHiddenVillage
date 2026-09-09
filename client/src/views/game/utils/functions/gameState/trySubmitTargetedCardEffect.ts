@@ -34,12 +34,16 @@ async function trySubmitTargetedCardEffect({
   const maximumTargetCount = targetsResponse.maximumTargetCount
   const autoSelectAll = targetsResponse.autoSelectAllValidTargets && validTargets.length > 0
 
-  const shouldAutoSubmit =
-    autoSelectAll
-    || validTargets.length === 0
-    || (typeof exactTargetCount === 'number' && validTargets.length === exactTargetCount)
+  // When the player must pick a single target, always enter target selection —
+  // even when only one legal candidate exists — so activating a leader/support
+  // effect never resolves (and spends chakra) without an explicit target click.
+  const requiresSingleTargetPick =
+    validTargets.length > 0
+    && (exactTargetCount === null || exactTargetCount === 1)
+    && (minimumTargetCount === null || minimumTargetCount === 1)
+    && (maximumTargetCount === null || maximumTargetCount === 1)
 
-  if (shouldAutoSubmit) {
+  if (autoSelectAll) {
     await submitHubIntent({
       intent: 'execute-card-action',
       actionId: intentRequest.actionId,
@@ -48,12 +52,6 @@ async function trySubmitTargetedCardEffect({
     })
     return
   }
-
-  const requiresSingleTargetPick =
-    validTargets.length > 0
-    && (exactTargetCount === null || exactTargetCount === 1)
-    && (minimumTargetCount === null || minimumTargetCount === 1)
-    && (maximumTargetCount === null || maximumTargetCount === 1)
 
   if (requiresSingleTargetPick) {
     beginEffectTargeting({

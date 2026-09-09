@@ -238,6 +238,7 @@ function buildLeaderCardProps(
     actionOptions: IGameActionOptionResponse[]
     activeAttackLink?: IAttackFlowLinkState | null
     hidePreviewWhenBattleTarget?: boolean
+    isEffectActionTargeting?: boolean
     showBadgeWhenLifeMissing?: boolean
   }
 ): ILeaderCardProps {
@@ -248,6 +249,7 @@ function buildLeaderCardProps(
     actionOptions,
     activeAttackLink = null,
     hidePreviewWhenBattleTarget = false,
+    isEffectActionTargeting = false,
     showBadgeWhenLifeMissing = false,
   } = config
   const normalizedInstanceId = card?.instanceId.trim().toLowerCase()
@@ -274,6 +276,7 @@ function buildLeaderCardProps(
     },
     imageClassName: LEADER_CARD_IMAGE_CLASS,
     hidePreviewButton: hidePreviewWhenBattleTarget && isBattleTarget,
+    disableInteractions: isEffectActionTargeting && isBattleTarget,
     leaderCard: card,
     previewCard: card ? (props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null) : null,
     showBadgeWhenLifeMissing,

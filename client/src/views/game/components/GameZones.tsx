@@ -40,6 +40,7 @@ function GameZones(props: IGameZonesProps) {
   const optimisticRestedByInstanceId = useGameUIStore((state) => state.optimisticRestedByInstanceId)
   const optimisticActiveAttackLink = useGameUIStore((state) => state.activeAttackLink)
   const isBattleActionTargeting = pendingCardTargeting !== null
+  const isEffectActionTargeting = pendingCardTargeting?.kind === 'effect'
   const backendAttackLink = useBackendAttackLink({ gameState: props.gameState })
   const renderedAttackLink = optimisticActiveAttackLink ?? backendAttackLink
   const {
@@ -167,6 +168,7 @@ function GameZones(props: IGameZonesProps) {
     actionOptions: cardOptions.topLeaderActionOptions,
     activeAttackLink: renderedAttackLink,
     hidePreviewWhenBattleTarget: isBattleActionTargeting,
+    isEffectActionTargeting,
     showBadgeWhenLifeMissing: true,
   })
 
@@ -177,6 +179,7 @@ function GameZones(props: IGameZonesProps) {
     actionOptions: cardOptions.bottomLeaderActionOptions,
     activeAttackLink: renderedAttackLink,
     hidePreviewWhenBattleTarget: isBattleActionTargeting,
+    isEffectActionTargeting,
   })
 
   const battlefieldRowProps = {
@@ -186,6 +189,7 @@ function GameZones(props: IGameZonesProps) {
     selectedSummonTargetsByCardId,
     optimisticRestedByInstanceId,
     isBattleActionTargeting,
+    isEffectActionTargeting,
     props,
   }
 
@@ -223,6 +227,7 @@ function GameZones(props: IGameZonesProps) {
               trashCardRef={topTrashCardRef}
             />
             <PlayTopResourceZone
+            currentChakra={props.derivedGameState.opponentPlayer?.resourcePool ?? 0}
               isSummonCardReady={props.derivedGameState.opponentPlayer?.isSummonCardReady ?? true}
             />
           </div>
@@ -289,6 +294,7 @@ function GameZones(props: IGameZonesProps) {
 
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
             <PlayBottomResourceZone
+              currentChakra={props.derivedGameState.currentPlayer?.resourcePool ?? 0}
               isSummonCardReady={props.derivedGameState.currentPlayer?.isSummonCardReady ?? true}
             />
             <PlayPileZone

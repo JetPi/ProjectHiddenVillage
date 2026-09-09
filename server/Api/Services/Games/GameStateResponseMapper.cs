@@ -282,7 +282,7 @@ public static class GameStateResponseMapper
                         ? ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Hand, state, pendingPrompt, isRequestingPlayer)
                         : ToConcealedCardInstanceResponse(card)),
             HandCount: player.Hand.Count,
-            CharacterField: player.Battlefield.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.CharacterField, state, pendingPrompt, isRequestingPlayer)),
+            CharacterField: player.Battlefield.ConvertAll(card => (EnrichedCardInstanceResponse)ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.CharacterField, state, pendingPrompt, isRequestingPlayer)),
             SupportZone: player.SupportZone
                 .ConvertAll(card => ToSupportCardInstanceResponse(card, state.CardDefinitions, state, pendingPrompt, isRequestingPlayer)),
             Trash: player.DiscardPile.ConvertAll(card => ToCardInstanceResponse(card, state.CardDefinitions, PlayerZone.Trash)),
@@ -984,7 +984,7 @@ public static class GameStateResponseMapper
             arguments: arguments,
             selectedTargets: []);
 
-        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: effectSpec.ExecutionTargetSource is EffectExecutionTargetSource.SelectedTargets or EffectExecutionTargetSource.SourceCard);
         var requiresTargets = RequiresTargets(effectSpec);
 
         if (!canExecuteResult.CanExecute)
@@ -1014,19 +1014,9 @@ public static class GameStateResponseMapper
         var playerIndex = state.Players.FindIndex(player =>
             string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
 
-        var chakraStates = playerIndex switch
-        {
-            0 => state.Player1CurrentChakras,
-            1 => state.Player2CurrentChakras,
-            _ => null,
-        };
+        var chakraStates = state.Players[playerIndex].ResourcePool;
 
-        if (chakraStates is null)
-        {
-            return false;
-        }
-
-        return chakraStates.Any(isFaceUp => !isFaceUp);
+        return chakraStates < 5;
     }
 
     private static bool RequiresTargets(EffectSpec effectSpec)

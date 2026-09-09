@@ -10,9 +10,14 @@ import type { IGameActionOptionResponse } from '@/services/api/types/game'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import type { IDerivedGameViewState } from '@/views/game/types'
 
+export type CardOverlayPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+
 export type ICardOverlayBadgeProps = {
-  value: number
+  value?: number | string
+  position?: CardOverlayPosition
   className?: string
+  children?: ReactNode
+  size?: 'sm' | 'md' | 'lg'
 }
 
 export type ICardImageProps = Omit<
@@ -62,6 +67,7 @@ export type IResourceTrackerShellProps = {
 }
 
 export type IResourceChakraGridProps = {
+  currentChakra?: number
   cardClassName: string
   className?: string
   slotClassName?: string
@@ -76,6 +82,7 @@ export type IResourceSummonCardProps = {
 
 export type IPlayResourceZoneProps = {
   className?: string
+  currentChakra?: number
   isSummonCardReady?: boolean
   chakraCardClassName?: string
 }
@@ -113,6 +120,7 @@ export type ILeaderCardProps = {
   }
   imageClassName: string
   hidePreviewButton?: boolean
+  disableInteractions?: boolean
   placeholderLabel?: string
   showBadgeWhenLifeMissing?: boolean
   previewCard?: ICardCatalogItemResponse | null
@@ -126,6 +134,8 @@ export type ILeaderCardProps = {
     displayName: string
     image: string
     currentLife: number | null
+    currentPower: number
+    currentDamage: number
   } | null
 }
 

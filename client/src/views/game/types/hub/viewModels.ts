@@ -24,6 +24,8 @@ export type ILeaderCardViewModel = {
   power: number
   life: number | null
   currentLife: number | null
+  currentPower: number
+  currentDamage: number
   recoveryEffect: string
   availableActions?: IGameActionOptionResponse[]
 }
@@ -43,6 +45,9 @@ export type INonLeaderCardViewModel = {
   availableActions?: IGameActionOptionResponse[]
   isRested: boolean
   supportSlotIndex?: number | null
+  currentPower: number
+  currentHealth: number
+  currentDamage: number
 }
 
 export type IDerivedGameViewState = {
