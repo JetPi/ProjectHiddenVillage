@@ -418,7 +418,8 @@ public sealed class CardMappingService : ICardMappingService
             CannotBeNormalSummoned: entry.CannotBeNormalSummoned,
             SupportName: entry.SupportName,
             SupportEffect: entry.SupportEffect,
-            SupportCost: supportCost);
+            SupportCost: supportCost,
+            ImageVersion: entry.UpdatedAtUtc.ToUnixTimeMilliseconds());
     }
 
     private static int? ResolveSupportDisplayCost(IReadOnlyList<EffectSpec> effects)

@@ -1,8 +1,23 @@
 import type { IGameStateResponse } from '@/services/api/gameApi'
+import { useGameUIStore } from '@/state/gameUIStore'
 import type { IGamePhaseActionRowProps } from '@/views/game/types'
 function normalizeId(value: string | undefined): string {
   return (value ?? '').trim().toLowerCase().replace(/-/g, '')
 }
+
+function cancelActiveTargetingMode(): void {
+  const state = useGameUIStore.getState()
+  if (state.pendingCardTargeting) {
+    state.cancelBattleTargeting()
+  } else if (state.pendingSummonTargeting) {
+    state.cancelSummonTargeting()
+  } else if (state.pendingSetSupportCardInstanceId) {
+    state.cancelSetSupportSelection()
+  }
+}
+
+const phaseActionChipClassName =
+  'h-full shrink-0 whitespace-nowrap rounded-md border border-[var(--border-subtle)] px-1.5 text-[10px] font-extrabold leading-none transition-[color,background-color,filter] duration-300 ease-out enabled:hover:brightness-120'
 
 const PhaseValues = {
   'w-for-players': 'Waiting for player',
@@ -96,6 +111,13 @@ function GamePhaseActionRow({
 }: IGamePhaseActionRowProps) {
   const phaseValue = getPhaseValue(gameInstance, authUserId)
   const phaseThemeClasses = getPhaseThemeClasses(gameInstance, phaseValue, authUserId)
+  const pendingCardTargeting = useGameUIStore((state) => state.pendingCardTargeting)
+  const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
+  const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
+  const isTargetingActive =
+    pendingCardTargeting !== null
+    || pendingSummonTargeting !== null
+    || pendingSetSupportCardInstanceId !== null
   const renderedActions = availableActions.filter((action) => action.actionId !== 'declare-action')
   const hasOptions = renderedActions.length > 0
 
@@ -117,13 +139,26 @@ function GamePhaseActionRow({
                 }}
                 disabled={!isConnected || isActionPending || !action.isEnabled}
                 title={action.disabledReason ?? undefined}
-                className={`h-full shrink-0 whitespace-nowrap rounded-md border border-[var(--border-subtle)] px-1.5 text-[10px] font-extrabold leading-none transition-colors duration-300 ease-out disabled:cursor-not-allowed disabled:opacity-50 ${phaseThemeClasses}`}
+                className={`${phaseActionChipClassName} disabled:cursor-not-allowed disabled:opacity-50 ${phaseThemeClasses}`}
               >
                 {action.label}
               </button>
             ))}
           </div>
         </div>
+
+        {isTargetingActive ? (
+          <button
+            type="button"
+            data-testid="cancel-target-mode-button"
+            aria-label="Cancel target selection"
+            onClick={cancelActiveTargetingMode}
+            title="Cancel current target selection"
+            className={`${phaseActionChipClassName} ${phaseThemeClasses}`}
+          >
+            Cancel
+          </button>
+        ) : null}
 
         <div
           data-testid={phaseTestId}

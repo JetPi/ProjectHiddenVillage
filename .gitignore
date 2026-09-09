@@ -6,6 +6,9 @@ client/dist/
 server/bin/
 server/obj/
 
+# Generated card-art cache
+server/card-art-cache/
+
 # Logs
 *.log
 npm-debug.log*

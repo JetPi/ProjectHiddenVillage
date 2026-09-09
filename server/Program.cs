@@ -10,6 +10,8 @@ using System.Text;
 using ProjectHiddenVillage.Server;
 using ProjectHiddenVillage.Server.Api.Interfaces.Auth;
 using ProjectHiddenVillage.Server.Api.Interfaces.Card;
+using ProjectHiddenVillage.Server.Api.Interfaces.CardArt;
+using ProjectHiddenVillage.Server.Api.Services.CardArt;
 using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
@@ -33,6 +35,10 @@ var jwtKeyProvider = configurationRoot.Providers
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddHttpClient();
+builder.Services.Configure<CardArtOptions>(builder.Configuration.GetSection(CardArtOptions.SectionName));
+builder.Services.AddScoped<ICardArtService, CardArtService>();
 
 builder.Services.AddSingleton(_ => new GameInstanceFactory());
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.Interfaces.IGamePhaseStateService, ProjectHiddenVillage.Server.Engine.GamePhaseStateService>();

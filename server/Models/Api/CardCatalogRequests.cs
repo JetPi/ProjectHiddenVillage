@@ -21,7 +21,8 @@ public sealed record CardCatalogItemResponse(
     bool CannotBeNormalSummoned,
     string? SupportName,
     string? SupportEffect,
-    int? SupportCost);
+    int? SupportCost,
+    long? ImageVersion = null);
 
 public sealed record CardCatalogEffectResponse(
     string Id,

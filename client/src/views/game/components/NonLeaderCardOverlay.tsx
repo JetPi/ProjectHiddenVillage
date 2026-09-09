@@ -1,8 +1,11 @@
 import { Eye } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { twMerge } from 'tailwind-merge'
 import { CardOverlayBadge, CardPreviewCard } from '@/components/ui/cards'
 import type { INonLeaderCardOverlayProps } from '@/views/game/types'
+
+const OVERLAY_VISIBILITY_CLASSNAME =
+  'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
 
 function NonLeaderCardOverlay({
   previewCard,
@@ -15,6 +18,8 @@ function NonLeaderCardOverlay({
   disableInteractions = false,
   isTargetCandidate = false,
   onChooseTarget,
+  isSummonTargetCandidate = false,
+  onToggleSummonTarget,
   card,
   isConnected,
   isActionPending,
@@ -24,15 +29,8 @@ function NonLeaderCardOverlay({
   const isHandZone = zone === 'hand'
   const showZoneHud = card !== undefined && zone === 'battlefield'
   const isChoosingTarget = isTargetCandidate === true
-  const showPreviewButton = isChoosingTarget || !hidePreviewButton
-
-  const overlayVisibilityClassName = useMemo(() => {
-    if (visibilityMode === 'mixed') {
-      return 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
-    }
-
-    return 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
-  }, [visibilityMode])
+  const isTributeTargetCandidate = isSummonTargetCandidate === true
+  const showPreviewButton = isChoosingTarget || isTributeTargetCandidate || !hidePreviewButton
 
   const hasActions = actionOptions.length > 0
 
@@ -50,7 +48,7 @@ function NonLeaderCardOverlay({
       <div
         className={twMerge(
           'card-overlay-controls absolute inset-0 z-20 rounded-md p-1 text-[9px] text-[var(--text-primary)] transition-opacity duration-200 ease-out',
-          disableInteractions ? 'pointer-events-none opacity-0' : overlayVisibilityClassName,
+          disableInteractions ? 'pointer-events-none opacity-0' : OVERLAY_VISIBILITY_CLASSNAME,
         )}
       >
         {!showPreviewButton ? null : (
@@ -79,6 +77,16 @@ function NonLeaderCardOverlay({
               className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Choose
+            </button>
+          ) : isTributeTargetCandidate && onToggleSummonTarget ? (
+            <button
+              type="button"
+              onClick={() => {
+                onToggleSummonTarget()
+              }}
+              className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80"
+            >
+              Tribute
             </button>
           ) : hasActions ? (
             <div className="grid w-full place-items-center gap-0.5">

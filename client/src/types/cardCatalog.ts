@@ -203,6 +203,7 @@ export type ICardCatalogEffectResponse = {
 export type ICardCatalogItemResponse = {
   id: string
   image: string
+  imageVersion?: number | null
   originalId: string
   mainAlternate: boolean
   attribute: string | null

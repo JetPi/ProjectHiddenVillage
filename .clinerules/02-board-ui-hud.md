@@ -43,8 +43,11 @@ paths:
   rows pass `isTargetCandidate` + `onChooseTarget`. Then hover reveals the eye AND
   a single **“Choose”** button (instead of the action list); clicking Choose calls
   `onChooseTarget` (= `onSelectAttackTarget(instanceId)`). Clicking the card itself
-  no longer selects the target for battle/effect targeting. Summon-tribute target
-  toggling still uses whole-card clicks.
+  no longer selects the target. Summon-tribute targeting follows the same pattern:
+  valid tribute cards receive `isSummonTargetCandidate` + `onToggleSummonTarget`,
+  and hover shows a single **“Tribute”** toggle button (instead of the action
+  list) — the card can only be toggled through that button, never by clicking the
+  card as a whole.
 - The overlay’s “reveal on hover” lives on the `card-overlay-controls` container
   (`group-hover:*` + transition), so any absolute children it contains inherit the
   reveal. Eye/buttons are hover-only by design.

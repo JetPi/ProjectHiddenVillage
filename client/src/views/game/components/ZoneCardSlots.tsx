@@ -23,6 +23,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
     const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
     const optimisticRestedByInstanceId = useGameUIStore((state) => state.optimisticRestedByInstanceId)
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
+    const isSummonActionTargeting = useGameUIStore((state) => state.pendingSummonTargeting !== null)
     
     const bottomSupportCardsBySlotIndex = useMemo(() => {
     const cardsBySlot = new Map<number, ReturnType<typeof resolveNonLeaderCards>[number]>()
@@ -115,6 +116,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
           const targetFlags = {
             isBattleTarget: validBattleTargetsByCardId.has(normalizedCardId),
             isSummonTarget: validSummonTargetsByCardId.has(normalizedCardId),
+            isSummonTargetCandidate: isSummonActionTargeting && validSummonTargetsByCardId.has(normalizedCardId),
             isSelectedSummonTarget: selectedSummonTargetsByCardId.has(normalizedCardId),
             isAttackLinkSource: isMatchingInstance(cardOptions.normalizedAttackLinkSourceCardId, normalizedCardId),
             isAttackLinkTarget: isMatchingInstance(cardOptions.normalizedAttackLinkTargetCardId, normalizedCardId),
@@ -151,14 +153,8 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                 targetFlags.isSelectionBlocked ? 'opacity-45' : '',
                 targetFlags.isBattleTarget ? getBattleTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
                 targetFlags.isSummonTarget ? getSummonTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
-                targetFlags.isSelectedSummonTarget ? 'scale-[1.01] bg-amber-200/10' : '',
                 targetFlags.isAttackLinkSource || targetFlags.isAttackLinkTarget ? 'attack-link-card-outline' : '',
               )}
-              onClick={
-                targetFlags.isSummonTarget
-                  ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId)
-                  : undefined
-              }
             >
               {card.isFaceUp ? (
                 <CardImage
@@ -186,6 +182,10 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                 />
               ) : null}
 
+              {!cardStateFlags.isConcealedSupportCard && targetFlags.isSelectedSummonTarget ? (
+                <div className="pointer-events-none absolute inset-0 rounded-lg border-2 border-amber-300/95 bg-amber-300/15" />
+              ) : null}
+
               {!cardStateFlags.isConcealedSupportCard ? (
                 <NonLeaderCardOverlay
                   previewCard={card.isFaceUp ? (props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
@@ -195,6 +195,12 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                   actionOptions={actionOptions}
                   isTargetCandidate={isBattleActionTargeting && targetFlags.isBattleTarget}
                   onChooseTarget={() => props.onSelectAttackTarget(card.instanceId)}
+                  isSummonTargetCandidate={targetFlags.isSummonTargetCandidate}
+                  onToggleSummonTarget={
+                    targetFlags.isSummonTargetCandidate
+                      ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId)
+                      : undefined
+                  }
                   showEmptyActionMessage={isCurrentPlayerZone}
                   suppressActionFallback={!isCurrentPlayerZone}
                   isConnected={props.isConnected}

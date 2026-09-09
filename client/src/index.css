@@ -62,7 +62,6 @@
 
   --resource-rail-max-width: 208px;
   --resource-summon-lane-width: 3.9rem;
-  --resource-card-scale: 0.93;
 }
 
 html[data-theme='light'] {
@@ -123,7 +122,6 @@ html[data-theme='light'] {
 
   --resource-rail-max-width: 208px;
   --resource-summon-lane-width: 3.9rem;
-  --resource-card-scale: 0.93;
 }
 
 @layer base {

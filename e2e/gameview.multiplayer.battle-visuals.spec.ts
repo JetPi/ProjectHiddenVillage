@@ -59,6 +59,17 @@ test.describe('GameView multiplayer battle visuals', () => {
       }, {
         timeout: 8_000,
       }).toBeGreaterThan(0)
+
+      await expect(battleActor.actorPage.getByTestId('cancel-target-mode-button')).toBeVisible({ timeout: 8_000 })
+      await battleActor.actorPage.getByTestId('cancel-target-mode-button').click()
+
+      await expect.poll(async () => {
+        return await battleActor.actorPage
+          .locator('.battle-target-top, .battle-target-bottom, .battle-target-leader-top, .battle-target-leader-bottom')
+          .count()
+      }, {
+        timeout: 8_000,
+      }).toBe(0)
     } finally {
       await closeMultiplayerPages(pages)
     }
