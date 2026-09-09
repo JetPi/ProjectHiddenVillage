@@ -189,6 +189,7 @@ function GameZones(props: IGameZonesProps) {
     selectedSummonTargetsByCardId,
     optimisticRestedByInstanceId,
     isBattleActionTargeting,
+    isSummonActionTargeting: pendingSummonTargeting !== null,
     isEffectActionTargeting,
     props,
   }

@@ -18,6 +18,8 @@ export type INonLeaderCardOverlayProps = {
   disableInteractions?: boolean
   isTargetCandidate?: boolean
   onChooseTarget?: () => void
+  isSummonTargetCandidate?: boolean
+  onToggleSummonTarget?: () => void
   isConnected: boolean
   isActionPending: boolean
   onSelectActionOption: (actionId: string) => void

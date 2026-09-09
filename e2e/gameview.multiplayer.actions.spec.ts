@@ -212,7 +212,8 @@ test.describe('GameView multiplayer actions', () => {
 
       const tributeTarget = ownerPage.locator(`[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${tributeSetupActor.cardInstanceId}"]`)
       await expect(tributeTarget).toBeVisible({ timeout: 5_000 })
-      await tributeTarget.click()
+      await tributeTarget.hover()
+      await tributeTarget.getByRole('button', { name: /^tribute$/i }).click()
 
       await ownerPage.getByRole('button', { name: /confirm tribute selection/i }).click()
 
@@ -308,7 +309,10 @@ test.describe('GameView multiplayer actions', () => {
       await expect(validToadTarget).toBeVisible({ timeout: 5_000 })
       await expect(invalidLeafTarget).toBeVisible({ timeout: 5_000 })
 
-      await validToadTarget.click()
+      await invalidLeafTarget.hover()
+      await expect(invalidLeafTarget.getByRole('button', { name: /^tribute$/i })).toHaveCount(0)
+      await validToadTarget.hover()
+      await validToadTarget.getByRole('button', { name: /^tribute$/i }).click()
       await ownerPage.getByRole('button', { name: /confirm tribute selection/i }).click()
 
       await expect.poll(async () => {

@@ -1,5 +1,6 @@
 import type { IGameActionOptionResponse, IGameCardInstanceResponse, IGamePlayerStateResponse } from "@/services/api/types/game"
 import type { IGameLoaderData, IGameCard, ILeaderCardViewModel, INonLeaderCardViewModel } from "@/views/game/types"
+import { CARD_ART_WIDTHS, resolveCardArtUrl } from '@/services/api/cardArt'
 
 function resolveLeaderCardId(
   player: IGamePlayerStateResponse | null,
@@ -57,7 +58,7 @@ function resolveLeaderCard(
     isRested: false,
     isExhausted: player?.leader?.isExhausted ?? false,
     id: leaderId,
-    image: catalogCard.image,
+    image: resolveCardArtUrl(catalogCard, CARD_ART_WIDTHS.board),
     attribute: catalogCard.attribute ?? null,
     name: catalogCard.name,
     displayName: catalogCard.displayName,
@@ -100,7 +101,7 @@ function resolveNonLeaderCards(
       ownerPlayerId: card.ownerPlayerId,
       controllerPlayerId: card.controllerPlayerId,
       id: catalogCard.id,
-      image: catalogCard.image,
+      image: resolveCardArtUrl(catalogCard, CARD_ART_WIDTHS.board),
       displayName: catalogCard.displayName,
       type: catalogCard.type,
       isFaceUp: card.isFaceUp,

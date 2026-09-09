@@ -55,6 +55,29 @@ paths:
   `player.leader.power/damage ?? catalog`. Keep instance/live values preferred over
   catalog/base.
 
+## Card art delivery (`/api/card-art`) and `ImageVersion`
+
+- `CardCatalogEntry.Image` stores the **raw external art URL** (imported from the
+  external DB). It is an ingestion source only — clients should not render it
+  directly for small slots.
+- `GET /api/card-art/{cardId}?w=&v=` (allow-anonymous, `CardArtController`)
+  lazily fetches the raw URL on cache-miss, downscales with ImageSharp/Lanczos
+  (never upscales), re-encodes WebP q85 and writes
+  `server/card-art-cache/{cardId}__w{w}__v{v}.webp` (gitignored). Widths are
+  whitelisted (`CardArt:AllowedWidths` = 80/120/240/600). Responses are
+  `ETag` + `Cache-Control: immutable` when `v` is present, otherwise a short
+  `max-age`. SSRF guard: enforce `CardArt:SourceHostAllowlist` (empty = any
+  http/https host allowed). `CardArtImageProcessor` is unit-tested.
+- `CardCatalogItemResponse` gained a trailing **optional** `ImageVersion` param
+  (ms of `CardCatalogEntry.UpdatedAtUtc`) → wire field `imageVersion`. When
+  adding optional trailing params to positional response records, give them a
+  default so existing constructor call sites keep compiling.
+- Client helper `client/src/services/api/cardArt.ts` builds the resized URL
+  (`cardArtUrl`/`resolveCardArtUrl`) using `CARD_ART_WIDTHS`
+  (hud 120 / board 240 / preview 600; `w=80` reserved for tiny API faces). Board
+  view-model resolvers set `image` to the board-width URL; hand faces use hud
+  width; preview popups use 600. Keep `image-rendering: auto` on card faces.
+
 ## Testing notes
 
 - `dotnet build server/…` and targeted tests (`GameStateResponseMapper*`,

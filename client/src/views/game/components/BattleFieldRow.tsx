@@ -25,6 +25,7 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                 const isBattleTarget = data.validBattleTargetsByCardId.has(card.instanceId.trim().toLowerCase())
                 const isTargetCandidate = data.isBattleActionTargeting && isBattleTarget
                 const isSummonTarget = data.validSummonTargetsByCardId.has(card.instanceId.trim().toLowerCase())
+                const isSummonTargetCandidate = data.isSummonActionTargeting && isSummonTarget
                 const isSelectedSummonTarget = data.selectedSummonTargetsByCardId.has(card.instanceId.trim().toLowerCase())
                 const isAttackLinkSource = data.normalizedAttackLinkSourceCardId.length > 0
                     && data.normalizedAttackLinkSourceCardId === card.instanceId.trim().toLowerCase()
@@ -48,14 +49,8 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                                 shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
                                 isBattleTarget ? getBattleTargetHighlightClass(data.isCurrentPlayerZone ? 'bottom' : 'top') : '',
                                 isSummonTarget ? getSummonTargetHighlightClass(data.isCurrentPlayerZone ? 'bottom' : 'top') : '',
-                                isSelectedSummonTarget ? 'scale-[1.01] bg-amber-200/10' : '',
                                 isAttackLinkSource || isAttackLinkTarget ? 'attack-link-card-outline' : '',
                             )}
-                            onClick={
-                                isSummonTarget
-                                    ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId)
-                                    : undefined
-                            }
                         >
                             {card.isFaceUp ? (
                                 <CardImage
@@ -69,6 +64,10 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                                 <CardBack className="h-full w-full rounded-lg bg-[var(--surface-elevated)]" />
                             )}
 
+                            {isSelectedSummonTarget ? (
+                                <div className="pointer-events-none absolute inset-0 rounded-lg border-2 border-amber-300/95 bg-amber-300/15" />
+                            ) : null}
+
                             <NonLeaderCardOverlay
                                 previewCard={props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null}
                                 card={card}
@@ -77,6 +76,12 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                                 actionOptions={actionOptions}
                                 isTargetCandidate={isTargetCandidate}
                                 onChooseTarget={() => props.onSelectAttackTarget(card.instanceId)}
+                                isSummonTargetCandidate={isSummonTargetCandidate}
+                                onToggleSummonTarget={
+                                    isSummonTargetCandidate
+                                        ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId)
+                                        : undefined
+                                }
                                 showEmptyActionMessage={data.isCurrentPlayerZone}
                                 suppressActionFallback={!data.isCurrentPlayerZone}
                                 isConnected={props.isConnected}
@@ -107,6 +112,7 @@ export type IBattleFieldRowProps = {
     normalizedAttackLinkTargetCardId: string,
     optimisticRestedByInstanceId: Record<string, boolean>,
     isBattleActionTargeting: boolean,
+    isSummonActionTargeting: boolean,
     isEffectActionTargeting: boolean,
     props: IGameZonesProps,
 }

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { CardImage } from '@/components/ui/cards'
 import type { ICardAdminCardTileProps } from '@/views/admin/types/cardAdminCardTile'
 import { CARD_ART_IMAGE_CLASS } from '@/components/ui/cards'
+import { CARD_ART_WIDTHS, resolveCardArtUrl } from '@/services/api/cardArt'
 
 export function CardAdminCardTile({ card, isSelected, onSelect }: ICardAdminCardTileProps) {
   const [isPreviewVisible, setIsPreviewVisible] = useState(false)
@@ -74,7 +75,7 @@ export function CardAdminCardTile({ card, isSelected, onSelect }: ICardAdminCard
         <div className="w-80 overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-2 shadow-2xl">
           <div className="aspect-[5/7] w-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)]">
             <CardImage
-              src={card.image}
+              src={resolveCardArtUrl(card, CARD_ART_WIDTHS.preview)}
               alt={`${card.displayName} card art preview`}
               loading="lazy"
               decoding="async"
@@ -107,7 +108,7 @@ export function CardAdminCardTile({ card, isSelected, onSelect }: ICardAdminCard
         <div className="space-y-2">
           <div className="aspect-[5/7] w-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)]">
             <CardImage
-              src={card.image}
+              src={resolveCardArtUrl(card, CARD_ART_WIDTHS.board)}
               alt={`${card.displayName} card art`}
               loading="lazy"
               decoding="async"

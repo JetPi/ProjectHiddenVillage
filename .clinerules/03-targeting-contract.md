@@ -27,7 +27,12 @@ paths:
   - `kind: 'effect'` = plain single-target effect (leader/support/card effect).
 - Board highlight + click handling is driven purely off this state.
 - Summon tribute targeting is a separate `pendingSummonTargeting` state and is
-  multi-toggle + confirm (see SidebarButtons).
+  multi-toggle + confirm (see SidebarButtons). Tributes are toggled via each valid
+  card’s hover **“Tribute”** button (see `02-board-ui-hud.md`), not by whole-card
+  clicks.
+- Every selection mode (battle/effect/summon/set-support) can be exited via the
+  phase-row **Cancel** chip (`02-board-ui-hud.md`) or the sidebar `X`; both call
+  the store’s `cancel*` actions and never submit to the hub.
 
 ## Effect activation decision (`trySubmitTargetedCardEffect`)
 
