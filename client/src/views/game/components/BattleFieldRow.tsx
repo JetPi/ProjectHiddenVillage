@@ -23,6 +23,7 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                     card.availableActions,
                 )
                 const isBattleTarget = data.validBattleTargetsByCardId.has(card.instanceId.trim().toLowerCase())
+                const isTargetCandidate = data.isBattleActionTargeting && isBattleTarget
                 const isSummonTarget = data.validSummonTargetsByCardId.has(card.instanceId.trim().toLowerCase())
                 const isSelectedSummonTarget = data.selectedSummonTargetsByCardId.has(card.instanceId.trim().toLowerCase())
                 const isAttackLinkSource = data.normalizedAttackLinkSourceCardId.length > 0
@@ -51,9 +52,9 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                                 isAttackLinkSource || isAttackLinkTarget ? 'attack-link-card-outline' : '',
                             )}
                             onClick={
-                                isBattleTarget
-                                    ? () => props.onSelectAttackTarget(card.instanceId)
-                                    : (isSummonTarget ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId) : undefined)
+                                isSummonTarget
+                                    ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId)
+                                    : undefined
                             }
                         >
                             {card.isFaceUp ? (
@@ -74,8 +75,8 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                                 zone="battlefield"
                                 visibilityMode="hover"
                                 actionOptions={actionOptions}
-                                hidePreviewButton={data.isBattleActionTargeting && isBattleTarget}
-                                disableInteractions={data.isEffectActionTargeting && isBattleTarget}
+                                isTargetCandidate={isTargetCandidate}
+                                onChooseTarget={() => props.onSelectAttackTarget(card.instanceId)}
                                 showEmptyActionMessage={data.isCurrentPlayerZone}
                                 suppressActionFallback={!data.isCurrentPlayerZone}
                                 isConnected={props.isConnected}

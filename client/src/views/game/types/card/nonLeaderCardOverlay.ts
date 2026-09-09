@@ -16,6 +16,8 @@ export type INonLeaderCardOverlayProps = {
   showEmptyActionMessage?: boolean
   suppressActionFallback?: boolean
   disableInteractions?: boolean
+  isTargetCandidate?: boolean
+  onChooseTarget?: () => void
   isConnected: boolean
   isActionPending: boolean
   onSelectActionOption: (actionId: string) => void

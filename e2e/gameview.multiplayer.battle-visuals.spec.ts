@@ -18,7 +18,7 @@ import {
 test.describe('GameView multiplayer battle visuals', () => {
   test.describe.configure({ timeout: 120_000 })
 
-  test('battle action click enters target selection mode with highlight classes and hidden target preview icons', async ({ browser, request }) => {
+  test('battle action click enters target selection mode with highlight classes', async ({ browser, request }) => {
     const setup = await setupMultiplayerGame(request)
     const pages = await openMultiplayerPages(browser, setup)
 
@@ -59,19 +59,6 @@ test.describe('GameView multiplayer battle visuals', () => {
       }, {
         timeout: 8_000,
       }).toBeGreaterThan(0)
-
-      await expect.poll(async () => {
-        return await battleActor.actorPage
-          .locator(
-            '.battle-target-top [aria-label="Open card details"], '
-            + '.battle-target-bottom [aria-label="Open card details"], '
-            + '.battle-target-leader-top [aria-label="Open leader card details"], '
-            + '.battle-target-leader-bottom [aria-label="Open leader card details"]',
-          )
-          .count()
-      }, {
-        timeout: 8_000,
-      }).toBe(0)
     } finally {
       await closeMultiplayerPages(pages)
     }

@@ -65,6 +65,13 @@ export function LeaderCard({
   return (
     <>
       <PlayCard className={twMerge('group', className, surfaceClassName)} {...surfaceRestProps}>
+    <>
+          <CardOverlayBadge position="top-left" size='md' className='w-4 text-red-900 bg-white'>{leaderCard.currentDamage}</CardOverlayBadge>
+          <CardOverlayBadge position="top-right" size='md'>
+            <span className="text-red-300">{leaderCard.currentPower}</span>
+          </CardOverlayBadge>
+
+        </>
         {shouldRenderBadge ? <CardOverlayBadge className='text-green-300'>{badgeValue}</CardOverlayBadge> : null}
 
         {previewCard && !hidePreviewButton && !disableInteractions ? (

@@ -69,6 +69,8 @@ function resolveLeaderCard(
     power: catalogCard.power,
     life,
     currentLife,
+    currentPower: player?.leader?.power ?? catalogCard.power ?? 0,
+    currentDamage: player?.leader?.damage ?? catalogCard.damage ?? 0,
     recoveryEffect: player?.leader?.recoveryEffect ?? '',
     availableActions: player?.leader?.availableActions,
   }

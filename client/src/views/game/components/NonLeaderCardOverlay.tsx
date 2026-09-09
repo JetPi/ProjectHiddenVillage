@@ -13,6 +13,8 @@ function NonLeaderCardOverlay({
   showEmptyActionMessage = true,
   suppressActionFallback = false,
   disableInteractions = false,
+  isTargetCandidate = false,
+  onChooseTarget,
   card,
   isConnected,
   isActionPending,
@@ -21,6 +23,8 @@ function NonLeaderCardOverlay({
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false)
   const isHandZone = zone === 'hand'
   const showZoneHud = card !== undefined && zone === 'battlefield'
+  const isChoosingTarget = isTargetCandidate === true
+  const showPreviewButton = isChoosingTarget || !hidePreviewButton
 
   const overlayVisibilityClassName = useMemo(() => {
     if (visibilityMode === 'mixed') {
@@ -49,7 +53,7 @@ function NonLeaderCardOverlay({
           disableInteractions ? 'pointer-events-none opacity-0' : overlayVisibilityClassName,
         )}
       >
-        {hidePreviewButton ? null : (
+        {!showPreviewButton ? null : (
           <div className="absolute right-2 top-2 z-30">
             <button
               type="button"
@@ -65,7 +69,18 @@ function NonLeaderCardOverlay({
         )}
 
         <div className="flex h-full w-full items-start justify-center pt-6">
-          {hasActions ? (
+          {isChoosingTarget && onChooseTarget ? (
+            <button
+              type="button"
+              onClick={() => {
+                onChooseTarget()
+              }}
+              disabled={!isConnected || isActionPending}
+              className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Choose
+            </button>
+          ) : hasActions ? (
             <div className="grid w-full place-items-center gap-0.5">
               {actionOptions.map((action) => (
                 <button

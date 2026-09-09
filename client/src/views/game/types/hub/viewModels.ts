@@ -24,6 +24,8 @@ export type ILeaderCardViewModel = {
   power: number
   life: number | null
   currentLife: number | null
+  currentPower: number
+  currentDamage: number
   recoveryEffect: string
   availableActions?: IGameActionOptionResponse[]
 }

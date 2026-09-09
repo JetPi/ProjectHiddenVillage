@@ -23,7 +23,6 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
     const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
     const optimisticRestedByInstanceId = useGameUIStore((state) => state.optimisticRestedByInstanceId)
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
-    const isEffectActionTargeting = useGameUIStore((state) => state.pendingCardTargeting?.kind === 'effect')
     
     const bottomSupportCardsBySlotIndex = useMemo(() => {
     const cardsBySlot = new Map<number, ReturnType<typeof resolveNonLeaderCards>[number]>()
@@ -156,9 +155,9 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                 targetFlags.isAttackLinkSource || targetFlags.isAttackLinkTarget ? 'attack-link-card-outline' : '',
               )}
               onClick={
-                targetFlags.isBattleTarget
-                  ? () => props.onSelectAttackTarget(card.instanceId)
-                  : (targetFlags.isSummonTarget ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId) : undefined)
+                targetFlags.isSummonTarget
+                  ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId)
+                  : undefined
               }
             >
               {card.isFaceUp ? (
@@ -194,8 +193,8 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                   zone={zone}
                   visibilityMode={visibilityMode}
                   actionOptions={actionOptions}
-                  hidePreviewButton={isBattleActionTargeting && targetFlags.isBattleTarget}
-                  disableInteractions={isEffectActionTargeting && targetFlags.isBattleTarget}
+                  isTargetCandidate={isBattleActionTargeting && targetFlags.isBattleTarget}
+                  onChooseTarget={() => props.onSelectAttackTarget(card.instanceId)}
                   showEmptyActionMessage={isCurrentPlayerZone}
                   suppressActionFallback={!isCurrentPlayerZone}
                   isConnected={props.isConnected}

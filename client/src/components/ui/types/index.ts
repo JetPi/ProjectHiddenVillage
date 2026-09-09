@@ -134,6 +134,8 @@ export type ILeaderCardProps = {
     displayName: string
     image: string
     currentLife: number | null
+    currentPower: number
+    currentDamage: number
   } | null
 }
 
