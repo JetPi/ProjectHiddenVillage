@@ -65,8 +65,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                   badgeValue === 0 ? 'hidden' : '',
                   'h-5 w-5 border-slate-300/35 bg-slate-900/45 text-[10px] text-white',
                 )}
-                value={badgeValue}
-              />
+              >{badgeValue}</CardOverlayBadge>
               {isDeckLabel(label) ? (
                 <CardBack className="border-0 bg-transparent [&_img]:object-cover" tone={cardBackTone} />
               ) : (

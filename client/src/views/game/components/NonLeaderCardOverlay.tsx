@@ -36,13 +36,11 @@ function NonLeaderCardOverlay({
     <>
       {showZoneHud && card ? (
         <>
-          <CardOverlayBadge position="top-left" value={card.currentDamage} />
-          <CardOverlayBadge position="top-right" value={card.currentPower} />
-          <CardOverlayBadge
-            position="top-right"
-            value={card.currentHealth}
-            className="-translate-x-8"
-          />
+          <CardOverlayBadge position="top-left" size='sm' className='w-4 text-red-900 bg-white'>{card.currentDamage}</CardOverlayBadge>
+          <CardOverlayBadge position="top-right" size='sm'>
+            <span className="text-red-300">{card.currentPower}</span>:<span className="text-green-300">{card.currentHealth}</span>
+          </CardOverlayBadge>
+
         </>
       ) : null}
       <div

@@ -13,9 +13,11 @@ import type { IDerivedGameViewState } from '@/views/game/types'
 export type CardOverlayPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 
 export type ICardOverlayBadgeProps = {
-  value: number | string
+  value?: number | string
   position?: CardOverlayPosition
   className?: string
+  children?: ReactNode
+  size?: 'sm' | 'md' | 'lg'
 }
 
 export type ICardImageProps = Omit<
