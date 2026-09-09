@@ -3,6 +3,13 @@ import type { ImgHTMLAttributes } from 'react'
 import { twMerge } from 'tailwind-merge'
 import type { ICardImageProps } from '@/components/ui/types'
 import { preloadImageSource } from '@/services/imagePreloadCache'
+import { CARD_ART_WIDTHS, cardArtUrl } from '@/services/api/cardArt'
+
+const IMAGE_RENDERING_CLASS: Record<NonNullable<ICardImageProps['imageRendering']>, string> = {
+  auto: '[image-rendering:auto]',
+  pixelated: '[image-rendering:pixelated]',
+  'crisp-edges': '[image-rendering:crisp-edges]',
+}
 
 const fallbackSvg = encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="500" viewBox="0 0 360 500">
@@ -23,6 +30,9 @@ const FALLBACK_IMAGE_SRC = `data:image/svg+xml;charset=UTF-8,${fallbackSvg}`
 export function CardImage({
   src,
   alt,
+  card,
+  variant = 'board',
+  imageRendering = 'auto',
   loading = 'lazy',
   decoding = 'async',
   fetchPriority = 'auto',
@@ -33,10 +43,14 @@ export function CardImage({
   onError,
   ...imageProps
 }: ICardImageProps) {
-  const normalizedSrc = src?.trim() ?? ''
+  const resolvedSource = card?.id
+    ? cardArtUrl(card.id, CARD_ART_WIDTHS[variant], card.imageVersion)
+    : (src?.trim() ?? '')
+  const normalizedSrc = resolvedSource.trim()
   const hasSource = normalizedSrc.length > 0
   const [failedSource, setFailedSource] = useState<string | null>(null)
   const hasLoadError = !hasSource || failedSource === normalizedSrc
+  const imageRenderingClass = IMAGE_RENDERING_CLASS[imageRendering]
 
   useEffect(() => {
     if (hasSource) {
@@ -115,7 +129,7 @@ export function CardImage({
       decoding={decoding}
       fetchPriority={fetchPriority}
       onError={handleError}
-      className={twMerge('rounded-xl object-cover', className)}
+      className={twMerge('rounded-xl object-cover', imageRenderingClass, className)}
     />
   )
 }

@@ -5,7 +5,6 @@ import { GameHandRow } from './GameHandRow'
 import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
 import { useLongPressHandReorder } from '@/views/game/hooks/useLongPressHandReorder'
 import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions'
-import { CARD_ART_WIDTHS, resolveCardArtUrl } from '@/services/api/cardArt'
 import type { IBottomHandReorderRowProps } from '@/views/game/types'
 
 export function BottomHandReorderRow({
@@ -75,7 +74,8 @@ export function BottomHandReorderRow({
               front={
                 <div className="group relative h-full w-full overflow-hidden rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]">
                   <CardImage
-                    src={previewCard ? resolveCardArtUrl(previewCard, CARD_ART_WIDTHS.hud) : null}
+                    card={previewCard}
+                    variant="board"
                     alt={previewCard?.displayName ?? 'Hand card'}
                     loading="lazy"
                     decoding="async"

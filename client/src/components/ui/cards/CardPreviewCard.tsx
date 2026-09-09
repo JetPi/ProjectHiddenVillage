@@ -5,7 +5,6 @@ import { twMerge } from 'tailwind-merge'
 import { CardImage } from '@/components/ui/cards/CardImage'
 import { resolveKeywordDescription } from '@/components/ui/cards/utils'
 import { getPrimaryName, renderDescriptionLineWithKeywordPills, splitDescriptionLines } from '@/components/ui/cards/utils'
-import { CARD_ART_WIDTHS, resolveCardArtUrl } from '@/services/api/cardArt'
 import type { ICardPreviewCardProps } from '@/components/ui/types'
 
 type IKeywordTooltipState = {
@@ -146,7 +145,8 @@ export function CardPreviewCard({
                           <div className="shrink-0">
                               <div className="aspect-[600/831] w-full max-h-[70vh]">
                                   <CardImage
-                                      src={resolveCardArtUrl(card, CARD_ART_WIDTHS.preview)}
+                                      card={card}
+                                      variant="preview"
                                       alt={primaryName}
                                       loading="eager"
                                       className="h-full w-full rounded-lg object-contain"
