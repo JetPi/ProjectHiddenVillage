@@ -278,6 +278,31 @@ internal static class TributeMaterialAssignmentSolver
     }
 
 
+    /// <summary>
+    /// Computes, for each tribute material rule, the indexes of the pool candidates that satisfy the
+    /// rule. Used to annotate each candidate with the requirements it can fulfill for the UI.
+    /// </summary>
+    internal static int[][] ComputeMaterialRuleMatches(
+        GameState gameState,
+        PlayerState actingPlayerState,
+        CardInstance? summonCandidateInstance,
+        IReadOnlyList<EffectTargetRule> materialRules,
+        TributeTargetComposition? composition,
+        IReadOnlyList<GameEffectTargetReference> pool)
+    {
+        var requireDistinctFromSummonCandidate = composition?.RequireDistinctSummonAndTributes ?? true;
+
+        return materialRules
+            .Select(rule => GetPoolIndexesMatchingRule(
+                rule,
+                gameState,
+                actingPlayerState,
+                summonCandidateInstance,
+                requireDistinctFromSummonCandidate,
+                pool))
+            .ToArray();
+    }
+
     private static int[] GetPoolIndexesMatchingRule(
         EffectTargetRule rule,
         GameState gameState,

@@ -151,6 +151,26 @@ function GameZones(props: IGameZonesProps) {
     [pendingSummonTargeting]
   );
 
+  const summonRequirementTextByCardInstanceId = useMemo(() => {
+    const nextMap = new Map<string, string>()
+    const requirementLabels = pendingSummonTargeting?.requirementLabelsByCardInstanceId ?? null
+    if (!requirementLabels) {
+      return nextMap
+    }
+
+    for (const [instanceId, labels] of Object.entries(requirementLabels)) {
+      const normalizedInstanceId = instanceId.trim().toLowerCase()
+      if (!normalizedInstanceId) {
+        continue
+      }
+
+      const fulfilledLabels = (labels ?? []).filter((label) => label.trim().length > 0)
+      nextMap.set(normalizedInstanceId, fulfilledLabels.length > 0 ? fulfilledLabels.join(' · ') : 'any')
+    }
+
+    return nextMap
+  }, [pendingSummonTargeting])
+
   const isTopLeaderBattleTarget = useMemo(
     () => isCardInstanceBattleTarget(topLeaderCard, validBattleTargetsByCardId),
     [topLeaderCard, validBattleTargetsByCardId]
@@ -187,6 +207,7 @@ function GameZones(props: IGameZonesProps) {
     validBattleTargetsByCardId,
     validSummonTargetsByCardId,
     selectedSummonTargetsByCardId,
+    summonRequirementTextByCardInstanceId,
     optimisticRestedByInstanceId,
     isBattleActionTargeting,
     isSummonActionTargeting: pendingSummonTargeting !== null,
@@ -199,6 +220,7 @@ function GameZones(props: IGameZonesProps) {
     validBattleTargetsByCardId,
     validSummonTargetsByCardId,
     selectedSummonTargetsByCardId,
+    summonRequirementTextByCardInstanceId,
     props,
   }
 
@@ -265,6 +287,7 @@ function GameZones(props: IGameZonesProps) {
             isConnected={props.isConnected}
             isActionPending={props.isActionPending}
             onSelectAction={props.onSelectAction}
+            onConfirmSummonTargetSelection={props.onConfirmSummonTargetSelection}
             phaseTestId="phase-indicator"
           />
         </div>

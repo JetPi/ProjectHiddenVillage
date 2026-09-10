@@ -1,7 +1,9 @@
 import {
   fetchCardCatalogByIdsSparseCached,
 } from '@/services/api/cardCatalogApi'
+import { cardArtUrl } from '@/services/api/cardArt'
 import { preloadImageSources } from '@/services/imagePreloadCache'
+import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 
 const FIXED_CARD_IDS = ['C-001', 'S-001']
 
@@ -22,6 +24,44 @@ function extractUniqueImageSources(imageSources: string[]): string[] {
   }
 
   return uniqueSources
+}
+
+export type ICardArtPreloadEntry = Pick<ICardCatalogItemResponse, 'id' | 'imageVersion'>
+
+function extractUniqueCardArtSources(
+  cards: readonly ICardArtPreloadEntry[],
+  width: number,
+): string[] {
+  const sources = cards.map((card) => (card.id ? cardArtUrl(card.id, width, card.imageVersion) : ''))
+  return extractUniqueImageSources(sources)
+}
+
+/** Preloads one width bucket for a set of catalog cards (no-op for already-cached URLs). */
+export async function preloadCardArt(
+  cards: readonly ICardArtPreloadEntry[],
+  width: number,
+): Promise<void> {
+  const sources = extractUniqueCardArtSources(cards, width)
+  if (sources.length === 0) {
+    return
+  }
+
+  await preloadImageSources(sources)
+}
+
+/**
+ * Preloads card art in priority order. Each batch fully resolves before the next
+ * one starts, so visible board art hits the network first, then previews, then
+ * the remaining deck/trash art.
+ */
+export async function preloadCardArtInPriorityBatches(
+  batches: ReadonlyArray<{ cards: readonly ICardArtPreloadEntry[]; width: number }>,
+): Promise<void> {
+  for (const batch of batches) {
+    if (batch.cards.length > 0) {
+      await preloadCardArt(batch.cards, batch.width)
+    }
+  }
 }
 
 export async function preloadCardsByIds(cardIds: string[]): Promise<void> {
@@ -50,3 +90,4 @@ export function preloadFixedCards(): Promise<void> {
 
   return fixedCardsPreloadPromise
 }
+

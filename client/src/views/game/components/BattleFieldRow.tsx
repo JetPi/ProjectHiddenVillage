@@ -26,6 +26,9 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                 const isTargetCandidate = data.isBattleActionTargeting && isBattleTarget
                 const isSummonTarget = data.validSummonTargetsByCardId.has(card.instanceId.trim().toLowerCase())
                 const isSummonTargetCandidate = data.isSummonActionTargeting && isSummonTarget
+                const summonRequirementText = isSummonTarget
+                    ? (data.summonRequirementTextByCardInstanceId.get(card.instanceId.trim().toLowerCase()) ?? null)
+                    : null
                 const isSelectedSummonTarget = data.selectedSummonTargetsByCardId.has(card.instanceId.trim().toLowerCase())
                 const isAttackLinkSource = data.normalizedAttackLinkSourceCardId.length > 0
                     && data.normalizedAttackLinkSourceCardId === card.instanceId.trim().toLowerCase()
@@ -77,11 +80,13 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                                 isTargetCandidate={isTargetCandidate}
                                 onChooseTarget={() => props.onSelectAttackTarget(card.instanceId)}
                                 isSummonTargetCandidate={isSummonTargetCandidate}
+                                isSummonTargetSelected={isSelectedSummonTarget}
                                 onToggleSummonTarget={
                                     isSummonTargetCandidate
                                         ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId)
                                         : undefined
                                 }
+                                summonRequirementText={summonRequirementText}
                                 showEmptyActionMessage={data.isCurrentPlayerZone}
                                 suppressActionFallback={!data.isCurrentPlayerZone}
                                 isConnected={props.isConnected}
@@ -108,6 +113,7 @@ export type IBattleFieldRowProps = {
     validBattleTargetsByCardId: Set<string>,
     validSummonTargetsByCardId: Set<string>,
     selectedSummonTargetsByCardId: Set<string>,
+    summonRequirementTextByCardInstanceId: ReadonlyMap<string, string>,
     normalizedAttackLinkSourceCardId: string,
     normalizedAttackLinkTargetCardId: string,
     optimisticRestedByInstanceId: Record<string, boolean>,

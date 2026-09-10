@@ -81,6 +81,13 @@ paths:
   `width`/`height`. Helper `cardArtUrl`/`resolveCardArtUrl` in `cardArt.ts`
   remains available for view-model resolvers
   (`utils/functions/cards/index.ts`) that bake the board-width URL into `image`.
+- **Eager per-game preload** (`useCardCatalogPreload` in
+  `hooks/GameView/effects/useGameViewEffects.ts`) fetches art for every catalog
+  card in the game through the resize endpoint, in priority batches: visible
+  board/own-hand faces (board 240) → same faces at preview 600 → remaining
+  deck/trash/opponent-hand cards (board 240). Batches resolve sequentially;
+  `imagePreloadCache` dedupes by URL. This makes first-time preview popups
+  instant instead of loading on hover.
 
 ## Testing notes
 

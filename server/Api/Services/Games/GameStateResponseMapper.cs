@@ -478,7 +478,11 @@ public static class GameStateResponseMapper
 
             PlayerZone.CharacterField =>
                 !CanUseBattleCardActions(card, state) || !CanDeclareBattleAction(card, state)
-                    ? []
+                    ? [new GameActionOptionResponse(
+                            ActionId: $"battle-action:{card.InstanceId}",
+                            Label: "Battle",
+                            IsEnabled: false,
+                            DisabledReason: "Card can't attack on the turn its summoned")]
                     :
                     [
                         new GameActionOptionResponse(

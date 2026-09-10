@@ -20,6 +20,8 @@ function NonLeaderCardOverlay({
   onChooseTarget,
   isSummonTargetCandidate = false,
   onToggleSummonTarget,
+  isSummonTargetSelected = false,
+  summonRequirementText = null,
   card,
   isConnected,
   isActionPending,
@@ -117,6 +119,21 @@ function NonLeaderCardOverlay({
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-between rounded-b-md border-t border-[var(--border-subtle)] bg-[var(--surface-elevated)]/95 px-1 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)]">
           <span>{hasActions ? `${actionOptions.length} action${actionOptions.length > 1 ? 's' : ''}` : (showEmptyActionMessage ? 'No actions' : '')}</span>
           <span>View</span>
+        </div>
+      ) : null}
+
+      {isTributeTargetCandidate && summonRequirementText ? (
+        <div
+          data-testid="tribute-requirement-label"
+          title={summonRequirementText}
+          className={twMerge(
+            'pointer-events-none absolute inset-x-0 bottom-0 z-10 flex w-full items-center justify-center rounded-b-md border-t px-1 py-0.5 text-center text-[10px] font-extrabold leading-none',
+            isSummonTargetSelected
+              ? 'border-black/40 bg-amber-300/95 text-black' 
+              : 'border-amber-300/40 bg-black/75 text-amber-200',
+          )}
+        >
+          <span className="w-full truncate">{summonRequirementText}</span>
         </div>
       ) : null}
 

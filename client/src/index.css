@@ -181,6 +181,21 @@ html[data-theme='light'] {
   color: #212121;
 }
 
+.turn-indicator-inverted-orange {
+  background-color: var(--theme-light-text-primary);
+  color: #fb923c;
+}
+
+.turn-indicator-inverted-blue {
+  background-color: var(--theme-dark-text-primary);
+  color: #3b82f6;
+}
+
+.turn-indicator-inverted-light-gray {
+  background-color: #212121;
+  color: #a5a6a8;
+}
+
 .turn-band-blue {
   background-color: var(--turn-band-blue);
 }

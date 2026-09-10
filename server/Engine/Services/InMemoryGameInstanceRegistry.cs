@@ -495,7 +495,13 @@ public sealed class InMemoryGameInstanceRegistry
             MaximumTargetCount: ResolveTributeMaximumTargetCount(effectSpec.TargetRules),
             ExactTargetCount: ResolveTributeExactTargetCount(effectSpec.TargetRules),
             AutoSelectAllValidTargets: effectSpec.TargetRules.AutoSelectAllValidTargets,
-            ValidTargets: validTributeTargets);
+            ValidTargets: validTributeTargets,
+            RequirementLabels: BuildTributeRequirementLabels(
+                instance.State,
+                actingPlayer,
+                sourceCardInstance,
+                effectSpec.TargetRules,
+                validTributeTargets));
     }
 
     public GameInstance DeclareEndStep(string gameId)
@@ -2147,6 +2153,61 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         return ZoneCardRestrictionMatcher.Matches(gameState, cardDefinition, rule.Restriction, cardInstance, sourceCardInstance);
+    }
+
+    private static IReadOnlyList<GameCardActionTargetRequirementResponse>? BuildTributeRequirementLabels(
+        GameState gameState,
+        PlayerState actingPlayerState,
+        CardInstance? summonCandidateInstance,
+        EffectTargetRuleSet targetRules,
+        IReadOnlyList<GameEffectTargetReference> validTargets)
+    {
+        if (targetRules.TributeComposition is null || validTargets.Count == 0)
+        {
+            return null;
+        }
+
+        var materialRules = targetRules.Rules
+            .Where(rule => rule.TributeRole != TributeTargetRole.SummonCandidate)
+            .ToList();
+
+        if (materialRules.Count == 0)
+        {
+            return null;
+        }
+
+        var matches = TributeMaterialAssignmentSolver.ComputeMaterialRuleMatches(
+            gameState,
+            actingPlayerState,
+            summonCandidateInstance,
+            materialRules,
+            targetRules.TributeComposition,
+            validTargets);
+
+        var responses = new List<GameCardActionTargetRequirementResponse>(validTargets.Count);
+        for (var targetIndex = 0; targetIndex < validTargets.Count; targetIndex++)
+        {
+            var fulfilledLabels = new List<string>();
+            for (var ruleIndex = 0; ruleIndex < materialRules.Count; ruleIndex++)
+            {
+                if (!matches[ruleIndex].Contains(targetIndex))
+                {
+                    continue;
+                }
+
+                var label = TributeRequirementDescription.BuildShortLabel(materialRules[ruleIndex]);
+                if (label is not null)
+                {
+                    fulfilledLabels.Add(label);
+                }
+            }
+
+            responses.Add(new GameCardActionTargetRequirementResponse(
+                CardInstanceId: validTargets[targetIndex].CardInstanceId,
+                RequirementLabels: fulfilledLabels.Distinct(StringComparer.OrdinalIgnoreCase).ToList()));
+        }
+
+        return responses;
     }
 
     private static int? ResolveTributeExactTargetCount(EffectTargetRuleSet targetRules)

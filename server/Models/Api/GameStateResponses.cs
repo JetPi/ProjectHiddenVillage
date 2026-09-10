@@ -55,7 +55,12 @@ public sealed record GameCardActionTargetsResponse(
     int? MaximumTargetCount,
     int? ExactTargetCount,
     bool AutoSelectAllValidTargets,
-    IReadOnlyList<GameEffectTargetReference> ValidTargets);
+    IReadOnlyList<GameEffectTargetReference> ValidTargets,
+    IReadOnlyList<GameCardActionTargetRequirementResponse>? RequirementLabels = null);
+
+public sealed record GameCardActionTargetRequirementResponse(
+    string CardInstanceId,
+    IReadOnlyList<string> RequirementLabels);
 
 public sealed record PlayerZonesResponse(
     string PlayerId,
