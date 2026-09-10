@@ -395,7 +395,10 @@ html[data-theme='light'] {
   animation: card-preview-slide-in 220ms ease-out;
 }
 
-[data-card-moving="true"] .card-overlay-controls {
+[data-card-moving="true"] .card-overlay-controls,
+[data-card-moving="true"] .card-overlay-badge,
+[data-card-moving="true"] .card-overlay-requirement-label,
+[data-card-moving="true"] .card-selection-tint {
   pointer-events: none !important;
   opacity: 0 !important;
 }

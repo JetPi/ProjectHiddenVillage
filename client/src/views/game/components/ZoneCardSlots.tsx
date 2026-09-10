@@ -187,7 +187,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               ) : null}
 
               {!cardStateFlags.isConcealedSupportCard && targetFlags.isSelectedSummonTarget ? (
-                <div className="pointer-events-none absolute inset-0 rounded-lg border-2 border-amber-300/95 bg-amber-300/15" />
+                <div className="card-selection-tint pointer-events-none absolute inset-0 rounded-lg border-2 border-amber-300/95 bg-amber-300/15" />
               ) : null}
 
               {!cardStateFlags.isConcealedSupportCard ? (

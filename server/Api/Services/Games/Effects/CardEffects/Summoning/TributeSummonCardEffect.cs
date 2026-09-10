@@ -146,7 +146,9 @@ public sealed class TributeSummonCardEffect(
 
             var ownerPlayer = context.Game.State.Players.First(player => player.PlayerId == tributeCard.OwnerPlayerId);
             var ownerTrashZone = PlayerZoneCardAccessor.GetCards(PlayerZone.Trash, ownerPlayer);
-            ownerTrashZone.Add(tributeCard);
+            // The trash pile keeps the most recently discarded card at index 0 (matching
+            // GameRuntimeDeckService.MoveCardToZone) so clients can surface it as the pile's face.
+            ownerTrashZone.Insert(0, tributeCard);
 
             affectedCardInstanceIds.Add(tributeCard.InstanceId);
             affectedPlayerIds.Add(tributeSourcePlayer.PlayerId);

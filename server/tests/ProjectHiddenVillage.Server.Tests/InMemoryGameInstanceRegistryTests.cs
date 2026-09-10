@@ -1283,6 +1283,13 @@ public sealed class InMemoryGameInstanceRegistryTests
             OwnerPlayerId = "p2",
             ControllerPlayerId = "p2",
         });
+        game.State.Players[1].DiscardPile.Add(new CardInstance
+        {
+            InstanceId = "older-trash-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
 
         registry.ExecuteCardAction(
             game.Id,
@@ -1298,8 +1305,10 @@ public sealed class InMemoryGameInstanceRegistryTests
 
         Assert.AreEqual(0, game.State.Players[1].Hand.Count);
         Assert.IsTrue(game.State.Players[1].Battlefield.Any(card => card.InstanceId == "hand-tribute"));
-        Assert.AreEqual(1, game.State.Players[1].DiscardPile.Count);
+        Assert.AreEqual(2, game.State.Players[1].DiscardPile.Count);
+        // Trash is newest-first: the freshly tributed card becomes the pile's face.
         Assert.AreEqual("tribute-material-1", game.State.Players[1].DiscardPile[0].InstanceId);
+        Assert.AreEqual("older-trash-1", game.State.Players[1].DiscardPile[1].InstanceId);
         Assert.IsTrue(game.State.IsSummonCardReady("p2"));
     }
 

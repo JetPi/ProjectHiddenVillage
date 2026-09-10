@@ -232,6 +232,9 @@ test.describe('GameView multiplayer actions', () => {
         trashCount: 1,
       })
 
+      const bottomTrashPile = ownerPage.locator('[data-side="bottom"] [data-testid="trash-pile-card"]')
+      await expect(bottomTrashPile.locator('img')).toHaveAttribute('src', /card-art\/T-100/, { timeout: 6_000 })
+
       await expect.poll(async () => {
         return await getAnimationCount(ownerPage)
       }, {
