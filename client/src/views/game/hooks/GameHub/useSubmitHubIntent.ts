@@ -36,7 +36,7 @@ function resolveHubErrorMessage(result: IHubOperationResult<IGameStateResponse>)
     return 'Hub operation failed.'
 }
 
-function useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId }: ISubmitHubProps) {
+function useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId, requestGameStateRefresh }: ISubmitHubProps) {
     const setActionError = useGameHubStore((state) => state.setActionError)
     const setActionPending = useGameHubStore((state) => state.setActionPending)
     const setGameState = useGameHubStore((state) => state.setGameState)
@@ -123,7 +123,20 @@ function useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId }: IS
                         return
                     }
 
-                    setActionError(resolveHubErrorMessage(result))
+                    const errorMessage = resolveHubErrorMessage(result)
+                    console.error('[GameHub] hub intent failed.', {
+                        intent,
+                        gameId,
+                        errorCode: result.errorCode,
+                        errorDescription: result.errorDescription,
+                    })
+                    setActionError(errorMessage)
+
+                    // The server can partially apply an action before rejecting it (for example a battle
+                    // action that rests the attacker before an unsupported "On Attack" effect aborts).
+                    // Re-pull the authoritative state so the table never stays on a stale snapshot that
+                    // no button can progress.
+                    requestGameStateRefresh(currentConnection)
                     return
                 }
 
@@ -141,11 +154,13 @@ function useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId }: IS
                 }
 
                 setActionError(message)
+                console.error('[GameHub] hub intent threw.', { intent, gameId, message })
+                requestGameStateRefresh(currentConnection)
             } finally {
                 setActionPending(false)
             }
         },
-        [authUserId, connectionRef, gameId, gameState, setActionError, setActionPending, setGameState],
+        [authUserId, connectionRef, gameId, gameState, requestGameStateRefresh, setActionError, setActionPending, setGameState],
     )
 }
 
@@ -154,6 +169,8 @@ interface ISubmitHubProps {
     gameState: IGameStateResponse | null
     authUserId?: string | null
     gameId: string
+    /** Coalesced re-sync used after a failed intent so both clients recover without a manual reload. */
+    requestGameStateRefresh: (connection: HubConnection) => void
 }
 
 export { useSubmitHubIntent }

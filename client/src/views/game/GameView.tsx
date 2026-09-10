@@ -7,6 +7,7 @@ import { useAuthSessionStore } from '@/state/authSession'
 import { useThemeStore } from '@/state/themeStore'
 import {
   buildLeaderCardFrameClass,
+  extractTargetIds,
   readPersistedBattlefieldDisplayOrder,
 } from '@/views/game/utils/functions'
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
@@ -21,6 +22,7 @@ import {
 import { handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitMappedAction as submitMappedGameAction, submitSetSupportToSlot as submitSetSupportAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
 import { CardBack } from '@/components/ui/cards'
 import { useGameUIStore } from '@/state/gameUIStore'
+import { useGameHubStore } from '@/state/gameHubStore'
 import {
   useDerivedGameViewState,
   useGameAnimationController,
@@ -78,9 +80,11 @@ export function GameView() {
     gameState,
     isConnected,
     isActionPending,
+    actionError,
     submitHubIntent,
     getCardActionTargets,
   } = gameHubState
+  const setActionError = useGameHubStore((state) => state.setActionError)
 
   usePersistedBattlefieldDisplayOrderEffect(battlefieldDisplayOrderStorageKey, topBattlefieldDisplayOrder, bottomBattlefieldDisplayOrder)
 
@@ -103,6 +107,12 @@ export function GameView() {
 
   const topLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(topLeaderCard))
   const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
+
+  const isEffectActionTargeting = pendingCardTargeting?.kind === 'effect'
+  const validEffectTargetsByCardId = useMemo(
+    () => (isEffectActionTargeting ? extractTargetIds(pendingCardTargeting?.validTargets) : new Set<string>()),
+    [isEffectActionTargeting, pendingCardTargeting],
+  )
 
   const promptPresentation = toPromptPresentation(gameState.pendingPrompt)
 
@@ -282,6 +292,9 @@ export function GameView() {
               isConnected={isConnected}
               isActionPending={isActionPending}
               onSelectCardActionOption={submitMappedAction}
+              isEffectActionTargeting={isEffectActionTargeting}
+              validEffectTargetsByCardId={validEffectTargetsByCardId}
+              onChooseTarget={submitCardTargetSelection}
             />
           </div>
         </Panel>
@@ -295,6 +308,24 @@ export function GameView() {
             void handlePromptResolve(selectedOption)
           }}
         />
+
+        {actionError ? (
+          <div
+            data-testid="game-action-error-banner"
+            role="alert"
+            className="fixed left-1/2 top-2 z-50 flex max-w-[92vw] -translate-x-1/2 items-start gap-2 rounded-lg border border-red-500/70 bg-black/85 px-3 py-2 text-[11px] font-semibold leading-tight text-white shadow-lg"
+          >
+            <span className="min-w-0 flex-1 break-words">{actionError}</span>
+            <button
+              type="button"
+              aria-label="Dismiss error"
+              onClick={() => setActionError(null)}
+              className="shrink-0 rounded border border-white/30 px-1.5 leading-none text-white/85 transition-[filter] hover:brightness-125"
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
 
       </div>
     </PageShell>

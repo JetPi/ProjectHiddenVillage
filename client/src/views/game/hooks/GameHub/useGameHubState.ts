@@ -21,6 +21,7 @@ import { useSubmitHubIntent } from './useSubmitHubIntent'
 
 const HUB_CONNECT_MAX_ATTEMPTS = 3
 const HUB_CONNECT_RETRY_DELAY_MS = 600
+const ACTION_PENDING_WATCHDOG_MS = 15_000
 
 function isConnectionConnected(connection: HubConnection): boolean {
   return connection.state === HubConnectionState.Connected
@@ -56,6 +57,8 @@ function useGameHubState(
   authUserId: string | undefined,
 ): IUseGameHubStateResult {
   const connectionRef = useRef<HubConnection | null>(null)
+  const refreshInFlightRef = useRef(false)
+  const refreshQueuedRef = useRef(false)
   const gameStateFromStore = useGameHubStore((state) => state.gameState)
   const isConnected = useGameHubStore((state) => state.isConnected)
   const connectionError = useGameHubStore((state) => state.connectionError)
@@ -66,6 +69,7 @@ function useGameHubState(
   const setConnected = useGameHubStore((state) => state.setConnected)
   const setConnectionError = useGameHubStore((state) => state.setConnectionError)
   const setActionError = useGameHubStore((state) => state.setActionError)
+  const setActionPending = useGameHubStore((state) => state.setActionPending)
   const resetConnectionState = useGameHubStore((state) => state.resetConnectionState)
   const { refetch: refetchGameStateSnapshot } = useGameStateQuery(gameId, { enabled: false })
 
@@ -88,6 +92,32 @@ function useGameHubState(
       setGameState(result.value)
     },
     [gameId, setConnectionError, setGameState],
+  )
+
+  // Invalidations can arrive in bursts (for example when both players resolve their
+  // attack cut-in windows back to back). Coalescing them guarantees only one fetch is
+  // in flight and that the final applied state is the latest one, so an older response
+  // can never overwrite a newer state and leave the UI stuck until a manual refresh.
+  const requestGameStateRefresh = useCallback(
+    (currentConnection: HubConnection): void => {
+      if (refreshInFlightRef.current) {
+        refreshQueuedRef.current = true
+        return
+      }
+
+      refreshInFlightRef.current = true
+      void (async () => {
+        try {
+          do {
+            refreshQueuedRef.current = false
+            await refreshCurrentGameState(currentConnection)
+          } while (refreshQueuedRef.current)
+        } finally {
+          refreshInFlightRef.current = false
+        }
+      })()
+    },
+    [refreshCurrentGameState],
   )
 
   useEffect(() => {
@@ -114,7 +144,7 @@ function useGameHubState(
           return
         }
 
-        await refreshCurrentGameState(nextConnection)
+        requestGameStateRefresh(nextConnection)
         if (isDisposed) {
           return
         }
@@ -174,7 +204,7 @@ function useGameHubState(
               return
             }
 
-            void refreshCurrentGameState(nextConnection)
+            requestGameStateRefresh(nextConnection)
           })
 
           disposeParticipantJoinedHandler = onGameParticipantJoined(nextConnection, (updatedGameId) => {
@@ -182,7 +212,7 @@ function useGameHubState(
               return
             }
 
-            void refreshCurrentGameState(nextConnection)
+            requestGameStateRefresh(nextConnection)
           })
 
           await refreshCurrentGameState(nextConnection)
@@ -250,9 +280,35 @@ function useGameHubState(
         await disconnectGameHub(nextConnection)
       })()
     }
-  }, [authUserId, gameId, hubConnectionScopeKey, refreshCurrentGameState, refetchGameStateSnapshot, resetConnectionState, setConnected, setConnectionError, setGameState])
+  }, [authUserId, gameId, hubConnectionScopeKey, refreshCurrentGameState, refetchGameStateSnapshot, requestGameStateRefresh, resetConnectionState, setConnected, setConnectionError, setGameState])
 
-  const submitHubIntent = useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId })
+  useEffect(() => {
+    if (!isActionPending) {
+      return
+    }
+
+    const watchdogTimeoutId = window.setTimeout(() => {
+      const currentState = useGameHubStore.getState()
+      if (!currentState.isActionPending) {
+        return
+      }
+
+      // A hub action that never settles would otherwise leave every action button
+      // permanently disabled, which looks exactly like a frozen board until the page is
+      // manually refreshed. Clear the latch and re-sync so play can continue.
+      setActionError('The last action did not complete. Re-synced with the server.')
+      setActionPending(false)
+
+      const currentConnection = connectionRef.current
+      if (currentConnection && isConnectionConnected(currentConnection)) {
+        requestGameStateRefresh(currentConnection)
+      }
+    }, ACTION_PENDING_WATCHDOG_MS)
+
+    return () => window.clearTimeout(watchdogTimeoutId)
+  }, [isActionPending, requestGameStateRefresh, setActionError, setActionPending])
+
+  const submitHubIntent = useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId, requestGameStateRefresh })
 
   const getCardActionTargetsForRequest = useCallback(
     async (request: {

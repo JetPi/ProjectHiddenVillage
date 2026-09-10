@@ -117,6 +117,26 @@ function pruneStaleGameUIState(): void {
     }
   }
 
+  // Effect targeting (leader/support/card effects) must not outlive the action that opened it — the
+  // server turns the action disabled (once per turn, spent chakra, timing passed) or drops it entirely.
+  const pendingEffectTargeting = ui.pendingCardTargeting
+  if (pendingEffectTargeting && pendingEffectTargeting.kind === 'effect') {
+    const actionId = pendingEffectTargeting.actionId
+    const sourceId = pendingEffectTargeting.sourceCardInstanceId.trim().toLowerCase()
+    const matchingAction = availableActions.find((option) => option.actionId === actionId)
+    const sourceCards = [
+      ...(currentPlayer?.characterField ?? []),
+      ...(currentPlayer?.supportZone ?? []),
+      ...currentHand,
+    ]
+    const sourceCard = sourceCards.find((card) => card.instanceId.trim().toLowerCase() === sourceId)
+    const matchingSourceCardAction = (sourceCard?.availableActions ?? []).find((option) => option.actionId === actionId)
+    const stillAvailable = Boolean(matchingAction?.isEnabled) || Boolean(matchingSourceCardAction?.isEnabled)
+    if (!stillAvailable) {
+      ui.setPendingCardTargeting(null)
+    }
+  }
+
   const pendingSummonTargeting = ui.pendingSummonTargeting
   if (pendingSummonTargeting) {
     const actionId = pendingSummonTargeting.actionId
@@ -165,7 +185,15 @@ function pruneStaleGameUIState(): void {
     ui.setActiveAttackLink(null)
   }
 
-  if (actionError && !gameState.isAttackSequencePending) {
+  // A failed action must not leave the board rendering an attack the backend never confirmed.
+  // Keep the optimistic rest only while the backend's pending-attack state names our attacker.
+  const pendingAttackAttackerInstanceId =
+    gameState.pendingAttackVisualState?.attackerCardInstanceId?.trim().toLowerCase() ?? ''
+  const isOwnSubmittedAttackConfirmed = pendingAttackAttackerInstanceId.length > 0
+    && pendingAttackAttackerInstanceId
+      === (ui.lastSubmittedAttackSourceInstanceId ?? '').trim().toLowerCase()
+
+  if (actionError && !isOwnSubmittedAttackConfirmed) {
     const sourceCardInstanceId = ui.lastSubmittedAttackSourceInstanceId
     if (sourceCardInstanceId) {
       ui.setOptimisticRestedByInstanceId((previous) => {

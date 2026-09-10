@@ -492,6 +492,39 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
+    public void ToGameStateResponse_MapsWhenAttackingLeaderEffect_DuringAttackDeclaration()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.AttackDeclaration;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = string.Empty;
+        state.HasPendingAttack = true;
+
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "leader-when-attacking",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.WhenAttacking,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        // AttackDeclaration is the attack window the engine actually enters, so When Attacking effects
+        // must be reachable there instead of only during the unused BlockerDeclaration stage.
+        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
+        Assert.IsTrue(requester.Leader.AvailableActions[0].ActionId.StartsWith("leader-effect:", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void ToGameStateResponse_MapsLeaderEffectActions_WithLeaderEffectPrefix()
     {
         var requesterId = Guid.NewGuid().ToString("N");
@@ -828,6 +861,85 @@ public sealed class GameStateResponseMapperCardActionsTests
 
         Assert.AreEqual(0, requester.Leader.AvailableActions.Count);
     }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesLeaderEffect_WhenOncePerTurnEffectWasAlreadyUsed()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+        state.TurnNumber = 4;
+        SetLeaderEffectRestriction(state, EffectRestrictions.OncePerTurn);
+
+        state.MarkEffectUsedThisTurn(requesterId, $"leader-{requesterId}", "leader-main");
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
+        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
+        Assert.AreEqual(EffectRestrictionMessages.OncePerTurn, requester.Leader.AvailableActions[0].DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_KeepsLeaderEffectEnabled_WhenOncePerTurnEffectBelongsToAnEarlierTurn()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+        state.TurnNumber = 3;
+        SetLeaderEffectRestriction(state, EffectRestrictions.OncePerTurn);
+
+        state.MarkEffectUsedThisTurn(requesterId, $"leader-{requesterId}", "leader-main");
+        state.TurnNumber = 4;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
+        Assert.IsTrue(requester.Leader.AvailableActions[0].IsEnabled);
+        Assert.IsNull(requester.Leader.AvailableActions[0].DisabledReason);
+    }
+
+    private static void SetLeaderEffectRestriction(GameState state, EffectRestrictions restriction)
+    {
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "leader-main",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+                GlobalRestrictions = restriction,
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Opponent,
+                            InZone = PlayerZone.Leader,
+                            LocationSelector = new EffectTargetLocationSelector
+                            {
+                                Kind = EffectTargetLocationSelectorKind.Any,
+                            }
+                        }
+                    ]
+                }
+            }
+        ];
+    }
+
 
     private static GameState BuildState(
         string requesterId,

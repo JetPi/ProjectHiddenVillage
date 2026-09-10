@@ -27,6 +27,8 @@ const AUTO_SIGNAL_PHASES = new Set([
 const DECK_TO_HAND_FLY_DURATION_MS = 420
 const DRAW_ANIMATION_COMPLETE_PADDING_MS = 140
 const AUTO_ADVANCE_RECHECK_MS = 80
+const AUTO_ADVANCE_RETRY_DELAY_MS = 2_500
+const AUTO_ADVANCE_MAX_RETRIES = 3
 
 function useIdleRevalidationPoll(
   revalidatorState: IRevalidatorState,
@@ -432,6 +434,10 @@ function useAutoAdvancePhaseEffect({
     }
 
     if (!AUTO_SIGNAL_PHASES.has(phase)) {
+      // Reaching a manual decision phase ends the previous auto-advance cycle. Clearing
+      // the latch lets the same turn/phase/active player be auto-signalled again if it
+      // comes back around later in the same turn (for example a second attack).
+      animController.lastAutoSignalKey = ''
       return
     }
 
@@ -462,6 +468,36 @@ function useAutoAdvancePhaseEffect({
       }, waitDelayMs)
     }
 
+    let autoAdvanceRetriesLeft = AUTO_ADVANCE_MAX_RETRIES
+
+    function resolveCurrentSnapshotKey(): string {
+      const currentGameState = useGameHubStore.getState().gameState
+      if (!currentGameState) {
+        return ''
+      }
+
+      return `${currentGameState.turnNumber}:${currentGameState.phase}:${currentGameState.activePlayerId}`
+    }
+
+    // If the state does not move on after an auto signal (a dropped or transiently
+    // rejected dispatch), retry a bounded number of times so the phase cannot stall
+    // until a manual page refresh.
+    function scheduleAutoAdvanceRetry(): void {
+      if (autoAdvanceRetriesLeft <= 0) {
+        return
+      }
+
+      autoAdvanceRetriesLeft -= 1
+      advanceTimerRef.current = window.setTimeout(() => {
+        advanceTimerRef.current = null
+        if (resolveCurrentSnapshotKey() !== phaseSnapshotKey) {
+          return
+        }
+
+        dispatchAutoAdvance()
+      }, AUTO_ADVANCE_RETRY_DELAY_MS)
+    }
+
     function dispatchAutoAdvance(): void {
       const currentStoreState = useGameHubStore.getState()
       const isDispatchBlocked = currentStoreState.isActionPending
@@ -476,6 +512,7 @@ function useAutoAdvancePhaseEffect({
       advanceTimerRef.current = null
       animController.lastAutoSignalKey = phaseSnapshotKey
       void submitHubIntent({ intent: 'advance-phase' })
+      scheduleAutoAdvanceRetry()
     }
 
     scheduleAutoAdvance()

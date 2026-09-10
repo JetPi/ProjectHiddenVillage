@@ -9,6 +9,16 @@ public sealed class GameSequentialEffectExecutor(
 {
     private const int MaxVisitsPerNode = 4;
 
+    private static readonly PlayerZone[] RevealedTargetZones =
+    [
+        PlayerZone.Hand,
+        PlayerZone.Deck,
+        PlayerZone.SupportZone,
+        PlayerZone.CharacterField,
+        PlayerZone.Trash,
+        PlayerZone.ExileZone,
+    ];
+
     private readonly IGameCardEffectRegistry effectRegistry = effectRegistry;
     private readonly IGameEffectTargetResolver targetResolver = targetResolver ?? new EffectTargetResolver();
 
@@ -30,6 +40,11 @@ public sealed class GameSequentialEffectExecutor(
         var nodeById = nodes.ToDictionary(node => node.NodeId, node => node, StringComparer.Ordinal);
         var visitCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         var currentNodeId = ResolveEntryNodeId(nodes);
+
+        // One mutable arguments dictionary is shared by every step of this execution so values an
+        // earlier step produces (for example the cards revealed by a RevealCard step) are visible to
+        // the steps that follow it.
+        var sharedArguments = new Dictionary<string, string>(context.Arguments, StringComparer.Ordinal);
 
         while (!string.IsNullOrWhiteSpace(currentNodeId))
         {
@@ -59,6 +74,7 @@ public sealed class GameSequentialEffectExecutor(
                     startNodeId: currentNodeId,
                     nodeById: nodeById,
                     context: context,
+                    sharedArguments: sharedArguments,
                     visitCounts: visitCounts);
 
                 if (atomicResult.IsError)
@@ -90,14 +106,22 @@ public sealed class GameSequentialEffectExecutor(
             var activationCost = ResolveActivationCost(
                 effectSpec: effectSpec);
 
-            var arguments = new Dictionary<string, string>(context.Arguments, StringComparer.Ordinal)
+            var arguments = new Dictionary<string, string>(sharedArguments, StringComparer.Ordinal)
             {
                 [ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument] = effectSpec.Id,
                 [ReactiveEffectExecutionConstants.SupportActivationChakraCostArgument] = activationCost.ToString(),
                 [ReactiveEffectExecutionConstants.EnforceTargetCountArgument] = bool.TrueString,
             };
 
-            var selectedTargetsResult = ResolveStepTargets(context, effectSpec);
+            var stepContext = new GameCardEffectContext(
+                game: context.Game,
+                actingPlayer: context.ActingPlayer,
+                sourceCardDefinition: context.SourceCardDefinition,
+                sourceCardInstance: context.SourceCardInstance,
+                arguments: arguments,
+                selectedTargets: context.SelectedTargets);
+
+            var selectedTargetsResult = ResolveStepTargets(stepContext, effectSpec);
             if (selectedTargetsResult.IsError)
             {
                 return selectedTargetsResult.Errors;
@@ -146,6 +170,10 @@ public sealed class GameSequentialEffectExecutor(
                 return executeResult.Errors;
             }
 
+            // Hand values an effect produced (for example the cards a RevealCard step revealed) to the
+            // steps that follow it in this chain.
+            PropagateRevealedArguments(perEffectContext.Arguments, sharedArguments);
+
             if (shouldExecuteBeforeCondition
                 && (!ConditionMatches(effectSpec.ExecutionCondition, perEffectContext.Arguments)
                     || !RevealPostConditionMatches(effectSpec, perEffectContext)))
@@ -164,44 +192,84 @@ public sealed class GameSequentialEffectExecutor(
         string startNodeId,
         IReadOnlyDictionary<string, ExecutionNode> nodeById,
         GameCardEffectContext context,
+        Dictionary<string, string> sharedArguments,
         Dictionary<string, int> visitCounts)
     {
-        var chainResult = BuildAtomicExecutionPlan(startNodeId, nodeById, context, visitCounts);
-        if (chainResult.IsError)
-        {
-            return chainResult.Errors;
-        }
+        var currentNodeId = startNodeId;
+        var planningContext = context;
 
-        var chain = chainResult.Value;
-        if (chain.Aborted)
+        while (!string.IsNullOrWhiteSpace(currentNodeId))
         {
-            return new AtomicChainExecutionResult(chain.NextNodeId);
-        }
-
-        foreach (var step in chain.Steps)
-        {
-            var activationCostResult = TryApplyActivationCost(
-                context: step.Context,
-                chakraCost: step.ActivationCost);
-            if (activationCostResult.IsError)
+            var chainResult = BuildAtomicExecutionPlan(currentNodeId, nodeById, planningContext, sharedArguments, visitCounts);
+            if (chainResult.IsError)
             {
-                return activationCostResult.Errors;
+                return chainResult.Errors;
             }
 
-            var executeResult = step.Effect.Execute(step.Context, step.Context.SelectedTargets);
-            if (executeResult.IsError)
+            var chain = chainResult.Value;
+            if (chain.Aborted)
             {
-                return executeResult.Errors;
+                return new AtomicChainExecutionResult(chain.NextNodeId);
             }
+
+            PlannedExecutionStep? revealFirstStep = null;
+
+            foreach (var step in chain.Steps)
+            {
+                var activationCostResult = TryApplyActivationCost(
+                    context: step.Context,
+                    chakraCost: step.ActivationCost);
+                if (activationCostResult.IsError)
+                {
+                    return activationCostResult.Errors;
+                }
+
+                var executeResult = step.Effect.Execute(step.Context, step.Context.SelectedTargets);
+                if (executeResult.IsError)
+                {
+                    return executeResult.Errors;
+                }
+
+                if (string.Equals(step.NodeId, chain.PendingRevealNodeId, StringComparison.Ordinal))
+                {
+                    revealFirstStep = step;
+                }
+            }
+
+            if (revealFirstStep is null)
+            {
+                return new AtomicChainExecutionResult(chain.NextNodeId);
+            }
+
+            // A "Reveal First" node just executed, so the rest of the chain can only be planned now:
+            // its post-condition picks the success/failure branch and the cards it revealed (published
+            // through its arguments) become the targets of the following steps - for example
+            // "reveal the top card of your deck, then summon it".
+            PropagateRevealedArguments(revealFirstStep.Context.Arguments, sharedArguments);
+
+            var revealEffectSpec = nodeById[revealFirstStep.NodeId].EffectSpec;
+
+            planningContext = new GameCardEffectContext(
+                game: context.Game,
+                actingPlayer: context.ActingPlayer,
+                sourceCardDefinition: context.SourceCardDefinition,
+                sourceCardInstance: context.SourceCardInstance,
+                arguments: sharedArguments,
+                selectedTargets: revealFirstStep.Context.SelectedTargets);
+
+            currentNodeId = RevealPostConditionMatches(revealEffectSpec, planningContext)
+                ? NormalizeEffectId(revealEffectSpec.OnSuccessEffectId)
+                : NormalizeEffectId(revealEffectSpec.OnFailureEffectId);
         }
 
-        return new AtomicChainExecutionResult(chain.NextNodeId);
+        return new AtomicChainExecutionResult(null);
     }
 
     private ErrorOr<AtomicExecutionPlan> BuildAtomicExecutionPlan(
         string startNodeId,
         IReadOnlyDictionary<string, ExecutionNode> nodeById,
         GameCardEffectContext context,
+        Dictionary<string, string> sharedArguments,
         Dictionary<string, int> visitCounts)
     {
         var steps = new List<PlannedExecutionStep>();
@@ -276,14 +344,22 @@ public sealed class GameSequentialEffectExecutor(
             var activationCost = ResolveActivationCost(
                 effectSpec: effectSpec);
 
-            var arguments = new Dictionary<string, string>(context.Arguments, StringComparer.Ordinal)
+            var arguments = new Dictionary<string, string>(sharedArguments, StringComparer.Ordinal)
             {
                 [ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument] = effectSpec.Id,
                 [ReactiveEffectExecutionConstants.SupportActivationChakraCostArgument] = activationCost.ToString(),
                 [ReactiveEffectExecutionConstants.EnforceTargetCountArgument] = bool.TrueString,
             };
 
-            var selectedTargetsResult = ResolveStepTargets(context, effectSpec);
+            var stepContext = new GameCardEffectContext(
+                game: context.Game,
+                actingPlayer: context.ActingPlayer,
+                sourceCardDefinition: context.SourceCardDefinition,
+                sourceCardInstance: context.SourceCardInstance,
+                arguments: arguments,
+                selectedTargets: context.SelectedTargets);
+
+            var selectedTargetsResult = ResolveStepTargets(stepContext, effectSpec);
             if (selectedTargetsResult.IsError)
             {
                 return selectedTargetsResult.Errors;
@@ -320,7 +396,24 @@ public sealed class GameSequentialEffectExecutor(
                     NextNodeId: nextNodeId);
             }
 
-            steps.Add(new PlannedExecutionStep(effect, perEffectContext, activationCost));
+            steps.Add(new PlannedExecutionStep(
+                NodeId: node.NodeId,
+                Effect: effect,
+                Context: perEffectContext,
+                ActivationCost: activationCost));
+
+            if (ShouldExecuteBeforeCondition(effectSpec))
+            {
+                // "Reveal First" nodes must execute before the rest of the chain can be planned: the
+                // reveal outcome selects the success/failure branch and supplies the revealed cards as
+                // targets for the following steps. TryExecuteAtomicChain resumes planning from here.
+                return new AtomicExecutionPlan(
+                    Steps: steps,
+                    Aborted: false,
+                    NextNodeId: null,
+                    PendingRevealNodeId: node.NodeId);
+            }
+
             currentNodeId = branchOnSuccess;
             isFirstNodeInChain = false;
         }
@@ -482,6 +575,36 @@ public sealed class GameSequentialEffectExecutor(
         return false;
     }
 
+    /// <summary>
+    /// Copies the values an effect published into its step arguments (currently the cards produced by a
+    /// RevealCard step) into the shared arguments so the following steps of the same chain can act on
+    /// them - for example summoning the revealed card.
+    /// </summary>
+    private static void PropagateRevealedArguments(
+        IReadOnlyDictionary<string, string> stepArguments,
+        Dictionary<string, string> sharedArguments)
+    {
+        CopyArgument(
+            stepArguments,
+            sharedArguments,
+            ReactiveEffectExecutionConstants.RevealedTargetIdsArgument);
+        CopyArgument(
+            stepArguments,
+            sharedArguments,
+            ReactiveEffectExecutionConstants.RevealedPrimaryTargetIdArgument);
+    }
+
+    private static void CopyArgument(
+        IReadOnlyDictionary<string, string> source,
+        Dictionary<string, string> destination,
+        string argumentKey)
+    {
+        if (source.TryGetValue(argumentKey, out var value) && !string.IsNullOrWhiteSpace(value))
+        {
+            destination[argumentKey] = value;
+        }
+    }
+
     private static bool ShouldExecuteBeforeCondition(EffectSpec effectSpec)
     {
         return effectSpec.RuntimeEffectType == RuntimeEffects.RevealCard
@@ -550,7 +673,85 @@ public sealed class GameSequentialEffectExecutor(
             return ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(resolvedTargets);
         }
 
-        return ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(context.SelectedTargets);
+        if (context.SelectedTargets.Count > 0)
+        {
+            return ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(context.SelectedTargets);
+        }
+
+        // Subordinate steps of a reveal chain ("reveal the top card of your deck, then summon it")
+        // carry no explicit selection of their own - they act on the cards the previous step revealed.
+        return ErrorOrFactory.From(ResolveRevealedTargets(context));
+    }
+
+    private static IReadOnlyList<GameEffectTargetReference> ResolveRevealedTargets(GameCardEffectContext context)
+    {
+        var revealedCardInstanceIds = ResolveRevealedCardInstanceIds(context);
+        if (revealedCardInstanceIds.Count == 0)
+        {
+            return [];
+        }
+
+        var targets = new List<GameEffectTargetReference>(revealedCardInstanceIds.Count);
+
+        foreach (var revealedCardInstanceId in revealedCardInstanceIds)
+        {
+            var reference = TryResolveCardTargetReference(context, revealedCardInstanceId);
+            if (reference is not null)
+            {
+                targets.Add(reference);
+            }
+        }
+
+        return targets;
+    }
+
+    private static IReadOnlyList<string> ResolveRevealedCardInstanceIds(GameCardEffectContext context)
+    {
+        if (context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.RevealedTargetIdsArgument, out var revealedIdsCsv)
+            && !string.IsNullOrWhiteSpace(revealedIdsCsv))
+        {
+            return revealedIdsCsv
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+        }
+
+        if (context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.RevealedPrimaryTargetIdArgument, out var primaryTargetId)
+            && !string.IsNullOrWhiteSpace(primaryTargetId))
+        {
+            return [primaryTargetId.Trim()];
+        }
+
+        return [];
+    }
+
+    private static GameEffectTargetReference? TryResolveCardTargetReference(GameCardEffectContext context, string cardInstanceId)
+    {
+        foreach (var player in context.Game.State.Players)
+        {
+            if (player.LeaderCardInstance is not null
+                && string.Equals(player.LeaderCardInstance.InstanceId, cardInstanceId, StringComparison.Ordinal))
+            {
+                return new GameEffectTargetReference(
+                    PlayerId: player.PlayerId,
+                    Zone: PlayerZone.Leader,
+                    CardInstanceId: cardInstanceId);
+            }
+
+            foreach (var zone in RevealedTargetZones)
+            {
+                var zoneCards = PlayerZoneCardAccessor.GetCards(zone, player);
+                if (zoneCards.Any(card => string.Equals(card.InstanceId, cardInstanceId, StringComparison.Ordinal)))
+                {
+                    return new GameEffectTargetReference(
+                        PlayerId: player.PlayerId,
+                        Zone: zone,
+                        CardInstanceId: cardInstanceId);
+                }
+            }
+        }
+
+        return null;
     }
 
     private static IReadOnlyList<GameEffectTargetReference> FilterSupportEffectImmuneTargets(
@@ -782,9 +983,11 @@ public sealed class GameSequentialEffectExecutor(
     private sealed record AtomicExecutionPlan(
         IReadOnlyList<PlannedExecutionStep> Steps,
         bool Aborted,
-        string? NextNodeId);
+        string? NextNodeId,
+        string? PendingRevealNodeId = null);
 
     private sealed record PlannedExecutionStep(
+        string NodeId,
         IGameCardEffect Effect,
         GameCardEffectContext Context,
         int ActivationCost);

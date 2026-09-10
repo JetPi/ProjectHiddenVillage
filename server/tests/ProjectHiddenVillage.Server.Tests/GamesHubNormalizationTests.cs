@@ -2,6 +2,7 @@ using System.Security.Claims;
 using ErrorOr;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
@@ -65,6 +66,33 @@ public sealed class GamesHubNormalizationTests
         Assert.AreEqual(canonicalGameId, (string)messages[1].Args[0]);
     }
 
+    [TestMethod]
+    public async Task AdvancePhase_WhenTheOperationFails_StillNotifiesTheGroupToResync()
+    {
+        var requesterUserId = Guid.NewGuid();
+        const string canonicalGameId = "ABCDE";
+
+        var game = CreateGameInstance(canonicalGameId, requesterUserId.ToString("N"));
+
+        var hub = CreateHub(
+            requesterUserId,
+            new StubGameInstanceService(),
+            new StubGamePhaseHandlingService(),
+            new StubGameReadService(canonicalGameId, game));
+
+        // The stub throws, which is the "failed after partially mutating" case: players must still be
+        // told to re-pull state, otherwise both clients stay stuck on a stale snapshot.
+        var result = await hub.Hub.AdvancePhase("abcde");
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(canonicalGameId, hub.GroupsRecorder.AddedGroups.Single());
+
+        var messages = hub.ClientsRecorder.GetGroupMessages(canonicalGameId);
+        Assert.AreEqual(1, messages.Count);
+        Assert.AreEqual("GameStateInvalidated", messages[0].Method);
+        Assert.AreEqual(canonicalGameId, (string)messages[0].Args[0]);
+    }
+
     private static HubFixture CreateHub(
         Guid requesterUserId,
         IGameInstanceService instanceService,
@@ -73,7 +101,11 @@ public sealed class GamesHubNormalizationTests
     {
         var groupsRecorder = new RecordingGroupManager();
         var clientsRecorder = new RecordingHubCallerClients();
-        var hub = new GamesHub(instanceService, phaseHandlingService, gameReadService)
+        var hub = new GamesHub(
+            instanceService,
+            phaseHandlingService,
+            gameReadService,
+            NullLogger<GamesHub>.Instance)
         {
             Context = new TestHubCallerContext(requesterUserId),
             Groups = groupsRecorder,

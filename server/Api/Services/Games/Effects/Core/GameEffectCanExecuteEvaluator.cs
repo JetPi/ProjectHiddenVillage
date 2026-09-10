@@ -45,7 +45,22 @@ public sealed class GameEffectCanExecuteEvaluator(
         }
 
         var targetCountBounds = TryResolveTargetCountBounds(effectSpec.TargetRules);
-        var shouldEnforceSelectedTargetCount = ShouldEnforceSelectedTargetCount(effectSpec.TargetRules, context.Arguments);
+
+        // Effects that supply their own target ("draw 1 card, then place 1 card from your hand on top of
+        // your deck") stay usable with nothing to select - unless there is nothing to draw either.
+        if (EffectTargetRequirementAnalyzer.HasSelfSuppliedTargets(effectSpec)
+            && !EffectTargetRequirementAnalyzer.CanSelfSupplyTargets(context, effectSpec)
+            && context.SelectedTargets.Count == 0
+            && targetResolver.ResolveTargets(context, effectSpec).Count == 0)
+        {
+            result.CanExecute = false;
+            result.FailedConditions.Add(EffectTargetRequirementAnalyzer.NoCardsToDrawFailureMessage);
+            return result;
+        }
+
+        var shouldEnforceSelectedTargetCount = ShouldEnforceSelectedTargetCount(effectSpec.TargetRules, context.Arguments)
+            && !(context.SelectedTargets.Count == 0
+                && EffectTargetRequirementAnalyzer.CanSelfSupplyTargets(context, effectSpec));
 
         if (shouldEnforceSelectedTargetCount)
         {
@@ -70,9 +85,15 @@ public sealed class GameEffectCanExecuteEvaluator(
 
             if (!IsAvailableTargetCountValid(validTargets.Count, targetCountBounds, out var availableTargetCountError))
             {
-                result.CanExecute = false;
-                result.FailedConditions.Add(availableTargetCountError);
-                return result;
+                // Effects that draw the card they later consume ("draw 1 card, then place 1 card from your
+                // hand on top of your deck") must stay executable when the hand holds nothing to select.
+                if (validTargets.Count > 0
+                    || !EffectTargetRequirementAnalyzer.CanSelfSupplyTargets(context, effectSpec))
+                {
+                    result.CanExecute = false;
+                    result.FailedConditions.Add(availableTargetCountError);
+                    return result;
+                }
             }
 
             result.ValidTargets.AddRange(validTargets.Select(target => validTargetResultFactory.Create(target, gameState)));

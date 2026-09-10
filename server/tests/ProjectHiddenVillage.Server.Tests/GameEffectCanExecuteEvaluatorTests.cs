@@ -875,6 +875,90 @@ public sealed class GameEffectCanExecuteEvaluatorTests
     }
 
 
+    [TestMethod]
+    public void Evaluate_AllowsSelfSuppliedTargets_WhenHandIsEmptyAndDeckHasCards()
+    {
+        var evaluator = CreateEvaluator();
+        var effectSpec = CreateDrawThenPlaceEffectSpec();
+        var context = CreateContext(
+            playerOneResource: 0,
+            arguments: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [ReactiveEffectExecutionConstants.EnforceTargetCountArgument] = bool.TrueString,
+            });
+        AddDeckCard(context, "deck-1");
+
+        var result = evaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+
+        Assert.IsTrue(result.CanExecute);
+        Assert.AreEqual(0, result.ValidTargets.Count);
+    }
+
+    [TestMethod]
+    public void Evaluate_ReturnsCannotExecute_WhenSelfSuppliedEffectHasNoDeckCards()
+    {
+        var evaluator = CreateEvaluator();
+        var effectSpec = CreateDrawThenPlaceEffectSpec();
+        var context = CreateContext(
+            playerOneResource: 0,
+            arguments: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [ReactiveEffectExecutionConstants.EnforceTargetCountArgument] = bool.TrueString,
+            });
+
+        var result = evaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+
+        Assert.IsFalse(result.CanExecute);
+        Assert.IsTrue(result.FailedConditions.Any(message =>
+            message.Contains("No cards available to draw", StringComparison.Ordinal)));
+    }
+
+    private static EffectSpec CreateDrawThenPlaceEffectSpec()
+    {
+        return new EffectSpec
+        {
+            Id = "draw-n-place-card",
+            RuntimeEffectType = RuntimeEffects.MoveCard,
+            EffectType = EffectKind.Activated,
+            Timing = EffectTiming.ActivateMain,
+            ContextRules = [],
+            TargetRules = new EffectTargetRuleSet
+            {
+                Rules = []
+            },
+            MoveCardActions =
+            [
+                new MoveCardActionSpec
+                {
+                    Operation = MoveCardOperationType.Draw,
+                    DrawCount = 1,
+                },
+                new MoveCardActionSpec
+                {
+                    Operation = MoveCardOperationType.Move,
+                    SourceZone = PlayerZone.Hand,
+                    DestinationZone = PlayerZone.Deck,
+                    MoveCount = 1,
+                    DeckPlacement = MoveCardDeckPlacementType.Top,
+                    DestinationPlayerRange = EffectTargetRange.Self,
+                }
+            ]
+        };
+    }
+
+    private static void AddDeckCard(GameCardEffectContext context, string instanceId)
+    {
+        var player = context.Game.State.Players.First(entry => entry.PlayerId == context.ActingPlayer.Id);
+        player.Deck.Add(new CardInstance
+        {
+            InstanceId = instanceId,
+            CardDefinitionId = "source-def",
+            OwnerPlayerId = player.PlayerId,
+            ControllerPlayerId = player.PlayerId,
+        });
+    }
+
+
     private static GameEffectCanExecuteEvaluator CreateEvaluator(IReadOnlyList<GameEffectTargetReference>? resolvedTargets = null)
     {
         return new GameEffectCanExecuteEvaluator(

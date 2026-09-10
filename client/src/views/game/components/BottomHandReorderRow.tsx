@@ -17,6 +17,9 @@ export function BottomHandReorderRow({
   isConnected,
   isActionPending,
   onSelectCardActionOption,
+  isEffectActionTargeting = false,
+  validEffectTargetsByCardId,
+  onChooseTarget,
 }: IBottomHandReorderRowProps) {
   const internalRowRef = useRef<HTMLDivElement | null>(null)
   const [autoAnimateRef, setAutoAnimateEnabled] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
@@ -55,6 +58,9 @@ export function BottomHandReorderRow({
           card.availableActions,
         )
         const cardPointerHandlers = getCardPointerHandlers(card.instanceId)
+        const isEffectTargetCandidate =
+          isEffectActionTargeting
+          && validEffectTargetsByCardId?.has(card.instanceId.trim().toLowerCase()) === true
 
         return (
           <div
@@ -89,6 +95,12 @@ export function BottomHandReorderRow({
                     actionOptions={cardActionOptions}
                     showEmptyActionMessage={showNoActionsMessage}
                     disableInteractions={isReorderDragging}
+                    isTargetCandidate={isEffectTargetCandidate}
+                    onChooseTarget={
+                      isEffectTargetCandidate && onChooseTarget
+                        ? () => onChooseTarget(card.instanceId)
+                        : undefined
+                    }
                     isConnected={isConnected}
                     isActionPending={isActionPending}
                     onSelectActionOption={(actionId) => {

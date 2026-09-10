@@ -36,3 +36,12 @@ public static class EffectConditionKeywords
         NotAffectedByOpponentSupportEffects
     };
 }
+
+/// <summary>
+/// Player-facing reasons surfaced when an effect is blocked by a
+/// <see cref="EffectRestrictions"/> restriction.
+/// </summary>
+public static class EffectRestrictionMessages
+{
+    public const string OncePerTurn = "This effect can only be used once per turn.";
+}

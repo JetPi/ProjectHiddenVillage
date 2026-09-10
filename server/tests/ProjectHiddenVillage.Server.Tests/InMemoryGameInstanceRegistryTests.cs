@@ -1607,6 +1607,111 @@ public sealed class InMemoryGameInstanceRegistryTests
             comparer: StringComparer.Ordinal);
     }
 
+    [TestMethod]
+    public void ExecuteCardAction_LeaderEffect_RejectsActivation_WhenOncePerTurnEffectAlreadyUsed()
+    {
+        var game = CreateOncePerTurnLeaderGame();
+
+        var leaderInstanceId = game.State.Players[1].LeaderCardInstance!.InstanceId;
+        game.State.MarkEffectUsedThisTurn("p2", leaderInstanceId, "leader-main");
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(
+                game.Id,
+                new GameCardActionExecutionRequest(
+                    PlayerId: "p2",
+                    ActionId: $"leader-effect:{leaderInstanceId}:leader-main",
+                    SourceCardInstanceId: leaderInstanceId),
+                new RecordingSequentialExecutor()));
+
+        Assert.AreEqual(EffectRestrictionMessages.OncePerTurn, ex.Message);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_LeaderEffect_MarksOncePerTurnEffectAsUsed()
+    {
+        var game = CreateOncePerTurnLeaderGame();
+
+        var leaderInstanceId = game.State.Players[1].LeaderCardInstance!.InstanceId;
+        Assert.IsFalse(game.State.IsEffectUsedThisTurn("p2", leaderInstanceId, "leader-main"));
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: $"leader-effect:{leaderInstanceId}:leader-main",
+                SourceCardInstanceId: leaderInstanceId),
+            new RecordingSequentialExecutor());
+
+        var record = game.State.EffectActivations.Single(entry => entry.EffectKey == "leader-main");
+        Assert.AreEqual("p2", record.PlayerId);
+        Assert.AreEqual(leaderInstanceId, record.SourceInstanceId);
+    }
+
+    [TestMethod]
+    public void GetCardActionTargets_LeaderEffect_DisablesOncePerTurnEffectAfterUse()
+    {
+        var game = CreateOncePerTurnLeaderGame();
+
+        var leaderInstanceId = game.State.Players[1].LeaderCardInstance!.InstanceId;
+        var request = new GameCardActionTargetsRequest(
+            PlayerId: "p2",
+            ActionId: $"leader-effect:{leaderInstanceId}:leader-main",
+            SourceCardInstanceId: leaderInstanceId);
+        var evaluator = new GameEffectCanExecuteEvaluator(
+            new EffectContextConditionEvaluator(),
+            new EffectTargetResolver(),
+            new GameValidTargetResultFactory(),
+            new GameEffectConditionDiagnostics());
+
+        var beforeUse = registry.GetCardActionTargets(game.Id, request, evaluator);
+        Assert.IsTrue(beforeUse.IsEnabled);
+
+        game.State.MarkEffectUsedThisTurn("p2", leaderInstanceId, "leader-main");
+
+        var afterUse = registry.GetCardActionTargets(game.Id, request, evaluator);
+        Assert.IsFalse(afterUse.IsEnabled);
+        Assert.AreEqual(EffectRestrictionMessages.OncePerTurn, afterUse.DisabledReason);
+    }
+
+    private GameInstance CreateOncePerTurnLeaderGame()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
+        game.State.PriorityPlayerId = "p1";
+        game.State.TurnNumber = 4;
+
+        var leaderCard = (LeaderCard)game.State.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "leader-main",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+                GlobalRestrictions = EffectRestrictions.OncePerTurn,
+                TargetRules = new EffectTargetRuleSet
+                {
+                    MinimumTargetCount = 0,
+                }
+            }
+        ];
+
+        return game;
+    }
+
+
     private static Dictionary<string, Card> BuildDefinitionsWithLeaderEffects()
     {
         return new Dictionary<string, Card>(StringComparer.Ordinal)

@@ -129,7 +129,8 @@ public sealed class InMemoryGameInstanceRegistry
     public GameInstance ResolvePrompt(
         string gameId,
         string requestedPlayerId,
-        string selectedOption)
+        string selectedOption,
+        IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null)
     {
         var instance = GetRequired(gameId);
 
@@ -143,6 +144,7 @@ public sealed class InMemoryGameInstanceRegistry
                 phaseService.AdvancePhase(instance);
             }
 
+            SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
 
             instance.ValidateInvariants();
@@ -160,7 +162,7 @@ public sealed class InMemoryGameInstanceRegistry
         return phaseBeforeResolve is GamePhase.ChooseStartingPlayer or GamePhase.Mulligan;
     }
 
-    public GameInstance AdvancePhase(string gameId)
+    public GameInstance AdvancePhase(string gameId, IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null)
     {
         var instance = GetRequired(gameId);
 
@@ -174,13 +176,17 @@ public sealed class InMemoryGameInstanceRegistry
             var previousPhase = instance.State.Phase;
             phaseService.AdvancePhase(instance);
             ApplyPendingAttackResolutionIfNeeded(instance, previousPhase);
+            SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
             instance.ValidateInvariants();
             return instance;
         }
     }
 
-    public GameInstance DeclarePassInActionStep(string gameId, string playerId)
+    public GameInstance DeclarePassInActionStep(
+        string gameId,
+        string playerId,
+        IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null)
     {
         var instance = GetRequired(gameId);
 
@@ -189,6 +195,7 @@ public sealed class InMemoryGameInstanceRegistry
             var previousPhase = instance.State.Phase;
             phaseService.DeclarePassInActionStep(instance, playerId);
             ApplyPendingAttackResolutionIfNeeded(instance, previousPhase);
+            SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
             instance.ValidateInvariants();
             return instance;
@@ -211,7 +218,8 @@ public sealed class InMemoryGameInstanceRegistry
     public GameInstance ExecuteCardAction(
         string gameId,
         GameCardActionExecutionRequest request,
-        IGameSequentialEffectExecutor sequentialEffectExecutor)
+        IGameSequentialEffectExecutor sequentialEffectExecutor,
+        IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(sequentialEffectExecutor);
@@ -286,6 +294,7 @@ public sealed class InMemoryGameInstanceRegistry
                 phaseService.DeclareActionInActionStep(instance, request.PlayerId);
             }
 
+            SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
 
             instance.ValidateInvariants();
@@ -517,15 +526,62 @@ public sealed class InMemoryGameInstanceRegistry
         }
     }
 
-    public GameInstance CompleteEndStep(string gameId)
+    public GameInstance CompleteEndStep(string gameId, IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null)
     {
         var instance = GetRequired(gameId);
 
         lock (instance)
         {
             phaseService.CompleteEndStep(instance);
+            SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             instance.ValidateInvariants();
             return instance;
+        }
+    }
+
+    /// <summary>
+    /// Re-runs conditional continuous passives after a structural state change (turn end, phase
+    /// entry, card action, prompt resolution, battle resolution). Those changes are not reported by
+    /// the effects themselves, so a passive whose condition changed indirectly - a temporary power
+    /// boost expiring at end step and dropping the card below a "Power N or more" threshold,
+    /// temporary damage being reset, the board refreshing, a defender leaving play - would otherwise
+    /// keep its stale keyword or bonus until an unrelated effect happened to re-evaluate it.
+    /// </summary>
+    private static void SweepContinuousPassives(
+        GameInstance instance,
+        IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator)
+    {
+        if (reactiveEffectOrchestrator is null)
+        {
+            return;
+        }
+
+        var mutationEvent = new GameMutationEvent
+        {
+            Kind = GameMutationKind.CardStatChanged,
+            GameId = instance.State.GameId,
+            ActingPlayerId = instance.State.ActivePlayerId,
+            TurnNumber = instance.State.TurnNumber,
+            Phase = instance.State.Phase,
+            AffectedCardInstanceIds = instance.State.Players
+                .SelectMany(player => player.Battlefield)
+                .Select(card => card.InstanceId)
+                .ToList(),
+            AffectedPlayerIds = instance.State.Players.Select(player => player.PlayerId).ToList(),
+        };
+
+        // actingPlayerId stays null so every consequence executes as the controller of the card that
+        // owns the passive instead of as whichever player happened to trigger the structural change.
+        var orchestrationResult = reactiveEffectOrchestrator.ApplyPostMutationEffects(
+            instance,
+            mutationEvent,
+            actingPlayerId: null,
+            new PassiveChainResolutionOptions { ContinuousPassivesOnly = true });
+
+        if (orchestrationResult.IsError)
+        {
+            var error = orchestrationResult.Errors.First();
+            throw new InvalidOperationException($"{error.Code}: {error.Description}");
         }
     }
 
@@ -766,7 +822,7 @@ public sealed class InMemoryGameInstanceRegistry
             EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
                 state.Phase == GamePhase.MainPhase && isActivePlayer,
             EffectTiming.WhenAttacking =>
-                state.HasPendingAttack && state.Phase == GamePhase.BlockerDeclaration && isActivePlayer,
+                state.IsAttackDeclarationWindow() && isActivePlayer,
             EffectTiming.YourTurn =>
                 isActivePlayer,
             EffectTiming.Quick =>
@@ -838,6 +894,16 @@ public sealed class InMemoryGameInstanceRegistry
                 ExactTargetCount: null,
                 AutoSelectAllValidTargets: false,
                 ValidTargets: []);
+        }
+
+        var effectKey = ResolveEffectKey(effectSpec, effectIndex: 0);
+        if (effectSpec.GlobalRestrictions == EffectRestrictions.OncePerTurn
+            && instance.State.IsEffectUsedThisTurn(playerId, sourceCardInstanceId, effectKey))
+        {
+            return BuildOncePerTurnDisabledResponse(
+                actionId,
+                sourceCardInstanceId,
+                effectSpec);
         }
 
             if (!IsSupportEffectTimingAvailable(effectSpec.Timing, instance.State, playerId, isFromSupportZone))
@@ -976,6 +1042,15 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         var effectSpec = effectWithIndex.Effect;
+
+        // A once-per-turn effect already used this turn reports the restriction even when its timing
+        // window has since closed, so the player gets the actionable reason instead of a phase message.
+        if (effectSpec.GlobalRestrictions == EffectRestrictions.OncePerTurn
+            && instance.State.IsEffectUsedThisTurn(playerId, sourceCardInstanceId, effectKey))
+        {
+            return BuildOncePerTurnDisabledResponse(actionId, sourceCardInstanceId, effectSpec);
+        }
+
         var timingAvailable = IsLeaderEffectTimingAvailable(effectSpec.Timing, instance.State, playerId);
         if (!timingAvailable)
         {
@@ -1002,6 +1077,23 @@ public sealed class InMemoryGameInstanceRegistry
         var canExecuteResult = canExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
         var validTargets = ResolveValidTargetsForResponse(context, effectSpec, canExecuteResult);
         return ToCardActionTargetsResponse(actionId, sourceCardInstanceId, effectSpec, canExecuteResult, validTargets);
+    }
+
+    private static GameCardActionTargetsResponse BuildOncePerTurnDisabledResponse(
+        string actionId,
+        string sourceCardInstanceId,
+        EffectSpec effectSpec)
+    {
+        return new GameCardActionTargetsResponse(
+            ActionId: actionId,
+            SourceCardInstanceId: sourceCardInstanceId,
+            IsEnabled: false,
+            DisabledReason: EffectRestrictionMessages.OncePerTurn,
+            MinimumTargetCount: effectSpec.TargetRules.MinimumTargetCount,
+            MaximumTargetCount: effectSpec.TargetRules.MaximumTargetCount,
+            ExactTargetCount: effectSpec.TargetRules.ExactTargetCount,
+            AutoSelectAllValidTargets: effectSpec.TargetRules.AutoSelectAllValidTargets,
+            ValidTargets: []);
     }
 
     private static GameCardActionTargetsResponse ToCardActionTargetsResponse(
@@ -1080,6 +1172,12 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         var effectSpec = effectWithIndex.Effect;
+        if (effectSpec.GlobalRestrictions == EffectRestrictions.OncePerTurn
+            && instance.State.IsEffectUsedThisTurn(playerId, request.SourceCardInstanceId, effectKey))
+        {
+            throw new InvalidOperationException(EffectRestrictionMessages.OncePerTurn);
+        }
+
         if (!IsLeaderEffectTimingAvailable(effectSpec.Timing, instance.State, playerId))
         {
             throw new InvalidOperationException($"Leader effect '{effectSpec.Timing}' timing is not available right now.");
@@ -1103,6 +1201,11 @@ public sealed class InMemoryGameInstanceRegistry
         if (executeResult.IsError)
         {
             throw new InvalidOperationException(executeResult.FirstError.Description);
+        }
+
+        if (effectSpec.GlobalRestrictions == EffectRestrictions.OncePerTurn)
+        {
+            instance.State.MarkEffectUsedThisTurn(playerId, request.SourceCardInstanceId, effectKey);
         }
     }
 
@@ -1152,6 +1255,15 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         var primaryEffect = sourceCardDefinition.Effects.FirstOrDefault();
+
+        var primaryEffectKey = primaryEffect is null ? string.Empty : ResolveEffectKey(primaryEffect, effectIndex: 0);
+        if (primaryEffect is not null
+            && primaryEffect.GlobalRestrictions == EffectRestrictions.OncePerTurn
+            && instance.State.IsEffectUsedThisTurn(playerId, sourceCardInstance.InstanceId, primaryEffectKey))
+        {
+            throw new InvalidOperationException(EffectRestrictionMessages.OncePerTurn);
+        }
+
         if (primaryEffect is not null
             && !IsSupportEffectTimingAvailable(primaryEffect.Timing, instance.State, playerId, isFromSupportZone))
         {
@@ -1172,6 +1284,12 @@ public sealed class InMemoryGameInstanceRegistry
         if (executeResult.IsError)
         {
             throw new InvalidOperationException(executeResult.FirstError.Description);
+        }
+
+        if (primaryEffect is not null
+            && primaryEffect.GlobalRestrictions == EffectRestrictions.OncePerTurn)
+        {
+            instance.State.MarkEffectUsedThisTurn(playerId, sourceCardInstance.InstanceId, primaryEffectKey);
         }
 
         if (!isFromSupportZone)
@@ -1267,7 +1385,9 @@ public sealed class InMemoryGameInstanceRegistry
         instance.State.PendingAttackDefenderInstanceId = selectedTarget.CardInstanceId;
         instance.State.PendingAttackDefenderZone = targetZone;
 
-        ExecuteAutomaticWhenAttackingEffects(instance, playerId, attacker, sequentialEffectExecutor);
+        ExecuteAutomaticWhenAttackingEffects(instance, playerId, attacker, sequentialEffectExecutor)
+            .ToList()
+            .ForEach(failure => RecordSkippedWhenAttackingEffect(instance, playerId, attacker, failure));
         EnsurePendingAttackAttackerRemainsRested(instance.State);
 
         if (TryPrepareOptionalWhenAttackingChoice(instance, playerId, attacker))
@@ -1281,7 +1401,14 @@ public sealed class InMemoryGameInstanceRegistry
         EnterSupportCutInWindow(instance.State, defenderPlayer.PlayerId);
     }
 
-    private static void ExecuteAutomaticWhenAttackingEffects(
+    /// <summary>
+    /// Runs the mandatory "When Attacking" effects of the attacker. Failures are reported back to the
+    /// caller instead of thrown: an unsupported effect (for example a chain whose branch target is
+    /// missing, or an effect that needs targets the attack step cannot collect yet) must not abort the
+    /// attack after the attacker was already rested, because that leaves the game half-mutated with no
+    /// way for either client to continue.
+    /// </summary>
+    private static IReadOnlyList<string> ExecuteAutomaticWhenAttackingEffects(
         GameInstance instance,
         string actingPlayerId,
         CardInstance attacker,
@@ -1289,13 +1416,15 @@ public sealed class InMemoryGameInstanceRegistry
     {
         if (instance.State.CardDefinitions.TryGetValue(attacker.CardDefinitionId, out var attackerDefinition))
         {
-            ExecuteAutomaticWhenAttackingEffectsForSource(
+            return ExecuteAutomaticWhenAttackingEffectsForSource(
                 instance,
                 actingPlayerId,
                 sourceCardDefinition: attackerDefinition,
                 sourceCardInstance: attacker,
                 sequentialEffectExecutor);
         }
+
+        return [];
     }
 
     private static bool TryPrepareOptionalWhenAttackingChoice(GameInstance instance, string actingPlayerId, CardInstance attacker)
@@ -1364,7 +1493,7 @@ public sealed class InMemoryGameInstanceRegistry
                             : effectWithIndex.Effect.Id,
                     };
 
-                    var singleEffectDefinition = CloneCardDefinitionWithSingleEffect(sourceCardDefinition, effectWithIndex.Effect);
+                    var singleEffectDefinition = CloneCardDefinitionWithEffectChain(sourceCardDefinition, effectWithIndex.Effect);
 
                     var context = new GameCardEffectContext(
                         game: instance,
@@ -1377,7 +1506,12 @@ public sealed class InMemoryGameInstanceRegistry
                     var executeResult = sequentialEffectExecutor.Execute(context);
                     if (executeResult.IsError)
                     {
-                        throw new InvalidOperationException(executeResult.FirstError.Description);
+                        var firstError = executeResult.FirstError;
+                        RecordSkippedWhenAttackingEffect(
+                            instance,
+                            playerId,
+                            sourceCardInstance,
+                            $"{effectWithIndex.Effect.Id}: {firstError.Code} - {firstError.Description}");
                     }
                 }
             }
@@ -1444,13 +1578,15 @@ public sealed class InMemoryGameInstanceRegistry
         state.PendingAttackOptionalEffectPlayerId = string.Empty;
     }
 
-    private static void ExecuteAutomaticWhenAttackingEffectsForSource(
+    private static IReadOnlyList<string> ExecuteAutomaticWhenAttackingEffectsForSource(
         GameInstance instance,
         string actingPlayerId,
         Card sourceCardDefinition,
         CardInstance? sourceCardInstance,
         IGameSequentialEffectExecutor sequentialEffectExecutor)
     {
+        var failures = new List<string>();
+
         foreach (var effectSpec in sourceCardDefinition.Effects)
         {
             if (effectSpec.Timing != EffectTiming.WhenAttacking || effectSpec.IsOptional)
@@ -1465,9 +1601,11 @@ public sealed class InMemoryGameInstanceRegistry
                     : effectSpec.Id,
             };
 
-            // Sequential executor evaluates all effects on the supplied definition.
-            // Wrap to a single effect so only this mandatory WhenAttacking effect auto-triggers.
-            var singleEffectDefinition = CloneCardDefinitionWithSingleEffect(sourceCardDefinition, effectSpec);
+            // The sequential executor walks the supplied definition, so keep the effect's own chain
+            // reachable (on-success / on-failure branch targets) while still making this effect the
+            // entry node. Cloning down to the single effect made the executor fail with
+            // "Could not resolve branch target effect id '...'" for chained effects.
+            var singleEffectDefinition = CloneCardDefinitionWithEffectChain(sourceCardDefinition, effectSpec);
 
             var context = new GameCardEffectContext(
                 game: instance,
@@ -1480,12 +1618,94 @@ public sealed class InMemoryGameInstanceRegistry
             var executeResult = sequentialEffectExecutor.Execute(context);
             if (executeResult.IsError)
             {
-                throw new InvalidOperationException(executeResult.FirstError.Description);
+                var firstError = executeResult.FirstError;
+                failures.Add($"{effectSpec.Id}: {firstError.Code} - {firstError.Description}");
             }
         }
+
+        return failures;
     }
 
-    private static Card CloneCardDefinitionWithSingleEffect(Card sourceCardDefinition, EffectSpec effectSpec)
+    /// <summary>
+    /// Records an unsupported / failing "When Attacking" effect instead of failing the whole attack.
+    /// The attack sequence always continues (attacker rested, cut-in window opened), so a single
+    /// effect the engine or UI cannot process yet cannot strand both players on a stale snapshot.
+    /// </summary>
+    private static void RecordSkippedWhenAttackingEffect(
+        GameInstance instance,
+        string playerId,
+        CardInstance? attacker,
+        string failure)
+    {
+        var attackerInstanceId = attacker?.InstanceId ?? "unknown";
+        var message = $"Skipped 'When Attacking' effect on card '{attackerInstanceId}': {failure}";
+
+        instance.AddActionLogEntry(
+            actionType: "when_attacking_effect_skipped",
+            message: message,
+            playerId: playerId,
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["attackerCardInstanceId"] = attackerInstanceId,
+            });
+    }
+
+    /// <summary>
+    /// Clones a card definition down to a single triggering effect plus every effect reachable from it
+    /// through its on-success / on-failure branches, so chained (subordinate) effects still resolve
+    /// while unrelated effects on the same card stay dormant.
+    /// </summary>
+    private static Card CloneCardDefinitionWithEffectChain(Card sourceCardDefinition, EffectSpec triggerEffectSpec)
+    {
+        var includedEffectIds = new HashSet<string>(StringComparer.Ordinal);
+        var effectsToVisit = new Queue<string>();
+        var effectById = sourceCardDefinition.Effects
+            .Where(effect => !string.IsNullOrWhiteSpace(effect.Id))
+            .ToDictionary(effect => effect.Id.Trim(), effect => effect, StringComparer.Ordinal);
+
+        void TrackBranch(string? branchEffectId)
+        {
+            if (string.IsNullOrWhiteSpace(branchEffectId))
+            {
+                return;
+            }
+
+            var normalizedBranchId = branchEffectId.Trim();
+            if (includedEffectIds.Add(normalizedBranchId))
+            {
+                effectsToVisit.Enqueue(normalizedBranchId);
+            }
+        }
+
+        TrackBranch(triggerEffectSpec.Id);
+        TrackBranch(triggerEffectSpec.OnSuccessEffectId);
+        TrackBranch(triggerEffectSpec.OnFailureEffectId);
+
+        while (effectsToVisit.Count > 0)
+        {
+            var effectId = effectsToVisit.Dequeue();
+            if (!effectById.TryGetValue(effectId, out var chainedEffect))
+            {
+                continue;
+            }
+
+            TrackBranch(chainedEffect.OnSuccessEffectId);
+            TrackBranch(chainedEffect.OnFailureEffectId);
+        }
+
+        var chainedEffects = new List<EffectSpec>
+        {
+            triggerEffectSpec,
+        };
+
+        chainedEffects.AddRange(sourceCardDefinition.Effects
+            .Where(effect => !ReferenceEquals(effect, triggerEffectSpec))
+            .Where(effect => !string.IsNullOrWhiteSpace(effect.Id) && includedEffectIds.Contains(effect.Id.Trim())));
+
+        return CloneCardDefinitionWithEffects(sourceCardDefinition, chainedEffects);
+    }
+
+    private static Card CloneCardDefinitionWithEffects(Card sourceCardDefinition, IReadOnlyList<EffectSpec> effects)
     {
         var clonedDefinition = sourceCardDefinition switch
         {
@@ -1519,7 +1739,7 @@ public sealed class InMemoryGameInstanceRegistry
         clonedDefinition.Power = sourceCardDefinition.Power;
         clonedDefinition.CannotBeNormalSummoned = sourceCardDefinition.CannotBeNormalSummoned;
         clonedDefinition.Conditions = sourceCardDefinition.Conditions.ToList();
-        clonedDefinition.Effects = [effectSpec];
+        clonedDefinition.Effects = effects.ToList();
 
         return clonedDefinition;
     }
@@ -1712,7 +1932,7 @@ public sealed class InMemoryGameInstanceRegistry
             EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
                 isActivePlayer && state.Phase == GamePhase.MainPhase,
             EffectTiming.WhenAttacking =>
-                isActivePlayer && state.HasPendingAttack && state.Phase == GamePhase.BlockerDeclaration,
+                isActivePlayer && state.IsAttackDeclarationWindow(),
             EffectTiming.YourTurn =>
                 isActivePlayer,
             EffectTiming.Quick =>

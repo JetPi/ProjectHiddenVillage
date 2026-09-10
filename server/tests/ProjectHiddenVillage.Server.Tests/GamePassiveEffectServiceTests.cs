@@ -203,6 +203,45 @@ public sealed class GamePassiveEffectServiceTests
         Assert.AreEqual("target-1", stackEntry.Arguments[ReactiveEffectExecutionConstants.ExpectedTriggerTargetIdsArgument]);
     }
 
+    [TestMethod]
+    public void EvaluateAndEnqueue_ContinuousSweep_SkipsTriggeredPassivesButReconcilesContinuousOnes()
+    {
+        var triggeredEffect = CreatePassiveEffectSpec(
+            effectId: "passive-triggered",
+            triggerKinds: [PassiveTriggerKind.StatsChanged],
+            consequenceEffectTypeKey: DestroyCardEffect.EffectKey,
+            mode: PassiveMode.Triggered);
+        var continuousEffect = CreatePassiveEffectSpec(
+            effectId: "passive-continuous",
+            triggerKinds: [PassiveTriggerKind.ZoneChanged],
+            consequenceEffectTypeKey: DestroyCardEffect.EffectKey,
+            mode: PassiveMode.Continuous);
+
+        var game = CreateGameWithPassiveSource(continuousEffect);
+        game.State.CardDefinitions["def-1"].Effects = [triggeredEffect, continuousEffect];
+
+        var service = new GamePassiveEffectService(
+            canExecuteEvaluator: new StubCanExecuteEvaluator(["passive-triggered", "passive-continuous"]));
+
+        var result = service.EvaluateAndEnqueue(
+            game,
+            CreateMutationEvent(GameMutationKind.CardStatChanged),
+            new PassiveChainResolutionOptions { ContinuousPassivesOnly = true });
+
+        Assert.IsFalse(result.IsError);
+
+        // ZoneChanged never matches the CardStatChanged mutation, yet the structural sweep reconciles
+        // the continuous passive. The triggered passive is left to real mutations.
+        CollectionAssert.AreEquivalent(
+            new[] { "card-1:passive-continuous" },
+            result.Value.ActivatedPassiveKeys.ToArray());
+        Assert.AreEqual(0, result.Value.DeactivatedPassiveKeys.Count);
+        Assert.AreEqual(1, result.Value.EnqueuedStackEntryIds.Count);
+        Assert.AreEqual(1, game.State.EffectResolutionStack.Count);
+        Assert.IsFalse(game.State.PassiveStates.Any(state =>
+            state.PassiveKey == "card-1:passive-triggered" && state.IsActive));
+    }
+
     private static EffectSpec CreatePassiveEffectSpec(
         string effectId,
         IReadOnlyList<PassiveTriggerKind> triggerKinds,
