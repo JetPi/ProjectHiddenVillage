@@ -124,7 +124,11 @@ function pruneStaleGameUIState(): void {
     const actionId = pendingEffectTargeting.actionId
     const sourceId = pendingEffectTargeting.sourceCardInstanceId.trim().toLowerCase()
     const matchingAction = availableActions.find((option) => option.actionId === actionId)
+    // Leader effects are published on the leader card itself (`leader-effect:{leaderInstanceId}:{key}`),
+    // never in the global action list, so the leader must be part of the source scope - otherwise the
+    // mode is pruned the instant it is opened and the board never prompts for a target.
     const sourceCards = [
+      ...(currentPlayer?.leader ? [currentPlayer.leader] : []),
       ...(currentPlayer?.characterField ?? []),
       ...(currentPlayer?.supportZone ?? []),
       ...currentHand,
