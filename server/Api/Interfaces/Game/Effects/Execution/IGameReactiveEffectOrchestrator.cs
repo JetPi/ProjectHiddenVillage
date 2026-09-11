@@ -7,5 +7,6 @@ public interface IGameReactiveEffectOrchestrator
     ErrorOr<ReactiveOrchestrationResult> ApplyPostMutationEffects(
         GameInstance game,
         GameMutationEvent mutationEvent,
-        string? actingPlayerId);
+        string? actingPlayerId,
+        PassiveChainResolutionOptions? options = null);
 }

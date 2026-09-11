@@ -52,6 +52,10 @@ export type IGameCardActionTargetsResponse = {
     isEffectResolutionStackTarget?: boolean
     effectResolutionEntryId?: string | null
   }>
+  requirementLabels?: Array<{
+    cardInstanceId: string
+    requirementLabels: string[]
+  }> | null
 }
 
 export type IGameStateInvalidatedHandler = (gameId: string) => void

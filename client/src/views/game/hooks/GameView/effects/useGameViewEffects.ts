@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useGameHubStore } from '@/state/gameHubStore'
-import { preloadCardsByIds } from '@/services/cardPreloadService'
+import { preloadCardArtInPriorityBatches, type ICardArtPreloadEntry } from '@/services/cardPreloadService'
 import { preloadImageSources } from '@/services/imagePreloadCache'
+import { CARD_ART_WIDTHS } from '@/services/api/cardArt'
+import type { IGameStateResponse, IGamePlayerStateResponse } from '@/services/api/types/game'
 import chakraCardImage from '@/assets/ChakraCard.webp'
 import summonCardImage from '@/assets/SummonCard.webp'
 import cardBackImage from '@/assets/CardBackside.webp'
@@ -11,7 +13,7 @@ import type {
   IUseAutoAdvancePhaseEffectArgs,
   IUseHandZoneAnimationEffectsArgs,
 } from '@/views/game/types'
-import { buildCardPreloadPayload, runDeckToHandAnimation, runRectToDynamicElementAnimation } from '@/views/game/utils/functions'
+import { runDeckToHandAnimation, runRectToDynamicElementAnimation } from '@/views/game/utils/functions'
 const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackImage]
 const AUTO_SIGNAL_PHASES = new Set([
   'DrawInitialHand',
@@ -25,6 +27,8 @@ const AUTO_SIGNAL_PHASES = new Set([
 const DECK_TO_HAND_FLY_DURATION_MS = 420
 const DRAW_ANIMATION_COMPLETE_PADDING_MS = 140
 const AUTO_ADVANCE_RECHECK_MS = 80
+const AUTO_ADVANCE_RETRY_DELAY_MS = 2_500
+const AUTO_ADVANCE_MAX_RETRIES = 3
 
 function useIdleRevalidationPoll(
   revalidatorState: IRevalidatorState,
@@ -44,43 +48,133 @@ function useIdleRevalidationPoll(
   }, [intervalMs, revalidate, revalidatorState])
 }
 
-function useCardCatalogPreload(gameCards: IGameLoaderData['gameCards']): void {
-  const lastPreloadedSignatureRef = useRef('')
-  const preloadPayload = useMemo(() => buildCardPreloadPayload(gameCards), [gameCards])
-
-  function preloadGameImages(cardIds: string[] | null): void {
-    if (cardIds && cardIds.length > 0) {
-      void preloadCardsByIds(cardIds).catch(() => {
-        // Card preloading is best effort and must not block gameplay rendering.
-      })
+function collectBoardDefinitionIds(
+  player: IGamePlayerStateResponse,
+  includeHand: boolean,
+): Set<string> {
+  const definitionIds = new Set<string>()
+  const pushCard = (card: { cardDefinitionId?: string } | null | undefined): void => {
+    const cardDefinitionId = card?.cardDefinitionId?.trim()
+    if (cardDefinitionId) {
+      definitionIds.add(cardDefinitionId)
     }
+  }
+
+  pushCard(player.leader)
+  for (const zone of [player.characterField, player.supportZone, player.exileZone, player.trash]) {
+    for (const card of zone) {
+      pushCard(card)
+    }
+  }
+
+  if (includeHand) {
+    for (const card of player.hand) {
+      pushCard(card)
+    }
+  }
+
+  return definitionIds
+}
+
+function isSamePlayerId(playerId: string | undefined, candidateId: string | undefined): boolean {
+  if (!playerId || !candidateId) {
+    return false
+  }
+
+  return playerId.trim().toLowerCase() === candidateId.trim().toLowerCase()
+}
+
+function buildGameArtPreloadPlan(
+  gameCards: IGameLoaderData['gameCards'],
+  gameState: IGameStateResponse | null,
+  authUserId: string | undefined,
+): { visibleCards: ICardArtPreloadEntry[]; remainingCards: ICardArtPreloadEntry[]; signature: string } {
+  const visibleDefinitionIds = new Set<string>()
+
+  if (gameState) {
+    for (const player of gameState.players) {
+      const includeHand = isSamePlayerId(player.playerId, authUserId)
+      for (const definitionId of collectBoardDefinitionIds(player, includeHand)) {
+        visibleDefinitionIds.add(definitionId)
+      }
+    }
+  }
+
+  const visibleCards: ICardArtPreloadEntry[] = []
+  const remainingCards: ICardArtPreloadEntry[] = []
+  const visibleSignatureIds: string[] = []
+  const remainingSignatureIds: string[] = []
+  const seen = new Set<string>()
+
+  for (const card of gameCards) {
+    const cardId = card.id?.trim()
+    if (!cardId || seen.has(cardId.toLowerCase())) {
+      continue
+    }
+
+    seen.add(cardId.toLowerCase())
+    const entry: ICardArtPreloadEntry = { id: cardId, imageVersion: card.imageVersion }
+    if (visibleDefinitionIds.has(cardId)) {
+      visibleCards.push(entry)
+      visibleSignatureIds.push(cardId)
+    } else {
+      remainingCards.push(entry)
+      remainingSignatureIds.push(cardId)
+    }
+  }
+
+  const sortedVisibleIds = visibleSignatureIds.map((id) => id.toLowerCase()).sort((a, b) => a.localeCompare(b))
+  const sortedRemainingIds = remainingSignatureIds.map((id) => id.toLowerCase()).sort((a, b) => a.localeCompare(b))
+
+  return {
+    visibleCards,
+    remainingCards,
+    signature: `${sortedVisibleIds.join('|')}#${sortedRemainingIds.join('|')}`,
+  }
+}
+
+function useCardCatalogPreload(
+  gameCards: IGameLoaderData['gameCards'],
+  gameState: IGameStateResponse | null,
+  authUserId: string | undefined,
+): void {
+  const lastPreloadedSignatureRef = useRef('')
+  const preloadPlan = useMemo(
+    () => buildGameArtPreloadPlan(gameCards, gameState, authUserId),
+    [gameCards, gameState, authUserId],
+  )
+
+  const preloadGameImages = useCallback((): void => {
+    void preloadCardArtInPriorityBatches([
+      { cards: preloadPlan.visibleCards, width: CARD_ART_WIDTHS.board },
+      { cards: preloadPlan.visibleCards, width: CARD_ART_WIDTHS.preview },
+      { cards: preloadPlan.remainingCards, width: CARD_ART_WIDTHS.board },
+    ]).catch(() => {
+      // Card preloading is best effort and must not block gameplay rendering.
+    })
 
     void preloadImageSources(STATIC_GAME_IMAGE_SOURCES).catch(() => {
       // Static image preloading is best effort and must not block gameplay rendering.
     })
-  }
+  }, [preloadPlan])
 
   useEffect(() => {
-    if (preloadPayload) {
-      const { cardIds, signature } = preloadPayload
-      if (signature !== lastPreloadedSignatureRef.current) {
-        lastPreloadedSignatureRef.current = signature
-        preloadGameImages(cardIds)
-      }
-    } else {
-      preloadGameImages(null)
+    if (preloadPlan.signature !== lastPreloadedSignatureRef.current) {
+      lastPreloadedSignatureRef.current = preloadPlan.signature
+      preloadGameImages()
     }
-  }, [preloadPayload])
+  }, [preloadGameImages, preloadPlan])
 
   useEffect(() => {
     function handleReconnect() {
-      preloadGameImages(preloadPayload?.cardIds ?? null)
+      preloadGameImages()
     }
 
     window.addEventListener('online', handleReconnect)
     return () => window.removeEventListener('online', handleReconnect)
-  }, [preloadPayload])
+  }, [preloadGameImages])
 }
+
 
 function useHandZoneAnimationEffects({
   topHandInstanceIds,
@@ -340,6 +434,10 @@ function useAutoAdvancePhaseEffect({
     }
 
     if (!AUTO_SIGNAL_PHASES.has(phase)) {
+      // Reaching a manual decision phase ends the previous auto-advance cycle. Clearing
+      // the latch lets the same turn/phase/active player be auto-signalled again if it
+      // comes back around later in the same turn (for example a second attack).
+      animController.lastAutoSignalKey = ''
       return
     }
 
@@ -370,6 +468,36 @@ function useAutoAdvancePhaseEffect({
       }, waitDelayMs)
     }
 
+    let autoAdvanceRetriesLeft = AUTO_ADVANCE_MAX_RETRIES
+
+    function resolveCurrentSnapshotKey(): string {
+      const currentGameState = useGameHubStore.getState().gameState
+      if (!currentGameState) {
+        return ''
+      }
+
+      return `${currentGameState.turnNumber}:${currentGameState.phase}:${currentGameState.activePlayerId}`
+    }
+
+    // If the state does not move on after an auto signal (a dropped or transiently
+    // rejected dispatch), retry a bounded number of times so the phase cannot stall
+    // until a manual page refresh.
+    function scheduleAutoAdvanceRetry(): void {
+      if (autoAdvanceRetriesLeft <= 0) {
+        return
+      }
+
+      autoAdvanceRetriesLeft -= 1
+      advanceTimerRef.current = window.setTimeout(() => {
+        advanceTimerRef.current = null
+        if (resolveCurrentSnapshotKey() !== phaseSnapshotKey) {
+          return
+        }
+
+        dispatchAutoAdvance()
+      }, AUTO_ADVANCE_RETRY_DELAY_MS)
+    }
+
     function dispatchAutoAdvance(): void {
       const currentStoreState = useGameHubStore.getState()
       const isDispatchBlocked = currentStoreState.isActionPending
@@ -384,6 +512,7 @@ function useAutoAdvancePhaseEffect({
       advanceTimerRef.current = null
       animController.lastAutoSignalKey = phaseSnapshotKey
       void submitHubIntent({ intent: 'advance-phase' })
+      scheduleAutoAdvanceRetry()
     }
 
     scheduleAutoAdvance()

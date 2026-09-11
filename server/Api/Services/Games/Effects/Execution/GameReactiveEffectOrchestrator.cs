@@ -15,18 +15,21 @@ public sealed class GameReactiveEffectOrchestrator(
     public ErrorOr<ReactiveOrchestrationResult> ApplyPostMutationEffects(
         GameInstance game,
         GameMutationEvent mutationEvent,
-        string? actingPlayerId)
+        string? actingPlayerId,
+        PassiveChainResolutionOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(game);
         ArgumentNullException.ThrowIfNull(mutationEvent);
 
-        var passiveResult = passiveEffectService.EvaluateAndEnqueue(game, mutationEvent, DefaultResolutionOptions);
+        var resolutionOptions = options ?? DefaultResolutionOptions;
+
+        var passiveResult = passiveEffectService.EvaluateAndEnqueue(game, mutationEvent, resolutionOptions);
         if (passiveResult.IsError)
         {
             return passiveResult.Errors;
         }
 
-        var chainResult = chainResolver.Resolve(game, actingPlayerId, DefaultResolutionOptions);
+        var chainResult = chainResolver.Resolve(game, actingPlayerId, resolutionOptions);
         if (chainResult.IsError)
         {
             return chainResult.Errors;

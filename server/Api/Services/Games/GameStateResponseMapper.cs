@@ -478,7 +478,11 @@ public static class GameStateResponseMapper
 
             PlayerZone.CharacterField =>
                 !CanUseBattleCardActions(card, state) || !CanDeclareBattleAction(card, state)
-                    ? []
+                    ? [new GameActionOptionResponse(
+                            ActionId: $"battle-action:{card.InstanceId}",
+                            Label: "Battle",
+                            IsEnabled: false,
+                            DisabledReason: "Card can't attack on the turn its summoned")]
                     :
                     [
                         new GameActionOptionResponse(
@@ -726,11 +730,6 @@ public static class GameStateResponseMapper
             return false;
         }
 
-        if (card.IsExhausted)
-        {
-            return false;
-        }
-
         var effectiveKeywords = CardRuntimeEffectStateService.ResolveEffectiveKeywords(state, card);
         if (effectiveKeywords.Any(keyword =>
             string.Equals(keyword, FreezeCardEffect.CannotAttackKeyword, StringComparison.OrdinalIgnoreCase)))
@@ -787,7 +786,7 @@ public static class GameStateResponseMapper
             EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
                 isActivePlayer && state.Phase == GamePhase.MainPhase,
             EffectTiming.WhenAttacking =>
-                isActivePlayer && state.HasPendingAttack && state.Phase == GamePhase.BlockerDeclaration,
+                isActivePlayer && state.IsAttackDeclarationWindow(),
             EffectTiming.YourTurn =>
                 isActivePlayer,
             EffectTiming.Quick =>
@@ -896,13 +895,16 @@ public static class GameStateResponseMapper
             }
 
             var actionId = $"{LeaderEffectActionPrefix}{leader.InstanceId}:{candidate.EffectKey}";
-            var (isEnabled, disabledReason) = EvaluateEffectAvailability(
-                state,
-                player,
-                leaderDefinition,
-                sourceCardInstance: null,
-                candidate.Effect,
-                ref evaluationGame);
+            var (isEnabled, disabledReason) = candidate.Effect.GlobalRestrictions == EffectRestrictions.OncePerTurn
+                && state.IsEffectUsedThisTurn(player.PlayerId, leader.InstanceId, candidate.EffectKey)
+                    ? (false, EffectRestrictionMessages.OncePerTurn)
+                    : EvaluateEffectAvailability(
+                        state,
+                        player,
+                        leaderDefinition,
+                        sourceCardInstance: null,
+                        candidate.Effect,
+                        ref evaluationGame);
 
             actions.Add(new GameActionOptionResponse(
                 ActionId: actionId,
@@ -1138,7 +1140,7 @@ public static class GameStateResponseMapper
             EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
                 state.Phase == GamePhase.MainPhase && isActivePlayer,
             EffectTiming.WhenAttacking =>
-                state.HasPendingAttack && state.Phase == GamePhase.BlockerDeclaration && isActivePlayer,
+                state.IsAttackDeclarationWindow() && isActivePlayer,
             EffectTiming.YourTurn => isActivePlayer,
             EffectTiming.Quick or EffectTiming.SupportActivated =>
                 state.Phase == GamePhase.ActionStep && isPriorityPlayer,

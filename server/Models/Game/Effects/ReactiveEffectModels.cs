@@ -61,6 +61,16 @@ public sealed class PassiveChainResolutionOptions
 
     public ConsequenceTargetValidationMode ConsequenceTargetValidationMode { get; set; } =
         ConsequenceTargetValidationMode.Permissive;
+
+    /// <summary>
+    /// Structural sweeps (turn end, phase entry, card actions, prompt resolution, battle resolution)
+    /// re-evaluate continuous passives even when the mutation kind does not match their declared
+    /// trigger kinds, so conditions that changed indirectly (temporary effects expiring, temporary
+    /// damage being reset, boards refreshing, cards leaving play) are reconciled. Triggered passives
+    /// are skipped by these sweeps: they enqueue on every evaluation while active, so sweeping them
+    /// would re-fire them spuriously.
+    /// </summary>
+    public bool ContinuousPassivesOnly { get; set; }
 }
 
 public enum ConsequenceTargetValidationMode

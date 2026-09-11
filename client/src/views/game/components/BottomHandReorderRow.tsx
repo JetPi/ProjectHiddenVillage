@@ -5,7 +5,6 @@ import { GameHandRow } from './GameHandRow'
 import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
 import { useLongPressHandReorder } from '@/views/game/hooks/useLongPressHandReorder'
 import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions'
-import { CARD_ART_WIDTHS, resolveCardArtUrl } from '@/services/api/cardArt'
 import type { IBottomHandReorderRowProps } from '@/views/game/types'
 
 export function BottomHandReorderRow({
@@ -18,6 +17,9 @@ export function BottomHandReorderRow({
   isConnected,
   isActionPending,
   onSelectCardActionOption,
+  isEffectActionTargeting = false,
+  validEffectTargetsByCardId,
+  onChooseTarget,
 }: IBottomHandReorderRowProps) {
   const internalRowRef = useRef<HTMLDivElement | null>(null)
   const [autoAnimateRef, setAutoAnimateEnabled] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
@@ -56,6 +58,9 @@ export function BottomHandReorderRow({
           card.availableActions,
         )
         const cardPointerHandlers = getCardPointerHandlers(card.instanceId)
+        const isEffectTargetCandidate =
+          isEffectActionTargeting
+          && validEffectTargetsByCardId?.has(card.instanceId.trim().toLowerCase()) === true
 
         return (
           <div
@@ -75,7 +80,8 @@ export function BottomHandReorderRow({
               front={
                 <div className="group relative h-full w-full overflow-hidden rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]">
                   <CardImage
-                    src={previewCard ? resolveCardArtUrl(previewCard, CARD_ART_WIDTHS.hud) : null}
+                    card={previewCard}
+                    variant="board"
                     alt={previewCard?.displayName ?? 'Hand card'}
                     loading="lazy"
                     decoding="async"
@@ -89,6 +95,12 @@ export function BottomHandReorderRow({
                     actionOptions={cardActionOptions}
                     showEmptyActionMessage={showNoActionsMessage}
                     disableInteractions={isReorderDragging}
+                    isTargetCandidate={isEffectTargetCandidate}
+                    onChooseTarget={
+                      isEffectTargetCandidate && onChooseTarget
+                        ? () => onChooseTarget(card.instanceId)
+                        : undefined
+                    }
                     isConnected={isConnected}
                     isActionPending={isActionPending}
                     onSelectActionOption={(actionId) => {

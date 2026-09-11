@@ -1,4 +1,5 @@
 import type {
+  ICardImageGhostToElementAnimationArgs,
   IDeckToHandAnimationArgs,
   IHandToElementAnimationArgs,
   IHandToPileAnimationArgs,
@@ -240,12 +241,14 @@ export function runRectToElementAnimation({
   const previousZIndex = targetElement.style.zIndex
   const previousPointerEvents = targetElement.style.pointerEvents
   const previousFilter = targetElement.style.filter
+  const previousMovingFlag = targetElement.getAttribute('data-card-moving')
   const overflowSnapshots = resolveOverflowAncestors(targetElement)
 
   targetElement.style.zIndex = '260'
   targetElement.style.pointerEvents = 'none'
   targetElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
   targetElement.style.transition = 'none'
+  targetElement.setAttribute('data-card-moving', 'true')
 
   return new Promise<void>((resolve) => {
     const animation = targetElement.animate(
@@ -271,6 +274,11 @@ export function runRectToElementAnimation({
       targetElement.style.zIndex = previousZIndex
       targetElement.style.pointerEvents = previousPointerEvents
       targetElement.style.filter = previousFilter
+      if (previousMovingFlag === null) {
+        targetElement.removeAttribute('data-card-moving')
+      } else {
+        targetElement.setAttribute('data-card-moving', previousMovingFlag)
+      }
       restoreOverflowAncestors(overflowSnapshots)
       resolve()
     }
@@ -313,6 +321,91 @@ export function runHandToPileAnimation({
   const destinationRect = destinationPileElement.getBoundingClientRect()
 
   return animateCardEntityToDestination(sourceCardElement, destinationRect, 340)
+}
+
+function createCardImageGhostElement(imageSrc: string, sourceRect: DOMRect): HTMLDivElement | null {
+  if (!imageSrc || sourceRect.width <= 0 || sourceRect.height <= 0) {
+    return null
+  }
+
+  const ghost = document.createElement('div')
+  ghost.setAttribute('data-card-ghost', 'true')
+  ghost.style.position = 'fixed'
+  ghost.style.left = `${sourceRect.left}px`
+  ghost.style.top = `${sourceRect.top}px`
+  ghost.style.width = `${sourceRect.width}px`
+  ghost.style.height = `${sourceRect.height}px`
+  ghost.style.zIndex = '400'
+  ghost.style.pointerEvents = 'none'
+  ghost.style.willChange = 'transform'
+  ghost.style.transformOrigin = 'center center'
+  ghost.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
+  ghost.style.borderRadius = '8px'
+  ghost.style.overflow = 'hidden'
+
+  const image = document.createElement('img')
+  image.src = imageSrc
+  image.alt = ''
+  image.draggable = false
+  image.style.width = '100%'
+  image.style.height = '100%'
+  image.style.objectFit = 'cover'
+  image.style.borderRadius = '8px'
+  ghost.appendChild(image)
+
+  document.body.appendChild(ghost)
+  return ghost
+}
+
+/**
+ * Flies a throwaway copy of a card's art from a captured rectangle towards a destination element.
+ * Only the image is drawn (no overlays), and the real card in the DOM is never moved - so there is
+ * no snap-back once the state update removes the source card.
+ */
+export function runCardImageGhostToElementAnimation({
+  imageSrc,
+  sourceRect,
+  destinationElement,
+  durationMs = 340,
+}: ICardImageGhostToElementAnimationArgs): Promise<void> {
+  const ghost = createCardImageGhostElement(imageSrc, sourceRect)
+  const destinationRect = destinationElement?.getBoundingClientRect() ?? null
+
+  if (!ghost || !destinationRect || destinationRect.width <= 0 || destinationRect.height <= 0) {
+    ghost?.remove()
+    return Promise.resolve()
+  }
+
+  const offsetX = destinationRect.left + destinationRect.width / 2 - (sourceRect.left + sourceRect.width / 2)
+  const offsetY = destinationRect.top + destinationRect.height / 2 - (sourceRect.top + sourceRect.height / 2)
+  const endScale = Math.max(destinationRect.width / sourceRect.width, 0.15)
+
+  const animation = ghost.animate(
+    [
+      {
+        transform: 'translate(0px, 0px) scale(1)',
+        opacity: 0.98,
+      },
+      {
+        transform: `translate(${offsetX}px, ${offsetY}px) scale(${endScale})`,
+        opacity: 0.9,
+      },
+    ],
+    {
+      duration: durationMs,
+      easing: STANDARD_MOVEMENT_EASING,
+    },
+  )
+
+  return new Promise<void>((resolve) => {
+    const cleanup = () => {
+      ghost.remove()
+      resolve()
+    }
+
+    animation.onfinish = cleanup
+    animation.oncancel = cleanup
+  })
 }
 
 export async function waitMillis(durationMs: number): Promise<void> {

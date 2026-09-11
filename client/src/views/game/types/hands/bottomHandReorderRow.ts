@@ -12,4 +12,9 @@ export type IBottomHandReorderRowProps = {
   isConnected: boolean
   isActionPending: boolean
   onSelectCardActionOption: (option: IGameActionOptionResponse) => void
+  /** True while a single-target effect (not an attack) is waiting for the player to choose a hand card. */
+  isEffectActionTargeting?: boolean
+  /** Normalized instance ids of the own-hand cards the pending effect accepts as targets. */
+  validEffectTargetsByCardId?: ReadonlySet<string>
+  onChooseTarget?: (cardInstanceId: string) => void
 }

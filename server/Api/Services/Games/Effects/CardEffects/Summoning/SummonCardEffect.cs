@@ -32,22 +32,46 @@ public sealed class SummonCardEffect(
 		}
 
 		var result = canExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
+
+		if (!result.CanExecute && !HasDeclaredTargetRules(effectSpec))
+		{
+			// Selection-driven summons (for example the card produced by a preceding RevealCard step)
+			// declare no target rules of their own, so the target resolver legitimately finds nothing.
+			// The cards to summon are the ones supplied by the caller, which Execute validates.
+			result.CanExecute = true;
+			result.FailedConditions.Clear();
+		}
+
 		if (!result.CanExecute)
 		{
 			return result;
 		}
 
-		result.ValidTargets = result.ValidTargets
-			.Where(target => !IsSummonBlocked(context, target.CardInstanceId))
+		var candidateCardInstanceIds = result.ValidTargets.Count > 0
+			? result.ValidTargets.Select(target => target.CardInstanceId)
+			: context.SelectedTargets.Select(target => target.CardInstanceId);
+
+		var allowedCardInstanceIds = candidateCardInstanceIds
+			.Distinct(StringComparer.Ordinal)
+			.Where(cardInstanceId => !IsSummonBlocked(context, cardInstanceId))
 			.ToList();
 
-		if (result.ValidTargets.Count == 0)
+		result.ValidTargets = result.ValidTargets
+			.Where(target => allowedCardInstanceIds.Contains(target.CardInstanceId, StringComparer.Ordinal))
+			.ToList();
+
+		if (allowedCardInstanceIds.Count == 0)
 		{
 			result.CanExecute = false;
 			result.FailedConditions.Add("No valid summon targets. One or more cards cannot be summoned normally.");
 		}
 
 		return result;
+	}
+
+	private static bool HasDeclaredTargetRules(EffectSpec effectSpec)
+	{
+		return effectSpec.TargetRules.Rules.Count > 0;
 	}
 
 	public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)

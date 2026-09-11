@@ -26,6 +26,12 @@ export type ICardImageProps = Omit<
 > & {
   src?: string | null
   alt: string
+  /** Catalog card used to auto-resolve a cached, width-capped local art URL. */
+  card?: Pick<ICardCatalogItemResponse, 'id' | 'image' | 'imageVersion'> | null
+  /** Art width bucket for `card`-driven URLs. Keep in-game faces on 'board'. */
+  variant?: 'board' | 'preview'
+  /** Always 'auto' (smooth) for painted card art unless explicitly overridden. */
+  imageRendering?: 'auto' | 'pixelated' | 'crisp-edges'
   loading?: 'lazy' | 'eager'
   decoding?: 'async' | 'sync' | 'auto'
   fetchPriority?: 'high' | 'low' | 'auto'

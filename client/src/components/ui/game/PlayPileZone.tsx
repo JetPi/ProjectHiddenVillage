@@ -1,6 +1,7 @@
 import { twMerge } from 'tailwind-merge'
 import { PlayCard } from '@/components/ui/game/PlayCard'
 import { CardBack } from '@/components/ui/cards/CardBack'
+import { CardImage } from '@/components/ui/cards/CardImage'
 import { CardOverlayBadge } from '@/components/ui/cards/CardOverlayBadge'
 import type { IPlayPileZoneProps } from '@/components/ui/types'
 
@@ -32,6 +33,15 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
     deckCount = opponentPlayer.deckCount
     trashCount = opponentPlayer.trash.length
   }
+
+  const trashOwner = side === 'bottom' ? currentPlayer : opponentPlayer
+  // The trash pile is ordered newest-first, so the most recently discarded card is the first entry.
+  const latestTrashInstance = trashOwner && trashOwner.trash.length > 0
+    ? trashOwner.trash[0]
+    : null
+  const latestTrashCard = latestTrashInstance
+    ? (gameState?.cardById.get(latestTrashInstance.cardDefinitionId.trim().toLowerCase()) ?? null)
+    : null
   
   return (
     <div
@@ -59,6 +69,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                     : undefined
               }
               className={isDeckLabel(label) ? deckPileCardClassName : labeledPileCardClassName}
+              data-testid={isTrashLabel(label) ? 'trash-pile-card' : undefined}
             >
               <CardOverlayBadge
                 className={twMerge(
@@ -68,6 +79,13 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
               >{badgeValue}</CardOverlayBadge>
               {isDeckLabel(label) ? (
                 <CardBack className="border-0 bg-transparent [&_img]:object-cover" tone={cardBackTone} />
+              ) : isTrashLabel(label) && latestTrashCard ? (
+                <CardImage
+                  card={latestTrashCard}
+                  variant="board"
+                  alt="Trash"
+                  className="h-full w-full rounded-lg object-cover"
+                />
               ) : (
                 label
               )}

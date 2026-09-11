@@ -1,6 +1,8 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { IGameCardInstanceResponse } from '@/services/api/types/game'
-import type { ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
+import type { IGameViewAnimController, ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
+import { HAND_TO_PILE_STAGGER_MS } from '@/views/game/utils/contants'
+import { runCardImageGhostToElementAnimation } from '@/views/game/utils/functions/animations'
 import { canConfirmSummonTargetSelection } from './canConfirmSummonTargetSelection'
 import { runSubmitThenZoneEntryAnimation } from './runSubmitThenZoneEntryAnimation'
 
@@ -8,8 +10,11 @@ function submitSummonTargetSelection({
   pendingSummonTargeting,
   setPendingSummonTargeting,
   submitHubIntent,
+  animControllerRef,
   bottomHandRowRef,
   boardZoneRef,
+  topTrashCardRef,
+  bottomTrashCardRef,
   currentBottomBattlefieldRawCards,
   setBottomBattlefieldDisplayOrder,
 }: ISubmitSummonTargetSelectionArgs): void {
@@ -29,6 +34,8 @@ function submitSummonTargetSelection({
     sourceCardInstanceId,
     selectedTargets: pendingSummonTargeting.selectedTargets,
   }
+
+  const tributeGhostSources = captureTributeGhostSources(pendingSummonTargeting.selectedTargets, boardZoneRef)
 
   setPendingSummonTargeting(null)
 
@@ -64,16 +71,91 @@ function submitSummonTargetSelection({
       maxFrames: 120,
     })
   })()
+
+  scheduleCardGhostAnimations({
+    ghostSources: tributeGhostSources,
+    topTrashCardRef,
+    bottomTrashCardRef,
+    animControllerRef,
+  })
 }
 
 interface ISubmitSummonTargetSelectionArgs {
   pendingSummonTargeting: ISummonTargetingState | null
   setPendingSummonTargeting: Dispatch<SetStateAction<ISummonTargetingState | null>>
   submitHubIntent: (request: ISubmitHubIntentRequest) => Promise<void>
+  animControllerRef: RefObject<IGameViewAnimController>
   bottomHandRowRef: RefObject<HTMLDivElement | null>
   boardZoneRef: RefObject<HTMLDivElement | null>
+  topTrashCardRef: RefObject<HTMLDivElement | null>
+  bottomTrashCardRef: RefObject<HTMLDivElement | null>
   currentBottomBattlefieldRawCards: IGameCardInstanceResponse[]
   setBottomBattlefieldDisplayOrder: Dispatch<SetStateAction<string[]>>
+}
+
+/**
+ * Captures, before the summon is submitted, the art and on-screen rectangle of each tribute card so
+ * the card can visually fly to the trash afterwards without moving (or mutating) the real elements.
+ */
+function captureTributeGhostSources(
+  tributeTargets: ISummonTargetingState['selectedTargets'],
+  boardZoneRef: RefObject<HTMLDivElement | null>,
+): ICardGhostSource[] {
+  const boardElement = boardZoneRef.current
+  if (!boardElement) {
+    return []
+  }
+
+  const ghostSources: ICardGhostSource[] = []
+  for (const target of tributeTargets) {
+    const cardElement = boardElement.querySelector<HTMLElement>(
+      `[data-zone="character-field-card"][data-card-instance-id="${target.cardInstanceId}"]`,
+    )
+    const imageElement = cardElement?.querySelector<HTMLImageElement>('img') ?? null
+    if (!cardElement || !imageElement) {
+      continue
+    }
+
+    ghostSources.push({
+      imageSrc: imageElement.currentSrc || imageElement.src,
+      sourceRect: cardElement.getBoundingClientRect(),
+      side: cardElement.getAttribute('data-slot-side') === 'top' ? 'top' : 'bottom',
+    })
+  }
+
+  return ghostSources
+}
+
+function scheduleCardGhostAnimations({
+  ghostSources,
+  topTrashCardRef,
+  bottomTrashCardRef,
+  animControllerRef,
+}: IScheduleCardGhostAnimationsArgs): void {
+  ghostSources.forEach((ghostSource, index) => {
+    const animationTimeoutId = window.setTimeout(() => {
+      void runCardImageGhostToElementAnimation({
+        imageSrc: ghostSource.imageSrc,
+        sourceRect: ghostSource.sourceRect,
+        destinationElement: ghostSource.side === 'top' ? topTrashCardRef.current : bottomTrashCardRef.current,
+      })
+    }, index * HAND_TO_PILE_STAGGER_MS)
+
+    animControllerRef.current.pendingDrawTimeoutIds.push(animationTimeoutId)
+  })
+}
+
+interface ICardGhostSource {
+  imageSrc: string
+  sourceRect: DOMRect
+  side: 'top' | 'bottom'
+}
+
+interface IScheduleCardGhostAnimationsArgs {
+  ghostSources: ICardGhostSource[]
+  topTrashCardRef: RefObject<HTMLDivElement | null>
+  bottomTrashCardRef: RefObject<HTMLDivElement | null>
+  animControllerRef: RefObject<IGameViewAnimController>
 }
 
 export { submitSummonTargetSelection }

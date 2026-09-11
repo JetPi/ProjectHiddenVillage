@@ -3,7 +3,6 @@ import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3001'
 
 export const CARD_ART_WIDTHS = {
-  hud: 120,
   board: 240,
   preview: 600,
 } as const

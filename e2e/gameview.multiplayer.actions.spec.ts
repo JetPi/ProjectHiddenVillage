@@ -212,6 +212,7 @@ test.describe('GameView multiplayer actions', () => {
 
       const tributeTarget = ownerPage.locator(`[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${tributeSetupActor.cardInstanceId}"]`)
       await expect(tributeTarget).toBeVisible({ timeout: 5_000 })
+      await expect(tributeTarget.getByTestId('tribute-requirement-label')).toHaveText('any', { timeout: 5_000 })
       await tributeTarget.hover()
       await tributeTarget.getByRole('button', { name: /^tribute$/i }).click()
 
@@ -230,6 +231,9 @@ test.describe('GameView multiplayer actions', () => {
         battlefieldHasSummonedCard: true,
         trashCount: 1,
       })
+
+      const bottomTrashPile = ownerPage.locator('[data-side="bottom"] [data-testid="trash-pile-card"]')
+      await expect(bottomTrashPile.locator('img')).toHaveAttribute('src', /card-art\/T-100/, { timeout: 6_000 })
 
       await expect.poll(async () => {
         return await getAnimationCount(ownerPage)
@@ -309,10 +313,15 @@ test.describe('GameView multiplayer actions', () => {
       await expect(validToadTarget).toBeVisible({ timeout: 5_000 })
       await expect(invalidLeafTarget).toBeVisible({ timeout: 5_000 })
 
+      await expect(validToadTarget.getByTestId('tribute-requirement-label')).toHaveText('Toad', { timeout: 5_000 })
+      await expect(validToadTarget.getByTestId('tribute-requirement-label')).toHaveClass(/bg-amber-300/)
+      await expect(invalidLeafTarget.getByTestId('tribute-requirement-label')).toHaveCount(0)
+
       await invalidLeafTarget.hover()
       await expect(invalidLeafTarget.getByRole('button', { name: /^tribute$/i })).toHaveCount(0)
       await validToadTarget.hover()
       await validToadTarget.getByRole('button', { name: /^tribute$/i }).click()
+      await expect(validToadTarget.getByTestId('tribute-requirement-label')).toHaveClass(/bg-black/)
       await ownerPage.getByRole('button', { name: /confirm tribute selection/i }).click()
 
       await expect.poll(async () => {

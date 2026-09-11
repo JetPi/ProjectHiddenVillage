@@ -219,6 +219,75 @@ public sealed class MoveCardEffectTests
         Assert.AreEqual("Game.Effect.MoveCard.Move.InvalidOperation", result.FirstError.Code);
     }
 
+    [TestMethod]
+    public void Execute_DrawThenPlaceMode_MovesSelectedHandCardToDeckTop_WhenHandHasCards()
+    {
+        var effectSpec = CreateMoveCardEffectSpec(
+            new MoveCardActionSpec
+            {
+                Operation = MoveCardOperationType.Draw,
+                DrawCount = 1,
+            },
+            new MoveCardActionSpec
+            {
+                Operation = MoveCardOperationType.Move,
+                SourceZone = PlayerZone.Hand,
+                DestinationZone = PlayerZone.Deck,
+                MoveCount = 1,
+                DeckPlacement = MoveCardDeckPlacementType.Top,
+                DestinationPlayerRange = EffectTargetRange.Self,
+            });
+        var context = CreateContext(effectSpec, selectedTargets:
+        [
+            new GameEffectTargetReference("p1", PlayerZone.Hand, "hand-1")
+        ]);
+
+        var effect = CreateEffect(effectSpec);
+        var result = effect.Execute(context, context.SelectedTargets);
+
+        Assert.IsFalse(result.IsError);
+
+        var player = context.Game.State.Players.First(entry => entry.PlayerId == "p1");
+        Assert.AreEqual(2, player.Hand.Count);
+        Assert.IsFalse(player.Hand.Any(card => card.InstanceId == "hand-1"));
+        Assert.IsTrue(player.Hand.Any(card => card.InstanceId == "deck-1"));
+        Assert.AreEqual(2, player.Deck.Count);
+        Assert.AreEqual("hand-1", player.Deck[0].InstanceId);
+    }
+
+    [TestMethod]
+    public void Execute_DrawThenPlaceMode_PlacesTheDrawnCard_WhenHandIsEmpty()
+    {
+        var effectSpec = CreateMoveCardEffectSpec(
+            new MoveCardActionSpec
+            {
+                Operation = MoveCardOperationType.Draw,
+                DrawCount = 1,
+            },
+            new MoveCardActionSpec
+            {
+                Operation = MoveCardOperationType.Move,
+                SourceZone = PlayerZone.Hand,
+                DestinationZone = PlayerZone.Deck,
+                MoveCount = 1,
+                DeckPlacement = MoveCardDeckPlacementType.Top,
+                DestinationPlayerRange = EffectTargetRange.Self,
+            });
+        var context = CreateContext(effectSpec);
+        var player = context.Game.State.Players.First(entry => entry.PlayerId == "p1");
+        player.Hand.Clear();
+
+        var effect = CreateEffect(effectSpec);
+        var result = effect.Execute(context, []);
+
+        Assert.IsFalse(result.IsError);
+
+        Assert.AreEqual(0, player.Hand.Count);
+        Assert.AreEqual(2, player.Deck.Count);
+        Assert.AreEqual("deck-1", player.Deck[0].InstanceId);
+    }
+
+
     private static MoveCardEffect CreateEffect(EffectSpec effectSpec)
     {
         return new MoveCardEffect(

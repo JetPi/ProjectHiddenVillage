@@ -6,6 +6,18 @@ import { mapActionToHubIntent } from './helpers'
 import { runSubmitThenZoneEntryAnimation } from './runSubmitThenZoneEntryAnimation'
 import { trySubmitTargetedCardEffect } from './trySubmitTargetedCardEffect'
 
+function buildRequirementLabelsByCardInstanceId(
+  requirementLabels: IGameCardActionTargetsResponse['requirementLabels'],
+): Record<string, string[]> {
+  const byCardInstanceId: Record<string, string[]> = {}
+
+  for (const entry of requirementLabels ?? []) {
+    byCardInstanceId[entry.cardInstanceId] = [...(entry.requirementLabels ?? [])]
+  }
+
+  return byCardInstanceId
+}
+
 function resolveBattleSourceCardInstanceId(
   action: IGameActionOptionResponse,
   characterFieldCards: IGameCardInstanceResponse[],
@@ -198,6 +210,9 @@ function submitMappedAction({
           maximumTargetCount: targetsResponse.maximumTargetCount,
           exactTargetCount: targetsResponse.exactTargetCount,
           autoSelectAllValidTargets: targetsResponse.autoSelectAllValidTargets,
+          requirementLabelsByCardInstanceId: buildRequirementLabelsByCardInstanceId(
+            targetsResponse.requirementLabels,
+          ),
           selectedTargets: [],
         })
         return

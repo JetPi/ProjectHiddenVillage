@@ -1,17 +1,12 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from "lucide-react";
 import type { IGameZonesProps } from "@/views/game/types";
 import { AppButton } from "@/components/ui";
-import { canConfirmSummonTargetSelection } from "@/views/game/utils/functions";
 import { useGameUIStore } from "@/state/gameUIStore";
 
 export function SideBarButtons(props: IGameZonesProps){
     const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
-    const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
-    const isSummonActionTargeting = useGameUIStore((state) => state.pendingSummonTargeting !== null)
-    const canConfirmTributeSelection = pendingSummonTargeting
-        ? canConfirmSummonTargetSelection(pendingSummonTargeting)
-        : false
+   
     return<div className="flex flex-col items-end justify-center gap-1">
         {props.joinCode ? (
           <div
@@ -87,41 +82,6 @@ export function SideBarButtons(props: IGameZonesProps){
               Cancel Attack Target
             </span>
           </div>
-        ) : null}
-
-        {isSummonActionTargeting ? (
-          <>
-            <div className="group relative">
-              <AppButton
-                type="button"
-                variant="ghost"
-                aria-label="Confirm tribute selection"
-                onClick={props.onConfirmSummonTargetSelection}
-                disabled={!props.isConnected || props.isActionPending || !canConfirmTributeSelection}
-                className="h-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-1.5 py-0 text-[8px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]"
-              >
-                Go
-              </AppButton>
-              <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-                Confirm Tribute
-              </span>
-            </div>
-
-            <div className="group relative">
-              <AppButton
-                type="button"
-                variant="ghost"
-                aria-label="Cancel tribute selection"
-                onClick={() => useGameUIStore.getState().cancelSummonTargeting()}
-                className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-              >
-                <span className="text-[10px] font-bold leading-none">X</span>
-              </AppButton>
-              <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-                Cancel Tribute
-              </span>
-            </div>
-          </>
         ) : null}
 
         <div className="group relative">

@@ -123,6 +123,10 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
             isSelectionBlocked
           };
 
+          const summonRequirementText = targetFlags.isSummonTarget
+            ? (data.summonRequirementTextByCardInstanceId.get(normalizedCardId) ?? null)
+            : null
+
           const cardStateFlags = {
             isRested: isCardRestedState(card, optimisticRestedByInstanceId),
             shouldDelayRestedDimming: Boolean(props.gameState.isAttackSequencePending) && targetFlags.isAttackLinkSource,
@@ -183,7 +187,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               ) : null}
 
               {!cardStateFlags.isConcealedSupportCard && targetFlags.isSelectedSummonTarget ? (
-                <div className="pointer-events-none absolute inset-0 rounded-lg border-2 border-amber-300/95 bg-amber-300/15" />
+                <div className="card-selection-tint pointer-events-none absolute inset-0 rounded-lg border-2 border-amber-300/95 bg-amber-300/15" />
               ) : null}
 
               {!cardStateFlags.isConcealedSupportCard ? (
@@ -196,11 +200,13 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                   isTargetCandidate={isBattleActionTargeting && targetFlags.isBattleTarget}
                   onChooseTarget={() => props.onSelectAttackTarget(card.instanceId)}
                   isSummonTargetCandidate={targetFlags.isSummonTargetCandidate}
+                  isSummonTargetSelected={targetFlags.isSelectedSummonTarget}
                   onToggleSummonTarget={
                     targetFlags.isSummonTargetCandidate
                       ? () => useGameUIStore.getState().toggleSummonTarget(card.instanceId)
                       : undefined
                   }
+                  summonRequirementText={summonRequirementText}
                   showEmptyActionMessage={isCurrentPlayerZone}
                   suppressActionFallback={!isCurrentPlayerZone}
                   isConnected={props.isConnected}

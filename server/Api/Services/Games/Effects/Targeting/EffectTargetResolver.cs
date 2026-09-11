@@ -6,7 +6,8 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
 {
     public IReadOnlyList<GameEffectTargetReference> ResolveTargets(GameCardEffectContext context, EffectSpec effectSpec)
     {
-        if (effectSpec.TargetRules.Rules.Count == 0)
+        var rules = ResolveEffectiveRules(effectSpec);
+        if (rules.Count == 0)
         {
             return [];
         }
@@ -23,14 +24,14 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
         if (composition is not null)
         {
             return ResolveTributeMaterialCandidates(
-                effectSpec.TargetRules.Rules,
+                rules,
                 actingPlayerState,
                 gameState,
                 context.SourceCardInstance,
                 composition.RequireDistinctSummonAndTributes);
         }
 
-        var perRuleCandidates = effectSpec.TargetRules.Rules
+        var perRuleCandidates = rules
             .Select(rule => ResolveRuleCandidates(rule, actingPlayerState, gameState, context.SourceCardInstance))
             .ToList();
 
@@ -44,6 +45,42 @@ public sealed class EffectTargetResolver : IGameEffectTargetResolver
             RequirementGroupOperator.All => IntersectCandidates(perRuleCandidates),
             _ => UnionCandidates(perRuleCandidates),
         };
+    }
+
+    /// <summary>
+    /// Resolves the rules that describe which cards the player may select for this effect. Effects that
+    /// consume selected targets but declare no rules of their own - for example "draw 1 card, then place
+    /// 1 card from your hand on top of your deck" - borrow the zone from the actions they perform, so
+    /// their candidates resolve and the effect no longer looks like it has no legal targets.
+    /// </summary>
+    private static IReadOnlyList<EffectTargetRule> ResolveEffectiveRules(EffectSpec effectSpec)
+    {
+        if (effectSpec.TargetRules.Rules.Count > 0)
+        {
+            return effectSpec.TargetRules.Rules;
+        }
+
+        var derivedRules = new List<EffectTargetRule>();
+
+        foreach (var moveAction in effectSpec.MoveCardActions)
+        {
+            if (moveAction.Operation != MoveCardOperationType.Move || moveAction.SourceZone is null)
+            {
+                continue;
+            }
+
+            derivedRules.Add(new EffectTargetRule
+            {
+                Scope = moveAction.DestinationPlayerRange,
+                InZone = moveAction.SourceZone.Value,
+                LocationSelector = new EffectTargetLocationSelector
+                {
+                    Kind = EffectTargetLocationSelectorKind.Any,
+                },
+            });
+        }
+
+        return derivedRules;
     }
 
     /// <summary>

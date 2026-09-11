@@ -23,6 +23,34 @@ async function getBottomHandInstanceOrder(page: Page): Promise<string[]> {
   return order
 }
 
+// The hand keeps changing while the initial deal / mulligan re-draw animation runs: cards arrive, the
+// row re-lays out and card rects move. Measuring a card before the row settles makes the press land
+// between cards (or on a stale rect), which silently drops the drag - so wait for two identical
+// samples of the row order and of the first card's rect before starting the gesture.
+async function waitForBottomHandToSettle(page: Page): Promise<string[]> {
+  let previousSample = ''
+
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const order = await getBottomHandInstanceOrder(page)
+    const firstInstanceId = order[0]
+    const firstBox = firstInstanceId
+      ? await page.locator(`[data-testid="bottom-hand-card-${firstInstanceId}"]`).boundingBox()
+      : null
+    const sample = `${order.join(',')}|${
+      firstBox ? `${Math.round(firstBox.x)}:${Math.round(firstBox.y)}:${Math.round(firstBox.width)}` : 'none'
+    }`
+
+    if (order.length >= 2 && firstBox !== null && sample === previousSample) {
+      return order
+    }
+
+    previousSample = sample
+    await page.waitForTimeout(200)
+  }
+
+  return getBottomHandInstanceOrder(page)
+}
+
 test.describe('GameView', () => {
   test.describe.configure({ timeout: 120_000 })
 
@@ -89,7 +117,7 @@ test.describe('GameView', () => {
     test('allows long-press reordering in bottom hand', async () => {
       await expect(page.getByTestId('game-board')).toBeVisible()
 
-      const initialOrder = await getBottomHandInstanceOrder(page)
+      const initialOrder = await waitForBottomHandToSettle(page)
       expect(initialOrder.length).toBeGreaterThanOrEqual(2)
 
       const firstCardInstanceId = initialOrder[0]
@@ -115,6 +143,9 @@ test.describe('GameView', () => {
         await page.mouse.down()
         await page.waitForTimeout(360)
         await page.mouse.move(secondBox.x + secondBox.width + 24, secondBox.y + secondBox.height / 2)
+        // Give the dragged card a frame to settle at the drop position before releasing: the reorder is
+        // committed from the pointer-move pipeline, and an immediate release can outrun that frame.
+        await page.waitForTimeout(120)
         await page.mouse.up()
         await page.waitForTimeout(120)
 

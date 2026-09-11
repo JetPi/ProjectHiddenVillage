@@ -1,6 +1,8 @@
+import { AppButton } from '@/components/ui/AppButton'
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import { useGameUIStore } from '@/state/gameUIStore'
 import type { IGamePhaseActionRowProps } from '@/views/game/types'
+import { canConfirmSummonTargetSelection } from '@/views/game/utils/functions'
 function normalizeId(value: string | undefined): string {
   return (value ?? '').trim().toLowerCase().replace(/-/g, '')
 }
@@ -18,6 +20,12 @@ function cancelActiveTargetingMode(): void {
 
 const phaseActionChipClassName =
   'h-full shrink-0 whitespace-nowrap rounded-md border border-[var(--border-subtle)] px-1.5 text-[10px] font-extrabold leading-none transition-[color,background-color,filter] duration-300 ease-out enabled:hover:brightness-120'
+
+const invertedPhaseThemeClassByPhaseTheme: Record<string, string> = {
+  'turn-indicator-orange turn-indicator-text-light-theme': 'turn-indicator-inverted-orange',
+  'turn-indicator-blue turn-indicator-text-dark-theme': 'turn-indicator-inverted-blue',
+  'turn-indicator-light-gray turn-indicator-text-black': 'turn-indicator-inverted-light-gray',
+}
 
 const PhaseValues = {
   'w-for-players': 'Waiting for player',
@@ -108,12 +116,21 @@ function GamePhaseActionRow({
   isActionPending,
   onSelectAction,
   phaseTestId,
+  onConfirmSummonTargetSelection,
 }: IGamePhaseActionRowProps) {
   const phaseValue = getPhaseValue(gameInstance, authUserId)
   const phaseThemeClasses = getPhaseThemeClasses(gameInstance, phaseValue, authUserId)
+  const payButtonThemeClasses =
+    invertedPhaseThemeClassByPhaseTheme[phaseThemeClasses] ?? 'turn-indicator-inverted-light-gray'
   const pendingCardTargeting = useGameUIStore((state) => state.pendingCardTargeting)
   const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
   const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
+
+   const isSummonActionTargeting = useGameUIStore((state) => state.pendingSummonTargeting !== null)
+    const canConfirmTributeSelection = pendingSummonTargeting
+        ? canConfirmSummonTargetSelection(pendingSummonTargeting)
+        : false
+
   const isTargetingActive =
     pendingCardTargeting !== null
     || pendingSummonTargeting !== null
@@ -148,6 +165,7 @@ function GamePhaseActionRow({
         </div>
 
         {isTargetingActive ? (
+          <>
           <button
             type="button"
             data-testid="cancel-target-mode-button"
@@ -158,6 +176,21 @@ function GamePhaseActionRow({
           >
             Cancel
           </button>
+
+          { isSummonActionTargeting ?(
+            <div className="group relative">
+              <AppButton
+                type="button"
+                aria-label="Confirm tribute selection"
+                onClick={onConfirmSummonTargetSelection}
+                disabled={!isConnected || isActionPending || !canConfirmTributeSelection}
+                className={`${phaseActionChipClassName} ${payButtonThemeClasses} hover:brightness-150`}
+              >
+                Pay
+              </AppButton>
+            </div>
+          ): null}
+          </>
         ) : null}
 
         <div

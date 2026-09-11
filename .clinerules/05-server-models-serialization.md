@@ -72,11 +72,22 @@ paths:
   (ms of `CardCatalogEntry.UpdatedAtUtc`) → wire field `imageVersion`. When
   adding optional trailing params to positional response records, give them a
   default so existing constructor call sites keep compiling.
-- Client helper `client/src/services/api/cardArt.ts` builds the resized URL
-  (`cardArtUrl`/`resolveCardArtUrl`) using `CARD_ART_WIDTHS`
-  (hud 120 / board 240 / preview 600; `w=80` reserved for tiny API faces). Board
-  view-model resolvers set `image` to the board-width URL; hand faces use hud
-  width; preview popups use 600. Keep `image-rendering: auto` on card faces.
+- **`CardImage` is the only image component to use** (`components/ui/cards`).
+  For catalog art pass `card` + `variant` (`'board'` = 240 for all in-game faces,
+  `'preview'` = 600 for popups) and it auto-builds the cached width-capped URL —
+  a card keeps one URL across zone moves and never reloads its image. Local/
+  static art uses `src`. The component always applies `image-rendering: auto`
+  (override via `imageRendering` only when truly intended) and supports explicit
+  `width`/`height`. Helper `cardArtUrl`/`resolveCardArtUrl` in `cardArt.ts`
+  remains available for view-model resolvers
+  (`utils/functions/cards/index.ts`) that bake the board-width URL into `image`.
+- **Eager per-game preload** (`useCardCatalogPreload` in
+  `hooks/GameView/effects/useGameViewEffects.ts`) fetches art for every catalog
+  card in the game through the resize endpoint, in priority batches: visible
+  board/own-hand faces (board 240) → same faces at preview 600 → remaining
+  deck/trash/opponent-hand cards (board 240). Batches resolve sequentially;
+  `imagePreloadCache` dedupes by URL. This makes first-time preview popups
+  instant instead of loading on hover.
 
 ## Testing notes
 

@@ -127,12 +127,23 @@ public sealed class MoveCardEffect(
             return actionValidation.Errors;
         }
 
+        // Cards drawn earlier in this effect can satisfy a later move action when the player had nothing
+        // to select up front ("draw 1 card, then place 1 card from your hand on top of your deck").
+        var selfSuppliedTargets = new List<GameEffectTargetReference>();
+
         foreach (var action in effectSpec.MoveCardActions)
         {
+            IReadOnlyList<GameEffectTargetReference> effectiveTargets =
+                action.Operation == MoveCardOperationType.Move
+                && selectedTargets.Count == 0
+                && selfSuppliedTargets.Count > 0
+                    ? selfSuppliedTargets
+                    : selectedTargets;
+
             var result = action.Operation switch
             {
-                MoveCardOperationType.Draw => ExecuteDrawMode(context, action),
-                MoveCardOperationType.Move => ExecuteMoveMode(context, selectedTargets, action),
+                MoveCardOperationType.Draw => ExecuteDrawMode(context, action, selfSuppliedTargets),
+                MoveCardOperationType.Move => ExecuteMoveMode(context, effectiveTargets, action),
                 _ => Error.Validation(
                     code: "Game.Effect.MoveCard.InvalidOperation",
                     description: $"Unsupported move-card operation '{action.Operation}'."),
@@ -147,7 +158,10 @@ public sealed class MoveCardEffect(
         return Result.Success;
     }
 
-    private ErrorOr<Success> ExecuteDrawMode(GameCardEffectContext context, MoveCardActionSpec action)
+    private ErrorOr<Success> ExecuteDrawMode(
+        GameCardEffectContext context,
+        MoveCardActionSpec action,
+        ICollection<GameEffectTargetReference> drawnTargets)
     {
         var drawCount = action.DrawCount ?? 1;
         var affectedCardIds = new List<string>();
@@ -161,6 +175,10 @@ public sealed class MoveCardEffect(
             }
 
             affectedCardIds.Add(drawn.InstanceId);
+            drawnTargets.Add(new GameEffectTargetReference(
+                PlayerId: context.ActingPlayer.Id,
+                Zone: PlayerZone.Hand,
+                CardInstanceId: drawn.InstanceId));
         }
 
         if (affectedCardIds.Count == 0)

@@ -531,6 +531,90 @@ public sealed class EffectTargetResolverTests
         Assert.AreEqual("deck:0", targets[0].SlotId);
     }
 
+    [TestMethod]
+    public void ResolveTargets_DerivesHandZoneFromMoveActions_WhenNoTargetRulesAreDeclared()
+    {
+        var (context, _) = CreateContext(
+            playerFieldCards: [],
+            opponentFieldCards: [],
+            targetRules: new EffectTargetRuleSet { Rules = [] });
+
+        var playerOne = context.Game.State.Players.First(entry => entry.PlayerId == "p1");
+        playerOne.Hand.Add(new CardInstance
+        {
+            InstanceId = "hand-1",
+            CardDefinitionId = "hand-def",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        });
+        context.Game.State.CardDefinitions["hand-def"] = new CharacterCard
+        {
+            Id = "hand-def",
+            DisplayName = "Hand Card",
+            Name = ["Hand Card"],
+            Type = CardType.Character,
+            Color = CardColor.Blue,
+            Traits = [],
+            Damage = 0,
+            Power = 1,
+            Health = 1,
+        };
+
+        var targets = resolver.ResolveTargets(context, CreateDrawThenPlaceEffectSpec());
+
+        Assert.AreEqual(1, targets.Count);
+        Assert.AreEqual("p1", targets[0].PlayerId);
+        Assert.AreEqual(PlayerZone.Hand, targets[0].Zone);
+        Assert.AreEqual("hand-1", targets[0].CardInstanceId);
+    }
+
+    [TestMethod]
+    public void ResolveTargets_ReturnsNoCandidates_WhenDerivedHandZoneIsEmpty()
+    {
+        var (context, _) = CreateContext(
+            playerFieldCards: [],
+            opponentFieldCards: [],
+            targetRules: new EffectTargetRuleSet { Rules = [] });
+
+        var targets = resolver.ResolveTargets(context, CreateDrawThenPlaceEffectSpec());
+
+        Assert.AreEqual(0, targets.Count);
+    }
+
+    private static EffectSpec CreateDrawThenPlaceEffectSpec()
+    {
+        return new EffectSpec
+        {
+            Id = "draw-n-place-card",
+            RuntimeEffectType = RuntimeEffects.MoveCard,
+            EffectType = EffectKind.Activated,
+            Timing = EffectTiming.ActivateMain,
+            ContextRules = [],
+            TargetRules = new EffectTargetRuleSet
+            {
+                Rules = []
+            },
+            MoveCardActions =
+            [
+                new MoveCardActionSpec
+                {
+                    Operation = MoveCardOperationType.Draw,
+                    DrawCount = 1,
+                },
+                new MoveCardActionSpec
+                {
+                    Operation = MoveCardOperationType.Move,
+                    SourceZone = PlayerZone.Hand,
+                    DestinationZone = PlayerZone.Deck,
+                    MoveCount = 1,
+                    DeckPlacement = MoveCardDeckPlacementType.Top,
+                    DestinationPlayerRange = EffectTargetRange.Self,
+                }
+            ]
+        };
+    }
+
+
     private static (GameCardEffectContext Context, EffectSpec EffectSpec) CreateContext(
         IReadOnlyList<(Card Card, CardInstance Instance)> playerFieldCards,
         IReadOnlyList<(Card Card, CardInstance Instance)> opponentFieldCards,

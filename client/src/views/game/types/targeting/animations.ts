@@ -21,6 +21,13 @@ export type IHandToPileAnimationArgs = {
   bottomHandRowRef: RefObject<HTMLDivElement | null>
 }
 
+export type ICardImageGhostToElementAnimationArgs = {
+  imageSrc: string
+  sourceRect: DOMRect
+  destinationElement: HTMLElement | null
+  durationMs?: number
+}
+
 export type IHandToElementAnimationArgs = {
   side: 'top' | 'bottom'
   cardInstanceId: string

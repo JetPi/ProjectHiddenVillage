@@ -61,7 +61,11 @@ type GameCardInstanceStateResponse = {
 export type GamePlayerStateResponse = {
   playerId: string
   leader: {
+    instanceId?: string
     displayName: string
+    // Leader effects (`leader-effect:{instanceId}:{effectKey}`) are published on the leader card
+    // only - they never appear in the global `availableActions` list.
+    availableActions?: GameActionOptionResponse[]
   }
   hand: GameCardInstanceStateResponse[]
   characterField: GameCardInstanceStateResponse[]

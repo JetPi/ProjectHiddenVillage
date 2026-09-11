@@ -1,12 +1,15 @@
 using ErrorOr;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using Microsoft.Extensions.Logging;
 
 namespace ProjectHiddenVillage.Server;
 
 public sealed class GamePhaseHandlingService(
     InMemoryGameInstanceRegistry registry,
     IGameSequentialEffectExecutor sequentialEffectExecutor,
-    IGameEffectCanExecuteEvaluator canExecuteEvaluator) : IGamePhaseHandlingService
+    IGameEffectCanExecuteEvaluator canExecuteEvaluator,
+    IGameReactiveEffectOrchestrator reactiveEffectOrchestrator,
+    ILogger<GamePhaseHandlingService> logger) : IGamePhaseHandlingService
 {
     private readonly IGameSequentialEffectExecutor sequentialEffectExecutor = sequentialEffectExecutor;
     private readonly IGameEffectCanExecuteEvaluator canExecuteEvaluator = canExecuteEvaluator;
@@ -16,14 +19,14 @@ public sealed class GamePhaseHandlingService(
         ArgumentNullException.ThrowIfNull(request);
         return ExecuteRegistryOperation(
             operationName: "Game.ResolvePrompt",
-            operation: () => registry.ResolvePrompt(gameId, request.RequestedPlayerId, request.SelectedOption));
+            operation: () => registry.ResolvePrompt(gameId, request.RequestedPlayerId, request.SelectedOption, reactiveEffectOrchestrator));
     }
 
     public ErrorOr<GameInstance> AdvancePhase(string gameId)
     {
         return ExecuteRegistryOperation(
             operationName: "Game.AdvancePhase",
-            operation: () => registry.AdvancePhase(gameId));
+            operation: () => registry.AdvancePhase(gameId, reactiveEffectOrchestrator));
     }
 
     public ErrorOr<GameInstance> DeclarePassInActionStep(string gameId, PlayerPhaseActionRequest request)
@@ -31,7 +34,7 @@ public sealed class GamePhaseHandlingService(
         ArgumentNullException.ThrowIfNull(request);
         return ExecuteRegistryOperation(
             operationName: "Game.DeclarePassInActionStep",
-            operation: () => registry.DeclarePassInActionStep(gameId, request.PlayerId));
+            operation: () => registry.DeclarePassInActionStep(gameId, request.PlayerId, reactiveEffectOrchestrator));
     }
 
     public ErrorOr<GameInstance> DeclareActionInActionStep(string gameId, PlayerPhaseActionRequest request)
@@ -47,7 +50,7 @@ public sealed class GamePhaseHandlingService(
         ArgumentNullException.ThrowIfNull(request);
         return ExecuteRegistryOperation(
             operationName: "Game.ExecuteCardAction",
-            operation: () => registry.ExecuteCardAction(gameId, request, sequentialEffectExecutor));
+            operation: () => registry.ExecuteCardAction(gameId, request, sequentialEffectExecutor, reactiveEffectOrchestrator));
     }
 
     public ErrorOr<GameCardActionTargetsResponse> GetCardActionTargets(string gameId, GameCardActionTargetsRequest request)
@@ -83,10 +86,10 @@ public sealed class GamePhaseHandlingService(
     {
         return ExecuteRegistryOperation(
             operationName: "Game.CompleteEndStep",
-            operation: () => registry.CompleteEndStep(gameId));
+            operation: () => registry.CompleteEndStep(gameId, reactiveEffectOrchestrator));
     }
 
-    private static ErrorOr<GameInstance> ExecuteRegistryOperation(string operationName, Func<GameInstance> operation)
+    private ErrorOr<GameInstance> ExecuteRegistryOperation(string operationName, Func<GameInstance> operation)
     {
         try
         {
@@ -94,15 +97,25 @@ public sealed class GamePhaseHandlingService(
         }
         catch (KeyNotFoundException ex)
         {
+            logger.LogWarning(ex, "Game operation {Operation} failed: game was not found.", operationName);
             return Error.NotFound(code: $"{operationName}.NotFound", description: ex.Message);
         }
         catch (ArgumentException ex)
         {
+            logger.LogWarning(ex, "Game operation {Operation} failed: invalid request.", operationName);
             return Error.Validation(code: $"{operationName}.InvalidRequest", description: ex.Message);
         }
         catch (InvalidOperationException ex)
         {
+            logger.LogWarning(ex, "Game operation {Operation} failed: invalid game state.", operationName);
             return Error.Validation(code: $"{operationName}.InvalidState", description: ex.Message);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Unexpected failures (for example a NullReferenceException inside a chained effect)
+            // would otherwise surface to players as an opaque hub error with no server-side trace.
+            logger.LogError(ex, "Game operation {Operation} failed unexpectedly.", operationName);
+            return Error.Unexpected(code: $"{operationName}.Unexpected", description: ex.Message);
         }
     }
 }

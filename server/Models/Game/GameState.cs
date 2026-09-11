@@ -16,6 +16,18 @@ public sealed class GameState
 
     public GamePhase Phase { get; set; } = GamePhase.MainPhase;
 
+    /// <summary>
+    /// True while an attack has been declared but its cut-in window has not been resolved yet. This is
+    /// the window where "When Attacking" effects belong: the engine enters
+    /// <see cref="GamePhase.AttackDeclaration"/> when the attacker must answer an optional On Attack
+    /// choice, and <see cref="GamePhase.BlockerDeclaration"/> remains part of the attack sequence
+    /// stages.
+    /// </summary>
+    public bool IsAttackDeclarationWindow()
+    {
+        return HasPendingAttack && Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration;
+    }
+
     public Queue<PhaseDirective> PhaseDirectives { get; set; } = new();
 
     public Queue<GamePhase> InsertedPhases { get; set; } = new();
@@ -38,6 +50,27 @@ public sealed class GameState
     public List<EffectResolutionStackEntry> EffectResolutionStack { get; set; } = [];
 
     public List<PassiveActivationState> PassiveStates { get; set; } = [];
+
+    /// <summary>
+    /// Activations recorded for effects flagged with <see cref="EffectRestrictions.OncePerTurn"/>. Only
+    /// the current turn is kept, so the restriction naturally refreshes each turn.
+    /// </summary>
+    public List<EffectActivationRecord> EffectActivations { get; set; } = [];
+
+    public bool IsEffectUsedThisTurn(string playerId, string sourceInstanceId, string effectKey)
+    {
+        return EffectActivations.Any(record =>
+            record.TurnNumber == TurnNumber
+            && string.Equals(record.PlayerId, playerId, StringComparison.Ordinal)
+            && string.Equals(record.SourceInstanceId, sourceInstanceId, StringComparison.Ordinal)
+            && string.Equals(record.EffectKey, effectKey, StringComparison.Ordinal));
+    }
+
+    public void MarkEffectUsedThisTurn(string playerId, string sourceInstanceId, string effectKey)
+    {
+        EffectActivations.RemoveAll(record => record.TurnNumber != TurnNumber);
+        EffectActivations.Add(new EffectActivationRecord(playerId, sourceInstanceId, effectKey, TurnNumber));
+    }
 
     public List<AppliedCardEffectState> AppliedCardEffects { get; set; } = [];
 

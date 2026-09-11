@@ -63,7 +63,17 @@ public sealed class GamePassiveEffectService(
                     LastChangedAtPhase = game.State.Phase,
                 };
 
-            if (!ShouldReevaluate(passiveSource.EffectSpec, triggerKind))
+            var isStructuralSweep = options.ContinuousPassivesOnly;
+
+            if (isStructuralSweep && passiveSource.EffectSpec.PassiveMode != PassiveMode.Continuous)
+            {
+                // Structural sweeps only reconcile conditional continuous passives; triggered
+                // passives keep their activation state and stay driven by real mutations.
+                nextStateByPassiveKey[passiveKey] = previousState;
+                continue;
+            }
+
+            if (!isStructuralSweep && !ShouldReevaluate(passiveSource.EffectSpec, triggerKind))
             {
                 nextStateByPassiveKey[passiveKey] = previousState;
                 continue;
@@ -138,7 +148,13 @@ public sealed class GamePassiveEffectService(
             arguments: EmptyArguments,
             selectedTargets: []);
 
-        var canExecuteResult = canExecuteEvaluator.Evaluate(context, passiveSource.EffectSpec, includeValidTargets: false);
+        // Target rules double as the passive's activation condition (for example "while this card's
+        // Power is 10 or more"). Those rules can only be evaluated by resolving valid targets, so a
+        // passive that declares rules must include them - otherwise every mutually exclusive variant
+        // (gain Rush / remove Rush) would read as active at the same time and their consequences
+        // would resolve in reverse and cancel each other out.
+        var includeValidTargets = passiveSource.EffectSpec.TargetRules.Rules.Count > 0;
+        var canExecuteResult = canExecuteEvaluator.Evaluate(context, passiveSource.EffectSpec, includeValidTargets);
         return canExecuteResult.CanExecute;
     }
 
@@ -370,6 +386,11 @@ public sealed class GamePassiveEffectService(
         var arguments = new Dictionary<string, string>(
             consequence.ConsequenceArguments ?? EmptyArguments,
             StringComparer.Ordinal);
+
+        // Pin the consequence to the passive's own effect spec. Effects that share a runtime effect
+        // type (a card with both "gain Rush" and "remove Rush" Gain Effects) would otherwise always
+        // resolve the first matching spec, so the gain variant would execute the remove variant.
+        arguments[ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument] = passiveSource.EffectSpec.Id;
 
         if (consequence.TargetPolicy == PassiveConsequenceTargetPolicy.TriggerSelectedTargets)
         {

@@ -53,6 +53,18 @@ async function trySubmitTargetedCardEffect({
     return
   }
 
+  // Some effects declare their targets implicitly ("draw 1 card, then place 1 card from your hand on top
+  // of your deck"): the server reports the effect as enabled with no candidates to pick up front and
+  // supplies the card itself while resolving. Submit without a selection and let the engine resolve it.
+  if (validTargets.length === 0) {
+    await submitHubIntent({
+      intent: 'execute-card-action',
+      actionId: intentRequest.actionId,
+      sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+    })
+    return
+  }
+
   if (requiresSingleTargetPick) {
     beginEffectTargeting({
       actionId: intentRequest.actionId,

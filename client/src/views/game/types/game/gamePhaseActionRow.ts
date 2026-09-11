@@ -8,4 +8,5 @@ export type IGamePhaseActionRowProps = {
   isActionPending: boolean
   onSelectAction: (action: IGameActionOptionResponse) => void
   phaseTestId?: string
+  onConfirmSummonTargetSelection: () => void
 }

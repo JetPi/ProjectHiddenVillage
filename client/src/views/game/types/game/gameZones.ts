@@ -12,6 +12,7 @@ export type IZoneCardSlotsProps = {
     validBattleTargetsByCardId: Set<string>,
     validSummonTargetsByCardId: Set<string>,
     selectedSummonTargetsByCardId: Set<string>,
+    summonRequirementTextByCardInstanceId: ReadonlyMap<string, string>,
     props: IGameZonesProps,
   }
 

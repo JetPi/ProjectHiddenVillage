@@ -84,7 +84,9 @@ public sealed class DestroyCardEffect(
             var ownerPlayer = context.Game.State.Players.Find(player => player.PlayerId == cardInstance.OwnerPlayerId)!;
 
             var ownerTrashZone = PlayerZoneCardAccessor.GetCards(PlayerZone.Trash, ownerPlayer);
-            ownerTrashZone.Add(cardInstance);
+            // Newest-first: keeps the most recently destroyed card as the trash pile's face
+            // (matching GameRuntimeDeckService.MoveCardToZone).
+            ownerTrashZone.Insert(0, cardInstance);
 
             affectedCardInstanceIds.Add(cardInstance.InstanceId);
             affectedPlayerIds.Add(sourcePlayer.PlayerId);

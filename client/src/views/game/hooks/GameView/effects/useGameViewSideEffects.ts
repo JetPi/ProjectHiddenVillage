@@ -49,7 +49,7 @@ function useGameViewSideEffects({
   const topTrashCount = opponentPlayer?.trash.length ?? 0
   const bottomTrashCount = currentPlayer?.trash.length ?? 0
 
-  useCardCatalogPreload(liveGameCards)
+  useCardCatalogPreload(liveGameCards, gameState, authUserId)
 
   useHandZoneAnimationEffects({
     topHandInstanceIds,
