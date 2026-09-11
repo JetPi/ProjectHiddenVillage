@@ -107,7 +107,76 @@
       "name": ["Training Commander"],
       "traits": ["Leader"],
       "conditions": [],
-      "effects": [],
+      "effects": [
+        {
+          "id": "training-power",
+          "isSubordinate": false,
+          "onSuccessEffectId": null,
+          "onFailureEffectId": null,
+          "runtimeEffectType": "ChangeValues",
+          "effectType": "Activated",
+          "timing": "ActivateMain",
+          "durationMode": "DuringThisTurn",
+          "passiveMode": "None",
+          "passiveReevaluation": null,
+          "passiveConsequences": [],
+          "keywordModifications": [],
+          "targetRange": "Any",
+          "isOptional": false,
+          "chakraCost": null,
+          "globalRestrictions": "None",
+          "executionTargetSource": "SelectedTargets",
+          "executionFlowMode": "PerStep",
+          "suppressSummonedTargetsEffectsWhileOnField": false,
+          "revealTimingMode": "RevealLast",
+          "revealPostConditionRuleSet": null,
+          "revealPostConditionRestriction": null,
+          "revealPostConditionPredicate": null,
+          "executionCondition": null,
+          "attributeModifications": [
+            {
+              "targetType": "SelectedTargets",
+              "targetRange": "Self",
+              "attribute": "CardPower",
+              "operation": "Add",
+              "value": 3,
+              "minimumValue": null,
+              "maximumValue": null
+            }
+          ],
+          "chakraAdjustments": [],
+          "summonCardFlips": [],
+          "faceStateLocks": [],
+          "moveCardActions": [],
+          "contextRules": [],
+          "targetRules": {
+            "operator": "Any",
+            "exactTargetCount": 1,
+            "minimumTargetCount": null,
+            "maximumTargetCount": null,
+            "autoSelectAllValidTargets": false,
+            "tributeComposition": null,
+            "rules": [
+              {
+                "scope": "Any",
+                "inZone": "CharacterField",
+                "locationSelector": {
+                  "kind": "Any",
+                  "supportSlotIndex": null
+                },
+                "tributeRole": null,
+                "exactSelectedTargetCount": 1,
+                "minimumSelectedTargetCount": null,
+                "maximumSelectedTargetCount": null,
+                "restriction": {
+                  "predicates": [],
+                  "matchMode": "Any"
+                }
+              }
+            ]
+          }
+        }
+      ],
       "damage": 0,
       "power": 0,
       "life": 5,
