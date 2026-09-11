@@ -224,6 +224,115 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
+    public void ToGameStateResponse_DisablesBattleAction_WithRestedReason_ForRestedCardInMainPhase()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var restedCard = CreateCardInstance("battle-1", "card-battle", requesterId);
+        restedCard.EnteredFieldTurnNumber = 1;
+        restedCard.IsRested = true;
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [restedCard]);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = requester.CharacterField[0].AvailableActions.Single();
+
+        Assert.AreEqual("battle-action:battle-1", battleAction.ActionId);
+        Assert.IsFalse(battleAction.IsEnabled);
+        Assert.AreEqual("Cannot declare battle action because the card is rested.", battleAction.DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesBattleAction_WithSummonedThisTurnReason_ForCardEnteredThisTurn()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var summonedCard = CreateCardInstance("battle-1", "card-battle", requesterId);
+        summonedCard.EnteredFieldTurnNumber = 3;
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [summonedCard]);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = requester.CharacterField[0].AvailableActions.Single();
+
+        Assert.IsFalse(battleAction.IsEnabled);
+        Assert.AreEqual(
+            "Cannot declare battle action the turn that the card entered the field.",
+            battleAction.DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_MapsBattleAction_WhenFieldEntryTurnIsUnknown()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var unknownEntryCard = CreateCardInstance("battle-1", "card-battle", requesterId);
+        unknownEntryCard.EnteredFieldTurnNumber = null;
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [unknownEntryCard]);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = requester.CharacterField[0].AvailableActions.Single();
+
+        Assert.IsTrue(battleAction.IsEnabled, battleAction.DisabledReason ?? string.Empty);
+        Assert.IsNull(battleAction.DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_MapsOffFieldCardActions_WithoutFieldEntryState()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var handCard = CreateCardInstance("hand-1", "card-hand", requesterId);
+        var supportCard = CreateCardInstance("support-1", "card-support", requesterId);
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            handCards: [handCard],
+            supportCards: [supportCard]);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual("summon-to-field:hand-1", requester.Hand[0].AvailableActions[0].ActionId);
+        Assert.AreEqual("activate-support:support-1", requester.SupportZone[0].AvailableActions[0].ActionId);
+    }
+
+
+    [TestMethod]
     public void ToGameStateResponse_MapsBothSummonAndSetSupport_ForSupportCapableHandCard()
     {
         var requesterId = Guid.NewGuid().ToString("N");
