@@ -48,8 +48,8 @@ task touches that area).
 | File | Loads when paths match | Covers |
 | --- | --- | --- |
 | `01-architecture.md` | `client/src/**`, `server/**` | structure, barrels, refs patterns, anchors |
-| `02-board-ui-hud.md` | board/card UI + `index.css` + battle-visuals e2e | overlays, stat badges, targeting highlight CSS |
-| `03-targeting-contract.md` | game client, server game engine/API, e2e | targeting flows, action formats, submit decisions |
-| `04-state-phase-effects.md` | stores, game hooks/effects, phase engine | Zustand, prune, auto-advance, draw/mulligan gating |
-| `05-server-models-serialization.md` | `server/**`, `client/src/services/api/**` | response DTOs, STJ serialization gotcha, stat pipeline |
+| `02-board-ui-hud.md` | board/card UI + `index.css` + battle-visuals e2e | overlays, stat badges, rested-vs-exhausted visuals, targeting highlight CSS |
+| `03-targeting-contract.md` | game client, server game engine/API, e2e | targeting flows, action formats, battle-action rules (DMG/POW, leaders, target legality), submit decisions |
+| `04-state-phase-effects.md` | stores, game hooks/effects, phase engine | Zustand, prune, auto-advance, main-phase auto-end, rest/stand + damage resets, draw/mulligan gating |
+| `05-server-models-serialization.md` | `server/**`, `client/src/services/api/**` | response DTOs, STJ serialization gotcha, stat pipelines (leader life vs character health), exhaustion = exile |
 | `99-workflow-tooling.md` | always | environment/tooling/edit gotchas (keep short) |

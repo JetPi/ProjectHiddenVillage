@@ -36,3 +36,16 @@
   instead of leaving stale assertions.
 - Keep changes scoped and atomic; validate with local type checks/builds before
   marking done.
+
+## Advance-phase read-then-act race (handled — do not “fix” it again)
+
+- Helpers that advance phases (`advanceToMulliganPromptIfNeeded` in
+  `helpers/multiplayer/prompts.ts`, `progressToNextDecisionWindow` in
+  `helpers/multiplayer/flow.ts`) call **`tryAdvancePhaseViaHub`** (non-asserting) instead of the
+  throwing `advancePhaseViaHub`, and treat a rejection with
+  `ADVANCE_PHASE_INVALID_STATE_ERROR_CODE` (`Game.AdvancePhase.InvalidState`) as expected: the
+  phase can advance, or a prompt can appear, between the REST state read and the hub call, so the
+  server legitimately refuses. They re-read the state and retry; any other error still fails loudly.
+- New read-then-act hub helpers should follow the same shape: use
+  `invokeGameHubMethod`/`tryAdvancePhaseViaHub` + `describeHubFailure` from
+  `helpers/multiplayer/hub.ts` rather than asserting inside the helper.

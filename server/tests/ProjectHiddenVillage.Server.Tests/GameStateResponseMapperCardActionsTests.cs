@@ -568,7 +568,7 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(0, requester.Leader.AvailableActions.Count);
+        Assert.AreEqual(0, GetLeaderEffectActions(requester.Leader).Count);
     }
 
     [TestMethod]
@@ -597,7 +597,7 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(0, requester.Leader.AvailableActions.Count);
+        Assert.AreEqual(0, GetLeaderEffectActions(requester.Leader).Count);
     }
 
     [TestMethod]
@@ -629,8 +629,8 @@ public sealed class GameStateResponseMapperCardActionsTests
 
         // AttackDeclaration is the attack window the engine actually enters, so When Attacking effects
         // must be reachable there instead of only during the unused BlockerDeclaration stage.
-        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
-        Assert.IsTrue(requester.Leader.AvailableActions[0].ActionId.StartsWith("leader-effect:", StringComparison.Ordinal));
+        Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
+        Assert.IsTrue(GetLeaderEffectActions(requester.Leader)[0].ActionId.StartsWith("leader-effect:", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -647,11 +647,11 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
+        Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
         StringAssert.StartsWith(
-            requester.Leader.AvailableActions[0].ActionId,
+            GetLeaderEffectActions(requester.Leader)[0].ActionId,
             $"leader-effect:{requester.Leader.InstanceId}:leader-main");
-        Assert.AreEqual("Activate Main", requester.Leader.AvailableActions[0].Label);
+        Assert.AreEqual("Activate Main", GetLeaderEffectActions(requester.Leader)[0].Label);
     }
 
     [TestMethod]
@@ -680,10 +680,10 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
-        Assert.AreEqual("Recovery", requester.Leader.AvailableActions[0].Label);
-        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
-    Assert.AreEqual("Recovery can only be activated starting from your second turn.", requester.Leader.AvailableActions[0].DisabledReason);
+        Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
+        Assert.AreEqual("Recovery", GetLeaderEffectActions(requester.Leader)[0].Label);
+        Assert.IsFalse(GetLeaderEffectActions(requester.Leader)[0].IsEnabled);
+    Assert.AreEqual("Recovery can only be activated starting from your second turn.", GetLeaderEffectActions(requester.Leader)[0].DisabledReason);
     }
 
     [TestMethod]
@@ -715,9 +715,9 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
-        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
-        Assert.AreEqual("All chakra cards are already face up.", requester.Leader.AvailableActions[0].DisabledReason);
+        Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
+        Assert.IsFalse(GetLeaderEffectActions(requester.Leader)[0].IsEnabled);
+        Assert.AreEqual("All chakra cards are already face up.", GetLeaderEffectActions(requester.Leader)[0].DisabledReason);
     }
 
     [TestMethod]
@@ -759,10 +759,10 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
-        Assert.AreEqual("Activate Main", requester.Leader.AvailableActions[0].Label);
-        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
-        Assert.AreEqual("No valid targets available.", requester.Leader.AvailableActions[0].DisabledReason);
+        Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
+        Assert.AreEqual("Activate Main", GetLeaderEffectActions(requester.Leader)[0].Label);
+        Assert.IsFalse(GetLeaderEffectActions(requester.Leader)[0].IsEnabled);
+        Assert.AreEqual("No valid targets available.", GetLeaderEffectActions(requester.Leader)[0].DisabledReason);
     }
 
     [TestMethod]
@@ -822,9 +822,9 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
-        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
-        Assert.AreEqual("No valid targets available.", requester.Leader.AvailableActions[0].DisabledReason);
+        Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
+        Assert.IsFalse(GetLeaderEffectActions(requester.Leader)[0].IsEnabled);
+        Assert.AreEqual("No valid targets available.", GetLeaderEffectActions(requester.Leader)[0].DisabledReason);
     }
 
     [TestMethod]
@@ -867,9 +867,9 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
-        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
-        Assert.AreEqual("No valid targets available.", requester.Leader.AvailableActions[0].DisabledReason);
+        Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
+        Assert.IsFalse(GetLeaderEffectActions(requester.Leader)[0].IsEnabled);
+        Assert.AreEqual("No valid targets available.", GetLeaderEffectActions(requester.Leader)[0].DisabledReason);
     }
 
     [TestMethod]
@@ -910,9 +910,9 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
-        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
-        Assert.AreEqual("No valid targets available.", requester.Leader.AvailableActions[0].DisabledReason);
+        Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
+        Assert.IsFalse(GetLeaderEffectActions(requester.Leader)[0].IsEnabled);
+        Assert.AreEqual("No valid targets available.", GetLeaderEffectActions(requester.Leader)[0].DisabledReason);
     }
 
     [TestMethod]
@@ -948,10 +948,10 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(2, requester.Leader.AvailableActions.Count);
+        Assert.AreEqual(2, GetLeaderEffectActions(requester.Leader).Count);
         CollectionAssert.AreEqual(
             new[] { "Activate Main (1)", "Activate Main (2)" },
-            requester.Leader.AvailableActions.Select(action => action.Label).ToArray());
+            GetLeaderEffectActions(requester.Leader).Select(action => action.Label).ToArray());
     }
 
     [TestMethod]
@@ -968,7 +968,7 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(0, requester.Leader.AvailableActions.Count);
+        Assert.AreEqual(0, GetLeaderEffectActions(requester.Leader).Count);
     }
 
     [TestMethod]
@@ -989,9 +989,9 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
-        Assert.IsFalse(requester.Leader.AvailableActions[0].IsEnabled);
-        Assert.AreEqual(EffectRestrictionMessages.OncePerTurn, requester.Leader.AvailableActions[0].DisabledReason);
+        Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
+        Assert.IsFalse(GetLeaderEffectActions(requester.Leader)[0].IsEnabled);
+        Assert.AreEqual(EffectRestrictionMessages.OncePerTurn, GetLeaderEffectActions(requester.Leader)[0].DisabledReason);
     }
 
     [TestMethod]
@@ -1013,9 +1013,9 @@ public sealed class GameStateResponseMapperCardActionsTests
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
 
-        Assert.AreEqual(1, requester.Leader.AvailableActions.Count);
-        Assert.IsTrue(requester.Leader.AvailableActions[0].IsEnabled);
-        Assert.IsNull(requester.Leader.AvailableActions[0].DisabledReason);
+        Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
+        Assert.IsTrue(GetLeaderEffectActions(requester.Leader)[0].IsEnabled);
+        Assert.IsNull(GetLeaderEffectActions(requester.Leader)[0].DisabledReason);
     }
 
     private static void SetLeaderEffectRestriction(GameState state, EffectRestrictions restriction)
@@ -1211,4 +1211,145 @@ public sealed class GameStateResponseMapperCardActionsTests
             }
         };
     }
+    [TestMethod]
+    public void ToGameStateResponse_MapsBattleAction_ForLeaderInMainPhase()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = GetLeaderBattleAction(requester.Leader);
+
+        Assert.AreEqual($"battle-action:leader-{requesterId}", battleAction.ActionId);
+        Assert.AreEqual("Battle", battleAction.Label);
+        Assert.IsTrue(battleAction.IsEnabled, battleAction.DisabledReason ?? string.Empty);
+        Assert.IsNull(battleAction.DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_MapsLeaderBattleAction_WhenLeaderEnteredFieldThisTurn()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+
+        // A battlefield card would be blocked here without Rush; leaders ignore the summon-turn rule.
+        state.Players.Single(player => player.PlayerId == requesterId).LeaderCardInstance!.EnteredFieldTurnNumber = 3;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = GetLeaderBattleAction(requester.Leader);
+
+        Assert.IsTrue(battleAction.IsEnabled, battleAction.DisabledReason ?? string.Empty);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesLeaderBattleAction_WhenLeaderIsRested()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+        state.Players.Single(player => player.PlayerId == requesterId).LeaderCardInstance!.IsRested = true;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = GetLeaderBattleAction(requester.Leader);
+
+        Assert.IsTrue(requester.Leader.IsRested);
+        Assert.IsFalse(battleAction.IsEnabled);
+        Assert.AreEqual("Cannot declare battle action because the card is rested.", battleAction.DisabledReason);
+    }
+
+    // The leader now also publishes the shared Battle action, so leader effect assertions read the
+    // `leader-effect:` entries instead of relying on the total action count.
+    [TestMethod]
+    public void ToGameStateResponse_DisablesLeaderBattleAction_OnFirstTurn()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 1;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = GetLeaderBattleAction(requester.Leader);
+
+        Assert.IsFalse(battleAction.IsEnabled);
+        Assert.AreEqual("Cannot declare battle action because it is the first turn.", battleAction.DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesLeaderBattleAction_OutsideMainPhase()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.ActionStep;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = GetLeaderBattleAction(requester.Leader);
+
+        Assert.IsFalse(battleAction.IsEnabled);
+        Assert.AreEqual(
+            "Battle actions are only available during your own main phase.",
+            battleAction.DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DoesNotMapBattleAction_ForOpponentLeader()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var opponent = response.Players.Single(player => player.PlayerId == opponentId);
+
+        Assert.AreEqual(0, opponent.Leader.AvailableActions.Count);
+    }
+
+    private static GameActionOptionResponse GetLeaderBattleAction(LeaderCardInstanceResponse leader)
+    {
+        return leader.AvailableActions.Single(action =>
+            action.ActionId.StartsWith("battle-action:", StringComparison.Ordinal));
+    }
+
+    private static IReadOnlyList<GameActionOptionResponse> GetLeaderEffectActions(LeaderCardInstanceResponse leader)
+    {
+        return leader.AvailableActions
+            .Where(action => action.ActionId.StartsWith("leader-effect:", StringComparison.Ordinal))
+            .ToList();
+    }
+
+
 }

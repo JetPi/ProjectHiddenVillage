@@ -93,6 +93,18 @@ paths:
   classes via `ENABLED_RECOVERY_CLASSNAME`/`DISABLED_RECOVERY_CLASSNAME`.
 - `disableInteractions` (targeting) suppresses preview + action overlays.
 
+## Rested vs exhausted on the board
+
+- Rested = rotated `rotate-[14deg]` + `opacity-80 saturate-75`, driven by
+  `isCardRestedState(card, optimisticRestedByInstanceId)`. The **leader** gets the same
+  treatment via `buildLeaderCardProps({ isRested })` (mirrors `BattleFieldRow`, including the
+  “don’t dim while the attack sequence is pending for the link source” rule); its rested flag
+  must come from the server (`resolveLeaderCard` → `leader.isRested`), never hardcoded.
+- `isExhausted` must **not** be OR-ed into the rested check anywhere: exhaustion means the card
+  left play (exile pile), so it is not rendered as a rested card at all — an exiled card simply
+  disappears from the field lookup. The same applies to `gameUIStore`’s optimistic-rest
+  reconciliation.
+
 ## Targeting-highlight CSS gotcha (`client/src/index.css`)
 
 - `.battle-target-top > *`, `.battle-target-bottom > *` (and the leader variants)

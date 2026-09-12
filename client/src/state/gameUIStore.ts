@@ -169,7 +169,9 @@ function pruneStaleGameUIState(): void {
         continue
       }
 
-      if (matchedCard.isRested || matchedCard.isExhausted) {
+      // Exhaustion means the card left play, so it never reads as rested here: an exiled card is
+      // simply absent from the field and drops out via the lookup above.
+      if (matchedCard.isRested) {
         continue
       }
 

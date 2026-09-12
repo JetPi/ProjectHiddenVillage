@@ -34,7 +34,7 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                     && data.normalizedAttackLinkSourceCardId === card.instanceId.trim().toLowerCase()
                 const isAttackLinkTarget = data.normalizedAttackLinkTargetCardId.length > 0
                     && data.normalizedAttackLinkTargetCardId === card.instanceId.trim().toLowerCase()
-                const isCardRested = card.isRested || card.isExhausted || data.optimisticRestedByInstanceId[card.instanceId] === true
+                const isCardRested = card.isRested || data.optimisticRestedByInstanceId[card.instanceId] === true
                 const shouldDelayRestedDimming = Boolean(props.gameState.isAttackSequencePending) && isAttackLinkSource
                 const shouldDimRestedCard = isCardRested && !shouldDelayRestedDimming
 

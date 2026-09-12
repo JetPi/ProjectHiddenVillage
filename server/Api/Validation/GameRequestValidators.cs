@@ -340,7 +340,7 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
                 effect.RuleFor(value => value)
                     .Must(UsesSupportedPredicatePropertiesOnly)
-                    .WithMessage("Predicates can only use Self, Name, Trait, Type, Color, Power, Damage, Health, CurrentHealth, IsExhausted, and IsRested properties.");
+                    .WithMessage("Predicates can only use Self, Name, Trait, Type, Color, Power, Damage, Health, CurrentHealth, and IsRested properties.");
 
                 effect.RuleFor(value => value.TargetRules.ExactTargetCount)
                     .GreaterThanOrEqualTo(0)
@@ -933,7 +933,6 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                 or ZoneCardProperty.Damage
                 or ZoneCardProperty.Health
                 or ZoneCardProperty.CurrentHealth
-                or ZoneCardProperty.IsExhausted
                 or ZoneCardProperty.IsRested);
     }
 

@@ -181,6 +181,9 @@ function GameZones(props: IGameZonesProps) {
     [bottomLeaderCard, validBattleTargetsByCardId]
   );
 
+  const resolveLeaderRestedState = (instanceId: string | undefined) =>
+    instanceId ? cardRestedStateByInstanceId.get(instanceId.trim().toLowerCase()) === true : false
+
   const topLeaderCardProps = buildLeaderCardProps(props, {
     card: cardOptions.topLeaderCard,
     slotSide: 'top',
@@ -190,6 +193,7 @@ function GameZones(props: IGameZonesProps) {
     hidePreviewWhenBattleTarget: isBattleActionTargeting,
     isEffectActionTargeting,
     showBadgeWhenLifeMissing: true,
+    isRested: resolveLeaderRestedState(cardOptions.topLeaderCard?.instanceId),
   })
 
   const bottomLeaderCardProps = buildLeaderCardProps(props, {
@@ -200,6 +204,7 @@ function GameZones(props: IGameZonesProps) {
     activeAttackLink: renderedAttackLink,
     hidePreviewWhenBattleTarget: isBattleActionTargeting,
     isEffectActionTargeting,
+    isRested: resolveLeaderRestedState(cardOptions.bottomLeaderCard?.instanceId),
   })
 
   const battlefieldRowProps = {

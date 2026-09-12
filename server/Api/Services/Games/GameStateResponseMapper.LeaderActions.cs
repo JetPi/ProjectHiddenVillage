@@ -32,8 +32,8 @@ public static partial class GameStateResponseMapper
             CurrentLife: resolvedCurrentLife,
             RecoveryEffect: leader!.RecoveryEffect)
         {
-            IsExhausted = false,
-            IsRested = false,
+            IsExhausted = leader.IsExhausted,
+            IsRested = leader.IsRested,
             AvailableActions = availableActions
         };
     }
@@ -68,11 +68,6 @@ public static partial class GameStateResponseMapper
             candidateEffects.Add((entry.Effect, entry.Index, effectKey, baseLabel));
         }
 
-        if (candidateEffects.Count == 0)
-        {
-            return [];
-        }
-
         var labelCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var candidate in candidateEffects)
         {
@@ -86,7 +81,7 @@ public static partial class GameStateResponseMapper
         }
 
         var labelOrdinals = new Dictionary<string, int>(StringComparer.Ordinal);
-        var actions = new List<GameActionOptionResponse>(capacity: candidateEffects.Count);
+        var actions = new List<GameActionOptionResponse>(capacity: candidateEffects.Count + 1);
         GameInstance? evaluationGame = null;
         foreach (var candidate in candidateEffects)
         {
@@ -117,6 +112,10 @@ public static partial class GameStateResponseMapper
                 IsEnabled: isEnabled,
                 DisabledReason: disabledReason));
         }
+
+        // Leaders declare battle exactly like battlefield cards do: the Battle action is always
+        // published for the requesting player's leader (enabled or disabled with a reason).
+        actions.AddRange(BuildBattleActionOptions(leader, state, isLeader: true));
 
         return actions;
     }

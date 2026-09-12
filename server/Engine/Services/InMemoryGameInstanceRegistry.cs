@@ -758,6 +758,44 @@ public sealed class InMemoryGameInstanceRegistry
         return string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
+    // Resolves a live card instance a player can act from: battlefield cards and the leader.
+    private static CardInstance? FindOwnedCardInstance(PlayerState player, string? instanceId)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return null;
+        }
+
+        var battlefieldCard = player.Battlefield.FirstOrDefault(card =>
+            string.Equals(card.InstanceId, instanceId, StringComparison.Ordinal));
+        if (battlefieldCard is not null)
+        {
+            return battlefieldCard;
+        }
+
+        var leader = player.LeaderCardInstance;
+        return leader is not null
+            && string.Equals(leader.InstanceId, instanceId, StringComparison.Ordinal)
+                ? leader
+                : null;
+    }
+
+    private static (PlayerState Player, CardInstance Card)? FindCardInstanceWithOwner(
+        GameState state,
+        string? instanceId)
+    {
+        foreach (var player in state.Players)
+        {
+            var card = FindOwnedCardInstance(player, instanceId);
+            if (card is not null)
+            {
+                return (player, card);
+            }
+        }
+
+        return null;
+    }
+
     private static string ResolveActionSourceCardInstanceId(string actionId, string actionPrefix)
     {
         if (actionPrefix == LeaderEffectActionPrefix)
@@ -940,21 +978,20 @@ public sealed class InMemoryGameInstanceRegistry
         string playerId,
         PlayerState actingPlayer)
     {
-        var attacker = actingPlayer.Battlefield.FirstOrDefault(card =>
-            string.Equals(card.InstanceId, sourceCardInstanceId, StringComparison.Ordinal));
+        var attacker = FindOwnedCardInstance(actingPlayer, sourceCardInstanceId);
         if (attacker is null)
         {
             throw new InvalidOperationException(
-                $"Battlefield card instance '{sourceCardInstanceId}' was not found for player '{playerId}'.");
+                $"Card instance '{sourceCardInstanceId}' was not found for player '{playerId}'.");
         }
 
-        if (attacker.IsRested || attacker.IsExhausted)
+        if (attacker.IsRested)
         {
             return new GameCardActionTargetsResponse(
                 ActionId: actionId,
                 SourceCardInstanceId: sourceCardInstanceId,
                 IsEnabled: false,
-                DisabledReason: "Only active characters can declare attacks.",
+                DisabledReason: "Only active cards can declare attacks.",
                 MinimumTargetCount: 1,
                 MaximumTargetCount: 1,
                 ExactTargetCount: 1,
@@ -1310,17 +1347,16 @@ public sealed class InMemoryGameInstanceRegistry
         PlayerState actingPlayer,
         IGameSequentialEffectExecutor sequentialEffectExecutor)
     {
-        var attacker = actingPlayer.Battlefield.FirstOrDefault(card =>
-            string.Equals(card.InstanceId, request.SourceCardInstanceId, StringComparison.Ordinal));
+        var attacker = FindOwnedCardInstance(actingPlayer, request.SourceCardInstanceId);
         if (attacker is null)
         {
             throw new InvalidOperationException(
-                $"Battlefield card instance '{request.SourceCardInstanceId}' was not found for player '{playerId}'.");
+                $"Card instance '{request.SourceCardInstanceId}' was not found for player '{playerId}'.");
         }
 
         if (attacker.IsRested)
         {
-            throw new InvalidOperationException("Attacking character must be active before declaring an attack.");
+            throw new InvalidOperationException("Attacking card must be active before declaring an attack.");
         }
 
         var selectedTarget = request.SelectedTargets?.FirstOrDefault();
@@ -1531,9 +1567,7 @@ public sealed class InMemoryGameInstanceRegistry
             return;
         }
 
-        var attacker = state.Players
-            .SelectMany(player => player.Battlefield)
-            .FirstOrDefault(card => string.Equals(card.InstanceId, state.PendingAttackAttackerInstanceId, StringComparison.Ordinal));
+        var attacker = FindCardInstanceWithOwner(state, state.PendingAttackAttackerInstanceId)?.Card;
 
         if (attacker is not null)
         {
@@ -1744,6 +1778,22 @@ public sealed class InMemoryGameInstanceRegistry
         return clonedDefinition;
     }
 
+    // Attackers always fight with their current (effect-modified) stats so battle damage matches the
+    // values the client is shown. Leaders keep their power/damage on the leader instance.
+    private static int ResolveAttackPower(GameInstance instance, CardInstance attacker, Card attackerDefinition)
+    {
+        return attacker is LeaderCardInstanceState leaderAttacker
+            ? CardRuntimeEffectStateService.ResolveEffectiveLeaderPower(instance.State, leaderAttacker)
+            : CardRuntimeEffectStateService.ResolveEffectivePower(instance.State, attacker, attackerDefinition);
+    }
+
+    private static int ResolveAttackDamage(GameInstance instance, CardInstance attacker, Card attackerDefinition)
+    {
+        return attacker is LeaderCardInstanceState leaderAttacker
+            ? CardRuntimeEffectStateService.ResolveEffectiveLeaderDamage(instance.State, leaderAttacker)
+            : CardRuntimeEffectStateService.ResolveEffectiveDamage(instance.State, attacker, attackerDefinition);
+    }
+
     private static void ResolveLeaderAttack(GameInstance instance, CardInstance attacker, PlayerState defenderPlayer)
     {
         var leader = defenderPlayer.LeaderCardInstance
@@ -1754,7 +1804,7 @@ public sealed class InMemoryGameInstanceRegistry
             throw new InvalidOperationException($"Card definition '{attacker.CardDefinitionId}' was not found.");
         }
 
-        var attackDamage = attacker.DamageOverride ?? attackerDefinition.Damage;
+        var attackDamage = ResolveAttackDamage(instance, attacker, attackerDefinition);
         leader.CurrentLife = Math.Max(0, leader.CurrentLife - attackDamage);
     }
 
@@ -1775,8 +1825,12 @@ public sealed class InMemoryGameInstanceRegistry
             throw new InvalidOperationException($"Card definition '{defender.CardDefinitionId}' was not found or is not a character.");
         }
 
-        var attackerPower = attacker.PowerOverride ?? attackerDefinition.Power;
-        var defenderMaxHealth = defender.HealthOverride ?? defenderCharacterDefinition.Health;
+        var attackerPower = ResolveAttackPower(instance, attacker, attackerDefinition);
+        // Health is max health minus damage taken this turn, so the max has to be the effective value.
+        var defenderMaxHealth = CardRuntimeEffectStateService.ResolveEffectiveHealth(
+            instance.State,
+            defender,
+            defenderCharacterDefinition);
         var defenderCurrentHealth = defender.CurrentHealth ?? defenderMaxHealth;
         var nextHealth = defenderCurrentHealth - attackerPower;
         defender.CurrentHealth = nextHealth;
@@ -1833,7 +1887,17 @@ public sealed class InMemoryGameInstanceRegistry
             return true;
         }
 
-        return activePlayer.Battlefield.Any(card => !card.IsRested && !card.IsExhausted);
+        // A card only counts as a legal action when it can actually declare battle: active, able to
+        // attack, and past summon sickness unless it has Rush. Leaders rest but never exhaust
+        // (exhaustion marks a card that left play) and are always on the field.
+        if (activePlayer.Battlefield.Any(card => BattleActionRules.CanDeclareBattleAction(instance.State, card)))
+        {
+            return true;
+        }
+
+        var leader = activePlayer.LeaderCardInstance;
+        return leader is not null
+            && BattleActionRules.CanDeclareBattleAction(instance.State, leader, isLeader: true);
     }
 
     private void ApplyPendingAttackResolutionIfNeeded(GameInstance instance, GamePhase previousPhase)
@@ -1854,10 +1918,7 @@ public sealed class InMemoryGameInstanceRegistry
 
     private void ApplyPendingAttackDamage(GameInstance instance)
     {
-        var attackerPlayer = instance.State.Players.FirstOrDefault(player =>
-            player.Battlefield.Any(card => string.Equals(card.InstanceId, instance.State.PendingAttackAttackerInstanceId, StringComparison.Ordinal)));
-        var attacker = attackerPlayer?.Battlefield.FirstOrDefault(card =>
-            string.Equals(card.InstanceId, instance.State.PendingAttackAttackerInstanceId, StringComparison.Ordinal));
+        var attacker = FindCardInstanceWithOwner(instance.State, instance.State.PendingAttackAttackerInstanceId)?.Card;
 
         if (attacker is null)
         {

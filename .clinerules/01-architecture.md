@@ -87,8 +87,10 @@ paths:
   partial` facade in `server/Api/Services/Games/` split by concern
   (`GameStateResponseMapper.{Shared,PhaseActions,Zones,CardActions,HandActions,
   SupportActions,BattleActions,LeaderActions,EffectAvailability,EffectLabels}.cs`);
-  the entry file only keeps `ToGameStateResponse` + prompt/attack projections, and
-  shared id comparison lives in `GameStatePlayerResolver`. Key entry points:
+  the entry file only keeps `ToGameStateResponse` + prompt/attack projections,
+  shared id comparison lives in `GameStatePlayerResolver`, and battle-action legality
+  lives in `BattleActionRules` (shared with the engine — see
+  `03-targeting-contract.md`). Key entry points:
   `BuildLeaderAvailableActions`, `BuildEffectOptionLabel`; target responses:
   `InMemoryGameInstanceRegistry.GetCardActionTargets` + `Build*CardActionTargets`
   (see `03-targeting-contract.md`). Leader “Recovery” = `EffectKind.Recovery`

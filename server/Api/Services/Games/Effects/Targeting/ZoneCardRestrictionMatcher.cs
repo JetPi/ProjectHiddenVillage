@@ -110,7 +110,6 @@ internal static class ZoneCardRestrictionMatcher
             ZoneCardProperty.CurrentHealth => [(cardInstance?.CurrentHealth ?? effectiveHealth).ToString()],
             ZoneCardProperty.OwnerPlayerId => cardInstance is null ? [] : [cardInstance.OwnerPlayerId],
             ZoneCardProperty.ControllerPlayerId => cardInstance is null ? [] : [cardInstance.ControllerPlayerId],
-            ZoneCardProperty.IsExhausted => [cardInstance is not null && cardInstance.IsExhausted ? bool.TrueString : bool.FalseString],
             ZoneCardProperty.IsRested => [cardInstance is not null && cardInstance.IsRested ? bool.TrueString : bool.FalseString],
             ZoneCardProperty.CannotBeNormalSummoned => [cardDefinition.CannotBeNormalSummoned ? bool.TrueString : bool.FalseString],
             _ => [],

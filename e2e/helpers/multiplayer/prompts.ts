@@ -2,7 +2,12 @@ import { expect } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
 import { fetchGameState } from './api'
 import { normalizeUserId } from './core'
-import { advancePhaseViaHub, resolvePromptViaHub } from './hub'
+import {
+  ADVANCE_PHASE_INVALID_STATE_ERROR_CODE,
+  describeHubFailure,
+  resolvePromptViaHub,
+  tryAdvancePhaseViaHub,
+} from './hub'
 import type { MultiplayerSetup } from './types'
 
 async function getPromptOwnerByType(
@@ -92,9 +97,10 @@ export async function advanceToMulliganPromptIfNeeded(
   request: APIRequestContext,
   setup: MultiplayerSetup,
 ): Promise<void> {
-  const maxAdvances = 6
+  const maxAttempts = 20
+  let lastRejectedAdvance: string | null = null
 
-  for (let attempt = 0; attempt < maxAdvances; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const mulliganOwner = await getPromptOwnerByType(request, setup, 'Mulligan')
     if (mulliganOwner !== 'none') {
       return
@@ -107,12 +113,25 @@ export async function advanceToMulliganPromptIfNeeded(
     const canAdvance = playerOneState.availableActions.some((action) => action.actionId === 'advance-phase' && action.isEnabled)
 
     if (!canAdvance) {
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      await new Promise((resolve) => setTimeout(resolve, 250))
       continue
     }
 
-    await advancePhaseViaHub(setup.gameCode, activePlayer)
+    const result = await tryAdvancePhaseViaHub(setup.gameCode, activePlayer)
+    if (result.succeeded) {
+      continue
+    }
+
+    // Read-then-act race: between the state read above and this call the phase can advance (or a
+    // prompt can appear) on the server, which then rejects the advance. Nothing is broken — loop
+    // again to observe the mulligan prompt or advance the next phase. Anything else is a real error.
+    if (result.errorCode !== ADVANCE_PHASE_INVALID_STATE_ERROR_CODE) {
+      throw new Error(describeHubFailure('Hub.AdvancePhase', result))
+    }
+
+    lastRejectedAdvance = describeHubFailure('Hub.AdvancePhase', result)
   }
 
-  throw new Error('Failed to reach Mulligan prompt after advancing phases.')
+  const rejectedSuffix = lastRejectedAdvance === null ? '' : ` (last rejected advance: ${lastRejectedAdvance})`
+  throw new Error(`Failed to reach Mulligan prompt after advancing phases${rejectedSuffix}`)
 }

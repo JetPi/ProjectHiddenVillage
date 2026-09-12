@@ -76,7 +76,6 @@ internal static class LeaderTargetRestrictionMatcher
             ZoneCardProperty.CurrentHealth => [effectiveCurrentLife.ToString()],
             ZoneCardProperty.OwnerPlayerId => [leader.OwnerPlayerId],
             ZoneCardProperty.ControllerPlayerId => [leader.ControllerPlayerId],
-            ZoneCardProperty.IsExhausted => [bool.FalseString],
             ZoneCardProperty.CannotBeNormalSummoned => [bool.FalseString],
             _ => [],
         };

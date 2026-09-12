@@ -2,7 +2,7 @@ import { expect } from '@playwright/test'
 import type { APIRequestContext, Page } from '@playwright/test'
 import { fetchGameState } from './api'
 import { normalizeUserId, resolvePlayerState } from './core'
-import { advancePhaseViaHub, completeEndStepViaHub, declareEndStepViaHub, declarePassInActionStepViaHub } from './hub'
+import { ADVANCE_PHASE_INVALID_STATE_ERROR_CODE, completeEndStepViaHub, declareEndStepViaHub, declarePassInActionStepViaHub, describeHubFailure, tryAdvancePhaseViaHub } from './hub'
 import type { GameStateResponse, MultiplayerPages, MultiplayerSetup, PlayerAuth } from './types'
 
 export async function installAnimationCounter(page: Page): Promise<void> {
@@ -110,7 +110,18 @@ async function progressToNextDecisionWindow(
     return 'waiting'
   }
 
-  await advancePhaseViaHub(setup.gameCode, activePlayer)
+  const advanceResult = await tryAdvancePhaseViaHub(setup.gameCode, activePlayer)
+  if (!advanceResult.succeeded) {
+    // Read-then-act race: someone else advanced the phase, or a prompt appeared, after the state
+    // read above. The server rejected our advance — report 'waiting' (never 'progressed') so the
+    // caller re-reads the state instead of failing.
+    if (advanceResult.errorCode === ADVANCE_PHASE_INVALID_STATE_ERROR_CODE) {
+      return 'waiting'
+    }
+
+    throw new Error(describeHubFailure('Hub.AdvancePhase', advanceResult))
+  }
+
   await new Promise((resolve) => setTimeout(resolve, 300))
   return 'progressed'
 }

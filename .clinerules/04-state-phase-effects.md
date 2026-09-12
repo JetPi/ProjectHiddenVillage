@@ -65,6 +65,33 @@ paths:
   (`server/Engine/Services/GamePhaseStateService.cs` + registry). Keep phase
   decisions server-side; the client only auto-signals phases the server exposes.
 
+## Main-phase auto-end, rest/stand & damage resets
+
+- `AutoAdvanceMainPhaseIfNoLegalActions` (registry; called after phase/pass/action mutations)
+  ends the MainPhase when `HasAnyMainPhaseLegalAction` is false. That check calls
+  `BattleActionRules.CanDeclareBattleAction` for battlefield cards **and** the leader, then
+  falls back to hand actions — so the auto-skip and the published availability cannot
+  disagree (a publicly disabled `Battle` chip never counts as a legal action).
+  - **Known gap, deliberately not addressed yet:** support-zone activations are not modelled,
+    so a player whose only play is an unused support in the support zone can still be
+    auto-ended. Closing it means lifting the mapper's support-timing evaluation into shared
+    code.
+- Rest/stand: the attacker rests on declaration (`EnsurePendingAttackAttackerRemainsRested`
+  re-asserts it after when-attacking effects), and `OnEnterRefreshPhase` re-readies the active
+  player's battlefield cards **and their leader**. Because that happens immediately before the
+  MainPhase, “my leader already attacked” is never expressible as a rested leader at MainPhase
+  entry — use a cannot-attack effect if a test needs “this card cannot attack”.
+- Damage resets: `CompleteEndStep` → `ResetTemporaryCharacterDamage` clears battlefield
+  `CurrentHealth` at the turn boundary (character health = effective max health − damage taken
+  this turn). **Leader life is never reset** — only damage and card effects change
+  `CurrentLife`.
+- Exhaustion means the card left play (exile zone) and is never a “rested” state; leaders can
+  never be exhausted. The `ZoneCardProperty.IsExhausted` predicate was removed — do not re-add
+  it (use a zone predicate instead).
+- Client: optimistic rest is keyed by instance id (`optimisticRestedByInstanceId`), so it
+  covers leaders too; a card that leaves play drops out of the character-field lookup rather
+  than reading as rested.
+
 ## Composition
 
 - All game side effects run through

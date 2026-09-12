@@ -56,6 +56,7 @@ export type IGameLeaderCardInstanceResponse = {
   ownerPlayerId: string
   controllerPlayerId: string
   isExhausted: boolean
+  isRested?: boolean
   displayName: string
   color: string
   traits: string[]

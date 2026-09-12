@@ -105,7 +105,6 @@ public enum ZoneCardProperty
     CurrentHealth,
     OwnerPlayerId,
     ControllerPlayerId,
-    IsExhausted,
     IsRested,
     CannotBeNormalSummoned,
 }

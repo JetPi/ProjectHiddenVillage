@@ -1,15 +1,7 @@
 namespace ProjectHiddenVillage.Server;
 
-public sealed class LeaderCardInstanceState
+public sealed class LeaderCardInstanceState: CardInstance
 {
-    public string InstanceId { get; set; } = string.Empty;
-
-    public string CardDefinitionId { get; set; } = string.Empty;
-
-    public string OwnerPlayerId { get; set; } = string.Empty;
-
-    public string ControllerPlayerId { get; set; } = string.Empty;
-
     public string Name { get; set; } = string.Empty;
 
     public CardColor Color { get; set; }
@@ -27,6 +19,4 @@ public sealed class LeaderCardInstanceState
     public int TotalLife { get; set; }
 
     public int CurrentLife { get; set; }
-
-    public bool IsFaceUp { get; set; } = true;
 }

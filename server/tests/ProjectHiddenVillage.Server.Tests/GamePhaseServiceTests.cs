@@ -336,6 +336,69 @@ public sealed class GamePhaseServiceTests
     }
 
     [TestMethod]
+    public void AdvancePhase_EnteringRefreshPhase_ReadiesActivePlayerLeader()
+    {
+        var instance = CreateInstance(phase: GamePhase.DrawPhase, activePlayerId: "p1");
+
+        instance.State.Players[0].LeaderCardInstance = new LeaderCardInstanceState
+        {
+            InstanceId = "leader-p1",
+            CardDefinitionId = "leader-def",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = true
+        };
+
+        instance.State.Players[1].LeaderCardInstance = new LeaderCardInstanceState
+        {
+            InstanceId = "leader-p2",
+            CardDefinitionId = "leader-def",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+            IsRested = true
+        };
+
+        service.AdvancePhase(instance);
+
+        Assert.AreEqual(GamePhase.RefreshPhase, instance.State.Phase);
+        Assert.IsFalse(instance.State.Players[0].LeaderCardInstance!.IsRested);
+        Assert.IsTrue(instance.State.Players[1].LeaderCardInstance!.IsRested);
+    }
+
+    [TestMethod]
+    public void CompleteEndStep_ResetsCharacterDamage_ButKeepsLeaderLife()
+    {
+        var instance = CreateInstance(phase: GamePhase.EndStep, activePlayerId: "p1");
+
+        instance.State.Players[0].LeaderCardInstance = new LeaderCardInstanceState
+        {
+            InstanceId = "leader-p1",
+            CardDefinitionId = "leader-def",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            TotalLife = 5,
+            CurrentLife = 3
+        };
+
+        instance.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "p1-character",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            CurrentHealth = 1
+        });
+
+        service.CompleteEndStep(instance);
+
+        Assert.AreEqual(GamePhase.StartOfMainPhase, instance.State.Phase);
+        // Character health is damage taken within one turn, so it resets at the new turn's start.
+        Assert.IsNull(instance.State.Players[0].Battlefield[0].CurrentHealth);
+        // Leader life is a lasting resource: only damage and card effects change it.
+        Assert.AreEqual(3, instance.State.Players[0].LeaderCardInstance!.CurrentLife);
+    }
+
+    [TestMethod]
     public void DeclarePassInActionStep_GameInstanceOverload_WritesPassLog()
     {
         var instance = CreateInstance(phase: GamePhase.ActionStep, activePlayerId: "p1", priorityPlayerId: "p1");

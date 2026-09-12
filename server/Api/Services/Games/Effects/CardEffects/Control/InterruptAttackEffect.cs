@@ -97,7 +97,7 @@ public sealed class InterruptAttackEffect(
         if (!string.IsNullOrWhiteSpace(pendingAttackerInstanceId))
         {
             var attacker = context.Game.State.Players
-                .SelectMany(player => player.Battlefield)
+                .SelectMany(ResolveActableCards)
                 .FirstOrDefault(card => string.Equals(card.InstanceId, pendingAttackerInstanceId, StringComparison.Ordinal));
 
             if (attacker is not null)
@@ -129,6 +129,20 @@ public sealed class InterruptAttackEffect(
             });
 
         return Result.Success;
+    }
+
+    // Attackers can be battlefield cards or the leader, so interrupt resolution checks both.
+    private static IEnumerable<CardInstance> ResolveActableCards(PlayerState player)
+    {
+        foreach (var card in player.Battlefield)
+        {
+            yield return card;
+        }
+
+        if (player.LeaderCardInstance is not null)
+        {
+            yield return player.LeaderCardInstance;
+        }
     }
 
     private static EffectSpec CreateImplicitAttackTargetSpec(EffectSpec effectSpec)
