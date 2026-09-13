@@ -133,6 +133,8 @@ export type ILeaderCardProps = {
   actionOptions?: IGameActionOptionResponse[]
   isConnected?: boolean
   isActionPending?: boolean
+  isTargetCandidate?: boolean
+  onChooseTarget?: () => void
   onSelectActionOption?: (actionId: string) => void
   leaderCard: {
     id: string

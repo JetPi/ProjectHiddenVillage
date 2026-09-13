@@ -8,6 +8,9 @@ import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/
 const ATTACK_HEAD_OFFSET_DEFAULT = 0.25
 const ATTACK_HEAD_OFFSET_RESTED_RIGHT_TO_LEFT = 0.31
 const ATTACK_HEAD_OFFSET_RESTED_LEFT_TO_RIGHT = 0.22
+// Leaders sit in a fixed frame against the board edge, so they get a gentler rested tilt than the
+// freely-arranged battlefield characters (which use 14deg in BattleFieldRow).
+const LEADER_RESTED_ROTATION_CLASS = 'rotate-[5deg]'
 
 function withTargetGap(anchor: IAttackAnchorPosition, gap: number): IAttackAnchorConfig {
   if (anchor === 'left') {
@@ -238,7 +241,6 @@ function buildLeaderCardProps(
     actionOptions: IGameActionOptionResponse[]
     activeAttackLink?: IAttackFlowLinkState | null
     hidePreviewWhenBattleTarget?: boolean
-    isEffectActionTargeting?: boolean
     showBadgeWhenLifeMissing?: boolean
     isRested?: boolean
   }
@@ -250,7 +252,6 @@ function buildLeaderCardProps(
     actionOptions,
     activeAttackLink = null,
     hidePreviewWhenBattleTarget = false,
-    isEffectActionTargeting = false,
     showBadgeWhenLifeMissing = false,
     isRested = false,
   } = config
@@ -275,18 +276,17 @@ function buildLeaderCardProps(
       'data-card-instance-id': card?.instanceId,
       'data-zone': 'leader-card',
       'data-slot-side': slotSide,
-      onClick: isBattleTarget && card ? () => props.onSelectAttackTarget(card.instanceId) : undefined,
       className: twMerge(
         'h-full transition-transform duration-300 ease-out origin-center',
-        isRested ? 'rotate-[14deg]' : 'rotate-0',
+        isRested ? LEADER_RESTED_ROTATION_CLASS : 'rotate-0',
         shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
-        isBattleTarget ? 'cursor-pointer' : '',
         isAttackLinkEndpoint ? 'attack-link-leader-outline' : ''
       ),
     },
     imageClassName: LEADER_CARD_IMAGE_CLASS,
     hidePreviewButton: hidePreviewWhenBattleTarget && isBattleTarget,
-    disableInteractions: isEffectActionTargeting && isBattleTarget,
+    isTargetCandidate: isBattleTarget,
+    onChooseTarget: card ? () => props.onSelectAttackTarget(card.instanceId) : undefined,
     leaderCard: card,
     previewCard: card ? (props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null) : null,
     showBadgeWhenLifeMissing,

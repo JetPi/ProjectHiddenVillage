@@ -191,7 +191,6 @@ function GameZones(props: IGameZonesProps) {
     actionOptions: cardOptions.topLeaderActionOptions,
     activeAttackLink: renderedAttackLink,
     hidePreviewWhenBattleTarget: isBattleActionTargeting,
-    isEffectActionTargeting,
     showBadgeWhenLifeMissing: true,
     isRested: resolveLeaderRestedState(cardOptions.topLeaderCard?.instanceId),
   })
@@ -203,7 +202,6 @@ function GameZones(props: IGameZonesProps) {
     actionOptions: cardOptions.bottomLeaderActionOptions,
     activeAttackLink: renderedAttackLink,
     hidePreviewWhenBattleTarget: isBattleActionTargeting,
-    isEffectActionTargeting,
     isRested: resolveLeaderRestedState(cardOptions.bottomLeaderCard?.instanceId),
   })
 

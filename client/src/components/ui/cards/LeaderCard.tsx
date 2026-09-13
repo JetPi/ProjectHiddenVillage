@@ -11,6 +11,9 @@ import type { IGameActionOptionResponse } from '@/services/api/types/game'
 const RECOVERY_ACTION_LABEL = 'Recovery'
 const DISABLED_RECOVERY_CLASSNAME = "mx-2 inline-flex h-5 w-5 items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-90"
 const ENABLED_RECOVERY_CLASSNAME = "mx-2 inline-flex h-5 w-5 items-center justify-center rounded-sm border border-orange-400 bg-orange-800 text-orange-200 transition-colors duration-150 hover:bg-orange-700 hover:border-orange-400"
+const LEADER_OVERLAY_CONTAINER_CLASSNAME = 'card-overlay-controls pointer-events-none absolute mx-auto inset-0 z-20 gap-1 w-fit flex flex-col items-center content-center justify-center opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100'
+const LEADER_ACTION_BUTTON_CLASSNAME = 'w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
+const LEADER_CHOOSE_BUTTON_CLASSNAME = 'w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
 
 function splitRecoveryAction(actionOptions: IGameActionOptionResponse[]): {
   actionOptions: IGameActionOptionResponse[]
@@ -44,6 +47,8 @@ export function LeaderCard({
   actionOptions = [],
   isConnected = true,
   isActionPending = false,
+  isTargetCandidate = false,
+  onChooseTarget,
   onSelectActionOption,
 }: ILeaderCardProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
@@ -61,6 +66,9 @@ export function LeaderCard({
   const badgeValue = leaderCard.currentLife ?? 0
   const { actionOptions: leaderActionOptions, recoveryAction } = splitRecoveryAction(actionOptions)
   const isDisabled = !isConnected || isActionPending
+  const isChoosingTarget = isTargetCandidate === true
+  const showPreviewButton = isChoosingTarget || !hidePreviewButton
+  const showOverlayControls = !disableInteractions
 
   return (
     <>
@@ -74,7 +82,7 @@ export function LeaderCard({
         </>
         {shouldRenderBadge ? <CardOverlayBadge className='text-green-300'>{badgeValue}</CardOverlayBadge> : null}
 
-        {previewCard && !hidePreviewButton && !disableInteractions ? (
+        {previewCard && showPreviewButton && showOverlayControls ? (
           <div className="pointer-events-none absolute right-2 top-2 z-30 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
             <button
               type="button"
@@ -94,13 +102,23 @@ export function LeaderCard({
           className={imageClassName}
         />
 
-        {!disableInteractions && leaderActionOptions.length > 0 ? (
-          <div
-            className={twMerge(
-              'pointer-events-none absolute mx-auto inset-0 z-20 w-fit flex items-center content-center justify-center opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100',
-              
-            )}
-          >
+        {showOverlayControls && isChoosingTarget && onChooseTarget ? (
+          <div className={LEADER_OVERLAY_CONTAINER_CLASSNAME}>
+            <button
+              type="button"
+              onClick={() => {
+                onChooseTarget()
+              }}
+              disabled={isDisabled}
+              className={LEADER_CHOOSE_BUTTON_CLASSNAME}
+            >
+              Choose
+            </button>
+          </div>
+        ) : null}
+
+        {showOverlayControls && !isChoosingTarget && leaderActionOptions.length > 0 ? (
+          <div className={LEADER_OVERLAY_CONTAINER_CLASSNAME}>
               {leaderActionOptions.map((action) => (
                 <button
                   key={action.actionId}
@@ -110,7 +128,7 @@ export function LeaderCard({
                   onClick={() => {
                     onSelectActionOption?.(action.actionId)
                   }}
-                  className="w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
+                  className={LEADER_ACTION_BUTTON_CLASSNAME}
                 >
                   {action.label}
                 </button>
@@ -120,7 +138,7 @@ export function LeaderCard({
         ) : null}
         
         {
-        !disableInteractions && recoveryAction ? (
+        showOverlayControls && !isChoosingTarget && recoveryAction ? (
           <div className="pointer-events-none absolute bottom-0 left-0 z-30 mb-1 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
             <button
               type="button"
