@@ -210,6 +210,7 @@ function submitMappedAction({
           maximumTargetCount: targetsResponse.maximumTargetCount,
           exactTargetCount: targetsResponse.exactTargetCount,
           autoSelectAllValidTargets: targetsResponse.autoSelectAllValidTargets,
+          materialRequirements: targetsResponse.materialRequirements ?? [],
           requirementLabelsByCardInstanceId: buildRequirementLabelsByCardInstanceId(
             targetsResponse.requirementLabels,
           ),

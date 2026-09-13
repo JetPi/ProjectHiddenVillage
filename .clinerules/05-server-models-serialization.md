@@ -104,10 +104,43 @@ paths:
   `imagePreloadCache` dedupes by URL. This makes first-time preview popups
   instant instead of loading on hover.
 
+## Seed fixtures & the real card catalogue (test data)
+
+- `test-data/seed-profiles.json` is the only hand-written card source: `catalogEntries` holds
+  every card referenced by a `profiles[].decks` card id, and `scripts/e2e-start-server.sh` seeds all
+  profiles (`PHV_INCLUDE_TEST_SEED_PROFILES=true`) while normal dev startup seeds `default` only.
+- `catalogEntries` is **generated from `server/Api/rawCardCatalogDump.txt`** (the real catalogue:
+  `N-001…N-022` plus `C-*`/`S-*`/`SAMPLE-*` rows no deck uses). Regenerate by rebuilding
+  `catalogEntries` from the dump for every id a profile references; keep the dump in-repo so the
+  manifest stays reproducible. Only `catalogEntries` is generated — `profiles`/`decks` are
+  hand-authored, so preserve them, and sanity-diff the regenerated entries against the current ones
+  (`grep -c 'Is Rested' test-data/seed-profiles.json` should stay 2, deck card ids unchanged)
+  instead of overwriting blind. **`T-120` is the only non-real fixture** (Character, power 10, no
+  effects) because Gamabunta's `Power >= 10` rule needs a normally-summonable ≥10-power character and
+  the real catalogue has none (N-003/N-005/N-014 are EX + `cannotBeNormalSummoned`).
+- `DevelopmentDeckSeeder` **upserts** those definitions for referenced ids (the manifest wins over
+  existing rows) and only fabricates placeholders for ids that are still missing —
+  `SeedPlaceholderCatalogEntriesAsync` skips ids already present, so real imported rows are never
+  overwritten. `PlaceholderLeaderCardIds`/`PlaceholderSupportCapableCardIds` are that fallback only and
+  are dormant now, so
+  `DevelopmentDeckSeederTests.SeedAsync_CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing`
+  has a stale name (N-008 always resolves from the manifest; its assertions still pass).
+- e2e/CI must not depend on the external art host: `scripts/e2e-start-server.sh` exports
+  `CardArt__SourceHostAllowlist__0="e2e.invalid"`, which makes `/api/card-art` refuse the real host
+  **without any network call** (verified: 404 in ~0.1 s) so `CardImage` falls back deterministically.
+  Use the indexed (`__0`) env form — a comma-less single value is not a reliable `List<string>` binding.
+
 ## Testing notes
 
 - `dotnet build server/…` and targeted tests (`GameStateResponseMapper*`,
-  `CardRuntimeEffectDuration*`) are the quick server gates. Some unrelated mapper
-  tests were observed failing on the feature branch (Recovery chakra disabled
-  reason / quick-support windows / rush battle-action availability) — check whether
-  they pre-exist before attributing them to a change.
+  `CardRuntimeEffectDuration*`, `EffectTargetResolverTests`) are the quick server gates.
+- **7 pre-existing failures** are expected in the full suite; they fail identically with your change
+  reverted (stash only your own edits and park new untracked files to confirm). Verified baseline:
+  `Failed: 7, Passed: 384, Total: 391`, and the seven are:
+  `GameEffectCanExecuteEvaluatorTests.Evaluate_ReturnsCannotExecute_WhenExactCountIsCombinedWithMinimumOrMaximum`,
+  `GameStateResponseMapperCardActionsTests.ToGameStateResponse_DoesNotMapBattleAction_ForCardSummonedThisTurnWithoutRush`,
+  `…_ForRestedCard`, `…_ForCardWithCannotAttackKeyword`,
+  `…_EnablesOpponentQuickSupport_InActionStepCutInWindow`,
+  `…_DisablesRecoveryLeaderEffect_WhenAllChakraCardsAreFaceUp`, and
+  `InMemoryGameInstanceRegistryTests.GetCardActionTargets_LeaderEffect_ReturnsPrecomputedTargets`.
+  Totals drift as tests are added — compare *names*, not counts.

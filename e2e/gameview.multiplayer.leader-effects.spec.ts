@@ -18,12 +18,12 @@ import type { MultiplayerPages, MultiplayerSetup, PlayerAuth } from './helpers/g
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-// `test-data/seed-profiles.json` gives the summon-requirements leader (T-001) a targeted
-// "[Activate: Main] give a character in the character field +3 power" effect. That fixture is seeded in
-// every environment - including CI, where the imported card catalog is replaced by placeholder catalog
-// entries without effects - so this spec can rely on the effect existing.
-const TARGETED_LEADER_EFFECT_SUFFIX = ':training-power'
-const SUMMONABLE_CARD_DEFINITION_ID = 'T-100'
+// `test-data/seed-profiles.json` seeds the real N-001 (Naruto Uzumaki) leader together with its
+// targeted "[Activate: Main] choose 1 Character: the chosen card gets +3 power this turn" effect
+// (`power-up-card`). That fixture is seeded in every environment - including CI, where the imported
+// card catalog is replaced by placeholder catalog entries - so this spec can rely on it existing.
+const TARGETED_LEADER_EFFECT_SUFFIX = ':power-up-card'
+const SUMMONABLE_CARD_DEFINITION_ID = 'N-021'
 
 type ResolvedLeaderEffect = {
   player: PlayerAuth

@@ -2,7 +2,7 @@ import { expect } from '@playwright/test'
 import type { APIRequestContext, Page } from '@playwright/test'
 import { fetchGameState } from './api'
 import { normalizeUserId, resolvePlayerState } from './core'
-import { ADVANCE_PHASE_INVALID_STATE_ERROR_CODE, completeEndStepViaHub, declareEndStepViaHub, declarePassInActionStepViaHub, describeHubFailure, tryAdvancePhaseViaHub } from './hub'
+import { ADVANCE_PHASE_INVALID_STATE_ERROR_CODE, COMPLETE_END_STEP_INVALID_STATE_ERROR_CODE, DECLARE_END_STEP_INVALID_STATE_ERROR_CODE, declarePassInActionStepViaHub, describeHubFailure, tryAdvancePhaseViaHub, tryCompleteEndStepViaHub, tryDeclareEndStepViaHub } from './hub'
 import type { GameStateResponse, MultiplayerPages, MultiplayerSetup, PlayerAuth } from './types'
 
 export async function installAnimationCounter(page: Page): Promise<void> {
@@ -84,8 +84,23 @@ async function progressToNextDecisionWindow(
 
   const canEndTurn = activePlayerState.availableActions.some((action) => action.actionId === 'turn-end' && action.isEnabled)
   if (canEndTurn) {
-    await declareEndStepViaHub(setup.gameCode, activePlayer)
-    await completeEndStepViaHub(setup.gameCode, activePlayer)
+    // Read-then-act race: the state above is a snapshot, so either end-step call can be rejected by
+    // the server once the phase has already moved (e.g. it auto-completed the end step). Absorb the
+    // invalid-state rejections and report 'waiting' so the caller re-reads instead of failing.
+    const declareResult = await tryDeclareEndStepViaHub(setup.gameCode, activePlayer)
+    if (!declareResult.succeeded && declareResult.errorCode !== DECLARE_END_STEP_INVALID_STATE_ERROR_CODE) {
+      throw new Error(describeHubFailure('Hub.DeclareEndStep', declareResult))
+    }
+
+    const completeResult = await tryCompleteEndStepViaHub(setup.gameCode, activePlayer)
+    if (!completeResult.succeeded) {
+      if (completeResult.errorCode === COMPLETE_END_STEP_INVALID_STATE_ERROR_CODE) {
+        return 'waiting'
+      }
+
+      throw new Error(describeHubFailure('Hub.CompleteEndStep', completeResult))
+    }
+
     await new Promise((resolve) => setTimeout(resolve, 300))
     return 'progressed'
   }

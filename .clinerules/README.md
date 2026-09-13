@@ -34,6 +34,21 @@ task touches that area).
   detached (`nohup … > /tmp/x.log 2>&1 & disown`) and poll the log with
   `read_files`; capture grep/eslint output in a file before reading it.
 
+## Pending follow-ups (pick up here)
+
+- **Commit the catalogue regeneration script** — `catalogEntries` is generated from
+  `server/Api/rawCardCatalogDump.txt`; the working one-off script only lives in `/tmp`
+  (details in `05-server-models-serialization.md`).
+- **Rename the stale seeder test**
+  `DevelopmentDeckSeederTests.SeedAsync_CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing`
+  — N-008 now always resolves from the manifest (the assertion still passes).
+- **Add specs for the newly seeded real cards** (all listed in
+  `03-targeting-contract.md`): quick support cut-in, Support-Activated negate,
+  When-Attacking reveal-summon, conditional Rush, leader Recovery, on-summon chains.
+- **Optional regression test** for N-009 (Kakashi, Support-Activated “reduce your life by 2”):
+  its `reduce-self-life` effect declares a target entry with `exactSelectedTargetCount: 0` while
+  `targetRules.exactTargetCount` is 1 — harmless today, but pin the behaviour before touching it.
+
 ## Commands (quick)
 
 - Frontend dev/build/lint: `cd client && npm run dev` / `npm run build` /
@@ -49,7 +64,7 @@ task touches that area).
 | --- | --- | --- |
 | `01-architecture.md` | `client/src/**`, `server/**` | structure, barrels, refs patterns, anchors |
 | `02-board-ui-hud.md` | board/card UI + `index.css` + battle-visuals e2e | overlays, stat badges, rested-vs-exhausted visuals, targeting highlight CSS |
-| `03-targeting-contract.md` | game client, server game engine/API, e2e | targeting flows, action formats, battle-action rules (DMG/POW, leaders, target legality), submit decisions |
+| `03-targeting-contract.md` | game client, server game engine/API, e2e | targeting flows, action formats, battle-action rules (DMG/POW, leaders, target legality), tribute-material requirements, `Type` predicate normalization, submit decisions |
 | `04-state-phase-effects.md` | stores, game hooks/effects, phase engine | Zustand, prune, auto-advance, main-phase auto-end, rest/stand + damage resets, draw/mulligan gating |
-| `05-server-models-serialization.md` | `server/**`, `client/src/services/api/**` | response DTOs, STJ serialization gotcha, stat pipelines (leader life vs character health), exhaustion = exile |
+| `05-server-models-serialization.md` | `server/**`, `client/src/services/api/**` | response DTOs, STJ serialization gotcha, stat pipelines (leader life vs character health), exhaustion = exile, seed fixtures/real catalogue, known pre-existing test failures |
 | `99-workflow-tooling.md` | always | environment/tooling/edit gotchas (keep short) |

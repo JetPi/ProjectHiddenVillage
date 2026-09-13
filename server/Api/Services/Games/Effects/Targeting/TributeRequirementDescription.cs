@@ -8,6 +8,12 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 /// </summary>
 public static class TributeRequirementDescription
 {
+    /// <summary>
+    /// Label used for tribute material rules that do not restrict the candidate pool. Mirrored by the
+    /// client, which renders it as the "any" material.
+    /// </summary>
+    public const string GenericMaterialLabel = "any";
+
     public static string? BuildShortLabel(EffectTargetRule rule)
     {
         var restriction = rule.Restriction;
