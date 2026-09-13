@@ -224,16 +224,21 @@ test.describe('GameView multiplayer actions', () => {
         return {
           battlefieldHasSummonedCard: actorState.characterField.some((card) => card.instanceId === summonCardInstanceId),
           trashCount: actorState.trash.length,
+          trashHasTributeInstance: actorState.trash.some((card) => card.instanceId === tributeSetupActor.cardInstanceId),
         }
       }, {
         timeout: 12_000,
       }).toEqual({
         battlefieldHasSummonedCard: true,
         trashCount: 1,
+        trashHasTributeInstance: true,
       })
 
+      // The seeded T-* catalog images are placeholder URLs (`https://example.com/...`), so
+      // `/api/card-art` legitimately 404s and `CardImage` swaps to its fallback - asserting on the
+      // resolved art URL is racy. Identify the trash pile's displayed card deterministically instead.
       const bottomTrashPile = ownerPage.locator('[data-side="bottom"] [data-testid="trash-pile-card"]')
-      await expect(bottomTrashPile.locator('img')).toHaveAttribute('src', /card-art\/T-100/, { timeout: 6_000 })
+      await expect(bottomTrashPile).toHaveAttribute('data-card-definition-id', 'T-100', { timeout: 6_000 })
 
       await expect.poll(async () => {
         return await getAnimationCount(ownerPage)
