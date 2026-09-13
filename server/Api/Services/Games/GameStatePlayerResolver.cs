@@ -17,9 +17,4 @@ internal static class GameStatePlayerResolver
         return string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
-    public static PlayerState? GetActivePlayer(GameState state, CardInstance sourceCardInstance)
-    {
-        return state.Players.FirstOrDefault(player =>
-            IsSamePlayerId(player.PlayerId, sourceCardInstance.ControllerPlayerId));
-    }
 }

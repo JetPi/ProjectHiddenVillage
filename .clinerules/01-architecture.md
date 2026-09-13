@@ -83,8 +83,15 @@ paths:
   object; side effects live in `hooks/GameView/effects/useGameViewSideEffects.ts`.
 - Board UI flows through `GameZones.tsx`; interaction state reads come straight
   from `gameUIStore` (see `04-state-phase-effects.md`).
-- Server available actions/leader actions: `GameStateResponseMapper`
-  (`BuildLeaderAvailableActions`, `BuildEffectOptionLabel`); target responses:
+- Server available actions/leader actions: `GameStateResponseMapper` — a `static
+  partial` facade in `server/Api/Services/Games/` split by concern
+  (`GameStateResponseMapper.{Shared,PhaseActions,Zones,CardActions,HandActions,
+  SupportActions,BattleActions,LeaderActions,EffectAvailability,EffectLabels}.cs`);
+  the entry file only keeps `ToGameStateResponse` + prompt/attack projections,
+  shared id comparison lives in `GameStatePlayerResolver`, and battle-action legality
+  lives in `BattleActionRules` (shared with the engine — see
+  `03-targeting-contract.md`). Key entry points:
+  `BuildLeaderAvailableActions`, `BuildEffectOptionLabel`; target responses:
   `InMemoryGameInstanceRegistry.GetCardActionTargets` + `Build*CardActionTargets`
   (see `03-targeting-contract.md`). Leader “Recovery” = `EffectKind.Recovery`
   surfaced with label `"Recovery"`.

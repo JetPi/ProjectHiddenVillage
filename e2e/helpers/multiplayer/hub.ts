@@ -24,107 +24,88 @@ function buildHubConnection(accessToken: string, userId: string) {
   return connection
 }
 
+export type HubInvocationResult<TValue = unknown> = {
+  succeeded: boolean
+  value?: TValue
+  errorCode?: string | null
+  errorDescription?: string | null
+}
+
+async function invokeGameHubMethod<TValue>(
+  player: PlayerAuth,
+  methodName: string,
+  args: unknown[] = [],
+): Promise<HubInvocationResult<TValue>> {
+  const connection = buildHubConnection(player.session.accessToken, player.userId)
+
+  try {
+    await connection.start()
+    return await connection.invoke<HubInvocationResult<TValue>>(methodName, ...args)
+  } finally {
+    await connection.stop()
+  }
+}
+
+export function describeHubFailure(methodLabel: string, result: HubInvocationResult): string {
+  return `${result.errorCode ?? methodLabel}: ${result.errorDescription ?? 'Unknown error'}`
+}
+
+// `GamePhaseHandlingService` maps a thrown `InvalidOperationException` to `{operation}.InvalidState`.
+// For `AdvancePhase` that is the guard in `InMemoryGameInstanceRegistry` rejecting an advance while
+// a prompt is pending — i.e. the read-then-act race the resilient helpers absorb.
+export const ADVANCE_PHASE_INVALID_STATE_ERROR_CODE = 'Game.AdvancePhase.InvalidState'
+
 export async function resolvePromptViaHub(
   gameCode: string,
   player: PlayerAuth,
   selectedOption: string,
 ): Promise<void> {
-  const connection = buildHubConnection(player.session.accessToken, player.userId)
+  const result = await invokeGameHubMethod(player, 'ResolvePrompt', [
+    gameCode.toUpperCase(),
+    {
+      requestedPlayerId: player.normalizedUserId,
+      selectedOption,
+    },
+  ])
 
-  try {
-    await connection.start()
-
-    const result = await connection.invoke<{
-      succeeded: boolean
-      errorCode?: string | null
-      errorDescription?: string | null
-    }>(
-      'ResolvePrompt',
-      gameCode.toUpperCase(),
-      {
-        requestedPlayerId: player.normalizedUserId,
-        selectedOption,
-      },
-    )
-
-    expect(result.succeeded, `${result.errorCode ?? 'Hub.ResolvePrompt'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
-  } finally {
-    await connection.stop()
-  }
+  expect(result.succeeded, describeHubFailure('Hub.ResolvePrompt', result)).toBeTruthy()
 }
 
 export async function advancePhaseViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
-  const connection = buildHubConnection(player.session.accessToken, player.userId)
+  const result = await tryAdvancePhaseViaHub(gameCode, player)
+  expect(result.succeeded, describeHubFailure('Hub.AdvancePhase', result)).toBeTruthy()
+}
 
-  try {
-    await connection.start()
-
-    const result = await connection.invoke<{
-      succeeded: boolean
-      errorCode?: string | null
-      errorDescription?: string | null
-    }>('AdvancePhase', gameCode.toUpperCase())
-
-    expect(result.succeeded, `${result.errorCode ?? 'Hub.AdvancePhase'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
-  } finally {
-    await connection.stop()
-  }
+// Non-asserting variant for callers that must survive a read-then-act race: between reading the
+// state (which reports `advance-phase` as available because no prompt is pending) and this call,
+// a prompt can be created and the server then rejects with `Game.AdvancePhase.InvalidState`.
+// Callers inspect the result instead of failing the spec.
+export async function tryAdvancePhaseViaHub(
+  gameCode: string,
+  player: PlayerAuth,
+): Promise<HubInvocationResult> {
+  return await invokeGameHubMethod(player, 'AdvancePhase', [gameCode.toUpperCase()])
 }
 
 export async function declareEndStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
-  const connection = buildHubConnection(player.session.accessToken, player.userId)
-
-  try {
-    await connection.start()
-
-    const result = await connection.invoke<{
-      succeeded: boolean
-      errorCode?: string | null
-      errorDescription?: string | null
-    }>('DeclareEndStep', gameCode.toUpperCase())
-
-    expect(result.succeeded, `${result.errorCode ?? 'Hub.DeclareEndStep'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
-  } finally {
-    await connection.stop()
-  }
+  const result = await invokeGameHubMethod(player, 'DeclareEndStep', [gameCode.toUpperCase()])
+  expect(result.succeeded, describeHubFailure('Hub.DeclareEndStep', result)).toBeTruthy()
 }
 
 export async function completeEndStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
-  const connection = buildHubConnection(player.session.accessToken, player.userId)
-
-  try {
-    await connection.start()
-
-    const result = await connection.invoke<{
-      succeeded: boolean
-      errorCode?: string | null
-      errorDescription?: string | null
-    }>('CompleteEndStep', gameCode.toUpperCase())
-
-    expect(result.succeeded, `${result.errorCode ?? 'Hub.CompleteEndStep'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
-  } finally {
-    await connection.stop()
-  }
+  const result = await invokeGameHubMethod(player, 'CompleteEndStep', [gameCode.toUpperCase()])
+  expect(result.succeeded, describeHubFailure('Hub.CompleteEndStep', result)).toBeTruthy()
 }
 
 export async function declarePassInActionStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
-  const connection = buildHubConnection(player.session.accessToken, player.userId)
-
-  try {
-    await connection.start()
-
-    const result = await connection.invoke<{
-      succeeded: boolean
-      errorCode?: string | null
-      errorDescription?: string | null
-    }>('DeclarePassInActionStep', gameCode.toUpperCase(), {
+  const result = await invokeGameHubMethod(player, 'DeclarePassInActionStep', [
+    gameCode.toUpperCase(),
+    {
       playerId: player.normalizedUserId,
-    })
+    },
+  ])
 
-    expect(result.succeeded, `${result.errorCode ?? 'Hub.DeclarePassInActionStep'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
-  } finally {
-    await connection.stop()
-  }
+  expect(result.succeeded, describeHubFailure('Hub.DeclarePassInActionStep', result)).toBeTruthy()
 }
 
 export async function executeBattleActionViaHub(

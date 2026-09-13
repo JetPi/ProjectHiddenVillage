@@ -55,7 +55,7 @@ function resolveLeaderCard(
     cardDefinitionId: player?.leader?.cardDefinitionId ?? leaderId,
     ownerPlayerId: player?.leader?.ownerPlayerId ?? player?.playerId ?? '',
     controllerPlayerId: player?.leader?.controllerPlayerId ?? player?.playerId ?? '',
-    isRested: false,
+    isRested: player?.leader?.isRested ?? false,
     isExhausted: player?.leader?.isExhausted ?? false,
     id: leaderId,
     image: resolveCardArtUrl(catalogCard, CARD_ART_WIDTHS.board),

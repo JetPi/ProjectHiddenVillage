@@ -1,6 +1,6 @@
 namespace ProjectHiddenVillage.Server;
 
-public sealed class CardInstance
+public class CardInstance
 {
     public string InstanceId { get; set; } = Guid.NewGuid().ToString("N");
 

@@ -240,6 +240,7 @@ function buildLeaderCardProps(
     hidePreviewWhenBattleTarget?: boolean
     isEffectActionTargeting?: boolean
     showBadgeWhenLifeMissing?: boolean
+    isRested?: boolean
   }
 ): ILeaderCardProps {
   const {
@@ -251,14 +252,21 @@ function buildLeaderCardProps(
     hidePreviewWhenBattleTarget = false,
     isEffectActionTargeting = false,
     showBadgeWhenLifeMissing = false,
+    isRested = false,
   } = config
   const normalizedInstanceId = card?.instanceId.trim().toLowerCase()
   const normalizedAttackLinkSourceCardId = activeAttackLink?.sourceCardInstanceId.trim().toLowerCase() ?? ''
   const normalizedAttackLinkTargetCardId = activeAttackLink?.targetCardInstanceId.trim().toLowerCase() ?? ''
+  const isAttackLinkSource =
+    Boolean(normalizedInstanceId) && normalizedInstanceId === normalizedAttackLinkSourceCardId
   const isAttackLinkEndpoint =
     Boolean(normalizedInstanceId) &&
     (normalizedInstanceId === normalizedAttackLinkSourceCardId ||
       normalizedInstanceId === normalizedAttackLinkTargetCardId)
+  // Mirror the battlefield row: keep a rested attack-link source undimmed until the sequence ends
+  // so the arrow anchor does not visually change while the attack resolves.
+  const shouldDimRestedCard =
+    isRested && !(Boolean(props.gameState.isAttackSequencePending) && isAttackLinkSource)
 
   return {
     className: 'h-full',
@@ -269,7 +277,9 @@ function buildLeaderCardProps(
       'data-slot-side': slotSide,
       onClick: isBattleTarget && card ? () => props.onSelectAttackTarget(card.instanceId) : undefined,
       className: twMerge(
-        'h-full',
+        'h-full transition-transform duration-300 ease-out origin-center',
+        isRested ? 'rotate-[14deg]' : 'rotate-0',
+        shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
         isBattleTarget ? 'cursor-pointer' : '',
         isAttackLinkEndpoint ? 'attack-link-leader-outline' : ''
       ),
@@ -296,7 +306,7 @@ const isMatchingInstance = (targetId: string, cardId: string) =>
   targetId.length > 0 && targetId === cardId;
 
 const isCardRestedState = (card: INonLeaderCardViewModel | ILeaderCardViewModel, optimisticRested: Record<string, boolean>) =>
-  card.isRested || card.isExhausted || optimisticRested[card.instanceId] === true;
+  card.isRested || optimisticRested[card.instanceId] === true;
 
 function extractTargetIds(targets?: Array<{ cardInstanceId: string }> | null): Set<string> {
   const targetIds = new Set<string>();

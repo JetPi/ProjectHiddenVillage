@@ -52,6 +52,30 @@ Used by `leader-effect:*` and `activate-support:*`. It first asks
 Attack (`battle-action:*`) always enters `kind: 'battle'` targeting when valid
 targets exist.
 
+## Battle actions (battlefield cards & leaders)
+
+- `battle-action:{instanceId}` is published per card — battlefield **and** leader — with
+  `Label: "Battle"`. It is emitted for the requesting player's own card (disabled with a
+  reason when it cannot be declared).
+- **Legality has exactly one home**: `server/Api/Services/Games/BattleActionRules.cs`
+  (`ResolveRestriction` / `CanDeclareBattleAction`, `BattleActionRestriction` =
+  `FirstTurn | CardRested | CannotAttackEffect | EnteredFieldThisTurn`, plus `HasRushKeyword`).
+  The mapper's `CanDeclareBattleAction` wraps it into `ErrorOr` (`BattleAction.*` codes + the
+  user-facing copy) and the engine's `HasAnyMainPhaseLegalAction` calls it directly (see
+  `04-state-phase-effects.md`). Never re-implement these rules on either side.
+- Leaders follow battlefield rules with one difference: the summon-turn rule does not apply
+  (leaders are always on the field), so Rush is irrelevant for them.
+- Targeting for `battle-action`: the opposing **leader is always a valid target** (leaders are
+  attackable in Active Mode) plus the opponent's **rested** characters only. There is **no
+  power gate** — any active attacker may declare, and the attacker rests on declaration.
+- Damage: the attacker's **DMG** reduces the defending **leader's life**; the attacker's
+  **POW** reduces a defending **character's health**. Only the defender takes damage (no
+  retaliation). See `05-server-models-serialization.md` for the stat resolvers and
+  `04-state-phase-effects.md` for the per-turn reset.
+- `LeaderCardInstanceState : CardInstance`, so anything that resolves an attacker/defender must
+  consider battlefield **or** leader — the registry helpers `FindOwnedCardInstance` /
+  `FindCardInstanceWithOwner` do exactly that.
+
 ## Server `GetCardActionTargets`
 
 Returns `GameCardActionTargetsResponse` (`IsEnabled`, `DisabledReason`,

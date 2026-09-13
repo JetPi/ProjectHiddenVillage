@@ -143,6 +143,9 @@ public sealed class InMemoryGameInstanceRegistryTests
         game.State.Players[0].Deck.Clear();
         game.State.Players[0].Hand.Clear();
         game.State.Players[0].Battlefield.Clear();
+        // Leaders never exhaust (exhaustion means the card is out of play), so a cannot-attack
+        // effect is what expresses "this card has no legal action left".
+        game.State.Players[0].LeaderCardInstance!.RuntimeKeywords.Add(FreezeCardEffect.CannotAttackKeyword);
         game.State.SetSummonCardReady("p1", false);
 
         registry.AdvancePhase(game.Id);
@@ -151,6 +154,83 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.AreEqual(GamePhase.StartOfMainPhase, game.State.Phase);
         Assert.AreEqual("p2", game.State.ActivePlayerId);
         Assert.AreEqual(2, game.State.TurnNumber);
+    }
+
+    [TestMethod]
+    public void AdvancePhase_KeepsMainPhase_WhenFreshlySummonedCardHasRush()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.DrawPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].TurnCount = 2;
+        game.State.Players[0].Deck.Clear();
+        game.State.Players[0].Hand.Clear();
+        game.State.Players[0].Battlefield.Clear();
+        game.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "rush-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            EnteredFieldTurnNumber = game.State.TurnNumber,
+            RuntimeKeywords = [EffectConditionKeywords.Rush],
+        });
+        // The leader is unable to attack, so the freshly summoned Rush card is the only legal action.
+        game.State.Players[0].LeaderCardInstance!.RuntimeKeywords.Add(FreezeCardEffect.CannotAttackKeyword);
+        game.State.SetSummonCardReady("p1", false);
+
+        registry.AdvancePhase(game.Id);
+        registry.AdvancePhase(game.Id);
+
+        Assert.AreEqual(GamePhase.MainPhase, game.State.Phase);
+        Assert.AreEqual("p1", game.State.ActivePlayerId);
+    }
+
+    [TestMethod]
+    public void AdvancePhase_AutoEndsMainPhase_WhenOnlyFreshlySummonedCardsRemain()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.DrawPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].TurnCount = 2;
+        game.State.Players[0].Deck.Clear();
+        game.State.Players[0].Hand.Clear();
+        game.State.Players[0].Battlefield.Clear();
+        // Summon sick and without Rush, so it cannot attack this turn.
+        game.State.Players[0].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "fresh-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            EnteredFieldTurnNumber = game.State.TurnNumber,
+        });
+        game.State.Players[0].LeaderCardInstance!.RuntimeKeywords.Add(FreezeCardEffect.CannotAttackKeyword);
+        game.State.SetSummonCardReady("p1", false);
+
+        registry.AdvancePhase(game.Id);
+        registry.AdvancePhase(game.Id);
+
+        Assert.AreEqual(GamePhase.StartOfMainPhase, game.State.Phase);
+        Assert.AreEqual("p2", game.State.ActivePlayerId);
     }
 
     [TestMethod]
@@ -334,6 +414,320 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.AreEqual(GamePhase.AttackResolution, game.State.Phase);
         Assert.AreEqual(startingLife - 2, game.State.Players[1].LeaderCardInstance!.CurrentLife);
         Assert.IsFalse(game.State.HasPendingAttack);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_BattleAction_RestsLeaderAndDeclaresAttack()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].TurnCount = 2;
+
+        var attackerLeader = game.State.Players[0].LeaderCardInstance!;
+        var defenderLeader = game.State.Players[1].LeaderCardInstance!;
+        Assert.IsFalse(attackerLeader.IsRested);
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: $"battle-action:{attackerLeader.InstanceId}",
+                SourceCardInstanceId: attackerLeader.InstanceId,
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.Leader,
+                        CardInstanceId: defenderLeader.InstanceId)
+                ]),
+            new RecordingSequentialExecutor());
+
+        Assert.IsTrue(attackerLeader.IsRested);
+        Assert.IsTrue(game.State.HasPendingAttack);
+        Assert.AreEqual(attackerLeader.InstanceId, game.State.PendingAttackAttackerInstanceId);
+        Assert.AreEqual("p2", game.State.PendingAttackDefenderPlayerId);
+        Assert.AreEqual(PlayerZone.Leader, game.State.PendingAttackDefenderZone);
+        Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
+        Assert.AreEqual("p2", game.State.PriorityPlayerId);
+    }
+
+    [TestMethod]
+    public void AdvancePhase_AttackResolution_AppliesLeaderAttackerDamage()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].TurnCount = 2;
+
+        var attackerLeader = game.State.Players[0].LeaderCardInstance!;
+        attackerLeader.Damage = 3;
+        var startingLife = game.State.Players[1].LeaderCardInstance!.CurrentLife;
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: $"battle-action:{attackerLeader.InstanceId}",
+                SourceCardInstanceId: attackerLeader.InstanceId,
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.Leader,
+                        CardInstanceId: game.State.Players[1].LeaderCardInstance!.InstanceId)
+                ]),
+            new RecordingSequentialExecutor());
+
+        Assert.AreEqual(startingLife, game.State.Players[1].LeaderCardInstance!.CurrentLife);
+
+        registry.DeclarePassInActionStep(game.Id, "p2");
+        registry.DeclarePassInActionStep(game.Id, "p1"); // enters AttackResolution
+
+        Assert.AreEqual(GamePhase.AttackResolution, game.State.Phase);
+        Assert.AreEqual(startingLife - 3, game.State.Players[1].LeaderCardInstance!.CurrentLife);
+        Assert.IsFalse(game.State.HasPendingAttack);
+    }
+
+    [TestMethod]
+    public void AdvancePhase_AttackResolution_AppliesLeaderAttackerPowerToDefenderCharacter()
+    {
+        var definitions = BuildDefinitionsWithLeaderEffects();
+        definitions["defender-card"] = new CharacterCard
+        {
+            Id = "defender-card",
+            DisplayName = "defender-card",
+            Name = ["defender-card"],
+            Type = CardType.Character,
+            Traits = [],
+            Color = CardColor.Red,
+            Description = string.Empty,
+            Damage = 0,
+            Power = 0,
+            Health = 3,
+            Conditions = [],
+            Effects = []
+        };
+
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: definitions,
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].TurnCount = 2;
+
+        var attackerLeader = game.State.Players[0].LeaderCardInstance!;
+        attackerLeader.Power = 4;
+
+        game.State.Players[1].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "defender-1",
+            CardDefinitionId = "defender-card",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+            IsRested = true,
+        });
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: $"battle-action:{attackerLeader.InstanceId}",
+                SourceCardInstanceId: attackerLeader.InstanceId,
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.CharacterField,
+                        CardInstanceId: "defender-1")
+                ]),
+            new RecordingSequentialExecutor());
+
+        registry.DeclarePassInActionStep(game.Id, "p2");
+        registry.DeclarePassInActionStep(game.Id, "p1"); // enters AttackResolution
+
+        Assert.AreEqual(GamePhase.AttackResolution, game.State.Phase);
+        Assert.AreEqual(0, game.State.Players[1].Battlefield.Count);
+        Assert.IsTrue(game.State.Players[1].DiscardPile.Any(card => card.InstanceId == "defender-1"));
+    }
+
+    [TestMethod]
+    public void AdvancePhase_AttackResolution_AppliesAttributeModifiersToCharacterAttackerDamage()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].TurnCount = 2;
+
+        var attacker = new CardInstance
+        {
+            InstanceId = "attacker-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = false,
+            DamageOverride = 2,
+        };
+        game.State.Players[0].Battlefield.Add(attacker);
+        game.State.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = attacker.InstanceId,
+            EffectSpecId = "effect-damage-boost",
+            TargetCardInstanceId = attacker.InstanceId,
+            ModifierKind = AppliedCardModifierKind.Attribute,
+            DurationMode = EffectDurationMode.DuringThisTurn,
+            AttributeType = EffectAttributeType.CardDamage,
+            AttributeOperation = AttributeModificationOperation.Add,
+            AttributeValue = 1,
+            AppliedTurnNumber = game.State.TurnNumber,
+        });
+
+        var startingLife = game.State.Players[1].LeaderCardInstance!.CurrentLife;
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: "battle-action:attacker-1",
+                SourceCardInstanceId: "attacker-1",
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.Leader,
+                        CardInstanceId: game.State.Players[1].LeaderCardInstance!.InstanceId)
+                ]),
+            new RecordingSequentialExecutor());
+
+        registry.DeclarePassInActionStep(game.Id, "p2");
+        registry.DeclarePassInActionStep(game.Id, "p1"); // enters AttackResolution
+
+        Assert.AreEqual(GamePhase.AttackResolution, game.State.Phase);
+        Assert.AreEqual(startingLife - 3, game.State.Players[1].LeaderCardInstance!.CurrentLife);
+    }
+
+    [TestMethod]
+    public void AdvancePhase_AttackResolution_AppliesAttributeModifiersToCharacterAttackerPower()
+    {
+        var definitions = BuildDefinitionsWithLeaderEffects();
+        definitions["defender-card"] = new CharacterCard
+        {
+            Id = "defender-card",
+            DisplayName = "defender-card",
+            Name = ["defender-card"],
+            Type = CardType.Character,
+            Traits = [],
+            Color = CardColor.Red,
+            Description = string.Empty,
+            Damage = 0,
+            Power = 0,
+            Health = 4,
+            Conditions = [],
+            Effects = []
+        };
+
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: definitions,
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.Players[0].TurnCount = 2;
+
+        var attacker = new CardInstance
+        {
+            InstanceId = "attacker-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            IsRested = false,
+            PowerOverride = 2,
+        };
+        game.State.Players[0].Battlefield.Add(attacker);
+        game.State.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = attacker.InstanceId,
+            EffectSpecId = "effect-power-boost",
+            TargetCardInstanceId = attacker.InstanceId,
+            ModifierKind = AppliedCardModifierKind.Attribute,
+            DurationMode = EffectDurationMode.DuringThisTurn,
+            AttributeType = EffectAttributeType.CardPower,
+            AttributeOperation = AttributeModificationOperation.Add,
+            AttributeValue = 1,
+            AppliedTurnNumber = game.State.TurnNumber,
+        });
+
+        game.State.Players[1].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "defender-1",
+            CardDefinitionId = "defender-card",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+            IsRested = true,
+        });
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p1",
+                ActionId: "battle-action:attacker-1",
+                SourceCardInstanceId: "attacker-1",
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference(
+                        PlayerId: "p2",
+                        Zone: PlayerZone.CharacterField,
+                        CardInstanceId: "defender-1")
+                ]),
+            new RecordingSequentialExecutor());
+
+        registry.DeclarePassInActionStep(game.Id, "p2");
+        registry.DeclarePassInActionStep(game.Id, "p1"); // enters AttackResolution
+
+        var defender = game.State.Players[1].Battlefield.Single(card => card.InstanceId == "defender-1");
+        Assert.AreEqual(GamePhase.AttackResolution, game.State.Phase);
+        // Base power 2 would leave 2 health; the +1 attribute modifier must be applied.
+        Assert.AreEqual(1, defender.CurrentHealth ?? -1);
     }
 
     [TestMethod]

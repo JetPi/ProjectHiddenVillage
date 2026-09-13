@@ -38,8 +38,23 @@ paths:
   TotalLife, CurrentLife, RecoveryEffect` — resolved via
   `CardRuntimeEffectStateService.ResolveEffectiveLeaderPower/Damage`.
 - Engine stats live on `CardInstance` (`PowerOverride/DamageOverride/
-  HealthOverride/CurrentHealth`) and `LeaderCardInstanceState`; battle damage
-  reduces a defender’s `CurrentHealth` and end-of-turn cleanup resets it to null.
+  HealthOverride/CurrentHealth`) and `LeaderCardInstanceState`
+  (`Power/Damage/TotalLife/CurrentLife`). `LeaderCardInstanceState` now **derives from
+  `CardInstance`**, so it inherits identity fields plus `IsRested/IsExhausted/
+  RuntimeKeywords` — anything resolving an acting card must accept battlefield **or** leader
+  (registry `FindOwnedCardInstance` / `FindCardInstanceWithOwner`).
+- **Two deliberate defence pipelines — do not unify them:**
+  - Character health = effective max health (`ResolveEffectiveHealth`) − damage taken this
+    turn, reset at the turn boundary (`ResetTemporaryCharacterDamage`); dealt by an attacker's
+    **POW**.
+  - Leader life is chipped only by an attacker's **DMG** via `ResolveEffectiveLeader*` and
+    never resets (only card effects restore it).
+- Attack stats resolve exactly like the numbers the client is shown: leader attacker →
+  `ResolveEffectiveLeaderPower/Damage`; character attacker →
+  `ResolveEffectivePower/Damage` (registry `ResolveAttackPower`/`ResolveAttackDamage`).
+- `IsExhausted`/`isExhausted` means the card left play (exile zone) — never “rested”, and
+  leaders can never be exhausted. The wire field survives but is always false; do not build
+  behaviour on it, and do not re-add the `ZoneCardProperty.IsExhausted` predicate.
 
 ## Client stat pipeline (mirror of the above)
 

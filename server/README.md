@@ -134,7 +134,14 @@ The game state response now supports two action scopes:
 
 ### Where per-card actions are populated
 
-Per-card `AvailableActions` are currently evaluated in `GameStateResponseMapper` for:
+Per-card `AvailableActions` are currently evaluated in `GameStateResponseMapper`, a
+`static partial` class split by concern in `server/Api/Services/Games/`
+(`.Shared` = statics/consts/id compare, `.PhaseActions` = global phase options,
+`.Zones` = player-zone + card projection, `.CardActions` = per-zone dispatch +
+phase gates, `.HandActions` = summon/set-support, `.SupportActions`,
+`.BattleActions`, `.LeaderActions`, `.EffectAvailability`, `.EffectLabels`). The
+entry file only holds `ToGameStateResponse` plus the prompt/attack projections.
+Emitted for:
 
 - `Hand`
 - `SupportZone`

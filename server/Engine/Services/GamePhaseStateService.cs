@@ -240,6 +240,12 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
             card.IsRested = false;
         }
 
+        // Leaders rest like battlefield cards when they attack, so they stand up with them too.
+        if (activePlayer.LeaderCardInstance is not null)
+        {
+            activePlayer.LeaderCardInstance.IsRested = false;
+        }
+
         state.SetSummonCardReady(activePlayer.PlayerId, true);
     }
 
