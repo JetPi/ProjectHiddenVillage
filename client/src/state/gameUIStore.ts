@@ -106,9 +106,16 @@ function pruneStaleGameUIState(): void {
   if (pendingBattleTargeting && pendingBattleTargeting.kind === 'battle') {
     const actionId = pendingBattleTargeting.actionId
     const sourceId = pendingBattleTargeting.sourceCardInstanceId.trim().toLowerCase()
-    const characterField = currentPlayer?.characterField ?? []
     const matchingBattleAction = availableActions.find((option) => option.actionId === actionId)
-    const sourceCard = characterField.find((card) => card.instanceId.trim().toLowerCase() === sourceId)
+    // Battle actions are published on the acting card (`battle-action:{instanceId}`) - battlefield cards
+    // and leaders alike - never in the global action list, so the leader must be part of the source
+    // scope. Otherwise a leader-declared battle is pruned the instant it opens and the board never
+    // prompts for a target.
+    const sourceCards = [
+      ...(currentPlayer?.leader ? [currentPlayer.leader] : []),
+      ...(currentPlayer?.characterField ?? []),
+    ]
+    const sourceCard = sourceCards.find((card) => card.instanceId.trim().toLowerCase() === sourceId)
     const matchingSourceCardAction = (sourceCard?.availableActions ?? []).find((option) => option.actionId === actionId)
     const stillAvailable = Boolean(sourceCard)
       && (Boolean(matchingBattleAction?.isEnabled) || Boolean(matchingSourceCardAction?.isEnabled))
