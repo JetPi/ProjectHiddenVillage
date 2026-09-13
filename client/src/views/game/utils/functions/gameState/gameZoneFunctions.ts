@@ -169,6 +169,12 @@ function getBattleTargetHighlightClass(side: 'top' | 'bottom'): string {
   return side === 'top' ? 'battle-target-top' : 'battle-target-bottom'
 }
 
+// Applied on the leader card surface (not the frame) so the highlight rotates with the rested tilt
+// and hugs the card, exactly like battlefield rows.
+function getLeaderBattleTargetHighlightClass(side: 'top' | 'bottom'): string {
+  return side === 'top' ? 'battle-target-leader-top' : 'battle-target-leader-bottom'
+}
+
 function getSummonTargetHighlightClass(side: 'top' | 'bottom'): string {
   return side === 'top'
     ? 'ring-2 ring-emerald-300/90 ring-offset-2 ring-offset-slate-900'
@@ -280,7 +286,8 @@ function buildLeaderCardProps(
         'h-full transition-transform duration-300 ease-out origin-center',
         isRested ? LEADER_RESTED_ROTATION_CLASS : 'rotate-0',
         shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
-        isAttackLinkEndpoint ? 'attack-link-leader-outline' : ''
+        isAttackLinkEndpoint ? 'attack-link-leader-outline' : '',
+        isBattleTarget ? getLeaderBattleTargetHighlightClass(slotSide) : ''
       ),
     },
     imageClassName: LEADER_CARD_IMAGE_CLASS,

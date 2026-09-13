@@ -73,17 +73,22 @@ export function LeaderCard({
   return (
     <>
       <PlayCard className={twMerge('group', className, surfaceClassName)} {...surfaceRestProps}>
-    <>
-          <CardOverlayBadge position="top-left" size='md' className='w-4 text-red-900 bg-white'>{leaderCard.currentDamage}</CardOverlayBadge>
-          <CardOverlayBadge position="top-right" size='md'>
-            <span className="text-red-300">{leaderCard.currentPower}</span>
-          </CardOverlayBadge>
+        <CardImage
+          src={leaderCard.image}
+          alt={leaderCard.displayName || leaderCard.id}
+          loading="eager"
+          className={imageClassName}
+        />
 
-        </>
+        <CardOverlayBadge position="top-left" size='md' className='w-4 text-red-900 bg-white'>{leaderCard.currentDamage}</CardOverlayBadge>
+        <CardOverlayBadge position="top-right" size='md'>
+          <span className="text-red-300">{leaderCard.currentPower}</span>
+        </CardOverlayBadge>
+
         {shouldRenderBadge ? <CardOverlayBadge className='text-green-300'>{badgeValue}</CardOverlayBadge> : null}
 
         {previewCard && showPreviewButton && showOverlayControls ? (
-          <div className="pointer-events-none absolute right-2 top-2 z-30 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
+          <div className="card-overlay-float pointer-events-none absolute right-2 top-2 z-30 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
             <button
               type="button"
               onClick={() => setIsPreviewOpen(true)}
@@ -94,13 +99,6 @@ export function LeaderCard({
             </button>
           </div>
         ) : null}
-
-        <CardImage
-          src={leaderCard.image}
-          alt={leaderCard.displayName || leaderCard.id}
-          loading="eager"
-          className={imageClassName}
-        />
 
         {showOverlayControls && isChoosingTarget && onChooseTarget ? (
           <div className={LEADER_OVERLAY_CONTAINER_CLASSNAME}>
@@ -139,7 +137,7 @@ export function LeaderCard({
         
         {
         showOverlayControls && !isChoosingTarget && recoveryAction ? (
-          <div className="pointer-events-none absolute bottom-0 left-0 z-30 mb-1 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
+          <div className="card-overlay-float pointer-events-none absolute bottom-0 left-0 z-30 mb-1 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
             <button
               type="button"
               disabled={isDisabled || !recoveryAction.isEnabled}

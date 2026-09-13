@@ -269,11 +269,10 @@ function GameZones(props: IGameZonesProps) {
             })}
           </div>
 
-          <div className="flex min-h-0 w-full justify-end">
+          <div className="flex min-h-0 w-full justify-end pr-3">
             <div
               className={twMerge(
                 props.topLeaderCardFrameClassName,
-                isTopLeaderBattleTarget ? 'battle-target-leader-top' : '',
                 'relative overflow-visible',
               )}
             >
@@ -296,11 +295,10 @@ function GameZones(props: IGameZonesProps) {
         </div>
 
         <div className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
-          <div className="min-h-0 w-full">
+          <div className="min-h-0 w-full pl-2">
             <div
               className={twMerge(
                 props.bottomLeaderCardFrameClassName,
-                isBottomLeaderBattleTarget ? 'battle-target-leader-bottom' : '',
                 'relative overflow-visible',
               )}
             >

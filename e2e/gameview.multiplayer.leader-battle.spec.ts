@@ -55,6 +55,14 @@ test.describe('GameView multiplayer leader battle actions', () => {
           .first(),
       ).toBeVisible({ timeout: 10_000 })
 
+      // The leader target highlight must live on the card surface (which carries the rested rotation),
+      // not on the fixed frame, so it tilts along with the card.
+      await expect.poll(async () => {
+        return await battleActor.actorPage
+          .locator('[data-zone="leader-card"].battle-target-leader-top, [data-zone="leader-card"].battle-target-leader-bottom')
+          .count()
+      }, { timeout: 10_000 }).toBeGreaterThan(0)
+
       // The opposing leader is always a valid target; choosing it confirms the same submit path the
       // battlefield rows use (Choose button -> onSelectAttackTarget).
       const opposingLeader = battleActor.actorPage.locator('[data-zone="leader-card"][data-slot-side="top"]')
