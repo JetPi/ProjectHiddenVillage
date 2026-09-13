@@ -20,9 +20,14 @@ function useBackendAttackLink({ gameState }: IBackendAttackLinkProps) {
       return null
     }
 
-    const flattenedCharacterFieldCards = gameState.players.flatMap((player) => player.characterField)
-    const sourceCardExists = flattenedCharacterFieldCards.some((card) =>
-      normalizeCardInstanceId(card.instanceId) === sourceCardLookupId)
+    // The attacker can be a battlefield character *or* the leader, so the source lookup must consider
+    // both (mirrors the engine's FindOwnedCardInstance logic). Looking only at the character field
+    // dropped the attack-link arrow for leader-declared attacks.
+    const sourceCardExists = gameState.players.some((player) =>
+      normalizeCardInstanceId(player.leader.instanceId) === sourceCardLookupId
+      || player.characterField.some((card) =>
+        normalizeCardInstanceId(card.instanceId) === sourceCardLookupId),
+    )
 
     if (!sourceCardExists) {
       return null

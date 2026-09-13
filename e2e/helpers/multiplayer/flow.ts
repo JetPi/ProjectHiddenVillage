@@ -330,6 +330,59 @@ export async function resolveActorWithBottomBattleAction(
   throw new Error('No enabled battlefield Battle action was found within retry limit.')
 }
 
+export async function resolveActorWithLeaderBattleAction(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+): Promise<{ actor: PlayerAuth; actorPage: Page; leaderInstanceId: string; actionLabel: string; actionId: string }> {
+  const maxCycles = 180
+
+  const resolveLeaderBattleActionFromState = (state: GameStateResponse, actor: PlayerAuth) => {
+    const actorState = resolvePlayerState(state, actor)
+    const leader = actorState.leader
+    const matchedAction = (leader.availableActions ?? []).find((action) => {
+      return action.isEnabled && action.label.trim().toLowerCase() === 'battle'
+    })
+
+    if (!matchedAction) {
+      return null
+    }
+
+    return {
+      leaderInstanceId: leader.instanceId ?? '',
+      actionLabel: matchedAction.label,
+      actionId: matchedAction.actionId,
+    }
+  }
+
+  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+    const [playerOneState, playerTwoState] = await Promise.all([
+      fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+      fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+    ])
+
+    const activePlayer = resolveActivePlayerFromStates(setup, playerOneState)
+    const activePlayerState = activePlayer.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+
+    if (activePlayerState.phase === 'MainPhase' && activePlayerState.pendingPrompt === null) {
+      const resolvedAction = resolveLeaderBattleActionFromState(activePlayerState, activePlayer)
+      if (resolvedAction) {
+        return {
+          actor: activePlayer,
+          actorPage: activePlayer.userId === setup.playerOne.userId ? pages.playerOnePage : pages.playerTwoPage,
+          leaderInstanceId: resolvedAction.leaderInstanceId,
+          actionLabel: resolvedAction.actionLabel,
+          actionId: resolvedAction.actionId,
+        }
+      }
+    }
+
+    await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
+  }
+
+  throw new Error('No enabled leader Battle action was found within retry limit.')
+}
+
 export async function resolveBattleActionForSpecificCard(
   request: APIRequestContext,
   setup: MultiplayerSetup,

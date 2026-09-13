@@ -70,6 +70,9 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
               }
               className={isDeckLabel(label) ? deckPileCardClassName : labeledPileCardClassName}
               data-testid={isTrashLabel(label) ? 'trash-pile-card' : undefined}
+              data-card-definition-id={
+                isTrashLabel(label) && latestTrashCard ? latestTrashCard.id : undefined
+              }
             >
               <CardOverlayBadge
                 className={twMerge(

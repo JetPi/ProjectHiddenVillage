@@ -387,7 +387,11 @@ html[data-theme='light'] {
 .battle-target-top > .card-overlay-controls,
 .battle-target-bottom > .card-overlay-controls,
 .battle-target-leader-top > .card-overlay-controls,
-.battle-target-leader-bottom > .card-overlay-controls {
+.battle-target-leader-bottom > .card-overlay-controls,
+.battle-target-top > .card-overlay-float,
+.battle-target-bottom > .card-overlay-float,
+.battle-target-leader-top > .card-overlay-float,
+.battle-target-leader-bottom > .card-overlay-float {
   position: absolute;
 }
 
