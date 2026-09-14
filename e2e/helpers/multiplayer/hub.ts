@@ -55,6 +55,12 @@ export function describeHubFailure(methodLabel: string, result: HubInvocationRes
 // a prompt is pending — i.e. the read-then-act race the resilient helpers absorb.
 export const ADVANCE_PHASE_INVALID_STATE_ERROR_CODE = 'Game.AdvancePhase.InvalidState'
 
+// The end-step pair races the same way: the caller reads a state where `turn-end` is enabled (or
+// already declared the end step) and the phase moves on before/inside the next call, so the server
+// rejects with `{operation}.InvalidState` (`ExecuteRegistryOperation` prefixes the operation name).
+export const DECLARE_END_STEP_INVALID_STATE_ERROR_CODE = 'Game.DeclareEndStep.InvalidState'
+export const COMPLETE_END_STEP_INVALID_STATE_ERROR_CODE = 'Game.CompleteEndStep.InvalidState'
+
 export async function resolvePromptViaHub(
   gameCode: string,
   player: PlayerAuth,
@@ -88,13 +94,23 @@ export async function tryAdvancePhaseViaHub(
 }
 
 export async function declareEndStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
-  const result = await invokeGameHubMethod(player, 'DeclareEndStep', [gameCode.toUpperCase()])
+  const result = await tryDeclareEndStepViaHub(gameCode, player)
   expect(result.succeeded, describeHubFailure('Hub.DeclareEndStep', result)).toBeTruthy()
 }
 
+// Non-asserting variants for `progressToNextDecisionWindow`, which reads a state first and can lose
+// the race against the server's own phase progression (see the error-code notes above).
+export async function tryDeclareEndStepViaHub(gameCode: string, player: PlayerAuth): Promise<HubInvocationResult> {
+  return await invokeGameHubMethod(player, 'DeclareEndStep', [gameCode.toUpperCase()])
+}
+
 export async function completeEndStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
-  const result = await invokeGameHubMethod(player, 'CompleteEndStep', [gameCode.toUpperCase()])
+  const result = await tryCompleteEndStepViaHub(gameCode, player)
   expect(result.succeeded, describeHubFailure('Hub.CompleteEndStep', result)).toBeTruthy()
+}
+
+export async function tryCompleteEndStepViaHub(gameCode: string, player: PlayerAuth): Promise<HubInvocationResult> {
+  return await invokeGameHubMethod(player, 'CompleteEndStep', [gameCode.toUpperCase()])
 }
 
 export async function declarePassInActionStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {

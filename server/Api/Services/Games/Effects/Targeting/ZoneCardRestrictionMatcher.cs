@@ -57,12 +57,12 @@ internal static class ZoneCardRestrictionMatcher
         return predicate.Operator switch
         {
             ZoneCardPredicateOperator.Equals => !string.IsNullOrEmpty(directValue)
-                && propertyValues.Any(value => StringEquals(value, directValue, predicate.IgnoreCase)),
+                && propertyValues.Any(value => ZoneCardPropertyValueMatcher.IsMatch(predicate.Property, value, directValue, predicate.IgnoreCase)),
             ZoneCardPredicateOperator.NotEquals => !string.IsNullOrEmpty(directValue)
-                && propertyValues.All(value => !StringEquals(value, directValue, predicate.IgnoreCase)),
+                && propertyValues.All(value => !ZoneCardPropertyValueMatcher.IsMatch(predicate.Property, value, directValue, predicate.IgnoreCase)),
             ZoneCardPredicateOperator.In => (predicate.Property == ZoneCardProperty.Type && listValues.Count == 0)
                 || (listValues.Count > 0
-                    && propertyValues.Any(propertyValue => listValues.Any(expected => StringEquals(propertyValue, expected, predicate.IgnoreCase)))),
+                    && propertyValues.Any(propertyValue => listValues.Any(expected => ZoneCardPropertyValueMatcher.IsMatch(predicate.Property, propertyValue, expected, predicate.IgnoreCase)))),
             ZoneCardPredicateOperator.Contains => !string.IsNullOrEmpty(directValue)
                 && propertyValues.Any(value => value.Contains(directValue, predicate.IgnoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)),
             ZoneCardPredicateOperator.GreaterThan => CompareNumeric(propertyValues, directValue, (left, right) => left > right),
@@ -140,14 +140,6 @@ internal static class ZoneCardRestrictionMatcher
         }
 
         return false;
-    }
-
-    private static bool StringEquals(string left, string right, bool ignoreCase)
-    {
-        return string.Equals(
-            left,
-            right,
-            ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
     }
 
     /// <summary>

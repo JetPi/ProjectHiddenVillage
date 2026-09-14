@@ -52,6 +52,20 @@ paths:
   (`group-hover:*` + transition), so any absolute children it contains inherit the
   reveal. Eye/buttons are hover-only by design.
 
+## Card art vs pointer interception (real art in tests)
+
+- A **loaded** `<img>` card face can intercept pointer events aimed at hover controls
+  (`card-overlay-controls`, e.g. the eye / “Open card details”). With the old placeholder art the
+  request failed and `CardImage` rendered its fallback, which happened not to intercept — so a
+  Playwright failure reporting `… intercepts pointer events` on a hover button is usually a *loaded
+  art* problem, not a missing z-index. Check what `elementFromPoint` hits before touching layering.
+- e2e blocks external art at the server (`CardArt__SourceHostAllowlist__0="e2e.invalid"` in
+  `scripts/e2e-start-server.sh`), and specs must never assert a resolved art URL (the existing dump
+  in `gameview.multiplayer.actions.spec.ts` says so explicitly — a load/failure race makes it flaky).
+  Identify cards via `[data-testid="bottom-hand-card-{instanceId}"]` (hand) or
+  `[data-testid="trash-pile-card"]` + `data-card-definition-id` (piles) instead
+  (see `05-server-models-serialization.md`).
+
 ## Targeting-mode Cancel + phase action chips
 
 - `GamePhaseActionRow` renders a **Cancel** chip next to the phase action chips

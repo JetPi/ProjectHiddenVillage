@@ -56,6 +56,13 @@ export type IGameCardActionTargetsResponse = {
     cardInstanceId: string
     requirementLabels: string[]
   }> | null
+  // Authoritative tribute material groups: one entry per material the summon consumes, with the
+  // number of distinct cards it needs. `isGeneric` marks the catch-all "any" material.
+  materialRequirements?: Array<{
+    label: string
+    requiredCount: number
+    isGeneric?: boolean
+  }> | null
 }
 
 export type IGameStateInvalidatedHandler = (gameId: string) => void

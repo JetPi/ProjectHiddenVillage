@@ -79,12 +79,48 @@ targets exist.
 ## Server `GetCardActionTargets`
 
 Returns `GameCardActionTargetsResponse` (`IsEnabled`, `DisabledReason`,
-`ValidTargets`, `Minimum/Maximum/ExactTargetCount`, `AutoSelectAllValidTargets`)
+`ValidTargets`, `Minimum/Maximum/ExactTargetCount`, `AutoSelectAllValidTargets`,
+plus the tribute payload `RequirementLabels` / `MaterialRequirements`)
 for prefixes `summon-to-field`, `activate-support`, `battle-action`, and
 `leader-effect` — implemented by `InMemoryGameInstanceRegistry.GetCardActionTargets`
 + its `Build*CardActionTargets` methods. `ExecuteCardAction` applies effects to the
 request’s `SelectedTargets`; effects auto-resolve targets only when
 `TargetRules.AutoSelectAllValidTargets` is set.
+
+## Tribute material requirements (server-declared — never derived client-side)
+
+- `GameCardActionTargetsResponse` carries both `RequirementLabels` (per-candidate short labels; an
+  empty list = that candidate only satisfies a generic rule) and **`MaterialRequirements`** — the
+  authoritative groups from `TributeMaterialRequirementBuilder.BuildGroups`:
+  `{ label, requiredCount, isGeneric }`. Rules sharing a label are merged, so two "Toad" rules read
+  `Toad x2` and never `Toad x1 + any x1`; slots beyond the named rules go to the only rule with
+  headroom, otherwise they become a generic `any` group. That builder also owns the tribute count
+  helpers (`ResolveExact/Minimum/MaximumTargetCount`) — do not re-derive them elsewhere.
+- The client (`ISummonTargetingState.materialRequirements` → `getTributeRequirementSummary`) must not
+  infer group sizes from candidate labels; it only distributes the current selection over the declared
+  groups (named match first, then the generic group).
+- Phase text contract (asserted in `e2e/gameview.multiplayer.actions.spec.ts`):
+  `Selecting tribute materials (needs: (<label> x<n>, …))` while picking → shrinks as groups are paid
+  → `Fulfilled tribute requirements` once every group is covered **and**
+  `canConfirmSummonTargetSelection` passes. Both literals come from `PhaseValues` in
+  `client/src/views/game/components/constants/gamePhaseActionRow.ts`; the composer lives in
+  `views/game/utils/functions/helpers/index.ts` (`getTributeSelectionPhaseValue`).
+- Summon-rule fixtures: N-005/Gamabunta = one `Power ≥ 10` material (satisfied by the T-120 fixture);
+  N-014 = `any x1` + `The Taka x1` (paid with N-011 + N-019); N-003 = `Power ≥ 10` + `any`.
+- Not yet covered by e2e although the cards are seeded: quick support cut-in
+  (N-002/N-008/N-010/N-020/N-021), Support-Activated negate (N-009/N-016), When-Attacking
+  reveal-summon (N-013/N-019/N-022), conditional Rush (N-007/N-011), leader Recovery (N-001/N-012),
+  on-summon chains (N-003/N-005/N-013/N-014/N-022).
+
+## Card-property predicate values (`Type` normalization)
+
+- `ZoneCardPropertyValueMatcher.IsMatch` backs `Equals`/`Not Equals`/`In` in both
+  `ZoneCardRestrictionMatcher` and `LeaderTargetRestrictionMatcher`. `ZoneCardProperty.Type` is compared
+  on an alphanumeric, case-insensitive form because card data authors the printed spelling
+  (`"EX Character"`) while the engine resolves the enum name (`"ExCharacter"`) — comparing literally
+  makes `Type Equals "EX Character"` unmatchable and `Type Not Equals "EX Character"` unconditionally
+  true (that bug let N-018's "non-EX" K.O. and N-019/N-022's reveal filters accept EX cards). All other
+  properties keep the plain comparison (honouring `IgnoreCase`).
 
 ## Backend guidance
 

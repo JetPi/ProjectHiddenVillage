@@ -304,6 +304,91 @@ public sealed class EffectTargetResolverTests
     }
 
     [TestMethod]
+    public void ResolveTargets_TypeNotEquals_ExcludesExCharacters_WhenAuthoredWithPrintedSpelling()
+    {
+        var (context, effectSpec) = CreateContext(
+            playerFieldCards:
+            [
+                CreateCardOnField("p1-ex", "p1", "Ex Ninja", type: CardType.ExCharacter),
+                CreateCardOnField("p1-char", "p1", "Normal Ninja", type: CardType.Character)
+            ],
+            opponentFieldCards: [],
+            targetRules: new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Type,
+                                    Operator = ZoneCardPredicateOperator.NotEquals,
+                                    Value = "EX Character"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            });
+
+        var targets = resolver.ResolveTargets(context, effectSpec);
+
+        // "EX Character" is the printed spelling authored on real cards while the engine's enum name is
+        // "ExCharacter". Compared literally, this restriction matched every card - EX included - which
+        // is exactly the "non-EX only" bug behind N-018's K.O. and N-019/N-022's reveal-summon filters.
+        Assert.AreEqual(1, targets.Count);
+        Assert.AreEqual("p1-char-inst", targets[0].CardInstanceId);
+    }
+
+    [TestMethod]
+    public void ResolveTargets_TypeIn_MatchesExCharacters_WhenAuthoredWithPrintedSpelling()
+    {
+        var (context, effectSpec) = CreateContext(
+            playerFieldCards:
+            [
+                CreateCardOnField("p1-ex", "p1", "Ex Ninja", type: CardType.ExCharacter),
+                CreateCardOnField("p1-char", "p1", "Normal Ninja", type: CardType.Character)
+            ],
+            opponentFieldCards: [],
+            targetRules: new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        Restriction = new ZoneCardRestriction
+                        {
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Type,
+                                    Operator = ZoneCardPredicateOperator.In,
+                                    Values = ["EX Character"]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            });
+
+        var targets = resolver.ResolveTargets(context, effectSpec);
+
+        Assert.AreEqual(1, targets.Count);
+        Assert.AreEqual("p1-ex-inst", targets[0].CardInstanceId);
+    }
+
+    [TestMethod]
     public void ResolveTargets_LeaderZone_WithOpponentScope_ReturnsOpponentLeader()
     {
         var (context, effectSpec) = CreateContext(
