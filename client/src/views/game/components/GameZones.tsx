@@ -10,11 +10,7 @@ import {
   getCardsAndOptions,
   isCardInstanceBattleTarget,
   isCardRestedState,
-  resolveAttackAnchorConfig,
   toAnchorId,
-  withSourceGap,
-  withTargetGap,
-  withTargetGapAndHorizontalNudge
 } from '@/views/game/utils/functions'
 import { renderBattlefieldRow } from './BattleFieldRow'
 import { RenderZoneCardSlots } from './ZoneCardSlots'
@@ -32,6 +28,7 @@ const ATTACK_LINK_TARGET_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX + ATTACK_ARROW_H
 const ATTACK_VERTICAL_DIRECTION_BIAS_PX = 2
 const ATTACK_VERTICAL_TARGET_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX + 2
 const ATTACK_HEAD_OFFSET_DEFAULT = 0.25
+const ATTACK_SWEEP_SIDE_BEND_PX = 110
 
 function GameZones(props: IGameZonesProps) {
   const { topLeaderCard, bottomLeaderCard } = props.derivedGameState
@@ -83,58 +80,23 @@ function GameZones(props: IGameZonesProps) {
   const attackLinkRenderConfig = useMemo<IAttackLinkRenderConfig | null>(() => {
     if (!renderedAttackLink) return null;
 
-    const startId = toAnchorId(renderedAttackLink.sourceCardInstanceId);
-    const endId = toAnchorId(renderedAttackLink.targetCardInstanceId);
-    const defaultConfig: IAttackLinkRenderConfig = {
-      startId,
-      endId,
-      startAnchor: withSourceGap('top', ATTACK_LINK_SOURCE_GAP_PX),
-      endAnchor: withTargetGap('left', ATTACK_LINK_TARGET_GAP_PX),
-      path: 'smooth',
-      curveness: 0.68,
-      headOffsetForward: ATTACK_HEAD_OFFSET_DEFAULT,
-    };
-
-    if (typeof document === 'undefined') return defaultConfig;
-
-    const boardElement = document.querySelector<HTMLElement>('[data-testid="game-board"]');
-    const sourceCard = boardElement?.querySelector<HTMLElement>(`#${startId}`);
-    const targetCard = boardElement?.querySelector<HTMLElement>(`#${endId}`);
-    if (!boardElement || !sourceCard || !targetCard) return defaultConfig;
-
-    const isTargetRested = cardRestedStateByInstanceId.get(renderedAttackLink.targetCardInstanceId.trim().toLowerCase()) === true;
-    const metrics = resolveAttackAnchorConfig(sourceCard, targetCard, isTargetRested);
-
-    if (metrics.isVerticallyAligned) {
-      const boardRect = boardElement.getBoundingClientRect();
-      const boardCenterX = boardRect.left + boardRect.width * 0.5;
-      const linkCenterX = (metrics.sourceCenter.x + metrics.targetCenter.x) * 0.5;
-      const inwardSide: 'left' | 'right' = linkCenterX <= boardCenterX ? 'right' : 'left';
-      const sideBend = inwardSide === 'right' ? 110 : -110;
-      const verticalSourceGap = ATTACK_VERTICAL_TARGET_GAP_PX + ATTACK_VERTICAL_DIRECTION_BIAS_PX;
-
-      return {
-        startId,
-        endId,
-        startAnchor: withSourceGap(inwardSide, verticalSourceGap),
-        endAnchor: withTargetGapAndHorizontalNudge(inwardSide, ATTACK_VERTICAL_TARGET_GAP_PX, metrics.resolvedTargetAnchorNudge),
-        path: 'smooth',
-        curveness: 0.86,
-        headOffsetForward: metrics.resolvedHeadOffsetForward,
-        controlPointOffsets: { cpx1: sideBend, cpx2: sideBend * 1.25 },
-      };
-    }
-
+    // Only the ids + tuning constants travel with the config: the geometry is re-derived from the live
+    // elements inside `AttackLinkArrow` on every layout sample, because the attacker's rested tilt is a
+    // CSS transition that keeps moving the cards' bounding boxes (which is what react-xarrows anchors on)
+    // after this render.
     return {
-      startId,
-      endId,
-      startAnchor: withSourceGap(metrics.startAnchor, ATTACK_LINK_SOURCE_GAP_PX),
-      endAnchor: withTargetGapAndHorizontalNudge(metrics.endAnchor, ATTACK_LINK_TARGET_GAP_PX, metrics.resolvedTargetAnchorNudge),
-      path: 'smooth',
-      curveness: 0.68,
-      headOffsetForward: metrics.resolvedHeadOffsetForward,
+      startId: toAnchorId(renderedAttackLink.sourceCardInstanceId),
+      endId: toAnchorId(renderedAttackLink.targetCardInstanceId),
+      headOffsetForward: ATTACK_HEAD_OFFSET_DEFAULT,
+      options: {
+        sourceGapPx: ATTACK_LINK_SOURCE_GAP_PX,
+        targetGapPx: ATTACK_LINK_TARGET_GAP_PX,
+        sweepSourceGapPx: ATTACK_VERTICAL_TARGET_GAP_PX + ATTACK_VERTICAL_DIRECTION_BIAS_PX,
+        sweepTargetGapPx: ATTACK_VERTICAL_TARGET_GAP_PX,
+        sideBendPx: ATTACK_SWEEP_SIDE_BEND_PX,
+      },
     };
-  }, [renderedAttackLink, cardRestedStateByInstanceId]);
+  }, [renderedAttackLink]);
 
   const validBattleTargetsByCardId = useMemo(
     () => extractTargetIds(pendingCardTargeting?.validTargets),
@@ -237,9 +199,7 @@ function GameZones(props: IGameZonesProps) {
         className="game-board-spill relative grid min-h-0 overflow-visible grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1 rounded-2xl pt-2 pr-0.5 pb-2 pl-2 turn-zone-split"
       >
         {attackLinkRenderConfig ? (
-          <>
-            <AttackLinkArrow config={attackLinkRenderConfig} />
-          </>
+          <AttackLinkArrow config={attackLinkRenderConfig} />
         ) : null}
 
         <div className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">

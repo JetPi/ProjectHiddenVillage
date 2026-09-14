@@ -116,3 +116,89 @@ paths:
   `.battle-target-* > .card-overlay-badge, .battle-target-* >
   .card-overlay-controls { position: absolute; }`. If you add a new absolutely
   positioned direct child of a highlighted card, add it to that list.
+
+## Attack-link arrow: anchors + arrowhead (measured live, never predicted)
+
+- `react-xarrows` draws the dashed tail; the **arrowhead is ours**, and it is *measured
+  from the tail the library actually drew* (`measureAttackLinkHead` in
+  `AttackLinkArrow.tsx`): its tip is the tail path's end point, its rotation the
+  path's end direction (sampled over the last head length). Never re-introduce the
+  old predicted head (`resolveAttackHeadConfig` is gone): predicting from the anchors
+  meant the head could disagree with the line, and dropping back to the library's own
+  head flips `showHead`, which re-trims the tail path (so `head` is never cleared once
+  measured).
+- **Geometry is re-derived from the live elements on every layout sample**, inside
+  `AttackLinkArrow` (`sampleAttackLinkLayout` → `resolveAttackLinkGeometry` from
+  `utils/functions/gameState/gameZoneFunctions.ts`). GameZones' config only carries the
+  anchor ids + the tuning constants (`IAttackLinkGeometryOptions`) — never finished
+  anchors. A rested card keeps moving through its **CSS transition**, so anchors
+  computed once per render are stale within a frame.
+- **Every anchor on a tilted card needs a *two-component* visual-edge offset**, because
+  react-xarrows anchors on the element's **bounding box**:
+  - source (`getVerticalVisualEdgeOffset`): the bbox's top/bottom edge midpoint floats
+    out at the rotated card's corner — and the attacker rests on declaration, so this
+    hits *every* attack;
+  - target/sweep (`getHorizontalVisualEdgeOffset`): the bbox's left/right edge midpoint
+    needs both the inward x (the old x-only inset) **and** the y that moves it up to the
+    tilted edge's midpoint — without the y the arrow meets the card level with its
+    centre, i.e. `(w/2)·sin(angle)` (~10px on a rested 79px-wide card) *below* the
+    visible edge midpoint.
+  Both feed `withAnchorGap(side, gap, offset)` (one builder for all sides; zero offset
+  for an untilted card, so the untilted look is unchanged).
+- **Read the tilt from the `rotate` property, not `transform`**: Tailwind v4 emits
+  `rotate-[14deg]` as the standalone `rotate` property, so
+  `getComputedStyle(el).transform` is `"none"` while the card is visibly tilted.
+  `getRotationRadians` reads `rotate` first and falls back to the transform matrix.
+  (Missing this silently made every offset above a no-op.)
+- The target's horizontal end anchor is only used when the source's anchor point lies
+  **beyond** it (`resolveAttackAnchorSides` → `endAnchorSide`): react-xarrows draws the
+  end tangent along `sign(endAnchorX - startAnchorX)`, so choosing the side from the card
+  centres alone puts the tail on the *far* side of the target whenever the two cards
+  overlap horizontally — the dashes then travel *out* of the card and any head fights the
+  line. When neither side is approachable the **sweeping path** is used (same idiom as
+  stacked cards), which always hooks into its anchor from outside.
+- Head coordinates are **board-local** (`svgRect + pathPoint - boardRect`), because the
+  board box is the offset parent. `x/y` is the head's **base**, one head length behind the
+  path's end along the end direction, so the head's **tip lands on the end of the dashed
+  tail**: react-xarrows stops the dashes up to `nonStrokeLen` (10) px before the anchor.
+  Keep the head length ≥ the dash `nonStrokeLen`.
+- **react-xarrows pitfalls that bit us (keep these in mind):**
+  - its `he()` hook runs a `useLayoutEffect` *per prop* with `deps=[prop]` that calls
+    `setState({...state})`, so every object literal passed as a prop (`dashness`,
+    `headShape`, `passProps`, `divContainerProps`, …) must be referentially **stable**
+    (module constants / `useMemo`), or each of our re-renders fires ~6 setStates;
+  - a `setState` from *our* layout effect makes those nested updates, which together trip
+    React's "Maximum update depth exceeded" — sample from `requestAnimationFrame`
+    (`ATTACK_LINK_SETTLE_FRAMES`), never synchronously in the effect;
+  - `useXarrow`/`Xwrapper` are **not** used: the wrapper updater fires from a dep-less
+    layout effect and blows up the same way, and our own re-render already makes the
+    library re-measure;
+  - the overlay container must be **`position: absolute` inline** — `.game-board-spill > *`
+    in `index.css` forces `position: relative` on every direct child of the board
+    (unlayered CSS beats Tailwind's utilities layer), which made the overlay a grid item
+    whose size fed back into the board layout.
+- The dark glow (`ATTACK_ARROW_LINE_FILTER`) lives on the head's **`<svg>` root**, same
+  constant as the tail's `passProps.style.filter`. A CSS filter on an SVG *child*
+  (`<g>`/`<path>`) is clipped by its own tiny filter region, which silently kills the drop
+  shadows — that is why the head looked flat against the glowing dashes.
+- **The head's unit-space tip vertex is `(1, 0.5)`, not `(1, 0)`** (`ATTACK_ARROW_HEAD_PATH`).
+  With only `rotate(a) scale(s)` the drawn head therefore lands `s/2` (~5px) to one side of
+  the arrow's axis — visually "the arrow is offset/dropped from the line" while the
+  axis-projection of its tip still sits on the tail's end. Keep the
+  `translate(0 -0.5)` in the head `<g>` transform (SVG applies the rightmost transform
+  first), so the tip maps to `(s, 0)` and rotates onto the line.
+- Measure the arrow against the *drawn* geometry in tests: use
+  `path.getPointAtLength(total).matrixTransform(path.getScreenCTM())` for the tail's end and
+  `new DOMPoint(1, 0.5).matrixTransform(headGroup.getScreenCTM())` for the head's tip. Rect
+  maths that repeats the placement formula (`headRect.left + cos·len`) shares its blind spot
+  and reports 0 offset even when the head is visibly off (that is how the 5px slip above
+  survived).
+- **`position: absolute` must be inline** on that head `<svg>` too (same CSS override
+  as above), or the head is drawn at its static grid position + offset (visibly
+  off-target). Inline styles win.
+- `e2e/gameview.multiplayer.battle-visuals.spec.ts` asserts the head's tip lands on the
+  tail's end, the head follows the tail's direction, the tail travels *into* the target,
+  the head points at the target (< 25°, loose now that the head follows the tail), and
+  that **both ends sit the gap away from the rotated card surface** (source ≤ 11px vs
+  ~15-17 at the bbox corner; target 13-19px vs ~28 when the bbox edge is used), so keep
+  `data-testid="attack-link-head"` on it.

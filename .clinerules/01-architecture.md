@@ -38,8 +38,9 @@ paths:
 ## Game board / zone components
 
 - `GameZones.tsx` renders the board; shared helpers live in
-  `components/functions/GameZoneFunctions.tsx` (highlight classes
-  `battle-target-*`, `summon-target-*`, `toAnchorId`, target-set builders).
+  `utils/functions/gameState/gameZoneFunctions.ts` (highlight classes
+  `battle-target-*`, `summon-target-*`, `toAnchorId`, target-set builders, attack-link
+  geometry).
 - Rows/zones: `BattleFieldRow` (character field), `ZoneCardSlots` (support slots),
   `BottomHandReorderRow` + `GameHandRow` (hand), `NonLeaderCardOverlay` (per-card
   hover actions/preview/HUD), `LeaderCard` (`components/ui/cards/`),
