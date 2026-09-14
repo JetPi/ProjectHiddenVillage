@@ -56,11 +56,23 @@ public sealed record GameCardActionTargetsResponse(
     int? ExactTargetCount,
     bool AutoSelectAllValidTargets,
     IReadOnlyList<GameEffectTargetReference> ValidTargets,
-    IReadOnlyList<GameCardActionTargetRequirementResponse>? RequirementLabels = null);
+    IReadOnlyList<GameCardActionTargetRequirementResponse>? RequirementLabels = null,
+    IReadOnlyList<GameCardActionMaterialRequirementResponse>? MaterialRequirements = null);
 
 public sealed record GameCardActionTargetRequirementResponse(
     string CardInstanceId,
     IReadOnlyList<string> RequirementLabels);
+
+/// <summary>
+/// One material a tribute summon consumes: the material label (<c>"any"</c> for an unrestricted rule)
+/// and how many distinct cards of that material the requirement demands. Computed by
+/// <see cref="ProjectHiddenVillage.Server.Api.Services.Games.TributeMaterialRequirementBuilder"/> so the client never infers
+/// requirement sizes from the per-candidate labels.
+/// </summary>
+public sealed record GameCardActionMaterialRequirementResponse(
+    string Label,
+    int RequiredCount,
+    bool IsGeneric);
 
 public sealed record PlayerZonesResponse(
     string PlayerId,

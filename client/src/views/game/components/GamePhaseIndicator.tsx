@@ -1,39 +1,6 @@
-import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGamePhaseIndicatorProps } from '@/views/game/types'
-
-function normalizeId(value: string | undefined): string {
-  return (value ?? '').trim().toLowerCase().replace(/-/g, '')
-}
-
-const PhaseValues = {
-  'w-for-players': 'Waiting for player',
-  'w-for-opponent': 'Waiting for opponent',
-  'player-turn': 'Your turn',
-  'opponent-turn': "Opponent's turn",
-  'w-for-opponent-to-choose': 'Waiting for opponent to choose',
-  'w-for-opponent-to-mulligan': 'Waiting for opponent to choose mulligan',
-}
-
-function getPhaseValue(gameInstance: IGameStateResponse, authUserId?: string): string {
-  const normalizedAuthUserId = normalizeId(authUserId)
-  const normalizedActivePlayerId = normalizeId(gameInstance.activePlayerId)
-  const isPlayerTurn = normalizedAuthUserId.length > 0 && normalizedActivePlayerId === normalizedAuthUserId
-
-  const otherPlayer = gameInstance.players.length > 1
-
-  if (!otherPlayer) {
-    return PhaseValues['w-for-players']
-  } else {
-    if(gameInstance.pendingPrompt && !gameInstance.pendingPrompt.isAwaitingRequestingPlayer) {
-      if(gameInstance.pendingPrompt.type.toLowerCase() === 'mulligan'){
-        return PhaseValues['w-for-opponent-to-mulligan']
-      }
-      return PhaseValues['w-for-opponent-to-choose']
-    }
-  }
-
-  return isPlayerTurn ? PhaseValues['player-turn'] : PhaseValues['opponent-turn']
-}
+import { PhaseValues } from './constants/gamePhaseActionRow'
+import { getPhaseValue } from '@/views/game/utils/functions/helpers'
 
 function GamePhaseIndicator({ gameInstance, authUserId }: IGamePhaseIndicatorProps) {
   const phaseValue = getPhaseValue(gameInstance, authUserId)

@@ -1,11 +1,8 @@
 import { AppButton } from '@/components/ui/AppButton'
-import type { IGameStateResponse } from '@/services/api/gameApi'
 import { useGameUIStore } from '@/state/gameUIStore'
 import type { IGamePhaseActionRowProps } from '@/views/game/types'
-import { canConfirmSummonTargetSelection } from '@/views/game/utils/functions'
-function normalizeId(value: string | undefined): string {
-  return (value ?? '').trim().toLowerCase().replace(/-/g, '')
-}
+import { getPhaseValue, getPhaseThemeClasses, getTributeRequirementSummary } from '@/views/game/utils/functions/helpers'
+import { invertedPhaseThemeClassByPhaseTheme, phaseActionChipClassName } from './constants/gamePhaseActionRow'
 
 function cancelActiveTargetingMode(): void {
   const state = useGameUIStore.getState()
@@ -18,96 +15,6 @@ function cancelActiveTargetingMode(): void {
   }
 }
 
-const phaseActionChipClassName =
-  'h-full shrink-0 whitespace-nowrap rounded-md border border-[var(--border-subtle)] px-1.5 text-[10px] font-extrabold leading-none transition-[color,background-color,filter] duration-300 ease-out enabled:hover:brightness-120'
-
-const invertedPhaseThemeClassByPhaseTheme: Record<string, string> = {
-  'turn-indicator-orange turn-indicator-text-light-theme': 'turn-indicator-inverted-orange',
-  'turn-indicator-blue turn-indicator-text-dark-theme': 'turn-indicator-inverted-blue',
-  'turn-indicator-light-gray turn-indicator-text-black': 'turn-indicator-inverted-light-gray',
-}
-
-const PhaseValues = {
-  'w-for-players': 'Waiting for player',
-  'w-for-opponent': 'Waiting for opponent',
-  'player-turn': 'Your turn',
-  'opponent-turn': "Opponent's turn",
-  'w-for-opponent-to-choose': 'Waiting for opponent to choose',
-  'w-for-opponent-to-mulligan': 'Waiting for opponent to choose mulligan',
-  'your-attack-declaration': 'Your Attack Declaration',
-  'opponent-attack-declaration': "Opponent Attack Declaration",
-  'effect-declaration': 'Effect Declaration',
-  'your-support-cut-in': 'Your Support Cut-In',
-  'opponent-support-cut-in': "Opponent Support Cut-In",
-  'damage-step': 'Damage Step',
-}
-
-function getPhaseValue(gameInstance: IGameStateResponse, authUserId?: string): string {
-  const normalizedAuthUserId = normalizeId(authUserId)
-  const normalizedActivePlayerId = normalizeId(gameInstance.activePlayerId)
-  const isPlayerTurn = normalizedAuthUserId.length > 0 && normalizedActivePlayerId === normalizedAuthUserId
-
-  const otherPlayer = gameInstance.players.length > 1
-
-  if (!otherPlayer) {
-    return PhaseValues['w-for-players']
-  } else {
-    if (gameInstance.isAttackSequencePending && gameInstance.attackSequenceStage) {
-      if (gameInstance.attackSequenceStage === 'AttackDeclaration') {
-        return isPlayerTurn
-          ? PhaseValues['your-attack-declaration']
-          : PhaseValues['opponent-attack-declaration']
-      }
-
-      if (gameInstance.attackSequenceStage === 'EffectDeclaration') {
-        return PhaseValues['effect-declaration']
-      }
-
-      if (gameInstance.attackSequenceStage === 'SupportCutIn') {
-        const normalizedPriorityPlayerId = normalizeId(gameInstance.priorityPlayerId)
-        const isPlayerPriority = normalizedAuthUserId.length > 0 && normalizedAuthUserId === normalizedPriorityPlayerId
-        return isPlayerPriority ? PhaseValues['your-support-cut-in'] : PhaseValues['opponent-support-cut-in']
-      }
-
-      if (gameInstance.attackSequenceStage === 'DamageStep') {
-        return PhaseValues['damage-step']
-      }
-    }
-
-    if (gameInstance.pendingPrompt && !gameInstance.pendingPrompt.isAwaitingRequestingPlayer) {
-      if (gameInstance.pendingPrompt.type.toLowerCase() === 'mulligan') {
-        return PhaseValues['w-for-opponent-to-mulligan']
-      }
-      return PhaseValues['w-for-opponent-to-choose']
-    }
-  }
-
-  return isPlayerTurn ? PhaseValues['player-turn'] : PhaseValues['opponent-turn']
-}
-
-function getPhaseThemeClasses(gameInstance: IGameStateResponse, phaseValue: string, authUserId?: string): string {
-  if (phaseValue === PhaseValues['your-support-cut-in']) {
-    return 'turn-indicator-orange turn-indicator-text-light-theme'
-  }
-
-  if (phaseValue === PhaseValues['opponent-support-cut-in']) {
-    return 'turn-indicator-blue turn-indicator-text-dark-theme'
-  }
-
-  const normalizedAuthUserId = normalizeId(authUserId)
-  const normalizedActivePlayerId = normalizeId(gameInstance.activePlayerId)
-  const hasBothPlayers = gameInstance.players.length > 1
-  const isPlayerTurn = normalizedAuthUserId.length > 0 && normalizedAuthUserId === normalizedActivePlayerId
-
-  if (!hasBothPlayers) {
-    return 'turn-indicator-light-gray turn-indicator-text-black'
-  }
-
-  return isPlayerTurn
-    ? 'turn-indicator-orange turn-indicator-text-light-theme'
-    : 'turn-indicator-blue turn-indicator-text-dark-theme'
-}
-
 function GamePhaseActionRow({
   gameInstance,
   authUserId,
@@ -118,18 +25,16 @@ function GamePhaseActionRow({
   phaseTestId,
   onConfirmSummonTargetSelection,
 }: IGamePhaseActionRowProps) {
-  const phaseValue = getPhaseValue(gameInstance, authUserId)
-  const phaseThemeClasses = getPhaseThemeClasses(gameInstance, phaseValue, authUserId)
-  const payButtonThemeClasses =
-    invertedPhaseThemeClassByPhaseTheme[phaseThemeClasses] ?? 'turn-indicator-inverted-light-gray'
   const pendingCardTargeting = useGameUIStore((state) => state.pendingCardTargeting)
   const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
   const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
 
-   const isSummonActionTargeting = useGameUIStore((state) => state.pendingSummonTargeting !== null)
-    const canConfirmTributeSelection = pendingSummonTargeting
-        ? canConfirmSummonTargetSelection(pendingSummonTargeting)
-        : false
+  const phaseValue = getPhaseValue(gameInstance, authUserId, pendingSummonTargeting)
+  const phaseThemeClasses = getPhaseThemeClasses(gameInstance, phaseValue, authUserId)
+  const payButtonThemeClasses = invertedPhaseThemeClassByPhaseTheme[phaseThemeClasses] ?? 'turn-indicator-inverted-light-gray'
+
+  // Tribute-summon material selection drives both the phase text and the "Pay" chip state.
+  const tributeRequirement = getTributeRequirementSummary(pendingSummonTargeting)
 
   const isTargetingActive =
     pendingCardTargeting !== null
@@ -177,13 +82,21 @@ function GamePhaseActionRow({
             Cancel
           </button>
 
-          { isSummonActionTargeting ?(
-            <div className="group relative">
+          { tributeRequirement.isActive ?(
+            <div
+              className="group relative"
+              data-testid="tribute-requirement-summary"
+              data-required-tribute-count={tributeRequirement.requiredCount}
+              data-selected-tribute-count={tributeRequirement.selectedCount}
+              data-remaining-tribute-count={tributeRequirement.remainingCount}
+              data-tribute-material-summary={tributeRequirement.materialSummary}
+            >
               <AppButton
                 type="button"
                 aria-label="Confirm tribute selection"
+                title={tributeRequirement.title}
                 onClick={onConfirmSummonTargetSelection}
-                disabled={!isConnected || isActionPending || !canConfirmTributeSelection}
+                disabled={!isConnected || isActionPending || !tributeRequirement.isSatisfied}
                 className={`${phaseActionChipClassName} ${payButtonThemeClasses} hover:brightness-150`}
               >
                 Pay

@@ -13,8 +13,7 @@ public sealed class DevelopmentDeckSeeder
     private static readonly HashSet<string> PlaceholderLeaderCardIds =
     [
         "N-001",
-        "N-012",
-        "T-001"
+        "N-012"
     ];
 
     // Keep deterministic support metadata for known support-capable cards even

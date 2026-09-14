@@ -1,0 +1,4021 @@
+[
+        {
+            "id": "C-001",
+            "image": "https://exburst.dev/nrtb/cards/hd/C-001.webp?r1785504619",
+            "originalId": "C-001",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Chakra Card"
+            ],
+            "displayName": "Chakra Card",
+            "type": "Chakra",
+            "traits": [],
+            "color": "N/A",
+            "description": "When using Chakra, turn this card face-down.",
+            "damage": 0,
+            "power": 0,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 0,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1787415020165
+        },
+        {
+            "id": "CP-001",
+            "image": "https://exburst.dev/nrtb/cards/hd/CP-001.webp?r1785504619",
+            "originalId": "CP-001",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Chakra Card"
+            ],
+            "displayName": "Chakra Card",
+            "type": "Chakra",
+            "traits": [],
+            "color": "N/A",
+            "description": "",
+            "damage": 0,
+            "power": 0,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 0,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1787414994645
+        },
+        {
+            "id": "N-001",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-001.webp?r1785504619",
+            "originalId": "N-001",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Naruto Uzumaki"
+            ],
+            "displayName": "Naruto Uzumaki",
+            "type": "Leader",
+            "traits": [
+                "Wind",
+                "Jinchuriki",
+                "Hidden Leaf Village",
+                "Team 7"
+            ],
+            "color": "Red",
+            "description": "[Activate: Main] Flip 1 of your CHAKRA face-down and choose 1 Character: The chosen card gets +3 power during this turn.<br>[Recovery] If it is the second turn or later, rest this card and flip all of your CHAKRA face-up.",
+            "damage": 1,
+            "power": 3,
+            "conditions": [
+                "Activate: Main",
+                "Recovery"
+            ],
+            "effects": [
+                {
+                    "id": "power-up-card",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Change Values",
+                    "effectType": "Activated",
+                    "timing": "Activate Main",
+                    "durationMode": "During This Turn",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Any",
+                    "isOptional": false,
+                    "chakraCost": 1,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [
+                        {
+                            "targetType": "Selected Targets",
+                            "targetRange": "Self",
+                            "attribute": "Card Power",
+                            "operation": "Add",
+                            "value": 3,
+                            "minimumValue": null,
+                            "maximumValue": null
+                        }
+                    ],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Any",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "recovery",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Alter Resources",
+                    "effectType": "Recovery",
+                    "timing": "Activate Main",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "None",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": {
+                        "argumentKey": "isSecondTurnOrLater",
+                        "expectedValue": "true",
+                        "ignoreCase": true,
+                        "negate": false
+                    },
+                    "attributeModifications": [],
+                    "chakraAdjustments": [
+                        {
+                            "targetRange": "Self",
+                            "operation": "Recover",
+                            "amount": 5
+                        }
+                    ],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": true,
+                        "tributeComposition": null,
+                        "rules": []
+                    }
+                }
+            ],
+            "life": 15,
+            "health": null,
+            "cannotBeNormalSummoned": false,
+            "supportName": null,
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1788833740626
+        },
+        {
+            "id": "N-002",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-002.webp?rfix1785510630",
+            "originalId": "N-002",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Choji Akimichi"
+            ],
+            "displayName": "Choji Akimichi",
+            "type": "Character",
+            "traits": [
+                "Taijutsu",
+                "Hidden Leaf Village",
+                "Team 10"
+            ],
+            "color": "Red",
+            "description": "[Support] Expansion Jutsu\n[Quick] Choose 1 Character: Summon this card, and the chosen card's power is doubled during this turn.",
+            "damage": 1,
+            "power": 7,
+            "conditions": [
+                "Support",
+                "Quick"
+            ],
+            "effects": [
+                {
+                    "id": "summon-self",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": "double-target-character-power",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Summon Card",
+                    "effectType": "Support",
+                    "timing": "Quick",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": 1,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Source Card",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Hand",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Summon Candidate",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Self",
+                                            "operator": "Equals",
+                                            "value": "",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "double-target-character-power",
+                    "isSubordinate": true,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Change Values",
+                    "effectType": "Support",
+                    "timing": "Quick",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Any",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [
+                        {
+                            "targetType": "Selected Targets",
+                            "targetRange": "Self",
+                            "attribute": "Card Power",
+                            "operation": "Multiply",
+                            "value": 2,
+                            "minimumValue": null,
+                            "maximumValue": null
+                        }
+                    ],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "All"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 3,
+            "cannotBeNormalSummoned": false,
+            "supportName": "Expansion Jutsu",
+            "supportEffect": "[Quick] Choose 1 Character: Summon this card, and the chosen card's power is doubled during this turn.",
+            "supportCost": 1,
+            "imageVersion": 1787687391309
+        },
+        {
+            "id": "N-003",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-003.webp?r1785504619",
+            "originalId": "N-003",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Naruto Uzumaki"
+            ],
+            "displayName": "Naruto Uzumaki",
+            "type": "EX Character",
+            "traits": [
+                "Wind",
+                "Jinchuriki",
+                "Hidden Leaf Village",
+                "Team 7"
+            ],
+            "color": "Red",
+            "description": "Cannot be summoned normally.<br>[Summon Requirements] Place 1 of your Characters and 1 of your Characters with 10 or more power in your trash.<br>[Rush] (This card can attack on the turn in which it is played.)<br>[On Summon] Summon up to 1 [Naruto Uzumaki] from your deck or trash with its effects negated.",
+            "damage": 3,
+            "power": 11,
+            "conditions": [
+                "Summon Requirements",
+                "Rush",
+                "On Summon"
+            ],
+            "effects": [
+                {
+                    "id": "on-summon-effect",
+                    "isSubordinate": true,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Summon Card",
+                    "effectType": "Activated",
+                    "timing": "On Summon",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": true,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Trash",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Summon Candidate",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Name",
+                                            "operator": "Equals",
+                                            "value": "Naruto Uzumaki",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "Any"
+                                }
+                            },
+                            {
+                                "scope": "Self",
+                                "inZone": "Deck",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Summon Candidate",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Name",
+                                            "operator": "Equals",
+                                            "value": "Naruto Uzumaki",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "All"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "tribute-summon",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": "on-summon-effect",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Tribute",
+                    "effectType": "Support",
+                    "timing": "During Your Main",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": {
+                            "exactTributeCount": 2,
+                            "minimumTributeCount": null,
+                            "maximumTributeCount": null,
+                            "requireSingleSummonTarget": true,
+                            "requireDistinctSummonAndTributes": true
+                        },
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Tribute Material",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Power",
+                                            "operator": "Greater Than Or Equal",
+                                            "value": "10",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "Any"
+                                }
+                            },
+                            {
+                                "scope": "Self",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Tribute Material",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            },
+                            {
+                                "scope": "Self",
+                                "inZone": "Hand",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Summon Candidate",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Self",
+                                            "operator": "Equals",
+                                            "value": "",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "All"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 10,
+            "cannotBeNormalSummoned": true,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1788140735133
+        },
+        {
+            "id": "N-004",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-004.webp?r1785504619",
+            "originalId": "N-004",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Naruto Uzumaki"
+            ],
+            "displayName": "Naruto Uzumaki",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "Jinchuriki",
+                "Hidden Leaf Village",
+                "Team 7"
+            ],
+            "color": "Red",
+            "description": "[Support] Rasengan<br>[During Your Main] K.O. all Characters.",
+            "damage": 1,
+            "power": 5,
+            "conditions": [
+                "Support",
+                "During Your Main"
+            ],
+            "effects": [
+                {
+                    "id": "KO-all-Characters",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Destroy Card",
+                    "effectType": "Support",
+                    "timing": "During Your Main",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Any",
+                    "isOptional": false,
+                    "chakraCost": 2,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": true,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Any",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": null,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 4,
+            "cannotBeNormalSummoned": false,
+            "supportName": "Rasengan",
+            "supportEffect": "[During Your Main] K.O. all Characters.",
+            "supportCost": 2,
+            "imageVersion": 1787424446067
+        },
+        {
+            "id": "N-005",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-005.webp?r1785504619",
+            "originalId": "N-005",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Gamabunta"
+            ],
+            "displayName": "Gamabunta",
+            "type": "EX Character",
+            "traits": [
+                "Water",
+                "Toad",
+                "Mount Myoboku"
+            ],
+            "color": "Red",
+            "description": "Cannot be summoned normally.<br>[Summon Requirements] Place 1 of your Characters with 10 or more power in your trash.<br>[On Summon] Summon 1 non-EX [Naruto Uzumaki], [Jiraiya], or [Minato Namikaze] Character from your trash.",
+            "damage": 2,
+            "power": 10,
+            "conditions": [
+                "Summon Requirements",
+                "On Summon",
+                "Named Card Reference"
+            ],
+            "effects": [
+                {
+                    "id": "on-summon",
+                    "isSubordinate": true,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Summon Card",
+                    "effectType": "Activated",
+                    "timing": "On Summon",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Trash",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Summon Candidate",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Name",
+                                            "operator": "In",
+                                            "value": null,
+                                            "values": [
+                                                "Naruto Uzumaki",
+                                                "Jiraiya",
+                                                "Minato Namikaze"
+                                            ],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "summon-requirements",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": "on-summon",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Tribute",
+                    "effectType": "Summon Requirement",
+                    "timing": "During Your Main",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": {
+                            "exactTributeCount": 1,
+                            "minimumTributeCount": null,
+                            "maximumTributeCount": null,
+                            "requireSingleSummonTarget": true,
+                            "requireDistinctSummonAndTributes": true
+                        },
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Hand",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Summon Candidate",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Self",
+                                            "operator": "Equals",
+                                            "value": "",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "Any"
+                                }
+                            },
+                            {
+                                "scope": "Self",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Tribute Material",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Power",
+                                            "operator": "Greater Than Or Equal",
+                                            "value": "10",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 8,
+            "cannotBeNormalSummoned": true,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1787687405177
+        },
+       {
+            "id": "N-006",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-006.webp?r1785504619",
+            "originalId": "N-006",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Jiraiya"
+            ],
+            "displayName": "Jiraiya",
+            "type": "Character",
+            "traits": [
+                "Fire",
+                "The Legendary Sannin",
+                "Hidden Leaf Village"
+            ],
+            "color": "Red",
+            "description": "[Support] Fire Style: Toad Flame Bombs<br>[During Your Opponent's Attack] Choose up to 2 rested Characters: K.O. the chosen cards.",
+            "damage": 1,
+            "power": 7,
+            "conditions": [
+                "Support",
+                "During Your Opponent's Attack"
+            ],
+            "effects": [
+                {
+                    "id": "KO-rested-cards",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Destroy Card",
+                    "effectType": "Support",
+                    "timing": "During Opponent Attack",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Any",
+                    "isOptional": false,
+                    "chakraCost": 2,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "All",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": 2,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Any",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": null,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": 2,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Is Rested",
+                                            "operator": "Equals",
+                                            "value": "true",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "All"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 4,
+            "cannotBeNormalSummoned": false,
+            "supportName": "Fire Style: Toad Flame Bombs",
+            "supportEffect": "[During Your Opponent's Attack] Choose up to 2 rested Characters: K.O. the chosen cards.",
+            "supportCost": 2,
+            "imageVersion": 1789332865457
+        },
+        {
+            "id": "N-007",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-007.webp?r1785504619",
+            "originalId": "N-007",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Minato Namikaze"
+            ],
+            "displayName": "Minato Namikaze",
+            "type": "Character",
+            "traits": [
+                "Wind",
+                "Lightning",
+                "The Five Kage",
+                "Hidden Leaf Village"
+            ],
+            "color": "Red",
+            "description": "[Your Turn] If this Character has 10 or more power, this Character gains [Rush]. (This card can attack on the turn in which it is summoned.)",
+            "damage": 2,
+            "power": 8,
+            "conditions": [
+                "Your Turn"
+            ],
+            "effects": [
+                {
+                    "id": "remove-rush",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Gain Effect",
+                    "effectType": "Activated",
+                    "timing": "Your Turn",
+                    "durationMode": "Instant",
+                    "passiveMode": "Continuous",
+                    "passiveReevaluation": {
+                        "triggerKinds": [
+                            "Any"
+                        ],
+                        "scope": "Source Card Only"
+                    },
+                    "passiveConsequences": [
+                        {
+                            "consequenceEffectTypeKey": "GainKeyword",
+                            "targetPolicy": "Source Card",
+                            "consequenceArguments": {}
+                        }
+                    ],
+                    "keywordModifications": [
+                        {
+                            "targetType": "Source Card",
+                            "operation": "Remove",
+                            "keyword": "Rush"
+                        }
+                    ],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "All",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Self",
+                                            "operator": "Equals",
+                                            "value": "",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        },
+                                        {
+                                            "property": "Power",
+                                            "operator": "Less Than",
+                                            "value": "10",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "All"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "gain-rush",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Gain Effect",
+                    "effectType": "Activated",
+                    "timing": "Your Turn",
+                    "durationMode": "Instant",
+                    "passiveMode": "Continuous",
+                    "passiveReevaluation": {
+                        "triggerKinds": [
+                            "Any"
+                        ],
+                        "scope": "Source Card Only"
+                    },
+                    "passiveConsequences": [
+                        {
+                            "consequenceEffectTypeKey": "GainKeyword",
+                            "targetPolicy": "Source Card",
+                            "consequenceArguments": {}
+                        }
+                    ],
+                    "keywordModifications": [
+                        {
+                            "targetType": "Source Card",
+                            "operation": "Add",
+                            "keyword": "Rush"
+                        }
+                    ],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "All",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Power",
+                                            "operator": "Greater Than Or Equal",
+                                            "value": "10",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        },
+                                        {
+                                            "property": "Self",
+                                            "operator": "Equals",
+                                            "value": "",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "All"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 8,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1787783123334
+        },
+        {
+            "id": "N-008",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-008.webp?r1785504619",
+            "originalId": "N-008",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Shikamaru Nara"
+            ],
+            "displayName": "Shikamaru Nara",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "Hidden Leaf Village",
+                "Team 10"
+            ],
+            "color": "Red",
+            "description": "[Support] Shadow Possession Jutsu<br>[During Your Opponent's Attack] Summon this card and interrupt that attack.",
+            "damage": 1,
+            "power": 6,
+            "conditions": [
+                "Support",
+                "During Your Opponent's Attack"
+            ],
+            "effects": [
+                {
+                    "id": "interrupt-attack",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": "summon-self",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Interrupt Attack",
+                    "effectType": "Support",
+                    "timing": "During Opponent Attack",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Opponent",
+                    "isOptional": false,
+                    "chakraCost": 1,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "None",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": []
+                    }
+                },
+                {
+                    "id": "summon-self",
+                    "isSubordinate": true,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Summon Card",
+                    "effectType": "Support",
+                    "timing": "During Opponent Attack",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": 1,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Source Card",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Support Zone",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Summon Candidate",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Self",
+                                            "operator": "Equals",
+                                            "value": "",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 4,
+            "cannotBeNormalSummoned": false,
+            "supportName": "Shadow Possession Jutsu",
+            "supportEffect": "[During Your Opponent's Attack] Summon this card and interrupt that attack.",
+            "supportCost": 1,
+            "imageVersion": 1787687416481
+        },
+        {
+            "id": "N-009",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-009.webp?r1785504619",
+            "originalId": "N-009",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Kakashi Hatake"
+            ],
+            "displayName": "Kakashi Hatake",
+            "type": "Character",
+            "traits": [
+                "Lightning",
+                "Hidden Leaf Village",
+                "Team 7"
+            ],
+            "color": "Red",
+            "description": "[Support] Lightning Blade<br>[Support Activated] Negate that card. Then, reduce your life by 2.",
+            "damage": 1,
+            "power": 7,
+            "conditions": [
+                "Support",
+                "Support Activated"
+            ],
+            "effects": [
+                {
+                    "id": "reduce-self-life",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Change Values",
+                    "effectType": "Support",
+                    "timing": "Support Activated",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": 1,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [
+                        {
+                            "targetType": "Leader",
+                            "targetRange": "Self",
+                            "attribute": "Leader Current Life",
+                            "operation": "Subtract",
+                            "value": 2,
+                            "minimumValue": null,
+                            "maximumValue": null
+                        }
+                    ],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Leader",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": 0,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "negate-effect",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": "reduce-self-life",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Negate Effect",
+                    "effectType": "Support",
+                    "timing": "Support Activated",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Any",
+                    "isOptional": false,
+                    "chakraCost": 1,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Any",
+                                "inZone": "Support Zone",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 4,
+            "cannotBeNormalSummoned": false,
+            "supportName": "Lightning Blade",
+            "supportEffect": "[Support Activated] Negate that card. Then, reduce your life by 2.",
+            "supportCost": 1,
+            "imageVersion": 1787666888983
+        },
+        {
+            "id": "N-010",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-010.webp?rfix1785510630",
+            "originalId": "N-010",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Karin"
+            ],
+            "displayName": "Karin",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "The Taka"
+            ],
+            "color": "Blue",
+            "description": "[Support] Hurry up and bite me!<br>[During Your Opponent's Attack] Summon this card and you gain 2 Life.",
+            "damage": 1,
+            "power": 4,
+            "conditions": [
+                "Support",
+                "During Your Opponent's Attack"
+            ],
+            "effects": [
+                {
+                    "id": "gain-health",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": "summon-self",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Change Values",
+                    "effectType": "Support",
+                    "timing": "During Opponent Attack",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": 1,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [
+                        {
+                            "targetType": "Leader",
+                            "targetRange": "Self",
+                            "attribute": "Leader Current Life",
+                            "operation": "Add",
+                            "value": 0,
+                            "minimumValue": null,
+                            "maximumValue": null
+                        }
+                    ],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Leader",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "summon-self",
+                    "isSubordinate": true,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Summon Card",
+                    "effectType": "Support",
+                    "timing": "During Opponent Attack",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Support Zone",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Summon Candidate",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "Hurry up and bite me!",
+            "supportEffect": "[During Your Opponent's Attack] Summon this card and you gain 2 Life.",
+            "supportCost": 1,
+            "imageVersion": 1787781713455
+        },
+        {
+            "id": "N-011",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-011.webp?r1785504619",
+            "originalId": "N-011",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Ino Yamanaka"
+            ],
+            "displayName": "Ino Yamanaka",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "Hidden Leaf Village",
+                "Team 10"
+            ],
+            "color": "Red",
+            "description": "[Activate: Main] [Once Per Turn] If you have [Shikamaru Nara] and [Choji Akimichi] on the field, your [Ino Yamanaka], [Shikamaru Nara], and [Choji Akimichi] all gain [Rush] and +5 power/+1 damage during this turn. (This card can attack on the turn in which it is summoned.)",
+            "damage": 2,
+            "power": 5,
+            "conditions": [
+                "Activate: Main",
+                "Once Per Turn",
+                "Named Card Reference"
+            ],
+            "effects": [
+                {
+                    "id": "add-rush",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": "modify-values",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Gain Effect",
+                    "effectType": "Activated",
+                    "timing": "Activate Main",
+                    "durationMode": "During This Turn",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [
+                        {
+                            "targetType": "Selected Targets",
+                            "operation": "Add",
+                            "keyword": "Rush"
+                        }
+                    ],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "Once Per Turn",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [
+                        {
+                            "player": {
+                                "inZone": "Character Field",
+                                "inZoneRequirements": {
+                                    "requirements": [
+                                        {
+                                            "amount": 1,
+                                            "comparison": "Exact",
+                                            "restriction": {
+                                                "predicates": [
+                                                    {
+                                                        "property": "Name",
+                                                        "operator": "Equals",
+                                                        "value": "Choji Akimichi",
+                                                        "values": [],
+                                                        "ignoreCase": true
+                                                    }
+                                                ],
+                                                "matchMode": "All"
+                                            }
+                                        },
+                                        {
+                                            "amount": 1,
+                                            "comparison": "Exact",
+                                            "restriction": {
+                                                "predicates": [
+                                                    {
+                                                        "property": "Name",
+                                                        "operator": "Equals",
+                                                        "value": "Shikamaru Nara",
+                                                        "values": [],
+                                                        "ignoreCase": true
+                                                    }
+                                                ],
+                                                "matchMode": "All"
+                                            }
+                                        }
+                                    ],
+                                    "operator": "All",
+                                    "distinctCardsAcrossRequirements": true
+                                }
+                            },
+                            "opponent": null
+                        }
+                    ],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": true,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": null,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Name",
+                                            "operator": "In",
+                                            "value": null,
+                                            "values": [
+                                                "Choji Akimichi",
+                                                "Shikamaru Nara",
+                                                "Ino Yamanaka"
+                                            ],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "modify-values",
+                    "isSubordinate": true,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Change Values",
+                    "effectType": "Activated",
+                    "timing": "Activate Main",
+                    "durationMode": "During This Turn",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "Once Per Turn",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [
+                        {
+                            "targetType": "Selected Targets",
+                            "targetRange": "Self",
+                            "attribute": "Card Power",
+                            "operation": "Add",
+                            "value": 5,
+                            "minimumValue": null,
+                            "maximumValue": null
+                        },
+                        {
+                            "targetType": "Selected Targets",
+                            "targetRange": "Self",
+                            "attribute": "Card Damage",
+                            "operation": "Add",
+                            "value": 1,
+                            "minimumValue": null,
+                            "maximumValue": null
+                        }
+                    ],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [
+                        {
+                            "player": {
+                                "inZone": "Character Field",
+                                "inZoneRequirements": {
+                                    "requirements": [
+                                        {
+                                            "amount": 1,
+                                            "comparison": "Exact",
+                                            "restriction": {
+                                                "predicates": [
+                                                    {
+                                                        "property": "Name",
+                                                        "operator": "Equals",
+                                                        "value": "Shikamaru Nara",
+                                                        "values": [],
+                                                        "ignoreCase": true
+                                                    }
+                                                ],
+                                                "matchMode": "All"
+                                            }
+                                        },
+                                        {
+                                            "amount": 1,
+                                            "comparison": "Exact",
+                                            "restriction": {
+                                                "predicates": [
+                                                    {
+                                                        "property": "Name",
+                                                        "operator": "Equals",
+                                                        "value": "Choji Akimichi",
+                                                        "values": [],
+                                                        "ignoreCase": true
+                                                    }
+                                                ],
+                                                "matchMode": "All"
+                                            }
+                                        }
+                                    ],
+                                    "operator": "All",
+                                    "distinctCardsAcrossRequirements": true
+                                }
+                            },
+                            "opponent": null
+                        }
+                    ],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": true,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": null,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Name",
+                                            "operator": "In",
+                                            "value": null,
+                                            "values": [
+                                                "Shikamaru Nara",
+                                                "Choji Akimichi",
+                                                "Ino Yamanaka"
+                                            ],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "All"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 8,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1788140744681
+        },
+        {
+            "id": "N-012",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-012.webp?r1785504619",
+            "originalId": "N-012",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Sasuke Uchiha"
+            ],
+            "displayName": "Sasuke Uchiha",
+            "type": "Leader",
+            "traits": [
+                "Fire",
+                "Lightning",
+                "Uchiha Clan",
+                "The Taka"
+            ],
+            "color": "Blue",
+            "description": "[Activate: Main] [Once Per Turn] Draw 1 card and place 1 card from your hand on top of your deck.<br>[Recovery] If it is the second turn or later, rest this card and flip all of your CHAKRA face-up.",
+            "damage": 1,
+            "power": 3,
+            "conditions": [
+                "Activate: Main",
+                "Once Per Turn",
+                "Recovery"
+            ],
+            "effects": [
+                {
+                    "id": "recovery",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Alter Resources",
+                    "effectType": "Recovery",
+                    "timing": "Activate Main",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": {
+                        "argumentKey": "isSecondTurnOrLater",
+                        "expectedValue": "true",
+                        "ignoreCase": true,
+                        "negate": false
+                    },
+                    "attributeModifications": [],
+                    "chakraAdjustments": [
+                        {
+                            "targetRange": "Self",
+                            "operation": "Recover",
+                            "amount": 5
+                        }
+                    ],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": []
+                    }
+                },
+                {
+                    "id": "draw-n-place-card",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Move Card",
+                    "effectType": "Activated",
+                    "timing": "Activate Main",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "Once Per Turn",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [
+                        {
+                            "operation": "Draw",
+                            "sourceZone": null,
+                            "destinationZone": null,
+                            "drawCount": 1,
+                            "moveCount": null,
+                            "destinationIndex": null,
+                            "deckPlacement": null,
+                            "multiCardOrdering": null,
+                            "allowCrossPlayer": false,
+                            "destinationPlayerRange": "Self"
+                        },
+                        {
+                            "operation": "Move",
+                            "sourceZone": "Hand",
+                            "destinationZone": "Deck",
+                            "drawCount": null,
+                            "moveCount": null,
+                            "destinationIndex": 0,
+                            "deckPlacement": "Top",
+                            "multiCardOrdering": "Selected Order",
+                            "allowCrossPlayer": false,
+                            "destinationPlayerRange": "Self"
+                        }
+                    ],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": []
+                    }
+                }
+            ],
+            "life": 15,
+            "health": null,
+            "cannotBeNormalSummoned": false,
+            "supportName": null,
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1787949412055
+        },
+        {
+            "id": "N-013",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-013.webp?r1785504619",
+            "originalId": "N-013",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Itachi Uchiha"
+            ],
+            "displayName": "Itachi Uchiha",
+            "type": "Character",
+            "traits": [
+                "Fire",
+                "Illusion",
+                "Uchiha Clan",
+                "Akatsuki"
+            ],
+            "color": "Blue",
+            "description": "[On Summon] Choose 1 Leader or Character: Reveal the top card of your deck, and if the revealed card has the [Uchiha Clan] type, the selected card cannot attack during your opponent's next turn.",
+            "damage": 2,
+            "power": 8,
+            "conditions": [
+                "On Summon",
+                "Named Card Reference"
+            ],
+            "effects": [
+                {
+                    "id": "freeze-target",
+                    "isSubordinate": true,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Freeze Card",
+                    "effectType": "Activated",
+                    "timing": "On Summon",
+                    "durationMode": "During Opponent Next Turn",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Any",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Any",
+                                "inZone": "Leader",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": null,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            },
+                            {
+                                "scope": "Any",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": null,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "reveal-top",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": "freeze-target",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Reveal Card",
+                    "effectType": "Activated",
+                    "timing": "On Summon",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal First",
+                    "revealPostConditionRuleSet": {
+                        "restrictions": [
+                            {
+                                "predicates": [
+                                    {
+                                        "property": "Trait",
+                                        "operator": "Equals",
+                                        "value": "Uchiha Clan",
+                                        "values": [],
+                                        "ignoreCase": true
+                                    }
+                                ],
+                                "matchMode": "All"
+                            }
+                        ],
+                        "operator": "All"
+                    },
+                    "revealPostConditionRestriction": {
+                        "predicates": [
+                            {
+                                "property": "Trait",
+                                "operator": "Equals",
+                                "value": "Uchiha Clan",
+                                "values": [],
+                                "ignoreCase": true
+                            }
+                        ],
+                        "matchMode": "All"
+                    },
+                    "revealPostConditionPredicate": {
+                        "property": "Trait",
+                        "operator": "Equals",
+                        "value": "Uchiha Clan",
+                        "values": [],
+                        "ignoreCase": true
+                    },
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "All",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": true,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Deck",
+                                "locationSelector": {
+                                    "kind": "Deck Top",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": null,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 8,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1787704601710
+        },
+        {
+            "id": "N-014",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-014.webp?r1785504619",
+            "originalId": "N-014",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Sasuke Uchiha"
+            ],
+            "displayName": "Sasuke Uchiha",
+            "type": "EX Character",
+            "traits": [
+                "Fire",
+                "Lightning",
+                "Uchiha Clan",
+                "The Taka"
+            ],
+            "color": "Blue",
+            "description": "Cannot be summoned normally.<br>[Summon Requirements] Place 1 of your Characters and 1 of your [The Taka] type Characters in your trash.<br>[Rush] (This card can attack on the turn in which it is summoned.)<br>[On Summon] Choose 1 Character: K.O. the chosen card.",
+            "damage": 3,
+            "power": 10,
+            "conditions": [
+                "Summon Requirements",
+                "Named Card Reference",
+                "Rush",
+                "On Summon"
+            ],
+            "effects": [
+                {
+                    "id": "on-summon",
+                    "isSubordinate": true,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Destroy Card",
+                    "effectType": "Activated",
+                    "timing": "On Summon",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Any",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "tribute-requirement",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": "on-summon",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Tribute",
+                    "effectType": "Summon Requirement",
+                    "timing": "During Your Main",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "All",
+                        "exactTargetCount": 3,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": {
+                            "exactTributeCount": 2,
+                            "minimumTributeCount": null,
+                            "maximumTributeCount": null,
+                            "requireSingleSummonTarget": true,
+                            "requireDistinctSummonAndTributes": true
+                        },
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Summon Candidate",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            },
+                            {
+                                "scope": "Self",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Tribute Material",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Self",
+                                            "operator": "Equals",
+                                            "value": "",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "Any"
+                                }
+                            },
+                            {
+                                "scope": "Self",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Tribute Material",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Trait",
+                                            "operator": "Equals",
+                                            "value": "The Taka",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 11,
+            "cannotBeNormalSummoned": true,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1788471258447
+        },
+        {
+            "id": "N-015",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-015.webp?r1785504619",
+            "originalId": "N-015",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Sasuke Uchiha"
+            ],
+            "displayName": "Sasuke Uchiha",
+            "type": "Character",
+            "traits": [
+                "Lightning",
+                "Uchiha Clan"
+            ],
+            "color": "Blue",
+            "description": "[Support] Chidori: One Thousand Birds<br>[During Your Main] K.O. all Characters.",
+            "damage": 1,
+            "power": 4,
+            "conditions": [
+                "Support",
+                "During Your Main"
+            ],
+            "effects": [
+                {
+                    "id": "KO-all-targets",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Destroy Card",
+                    "effectType": "Support",
+                    "timing": "During Your Main",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Any",
+                    "isOptional": false,
+                    "chakraCost": 2,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": true,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Any",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": null,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 5,
+            "cannotBeNormalSummoned": false,
+            "supportName": "Chidori: One Thousand Birds",
+            "supportEffect": "[During Your Main] K.O. all Characters.",
+            "supportCost": 2,
+            "imageVersion": 1787424514869
+        },
+        {
+            "id": "N-016",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-016.webp?r1785504619",
+            "originalId": "N-016",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Shisui Uchiha"
+            ],
+            "displayName": "Shisui Uchiha",
+            "type": "Character",
+            "traits": [
+                "Illusion",
+                "Uchiha Clan",
+                "Hidden Leaf Village"
+            ],
+            "color": "Blue",
+            "description": "[Support] Koto Amatsukami<br>[Support Activated] Negate that card. Then, from this turn until the end of your next turn's End Phase, you cannot turn your CHAKRA face-up.",
+            "damage": 1,
+            "power": 5,
+            "conditions": [
+                "Support",
+                "Support Activated"
+            ],
+            "effects": [
+                {
+                    "id": "chakra-freeze",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Alter Resources",
+                    "effectType": "Support",
+                    "timing": "Support Activated",
+                    "durationMode": "Until The End Of Your Next Turn",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [
+                        {
+                            "targetCategory": "Chakra Card",
+                            "operation": "Cannot Turn Face Up",
+                            "targetRange": "Self"
+                        }
+                    ],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": []
+                    }
+                },
+                {
+                    "id": "negate-effect",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Negate Effect",
+                    "effectType": "Support",
+                    "timing": "Support Activated",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": 1,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Any",
+                                "inZone": "Support Zone",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "Koto Amatsukami",
+            "supportEffect": "[Support Activated] Negate that card. Then, from this turn until the end of your next turn's End Phase, you cannot turn your CHAKRA face-up.",
+            "supportCost": 1,
+            "imageVersion": 1787749429452
+        },
+        {
+            "id": "N-017",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-017.webp?r1785504619",
+            "originalId": "N-017",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Orochimaru"
+            ],
+            "displayName": "Orochimaru",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "The Legendary Sannin",
+                "Hidden Sound Village"
+            ],
+            "color": "Blue",
+            "description": "[Support] Striking Shadow Snake<br>[During Your Opponent's Attack] Choose up to 2 rested Characters: K.O. the chosen cards.",
+            "damage": 1,
+            "power": 4,
+            "conditions": [
+                "Support",
+                "During Your Opponent's Attack"
+            ],
+            "effects": [
+                {
+                    "id": "KO-rested-characters",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Destroy Card",
+                    "effectType": "Support",
+                    "timing": "During Opponent Attack",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Any",
+                    "isOptional": false,
+                    "chakraCost": 2,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "All",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": 2,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Any",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": null,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": 2,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Is Rested",
+                                            "operator": "Equals",
+                                            "value": "true",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "All"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 7,
+            "cannotBeNormalSummoned": false,
+            "supportName": "Striking Shadow Snake",
+            "supportEffect": "[During Your Opponent's Attack] Choose up to 2 rested Characters: K.O. the chosen cards.",
+            "supportCost": 2,
+            "imageVersion": 1789332884359
+        },
+        {
+            "id": "N-018",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-018.webp?rfix1785510630",
+            "originalId": "N-018",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Hinata Hyuga"
+            ],
+            "displayName": "Hinata Hyuga",
+            "type": "Character",
+            "traits": [
+                "Hyuga Clan",
+                "Hidden Leaf Village",
+                "Team 8"
+            ],
+            "color": "Red",
+            "description": "[Support] [8-Trigram] Air Palm<br>[During Your Opponent's Attack] Choose 1 non-EX Character: K.O. the chosen card.",
+            "damage": 1,
+            "power": 5,
+            "conditions": [
+                "Support",
+                "During Your Opponent's Attack"
+            ],
+            "effects": [
+                {
+                    "id": "KO-non-EX",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Destroy Card",
+                    "effectType": "Support",
+                    "timing": "During Opponent Attack",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Any",
+                    "isOptional": false,
+                    "chakraCost": 1,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Any",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Type",
+                                            "operator": "Not Equals",
+                                            "value": "EX Character",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 5,
+            "cannotBeNormalSummoned": false,
+            "supportName": "[8-Trigram] Air Palm",
+            "supportEffect": "[During Your Opponent's Attack] Choose 1 non-EX Character: K.O. the chosen card.",
+            "supportCost": 1,
+            "imageVersion": 1787749870052
+        },
+        {
+            "id": "N-019",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-019.webp?rfix1785510630",
+            "originalId": "N-019",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Jugo"
+            ],
+            "displayName": "Jugo",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "The Taka"
+            ],
+            "color": "Blue",
+            "description": "[When Attacking] Reveal the top card of your deck, and if the revealed card is [Sasuke Uchiha] or a [The Taka] type card other than an EX Character, summon that card.",
+            "damage": 2,
+            "power": 9,
+            "conditions": [
+                "When Attacking",
+                "Named Card Reference"
+            ],
+            "effects": [
+                {
+                    "id": "reveal-top",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": "summon-revealed-card",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Reveal Card",
+                    "effectType": "Activated",
+                    "timing": "When Attacking",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal First",
+                    "revealPostConditionRuleSet": {
+                        "restrictions": [
+                            {
+                                "predicates": [
+                                    {
+                                        "property": "Name",
+                                        "operator": "Equals",
+                                        "value": "Sasuke Uchiha",
+                                        "values": [],
+                                        "ignoreCase": true
+                                    },
+                                    {
+                                        "property": "Trait",
+                                        "operator": "Equals",
+                                        "value": "The Taka",
+                                        "values": [],
+                                        "ignoreCase": true
+                                    }
+                                ],
+                                "matchMode": "Any"
+                            },
+                            {
+                                "predicates": [
+                                    {
+                                        "property": "Type",
+                                        "operator": "Not Equals",
+                                        "value": "EX Character",
+                                        "values": [],
+                                        "ignoreCase": true
+                                    }
+                                ],
+                                "matchMode": "All"
+                            }
+                        ],
+                        "operator": "All"
+                    },
+                    "revealPostConditionRestriction": {
+                        "predicates": [
+                            {
+                                "property": "Name",
+                                "operator": "Equals",
+                                "value": "Sasuke Uchiha",
+                                "values": [],
+                                "ignoreCase": true
+                            },
+                            {
+                                "property": "Trait",
+                                "operator": "Equals",
+                                "value": "The Taka",
+                                "values": [],
+                                "ignoreCase": true
+                            }
+                        ],
+                        "matchMode": "Any"
+                    },
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": true,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Deck",
+                                "locationSelector": {
+                                    "kind": "Deck Top",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": null,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "summon-revealed-card",
+                    "isSubordinate": true,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Summon Card",
+                    "effectType": "Activated",
+                    "timing": "When Attacking",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": []
+                    }
+                }
+            ],
+            "life": null,
+            "health": 7,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1787789716906
+        },
+        {
+            "id": "N-020",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-020.webp?rfix1785510630",
+            "originalId": "N-020",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Sakura Haruno"
+            ],
+            "displayName": "Sakura Haruno",
+            "type": "Character",
+            "traits": [
+                "Taijutsu",
+                "Hidden Leaf Village",
+                "Team 7"
+            ],
+            "color": "Blue",
+            "description": "[Support] Cha!<br>[During Your Opponent's Attack] Choose 1 Character: Return the chosen card to the owner's hand.",
+            "damage": 2,
+            "power": 6,
+            "conditions": [
+                "Support",
+                "During Your Opponent's Attack"
+            ],
+            "effects": [
+                {
+                    "id": "return-to-hand",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Move Card",
+                    "effectType": "Support",
+                    "timing": "During Opponent Attack",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": 1,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [
+                        {
+                            "operation": "Move",
+                            "sourceZone": "Character Field",
+                            "destinationZone": "Hand",
+                            "drawCount": null,
+                            "moveCount": 1,
+                            "destinationIndex": 0,
+                            "deckPlacement": null,
+                            "multiCardOrdering": null,
+                            "allowCrossPlayer": false,
+                            "destinationPlayerRange": "Any"
+                        }
+                    ],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": []
+                    }
+                }
+            ],
+            "life": null,
+            "health": 4,
+            "cannotBeNormalSummoned": false,
+            "supportName": "Cha!",
+            "supportEffect": "[During Your Opponent's Attack] Choose 1 Character: Return the chosen card to the owner's hand.",
+            "supportCost": 1,
+            "imageVersion": 1787753050908
+        },
+        {
+            "id": "N-021",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-021.webp?r1785504619",
+            "originalId": "N-021",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Suigetsu Hozuki"
+            ],
+            "displayName": "Suigetsu Hozuki",
+            "type": "Character",
+            "traits": [
+                "Water",
+                "The Taka"
+            ],
+            "color": "Blue",
+            "description": "[Support] Water Transformation Jutsu<br>[Quick] Choose 1 Character: Summon this card, and the chosen card will not be affected by your opponent's Support effects during this turn.",
+            "damage": 1,
+            "power": 5,
+            "conditions": [
+                "Support",
+                "Quick"
+            ],
+            "effects": [
+                {
+                    "id": "summon-self",
+                    "isSubordinate": true,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Summon Card",
+                    "effectType": "Support",
+                    "timing": "Quick",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Source Card",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": []
+                    }
+                },
+                {
+                    "id": "grant-immunity",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": "summon-self",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Gain Effect",
+                    "effectType": "Support",
+                    "timing": "Quick",
+                    "durationMode": "During This Turn",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [
+                        {
+                            "targetType": "Selected Targets",
+                            "operation": "Add",
+                            "keyword": "Not Affected By Opponent Support Effects"
+                        }
+                    ],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Any",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": null,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 5,
+            "cannotBeNormalSummoned": false,
+            "supportName": "Water Transformation Jutsu",
+            "supportEffect": "[Quick] Choose 1 Character: Summon this card, and the chosen card will not be affected by your opponent's Support effects during this turn.",
+            "supportCost": null,
+            "imageVersion": 1787755451126
+        },
+        {
+            "id": "N-022",
+            "image": "https://exburst.dev/nrtb/cards/hd/N-022.webp?r1785504619",
+            "originalId": "N-022",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Manda"
+            ],
+            "displayName": "Manda",
+            "type": "EX Character",
+            "traits": [
+                "Special",
+                "Snake"
+            ],
+            "color": "Blue",
+            "description": "Cannot be summoned normally.<br>[Summon Requirements] Place 1 of your Characters in your trash.<br>[On Summon] Reveal the top card of your deck, and if the revealed card is a non-EX Character, summon that card.",
+            "damage": 2,
+            "power": 8,
+            "conditions": [
+                "Summon Requirements",
+                "On Summon"
+            ],
+            "effects": [
+                {
+                    "id": "tribute-requirement",
+                    "isSubordinate": false,
+                    "onSuccessEffectId": "reveal-top",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Tribute",
+                    "effectType": "Summon Requirement",
+                    "timing": "During Your Main",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Atomic Chain",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 2,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": {
+                            "exactTributeCount": 1,
+                            "minimumTributeCount": null,
+                            "maximumTributeCount": null,
+                            "requireSingleSummonTarget": true,
+                            "requireDistinctSummonAndTributes": true
+                        },
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Character Field",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Tribute Material",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            },
+                            {
+                                "scope": "Self",
+                                "inZone": "Hand",
+                                "locationSelector": {
+                                    "kind": "Any",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Summon Candidate",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "reveal-top",
+                    "isSubordinate": true,
+                    "onSuccessEffectId": "on-summon",
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Reveal Card",
+                    "effectType": "Support",
+                    "timing": "Quick",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal First",
+                    "revealPostConditionRuleSet": {
+                        "restrictions": [
+                            {
+                                "predicates": [
+                                    {
+                                        "property": "Type",
+                                        "operator": "Not Equals",
+                                        "value": "EX Character",
+                                        "values": [],
+                                        "ignoreCase": true
+                                    }
+                                ],
+                                "matchMode": "All"
+                            }
+                        ],
+                        "operator": "All"
+                    },
+                    "revealPostConditionRestriction": {
+                        "predicates": [
+                            {
+                                "property": "Type",
+                                "operator": "Not Equals",
+                                "value": "EX Character",
+                                "values": [],
+                                "ignoreCase": true
+                            }
+                        ],
+                        "matchMode": "All"
+                    },
+                    "revealPostConditionPredicate": {
+                        "property": "Type",
+                        "operator": "Not Equals",
+                        "value": "EX Character",
+                        "values": [],
+                        "ignoreCase": true
+                    },
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": null,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": true,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Deck",
+                                "locationSelector": {
+                                    "kind": "Deck Top",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": null,
+                                "exactSelectedTargetCount": null,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "on-summon",
+                    "isSubordinate": true,
+                    "onSuccessEffectId": null,
+                    "onFailureEffectId": null,
+                    "runtimeEffectType": "Summon Card",
+                    "effectType": "Activated",
+                    "timing": "During Your Main",
+                    "durationMode": "Instant",
+                    "passiveMode": "None",
+                    "passiveReevaluation": null,
+                    "passiveConsequences": [],
+                    "keywordModifications": [],
+                    "targetRange": "Self",
+                    "isOptional": false,
+                    "chakraCost": null,
+                    "globalRestrictions": "None",
+                    "executionTargetSource": "Selected Targets",
+                    "executionFlowMode": "Per Step",
+                    "suppressSummonedTargetsEffectsWhileOnField": false,
+                    "revealTimingMode": "Reveal Last",
+                    "revealPostConditionRuleSet": null,
+                    "revealPostConditionRestriction": null,
+                    "revealPostConditionPredicate": null,
+                    "executionCondition": null,
+                    "attributeModifications": [],
+                    "chakraAdjustments": [],
+                    "summonCardFlips": [],
+                    "faceStateLocks": [],
+                    "moveCardActions": [],
+                    "contextRules": [],
+                    "targetRules": {
+                        "operator": "Any",
+                        "exactTargetCount": 1,
+                        "minimumTargetCount": null,
+                        "maximumTargetCount": null,
+                        "autoSelectAllValidTargets": false,
+                        "tributeComposition": null,
+                        "rules": [
+                            {
+                                "scope": "Self",
+                                "inZone": "Deck",
+                                "locationSelector": {
+                                    "kind": "Deck Top",
+                                    "supportSlotIndex": null
+                                },
+                                "tributeRole": "Summon Candidate",
+                                "exactSelectedTargetCount": 1,
+                                "minimumSelectedTargetCount": null,
+                                "maximumSelectedTargetCount": null,
+                                "restriction": {
+                                    "predicates": [
+                                        {
+                                            "property": "Type",
+                                            "operator": "Not Equals",
+                                            "value": "EX Character",
+                                            "values": [],
+                                            "ignoreCase": true
+                                        }
+                                    ],
+                                    "matchMode": "Any"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "life": null,
+            "health": 10,
+            "cannotBeNormalSummoned": true,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1787786882854
+        },
+        {
+            "id": "S-001",
+            "image": "https://exburst.dev/nrtb/cards/hd/S-001.webp?r1785504619",
+            "originalId": "S-001",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Summon Card"
+            ],
+            "displayName": "Summon Card",
+            "type": "Summon",
+            "traits": [],
+            "color": "N/A",
+            "description": "You may rest this card to summon a Character card.",
+            "damage": 0,
+            "power": 0,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 0,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1787415037190
+        },
+        {
+            "id": "SAMPLE-1",
+            "image": "https://exburst.dev/nrtb/cards/hd/SAMPLE-1.webp?r1785504619",
+            "originalId": "SAMPLE-1",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Orochimaru"
+            ],
+            "displayName": "Orochimaru",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "The Legendary Sannin",
+                "Village Hidden in the Sound"
+            ],
+            "color": "Blue",
+            "description": "",
+            "damage": 3,
+            "power": 6,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1785775362247
+        },
+        {
+            "id": "SAMPLE-10",
+            "image": "https://exburst.dev/nrtb/cards/hd/SAMPLE-10.webp?r1785504619",
+            "originalId": "SAMPLE-10",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Tsunade"
+            ],
+            "displayName": "Tsunade",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "Hidden Leaf Village"
+            ],
+            "color": "Green",
+            "description": "",
+            "damage": 3,
+            "power": 6,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1785775362247
+        },
+        {
+            "id": "SAMPLE-11",
+            "image": "https://exburst.dev/nrtb/cards/hd/SAMPLE-11.webp?r1785504619",
+            "originalId": "SAMPLE-11",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Sasuke Uchiha"
+            ],
+            "displayName": "Sasuke Uchiha",
+            "type": "Character",
+            "traits": [
+                "Lightning",
+                "Uchiha Clan"
+            ],
+            "color": "Blue",
+            "description": "",
+            "damage": 3,
+            "power": 6,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1785775362247
+        },
+        {
+            "id": "SAMPLE-12",
+            "image": "https://exburst.dev/nrtb/cards/hd/SAMPLE-12.webp?r1785504619",
+            "originalId": "SAMPLE-12",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Naruto Uzumaki"
+            ],
+            "displayName": "Naruto Uzumaki",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "Jinchuriki",
+                "Hidden Leaf Village",
+                "Team 7"
+            ],
+            "color": "Red",
+            "description": "",
+            "damage": 3,
+            "power": 6,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1785775362247
+        },
+        {
+            "id": "SAMPLE-2",
+            "image": "https://exburst.dev/nrtb/cards/hd/SAMPLE-2.webp?r1785504619",
+            "originalId": "SAMPLE-2",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Boruto Uzumaki"
+            ],
+            "displayName": "Boruto Uzumaki",
+            "type": "Character",
+            "traits": [
+                "Lightning",
+                "Hidden Leaf Village"
+            ],
+            "color": "Red",
+            "description": "",
+            "damage": 3,
+            "power": 6,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1785775362247
+        },
+        {
+            "id": "SAMPLE-3",
+            "image": "https://exburst.dev/nrtb/cards/hd/SAMPLE-3.webp?r1785504619",
+            "originalId": "SAMPLE-3",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Sasuke Uchiha"
+            ],
+            "displayName": "Sasuke Uchiha",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "Hidden Leaf Village"
+            ],
+            "color": "Blue",
+            "description": "",
+            "damage": 3,
+            "power": 6,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1785775362247
+        },
+        {
+            "id": "SAMPLE-4",
+            "image": "https://exburst.dev/nrtb/cards/hd/SAMPLE-4.webp?r1785504619",
+            "originalId": "SAMPLE-4",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Naruto Uzumaki"
+            ],
+            "displayName": "Naruto Uzumaki",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "Hidden Leaf Village"
+            ],
+            "color": "Red",
+            "description": "",
+            "damage": 3,
+            "power": 6,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1785775362247
+        },
+        {
+            "id": "SAMPLE-5",
+            "image": "https://exburst.dev/nrtb/cards/hd/SAMPLE-5.webp?r1785504619",
+            "originalId": "SAMPLE-5",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Jiraiya"
+            ],
+            "displayName": "Jiraiya",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "Hidden Leaf Village"
+            ],
+            "color": "Red",
+            "description": "",
+            "damage": 3,
+            "power": 6,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1785775362247
+        },
+        {
+            "id": "SAMPLE-6",
+            "image": "https://exburst.dev/nrtb/cards/hd/SAMPLE-6.webp?r1785504619",
+            "originalId": "SAMPLE-6",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Itachi Uchiha"
+            ],
+            "displayName": "Itachi Uchiha",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "Akatsuki Organization"
+            ],
+            "color": "Blue",
+            "description": "",
+            "damage": 3,
+            "power": 6,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1785775362247
+        },
+        {
+            "id": "SAMPLE-7",
+            "image": "https://exburst.dev/nrtb/cards/hd/SAMPLE-7.webp?r1785504619",
+            "originalId": "SAMPLE-7",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Sasuke Uchiha"
+            ],
+            "displayName": "Sasuke Uchiha",
+            "type": "Character",
+            "traits": [
+                "Lightning",
+                "The Taka"
+            ],
+            "color": "Blue",
+            "description": "",
+            "damage": 3,
+            "power": 6,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1785775362247
+        },
+        {
+            "id": "SAMPLE-8",
+            "image": "https://exburst.dev/nrtb/cards/hd/SAMPLE-8.webp?r1785504619",
+            "originalId": "SAMPLE-8",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Naruto Uzumaki"
+            ],
+            "displayName": "Naruto Uzumaki",
+            "type": "Character",
+            "traits": [
+                "Wind",
+                "Hidden Leaf Village"
+            ],
+            "color": "Red",
+            "description": "",
+            "damage": 3,
+            "power": 6,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1785775362247
+        },
+        {
+            "id": "SAMPLE-9",
+            "image": "https://exburst.dev/nrtb/cards/hd/SAMPLE-9.webp?r1785504619",
+            "originalId": "SAMPLE-9",
+            "mainAlternate": true,
+            "attribute": null,
+            "name": [
+                "Sakura Haruno"
+            ],
+            "displayName": "Sakura Haruno",
+            "type": "Character",
+            "traits": [
+                "Special",
+                "Hidden Leaf Village"
+            ],
+            "color": "Red",
+            "description": "",
+            "damage": 3,
+            "power": 6,
+            "conditions": [],
+            "effects": [],
+            "life": null,
+            "health": 6,
+            "cannotBeNormalSummoned": false,
+            "supportName": "",
+            "supportEffect": "",
+            "supportCost": null,
+            "imageVersion": 1785775362247
+        }]

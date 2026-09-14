@@ -500,9 +500,9 @@ public sealed class InMemoryGameInstanceRegistry
             DisabledReason: canExecuteResult.CanExecute
                 ? null
                 : canExecuteResult.FailedConditions.FirstOrDefault(),
-            MinimumTargetCount: ResolveTributeMinimumTargetCount(effectSpec!.TargetRules),
-            MaximumTargetCount: ResolveTributeMaximumTargetCount(effectSpec.TargetRules),
-            ExactTargetCount: ResolveTributeExactTargetCount(effectSpec.TargetRules),
+            MinimumTargetCount: TributeMaterialRequirementBuilder.ResolveMinimumTargetCount(effectSpec!.TargetRules),
+            MaximumTargetCount: TributeMaterialRequirementBuilder.ResolveMaximumTargetCount(effectSpec.TargetRules),
+            ExactTargetCount: TributeMaterialRequirementBuilder.ResolveExactTargetCount(effectSpec.TargetRules),
             AutoSelectAllValidTargets: effectSpec.TargetRules.AutoSelectAllValidTargets,
             ValidTargets: validTributeTargets,
             RequirementLabels: BuildTributeRequirementLabels(
@@ -510,7 +510,8 @@ public sealed class InMemoryGameInstanceRegistry
                 actingPlayer,
                 sourceCardInstance,
                 effectSpec.TargetRules,
-                validTributeTargets));
+                validTributeTargets),
+            MaterialRequirements: TributeMaterialRequirementBuilder.BuildGroups(effectSpec.TargetRules));
     }
 
     public GameInstance DeclareEndStep(string gameId)
@@ -2489,44 +2490,5 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         return responses;
-    }
-
-    private static int? ResolveTributeExactTargetCount(EffectTargetRuleSet targetRules)
-    {
-        return targetRules.TributeComposition?.ExactTributeCount
-            ?? targetRules.Rules
-                .Where(rule => rule.TributeRole == TributeTargetRole.TributeMaterial)
-                .Select(rule => rule.ExactSelectedTargetCount)
-                .FirstOrDefault(count => count.HasValue);
-    }
-
-    private static int? ResolveTributeMinimumTargetCount(EffectTargetRuleSet targetRules)
-    {
-        if (targetRules.TributeComposition?.ExactTributeCount is int exact)
-        {
-            return exact;
-        }
-
-        return targetRules.TributeComposition?.MinimumTributeCount
-            ?? targetRules.Rules
-                .Where(rule => rule.TributeRole == TributeTargetRole.TributeMaterial)
-                .Select(rule => rule.MinimumSelectedTargetCount)
-                .FirstOrDefault(count => count.HasValue)
-            ?? targetRules.MinimumTargetCount;
-    }
-
-    private static int? ResolveTributeMaximumTargetCount(EffectTargetRuleSet targetRules)
-    {
-        if (targetRules.TributeComposition?.ExactTributeCount is int exact)
-        {
-            return exact;
-        }
-
-        return targetRules.TributeComposition?.MaximumTributeCount
-            ?? targetRules.Rules
-                .Where(rule => rule.TributeRole == TributeTargetRole.TributeMaterial)
-                .Select(rule => rule.MaximumSelectedTargetCount)
-                .FirstOrDefault(count => count.HasValue)
-            ?? targetRules.MaximumTargetCount;
     }
 }

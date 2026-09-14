@@ -26,6 +26,11 @@ dotnet ef database update \
   --project server/ProjectHiddenVillage.Server.csproj \
   --startup-project server/ProjectHiddenVillage.Server.csproj
 
+# The seed manifest stores the real external art URL per card, but e2e (and CI) must not depend on an
+# external image host: an unanswerable CardArt allowlist makes `/api/card-art` fail fast without any
+# network call, so `CardImage` deterministically falls back instead of slowing the suite down.
+export CardArt__SourceHostAllowlist__0="e2e.invalid"
+
 ASPNETCORE_ENVIRONMENT=Development \
 DOTNET_ENVIRONMENT=Development \
 PHV_INCLUDE_TEST_SEED_PROFILES=true \
