@@ -81,16 +81,47 @@ export type IAttackAnchorConfig = IAttackAnchorPosition | {
   }
 }
 
-export type IAttackLinkRenderConfig = {
-  startId: string
-  endId: string
+// Attack-link geometry *inputs*: the board's tuning constants. The geometry itself (anchor sides, gaps,
+// the rotated-edge offsets and the curve parameters) is re-derived from the live elements by
+// `resolveAttackLinkGeometry` on every layout sample, because a rested card is tilted by a CSS
+// transition - its bounding box, which is what react-xarrows anchors on, keeps moving after the click.
+export type IAttackLinkGeometryOptions = {
+  sourceGapPx: number
+  targetGapPx: number
+  sweepSourceGapPx: number
+  sweepTargetGapPx: number
+  sideBendPx: number
+}
+
+export type IAttackLinkGeometry = {
   startAnchor: IAttackAnchorConfig
   endAnchor: IAttackAnchorConfig
   path: IAttackLinkPathMode
   curveness: number
-  headOffsetForward: number
   controlPointOffsets?: {
     cpx1: number
     cpx2: number
   }
+}
+
+export type IAttackLinkRenderConfig = {
+  startId: string
+  endId: string
+  headOffsetForward: number
+  options: IAttackLinkGeometryOptions
+}
+
+// Custom arrowhead placement. It is measured from the dashed tail react-xarrows actually drew (see
+// AttackLinkArrow) rather than predicted from the anchors, so the head can never drift off the line or
+// off the cards. Coordinates are board-local: relative to the game board box, which is the offset
+// parent of the overlay.
+export type IAttackLinkHeadConfig = {
+  // Base of the head (one head length behind the tail's end point along the tail's end direction) so the
+  // head's tip lands exactly on the end of the dashed tail, covering the dash pattern's final gap.
+  x: number
+  y: number
+  // Degrees, 0 = pointing right (+x), growing clockwise (SVG rotation convention).
+  rotationDeg: number
+  // Head length in px; the head shape is a unit shape scaled by this.
+  sizePx: number
 }

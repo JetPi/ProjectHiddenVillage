@@ -12,7 +12,7 @@ const RECOVERY_ACTION_LABEL = 'Recovery'
 const DISABLED_RECOVERY_CLASSNAME = "mx-2 inline-flex h-5 w-5 items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-90"
 const ENABLED_RECOVERY_CLASSNAME = "mx-2 inline-flex h-5 w-5 items-center justify-center rounded-sm border border-orange-400 bg-orange-800 text-orange-200 transition-colors duration-150 hover:bg-orange-700 hover:border-orange-400"
 const LEADER_OVERLAY_CONTAINER_CLASSNAME = 'card-overlay-controls pointer-events-none absolute mx-auto inset-0 z-20 gap-1 w-fit flex flex-col items-center content-center justify-center opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100'
-const LEADER_ACTION_BUTTON_CLASSNAME = 'w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
+const LEADER_ACTION_BUTTON_CLASSNAME = 'w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
 const LEADER_CHOOSE_BUTTON_CLASSNAME = 'w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
 
 function splitRecoveryAction(actionOptions: IGameActionOptionResponse[]): {
