@@ -74,7 +74,7 @@ function resolveActivePlayerFromStates(setup: MultiplayerSetup, playerOneState: 
     : setup.playerTwo
 }
 
-async function progressToNextDecisionWindow(
+export async function progressToNextDecisionWindow(
   setup: MultiplayerSetup,
   playerOneState: GameStateResponse,
   playerTwoState: GameStateResponse,

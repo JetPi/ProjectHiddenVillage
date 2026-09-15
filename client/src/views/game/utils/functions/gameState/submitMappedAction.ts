@@ -1,7 +1,7 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { IGameActionOptionResponse, IGameCardInstanceResponse } from '@/services/api/types/game'
 import type { IGameCardActionTargetsRequest, IGameCardActionTargetsResponse } from '@/services/api/types/gameHub'
-import type { IAttackTargetingState, IPendingCardTargetingState, ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
+import type { IAttackTargetingState, IEffectTargetingState, IPendingCardTargetingState, ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
 import { mapActionToHubIntent } from './helpers'
 import { runSubmitThenZoneEntryAnimation } from './runSubmitThenZoneEntryAnimation'
 import { trySubmitTargetedCardEffect } from './trySubmitTargetedCardEffect'
@@ -51,6 +51,7 @@ function submitMappedAction({
   beginBattleTargeting,
   beginEffectTargeting,
   beginSummonTargeting,
+  beginEffectMultiTargeting,
   bottomHandRowRef,
   boardZoneRef,
   currentBottomBattlefieldRawCards,
@@ -67,6 +68,7 @@ function submitMappedAction({
       submitHubIntent,
       getCardActionTargets,
       beginEffectTargeting,
+      beginEffectMultiTargeting,
     })
     return
   }
@@ -107,6 +109,7 @@ function submitMappedAction({
       submitHubIntent,
       getCardActionTargets,
       beginEffectTargeting,
+      beginEffectMultiTargeting,
     })
     return
   }
@@ -285,6 +288,7 @@ interface ISubmitMappedActionArgs {
   beginBattleTargeting: (targeting: IAttackTargetingState) => void
   beginEffectTargeting: (targeting: IAttackTargetingState) => void
   beginSummonTargeting: (targeting: ISummonTargetingState) => void
+  beginEffectMultiTargeting: (targeting: IEffectTargetingState) => void
   bottomHandRowRef: RefObject<HTMLDivElement | null>
   boardZoneRef: RefObject<HTMLDivElement | null>
   currentBottomBattlefieldRawCards: IGameCardInstanceResponse[]

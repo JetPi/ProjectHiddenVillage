@@ -23,6 +23,8 @@ const PhaseValues = {
   'damage-step': 'Damage Step',
   'selecting-tribute-materials': 'Selecting tribute materials',
   'fulfilled-tribute-requirements': 'Fulfilled tribute requirements',
+  'selecting-effect-targets': 'Selecting support targets',
+  'fulfilled-effect-targets': 'Fulfilled target selection',
 }
 
 export { phaseActionChipClassName, invertedPhaseThemeClassByPhaseTheme, PhaseValues }

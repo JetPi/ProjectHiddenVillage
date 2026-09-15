@@ -14,12 +14,13 @@ paths:
 
 - `gameHubStore` = server mirror (SignalR push). **Single writer for `gameState`**.
 - `gameUIStore` = interaction state: `pendingCardTargeting`,
-  `pendingSummonTargeting`, `pendingSetSupportCardInstanceId`,
+  `pendingSummonTargeting`, `pendingEffectTargeting`,
+  `pendingSetSupportCardInstanceId`,
   `optimisticRestedByInstanceId`, `activeAttackLink`,
   `lastSubmittedAttackSourceInstanceId`, `bottomHandFaceUpByInstanceId`,
   `isMulliganAnimationPending`. Targeting/summon transitions are store actions
   (`beginBattleTargeting`, `beginEffectTargeting`, `beginSummonTargeting`,
-  `cancel*`, `toggleSummonTarget`, …).
+  `beginEffectMultiTargeting`, `cancel*`, `toggleSummonTarget`/`toggleEffectTarget`, …).
 
 ## Self-healing instead of cleanup effects
 

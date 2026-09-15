@@ -1,5 +1,5 @@
 import type { SetStateAction } from 'react'
-import type { IAttackFlowLinkState, IAttackTargetingState, IPendingCardTargetingState, ISummonTargetingState } from '@/views/game/types'
+import type { IAttackFlowLinkState, IAttackTargetingState, IEffectTargetingState, IPendingCardTargetingState, ISummonTargetingState } from '@/views/game/types'
 
 export type IGameUIStoreState = {
   bottomHandFaceUpByInstanceId: Record<string, boolean>
@@ -19,6 +19,11 @@ export type IGameUIStoreState = {
   beginSummonTargeting: (targeting: ISummonTargetingState) => void
   cancelSummonTargeting: () => void
   toggleSummonTarget: (targetCardInstanceId: string) => void
+  pendingEffectTargeting: IEffectTargetingState | null
+  setPendingEffectTargeting: (value: SetStateAction<IEffectTargetingState | null>) => void
+  beginEffectMultiTargeting: (targeting: IEffectTargetingState) => void
+  cancelEffectTargeting: () => void
+  toggleEffectTarget: (targetCardInstanceId: string) => void
   optimisticRestedByInstanceId: Record<string, boolean>
   setOptimisticRestedByInstanceId: (value: SetStateAction<Record<string, boolean>>) => void
   activeAttackLink: IAttackFlowLinkState | null

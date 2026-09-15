@@ -1,6 +1,6 @@
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
 import type { IGameCardActionTargetsRequest, IGameCardActionTargetsResponse } from '@/services/api/types/gameHub'
-import type { IAttackTargetingState, ISubmitHubIntentRequest } from '@/views/game/types'
+import type { IAttackTargetingState, IEffectTargetingState, ISubmitHubIntentRequest } from '@/views/game/types'
 import { mapActionToHubIntent } from './helpers'
 
 async function trySubmitTargetedCardEffect({
@@ -9,6 +9,7 @@ async function trySubmitTargetedCardEffect({
   submitHubIntent,
   getCardActionTargets,
   beginEffectTargeting,
+  beginEffectMultiTargeting,
 }: ITrySubmitTargetedCardEffectArgs): Promise<void> {
   if (!action.isEnabled) {
     return
@@ -71,7 +72,20 @@ async function trySubmitTargetedCardEffect({
       sourceCardInstanceId: intentRequest.sourceCardInstanceId,
       validTargets,
     })
+    return
   }
+
+  // A range ("choose up to 2 rested Characters") cannot be expressed with the single-pick "Choose" flow:
+  // open the multi-toggle selection so the player can pick, deselect and confirm on the board.
+  beginEffectMultiTargeting({
+    actionId: intentRequest.actionId,
+    sourceCardInstanceId: intentRequest.sourceCardInstanceId,
+    validTargets,
+    exactTargetCount,
+    minimumTargetCount,
+    maximumTargetCount,
+    selectedTargets: [],
+  })
 }
 
 interface ITrySubmitTargetedCardEffectArgs {
@@ -82,6 +96,7 @@ interface ITrySubmitTargetedCardEffectArgs {
     request: Omit<IGameCardActionTargetsRequest, 'playerId'>,
   ) => Promise<IGameCardActionTargetsResponse | null>
   beginEffectTargeting: (targeting: IAttackTargetingState) => void
+  beginEffectMultiTargeting: (targeting: IEffectTargetingState) => void
 }
 
 export { trySubmitTargetedCardEffect }

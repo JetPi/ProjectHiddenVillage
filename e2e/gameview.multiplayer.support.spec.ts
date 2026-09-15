@@ -1,10 +1,15 @@
 import { expect, test } from '@playwright/test'
+import type { APIRequestContext } from '@playwright/test'
 import {
   advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   declarePassInActionStepViaHub,
+  executeBattleActionViaHub,
   fetchGameState,
+  getBottomSupportCardsBySlot,
   openMultiplayerPages,
+  progressToNextDecisionWindow,
+  resolveActorWithBottomBattleAction,
   resolveActorWithBottomHandAction,
   resolveAllMulliganPrompts,
   resolvePlayerState,
@@ -13,8 +18,25 @@ import {
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// Deck "one" (player one) carries N-006, deck "two" (player two) carries N-017. Both are
+// "[During Your Opponent's Attack] Choose up to 2 rested Characters: K.O. the chosen cards." - the only
+// range effects in the catalogue, i.e. the only cards that reach the client multi-pick selection.
+const RANGE_SUPPORT_DEFINITION_ID_BY_DECK = {
+  playerOne: 'N-006',
+  playerTwo: 'N-017',
+} as const
+
+// Plain normal-summonable characters per deck (no on-summon effects to prompt): N-007 has "Your Turn"
+// rush toggles, N-015 only carries a During-Your-Main support.
+const PLAIN_SUMMON_DEFINITION_ID_BY_DECK = {
+  playerOne: 'N-007',
+  playerTwo: 'N-015',
+} as const
+
 test.describe('GameView multiplayer support activation', () => {
-  test.describe.configure({ timeout: 180_000 })
+  test.describe.configure({ timeout: 240_000 })
 
   // Seed profile `default` deck "one" (leader N-001) contains the real support cards:
   //  - N-007 (Minato) is a plain summonable Character, used to put a card on the field.
@@ -119,4 +141,219 @@ test.describe('GameView multiplayer support activation', () => {
       await closeMultiplayerPages(pages)
     }
   })
+
+  test('range support picks its targets with the multi-select board and K.O.s them', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+
+      await advanceToMulliganPromptIfNeeded(request, setup)
+      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+      // Neither opening hand is guaranteed to hold a range support, so the roles follow the hands:
+      // whoever holds theirs defends, the other player attacks.
+      const { attacker, defender, rangeCardDefinitionId } = await resolveRangeSupportRoles(request, setup)
+      const attackerRole = attacker.userId === setup.playerOne.userId ? 'playerOne' : 'playerTwo'
+
+      // 1. The attacker summons a plain character (no on-summon prompt) so it can attack on a later turn.
+      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
+        actorUserId: attacker.userId,
+        cardDefinitionId: PLAIN_SUMMON_DEFINITION_ID_BY_DECK[attackerRole],
+      })
+      const attackerCardInstanceId = summonActor.cardInstanceId
+      const attackerHandCard = summonActor.actorPage.locator(`[data-testid="bottom-hand-card-${attackerCardInstanceId}"]`)
+      await attackerHandCard.hover()
+      await attackerHandCard.getByRole('button', { name: /^summon$/i }).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, attacker.session.accessToken)
+        return resolvePlayerState(state, attacker).characterField
+          .some((card) => card.instanceId === attackerCardInstanceId)
+      }, {
+        timeout: 12_000,
+      }).toBe(true)
+
+      // 2. The defender sets the range support face down: a hand support is own-turn only, so acting
+      //    during the opponent's attack requires it in the support area.
+      const setSupportActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Set Support', {
+        actorUserId: defender.userId,
+        cardDefinitionId: rangeCardDefinitionId,
+      })
+      const defenderPage = setSupportActor.actorPage
+      const supportCardInstanceId = setSupportActor.cardInstanceId
+      const occupiedSlots = new Set((await getBottomSupportCardsBySlot(defenderPage)).map((entry) => entry.slotIndex))
+      const emptySlotIndex = [0, 1, 2, 3, 4].find((slotIndex) => !occupiedSlots.has(slotIndex))
+
+      expect(typeof emptySlotIndex).toBe('number')
+      if (typeof emptySlotIndex !== 'number') {
+        return
+      }
+
+      const supportHandCard = defenderPage.locator(`[data-testid="bottom-hand-card-${supportCardInstanceId}"]`)
+      await supportHandCard.hover()
+      await supportHandCard.getByRole('button', { name: /^set support$/i }).click()
+      await defenderPage
+        .locator(`button[data-zone="support"][data-slot-side="bottom"][data-slot-index="${emptySlotIndex}"]`)
+        .click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, defender.session.accessToken)
+        return resolvePlayerState(state, defender).supportZone.some((card) => card.instanceId === supportCardInstanceId)
+      }, {
+        timeout: 12_000,
+      }).toBe(true)
+      // 3. The attacker declares a battle (the hub helper targets the defender's leader), which opens the
+      //    support cut-in window. Attacking rests the attacker - the range support's only legal target here.
+      const attack = await resolveActorWithBottomBattleAction(request, setup, pages)
+      expect(attack.cardInstanceId).toBe(attackerCardInstanceId)
+      await executeBattleActionViaHub(setup.gameCode, attack.actor, attack.actionId, attack.cardInstanceId)
+
+      // 4. Activating the range support from the support area opens the multi-pick selection instead of
+      //    resolving a single chosen target: the phase row reports the outstanding count.
+      const supportZoneCard = defenderPage.locator(
+        `[data-zone="support"][data-slot-side="bottom"][data-card-instance-id="${supportCardInstanceId}"]`,
+      )
+      await expect(supportZoneCard).toBeVisible()
+      await supportZoneCard.hover()
+      await supportZoneCard.getByRole('button', { name: /^support$/i }).click()
+
+      const phaseIndicator = defenderPage.getByTestId('phase-indicator')
+      await expect(phaseIndicator).toContainText('Selecting support targets (needs: 1)', { timeout: 12_000 })
+
+      const restedAttackerCard = defenderPage.locator(
+        `[data-zone="character-field-card"][data-slot-side="top"][data-card-instance-id="${attackerCardInstanceId}"]`,
+      )
+      await expect(restedAttackerCard).toBeVisible()
+      await restedAttackerCard.hover()
+      const targetToggle = restedAttackerCard.getByTestId('effect-target-toggle')
+      await expect(targetToggle).toHaveText('Select')
+      await targetToggle.click()
+      await expect(targetToggle).toHaveText('Selected')
+      await expect(phaseIndicator).toContainText('Fulfilled target selection', { timeout: 12_000 })
+
+      await defenderPage.getByTestId('confirm-effect-target-selection-button').click()
+
+      // 5. Passes resolve the queued activation: the rested attacker is K.O.'d and the support that was
+      //    activated from the support area is left revealed in its slot (only hand activations are
+      //    discarded immediately).
+      await passUntilAttackerIsDefeated(request, setup, attacker, attackerCardInstanceId)
+
+      await expect.poll(async () => {
+        const [attackerState, defenderState] = await Promise.all([
+          fetchGameState(request, setup.gameCode, attacker.session.accessToken),
+          fetchGameState(request, setup.gameCode, defender.session.accessToken),
+        ])
+
+        return {
+          attackerCharacters: resolvePlayerState(attackerState, attacker).characterField.length,
+          activatedSupportIsRevealed: resolvePlayerState(defenderState, defender).supportZone
+            .some((card) => card.instanceId === supportCardInstanceId && card.isFaceUp === true),
+        }
+      }, {
+        timeout: 12_000,
+      }).toEqual({
+        attackerCharacters: 0,
+        activatedSupportIsRevealed: true,
+      })
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
 })
+
+/**
+ * The attacker is whoever does *not* hold their deck's range support at the moment one of them does: only
+ * the defender can play it ("[During Your Opponent's Attack]"). Neither opening hand is guaranteed to
+ * hold it, so turns are advanced - both players draw two cards from turn 2 on - until one player does.
+ */
+async function resolveRangeSupportRoles(
+  request: APIRequestContext,
+  setup: Awaited<ReturnType<typeof setupMultiplayerGame>>,
+): Promise<{
+  attacker: typeof setup.playerOne
+  defender: typeof setup.playerOne
+  rangeCardDefinitionId: string
+}> {
+  const rangeCardByPlayerId = new Map([
+    [setup.playerOne.userId, RANGE_SUPPORT_DEFINITION_ID_BY_DECK.playerOne],
+    [setup.playerTwo.userId, RANGE_SUPPORT_DEFINITION_ID_BY_DECK.playerTwo],
+  ])
+
+  for (let cycle = 0; cycle < 12; cycle += 1) {
+    const [playerOneState, playerTwoState] = await Promise.all([
+      fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+      fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+    ])
+
+    const candidates = [
+      { player: setup.playerOne, state: playerOneState },
+      { player: setup.playerTwo, state: playerTwoState },
+    ]
+
+    for (const candidate of candidates) {
+      const rangeCardDefinitionId = rangeCardByPlayerId.get(candidate.player.userId)
+      if (!rangeCardDefinitionId) {
+        continue
+      }
+
+      const hand = resolvePlayerState(candidate.state, candidate.player).hand
+      const holdsRangeSupport = hand.some((card) =>
+        (card.cardDefinitionId ?? '').trim().toUpperCase() === rangeCardDefinitionId)
+
+      if (holdsRangeSupport) {
+        return {
+          attacker: candidate.player.userId === setup.playerOne.userId ? setup.playerTwo : setup.playerOne,
+          defender: candidate.player,
+          rangeCardDefinitionId,
+        }
+      }
+    }
+
+    await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
+  }
+
+  throw new Error('Neither player drew their "choose up to 2" support within the search window.')
+}
+
+/**
+ * The activation is queued on the resolution stack, so it resolves once both players pass through the
+ * cut-in window. Stops as soon as the K.O. lands (the attack itself may keep running to the damage step).
+ */
+async function passUntilAttackerIsDefeated(
+  request: APIRequestContext,
+  setup: Awaited<ReturnType<typeof setupMultiplayerGame>>,
+  attacker: typeof setup.playerOne,
+  attackerCardInstanceId: string,
+): Promise<void> {
+  for (let step = 0; step < 10; step += 1) {
+    const [playerOneState, playerTwoState] = await Promise.all([
+      fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+      fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+    ])
+
+    const attackerState = attacker.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+    const attackerIsDefeated = !resolvePlayerState(attackerState, attacker).characterField
+      .some((card) => card.instanceId === attackerCardInstanceId)
+
+    if (attackerIsDefeated) {
+      return
+    }
+
+    const playerOneCanPass = playerOneState.availableActions
+      .some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    const playerTwoCanPass = playerTwoState.availableActions
+      .some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+
+    if (playerOneCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerOne)
+    } else if (playerTwoCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerTwo)
+    }
+
+    await wait(400)
+  }
+}

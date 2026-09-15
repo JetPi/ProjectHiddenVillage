@@ -1,6 +1,7 @@
 import { PhaseValues } from "@/views/game/components/constants/gamePhaseActionRow"
 import type { IGameStateResponse } from "@/services/api/gameApi"
-import type { ISummonTargetingState } from '@/views/game/types'
+import type { IEffectTargetingState, ISummonTargetingState } from '@/views/game/types'
+import { canConfirmEffectTargetSelection, resolveEffectTargetRequiredCount } from '@/views/game/utils/functions/gameState/canConfirmEffectTargetSelection'
 import { canConfirmSummonTargetSelection } from '@/views/game/utils/functions/gameState/canConfirmSummonTargetSelection'
 
 function normalizeId(value: string | undefined): string {
@@ -11,10 +12,16 @@ function getPhaseValue(
   gameInstance: IGameStateResponse,
   authUserId?: string,
   pendingSummonTargeting?: ISummonTargetingState | null,
+  pendingEffectTargeting?: IEffectTargetingState | null,
 ): string {
   const tributeSelectionPhaseValue = getTributeSelectionPhaseValue(pendingSummonTargeting)
   if (tributeSelectionPhaseValue !== null) {
     return tributeSelectionPhaseValue
+  }
+
+  const effectTargetSelectionPhaseValue = getEffectTargetSelectionPhaseValue(pendingEffectTargeting)
+  if (effectTargetSelectionPhaseValue !== null) {
+    return effectTargetSelectionPhaseValue
   }
 
   const normalizedAuthUserId = normalizeId(authUserId)
@@ -247,6 +254,28 @@ function getTributeSelectionPhaseValue(
   }
 
   return `${PhaseValues['selecting-tribute-materials']} (needs: (${summary.materialSummary}))`
+}
+
+/**
+ * Phase text shown while the player is picking targets for a range effect, e.g.
+ * "Selecting support targets (needs: 1)". The count shrinks as candidates are toggled and switches to
+ * the fulfilled text once the selection satisfies the server-declared requirement.
+ */
+function getEffectTargetSelectionPhaseValue(
+  pendingEffectTargeting: IEffectTargetingState | null | undefined,
+): string | null {
+  if (!pendingEffectTargeting) {
+    return null
+  }
+
+  if (canConfirmEffectTargetSelection(pendingEffectTargeting)) {
+    return PhaseValues['fulfilled-effect-targets']
+  }
+
+  const requiredCount = resolveEffectTargetRequiredCount(pendingEffectTargeting)
+  const remainingCount = Math.max(0, requiredCount - pendingEffectTargeting.selectedTargets.length)
+
+  return `${PhaseValues['selecting-effect-targets']} (needs: ${remainingCount})`
 }
 
 function getPhaseThemeClasses(gameInstance: IGameStateResponse, phaseValue: string, authUserId?: string): string {

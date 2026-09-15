@@ -30,6 +30,9 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                     ? (data.summonRequirementTextByCardInstanceId.get(card.instanceId.trim().toLowerCase()) ?? null)
                     : null
                 const isSelectedSummonTarget = data.selectedSummonTargetsByCardId.has(card.instanceId.trim().toLowerCase())
+                const isEffectTargetCandidate = data.isEffectMultiTargeting
+                    && data.validEffectTargetsByCardId.has(card.instanceId.trim().toLowerCase())
+                const isSelectedEffectTarget = data.selectedEffectTargetsByCardId.has(card.instanceId.trim().toLowerCase())
                 const isAttackLinkSource = data.normalizedAttackLinkSourceCardId.length > 0
                     && data.normalizedAttackLinkSourceCardId === card.instanceId.trim().toLowerCase()
                 const isAttackLinkTarget = data.normalizedAttackLinkTargetCardId.length > 0
@@ -67,7 +70,7 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                                 <CardBack className="h-full w-full rounded-lg bg-[var(--surface-elevated)]" />
                             )}
 
-                            {isSelectedSummonTarget ? (
+                            {isSelectedSummonTarget || isSelectedEffectTarget ? (
                                 <div className="card-selection-tint pointer-events-none absolute inset-0 rounded-lg border-2 border-amber-300/95 bg-amber-300/15" />
                             ) : null}
 
@@ -87,6 +90,13 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                                         : undefined
                                 }
                                 summonRequirementText={summonRequirementText}
+                                isEffectTargetCandidate={isEffectTargetCandidate}
+                                isEffectTargetSelected={isSelectedEffectTarget}
+                                onToggleEffectTarget={
+                                    isEffectTargetCandidate
+                                        ? () => useGameUIStore.getState().toggleEffectTarget(card.instanceId)
+                                        : undefined
+                                }
                                 showEmptyActionMessage={data.isCurrentPlayerZone}
                                 suppressActionFallback={!data.isCurrentPlayerZone}
                                 isConnected={props.isConnected}
@@ -113,6 +123,8 @@ export type IBattleFieldRowProps = {
     validBattleTargetsByCardId: Set<string>,
     validSummonTargetsByCardId: Set<string>,
     selectedSummonTargetsByCardId: Set<string>,
+    validEffectTargetsByCardId: Set<string>,
+    selectedEffectTargetsByCardId: Set<string>,
     summonRequirementTextByCardInstanceId: ReadonlyMap<string, string>,
     normalizedAttackLinkSourceCardId: string,
     normalizedAttackLinkTargetCardId: string,
@@ -120,5 +132,6 @@ export type IBattleFieldRowProps = {
     isBattleActionTargeting: boolean,
     isSummonActionTargeting: boolean,
     isEffectActionTargeting: boolean,
+    isEffectMultiTargeting: boolean,
     props: IGameZonesProps,
 }

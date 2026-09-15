@@ -34,10 +34,12 @@ function GameZones(props: IGameZonesProps) {
   const { topLeaderCard, bottomLeaderCard } = props.derivedGameState
   const pendingCardTargeting = useGameUIStore((state) => state.pendingCardTargeting)
   const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
+  const pendingEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting)
   const optimisticRestedByInstanceId = useGameUIStore((state) => state.optimisticRestedByInstanceId)
   const optimisticActiveAttackLink = useGameUIStore((state) => state.activeAttackLink)
   const isBattleActionTargeting = pendingCardTargeting !== null
   const isEffectActionTargeting = pendingCardTargeting?.kind === 'effect'
+  const isEffectMultiTargeting = pendingEffectTargeting !== null
   const backendAttackLink = useBackendAttackLink({ gameState: props.gameState })
   const renderedAttackLink = optimisticActiveAttackLink ?? backendAttackLink
   const {
@@ -113,6 +115,16 @@ function GameZones(props: IGameZonesProps) {
     [pendingSummonTargeting]
   );
 
+  const validEffectTargetsByCardId = useMemo(
+    () => extractTargetIds(pendingEffectTargeting?.validTargets),
+    [pendingEffectTargeting]
+  );
+
+  const selectedEffectTargetsByCardId = useMemo(
+    () => extractTargetIds(pendingEffectTargeting?.selectedTargets),
+    [pendingEffectTargeting]
+  );
+
   const summonRequirementTextByCardInstanceId = useMemo(() => {
     const nextMap = new Map<string, string>()
     const requirementLabels = pendingSummonTargeting?.requirementLabelsByCardInstanceId ?? null
@@ -172,11 +184,14 @@ function GameZones(props: IGameZonesProps) {
     validBattleTargetsByCardId,
     validSummonTargetsByCardId,
     selectedSummonTargetsByCardId,
+    validEffectTargetsByCardId,
+    selectedEffectTargetsByCardId,
     summonRequirementTextByCardInstanceId,
     optimisticRestedByInstanceId,
     isBattleActionTargeting,
     isSummonActionTargeting: pendingSummonTargeting !== null,
     isEffectActionTargeting,
+    isEffectMultiTargeting,
     props,
   }
 
@@ -185,6 +200,8 @@ function GameZones(props: IGameZonesProps) {
     validBattleTargetsByCardId,
     validSummonTargetsByCardId,
     selectedSummonTargetsByCardId,
+    validEffectTargetsByCardId,
+    selectedEffectTargetsByCardId,
     summonRequirementTextByCardInstanceId,
     props,
   }
@@ -250,6 +267,7 @@ function GameZones(props: IGameZonesProps) {
             isActionPending={props.isActionPending}
             onSelectAction={props.onSelectAction}
             onConfirmSummonTargetSelection={props.onConfirmSummonTargetSelection}
+            onConfirmEffectTargetSelection={props.onConfirmEffectTargetSelection}
             phaseTestId="phase-indicator"
           />
         </div>

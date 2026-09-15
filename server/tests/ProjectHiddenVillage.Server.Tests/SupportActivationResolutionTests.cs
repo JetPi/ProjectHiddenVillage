@@ -360,10 +360,11 @@ public sealed class SupportActivationResolutionTests
     }
 
     [TestMethod]
-    public void GetSupportTargets_DisablesChoiceRangeSupport_WithAClearReason()
+    public void GetSupportTargets_PublishesChoiceRangeSupport_ForTheMultiPickSelection()
     {
-        // N-006/N-017 shape: "Choose up to 2 rested Characters: K.O. the chosen cards." - a range needs a
-        // multi-pick UI the client does not have yet, so the activation must be visibly disabled.
+        // N-006/N-017 shape: "Choose up to 2 rested Characters: K.O. the chosen cards." - the range is
+        // playable now that the board can toggle candidates and confirm, so the plan must publish the
+        // candidates plus the server-declared counts instead of a disabled reason.
         var game = CreateGame();
         EnterCutInWindow(game, priorityPlayerId: "p2");
         AddSupportZoneCard(game, playerIndex: 1, instanceId: "support-1", definitionId: "destroy-two-support");
@@ -373,8 +374,10 @@ public sealed class SupportActivationResolutionTests
 
         var targetsResponse = GetSupportTargets(game, playerId: "p2", instanceId: "support-1");
 
-        Assert.IsFalse(targetsResponse.IsEnabled);
-        Assert.AreEqual(SupportActivationTargetPlanner.MultipleTargetsDisabledReason, targetsResponse.DisabledReason);
+        Assert.IsTrue(targetsResponse.IsEnabled, targetsResponse.DisabledReason);
+        Assert.IsNull(targetsResponse.MinimumTargetCount);
+        Assert.AreEqual(2, targetsResponse.MaximumTargetCount);
+        Assert.AreEqual(2, targetsResponse.ValidTargets.Count);
     }
 
     private GameInstance CreateMainPhaseGameWithSetSupport(string defenderSupportDefinitionId)

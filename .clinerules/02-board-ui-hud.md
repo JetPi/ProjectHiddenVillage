@@ -47,7 +47,11 @@ paths:
   valid tribute cards receive `isSummonTargetCandidate` + `onToggleSummonTarget`,
   and hover shows a single **“Tribute”** toggle button (instead of the action
   list) — the card can only be toggled through that button, never by clicking the
-  card as a whole.
+  card as a whole. Multi-target effect picks (range supports) reuse that idiom with
+  `isEffectTargetCandidate` + `isEffectTargetSelected` + `onToggleEffectTarget`: the
+  hover button reads **“Select”** and flips to a filled amber **“Selected”**
+  (`data-testid="effect-target-toggle"`), and selected candidates also get the amber
+  `card-selection-tint`.
 - The overlay’s “reveal on hover” lives on the `card-overlay-controls` container
   (`group-hover:*` + transition), so any absolute children it contains inherit the
   reveal. Eye/buttons are hover-only by design.
@@ -70,9 +74,13 @@ paths:
 
 - `GamePhaseActionRow` renders a **Cancel** chip next to the phase action chips
   whenever any selection mode is active (`pendingCardTargeting`, summon tribute,
-  or set-support slot pick). Clicking it clears the mode through the store’s
-  `cancelBattleTargeting`/`cancelSummonTargeting`/`cancelSetSupportSelection` —
-  client-only, no hub submit. There is also the small sidebar `X` (same actions).
+  effect multi-pick, or set-support slot pick). Clicking it clears the mode through
+  the store’s
+  `cancelBattleTargeting`/`cancelSummonTargeting`/`cancelEffectTargeting`/
+  `cancelSetSupportSelection` — client-only, no hub submit. There is also the small
+  sidebar `X` (same actions). While an effect multi-pick is open the row also renders a
+  **Confirm** chip (`data-testid="confirm-effect-target-selection-button"`), disabled
+  until `canConfirmEffectTargetSelection` passes.
 - All chips in the row (actions + Cancel) share one base class constant
   (`phaseActionChipClassName`) incl. `enabled:hover:brightness-110` and the
   `phaseThemeClasses`. Do not give individual chips divergent hover styles.

@@ -11,7 +11,7 @@ import {
   readPersistedBattlefieldDisplayOrder,
 } from '@/views/game/utils/functions'
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
-import type { IAttackTargetingState, IGameLoaderData, ISummonTargetingState } from '@/views/game/types'
+import type { IAttackTargetingState, IEffectTargetingState, IGameLoaderData, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
 import { BottomHandReorderRow, GameHandRow, GamePromptOverlay, GameZones } from '@/views/game/components'
 import {
@@ -19,7 +19,7 @@ import {
   GAMEBOARD_COLUMNS_CLASS,
   LEADER_CARD_FRAME_CLASS,
 } from '@/views/game/utils/contants'
-import { handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitMappedAction as submitMappedGameAction, submitSetSupportToSlot as submitSetSupportAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
+import { handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitEffectTargetSelection as submitEffectTargetAction, submitMappedAction as submitMappedGameAction, submitSetSupportToSlot as submitSetSupportAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
 import { CardBack } from '@/components/ui/cards'
 import { useGameUIStore } from '@/state/gameUIStore'
 import { useGameHubStore } from '@/state/gameHubStore'
@@ -58,6 +58,8 @@ export function GameView() {
     setPendingCardTargeting,
     pendingSummonTargeting,
     setPendingSummonTargeting,
+    pendingEffectTargeting,
+    setPendingEffectTargeting,
     setOptimisticRestedByInstanceId,
     setActiveAttackLink,
   } = ui
@@ -169,6 +171,14 @@ export function GameView() {
     setPendingSummonTargeting(targeting)
   }
 
+  function beginEffectMultiTargeting(targeting: IEffectTargetingState): void {
+    setPendingSetSupportCardInstanceId(null)
+    setPendingCardTargeting(null)
+    setPendingSummonTargeting(null)
+    setActiveAttackLink(null)
+    setPendingEffectTargeting(targeting)
+  }
+
   const gameActionDeps = {
     ...viewRefs,
     animControllerRef,
@@ -187,6 +197,8 @@ export function GameView() {
     setPendingCardTargeting,
     pendingSummonTargeting,
     setPendingSummonTargeting,
+    pendingEffectTargeting,
+    setPendingEffectTargeting,
     setOptimisticRestedByInstanceId,
     setActiveAttackLink,
     setIsMulliganAnimationPending,
@@ -195,10 +207,15 @@ export function GameView() {
     beginBattleTargeting,
     beginEffectTargeting,
     beginSummonTargeting,
+    beginEffectMultiTargeting,
   }
 
   function submitSummonTargetSelection(): void {
     submitSummonTargetAction(gameActionDeps)
+  }
+
+  function submitEffectTargetSelection(): void {
+    submitEffectTargetAction(gameActionDeps)
   }
 
   function submitCardTargetSelection(targetCardInstanceId: string): void {
@@ -278,6 +295,7 @@ export function GameView() {
               onSelectSupportSlotForSet={submitSetSupportToSlot}
               onSelectAttackTarget={submitCardTargetSelection}
               onConfirmSummonTargetSelection={submitSummonTargetSelection}
+              onConfirmEffectTargetSelection={submitEffectTargetSelection}
               onToggleTheme={toggleTheme}
               onPassTurn={handlePassLikeAction}
             />

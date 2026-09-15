@@ -59,6 +59,7 @@ type GameCardInstanceStateResponse = {
   cardDefinitionId?: string
   isExhausted?: boolean
   isRested?: boolean
+  isFaceUp?: boolean
   availableActions?: GameActionOptionResponse[]
 }
 

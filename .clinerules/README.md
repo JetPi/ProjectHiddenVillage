@@ -43,8 +43,10 @@ task touches that area).
   `DevelopmentDeckSeederTests.SeedAsync_CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing`
   — N-008 now always resolves from the manifest (the assertion still passes).
 - **Add specs for the newly seeded real cards** (all listed in
-  `03-targeting-contract.md`): quick support cut-in, Support-Activated negate,
+  `03-targeting-contract.md`): Support-Activated negate,
   When-Attacking reveal-summon, conditional Rush, leader Recovery, on-summon chains.
+  The hand-support resolution and the N-006/N-017 range cut-in + multi-pick flows now live in
+  `e2e/gameview.multiplayer.support.spec.ts`.
 - **Optional regression test** for N-009 (Kakashi, Support-Activated “reduce your life by 2”):
   its `reduce-self-life` effect declares a target entry with `exactSelectedTargetCount: 0` while
   `targetRules.exactTargetCount` is 1 — harmless today, but pin the behaviour before touching it.

@@ -18,12 +18,13 @@ import type { IZoneCardSlotsProps } from '@/views/game/types'
 import { useGameUIStore } from '@/state/gameUIStore'
 
 export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
-    const { cards, zone, visibilityMode, isCurrentPlayerZone, validBattleTargetsByCardId, validSummonTargetsByCardId, selectedSummonTargetsByCardId, props } = data
+    const { cards, zone, visibilityMode, isCurrentPlayerZone, validBattleTargetsByCardId, validSummonTargetsByCardId, selectedSummonTargetsByCardId, validEffectTargetsByCardId, selectedEffectTargetsByCardId, props } = data
     const cardOptions = getCardsAndOptions(data.props, null)
     const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
     const optimisticRestedByInstanceId = useGameUIStore((state) => state.optimisticRestedByInstanceId)
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
     const isSummonActionTargeting = useGameUIStore((state) => state.pendingSummonTargeting !== null)
+    const isEffectMultiTargeting = useGameUIStore((state) => state.pendingEffectTargeting !== null)
     
     const bottomSupportCardsBySlotIndex = useMemo(() => {
     const cardsBySlot = new Map<number, ReturnType<typeof resolveNonLeaderCards>[number]>()
@@ -118,6 +119,8 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
             isSummonTarget: validSummonTargetsByCardId.has(normalizedCardId),
             isSummonTargetCandidate: isSummonActionTargeting && validSummonTargetsByCardId.has(normalizedCardId),
             isSelectedSummonTarget: selectedSummonTargetsByCardId.has(normalizedCardId),
+            isEffectTargetCandidate: isEffectMultiTargeting && validEffectTargetsByCardId.has(normalizedCardId),
+            isSelectedEffectTarget: selectedEffectTargetsByCardId.has(normalizedCardId),
             isAttackLinkSource: isMatchingInstance(cardOptions.normalizedAttackLinkSourceCardId, normalizedCardId),
             isAttackLinkTarget: isMatchingInstance(cardOptions.normalizedAttackLinkTargetCardId, normalizedCardId),
             isSelectionBlocked
@@ -186,7 +189,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                 />
               ) : null}
 
-              {!cardStateFlags.isConcealedSupportCard && targetFlags.isSelectedSummonTarget ? (
+              {!cardStateFlags.isConcealedSupportCard && (targetFlags.isSelectedSummonTarget || targetFlags.isSelectedEffectTarget) ? (
                 <div className="card-selection-tint pointer-events-none absolute inset-0 rounded-lg border-2 border-amber-300/95 bg-amber-300/15" />
               ) : null}
 
@@ -207,6 +210,13 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                       : undefined
                   }
                   summonRequirementText={summonRequirementText}
+                  isEffectTargetCandidate={targetFlags.isEffectTargetCandidate}
+                  isEffectTargetSelected={targetFlags.isSelectedEffectTarget}
+                  onToggleEffectTarget={
+                    targetFlags.isEffectTargetCandidate
+                      ? () => useGameUIStore.getState().toggleEffectTarget(card.instanceId)
+                      : undefined
+                  }
                   showEmptyActionMessage={isCurrentPlayerZone}
                   suppressActionFallback={!isCurrentPlayerZone}
                   isConnected={props.isConnected}

@@ -23,9 +23,6 @@ public static class SupportActivationTargetPlanner
     public const string MultipleSelectionsDisabledReason =
         "This support requires more than one target selection, which is not supported yet.";
 
-    public const string MultipleTargetsDisabledReason =
-        "This support requires choosing multiple targets, which is not supported yet.";
-
     public static SupportActivationTargetPlan Build(
         GameInstance game,
         Card sourceDefinition,
@@ -80,20 +77,6 @@ public static class SupportActivationTargetPlanner
 
         var node = contributingNodes[0].Node;
         var candidates = contributingNodes[0].Candidates;
-
-        // A range of choices needs a multi-pick UI that the client does not have yet: disable the
-        // activation with a reason instead of asking for a selection the player cannot complete.
-        if (node.TargetRules.ExactTargetCount is > 1 || node.TargetRules.MaximumTargetCount is > 1)
-        {
-            return new SupportActivationTargetPlan(
-                IsEnabled: false,
-                DisabledReason: MultipleTargetsDisabledReason,
-                ValidTargets: [],
-                ExactTargetCount: node.TargetRules.ExactTargetCount,
-                MinimumTargetCount: node.TargetRules.MinimumTargetCount,
-                MaximumTargetCount: node.TargetRules.MaximumTargetCount,
-                AutoSelectAllValidTargets: node.TargetRules.AutoSelectAllValidTargets);
-        }
 
         if (candidates.Count == 0)
         {

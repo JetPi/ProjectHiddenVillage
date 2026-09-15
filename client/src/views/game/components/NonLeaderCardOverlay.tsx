@@ -21,6 +21,9 @@ function NonLeaderCardOverlay({
   isSummonTargetCandidate = false,
   onToggleSummonTarget,
   isSummonTargetSelected = false,
+  isEffectTargetCandidate = false,
+  isEffectTargetSelected = false,
+  onToggleEffectTarget,
   summonRequirementText = null,
   card,
   isConnected,
@@ -89,6 +92,23 @@ function NonLeaderCardOverlay({
               className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80"
             >
               Tribute
+            </button>
+          ) : isEffectTargetCandidate && onToggleEffectTarget ? (
+            <button
+              type="button"
+              data-testid="effect-target-toggle"
+              aria-pressed={isEffectTargetSelected}
+              onClick={() => {
+                onToggleEffectTarget()
+              }}
+              className={twMerge(
+                'w-fit max-w-full rounded-sm border px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] transition-colors duration-150',
+                isEffectTargetSelected
+                  ? 'border-amber-300/90 bg-amber-300/85 text-black hover:bg-amber-200'
+                  : 'border-white/35 bg-black/65 text-white hover:bg-black/80',
+              )}
+            >
+              {isEffectTargetSelected ? 'Selected' : 'Select'}
             </button>
           ) : hasActions ? (
             <div className="grid w-full place-items-center gap-0.5">
