@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
+import type { MultiplayerPages, MultiplayerSetup } from './helpers/gameviewMultiplayerHelpers'
 import {
   advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
@@ -36,6 +37,15 @@ const PLAIN_SUMMON_DEFINITION_ID_BY_DECK = {
   playerOne: 'N-007',
   playerTwo: 'N-015',
 } as const
+
+// N-020 (Sakura Haruno): "[During Your Opponent's Attack] Choose 1 Character: Return the chosen card to the
+// owner's hand." Lives in deck two only.
+const RETURN_TO_HAND_SUPPORT_CARD_DEFINITION_ID = 'N-020'
+
+// Neither opening hand is guaranteed to hold a range support (three copies in a 31-card deck), and a game
+// where nobody draws one ends in a deck-out before the scenario can play out. Each attempt plays a fresh
+// game, so the spec stays reliable instead of riding a single shuffle.
+const RANGE_SUPPORT_ATTEMPT_COUNT = 3
 
 test.describe('GameView multiplayer support activation', () => {
   test.describe.configure({ timeout: 240_000 })
@@ -168,10 +178,150 @@ test.describe('GameView multiplayer support activation', () => {
   })
 
   test('range support picks its targets with the multi-select board and K.O.s them', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
-    const pages = await openMultiplayerPages(browser, setup)
+    let lastFailure: unknown = null
 
-    try {
+    for (let attempt = 0; attempt < RANGE_SUPPORT_ATTEMPT_COUNT; attempt += 1) {
+      const setup = await setupMultiplayerGame(request)
+      const pages = await openMultiplayerPages(browser, setup)
+
+      try {
+        await playRangeSupportScenario(request, setup, pages)
+        return
+      } catch (error) {
+        lastFailure = error
+      } finally {
+        await closeMultiplayerPages(pages)
+      }
+    }
+
+    throw lastFailure
+  })
+
+  test('a character bounced by N-020 animates back into its owner hand', async ({ browser, request }) => {
+    let lastFailure: unknown = null
+
+    for (let attempt = 0; attempt < RANGE_SUPPORT_ATTEMPT_COUNT; attempt += 1) {
+      const setup = await setupMultiplayerGame(request)
+      const pages = await openMultiplayerPages(browser, setup)
+
+      try {
+        await playReturnToHandScenario(request, setup, pages)
+        return
+      } catch (error) {
+        lastFailure = error
+      } finally {
+        await closeMultiplayerPages(pages)
+      }
+    }
+
+    throw lastFailure
+  })
+})
+
+/**
+ * N-020 (Sakura Haruno) is the "[During Your Opponent's Attack] Choose 1 Character: Return the chosen card
+ * to the owner's hand" support, and it only exists in deck two - so player two defends with it while player
+ * one attacks, and the bounced character has to land back in player one's hand with a ghost flight.
+ */
+async function playReturnToHandScenario(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+): Promise<void> {
+  const attacker = setup.playerOne
+  const defender = setup.playerTwo
+
+  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+
+  await advanceToMulliganPromptIfNeeded(request, setup)
+  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+  // 1. The attacker summons a plain character so there is something to bounce.
+  const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
+    actorUserId: attacker.userId,
+    cardDefinitionId: PLAIN_SUMMON_DEFINITION_ID_BY_DECK.playerOne,
+  })
+  const attackerPage = summonActor.actorPage
+  const attackerCardInstanceId = summonActor.cardInstanceId
+  const attackerHandCard = attackerPage.locator(`[data-testid="bottom-hand-card-${attackerCardInstanceId}"]`)
+  await attackerHandCard.hover()
+  await attackerHandCard.getByRole('button', { name: /^summon$/i }).click()
+
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, attacker.session.accessToken)
+    return resolvePlayerState(state, attacker).characterField
+      .some((card) => card.instanceId === attackerCardInstanceId)
+  }, {
+    timeout: 12_000,
+  }).toBe(true)
+
+  // 2. The defender sets N-020 face down (it is own-turn only from hand, so it has to be in the support area).
+  const setSupportActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Set Support', {
+    actorUserId: defender.userId,
+    cardDefinitionId: RETURN_TO_HAND_SUPPORT_CARD_DEFINITION_ID,
+  })
+  const defenderPage = setSupportActor.actorPage
+  const supportCardInstanceId = setSupportActor.cardInstanceId
+  const supportHandCard = defenderPage.locator(`[data-testid="bottom-hand-card-${supportCardInstanceId}"]`)
+  await supportHandCard.hover()
+  await supportHandCard.getByRole('button', { name: /^set support$/i }).click()
+
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, defender.session.accessToken)
+    return resolvePlayerState(state, defender).supportZone.some((card) => card.instanceId === supportCardInstanceId)
+  }, {
+    timeout: 12_000,
+  }).toBe(true)
+
+  // 3. The attacker attacks, opening the cut-in window the bounce support can answer.
+  const attack = await resolveActorWithBottomBattleAction(request, setup, pages)
+  expect(attack.cardInstanceId).toBe(attackerCardInstanceId)
+  await executeBattleActionViaHub(setup.gameCode, attack.actor, attack.actionId, attack.cardInstanceId)
+
+  // 4. N-020 asks for exactly one character: the single-pick "Choose" flow, not the range multi-pick.
+  const supportZoneCard = defenderPage.locator(
+    `[data-zone="support"][data-slot-side="bottom"][data-card-instance-id="${supportCardInstanceId}"]`,
+  )
+  await expect(supportZoneCard).toBeVisible()
+  await supportZoneCard.hover()
+  await supportZoneCard.getByRole('button', { name: /^support$/i }).click()
+
+  const restableCharacterCard = defenderPage.locator(
+    `[data-zone="character-field-card"][data-slot-side="top"][data-card-instance-id="${attackerCardInstanceId}"]`,
+  )
+  await expect(restableCharacterCard).toBeVisible()
+  await restableCharacterCard.hover()
+  await restableCharacterCard.getByRole('button', { name: /^choose$/i }).click()
+
+  // 5. The attacker declines to react, the activation resolves, and the character flies back to hand.
+  await installCardGhostAnimationCounter(attackerPage)
+  await passUntilCardReturnsToHand(request, setup, attacker, attackerCardInstanceId)
+
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, attacker.session.accessToken)
+    const attackerState = resolvePlayerState(state, attacker)
+    return {
+      battlefieldCharacters: attackerState.characterField.length,
+      returnedToHand: attackerState.hand.some((card) => card.instanceId === attackerCardInstanceId),
+    }
+  }, {
+    timeout: 12_000,
+  }).toEqual({
+    battlefieldCharacters: 0,
+    returnedToHand: true,
+  })
+
+  // The bounce is animated into the hand row instead of the card simply reappearing there.
+  expect(await getCardGhostAnimationCount(attackerPage)).toBeGreaterThan(0)
+}
+
+async function playRangeSupportScenario(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+): Promise<void> {
       const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
       const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
       await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
@@ -203,7 +353,8 @@ test.describe('GameView multiplayer support activation', () => {
       }).toBe(true)
 
       // 2. The defender sets the range support face down: a hand support is own-turn only, so acting
-      //    during the opponent's attack requires it in the support area.
+      //    during the opponent's attack requires it in the support area. No slot pick - the engine drops
+      //    the card into the leftmost empty support slot.
       const setSupportActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Set Support', {
         actorUserId: defender.userId,
         cardDefinitionId: rangeCardDefinitionId,
@@ -211,19 +362,16 @@ test.describe('GameView multiplayer support activation', () => {
       const defenderPage = setSupportActor.actorPage
       const supportCardInstanceId = setSupportActor.cardInstanceId
       const occupiedSlots = new Set((await getBottomSupportCardsBySlot(defenderPage)).map((entry) => entry.slotIndex))
-      const emptySlotIndex = [0, 1, 2, 3, 4].find((slotIndex) => !occupiedSlots.has(slotIndex))
+      const expectedSlotIndex = [0, 1, 2, 3, 4].find((slotIndex) => !occupiedSlots.has(slotIndex))
 
-      expect(typeof emptySlotIndex).toBe('number')
-      if (typeof emptySlotIndex !== 'number') {
+      expect(typeof expectedSlotIndex).toBe('number')
+      if (typeof expectedSlotIndex !== 'number') {
         return
       }
 
       const supportHandCard = defenderPage.locator(`[data-testid="bottom-hand-card-${supportCardInstanceId}"]`)
       await supportHandCard.hover()
       await supportHandCard.getByRole('button', { name: /^set support$/i }).click()
-      await defenderPage
-        .locator(`button[data-zone="support"][data-slot-side="bottom"][data-slot-index="${emptySlotIndex}"]`)
-        .click()
 
       await expect.poll(async () => {
         const state = await fetchGameState(request, setup.gameCode, defender.session.accessToken)
@@ -231,6 +379,17 @@ test.describe('GameView multiplayer support activation', () => {
       }, {
         timeout: 12_000,
       }).toBe(true)
+
+      await expect.poll(async () => {
+        return await getBottomSupportCardsBySlot(defenderPage)
+      }, {
+        timeout: 12_000,
+      }).toEqual(expect.arrayContaining([
+        {
+          slotIndex: expectedSlotIndex,
+          instanceId: supportCardInstanceId,
+        },
+      ]))
       // 3. The attacker declares a battle (the hub helper targets the defender's leader), which opens the
       //    support cut-in window. Attacking rests the attacker - the range support's only legal target here.
       const attack = await resolveActorWithBottomBattleAction(request, setup, pages)
@@ -262,9 +421,19 @@ test.describe('GameView multiplayer support activation', () => {
 
       await defenderPage.getByTestId('confirm-effect-target-selection-button').click()
 
-      // 5. Passes resolve the queued activation: the rested attacker is K.O.'d and the support that was
-      //    activated from the support area is left revealed in its slot (only hand activations are
-      //    discarded immediately). The K.O. flies the card into the trash as a ghost.
+      // The activation is revealed while it waits for responses: the opponent must be able to see which
+      // support is on the stack before it resolves.
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, defender.session.accessToken)
+        return resolvePlayerState(state, defender).supportZone
+          .some((card) => card.instanceId === supportCardInstanceId && card.isFaceUp === true)
+      }, {
+        timeout: 12_000,
+      }).toBe(true)
+
+      // 5. Passes resolve the queued activation: the rested attacker is K.O.'d and the used support leaves
+      //    the support area for the trash (it is spent, not parked face up). The K.O. flies the card into
+      //    the trash as a ghost.
       await installCardGhostAnimationCounter(defenderPage)
       await passUntilAttackerIsDefeated(request, setup, attacker, attackerCardInstanceId)
 
@@ -274,25 +443,65 @@ test.describe('GameView multiplayer support activation', () => {
           fetchGameState(request, setup.gameCode, defender.session.accessToken),
         ])
 
+        const defenderStateAfterResolution = resolvePlayerState(defenderState, defender)
         return {
           attackerCharacters: resolvePlayerState(attackerState, attacker).characterField.length,
-          activatedSupportIsRevealed: resolvePlayerState(defenderState, defender).supportZone
-            .some((card) => card.instanceId === supportCardInstanceId && card.isFaceUp === true),
+          supportLeftSupportArea: !defenderStateAfterResolution.supportZone
+            .some((card) => card.instanceId === supportCardInstanceId),
+          usedSupportInTrash: defenderStateAfterResolution.trash
+            .some((card) => card.instanceId === supportCardInstanceId),
         }
       }, {
         timeout: 12_000,
       }).toEqual({
         attackerCharacters: 0,
-        activatedSupportIsRevealed: true,
+        supportLeftSupportArea: true,
+        usedSupportInTrash: true,
       })
 
       // The K.O.'d attacker was animated out of the field, not teleported into the trash.
       expect(await getCardGhostAnimationCount(defenderPage)).toBeGreaterThan(0)
-    } finally {
-      await closeMultiplayerPages(pages)
+}
+
+/**
+ * The bounce activation resolves once the asked player declines, after which the bounced card leaves the
+ * battlefield for its owner's hand. Stops as soon as that happened (or the pass budget runs out).
+ */
+async function passUntilCardReturnsToHand(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  owner: MultiplayerSetup['playerOne'],
+  cardInstanceId: string,
+): Promise<void> {
+  for (let step = 0; step < 10; step += 1) {
+    const [playerOneState, playerTwoState] = await Promise.all([
+      fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+      fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+    ])
+
+    const ownerState = owner.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+    const ownerStateAfterResolution = resolvePlayerState(ownerState, owner)
+    const returnedToHand = ownerStateAfterResolution.hand.some((card) => card.instanceId === cardInstanceId)
+      && !ownerStateAfterResolution.characterField.some((card) => card.instanceId === cardInstanceId)
+
+    if (returnedToHand) {
+      return
     }
-  })
-})
+
+    const playerOneCanPass = playerOneState.availableActions
+      .some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    const playerTwoCanPass = playerTwoState.availableActions
+      .some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+
+    if (playerOneCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerOne)
+    } else if (playerTwoCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerTwo)
+    }
+
+    await wait(400)
+  }
+}
 
 /**
  * The attacker is whoever does *not* hold their deck's range support at the moment one of them does: only

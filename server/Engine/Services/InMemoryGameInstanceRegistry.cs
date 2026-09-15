@@ -1528,11 +1528,45 @@ public sealed class InMemoryGameInstanceRegistry
 
             if (entry.IsNegated)
             {
+                DiscardUsedSupportSource(instance, entry);
                 continue;
             }
 
             ExecutePendingActivation(instance, entry, sequentialEffectExecutor);
+            DiscardUsedSupportSource(instance, entry);
         }
+    }
+
+    /// <summary>
+    /// A support activated from the support area is used up: once the activation has been replayed (or was
+    /// negated - the cost is still paid, so the support is still spent) the card leaves the support area for
+    /// the trash. Hand activations were already discarded when they were queued, and a card that left play
+    /// in the meantime is left alone.
+    /// </summary>
+    private void DiscardUsedSupportSource(GameInstance instance, EffectResolutionStackEntry entry)
+    {
+        if (entry.SourceZone != PlayerZone.SupportZone)
+        {
+            return;
+        }
+
+        var sourcePlayer = instance.State.Players.FirstOrDefault(player =>
+            IsSamePlayerId(player.PlayerId, entry.SourcePlayerId));
+        var sourceCard = sourcePlayer?.SupportZone.FirstOrDefault(card =>
+            string.Equals(card.InstanceId, entry.SourceCardInstanceId, StringComparison.Ordinal));
+
+        if (sourcePlayer is null || sourceCard is null)
+        {
+            return;
+        }
+
+        MoveCardToZone(
+            instance,
+            sourcePlayer.PlayerId,
+            sourceCard.InstanceId,
+            PlayerZone.SupportZone,
+            PlayerZone.Trash,
+            destinationIndex: null);
     }
 
     private void ExecutePendingActivation(
@@ -2427,21 +2461,9 @@ public sealed class InMemoryGameInstanceRegistry
                 $"Card '{sourceCardDefinition.Id}' cannot be set to support zone.");
         }
 
-        if (!arguments.TryGetValue(SupportSlotIndexArgumentKey, out var rawSlot)
-            || !int.TryParse(rawSlot, out var slotIndex)
-            || slotIndex < 0
-            || slotIndex >= MaxSupportSlots)
+        if (!TryResolveSupportSlotIndex(actingPlayer, arguments, out var slotIndex))
         {
-            throw new InvalidOperationException("A valid support slot index is required.");
-        }
-
-        var occupiedSlotIndex = actingPlayer.SupportZone
-            .Select((card, currentIndex) => card.SupportSlotIndex ?? currentIndex)
-            .Any(currentSlotIndex => currentSlotIndex == slotIndex);
-
-        if (occupiedSlotIndex)
-        {
-            throw new InvalidOperationException($"Support slot {slotIndex} is already occupied.");
+            throw new InvalidOperationException("No empty support slot is available for this card.");
         }
 
         MoveCardToZone(
@@ -2451,6 +2473,52 @@ public sealed class InMemoryGameInstanceRegistry
             PlayerZone.Hand,
             PlayerZone.SupportZone,
             slotIndex);
+    }
+
+    /// <summary>
+    /// Resolves where a set support lands. Players never pick a slot: the card goes to the leftmost empty
+    /// support slot, so an explicit index is only honoured when it is valid *and* free (kept for clients that
+    /// still send one and for tests that pin a specific slot).
+    /// </summary>
+    private static bool TryResolveSupportSlotIndex(
+        PlayerState actingPlayer,
+        IReadOnlyDictionary<string, string> arguments,
+        out int slotIndex)
+    {
+        var occupiedSlots = actingPlayer.SupportZone
+            .Select((card, currentIndex) => card.SupportSlotIndex ?? currentIndex)
+            .ToHashSet();
+
+        if (arguments.TryGetValue(SupportSlotIndexArgumentKey, out var rawSlot)
+            && int.TryParse(rawSlot, out var requestedSlotIndex))
+        {
+            if (requestedSlotIndex < 0 || requestedSlotIndex >= MaxSupportSlots)
+            {
+                throw new InvalidOperationException("A valid support slot index is required.");
+            }
+
+            if (occupiedSlots.Contains(requestedSlotIndex))
+            {
+                throw new InvalidOperationException($"Support slot {requestedSlotIndex} is already occupied.");
+            }
+
+            slotIndex = requestedSlotIndex;
+            return true;
+        }
+
+        for (var candidateSlot = 0; candidateSlot < MaxSupportSlots; candidateSlot++)
+        {
+            if (occupiedSlots.Contains(candidateSlot))
+            {
+                continue;
+            }
+
+            slotIndex = candidateSlot;
+            return true;
+        }
+
+        slotIndex = -1;
+        return false;
     }
 
     private CardInstance MoveCardToZone(

@@ -144,20 +144,20 @@ export function mapActionToHubIntent(
 
   if (action.actionId.startsWith('set-support:')) {
     const sourceCardInstanceId = resolveSourceCardInstanceId(action.actionId)
-    const supportSlotIndex = executionArguments?.supportSlotIndex
-    if (!sourceCardInstanceId || typeof supportSlotIndex !== 'string' || supportSlotIndex.trim().length === 0) {
+    if (!sourceCardInstanceId) {
       return null
     }
 
+    // The support slot is optional: without it the engine places the card in the leftmost empty slot.
+    const supportSlotIndex = executionArguments?.supportSlotIndex
     return {
       intent: 'execute-card-action',
       actionId: action.actionId,
       sourceCardInstanceId,
       selectedTargets,
-      arguments: {
-        ...executionArguments,
-        supportSlotIndex,
-      },
+      arguments: typeof supportSlotIndex === 'string' && supportSlotIndex.trim().length > 0
+        ? { ...executionArguments, supportSlotIndex }
+        : executionArguments,
     }
   }
 

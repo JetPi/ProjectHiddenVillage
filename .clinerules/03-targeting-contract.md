@@ -38,7 +38,7 @@ paths:
   **Confirm** chip submits. `canConfirmEffectTargetSelection` decides the chip and the
   phase text (`Selecting support targets (needs: N)` → `Fulfilled target selection`)
   from the server counts; with only a maximum the floor is one pick.
-- Every selection mode (battle/effect/summon/set-support/effect-range) can be exited
+- Every selection mode (battle/effect/summon/effect-range) can be exited
   via the phase-row **Cancel** chip (`02-board-ui-hud.md`) or the sidebar `X`; both
   call the store’s `cancel*` actions and never submit to the hub.
 
@@ -110,7 +110,13 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   `views/game/utils/functions/helpers/index.ts`). While the window is open only support responses + `pass`
   are offered, so the phase row is what tells the player why everything else is waiting.
 - A hand activation sends the card to the trash as it is queued (the trash fills *before* the effect
-  resolves); an activation from the support area stays revealed in its slot instead.
+  resolves); **a support-area activation stays revealed in its slot until it resolves, then the used card
+  leaves the support area for the trash** (`DiscardUsedSupportSource` — a spent support is never parked
+  face up, and a negated activation is spent all the same).
+- `set-support:{instanceId}` stops being a targeting action: the engine places the card in the **leftmost
+  empty support slot** (`TryResolveSupportSlotIndex`), so the client submits straight from the hand chip and
+  animates the card to its landing slot. An explicit `arguments.supportSlotIndex` is still honoured when it
+  is valid and free (the request validator only checks it when it is present).
 
 ## Tribute material requirements (server-declared — never derived client-side)
 
@@ -133,11 +139,12 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
 - Summon-rule fixtures: N-005/Gamabunta = one `Power ≥ 10` material (satisfied by the T-120 fixture);
   N-014 = `any x1` + `The Taka x1` (paid with N-011 + N-019); N-003 = `Power ≥ 10` + `any`.
 - Covered in `e2e/gameview.multiplayer.support.spec.ts` after the seeded real cards landed: a hand
-  support resolving after a double pass, and the N-006/N-017 range flow (support set into the support
-  area → `[During Your Opponent's Attack]` activation in the cut-in window → multi-pick “Select” +
-  **Confirm** → K.O. of the rested attacker).
+  support resolving after the opponent's single decline, the N-006/N-017 range flow (support set into the
+  support area → `[During Your Opponent's Attack]` activation in the cut-in window → multi-pick “Select” +
+  **Confirm** → K.O. of the rested attacker, then the used support leaving for the trash), and the N-020
+  bounce (single-pick “Choose” → the character flies back into its owner's hand).
 - Not yet covered by e2e although the cards are seeded: quick support cut-in
-  (N-002/N-008/N-010/N-020/N-021), Support-Activated negate (N-009/N-016), When-Attacking
+  (N-002/N-008/N-010/N-021), Support-Activated negate (N-009/N-016), When-Attacking
   reveal-summon (N-013/N-019/N-022), conditional Rush (N-007/N-011), leader Recovery (N-001/N-012),
   on-summon chains (N-003/N-005/N-013/N-014/N-022).
 

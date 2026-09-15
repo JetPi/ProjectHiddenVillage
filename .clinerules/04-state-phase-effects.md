@@ -97,13 +97,14 @@ paths:
 
 - All game side effects run through
   `hooks/GameView/effects/useGameViewSideEffects.ts`
-  (`useCardCatalogPreload`, `useHandZoneAnimationEffects`, `useCardExitToTrashAnimationEffect`,
+  (`useCardCatalogPreload`, `useHandZoneAnimationEffects`, `useCardMoveGhostAnimationEffect`,
   `useAutoAdvancePhaseEffect`, `useBattlefieldCardReorderEffect`,
   `useGetMainPhaseActions`) in a fixed order — the animation effect runs before the
   auto-advance effect in the same commit.
-- `useCardExitToTrashAnimationEffect` owns the battlefield/hand → trash flight: it snapshots every rendered
-  card face (rect + art, keyed by instance id) on each render, and on the next one flies a `data-card-ghost`
-  copy from that snapshot to the trash pile for any card that left play into the trash. Geometry *must* come
-  from the previous snapshot — the state push that removed the card already re-rendered the board, so the
-  real element is gone by the time the effect runs. Tribute summons claim their ids in
-  `animController.suppressedExitGhostInstanceIds`, so a card is never animated twice.
+- `useCardMoveGhostAnimationEffect` owns the battlefield/hand → trash and battlefield → hand flights: it
+  snapshots every rendered card face (rect + art + zone, keyed by instance id) on each render, and on the
+  next one flies a `data-card-ghost` copy from that snapshot to the zone the card moved to (trash pile, or
+  its freshly rendered hand card for bounce effects like N-020). Both the geometry *and* the "left its zone"
+  test come from the previous snapshot — the state push that moved the card already re-rendered the board, so
+  the real element is gone (or already sitting in its new zone) by the time the effect runs. Tribute summons
+  claim their ids in `animController.suppressedExitGhostInstanceIds`, so a card is never animated twice.

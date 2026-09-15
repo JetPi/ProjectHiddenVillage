@@ -48,7 +48,9 @@ paths:
     turn, reset at the turn boundary (`ResetTemporaryCharacterDamage`); dealt by an attacker's
     **POW**.
   - Leader life is chipped only by an attacker's **DMG** via `ResolveEffectiveLeader*` and
-    never resets (only card effects restore it).
+    never resets (only card effects restore it). Healing may push `CurrentLife` **above** the
+    printed maximum (`TotalLife`) — `ValidateInvariants` only rejects negative life, deliberately
+    leaving an upper cap as an open rule question (`GameInstanceLeaderLifeInvariantTests`).
 - Attack stats resolve exactly like the numbers the client is shown: leader attacker →
   `ResolveEffectiveLeaderPower/Damage`; character attacker →
   `ResolveEffectivePower/Damage` (registry `ResolveAttackPower`/`ResolveAttackDamage`).

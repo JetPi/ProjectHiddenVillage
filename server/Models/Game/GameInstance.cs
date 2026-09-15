@@ -611,7 +611,9 @@ public sealed class GameInstance
                 $"Leader card '{leader.InstanceId}' has invalid TotalLife '{leader.TotalLife}'.");
         }
 
-        if (leader.CurrentLife < 0 || leader.CurrentLife > leader.TotalLife)
+        // Only the lower bound is enforced: healing may push life *above* the starting maximum (TotalLife),
+        // and whether that should be capped is still an open rule question - so no upper-bound failure here.
+        if (leader.CurrentLife < 0)
         {
             throw new InvalidOperationException(
                 $"Leader card '{leader.InstanceId}' has invalid CurrentLife '{leader.CurrentLife}'.");

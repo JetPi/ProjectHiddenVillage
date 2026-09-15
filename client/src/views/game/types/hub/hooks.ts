@@ -50,13 +50,16 @@ export type IUseHandZoneAnimationEffectsArgs = {
   setBottomHandFaceUpByInstanceId: Dispatch<SetStateAction<Record<string, boolean>>>
 }
 
-export type IUseCardExitToTrashAnimationEffectArgs = {
-  topBoardInstanceIds: string[]
-  bottomBoardInstanceIds: string[]
-  topHandInstanceIds: string[]
-  bottomHandInstanceIds: string[]
-  topTrashInstanceIds: string[]
-  bottomTrashInstanceIds: string[]
+export type IPlayerCardZoneInstanceIds = {
+  characterField: string[]
+  supportZone: string[]
+  hand: string[]
+  trash: string[]
+}
+
+export type IUseCardMoveGhostAnimationEffectArgs = {
+  topPlayerCardInstanceIds: IPlayerCardZoneInstanceIds
+  bottomPlayerCardInstanceIds: IPlayerCardZoneInstanceIds
   boardZoneRef: RefObject<HTMLDivElement | null>
   topHandRowRef: RefObject<HTMLDivElement | null>
   bottomHandRowRef: RefObject<HTMLDivElement | null>

@@ -19,7 +19,7 @@ import {
   GAMEBOARD_COLUMNS_CLASS,
   LEADER_CARD_FRAME_CLASS,
 } from '@/views/game/utils/contants'
-import { handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitEffectTargetSelection as submitEffectTargetAction, submitMappedAction as submitMappedGameAction, submitSetSupportToSlot as submitSetSupportAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
+import { handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitEffectTargetSelection as submitEffectTargetAction, submitMappedAction as submitMappedGameAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
 import { CardBack } from '@/components/ui/cards'
 import { useGameUIStore } from '@/state/gameUIStore'
 import { useGameHubStore } from '@/state/gameHubStore'
@@ -32,7 +32,6 @@ import {
   usePersistedBattlefieldDisplayOrderEffect,
   useBattlefieldCards,
   useCurrentBattlefieldRawCards,
-  useOccupiedSupportSlots,
   usePassLikeAction,
   useGameCardsBackfill,
   useGameViewSideEffects
@@ -52,8 +51,6 @@ export function GameView() {
     bottomHandFaceUpByInstanceId,
     isMulliganAnimationPending,
     setIsMulliganAnimationPending,
-    pendingSetSupportCardInstanceId,
-    setPendingSetSupportCardInstanceId,
     pendingCardTargeting,
     setPendingCardTargeting,
     pendingSummonTargeting,
@@ -95,8 +92,6 @@ export function GameView() {
 
   const derivedGameState = useDerivedGameViewState(liveGameCards, players, authUserId)
   const { topLeaderCard, bottomLeaderCard } = derivedGameState
-
-  const occupiedBottomSupportSlots = useOccupiedSupportSlots({ derivedGameState })
 
   const topHandCards = useMemo(() => derivedGameState.opponentPlayer?.hand ?? [], [derivedGameState.opponentPlayer?.hand])
   const bottomHandCards = useMemo(() => derivedGameState.currentPlayer?.hand ?? [], [derivedGameState.currentPlayer?.hand])
@@ -151,28 +146,24 @@ export function GameView() {
   const passLikeAction = usePassLikeAction({ mappedAvailableActions })
 
   function beginBattleTargeting(targeting: IAttackTargetingState): void {
-    setPendingSetSupportCardInstanceId(null)
     setActiveAttackLink(null)
     setPendingSummonTargeting(null)
     setPendingCardTargeting({ ...targeting, kind: 'battle' })
   }
 
   function beginEffectTargeting(targeting: IAttackTargetingState): void {
-    setPendingSetSupportCardInstanceId(null)
     setActiveAttackLink(null)
     setPendingSummonTargeting(null)
     setPendingCardTargeting({ ...targeting, kind: 'effect' })
   }
 
   function beginSummonTargeting(targeting: ISummonTargetingState): void {
-    setPendingSetSupportCardInstanceId(null)
     setPendingCardTargeting(null)
     setActiveAttackLink(null)
     setPendingSummonTargeting(targeting)
   }
 
   function beginEffectMultiTargeting(targeting: IEffectTargetingState): void {
-    setPendingSetSupportCardInstanceId(null)
     setPendingCardTargeting(null)
     setPendingSummonTargeting(null)
     setActiveAttackLink(null)
@@ -187,12 +178,9 @@ export function GameView() {
     canResolvePrompt,
     promptPresentation,
     bottomHandCards,
-    occupiedBottomSupportSlots,
     mappedAvailableActions,
     currentBottomBattlefieldRawCards,
     setBottomBattlefieldDisplayOrder,
-    pendingSetSupportCardInstanceId,
-    setPendingSetSupportCardInstanceId,
     pendingCardTargeting,
     setPendingCardTargeting,
     pendingSummonTargeting,
@@ -224,10 +212,6 @@ export function GameView() {
 
   function submitMappedAction(action: IGameActionOptionResponse): void {
     submitMappedGameAction({ ...gameActionDeps, action })
-  }
-
-  function submitSetSupportToSlot(slotIndex: number): void {
-    submitSetSupportAction({ ...gameActionDeps, slotIndex })
   }
 
   function handlePassLikeAction(): void {
@@ -292,7 +276,6 @@ export function GameView() {
               isConnected={isConnected}
               isActionPending={isActionPending}
               onSelectAction={submitMappedAction}
-              onSelectSupportSlotForSet={submitSetSupportToSlot}
               onSelectAttackTarget={submitCardTargetSelection}
               onConfirmSummonTargetSelection={submitSummonTargetSelection}
               onConfirmEffectTargetSelection={submitEffectTargetSelection}

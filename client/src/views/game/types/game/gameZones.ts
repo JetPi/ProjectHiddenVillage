@@ -36,7 +36,6 @@ export type IGameZonesProps = {
   isConnected: boolean
   isActionPending: boolean
   onSelectAction: (action: IGameActionOptionResponse) => void
-  onSelectSupportSlotForSet: (slotIndex: number) => void
   onSelectAttackTarget: (targetCardInstanceId: string) => void
   onConfirmSummonTargetSelection: () => void
   onConfirmEffectTargetSelection: () => void

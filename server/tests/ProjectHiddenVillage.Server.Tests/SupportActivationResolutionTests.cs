@@ -327,6 +327,37 @@ public sealed class SupportActivationResolutionTests
     }
 
     [TestMethod]
+    public void ActivateSupport_FromSupportZone_MovesTheUsedSupportToTheTrash()
+    {
+        var game = CreateGame();
+        EnterCutInWindow(game, priorityPlayerId: "p2");
+        AddSupportZoneCard(game, playerIndex: 1, instanceId: "support-1", definitionId: "destroy-support-attack");
+        AddBattlefieldCard(game, playerIndex: 0, instanceId: "enemy-1", definitionId: "filler");
+        game.State.Players[1].ResourcePool = 5;
+
+        var executor = CreateSequentialExecutor();
+
+        ExecuteSupport(
+            game,
+            playerId: "p2",
+            instanceId: "support-1",
+            executor,
+            selectedTargets: [CharacterTarget("p1", "enemy-1")]);
+
+        // While the activation waits for responses the card stays in its slot, revealed so the opponent can
+        // see what they are answering.
+        Assert.AreEqual(1, game.State.Players[1].SupportZone.Count);
+        Assert.IsTrue(game.State.Players[1].SupportZone[0].IsRevealedToBothPlayers);
+
+        PassInActionStep(game, "p1", executor);
+
+        // The support is spent: it resolves and the card leaves the support area for the trash.
+        Assert.AreEqual(0, game.State.Players[0].Battlefield.Count);
+        Assert.AreEqual(0, game.State.Players[1].SupportZone.Count);
+        Assert.IsTrue(game.State.Players[1].DiscardPile.Any(card => card.InstanceId == "support-1"));
+    }
+
+    [TestMethod]
     public void MainPhase_DoesNotAutoEnd_WhenAnActivatableSetSupportRemains()
     {
         var game = CreateMainPhaseGameWithSetSupport(defenderSupportDefinitionId: "destroy-support");

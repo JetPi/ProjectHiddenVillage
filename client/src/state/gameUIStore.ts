@@ -12,7 +12,6 @@ function resolveUpdate<T>(value: SetStateAction<T>, previous: T): T {
 const initialState = {
   bottomHandFaceUpByInstanceId: {},
   isMulliganAnimationPending: false,
-  pendingSetSupportCardInstanceId: null,
   pendingCardTargeting: null,
   pendingSummonTargeting: null,
   pendingEffectTargeting: null,
@@ -27,8 +26,6 @@ export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
     set((state) => ({ bottomHandFaceUpByInstanceId: resolveUpdate(value, state.bottomHandFaceUpByInstanceId) })),
   setIsMulliganAnimationPending: (value) =>
     set((state) => ({ isMulliganAnimationPending: resolveUpdate(value, state.isMulliganAnimationPending) })),
-  setPendingSetSupportCardInstanceId: (value) =>
-    set((state) => ({ pendingSetSupportCardInstanceId: resolveUpdate(value, state.pendingSetSupportCardInstanceId) })),
   setPendingCardTargeting: (value) =>
     set((state) => ({ pendingCardTargeting: resolveUpdate(value, state.pendingCardTargeting) })),
   setPendingSummonTargeting: (value) =>
@@ -39,10 +36,8 @@ export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
     set((state) => ({ optimisticRestedByInstanceId: resolveUpdate(value, state.optimisticRestedByInstanceId) })),
   setActiveAttackLink: (value) =>
     set((state) => ({ activeAttackLink: resolveUpdate(value, state.activeAttackLink) })),
-  cancelSetSupportSelection: () => set({ pendingSetSupportCardInstanceId: null }),
   beginBattleTargeting: (targeting) =>
     set(() => ({
-      pendingSetSupportCardInstanceId: null,
       activeAttackLink: null,
       pendingSummonTargeting: null,
       pendingEffectTargeting: null,
@@ -50,7 +45,6 @@ export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
     })),
   beginEffectTargeting: (targeting) =>
     set(() => ({
-      pendingSetSupportCardInstanceId: null,
       activeAttackLink: null,
       pendingSummonTargeting: null,
       pendingEffectTargeting: null,
@@ -59,7 +53,6 @@ export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
   cancelBattleTargeting: () => set({ pendingCardTargeting: null, activeAttackLink: null }),
   beginSummonTargeting: (targeting) =>
     set(() => ({
-      pendingSetSupportCardInstanceId: null,
       pendingCardTargeting: null,
       pendingEffectTargeting: null,
       activeAttackLink: null,
@@ -68,7 +61,6 @@ export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
   cancelSummonTargeting: () => set({ pendingSummonTargeting: null }),
   beginEffectMultiTargeting: (targeting) =>
     set(() => ({
-      pendingSetSupportCardInstanceId: null,
       pendingCardTargeting: null,
       pendingSummonTargeting: null,
       activeAttackLink: null,
@@ -111,17 +103,6 @@ function pruneStaleGameUIState(): void {
   const currentPlayer = resolveCurrentPlayer(gameState.players, userId)
   const currentHand = currentPlayer?.hand ?? []
   const availableActions = gameState.availableActions
-
-  const pendingSupportId = ui.pendingSetSupportCardInstanceId
-  if (pendingSupportId) {
-    const pendingActionId = `set-support:${pendingSupportId}`
-    const isGloballyAvailable = availableActions.some((option) => option.actionId === pendingActionId)
-    const pendingCard = currentHand.find((card) => card.instanceId === pendingSupportId)
-    const isOnCardAvailable = (pendingCard?.availableActions ?? []).some((option) => option.actionId === pendingActionId)
-    if (!isGloballyAvailable && !isOnCardAvailable) {
-      ui.setPendingSetSupportCardInstanceId(null)
-    }
-  }
 
   const pendingBattleTargeting = ui.pendingCardTargeting
   if (pendingBattleTargeting && pendingBattleTargeting.kind === 'battle') {

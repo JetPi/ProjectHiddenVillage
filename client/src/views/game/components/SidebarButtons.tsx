@@ -4,7 +4,6 @@ import { AppButton } from "@/components/ui";
 import { useGameUIStore } from "@/state/gameUIStore";
 
 export function SideBarButtons(props: IGameZonesProps){
-    const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
     const isEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting !== null)
    
@@ -50,23 +49,6 @@ export function SideBarButtons(props: IGameZonesProps){
             Do Nothing / Pass
           </span>
         </div>
-
-        {pendingSetSupportCardInstanceId ? (
-          <div className="group relative">
-            <AppButton
-              type="button"
-              variant="ghost"
-              aria-label="Cancel support slot selection"
-              onClick={() => useGameUIStore.getState().cancelSetSupportSelection()}
-              className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-            >
-              <span className="text-[10px] font-bold leading-none">X</span>
-            </AppButton>
-            <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-              Cancel Set Support
-            </span>
-          </div>
-        ) : null}
 
         {isBattleActionTargeting ? (
           <div className="group relative">

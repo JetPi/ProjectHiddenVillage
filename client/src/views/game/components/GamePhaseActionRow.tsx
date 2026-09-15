@@ -13,8 +13,6 @@ function cancelActiveTargetingMode(): void {
     state.cancelSummonTargeting()
   } else if (state.pendingEffectTargeting) {
     state.cancelEffectTargeting()
-  } else if (state.pendingSetSupportCardInstanceId) {
-    state.cancelSetSupportSelection()
   }
 }
 
@@ -32,7 +30,6 @@ function GamePhaseActionRow({
   const pendingCardTargeting = useGameUIStore((state) => state.pendingCardTargeting)
   const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
   const pendingEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting)
-  const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
 
   const phaseValue = getPhaseValue(gameInstance, authUserId, pendingSummonTargeting, pendingEffectTargeting)
   const phaseThemeClasses = getPhaseThemeClasses(gameInstance, phaseValue, authUserId)
@@ -45,7 +42,6 @@ function GamePhaseActionRow({
     pendingCardTargeting !== null
     || pendingSummonTargeting !== null
     || pendingEffectTargeting !== null
-    || pendingSetSupportCardInstanceId !== null
   const renderedActions = availableActions.filter((action) => action.actionId !== 'declare-action')
   const hasOptions = renderedActions.length > 0
 

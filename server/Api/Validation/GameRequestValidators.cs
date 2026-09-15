@@ -66,7 +66,11 @@ public sealed class GameCardActionExecutionRequestValidator : AbstractValidator<
                 && int.TryParse(rawSlotIndex, out var parsedSlotIndex)
                 && parsedSlotIndex >= 0
                 && parsedSlotIndex < 5)
-            .When(request => request.ActionId.StartsWith("set-support:", StringComparison.Ordinal))
+            .When(request => request.ActionId.StartsWith("set-support:", StringComparison.Ordinal)
+                // The slot argument is optional: without it the engine places the card in the leftmost empty
+                // support slot, which is what the client relies on. A provided slot still has to be valid.
+                && request.Arguments is not null
+                && request.Arguments.ContainsKey("supportSlotIndex"))
             .WithMessage("Set support actions require a valid supportSlotIndex argument between 0 and 4.");
 
         RuleFor(request => request.SelectedTargets)

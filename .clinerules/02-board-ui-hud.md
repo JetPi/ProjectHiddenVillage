@@ -74,7 +74,7 @@ paths:
 
 - `GamePhaseActionRow` renders a **Cancel** chip next to the phase action chips
   whenever any selection mode is active (`pendingCardTargeting`, summon tribute,
-  effect multi-pick, or set-support slot pick). Clicking it clears the mode through
+  or effect multi-pick). Clicking it clears the mode through
   the store’s
   `cancelBattleTargeting`/`cancelSummonTargeting`/`cancelEffectTargeting`/
   `cancelSetSupportSelection` — client-only, no hub submit. There is also the small

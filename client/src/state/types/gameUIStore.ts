@@ -6,9 +6,6 @@ export type IGameUIStoreState = {
   setBottomHandFaceUpByInstanceId: (value: SetStateAction<Record<string, boolean>>) => void
   isMulliganAnimationPending: boolean
   setIsMulliganAnimationPending: (value: SetStateAction<boolean>) => void
-  pendingSetSupportCardInstanceId: string | null
-  setPendingSetSupportCardInstanceId: (value: SetStateAction<string | null>) => void
-  cancelSetSupportSelection: () => void
   pendingCardTargeting: IPendingCardTargetingState | null
   setPendingCardTargeting: (value: SetStateAction<IPendingCardTargetingState | null>) => void
   beginBattleTargeting: (targeting: IAttackTargetingState) => void

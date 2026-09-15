@@ -1754,6 +1754,60 @@ public sealed class InMemoryGameInstanceRegistryTests
     }
 
     [TestMethod]
+    public void ExecuteCardAction_SetSupport_WithoutSlotArgument_UsesLeftmostEmptySlot()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildSupportCapableDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
+        game.State.PriorityPlayerId = "p2";
+        // Slots 0 and 1 are taken, so the card has to land in slot 2 without the player choosing it.
+        game.State.Players[1].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-0",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+            SupportSlotIndex = 0,
+        });
+        game.State.Players[1].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+            SupportSlotIndex = 1,
+        });
+        game.State.Players[1].Hand.Add(new CardInstance
+        {
+            InstanceId = "hand-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p2",
+            ActionId: "set-support:hand-1",
+            SourceCardInstanceId: "hand-1");
+
+        registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor());
+
+        Assert.AreEqual(0, game.State.Players[1].Hand.Count);
+        Assert.AreEqual(3, game.State.Players[1].SupportZone.Count);
+        Assert.IsTrue(game.State.Players[1].SupportZone
+            .Any(card => card.InstanceId == "hand-1" && card.SupportSlotIndex == 2));
+    }
+
+    [TestMethod]
     public void ExecuteCardAction_SetSupport_AllowsPlacementIntoAnyEmptySupportSlot()
     {
         var game = registry.Create(

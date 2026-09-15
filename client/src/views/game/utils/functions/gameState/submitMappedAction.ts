@@ -4,6 +4,7 @@ import type { IGameCardActionTargetsRequest, IGameCardActionTargetsResponse } fr
 import type { IAttackTargetingState, IEffectTargetingState, IPendingCardTargetingState, ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
 import { mapActionToHubIntent } from './helpers'
 import { runSubmitThenZoneEntryAnimation } from './runSubmitThenZoneEntryAnimation'
+import { submitSetSupport } from './submitSetSupport'
 import { trySubmitTargetedCardEffect } from './trySubmitTargetedCardEffect'
 
 function buildRequirementLabelsByCardInstanceId(
@@ -45,7 +46,6 @@ function submitMappedAction({
   submitHubIntent,
   getCardActionTargets,
   characterFieldCards,
-  setPendingSetSupportCardInstanceId,
   setPendingCardTargeting,
   setPendingSummonTargeting,
   beginBattleTargeting,
@@ -120,7 +120,15 @@ function submitMappedAction({
       return
     }
 
-    setPendingSetSupportCardInstanceId(action.actionId.slice(delimiterIndex + 1))
+    // No slot pick anymore: the engine drops the card into the leftmost empty support slot.
+    submitSetSupport({
+      action,
+      cardInstanceId: action.actionId.slice(delimiterIndex + 1),
+      canResolvePrompt,
+      submitHubIntent,
+      bottomHandRowRef,
+      boardZoneRef,
+    })
     return
   }
 
@@ -267,7 +275,6 @@ function submitMappedAction({
     return
   }
 
-  setPendingSetSupportCardInstanceId(null)
   setPendingCardTargeting(null)
   setPendingSummonTargeting(null)
 
@@ -282,7 +289,6 @@ interface ISubmitMappedActionArgs {
     request: Omit<IGameCardActionTargetsRequest, 'playerId'>,
   ) => Promise<IGameCardActionTargetsResponse | null>
   characterFieldCards: IGameCardInstanceResponse[]
-  setPendingSetSupportCardInstanceId: Dispatch<SetStateAction<string | null>>
   setPendingCardTargeting: Dispatch<SetStateAction<IPendingCardTargetingState | null>>
   setPendingSummonTargeting: Dispatch<SetStateAction<ISummonTargetingState | null>>
   beginBattleTargeting: (targeting: IAttackTargetingState) => void

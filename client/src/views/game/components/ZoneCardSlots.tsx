@@ -20,7 +20,6 @@ import { useGameUIStore } from '@/state/gameUIStore'
 export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
     const { cards, zone, visibilityMode, isCurrentPlayerZone, validBattleTargetsByCardId, validSummonTargetsByCardId, selectedSummonTargetsByCardId, validEffectTargetsByCardId, selectedEffectTargetsByCardId, props } = data
     const cardOptions = getCardsAndOptions(data.props, null)
-    const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
     const optimisticRestedByInstanceId = useGameUIStore((state) => state.optimisticRestedByInstanceId)
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
     const isSummonActionTargeting = useGameUIStore((state) => state.pendingSummonTargeting !== null)
@@ -64,13 +63,6 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               ? (bottomSupportCardsBySlotIndex.get(index) ?? null)
               : (topSupportCardsBySlotIndex.get(index) ?? null))
             : (cards[index] ?? null)
-          const isSelectionSlot = isCurrentPlayerZone
-            && pendingSetSupportCardInstanceId !== null
-            && card === null
-
-          const isSelectionBlocked = isCurrentPlayerZone
-            && pendingSetSupportCardInstanceId !== null
-            && !isSelectionSlot
 
           if (!card) {
             return (
@@ -80,27 +72,15 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                 data-zone={zone}
                 data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
                 data-slot-index={index}
-                disabled={!isSelectionSlot}
-                onClick={
-                  isSelectionSlot
-                    ? () => props.  onSelectSupportSlotForSet(index)
-                    : undefined
-                }
-                className={twMerge(
-                  'h-full rounded-lg',
-                  !isSelectionSlot ? 'cursor-default' : 'cursor-pointer',
-                )}
+                disabled
+                className="h-full cursor-default rounded-lg"
               >
                 <PlayCard
                   data-zone={zone}
                   data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
                   data-slot-index={index}
                   data-slot-card="true"
-                  className={twMerge(
-                    'h-full rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]',
-                    isSelectionBlocked ? 'opacity-45' : '',
-                    isSelectionSlot ? 'border-amber-400/90 bg-amber-300/20' : '',
-                  )}
+                  className="h-full rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]"
                 />
               </button>
             )
@@ -123,7 +103,6 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
             isSelectedEffectTarget: selectedEffectTargetsByCardId.has(normalizedCardId),
             isAttackLinkSource: isMatchingInstance(cardOptions.normalizedAttackLinkSourceCardId, normalizedCardId),
             isAttackLinkTarget: isMatchingInstance(cardOptions.normalizedAttackLinkTargetCardId, normalizedCardId),
-            isSelectionBlocked
           };
 
           const summonRequirementText = targetFlags.isSummonTarget
@@ -157,7 +136,6 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                 'group relative h-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
                 zone === 'support' ? 'border-transparent' : 'border border-[var(--border-subtle)]',
                 visibilityFlags.shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
-                targetFlags.isSelectionBlocked ? 'opacity-45' : '',
                 targetFlags.isBattleTarget ? getBattleTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
                 targetFlags.isSummonTarget ? getSummonTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
                 targetFlags.isAttackLinkSource || targetFlags.isAttackLinkTarget ? 'attack-link-card-outline' : '',
