@@ -117,6 +117,7 @@ function captureTributeGhostSources(
     }
 
     ghostSources.push({
+      instanceId: target.cardInstanceId,
       imageSrc: imageElement.currentSrc || imageElement.src,
       sourceRect: cardElement.getBoundingClientRect(),
       side: cardElement.getAttribute('data-slot-side') === 'top' ? 'top' : 'bottom',
@@ -133,6 +134,10 @@ function scheduleCardGhostAnimations({
   animControllerRef,
 }: IScheduleCardGhostAnimationsArgs): void {
   ghostSources.forEach((ghostSource, index) => {
+    // Claim the card for this explicit flight: the generic exit-to-trash effect skips ids claimed here, so
+    // the state update that removes the tribute from the field does not animate it a second time.
+    animControllerRef.current.suppressedExitGhostInstanceIds.add(ghostSource.instanceId)
+
     const animationTimeoutId = window.setTimeout(() => {
       void runCardImageGhostToElementAnimation({
         imageSrc: ghostSource.imageSrc,
@@ -146,6 +151,7 @@ function scheduleCardGhostAnimations({
 }
 
 interface ICardGhostSource {
+  instanceId: string
   imageSrc: string
   sourceRect: DOMRect
   side: 'top' | 'bottom'

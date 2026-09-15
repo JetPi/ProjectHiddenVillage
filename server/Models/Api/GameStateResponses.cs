@@ -12,7 +12,10 @@ public sealed record GameStateResponse(
     PendingPromptResponse? PendingPrompt,
     IReadOnlyList<GameActionOptionResponse> AvailableActions,
     IReadOnlyList<ActiveTemporaryEffectResponse> ActiveTemporaryEffects,
-    IReadOnlyList<PlayerZonesResponse> Players);
+    IReadOnlyList<PlayerZonesResponse> Players,
+    // True while an activated support waits for responses in the MainPhase ([Support Activated] window).
+    // The client names that window in the phase row, so it must not have to infer it from action lists.
+    bool IsSupportResponseWindowOpen = false);
 
 public sealed record PendingAttackVisualStateResponse(
     string AttackerCardInstanceId,

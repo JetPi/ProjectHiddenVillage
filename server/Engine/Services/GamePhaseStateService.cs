@@ -110,6 +110,13 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
     /// MainPhase keeps that window open until both players pass, exactly like the attack cut-in window;
     /// returns true when the window closes and the pending activations can resolve.
     /// </summary>
+    /// <summary>
+    /// A pass in the MainPhase support reaction window closes it. Priority is handed to the opponent of
+    /// the latest activator when that activation is queued, so the player passing is the one being asked
+    /// for a response: declining without reacting leaves nothing to answer, and the activation resolves
+    /// immediately instead of demanding a second, meaningless pass from the activator. The activator is
+    /// only ever asked when the opponent actually reacted (another activation flipped priority back).
+    /// </summary>
     public bool DeclarePassInSupportWindow(GameState state, string playerId)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -129,16 +136,8 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
             throw new InvalidOperationException("Only the priority player can declare pass.");
         }
 
-        state.ConsecutivePasses++;
-
-        if (state.ConsecutivePasses >= 2)
-        {
-            ClearConsecutivePasses(state);
-            return true;
-        }
-
-        SwapPlayerInPriority(state, playerId);
-        return false;
+        ClearConsecutivePasses(state);
+        return true;
     }
 
     public bool DeclarePassInActionStep(GameState state, string playerId)

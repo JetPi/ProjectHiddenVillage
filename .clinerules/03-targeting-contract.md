@@ -95,6 +95,23 @@ for prefixes `summon-to-field`, `activate-support`, `battle-action`, and
 request’s `SelectedTargets`; effects auto-resolve targets only when
 `TargetRules.AutoSelectAllValidTargets` is set.
 
+## Support activation window (MainPhase)
+
+- A MainPhase support activation is **paid + consumed immediately** but only *resolves* when the window
+  closes (`ResolvePendingActivations` replays the queue LIFO). Queueing hands priority to the opponent, so
+  they may answer with a `[Support Activated]` card (or a negate) first.
+- **One decline closes the window**: `DeclarePassInSupportWindow` resolves on the passing player's first
+  pass. The activator is therefore only ever asked for a response after the opponent actually reacted
+  (their activation flipped priority back) — a decline by the asked player has nothing left to answer, so
+  the activation resolves and priority returns to the turn player, who can play the next support.
+- The server publishes `GameStateResponse.IsSupportResponseWindowOpen` (`true` only in the MainPhase with a
+  pending activation); the phase row renders `Support Activated · Your Response` /
+  `Support Activated · Opponent Response` from it (see `getSupportResponseWindowPhaseValue` in
+  `views/game/utils/functions/helpers/index.ts`). While the window is open only support responses + `pass`
+  are offered, so the phase row is what tells the player why everything else is waiting.
+- A hand activation sends the card to the trash as it is queued (the trash fills *before* the effect
+  resolves); an activation from the support area stays revealed in its slot instead.
+
 ## Tribute material requirements (server-declared — never derived client-side)
 
 - `GameCardActionTargetsResponse` carries both `RequirementLabels` (per-candidate short labels; an

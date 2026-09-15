@@ -106,6 +106,8 @@ export type IGameStateResponse = {
   phase: string
   attackSequenceStage: string | null
   isAttackSequencePending: boolean
+  // True while an activated support waits for responses in the MainPhase ([Support Activated] window).
+  isSupportResponseWindowOpen?: boolean
   pendingAttackVisualState: IPendingAttackVisualStateResponse | null
   pendingPrompt: IPendingPromptResponse | null
   availableActions: IGameActionOptionResponse[]

@@ -14,7 +14,7 @@ import type { useGameRefs } from '@/views/game/hooks/GameView/memos/useGameRefs'
 import type { IGameUIStoreState } from '@/state/types/gameUIStore'
 import { useBattlefieldCardReorderEffect } from './useBattleFieldCards'
 import { useGetMainPhaseActions } from './useGetMainPhaseActions'
-import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useHandZoneAnimationEffects } from './useGameViewEffects'
+import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useCardExitToTrashAnimationEffect, useHandZoneAnimationEffects } from './useGameViewEffects'
 
 function useGameViewSideEffects({
   authUserId,
@@ -48,6 +48,28 @@ function useGameViewSideEffects({
   const bottomDeckCount = currentPlayer?.deckCount ?? 0
   const topTrashCount = opponentPlayer?.trash.length ?? 0
   const bottomTrashCount = currentPlayer?.trash.length ?? 0
+  const topBoardInstanceIds = useMemo(
+    () => [
+      ...(opponentPlayer?.characterField ?? []),
+      ...(opponentPlayer?.supportZone ?? []),
+    ].map((card) => card.instanceId),
+    [opponentPlayer?.characterField, opponentPlayer?.supportZone],
+  )
+  const bottomBoardInstanceIds = useMemo(
+    () => [
+      ...(currentPlayer?.characterField ?? []),
+      ...(currentPlayer?.supportZone ?? []),
+    ].map((card) => card.instanceId),
+    [currentPlayer?.characterField, currentPlayer?.supportZone],
+  )
+  const topTrashInstanceIds = useMemo(
+    () => (opponentPlayer?.trash ?? []).map((card) => card.instanceId),
+    [opponentPlayer?.trash],
+  )
+  const bottomTrashInstanceIds = useMemo(
+    () => (currentPlayer?.trash ?? []).map((card) => card.instanceId),
+    [currentPlayer?.trash],
+  )
 
   useCardCatalogPreload(liveGameCards, gameState, authUserId)
 
@@ -69,6 +91,21 @@ function useGameViewSideEffects({
     bottomHandRowRef: viewRefs.bottomHandRowRef,
     animControllerRef,
     setBottomHandFaceUpByInstanceId,
+  })
+
+  useCardExitToTrashAnimationEffect({
+    topBoardInstanceIds,
+    bottomBoardInstanceIds,
+    topHandInstanceIds,
+    bottomHandInstanceIds,
+    topTrashInstanceIds,
+    bottomTrashInstanceIds,
+    boardZoneRef: viewRefs.boardZoneRef,
+    topHandRowRef: viewRefs.topHandRowRef,
+    bottomHandRowRef: viewRefs.bottomHandRowRef,
+    topTrashCardRef: viewRefs.topTrashCardRef,
+    bottomTrashCardRef: viewRefs.bottomTrashCardRef,
+    animControllerRef,
   })
 
   useAutoAdvancePhaseEffect({

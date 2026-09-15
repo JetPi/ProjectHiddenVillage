@@ -39,6 +39,48 @@ export async function getAnimationCount(page: Page): Promise<number> {
   })
 }
 
+/**
+ * Counts how many card ghosts actually fly (`data-card-ghost`, see `runCardImageGhostToElementAnimation`).
+ * Cards that leave the battlefield or the hand for the trash animate through that path, so a rising count
+ * proves the exit was animated instead of the card appearing in the trash out of nowhere.
+ */
+export async function installCardGhostAnimationCounter(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const marker = '__phvCardGhostCounterInstalled'
+    const state = window as unknown as {
+      [key: string]: unknown
+      __phvCardGhostCount?: number
+    }
+
+    if (state[marker] === true) {
+      return
+    }
+
+    const originalAnimate = Element.prototype.animate
+    Element.prototype.animate = function patchedAnimate(
+      keyframes: PropertyIndexedKeyframes | Keyframe[],
+      options?: number | KeyframeAnimationOptions,
+    ): Animation {
+      if (this instanceof Element && this.getAttribute('data-card-ghost') === 'true') {
+        const currentCount = typeof state.__phvCardGhostCount === 'number' ? state.__phvCardGhostCount : 0
+        state.__phvCardGhostCount = currentCount + 1
+      }
+
+      return originalAnimate.call(this, keyframes, options)
+    }
+
+    state.__phvCardGhostCount = 0
+    state[marker] = true
+  })
+}
+
+export async function getCardGhostAnimationCount(page: Page): Promise<number> {
+  return await page.evaluate(() => {
+    const state = window as unknown as { __phvCardGhostCount?: number }
+    return typeof state.__phvCardGhostCount === 'number' ? state.__phvCardGhostCount : 0
+  })
+}
+
 export async function getBottomBattlefieldInstanceOrder(page: Page): Promise<string[]> {
   return await page
     .locator('[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id]')

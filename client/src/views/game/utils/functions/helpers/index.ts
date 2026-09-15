@@ -24,6 +24,11 @@ function getPhaseValue(
     return effectTargetSelectionPhaseValue
   }
 
+  const supportResponseWindowPhaseValue = getSupportResponseWindowPhaseValue(gameInstance, authUserId)
+  if (supportResponseWindowPhaseValue !== null) {
+    return supportResponseWindowPhaseValue
+  }
+
   const normalizedAuthUserId = normalizeId(authUserId)
   const normalizedActivePlayerId = normalizeId(gameInstance.activePlayerId)
   const normalizedPriorityPlayerId = normalizeId(gameInstance.priorityPlayerId)
@@ -278,12 +283,35 @@ function getEffectTargetSelectionPhaseValue(
   return `${PhaseValues['selecting-effect-targets']} (needs: ${remainingCount})`
 }
 
+/**
+ * Phase text shown while an activated support waits for responses in the MainPhase. The window belongs to
+ * whoever holds priority, so each client can tell whether it is being asked to react with a
+ * [Support Activated] card (or simply to let the activation resolve by passing).
+ */
+function getSupportResponseWindowPhaseValue(
+  gameInstance: IGameStateResponse,
+  authUserId?: string,
+): string | null {
+  if (gameInstance.isSupportResponseWindowOpen !== true) {
+    return null
+  }
+
+  const isAuthPlayerPriority = normalizeId(authUserId).length > 0
+    && normalizeId(authUserId) === normalizeId(gameInstance.priorityPlayerId)
+
+  return isAuthPlayerPriority
+    ? PhaseValues['support-activated-your-response']
+    : PhaseValues['support-activated-opponent-response']
+}
+
 function getPhaseThemeClasses(gameInstance: IGameStateResponse, phaseValue: string, authUserId?: string): string {
-  if (phaseValue === PhaseValues['your-support-cut-in']) {
+  if (phaseValue === PhaseValues['your-support-cut-in']
+    || phaseValue === PhaseValues['support-activated-your-response']) {
     return 'turn-indicator-orange turn-indicator-text-light-theme'
   }
 
-  if (phaseValue === PhaseValues['opponent-support-cut-in']) {
+  if (phaseValue === PhaseValues['opponent-support-cut-in']
+    || phaseValue === PhaseValues['support-activated-opponent-response']) {
     return 'turn-indicator-blue turn-indicator-text-dark-theme'
   }
 

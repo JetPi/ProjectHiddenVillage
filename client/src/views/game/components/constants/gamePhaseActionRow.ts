@@ -25,6 +25,8 @@ const PhaseValues = {
   'fulfilled-tribute-requirements': 'Fulfilled tribute requirements',
   'selecting-effect-targets': 'Selecting support targets',
   'fulfilled-effect-targets': 'Fulfilled target selection',
+  'support-activated-your-response': 'Support Activated · Your Response',
+  'support-activated-opponent-response': 'Support Activated · Opponent Response',
 }
 
 export { phaseActionChipClassName, invertedPhaseThemeClassByPhaseTheme, PhaseValues }

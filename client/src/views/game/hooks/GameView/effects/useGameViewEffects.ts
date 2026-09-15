@@ -11,9 +11,14 @@ import type {
   IGameLoaderData,
   IRevalidatorState,
   IUseAutoAdvancePhaseEffectArgs,
+  IUseCardExitToTrashAnimationEffectArgs,
   IUseHandZoneAnimationEffectsArgs,
 } from '@/views/game/types'
-import { runDeckToHandAnimation, runRectToDynamicElementAnimation } from '@/views/game/utils/functions'
+import {
+  runCardImageGhostToElementAnimation,
+  runDeckToHandAnimation,
+  runRectToDynamicElementAnimation,
+} from '@/views/game/utils/functions'
 const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackImage]
 const AUTO_SIGNAL_PHASES = new Set([
   'DrawInitialHand',
@@ -26,9 +31,72 @@ const AUTO_SIGNAL_PHASES = new Set([
 ])
 const DECK_TO_HAND_FLY_DURATION_MS = 420
 const DRAW_ANIMATION_COMPLETE_PADDING_MS = 140
+const CARD_TO_TRASH_FLY_DURATION_MS = 340
+const CARD_TO_TRASH_STAGGER_MS = 90
 const AUTO_ADVANCE_RECHECK_MS = 80
 const AUTO_ADVANCE_RETRY_DELAY_MS = 2_500
 const AUTO_ADVANCE_MAX_RETRIES = 3
+
+/**
+ * Where a card was rendered when the last snapshot was taken, so its exit can start from the exact spot
+ * it disappeared from (the game state that removed it already re-rendered the board by then).
+ */
+type ICardGhostSnapshot = {
+  imageSrc: string
+  rect: DOMRect
+  side: 'top' | 'bottom'
+}
+
+function collectCardGhostSnapshots(
+  root: HTMLElement | null,
+  selector: string,
+  fallbackSide: 'top' | 'bottom',
+  snapshots: Map<string, ICardGhostSnapshot>,
+): void {
+  if (!root) {
+    return
+  }
+
+  const elements = root.querySelectorAll<HTMLElement>(selector)
+  for (const element of elements) {
+    const instanceId = element.dataset.cardInstanceId ?? element.dataset.handInstanceId
+    if (!instanceId || snapshots.has(instanceId)) {
+      continue
+    }
+
+    const imageElement = element.querySelector<HTMLImageElement>('img')
+    const rect = element.getBoundingClientRect()
+    if (!imageElement || rect.width <= 0 || rect.height <= 0) {
+      continue
+    }
+
+    snapshots.set(instanceId, {
+      imageSrc: imageElement.currentSrc || imageElement.src,
+      rect,
+      side: element.dataset.slotSide === 'top' ? 'top' : element.dataset.slotSide === 'bottom' ? 'bottom' : fallbackSide,
+    })
+  }
+}
+
+/**
+ * Snapshots every card face currently rendered on the board (character field + support slots) and in the
+ * hand rows, keyed by instance id. The maps handed to the exit effect are always one render behind, which
+ * is what makes a disappearing card's geometry recoverable.
+ */
+function snapshotRenderedCardGhosts({
+  boardZoneRef,
+  topHandRowRef,
+  bottomHandRowRef,
+}: Pick<IUseCardExitToTrashAnimationEffectArgs, 'boardZoneRef' | 'topHandRowRef' | 'bottomHandRowRef'>): Map<string, ICardGhostSnapshot> {
+  const snapshots = new Map<string, ICardGhostSnapshot>()
+
+  collectCardGhostSnapshots(boardZoneRef.current, '[data-zone="character-field-card"][data-card-instance-id]', 'bottom', snapshots)
+  collectCardGhostSnapshots(boardZoneRef.current, '[data-zone="support"][data-card-instance-id]', 'bottom', snapshots)
+  collectCardGhostSnapshots(topHandRowRef.current, '[data-hand-instance-id]', 'top', snapshots)
+  collectCardGhostSnapshots(bottomHandRowRef.current, '[data-hand-instance-id]', 'bottom', snapshots)
+
+  return snapshots
+}
 
 function useIdleRevalidationPoll(
   revalidatorState: IRevalidatorState,
@@ -396,6 +464,89 @@ function useHandZoneAnimationEffects({
   }, [animControllerRef])
 }
 
+/**
+ * Flies a ghost of every card that leaves the character field, the support area or the hand for the trash
+ * pile (K.O.s, destroyed supports, discarded cards). The rect and art come from the snapshot taken on the
+ * previous render, because the state update that removed the card has already re-rendered the board - the
+ * real element is gone by the time the effect runs, and the trash would otherwise just "spawn" the card.
+ */
+function useCardExitToTrashAnimationEffect({
+  topBoardInstanceIds,
+  bottomBoardInstanceIds,
+  topHandInstanceIds,
+  bottomHandInstanceIds,
+  topTrashInstanceIds,
+  bottomTrashInstanceIds,
+  boardZoneRef,
+  topHandRowRef,
+  bottomHandRowRef,
+  topTrashCardRef,
+  bottomTrashCardRef,
+  animControllerRef,
+}: IUseCardExitToTrashAnimationEffectArgs): void {
+  const ghostSnapshotRef = useRef<Map<string, ICardGhostSnapshot>>(new Map())
+
+  useEffect(() => {
+    const previousSnapshots = ghostSnapshotRef.current
+    const nextSnapshots = snapshotRenderedCardGhosts({ boardZoneRef, topHandRowRef, bottomHandRowRef })
+    const renderedInstanceIds = new Set([
+      ...topBoardInstanceIds,
+      ...bottomBoardInstanceIds,
+      ...topHandInstanceIds,
+      ...bottomHandInstanceIds,
+    ])
+    const trashInstanceIdsBySide = {
+      top: new Set(topTrashInstanceIds),
+      bottom: new Set(bottomTrashInstanceIds),
+    }
+    const animController = animControllerRef.current
+    let flyingIndex = 0
+
+    for (const [instanceId, snapshot] of previousSnapshots) {
+      if (renderedInstanceIds.has(instanceId) || !trashInstanceIdsBySide[snapshot.side].has(instanceId)) {
+        continue
+      }
+
+      // An explicit ghost already flew this card (tribute summon): drop the claim instead of flying twice.
+      if (animController.suppressedExitGhostInstanceIds.delete(instanceId)) {
+        continue
+      }
+
+      const destinationElement = snapshot.side === 'top' ? topTrashCardRef.current : bottomTrashCardRef.current
+      if (!destinationElement) {
+        continue
+      }
+
+      const movementDelay = flyingIndex * CARD_TO_TRASH_STAGGER_MS
+      flyingIndex += 1
+      const timeoutId = window.setTimeout(() => {
+        void runCardImageGhostToElementAnimation({
+          imageSrc: snapshot.imageSrc,
+          sourceRect: snapshot.rect,
+          destinationElement,
+          durationMs: CARD_TO_TRASH_FLY_DURATION_MS,
+        })
+      }, movementDelay)
+      animController.pendingDrawTimeoutIds.push(timeoutId)
+    }
+
+    ghostSnapshotRef.current = nextSnapshots
+  }, [
+    animControllerRef,
+    boardZoneRef,
+    bottomBoardInstanceIds,
+    bottomHandInstanceIds,
+    bottomHandRowRef,
+    bottomTrashCardRef,
+    bottomTrashInstanceIds,
+    topBoardInstanceIds,
+    topHandInstanceIds,
+    topHandRowRef,
+    topTrashCardRef,
+    topTrashInstanceIds,
+  ])
+}
+
 function useAutoAdvancePhaseEffect({
   isConnected,
   isActionPendingFlag,
@@ -534,5 +685,6 @@ export {
   useIdleRevalidationPoll,
   useCardCatalogPreload,
   useHandZoneAnimationEffects,
+  useCardExitToTrashAnimationEffect,
   useAutoAdvancePhaseEffect,
 }

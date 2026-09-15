@@ -81,6 +81,12 @@ paths:
   sidebar `X` (same actions). While an effect multi-pick is open the row also renders a
   **Confirm** chip (`data-testid="confirm-effect-target-selection-button"`), disabled
   until `canConfirmEffectTargetSelection` passes.
+- The phase text itself comes from `getPhaseValue`:
+  `Support Activated · Your Response` / `Support Activated · Opponent Response` while a MainPhase support
+  activation waits for reactions (server flag `isSupportResponseWindowOpen`, see
+  `03-targeting-contract.md`), plus the tribute/effect-selection values. Add new values to `PhaseValues`
+  (`components/constants/gamePhaseActionRow.ts`) and give them a theme in `getPhaseThemeClasses` — the
+  row’s chips and the phase banner share those classes.
 - All chips in the row (actions + Cancel) share one base class constant
   (`phaseActionChipClassName`) incl. `enabled:hover:brightness-110` and the
   `phaseThemeClasses`. Do not give individual chips divergent hover styles.

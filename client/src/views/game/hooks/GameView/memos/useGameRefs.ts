@@ -94,5 +94,6 @@ export function useGameAnimationController() {
       bottomTrashCount: 0,
       isInitialized: false,
     },
+    suppressedExitGhostInstanceIds: new Set<string>(),
   })
 }

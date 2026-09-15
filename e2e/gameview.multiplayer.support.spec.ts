@@ -7,6 +7,8 @@ import {
   executeBattleActionViaHub,
   fetchGameState,
   getBottomSupportCardsBySlot,
+  getCardGhostAnimationCount,
+  installCardGhostAnimationCounter,
   openMultiplayerPages,
   progressToNextDecisionWindow,
   resolveActorWithBottomBattleAction,
@@ -114,9 +116,21 @@ test.describe('GameView multiplayer support activation', () => {
         battlefieldStillPopulated: 1,
       })
 
-      // 4. Both players pass: the activation resolves and K.O.s every character on the board.
+      // 4. The phase row names the [Support Activated] window on both sides: the opponent is the one being
+      //    asked for a response, the activator sees that the window is theirs to wait on.
+      await expect(pages.playerOnePage.getByTestId('phase-indicator')).toContainText('Support Activated')
+      await expect(pages.playerTwoPage.getByTestId('phase-indicator')).toContainText('Support Activated')
+
+      const [opponentPage, activatorPage] = opponent.userId === setup.playerOne.userId
+        ? [pages.playerOnePage, pages.playerTwoPage]
+        : [pages.playerTwoPage, pages.playerOnePage]
+      await expect(opponentPage.getByTestId('phase-indicator')).toContainText('Your Response')
+      await expect(activatorPage.getByTestId('phase-indicator')).toContainText('Opponent Response')
+
+      // 5. The opponent declines: that single pass closes the window (the activator is only asked after an
+      //    actual reaction), so the activation resolves and K.O.s every character on the board.
+      await installCardGhostAnimationCounter(activatorPage)
       await declarePassInActionStepViaHub(setup.gameCode, opponent)
-      await declarePassInActionStepViaHub(setup.gameCode, supportActor.actor)
 
       await expect.poll(async () => {
         const [actorState, opponentState] = await Promise.all([
@@ -137,6 +151,17 @@ test.describe('GameView multiplayer support activation', () => {
         // The summoned character plus the support card that was activated from hand.
         actorTrash: 2,
       })
+
+      // 6. The MainPhase resumed for the turn player, and the K.O.'d character flew into the trash as a
+      //    card ghost instead of appearing there out of nowhere.
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, supportActor.actor.session.accessToken)
+        return state.phase
+      }, {
+        timeout: 12_000,
+      }).toBe('MainPhase')
+      await expect(activatorPage.getByTestId('phase-indicator')).not.toContainText('Support Activated')
+      expect(await getCardGhostAnimationCount(activatorPage)).toBeGreaterThan(0)
     } finally {
       await closeMultiplayerPages(pages)
     }
@@ -239,7 +264,8 @@ test.describe('GameView multiplayer support activation', () => {
 
       // 5. Passes resolve the queued activation: the rested attacker is K.O.'d and the support that was
       //    activated from the support area is left revealed in its slot (only hand activations are
-      //    discarded immediately).
+      //    discarded immediately). The K.O. flies the card into the trash as a ghost.
+      await installCardGhostAnimationCounter(defenderPage)
       await passUntilAttackerIsDefeated(request, setup, attacker, attackerCardInstanceId)
 
       await expect.poll(async () => {
@@ -259,6 +285,9 @@ test.describe('GameView multiplayer support activation', () => {
         attackerCharacters: 0,
         activatedSupportIsRevealed: true,
       })
+
+      // The K.O.'d attacker was animated out of the field, not teleported into the trash.
+      expect(await getCardGhostAnimationCount(defenderPage)).toBeGreaterThan(0)
     } finally {
       await closeMultiplayerPages(pages)
     }

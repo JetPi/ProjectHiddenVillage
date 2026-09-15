@@ -19,7 +19,7 @@ public sealed class SupportActivationResolutionTests
         new GameEffectConditionDiagnostics());
 
     [TestMethod]
-    public void ActivateSupport_FromHand_DuringMainPhase_OpensReactionWindow_ThenResolvesAfterBothPass()
+    public void ActivateSupport_FromHand_DuringMainPhase_OpensReactionWindow_ThenResolvesWhenTheOpponentDeclines()
     {
         var game = CreateGame();
         game.State.Phase = GamePhase.MainPhase;
@@ -46,13 +46,14 @@ public sealed class SupportActivationResolutionTests
         Assert.AreEqual(1, game.State.Players[1].Battlefield.Count);
         Assert.AreEqual("p2", game.State.PriorityPlayerId);
 
+        // The asked player declines without reacting: there is nothing left to answer, so the activation
+        // resolves right away and the turn player gets priority back to keep playing.
         PassInActionStep(game, "p2", executor);
-        PassInActionStep(game, "p1", executor);
 
-        // Both passed: the activation resolves and the turn player gets priority back.
         Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
         Assert.AreEqual(0, game.State.Players[1].Battlefield.Count);
         Assert.AreEqual("p1", game.State.PriorityPlayerId);
+        Assert.AreEqual(GamePhase.MainPhase, game.State.Phase);
     }
 
     [TestMethod]
@@ -94,8 +95,9 @@ public sealed class SupportActivationResolutionTests
         var negatingPlayerStartingLife = game.State.Players[1].LeaderCardInstance!.CurrentLife;
         Assert.AreEqual("p1", game.State.PriorityPlayerId);
 
+        // The opponent reacted, so the original activator is the one being asked now; declining closes the
+        // window and replays the chain most-recent-first.
         PassInActionStep(game, "p1", executor);
-        PassInActionStep(game, "p2", executor);
 
         Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
         // The MainPhase support was negated: its K.O. never happened, while the negate's own follow-up
