@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
+using ProjectHiddenVillage.Server.Engine;
 
 namespace ProjectHiddenVillage.Server;
 
@@ -23,6 +24,10 @@ public sealed class InMemoryGameInstanceRegistry
     private static readonly Regex GameCodePattern = new("^[A-Za-z0-9]{5}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly IGameRuntimeEffectSpecResolver RuntimeEffectSpecResolver = new GameRuntimeEffectSpecResolver();
     private static readonly IGameEffectTargetResolver EffectTargetResolver = new EffectTargetResolver();
+
+    // Used when a caller does not supply the DI-configured effect registry (unit-test composition):
+    // support target planning then falls back to the rule-based candidate pool only.
+    private static readonly IGameCardEffectRegistry EmptyEffectRegistry = new GameCardEffectRegistry([]);
 
     private readonly ConcurrentDictionary<string, GameInstance> instances =
         new(StringComparer.Ordinal);
@@ -162,7 +167,10 @@ public sealed class InMemoryGameInstanceRegistry
         return phaseBeforeResolve is GamePhase.ChooseStartingPlayer or GamePhase.Mulligan;
     }
 
-    public GameInstance AdvancePhase(string gameId, IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null)
+    public GameInstance AdvancePhase(
+        string gameId,
+        IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null,
+        IGameSequentialEffectExecutor? sequentialEffectExecutor = null)
     {
         var instance = GetRequired(gameId);
 
@@ -175,6 +183,12 @@ public sealed class InMemoryGameInstanceRegistry
 
             var previousPhase = instance.State.Phase;
             phaseService.AdvancePhase(instance);
+            // Leaving the cut-in ActionStep closes the window, so anything still pending resolves now.
+            if (previousPhase == GamePhase.ActionStep)
+            {
+                ResolvePendingActivations(instance, sequentialEffectExecutor);
+            }
+
             ApplyPendingAttackResolutionIfNeeded(instance, previousPhase);
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
@@ -186,14 +200,36 @@ public sealed class InMemoryGameInstanceRegistry
     public GameInstance DeclarePassInActionStep(
         string gameId,
         string playerId,
-        IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null)
+        IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null,
+        IGameSequentialEffectExecutor? sequentialEffectExecutor = null)
     {
         var instance = GetRequired(gameId);
 
         lock (instance)
         {
             var previousPhase = instance.State.Phase;
+
+            // MainPhase support reactions reuse the pass mechanism: the window stays open until both
+            // players pass, then the pending activations resolve and priority returns to the turn player.
+            if (instance.State.Phase == GamePhase.MainPhase)
+            {
+                var isWindowClosed = phaseService.DeclarePassInSupportWindow(instance, playerId);
+                if (isWindowClosed)
+                {
+                    ResolvePendingActivations(instance, sequentialEffectExecutor);
+                    instance.State.PriorityPlayerId = instance.State.ActivePlayerId;
+                }
+
+                AutoAdvanceMainPhaseIfNoLegalActions(instance);
+                instance.ValidateInvariants();
+                return instance;
+            }
+
             phaseService.DeclarePassInActionStep(instance, playerId);
+            // Both players passed (or the active player passed out of the window): replay any pending
+            // support activations, most recent first, *before* the damage step so interrupts and K.O.s
+            // take effect first.
+            ResolvePendingActivations(instance, sequentialEffectExecutor);
             ApplyPendingAttackResolutionIfNeeded(instance, previousPhase);
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
@@ -305,7 +341,8 @@ public sealed class InMemoryGameInstanceRegistry
     public GameCardActionTargetsResponse GetCardActionTargets(
         string gameId,
         GameCardActionTargetsRequest request,
-        IGameEffectCanExecuteEvaluator canExecuteEvaluator)
+        IGameEffectCanExecuteEvaluator canExecuteEvaluator,
+        IGameCardEffectRegistry? effectRegistry = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(canExecuteEvaluator);
@@ -366,7 +403,8 @@ public sealed class InMemoryGameInstanceRegistry
                     request.PlayerId,
                     actingPlayer,
                     arguments,
-                    canExecuteEvaluator),
+                    canExecuteEvaluator,
+                    effectRegistry ?? EmptyEffectRegistry),
                 BattleActionPrefix => BuildBattleCardActionTargets(
                     instance,
                     request.ActionId,
@@ -514,12 +552,14 @@ public sealed class InMemoryGameInstanceRegistry
             MaterialRequirements: TributeMaterialRequirementBuilder.BuildGroups(effectSpec.TargetRules));
     }
 
-    public GameInstance DeclareEndStep(string gameId)
+    public GameInstance DeclareEndStep(string gameId, IGameSequentialEffectExecutor? sequentialEffectExecutor = null)
     {
         var instance = GetRequired(gameId);
 
         lock (instance)
         {
+            // Leaving the MainPhase closes any open support reaction window.
+            ResolvePendingActivations(instance, sequentialEffectExecutor);
             phaseService.DeclareEndStep(instance);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
             instance.ValidateInvariants();
@@ -527,12 +567,17 @@ public sealed class InMemoryGameInstanceRegistry
         }
     }
 
-    public GameInstance CompleteEndStep(string gameId, IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null)
+    public GameInstance CompleteEndStep(
+        string gameId,
+        IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null,
+        IGameSequentialEffectExecutor? sequentialEffectExecutor = null)
     {
         var instance = GetRequired(gameId);
 
         lock (instance)
         {
+            // A turn can never end with an activation still waiting to resolve.
+            ResolvePendingActivations(instance, sequentialEffectExecutor);
             phaseService.CompleteEndStep(instance);
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             instance.ValidateInvariants();
@@ -649,6 +694,16 @@ public sealed class InMemoryGameInstanceRegistry
 
     private static void ValidateCardActionWindow(GameInstance instance, string playerId, string actionPrefix)
     {
+        // An open MainPhase support reaction window only admits support responses: summons, battle
+        // declarations and other card actions resume once both players have passed.
+        if (instance.State.Phase == GamePhase.MainPhase
+            && SupportTimingRules.HasPendingSupportActivation(instance.State)
+            && actionPrefix != ActivateSupportActionPrefix)
+        {
+            throw new InvalidOperationException(
+                "A support activation is waiting for responses. Pass or activate another support.");
+        }
+
         if (actionPrefix is SummonToFieldActionPrefix or SetSupportActionPrefix)
         {
             if (instance.State.Phase != GamePhase.MainPhase)
@@ -718,7 +773,19 @@ public sealed class InMemoryGameInstanceRegistry
                 throw new InvalidOperationException("Support actions on your turn can only be executed during MainPhase or ActionStep.");
             }
 
-            if (instance.State.Phase != GamePhase.ActionStep)
+            if (instance.State.Phase == GamePhase.MainPhase)
+            {
+                // A support activated during the MainPhase opens a reaction window: the opponent may
+                // respond from their support area while they hold priority.
+                if (SupportTimingRules.HasPendingSupportActivation(instance.State)
+                    && IsSamePlayerId(instance.State.PriorityPlayerId, playerId))
+                {
+                    return;
+                }
+
+                throw new InvalidOperationException("Only the active player can execute support actions during MainPhase.");
+            }
+
             if (instance.State.Phase is not (GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep))
             {
                 throw new InvalidOperationException("Opponent-turn supports can only be executed during attack response windows.");
@@ -897,11 +964,12 @@ public sealed class InMemoryGameInstanceRegistry
         string playerId,
         PlayerState actingPlayer,
         IReadOnlyDictionary<string, string> arguments,
-        IGameEffectCanExecuteEvaluator canExecuteEvaluator)
+        IGameEffectCanExecuteEvaluator canExecuteEvaluator,
+        IGameCardEffectRegistry effectRegistry)
     {
+        var isFromSupportZone = true;
         var sourceCardInstance = actingPlayer.SupportZone.FirstOrDefault(card =>
             string.Equals(card.InstanceId, sourceCardInstanceId, StringComparison.Ordinal));
-        var isFromSupportZone = true;
         if (sourceCardInstance is null)
         {
             isFromSupportZone = false;
@@ -920,14 +988,17 @@ public sealed class InMemoryGameInstanceRegistry
             throw new InvalidOperationException($"Card definition '{sourceCardInstance.CardDefinitionId}' was not found.");
         }
 
-        var effectSpec = sourceCardDefinition.Effects.FirstOrDefault();
-        if (effectSpec is null)
+        // The card's own data decides which effect the player is activating (see
+        // SupportActivationPlanner): timing, once-per-turn and cost all belong to that entry effect,
+        // while the target requirement comes from the whole chain.
+        var entryEffect = SupportActivationPlanner.ResolveEntry(sourceCardDefinition);
+        if (entryEffect is null)
         {
             return new GameCardActionTargetsResponse(
                 ActionId: actionId,
                 SourceCardInstanceId: sourceCardInstanceId,
-                IsEnabled: true,
-                DisabledReason: null,
+                IsEnabled: false,
+                DisabledReason: "This card has no support effect to activate.",
                 MinimumTargetCount: null,
                 MaximumTargetCount: null,
                 ExactTargetCount: null,
@@ -935,41 +1006,78 @@ public sealed class InMemoryGameInstanceRegistry
                 ValidTargets: []);
         }
 
-        var effectKey = ResolveEffectKey(effectSpec, effectIndex: 0);
-        if (effectSpec.GlobalRestrictions == EffectRestrictions.OncePerTurn
+        var effectKey = ResolveEffectKey(entryEffect, effectIndex: 0);
+        if (entryEffect.GlobalRestrictions == EffectRestrictions.OncePerTurn
             && instance.State.IsEffectUsedThisTurn(playerId, sourceCardInstanceId, effectKey))
         {
             return BuildOncePerTurnDisabledResponse(
                 actionId,
                 sourceCardInstanceId,
-                effectSpec);
+                entryEffect);
         }
 
-            if (!IsSupportEffectTimingAvailable(effectSpec.Timing, instance.State, playerId, isFromSupportZone))
-            {
-                return new GameCardActionTargetsResponse(
+        if (!SupportTimingRules.IsTimingAvailable(entryEffect.Timing, instance.State, playerId, isFromSupportZone))
+        {
+            return new GameCardActionTargetsResponse(
                 ActionId: actionId,
                 SourceCardInstanceId: sourceCardInstanceId,
                 IsEnabled: false,
                 DisabledReason: "Support timing is not available right now.",
-                MinimumTargetCount: effectSpec.TargetRules.MinimumTargetCount,
-                MaximumTargetCount: effectSpec.TargetRules.MaximumTargetCount,
-                ExactTargetCount: effectSpec.TargetRules.ExactTargetCount,
-                AutoSelectAllValidTargets: effectSpec.TargetRules.AutoSelectAllValidTargets,
+                MinimumTargetCount: entryEffect.TargetRules.MinimumTargetCount,
+                MaximumTargetCount: entryEffect.TargetRules.MaximumTargetCount,
+                ExactTargetCount: entryEffect.TargetRules.ExactTargetCount,
+                AutoSelectAllValidTargets: entryEffect.TargetRules.AutoSelectAllValidTargets,
                 ValidTargets: []);
-            }
+        }
+
+        var activationArguments = new Dictionary<string, string>(arguments, StringComparer.Ordinal);
+        var activationCost = SupportActivationPlanner.ResolveActivationCost(entryEffect);
+        if (activationCost > 0)
+        {
+            activationArguments[ReactiveEffectExecutionConstants.SupportActivationChakraCostArgument] =
+                activationCost.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
 
         var context = new GameCardEffectContext(
             game: instance,
             actingPlayer: new Player { Id = playerId },
             sourceCardDefinition: sourceCardDefinition,
             sourceCardInstance: sourceCardInstance,
-            arguments: arguments,
+            arguments: activationArguments,
             selectedTargets: []);
 
-        var canExecuteResult = canExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
-        var validTargets = ResolveValidTargetsForResponse(context, effectSpec, canExecuteResult);
-        return ToCardActionTargetsResponse(actionId, sourceCardInstanceId, effectSpec, canExecuteResult, validTargets);
+        var canExecuteResult = canExecuteEvaluator.Evaluate(context, entryEffect, includeValidTargets: false);
+        if (!canExecuteResult.CanExecute)
+        {
+            return new GameCardActionTargetsResponse(
+                ActionId: actionId,
+                SourceCardInstanceId: sourceCardInstanceId,
+                IsEnabled: false,
+                DisabledReason: canExecuteResult.FailedConditions.FirstOrDefault(),
+                MinimumTargetCount: entryEffect.TargetRules.MinimumTargetCount,
+                MaximumTargetCount: entryEffect.TargetRules.MaximumTargetCount,
+                ExactTargetCount: entryEffect.TargetRules.ExactTargetCount,
+                AutoSelectAllValidTargets: entryEffect.TargetRules.AutoSelectAllValidTargets,
+                ValidTargets: []);
+        }
+
+        var plan = SupportActivationTargetPlanner.Build(
+            instance,
+            sourceCardDefinition,
+            sourceCardInstance,
+            effectRegistry,
+            playerId);
+
+        return new GameCardActionTargetsResponse(
+            ActionId: actionId,
+            SourceCardInstanceId: sourceCardInstanceId,
+            IsEnabled: plan.IsEnabled,
+            DisabledReason: plan.DisabledReason,
+            MinimumTargetCount: plan.MinimumTargetCount,
+            MaximumTargetCount: plan.MaximumTargetCount,
+            ExactTargetCount: plan.ExactTargetCount,
+            AutoSelectAllValidTargets: plan.AutoSelectAllValidTargets,
+            ValidTargets: plan.ValidTargets);
     }
 
     private static GameCardActionTargetsResponse BuildBattleCardActionTargets(
@@ -1271,19 +1379,9 @@ public sealed class InMemoryGameInstanceRegistry
                 $"Support card instance '{request.SourceCardInstanceId}' was not found for player '{playerId}'.");
         }
 
-        if (IsSamePlayerId(instance.State.ActivePlayerId, playerId))
+        if (!SupportTimingRules.IsZoneAllowed(instance.State, playerId, isFromSupportZone))
         {
-            // Your turn support can be activated from hand or support area.
-        }
-        else
-        {
-            var fromSupportZone = actingPlayer.SupportZone.Any(card =>
-                string.Equals(card.InstanceId, request.SourceCardInstanceId, StringComparison.Ordinal));
-
-            if (!fromSupportZone)
-            {
-                throw new InvalidOperationException("Opponent-turn supports, including Quick, must be played from support area.");
-            }
+            throw new InvalidOperationException("Opponent-turn supports, including Quick, must be played from support area.");
         }
 
         if (!instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
@@ -1292,42 +1390,59 @@ public sealed class InMemoryGameInstanceRegistry
                 $"Card definition '{sourceCardInstance.CardDefinitionId}' was not found.");
         }
 
-        var primaryEffect = sourceCardDefinition.Effects.FirstOrDefault();
+        var entryEffect = SupportActivationPlanner.ResolveEntry(sourceCardDefinition);
+        if (entryEffect is null)
+        {
+            throw new InvalidOperationException(
+                $"Card '{sourceCardDefinition.Id}' has no support effect to activate.");
+        }
 
-        var primaryEffectKey = primaryEffect is null ? string.Empty : ResolveEffectKey(primaryEffect, effectIndex: 0);
-        if (primaryEffect is not null
-            && primaryEffect.GlobalRestrictions == EffectRestrictions.OncePerTurn
-            && instance.State.IsEffectUsedThisTurn(playerId, sourceCardInstance.InstanceId, primaryEffectKey))
+        var entryEffectKey = ResolveEffectKey(entryEffect, effectIndex: 0);
+        if (entryEffect.GlobalRestrictions == EffectRestrictions.OncePerTurn
+            && instance.State.IsEffectUsedThisTurn(playerId, sourceCardInstance.InstanceId, entryEffectKey))
         {
             throw new InvalidOperationException(EffectRestrictionMessages.OncePerTurn);
         }
 
-        if (primaryEffect is not null
-            && !IsSupportEffectTimingAvailable(primaryEffect.Timing, instance.State, playerId, isFromSupportZone))
+        if (!SupportTimingRules.IsTimingAvailable(entryEffect.Timing, instance.State, playerId, isFromSupportZone))
         {
             throw new InvalidOperationException("Support timing is not available right now.");
         }
 
         var selectedTargets = request.SelectedTargets ?? [];
 
-        var context = new GameCardEffectContext(
-            game: instance,
-            actingPlayer: new Player { Id = playerId },
-            sourceCardDefinition: sourceCardDefinition,
-            sourceCardInstance: sourceCardInstance,
-            arguments: arguments,
-            selectedTargets: selectedTargets);
-
-        var executeResult = sequentialEffectExecutor.Execute(context);
-        if (executeResult.IsError)
+        // The activation is paid and consumed now, but its effect resolves when the window closes: a
+        // Support Activated response has to be able to negate it first (see ResolvePendingActivations).
+        var activationCost = SupportActivationPlanner.ResolveActivationCost(entryEffect);
+        if (activationCost > 0)
         {
-            throw new InvalidOperationException(executeResult.FirstError.Description);
+            if (actingPlayer.ResourcePool < activationCost)
+            {
+                throw new InvalidOperationException(
+                    $"Player '{playerId}' does not have enough chakra to pay {activationCost}.");
+            }
+
+            actingPlayer.ResourcePool -= activationCost;
+            arguments[ReactiveEffectExecutionConstants.SupportActivationChakraCostArgument] =
+                activationCost.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        if (primaryEffect is not null
-            && primaryEffect.GlobalRestrictions == EffectRestrictions.OncePerTurn)
+        RevealActivatedSupportCard(sourceCardInstance, isFromSupportZone);
+
+        instance.State.EffectResolutionStack.Add(new EffectResolutionStackEntry
         {
-            instance.State.MarkEffectUsedThisTurn(playerId, sourceCardInstance.InstanceId, primaryEffectKey);
+            SourcePlayerId = playerId,
+            SourceZone = isFromSupportZone ? PlayerZone.SupportZone : PlayerZone.Hand,
+            SourceCardInstanceId = sourceCardInstance.InstanceId,
+            EffectTypeKey = ResolveActivationEffectTypeKey(entryEffect),
+            ActivatedEffectId = entryEffectKey,
+            SelectedTargets = [.. selectedTargets],
+            Arguments = new Dictionary<string, string>(arguments, StringComparer.Ordinal),
+        });
+
+        if (entryEffect.GlobalRestrictions == EffectRestrictions.OncePerTurn)
+        {
+            instance.State.MarkEffectUsedThisTurn(playerId, sourceCardInstance.InstanceId, entryEffectKey);
         }
 
         if (!isFromSupportZone)
@@ -1339,6 +1454,161 @@ public sealed class InMemoryGameInstanceRegistry
                 PlayerZone.Trash,
                 sourceCardInstance.InstanceId);
         }
+
+        // A MainPhase activation opens a reaction window too: [Support Activated] cards in the
+        // opponent's support area may respond before it resolves, so priority passes to them for that
+        // window (see SupportTimingRules). Nothing resolves until both players pass.
+        if (instance.State.Phase == GamePhase.MainPhase)
+        {
+            instance.State.PriorityPlayerId = ResolveOpponentPlayerId(instance.State, playerId);
+            instance.State.ConsecutivePasses = 0;
+        }
+    }
+
+    private static string ResolveOpponentPlayerId(GameState state, string playerId)
+    {
+        var opponent = state.Players.FirstOrDefault(player => !IsSamePlayerId(player.PlayerId, playerId));
+        return opponent?.PlayerId ?? string.Empty;
+    }
+
+    private static string ResolveActivationEffectTypeKey(EffectSpec? entryEffect)
+    {
+        if (entryEffect is null)
+        {
+            return string.Empty;
+        }
+
+        return RuntimeEffectKeys.TryResolve(entryEffect.RuntimeEffectType, out var effectKey)
+            ? effectKey
+            : entryEffect.RuntimeEffectType.ToString();
+    }
+
+    /// <summary>
+    /// A support activated from the support area is revealed so the opponent can see (and respond to)
+    /// the card that is on the resolution stack. Reveals are cleared when the card changes zone.
+    /// </summary>
+    private static void RevealActivatedSupportCard(CardInstance sourceCardInstance, bool isFromSupportZone)
+    {
+        if (!isFromSupportZone)
+        {
+            return;
+        }
+
+        sourceCardInstance.IsFaceUp = true;
+        sourceCardInstance.IsRevealedToBothPlayers = true;
+        sourceCardInstance.RevealedInZone = PlayerZone.SupportZone;
+    }
+
+    /// <summary>
+    /// Replays pending support activations, most recently activated first (see the game rules'
+    /// "multiple supports chain"). Negated activations are discarded without executing: their cost was
+    /// already paid when they were activated.
+    /// </summary>
+    private void ResolvePendingActivations(
+        GameInstance instance,
+        IGameSequentialEffectExecutor? sequentialEffectExecutor)
+    {
+        if (sequentialEffectExecutor is null)
+        {
+            // Callers that do not drive effects leave the activation queued for the next window close.
+            return;
+        }
+
+        while (true)
+        {
+            var entryIndex = instance.State.EffectResolutionStack.FindLastIndex(entry =>
+                !string.IsNullOrWhiteSpace(entry.ActivatedEffectId));
+            if (entryIndex < 0)
+            {
+                return;
+            }
+
+            var entry = instance.State.EffectResolutionStack[entryIndex];
+            instance.State.EffectResolutionStack.RemoveAt(entryIndex);
+
+            if (entry.IsNegated)
+            {
+                continue;
+            }
+
+            ExecutePendingActivation(instance, entry, sequentialEffectExecutor);
+        }
+    }
+
+    private void ExecutePendingActivation(
+        GameInstance instance,
+        EffectResolutionStackEntry entry,
+        IGameSequentialEffectExecutor sequentialEffectExecutor)
+    {
+        var sourcePlayer = instance.State.Players.FirstOrDefault(player =>
+            IsSamePlayerId(player.PlayerId, entry.SourcePlayerId));
+        var sourceCardInstance = sourcePlayer is null
+            ? null
+            : FindCardInstanceAcrossZones(sourcePlayer, entry.SourceCardInstanceId);
+
+        if (sourcePlayer is null
+            || sourceCardInstance is null
+            || !instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
+        {
+            instance.AddActionLogEntry(
+                actionType: "support_activation_skipped",
+                message: $"Skipped support activation '{entry.EntryId}': its source card is no longer in play.",
+                playerId: entry.SourcePlayerId);
+            return;
+        }
+
+        var context = new GameCardEffectContext(
+            game: instance,
+            actingPlayer: new Player { Id = entry.SourcePlayerId },
+            // Rebuild the definition from the card's data: planned nodes only, source-supplied nodes
+            // normalised, so the replay executes exactly the activation the player paid for.
+            sourceCardDefinition: SupportActivationNormalizer.NormalizeForActivation(
+                instance.State,
+                sourceCardDefinition,
+                sourceCardInstance),
+            sourceCardInstance: sourceCardInstance,
+            arguments: new Dictionary<string, string>(entry.Arguments, StringComparer.Ordinal)
+            {
+                [ReactiveEffectExecutionConstants.ActivationCostPaidArgument] = bool.TrueString,
+            },
+            selectedTargets: [.. entry.SelectedTargets]);
+
+        var executeResult = sequentialEffectExecutor.Execute(context);
+        if (executeResult.IsError)
+        {
+            // A single unresolvable activation must not strand both players: log it and continue.
+            instance.AddActionLogEntry(
+                actionType: "support_activation_failed",
+                message: $"Support activation '{entry.EntryId}' failed: {executeResult.FirstError.Description}",
+                playerId: entry.SourcePlayerId);
+        }
+    }
+
+    private static CardInstance? FindCardInstanceAcrossZones(PlayerState player, string cardInstanceId)
+    {
+        foreach (var zone in new[]
+        {
+            PlayerZone.CharacterField,
+            PlayerZone.SupportZone,
+            PlayerZone.Hand,
+            PlayerZone.Trash,
+            PlayerZone.ExileZone,
+            PlayerZone.Deck,
+        })
+        {
+            var zoneCard = PlayerZoneCardAccessor.GetCards(zone, player).FirstOrDefault(card =>
+                string.Equals(card.InstanceId, cardInstanceId, StringComparison.Ordinal));
+            if (zoneCard is not null)
+            {
+                return zoneCard;
+            }
+        }
+
+        var leader = player.LeaderCardInstance;
+        return leader is not null
+            && string.Equals(leader.InstanceId, cardInstanceId, StringComparison.Ordinal)
+                ? leader
+                : null;
     }
 
     private void ExecuteBattleAction(
@@ -1742,41 +2012,7 @@ public sealed class InMemoryGameInstanceRegistry
 
     private static Card CloneCardDefinitionWithEffects(Card sourceCardDefinition, IReadOnlyList<EffectSpec> effects)
     {
-        var clonedDefinition = sourceCardDefinition switch
-        {
-            LeaderCard leader => new LeaderCard
-            {
-                Life = leader.Life,
-                RecoveryEffect = leader.RecoveryEffect,
-            },
-            CharacterCard character => new CharacterCard
-            {
-                Health = character.Health,
-                SupportName = character.SupportName,
-                SupportEffect = character.SupportEffect,
-            },
-            _ => new Card(),
-        };
-
-        clonedDefinition.Id = sourceCardDefinition.Id;
-        clonedDefinition.Image = sourceCardDefinition.Image;
-        clonedDefinition.OriginalId = sourceCardDefinition.OriginalId;
-        clonedDefinition.MainAlternate = sourceCardDefinition.MainAlternate;
-        clonedDefinition.Attribute = sourceCardDefinition.Attribute;
-        clonedDefinition.Name = sourceCardDefinition.Name.ToList();
-        clonedDefinition.DisplayName = sourceCardDefinition.DisplayName;
-        clonedDefinition.Type = sourceCardDefinition.Type;
-        clonedDefinition.Traits = sourceCardDefinition.Traits.ToList();
-        clonedDefinition.Color = sourceCardDefinition.Color;
-        clonedDefinition.Description = sourceCardDefinition.Description;
-        clonedDefinition.MainEffect = sourceCardDefinition.MainEffect;
-        clonedDefinition.Damage = sourceCardDefinition.Damage;
-        clonedDefinition.Power = sourceCardDefinition.Power;
-        clonedDefinition.CannotBeNormalSummoned = sourceCardDefinition.CannotBeNormalSummoned;
-        clonedDefinition.Conditions = sourceCardDefinition.Conditions.ToList();
-        clonedDefinition.Effects = effects.ToList();
-
-        return clonedDefinition;
+        return CardDefinitionCloner.CloneWithEffects(sourceCardDefinition, effects);
     }
 
     // Attackers always fight with their current (effect-modified) stats so battle damage matches the
@@ -1888,6 +2124,14 @@ public sealed class InMemoryGameInstanceRegistry
             return true;
         }
 
+        // An activatable support already set in the support area is a legal MainPhase action. Without
+        // this a player whose only play is a set support would be auto-ended out of their MainPhase,
+        // even though the support zone publishes an enabled support chip for them.
+        if (activePlayer.SupportZone.Any(card => CanActivateSupportNow(instance, activePlayer.PlayerId, card)))
+        {
+            return true;
+        }
+
         // A card only counts as a legal action when it can actually declare battle: active, able to
         // attack, and past summon sickness unless it has Rush. Leaders rest but never exhaust
         // (exhaustion marks a card that left play) and are always on the field.
@@ -1899,6 +2143,42 @@ public sealed class InMemoryGameInstanceRegistry
         var leader = activePlayer.LeaderCardInstance;
         return leader is not null
             && BattleActionRules.CanDeclareBattleAction(instance.State, leader, isLeader: true);
+    }
+
+    /// <summary>
+    /// Cheap legality probe for the MainPhase auto-end check: an activation must have an entry effect,
+    /// an open timing window, no spent once-per-turn restriction and enough chakra. Target availability
+    /// is checked by the submit path (and by the mapper when it publishes the chip); this probe exists so
+    /// a set support is not silently skipped as "no legal action".
+    /// </summary>
+    private static bool CanActivateSupportNow(GameInstance instance, string playerId, CardInstance card)
+    {
+        if (!instance.State.CardDefinitions.TryGetValue(card.CardDefinitionId, out var definition))
+        {
+            return false;
+        }
+
+        var entryEffect = SupportActivationPlanner.ResolveEntry(definition);
+        if (entryEffect is null)
+        {
+            return false;
+        }
+
+        if (!SupportTimingRules.IsTimingAvailable(entryEffect.Timing, instance.State, playerId, isFromSupportZone: true))
+        {
+            return false;
+        }
+
+        var effectKey = ResolveEffectKey(entryEffect, effectIndex: 0);
+        if (entryEffect.GlobalRestrictions == EffectRestrictions.OncePerTurn
+            && instance.State.IsEffectUsedThisTurn(playerId, card.InstanceId, effectKey))
+        {
+            return false;
+        }
+
+        var activationCost = SupportActivationPlanner.ResolveActivationCost(entryEffect);
+        var actingPlayer = instance.State.Players.FirstOrDefault(player => IsSamePlayerId(player.PlayerId, playerId));
+        return activationCost <= 0 || (actingPlayer is not null && actingPlayer.ResourcePool >= activationCost);
     }
 
     private void ApplyPendingAttackResolutionIfNeeded(GameInstance instance, GamePhase previousPhase)
@@ -1972,46 +2252,16 @@ public sealed class InMemoryGameInstanceRegistry
         ClearPendingOptionalAttackEffectState(state);
     }
 
-    private static bool IsSupportEffectTimingAvailable(
-        EffectTiming timing,
-        GameState state,
-        string actingPlayerId,
-        bool isFromSupportZone)
-    {
-        var isActivePlayer = IsSamePlayerId(state.ActivePlayerId, actingPlayerId);
-        var isPriorityPlayer = IsSamePlayerId(state.PriorityPlayerId, actingPlayerId);
-
-        if (!isActivePlayer && !isFromSupportZone)
-        {
-            return false;
-        }
-
-        return timing switch
-        {
-            EffectTiming.Unspecified => isActivePlayer
-                ? state.Phase is GamePhase.MainPhase or GamePhase.ActionStep
-                : state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep,
-            EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
-                isActivePlayer && state.Phase == GamePhase.MainPhase,
-            EffectTiming.WhenAttacking =>
-                isActivePlayer && state.IsAttackDeclarationWindow(),
-            EffectTiming.YourTurn =>
-                isActivePlayer,
-            EffectTiming.Quick =>
-                isActivePlayer
-                    ? state.Phase == GamePhase.ActionStep && isPriorityPlayer
-                    : state.HasPendingAttack && state.Phase == GamePhase.ActionStep && isPriorityPlayer,
-            EffectTiming.SupportActivated =>
-                state.Phase == GamePhase.ActionStep && isPriorityPlayer,
-            EffectTiming.DuringOpponentAttack =>
-                !isActivePlayer && state.HasPendingAttack && state.Phase == GamePhase.ActionStep,
-            _ => false,
-        };
-    }
-
     private void AutoAdvanceMainPhaseIfNoLegalActions(GameInstance instance)
     {
         if (instance.GetPendingPrompt() is not null)
+        {
+            return;
+        }
+
+        // An open support reaction window is not "no legal actions": the pending activation has to be
+        // answered (or passed) before the MainPhase can be left.
+        if (SupportTimingRules.HasPendingSupportActivation(instance.State))
         {
             return;
         }

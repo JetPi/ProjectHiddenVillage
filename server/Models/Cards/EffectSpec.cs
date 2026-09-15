@@ -183,6 +183,13 @@ public static class EffectExecutionConditionArgumentKeyExtensions
 
 public sealed class EffectSpec
 {
+    /// <summary>
+    /// Shallow copy, used when a game-local definition must change how an effect executes (support
+    /// activation normalisation) without touching the shared catalogue instance. Reference-typed
+    /// members are shared, so replace a member you need to alter instead of mutating it.
+    /// </summary>
+    public EffectSpec Clone() => (EffectSpec)MemberwiseClone();
+
     public string Id { get; set; } = string.Empty;
 
     public bool IsSubordinate { get; set; } = false;

@@ -1576,7 +1576,7 @@
                             "targetRange": "Self",
                             "attribute": "Leader Current Life",
                             "operation": "Add",
-                            "value": 0,
+                            "value": 2,
                             "minimumValue": null,
                             "maximumValue": null
                         }

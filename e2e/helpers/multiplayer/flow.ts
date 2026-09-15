@@ -145,14 +145,18 @@ export async function resolveActorWithBottomHandAction(
   request: APIRequestContext,
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
-  actionLabel: 'Summon' | 'Set Support',
+  actionLabel: 'Summon' | 'Set Support' | 'Support',
   options?: {
     actorUserId?: string
     cardDefinitionId?: string
   },
 ): Promise<{ actor: PlayerAuth; actorPage: Page; cardInstanceId: string; actionId: string }> {
   const maxCycles = 180
-  const actionPrefix = actionLabel === 'Summon' ? 'summon-to-field:' : 'set-support:'
+  const actionPrefix = actionLabel === 'Summon'
+    ? 'summon-to-field:'
+    : actionLabel === 'Support'
+      ? 'activate-support:'
+      : 'set-support:'
   const normalizedLabel = actionLabel.trim().toLowerCase()
   const normalizedRequestedActorUserId = options?.actorUserId?.trim().toLowerCase() ?? ''
   const normalizedRequestedCardDefinitionId = options?.cardDefinitionId?.trim().toLowerCase() ?? ''

@@ -25,7 +25,7 @@ public static partial class GameStateResponseMapper
             ];
         }
 
-        if (!IsSupportEffectTimingAvailable(primaryEffect.Timing, state, card.ControllerPlayerId, isFromSupportZone: true))
+        if (!SupportTimingRules.IsTimingAvailable(primaryEffect.Timing, state, card.ControllerPlayerId, isFromSupportZone: true))
         {
             return
             [
@@ -64,40 +64,4 @@ public static partial class GameStateResponseMapper
         ];
     }
 
-    private static bool IsSupportEffectTimingAvailable(
-        EffectTiming timing,
-        GameState state,
-        string actingPlayerId,
-        bool isFromSupportZone)
-    {
-        var isActivePlayer = IsSamePlayerId(state.ActivePlayerId, actingPlayerId);
-        var isPriorityPlayer = IsSamePlayerId(state.PriorityPlayerId, actingPlayerId);
-
-        if (!isActivePlayer && !isFromSupportZone)
-        {
-            return false;
-        }
-
-        return timing switch
-        {
-            EffectTiming.Unspecified => isActivePlayer
-                ? state.Phase is GamePhase.MainPhase or GamePhase.ActionStep
-                : state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration or GamePhase.ActionStep,
-            EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
-                isActivePlayer && state.Phase == GamePhase.MainPhase,
-            EffectTiming.WhenAttacking =>
-                isActivePlayer && state.IsAttackDeclarationWindow(),
-            EffectTiming.YourTurn =>
-                isActivePlayer,
-            EffectTiming.Quick =>
-                isActivePlayer
-                    ? state.Phase == GamePhase.ActionStep && isPriorityPlayer
-                    : state.HasPendingAttack && state.Phase == GamePhase.ActionStep && isPriorityPlayer,
-            EffectTiming.SupportActivated =>
-                state.Phase == GamePhase.ActionStep && isPriorityPlayer,
-            EffectTiming.DuringOpponentAttack =>
-                !isActivePlayer && state.HasPendingAttack && state.Phase == GamePhase.ActionStep,
-            _ => false,
-        };
-    }
 }

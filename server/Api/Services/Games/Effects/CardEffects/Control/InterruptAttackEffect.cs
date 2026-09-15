@@ -33,7 +33,7 @@ public sealed class InterruptAttackEffect(
             return baseResult;
         }
 
-        if (context.Game.State.Phase != GamePhase.ActionStep)
+        if (!IsInterruptWindow(context.Game.State))
         {
             baseResult.CanExecute = false;
             baseResult.FailedConditions.Add("InterruptAttack can only be activated during ActionStep.");
@@ -79,7 +79,7 @@ public sealed class InterruptAttackEffect(
                 description: "InterruptAttack effect is not defined on the source card.");
         }
 
-        if (context.Game.State.Phase != GamePhase.ActionStep)
+        if (!IsInterruptWindow(context.Game.State))
         {
             return Error.Validation(
                 code: "Game.Effect.InterruptAttack.InvalidPhase",
@@ -129,6 +129,18 @@ public sealed class InterruptAttackEffect(
             });
 
         return Result.Success;
+    }
+
+    /// <summary>
+    /// The interrupt is a support cut-in response, so it is legal while the cut-in window is open
+    /// (<see cref="GamePhase.ActionStep"/>) and while that closed window is being resolved before the
+    /// damage step (<see cref="GamePhase.AttackResolution"/>): the engine replays pending supports after
+    /// the double pass but before any damage is applied.
+    /// </summary>
+    private static bool IsInterruptWindow(GameState state)
+    {
+        return state.HasPendingAttack
+            && state.Phase is GamePhase.ActionStep or GamePhase.AttackResolution;
     }
 
     // Attackers can be battlefield cards or the leader, so interrupt resolution checks both.
