@@ -10,6 +10,7 @@ public interface IGamePhaseStateService
     void EnqueueSkipPhase(GameState state, GamePhase phaseToSkip);
     void EnqueueJumpToPhase(GameState state, GamePhase targetPhase);
     bool DeclarePassInActionStep(GameState state, string playerId);
+    bool DeclarePassInSupportWindow(GameState state, string playerId);
     void DeclareActionInActionStep(GameState state, string playerId);
     void DeclareEndStep(GameState state);
     bool CompleteEndStep(GameState state);

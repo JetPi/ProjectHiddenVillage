@@ -22,7 +22,7 @@ export function CardAdminMoveCardActionsPanel({
   updateEffectAt,
 }: ICardAdminMoveCardActionsPanelProps) {
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-cyan-500/55 bg-[var(--surface-muted)] p-3">
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-cyan-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Move Card Actions</span>
         <CardAdminChevronIcon rotateOnOpen />
@@ -50,10 +50,10 @@ export function CardAdminMoveCardActionsPanel({
         const isIndexPlacement = (moveCardAction.deckPlacement ?? 'Top') === 'Index'
 
         return (
-          <div key={`move-card-action-${moveCardActionIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
+          <div key={`move-card-action-${moveCardActionIndex}`} className="grid grid-cols-1 gap-3 border-l-2 border-l-cyan-500/30 pl-3 sm:grid-cols-4">
             <CardAdminSelect
               value={moveCardAction.operation}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   moveCardActions: current.moveCardActions.map((row, index) => {
@@ -61,7 +61,7 @@ export function CardAdminMoveCardActionsPanel({
                       return row
                     }
 
-                    const nextOperation = event.target.value
+                    const nextOperation = value
                     if (nextOperation === 'Draw') {
                       return {
                         ...row,
@@ -102,11 +102,11 @@ export function CardAdminMoveCardActionsPanel({
             {!isDrawAction ? (
               <CardAdminSelect
                 value={moveCardAction.sourceZone ?? 'Hand'}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   updateEffectAt(effectIndex, (current) => ({
                     ...current,
                     moveCardActions: current.moveCardActions.map((row, index) =>
-                      index === moveCardActionIndex ? { ...row, sourceZone: event.target.value } : row),
+                      index === moveCardActionIndex ? { ...row, sourceZone: value } : row),
                   }))}
                 className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
               >
@@ -135,18 +135,18 @@ export function CardAdminMoveCardActionsPanel({
             {!isDrawAction ? (
               <CardAdminSelect
                 value={moveCardAction.destinationZone ?? 'Deck'}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   updateEffectAt(effectIndex, (current) => ({
                     ...current,
                     moveCardActions: current.moveCardActions.map((row, index) =>
                       index === moveCardActionIndex
                         ? {
                             ...row,
-                            destinationZone: event.target.value,
-                            deckPlacement: event.target.value === 'Deck' ? (row.deckPlacement ?? 'Top') : null,
-                            multiCardOrdering: event.target.value === 'Deck' ? (row.multiCardOrdering ?? 'Selected Order') : null,
+                            destinationZone: value,
+                            deckPlacement: value === 'Deck' ? (row.deckPlacement ?? 'Top') : null,
+                            multiCardOrdering: value === 'Deck' ? (row.multiCardOrdering ?? 'Selected Order') : null,
                             destinationIndex:
-                              event.target.value === 'Deck'
+                              value === 'Deck'
                                 ? (row.destinationIndex ?? 0)
                                 : row.destinationIndex,
                           }
@@ -161,12 +161,12 @@ export function CardAdminMoveCardActionsPanel({
             ) : (
               <CardAdminSelect
                 value={moveCardAction.destinationPlayerRange}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   updateEffectAt(effectIndex, (current) => ({
                     ...current,
                     moveCardActions: current.moveCardActions.map((row, index) =>
                       index === moveCardActionIndex
-                        ? { ...row, destinationPlayerRange: event.target.value }
+                        ? { ...row, destinationPlayerRange: value }
                         : row),
                   }))}
                 className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
@@ -192,7 +192,7 @@ export function CardAdminMoveCardActionsPanel({
                 {isDeckDestination ? (
                   <CardAdminSelect
                     value={moveCardAction.deckPlacement ?? 'Top'}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       updateEffectAt(effectIndex, (current) => ({
                         ...current,
                         moveCardActions: current.moveCardActions.map((row, index) => {
@@ -200,7 +200,7 @@ export function CardAdminMoveCardActionsPanel({
                             return row
                           }
 
-                          const nextPlacement = event.target.value
+                          const nextPlacement = value
                           return {
                             ...row,
                             deckPlacement: nextPlacement,
@@ -222,12 +222,12 @@ export function CardAdminMoveCardActionsPanel({
                 {isDeckDestination ? (
                   <CardAdminSelect
                     value={moveCardAction.multiCardOrdering ?? 'Selected Order'}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       updateEffectAt(effectIndex, (current) => ({
                         ...current,
                         moveCardActions: current.moveCardActions.map((row, index) =>
                           index === moveCardActionIndex
-                            ? { ...row, multiCardOrdering: event.target.value }
+                            ? { ...row, multiCardOrdering: value }
                             : row),
                       }))}
                     className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
@@ -274,12 +274,12 @@ export function CardAdminMoveCardActionsPanel({
 
                 <CardAdminSelect
                   value={moveCardAction.destinationPlayerRange}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     updateEffectAt(effectIndex, (current) => ({
                       ...current,
                       moveCardActions: current.moveCardActions.map((row, index) =>
                         index === moveCardActionIndex
-                          ? { ...row, destinationPlayerRange: event.target.value }
+                          ? { ...row, destinationPlayerRange: value }
                           : row),
                     }))}
                   className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"

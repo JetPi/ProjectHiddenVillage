@@ -49,6 +49,21 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
         return advancedToResolution;
     }
 
+    public bool DeclarePassInSupportWindow(GameInstance instance, string playerId)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+
+        var windowClosed = phaseStateService.DeclarePassInSupportWindow(instance.State, playerId);
+
+        LogAction(
+            instance,
+            actionType: "support_window_pass_declared",
+            playerId: playerId,
+            advancedToAttackResolution: windowClosed);
+
+        return windowClosed;
+    }
+
     public void DeclareActionInActionStep(GameInstance instance, string playerId)
     {
         ArgumentNullException.ThrowIfNull(instance);
@@ -168,6 +183,7 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
         {
             "phase_started" => $"{DescribePlayer(playerId ?? string.Empty)} started {instance.State.Phase}.",
             "action_step_pass_declared" => $"{playerId} declared pass in ActionStep.",
+            "support_window_pass_declared" => $"{playerId} declared pass while a support awaited responses.",
             "action_step_action_declared" => $"{playerId} declared an action in ActionStep.",
             "end_step_declared" => $"{DescribePlayer(instance.State.ActivePlayerId)} declared EndStep.",
             "turn_started" => $"Turn {instance.State.TurnNumber} started for {instance.State.ActivePlayerId}.",
@@ -183,6 +199,10 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
                 ("turnNumber", ToInvariant(instance.State.TurnNumber))),
             "action_step_pass_declared" => CreateMetadata(
                 ("advancedToAttackResolution", (advancedToAttackResolution ?? throw new InvalidOperationException("Pass resolution flag is required.")).ToString()),
+                ("nextPriorityPlayerId", instance.State.PriorityPlayerId),
+                ("consecutivePasses", ToInvariant(instance.State.ConsecutivePasses))),
+            "support_window_pass_declared" => CreateMetadata(
+                ("windowClosed", (advancedToAttackResolution ?? throw new InvalidOperationException("Pass resolution flag is required.")).ToString()),
                 ("nextPriorityPlayerId", instance.State.PriorityPlayerId),
                 ("consecutivePasses", ToInvariant(instance.State.ConsecutivePasses))),
             "action_step_action_declared" => CreateMetadata(

@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import type { DragEvent } from 'react'
+import { twMerge } from 'tailwind-merge'
 import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { CardAdminSelect } from '@/views/admin/components/controls'
@@ -53,6 +55,51 @@ export function CardAdminEffectsSection({
   effectBranchErrors,
 }: ICardAdminEffectsSectionProps) {
   const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null)
+  const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null)
+  // The card-sized ghost handed to the browser during a drag (`setDragImage` snapshots it immediately).
+  const dragPreviewRef = useRef<HTMLDivElement | null>(null)
+
+  const clearDragState = () => {
+    setDraggedEffectIndex(null)
+    setDragOverEffectIndex(null)
+    dragPreviewRef.current?.remove()
+    dragPreviewRef.current = null
+  }
+
+  /**
+   * Only the drag handle starts a drag (the card used to be draggable as a whole, which hijacked clicks on
+   * the flag toggles). The handle is a 24px icon, so the browser's default ghost would be a speck: hand it a
+   * card-sized preview of the effect instead, which is what shows where the effect will land.
+   */
+  const handleEffectDragStart = (event: DragEvent<HTMLSpanElement>, effectIndex: number, label: string) => {
+    setDraggedEffectIndex(effectIndex)
+    setDragOverEffectIndex(null)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(effectIndex))
+
+    const preview = document.createElement('div')
+    preview.textContent = label
+    preview.style.cssText = [
+      'position: fixed',
+      'top: -1000px',
+      'left: -1000px',
+      'max-width: 16rem',
+      'padding: 6px 10px',
+      'border: 1px solid var(--border-subtle)',
+      'border-radius: 8px',
+      'background: var(--surface)',
+      'box-shadow: var(--panel-shadow)',
+      'font-size: 11px',
+      'color: var(--text-primary)',
+      'white-space: nowrap',
+      'overflow: hidden',
+      'text-overflow: ellipsis',
+    ].join(';')
+
+    document.body.appendChild(preview)
+    dragPreviewRef.current = preview
+    event.dataTransfer.setDragImage(preview, 12, 14)
+  }
 
   return (
     <div className="grid grid-cols-1 gap-2">
@@ -68,7 +115,7 @@ export function CardAdminEffectsSection({
           </AppButton>
         </div>
 
-        <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-sky-500/45 bg-[var(--surface-muted)] p-3">
+        <div className="space-y-2 border-t border-[var(--border-subtle)] border-l-2 border-l-sky-500/45 pl-3 pt-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Interlinked Effects</p>
           {linkedEffectGroups.length > 0 ? (
             <div className="space-y-1">
@@ -105,28 +152,40 @@ export function CardAdminEffectsSection({
         {parsedEffects.map((effect, effectIndex) => (
           <div
             key={`effect-${effectIndex}`}
-            className="space-y-3 rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-slate-400/55 bg-[var(--surface)] p-3 shadow-sm"
-            draggable={collapsedEffects.has(effectIndex)}
-            onDragStart={() => setDraggedEffectIndex(effectIndex)}
+            data-testid="effect-card"
+            className={twMerge(
+              'space-y-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3 shadow-sm transition-shadow',
+              draggedEffectIndex === effectIndex ? 'opacity-60' : '',
+              dragOverEffectIndex === effectIndex && draggedEffectIndex !== effectIndex
+                ? 'border-[var(--focus-ring)] ring-2 ring-[var(--focus-ring)]/45'
+                : '',
+            )}
             onDragOver={(event) => {
               if (draggedEffectIndex === null || draggedEffectIndex === effectIndex) {
                 return
               }
+
               event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
+              setDragOverEffectIndex(effectIndex)
             }}
             onDrop={(event) => {
               event.preventDefault()
+
               if (draggedEffectIndex === null || draggedEffectIndex === effectIndex) {
+                clearDragState()
                 return
               }
+
               reorderEffect(draggedEffectIndex, effectIndex)
-              setDraggedEffectIndex(null)
+              clearDragState()
             }}
-            onDragEnd={() => setDraggedEffectIndex(null)}
+            onDragEnd={clearDragState}
           >
-            <div
-              className="flex flex-nowrap items-center gap-1 overflow-hidden cursor-grab active:cursor-grabbing"
-            >
+            {/* One line, like the original layout: identity, branch wiring and the flags share the row and
+                wrap as groups only when the rail is genuinely too narrow - never slicing the way the old
+                `flex-nowrap overflow-hidden` row did. */}
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
               <CardAdminRemoveButton
                 onClick={() => removeEffectAt(effectIndex)}
                 className="h-6 w-6 shrink-0"
@@ -137,18 +196,18 @@ export function CardAdminEffectsSection({
                 type="text"
                 value={effect.id}
                 onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, id: event.target.value }))}
-                className="h-7 min-w-0 flex-[1.2] rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 text-[11px] text-[var(--text-primary)]"
+                className="h-7 min-w-[4.5rem] flex-[1.2] rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 text-[11px] text-[var(--text-primary)]"
                 placeholder={`Effect ${effectIndex + 1}`}
               />
 
-              <div className="flex min-w-0 flex-[1] items-center gap-1">
+              <div className="flex min-w-[4.5rem] flex-1 items-center gap-1">
                 <span className="text-xs text-emerald-600" aria-hidden="true">✓</span>
                 <CardAdminSelect
                   value={effect.onSuccessEffectId ?? ''}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     updateEffectAt(effectIndex, (current) => ({
                       ...current,
-                      onSuccessEffectId: event.target.value.trim().length > 0 ? event.target.value : null,
+                      onSuccessEffectId: value.trim().length > 0 ? value : null,
                     }))}
                   className="h-7 min-w-0 px-2 py-0 text-[11px]"
                 >
@@ -161,14 +220,14 @@ export function CardAdminEffectsSection({
                 </CardAdminSelect>
               </div>
 
-              <div className="flex min-w-0 flex-[1] items-center gap-1">
+              <div className="flex min-w-[4.5rem] flex-1 items-center gap-1">
                 <span className="text-xs text-rose-600" aria-hidden="true">✕</span>
                 <CardAdminSelect
                   value={effect.onFailureEffectId ?? ''}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     updateEffectAt(effectIndex, (current) => ({
                       ...current,
-                      onFailureEffectId: event.target.value.trim().length > 0 ? event.target.value : null,
+                      onFailureEffectId: value.trim().length > 0 ? value : null,
                     }))}
                   className="h-7 min-w-0 px-2 py-0 text-[11px]"
                 >
@@ -230,9 +289,17 @@ export function CardAdminEffectsSection({
                   <CardAdminChevronIcon expanded={!collapsedEffects.has(effectIndex)} className="transition-transform duration-200" />
                 </button>
                 <span
-                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                  draggable
+                  onDragStart={(event) =>
+                    handleEffectDragStart(
+                      event,
+                      effectIndex,
+                      `${effect.id.trim().length > 0 ? effect.id.trim() : `Effect ${effectIndex + 1}`}${effect.runtimeEffectType ? ` · ${effect.runtimeEffectType}` : ''}`,
+                    )}
+                  className="inline-flex h-6 w-6 shrink-0 cursor-grab items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] active:cursor-grabbing"
                   aria-hidden="true"
                   title="Drag to reorder"
+                  data-testid="effect-drag-handle"
                 >
                   <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-3.5 w-3.5">
                     <circle cx="7" cy="6" r="1.2" />
@@ -253,7 +320,7 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Global Restrictions</label>
                     <CardAdminSelect
                       value={effect.globalRestrictions}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, globalRestrictions: event.target.value }))}
+                      onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, globalRestrictions: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {RESTRICTIONS_OPTIONS.map((option) => (
@@ -266,9 +333,9 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Runtime Effect Type</label>
                     <CardAdminSelect
                       value={effect.runtimeEffectType}
-                      onChange={(event) =>
+                      onValueChange={(value) =>
                         updateEffectAt(effectIndex, (current) => {
-                          const nextRuntimeEffectType = event.target.value
+                          const nextRuntimeEffectType = value
                           const isTributeEffect = nextRuntimeEffectType === 'Tribute'
                           const supportsTributeRole = isSummonOrTributeRuntimeEffect(nextRuntimeEffectType)
                           const hidesTargetCount = isAttackNegationRuntimeEffect(nextRuntimeEffectType)
@@ -292,10 +359,14 @@ export function CardAdminEffectsSection({
                           return {
                             ...current,
                             runtimeEffectType: nextRuntimeEffectType,
+                            // "Lock Chakra Recovery" locks the players in Target Range, so it never asks for
+                            // a selected target - the server rejects the combination outright.
                             executionTargetSource:
                               nextRuntimeEffectType === 'Reveal Card'
                                 ? 'Selected Targets'
-                                : current.executionTargetSource,
+                                : nextRuntimeEffectType === 'Lock Chakra Recovery'
+                                  ? 'None'
+                                  : current.executionTargetSource,
                             suppressSummonedTargetsEffectsWhileOnField:
                               nextRuntimeEffectType === 'Summon Card'
                                 ? current.suppressSummonedTargetsEffectsWhileOnField
@@ -368,7 +439,7 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Effect Type</label>
                     <CardAdminSelect
                       value={effect.effectType}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, effectType: event.target.value }))}
+                      onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, effectType: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {EFFECT_KIND_OPTIONS.map((option) => (
@@ -381,7 +452,7 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Timing</label>
                     <CardAdminSelect
                       value={effect.timing}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, timing: event.target.value }))}
+                      onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, timing: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {EFFECT_TIMING_OPTIONS.map((option) => (
@@ -394,7 +465,7 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Duration</label>
                     <CardAdminSelect
                       value={effect.durationMode}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, durationMode: event.target.value }))}
+                      onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, durationMode: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {EFFECT_DURATION_MODE_OPTIONS.map((option) => (
@@ -407,9 +478,9 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Mode</label>
                     <CardAdminSelect
                       value={effect.passiveMode}
-                      onChange={(event) =>
+                      onValueChange={(value) =>
                         updateEffectAt(effectIndex, (current) => {
-                          const nextPassiveMode = event.target.value
+                          const nextPassiveMode = value
                           const isPassiveEnabled = nextPassiveMode !== 'None'
 
                           return {
@@ -435,7 +506,7 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Range</label>
                     <CardAdminSelect
                       value={effect.targetRange}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, targetRange: event.target.value }))}
+                      onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, targetRange: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {TARGET_RANGE_OPTIONS.map((option) => (

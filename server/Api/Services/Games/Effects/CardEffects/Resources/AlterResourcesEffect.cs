@@ -57,12 +57,29 @@ public sealed class AlterResourcesEffect(
 				};
 			}
 
+			if (adjustment.Operation == ChakraAdjustmentOperation.Recover)
+			{
+				foreach (var player in EffectTargetRangePlayers.Resolve(context.Game.State, context.ActingPlayer.Id, adjustment.TargetRange))
+				{
+					if (CardRuntimeEffectStateService.IsChakraRecoveryBlocked(context.Game.State, player.PlayerId))
+					{
+						return new CanExecuteResult
+						{
+							CanExecute = false,
+							FailedConditions = [$"Player '{player.PlayerId}' cannot turn chakra face-up while a chakra recovery lock is active."],
+						};
+					}
+				}
+
+				continue;
+			}
+
 			if (adjustment.Operation != ChakraAdjustmentOperation.Pay)
 			{
 				continue;
 			}
 
-					foreach (var player in ResolveTargetPlayers(context.Game.State, context.ActingPlayer.Id, adjustment.TargetRange))
+					foreach (var player in EffectTargetRangePlayers.Resolve(context.Game.State, context.ActingPlayer.Id, adjustment.TargetRange))
 			{
 				if (player.ResourcePool < adjustment.Amount)
 				{
@@ -161,9 +178,17 @@ public sealed class AlterResourcesEffect(
 					description: "AlterResources chakra adjustment amount must be greater than zero.");
 			}
 
-					foreach (var player in ResolveTargetPlayers(context.Game.State, context.ActingPlayer.Id, adjustment.TargetRange))
+					foreach (var player in EffectTargetRangePlayers.Resolve(context.Game.State, context.ActingPlayer.Id, adjustment.TargetRange))
 			{
-				var result = ApplyChakraAdjustment(player, adjustment);
+				if (adjustment.Operation == ChakraAdjustmentOperation.Recover
+				&& CardRuntimeEffectStateService.IsChakraRecoveryBlocked(context.Game.State, player.PlayerId))
+			{
+				return Error.Validation(
+					code: "Game.Effect.ChakraRecoveryLock.CannotTurnFaceUp",
+					description: $"Player '{player.PlayerId}' cannot turn chakra face-up while a chakra recovery lock is active.");
+			}
+
+			var result = ApplyChakraAdjustment(player, adjustment);
 				if (result.IsError)
 				{
 					return result.Errors;
@@ -185,13 +210,15 @@ public sealed class AlterResourcesEffect(
 					description: "AlterResources face-state flips support only ChakraCard and SupportZoneCards target categories.");
 			}
 
-					foreach (var player in ResolveTargetPlayers(context.Game.State, context.ActingPlayer.Id, flip.TargetRange))
+					foreach (var player in EffectTargetRangePlayers.Resolve(context.Game.State, context.ActingPlayer.Id, flip.TargetRange))
 			{
 				if (shouldBeFaceUp
-					&& CardRuntimeEffectStateService.IsFaceUpTransitionBlocked(
-						context.Game.State,
-						player.PlayerId,
-						targetCategory.Value))
+					&& (CardRuntimeEffectStateService.IsFaceUpTransitionBlocked(
+							context.Game.State,
+							player.PlayerId,
+							targetCategory.Value)
+						|| (targetCategory.Value == FaceStateTargetCategory.ChakraCard
+							&& CardRuntimeEffectStateService.IsChakraRecoveryBlocked(context.Game.State, player.PlayerId))))
 				{
 					return Error.Validation(
 						code: "Game.Effect.FaceStateLock.CannotTurnFaceUp",
@@ -240,7 +267,7 @@ public sealed class AlterResourcesEffect(
 					description: "AlterResources face-state locks require a source card instance.");
 			}
 
-			foreach (var player in ResolveTargetPlayers(context.Game.State, context.ActingPlayer.Id, faceStateLock.TargetRange))
+			foreach (var player in EffectTargetRangePlayers.Resolve(context.Game.State, context.ActingPlayer.Id, faceStateLock.TargetRange))
 			{
 				CardRuntimeEffectStateService.AddTemporaryFaceStateLockEffect(
 					context.Game.State,
@@ -281,21 +308,6 @@ public sealed class AlterResourcesEffect(
 		}
 
 		return Result.Success;
-	}
-
-	private static IReadOnlyList<PlayerState> ResolveTargetPlayers(GameState state, string actingPlayerId, EffectTargetRange scope)
-	{
-		return scope switch
-		{
-			EffectTargetRange.Self => state.Players
-				.Where(player => string.Equals(player.PlayerId, actingPlayerId, StringComparison.Ordinal))
-				.ToList(),
-			EffectTargetRange.Opponent => state.Players
-				.Where(player => !string.Equals(player.PlayerId, actingPlayerId, StringComparison.Ordinal))
-				.ToList(),
-			EffectTargetRange.Any => state.Players,
-			_ => [],
-		};
 	}
 
 	private static FaceStateTargetCategory? ResolveFaceStateTargetCategory(FaceStateTargetCategory category)

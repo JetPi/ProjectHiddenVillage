@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { SetStateAction } from 'react'
 import { useAuthSessionStore } from '@/state/authSession'
 import { useGameHubStore } from '@/state/gameHubStore'
-import { resolveCurrentPlayer, toggleSummonTargetSelection } from '@/views/game/utils/functions'
+import { resolveCurrentPlayer, toggleEffectTargetSelection, toggleSummonTargetSelection } from '@/views/game/utils/functions'
 import type { IGameUIStoreState } from '@/state/types/gameUIStore'
 
 function resolveUpdate<T>(value: SetStateAction<T>, previous: T): T {
@@ -12,9 +12,9 @@ function resolveUpdate<T>(value: SetStateAction<T>, previous: T): T {
 const initialState = {
   bottomHandFaceUpByInstanceId: {},
   isMulliganAnimationPending: false,
-  pendingSetSupportCardInstanceId: null,
   pendingCardTargeting: null,
   pendingSummonTargeting: null,
+  pendingEffectTargeting: null,
   optimisticRestedByInstanceId: {},
   activeAttackLink: null,
   lastSubmittedAttackSourceInstanceId: null,
@@ -26,40 +26,53 @@ export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
     set((state) => ({ bottomHandFaceUpByInstanceId: resolveUpdate(value, state.bottomHandFaceUpByInstanceId) })),
   setIsMulliganAnimationPending: (value) =>
     set((state) => ({ isMulliganAnimationPending: resolveUpdate(value, state.isMulliganAnimationPending) })),
-  setPendingSetSupportCardInstanceId: (value) =>
-    set((state) => ({ pendingSetSupportCardInstanceId: resolveUpdate(value, state.pendingSetSupportCardInstanceId) })),
   setPendingCardTargeting: (value) =>
     set((state) => ({ pendingCardTargeting: resolveUpdate(value, state.pendingCardTargeting) })),
   setPendingSummonTargeting: (value) =>
     set((state) => ({ pendingSummonTargeting: resolveUpdate(value, state.pendingSummonTargeting) })),
+  setPendingEffectTargeting: (value) =>
+    set((state) => ({ pendingEffectTargeting: resolveUpdate(value, state.pendingEffectTargeting) })),
   setOptimisticRestedByInstanceId: (value) =>
     set((state) => ({ optimisticRestedByInstanceId: resolveUpdate(value, state.optimisticRestedByInstanceId) })),
   setActiveAttackLink: (value) =>
     set((state) => ({ activeAttackLink: resolveUpdate(value, state.activeAttackLink) })),
-  cancelSetSupportSelection: () => set({ pendingSetSupportCardInstanceId: null }),
   beginBattleTargeting: (targeting) =>
     set(() => ({
-      pendingSetSupportCardInstanceId: null,
       activeAttackLink: null,
       pendingSummonTargeting: null,
+      pendingEffectTargeting: null,
       pendingCardTargeting: { ...targeting, kind: 'battle' },
     })),
   beginEffectTargeting: (targeting) =>
     set(() => ({
-      pendingSetSupportCardInstanceId: null,
       activeAttackLink: null,
       pendingSummonTargeting: null,
+      pendingEffectTargeting: null,
       pendingCardTargeting: { ...targeting, kind: 'effect' },
     })),
   cancelBattleTargeting: () => set({ pendingCardTargeting: null, activeAttackLink: null }),
   beginSummonTargeting: (targeting) =>
     set(() => ({
-      pendingSetSupportCardInstanceId: null,
       pendingCardTargeting: null,
+      pendingEffectTargeting: null,
       activeAttackLink: null,
       pendingSummonTargeting: targeting,
     })),
   cancelSummonTargeting: () => set({ pendingSummonTargeting: null }),
+  beginEffectMultiTargeting: (targeting) =>
+    set(() => ({
+      pendingCardTargeting: null,
+      pendingSummonTargeting: null,
+      activeAttackLink: null,
+      pendingEffectTargeting: targeting,
+    })),
+  cancelEffectTargeting: () => set({ pendingEffectTargeting: null }),
+  toggleEffectTarget: (targetCardInstanceId) =>
+    toggleEffectTargetSelection({
+      targetCardInstanceId,
+      setPendingEffectTargeting: (action) =>
+        set((state) => ({ pendingEffectTargeting: resolveUpdate(action, state.pendingEffectTargeting) })),
+    }),
   toggleSummonTarget: (targetCardInstanceId) =>
     toggleSummonTargetSelection({
       targetCardInstanceId,
@@ -90,17 +103,6 @@ function pruneStaleGameUIState(): void {
   const currentPlayer = resolveCurrentPlayer(gameState.players, userId)
   const currentHand = currentPlayer?.hand ?? []
   const availableActions = gameState.availableActions
-
-  const pendingSupportId = ui.pendingSetSupportCardInstanceId
-  if (pendingSupportId) {
-    const pendingActionId = `set-support:${pendingSupportId}`
-    const isGloballyAvailable = availableActions.some((option) => option.actionId === pendingActionId)
-    const pendingCard = currentHand.find((card) => card.instanceId === pendingSupportId)
-    const isOnCardAvailable = (pendingCard?.availableActions ?? []).some((option) => option.actionId === pendingActionId)
-    if (!isGloballyAvailable && !isOnCardAvailable) {
-      ui.setPendingSetSupportCardInstanceId(null)
-    }
-  }
 
   const pendingBattleTargeting = ui.pendingCardTargeting
   if (pendingBattleTargeting && pendingBattleTargeting.kind === 'battle') {
@@ -156,6 +158,26 @@ function pruneStaleGameUIState(): void {
     const matchingAction = (pendingCard?.availableActions ?? []).find((option) => option.actionId === actionId)
     if (!matchingAction?.isEnabled) {
       ui.setPendingSummonTargeting(null)
+    }
+  }
+
+  // Multi-target effect picks (range supports) are opened by an `activate-support` action that can live on
+  // a hand card *or* in the support zone, so both scopes have to be searched before the mode is dropped.
+  const pendingEffectMultiTargeting = ui.pendingEffectTargeting
+  if (pendingEffectMultiTargeting) {
+    const actionId = pendingEffectMultiTargeting.actionId
+    const sourceId = pendingEffectMultiTargeting.sourceCardInstanceId.trim().toLowerCase()
+    const sourceCards = [
+      ...currentHand,
+      ...(currentPlayer?.supportZone ?? []),
+      ...(currentPlayer?.characterField ?? []),
+    ]
+    const matchingAction = availableActions.find((option) => option.actionId === actionId)
+    const sourceCard = sourceCards.find((card) => card.instanceId.trim().toLowerCase() === sourceId)
+    const matchingSourceCardAction = (sourceCard?.availableActions ?? []).find((option) => option.actionId === actionId)
+    const stillAvailable = Boolean(matchingAction?.isEnabled) || Boolean(matchingSourceCardAction?.isEnabled)
+    if (!stillAvailable) {
+      ui.setPendingEffectTargeting(null)
     }
   }
 

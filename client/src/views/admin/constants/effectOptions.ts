@@ -11,6 +11,7 @@ export const RUNTIME_EFFECT_OPTIONS = [
   'Reveal Card',
   'Summon Card',
   'Move Card',
+  'Lock Chakra Recovery',
 ] as const
 
 export const EFFECT_KIND_OPTIONS = [

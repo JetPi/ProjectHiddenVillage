@@ -16,7 +16,7 @@ export function CardAdminFaceStateLocksPanel({
   updateEffectAt,
 }: ICardAdminFaceStateLocksPanelProps) {
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-violet-500/55 bg-[var(--surface-muted)] p-3">
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-violet-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Face State Locks</span>
         <CardAdminChevronIcon rotateOnOpen />
@@ -39,14 +39,14 @@ export function CardAdminFaceStateLocksPanel({
       </div>
 
       {effect.faceStateLocks.map((faceStateLock, faceStateLockIndex) => (
-        <div key={`face-lock-${faceStateLockIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-violet-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
+        <div key={`face-lock-${faceStateLockIndex}`} className="grid grid-cols-1 gap-3 border-l-2 border-l-violet-500/30 pl-3 sm:grid-cols-4">
           <CardAdminSelect
             value={faceStateLock.targetCategory}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 faceStateLocks: current.faceStateLocks.map((row, index) =>
-                  index === faceStateLockIndex ? { ...row, targetCategory: event.target.value } : row),
+                  index === faceStateLockIndex ? { ...row, targetCategory: value } : row),
               }))}
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
@@ -57,11 +57,11 @@ export function CardAdminFaceStateLocksPanel({
 
           <CardAdminSelect
             value={faceStateLock.operation}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 faceStateLocks: current.faceStateLocks.map((row, index) =>
-                  index === faceStateLockIndex ? { ...row, operation: event.target.value } : row),
+                  index === faceStateLockIndex ? { ...row, operation: value } : row),
               }))}
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
@@ -72,11 +72,11 @@ export function CardAdminFaceStateLocksPanel({
 
           <CardAdminSelect
             value={faceStateLock.targetRange}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 faceStateLocks: current.faceStateLocks.map((row, index) =>
-                  index === faceStateLockIndex ? { ...row, targetRange: event.target.value } : row),
+                  index === faceStateLockIndex ? { ...row, targetRange: value } : row),
               }))}
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >

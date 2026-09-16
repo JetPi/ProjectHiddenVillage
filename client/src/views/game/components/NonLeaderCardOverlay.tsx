@@ -7,6 +7,11 @@ import type { INonLeaderCardOverlayProps } from '@/views/game/types'
 const OVERLAY_VISIBILITY_CLASSNAME =
   'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
 
+// Shared by every chip in the action list, including the "No actions" placeholder, so a card with no
+// options keeps the same footprint and visual language as one with options.
+const ACTION_CHIP_CLASSNAME =
+  'w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
+
 function NonLeaderCardOverlay({
   previewCard,
   zone,
@@ -21,6 +26,9 @@ function NonLeaderCardOverlay({
   isSummonTargetCandidate = false,
   onToggleSummonTarget,
   isSummonTargetSelected = false,
+  isEffectTargetCandidate = false,
+  isEffectTargetSelected = false,
+  onToggleEffectTarget,
   summonRequirementText = null,
   card,
   isConnected,
@@ -28,7 +36,6 @@ function NonLeaderCardOverlay({
   onSelectActionOption,
 }: INonLeaderCardOverlayProps) {
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false)
-  const isHandZone = zone === 'hand'
   const showZoneHud = card !== undefined && zone === 'battlefield'
   const isChoosingTarget = isTargetCandidate === true
   const isTributeTargetCandidate = isSummonTargetCandidate === true
@@ -90,6 +97,23 @@ function NonLeaderCardOverlay({
             >
               Tribute
             </button>
+          ) : isEffectTargetCandidate && onToggleEffectTarget ? (
+            <button
+              type="button"
+              data-testid="effect-target-toggle"
+              aria-pressed={isEffectTargetSelected}
+              onClick={() => {
+                onToggleEffectTarget()
+              }}
+              className={twMerge(
+                'w-fit max-w-full rounded-sm border px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] transition-colors duration-150',
+                isEffectTargetSelected
+                  ? 'border-amber-300/90 bg-amber-300/85 text-black hover:bg-amber-200'
+                  : 'border-white/35 bg-black/65 text-white hover:bg-black/80',
+              )}
+            >
+              {isEffectTargetSelected ? 'Selected' : 'Select'}
+            </button>
           ) : hasActions ? (
             <div className="grid w-full place-items-center gap-0.5">
               {actionOptions.map((action) => (
@@ -101,15 +125,22 @@ function NonLeaderCardOverlay({
                   }}
                   disabled={!isConnected || isActionPending || !action.isEnabled}
                   title={action.disabledReason ?? undefined}
-                  className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
+                  className={ACTION_CHIP_CLASSNAME}
                 >
                   {action.label}
                 </button>
               ))}
             </div>
           ) : !suppressActionFallback && showEmptyActionMessage ? (
-            <div className="rounded-sm border border-dashed border-white/35 bg-black/65 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.04em] text-white/90">
-              {isHandZone ? 'No actions' : 'Actions pending backend wiring'}
+            <div className="grid w-full place-items-center gap-0.5">
+              <button
+                type="button"
+                data-testid="card-no-actions-chip"
+                disabled
+                className={ACTION_CHIP_CLASSNAME}
+              >
+                No actions
+              </button>
             </div>
           ) : null}
         </div>

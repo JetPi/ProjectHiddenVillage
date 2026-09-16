@@ -26,7 +26,7 @@ public static partial class GameStateResponseMapper
         return playerZone switch
         {
             PlayerZone.Hand =>
-                CanUseHandCardActions(card, state)
+                CanUseHandCardActions(card, state) && !SupportTimingRules.HasPendingSupportActivation(state)
                     ? BuildHandAvailableActions(card, state)
                     : [],
 
@@ -37,7 +37,9 @@ public static partial class GameStateResponseMapper
 
             // Evaluated lazily: only cards already on the character field can declare battle
             // actions, and CanDeclareBattleAction relies on field-entry state.
-            PlayerZone.CharacterField => BuildBattleActionOptions(card, state),
+            PlayerZone.CharacterField => SupportTimingRules.HasPendingSupportActivation(state)
+                ? []
+                : BuildBattleActionOptions(card, state),
 
             _ => []
         };
@@ -53,7 +55,15 @@ public static partial class GameStateResponseMapper
     {
         if (state.Phase == GamePhase.MainPhase)
         {
-            return IsSamePlayerId(state.ActivePlayerId, card.ControllerPlayerId);
+            if (IsSamePlayerId(state.ActivePlayerId, card.ControllerPlayerId))
+            {
+                return true;
+            }
+
+            // A MainPhase support activation opens a reaction window: the opponent may respond from
+            // their support area with a Support Activated card.
+            return SupportTimingRules.HasPendingSupportActivation(state)
+                && IsSamePlayerId(state.PriorityPlayerId, card.ControllerPlayerId);
         }
 
         if (state.Phase is GamePhase.AttackDeclaration or GamePhase.BlockerDeclaration)

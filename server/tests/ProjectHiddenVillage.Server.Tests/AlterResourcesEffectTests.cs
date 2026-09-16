@@ -209,6 +209,95 @@ public sealed class AlterResourcesEffectTests
         Assert.IsFalse(flipContext.Game.State.Player1CurrentChakras[0]);
     }
 
+    [TestMethod]
+    public void Execute_RejectsChakraRecovery_WhileAChakraRecoveryLockIsActive()
+    {
+        var recoverSpec = new EffectSpec
+        {
+            Id = "effect-recover",
+            RuntimeEffectType = RuntimeEffects.AlterResources,
+            ChakraAdjustments =
+            [
+                new ChakraAdjustmentSpec
+                {
+                    TargetRange = EffectTargetRange.Self,
+                    Operation = ChakraAdjustmentOperation.Recover,
+                    Amount = 5,
+                }
+            ]
+        };
+
+        var sourceCardInstance = new CardInstance
+        {
+            InstanceId = "source-instance",
+            CardDefinitionId = "source-def",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        };
+
+        var context = CreateContext(recoverSpec, playerOneResource: 0, playerTwoResource: 3, sourceCardInstance);
+        ApplyChakraRecoveryLock(context.Game.State, sourceCardInstance.InstanceId, targetPlayerId: "p1");
+
+        var effect = CreateEffect(recoverSpec);
+        var result = effect.Execute(context, []);
+
+        // "You cannot turn your CHAKRA face-up": the recovery is refused, so the pool stays where it is.
+        Assert.IsTrue(result.IsError);
+        Assert.IsTrue(result.FirstError.Code.Contains("ChakraRecoveryLock", StringComparison.Ordinal));
+        Assert.AreEqual(0, context.Game.State.Players[0].ResourcePool);
+        Assert.IsFalse(effect.CanExecute(context).CanExecute);
+    }
+
+    [TestMethod]
+    public void Execute_BlocksChakraCardFlipUp_WhileAChakraRecoveryLockIsActive()
+    {
+        var flipSpec = new EffectSpec
+        {
+            Id = "effect-flip-face-up",
+            RuntimeEffectType = RuntimeEffects.AlterResources,
+            SummonCardFlips =
+            [
+                new SummonCardFlipSpec
+                {
+                    TargetRange = EffectTargetRange.Self,
+                    FaceState = SummonCardFaceState.FaceUp,
+                }
+            ]
+        };
+
+        var sourceCardInstance = new CardInstance
+        {
+            InstanceId = "source-instance",
+            CardDefinitionId = "source-def",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        };
+
+        var context = CreateContext(flipSpec, playerOneResource: 3, playerTwoResource: 3, sourceCardInstance);
+        ApplyChakraRecoveryLock(context.Game.State, sourceCardInstance.InstanceId, targetPlayerId: "p1");
+        context.Game.State.Player1CurrentChakras[0] = false;
+
+        var result = CreateEffect(flipSpec).Execute(context, []);
+
+        Assert.IsTrue(result.IsError);
+        Assert.IsTrue(result.FirstError.Code.Contains("CannotTurnFaceUp", StringComparison.Ordinal));
+        Assert.IsFalse(context.Game.State.Player1CurrentChakras[0]);
+    }
+
+    private static void ApplyChakraRecoveryLock(GameState state, string sourceCardInstanceId, string targetPlayerId)
+    {
+        state.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = sourceCardInstanceId,
+            EffectSpecId = "chakra-freeze",
+            ModifierKind = AppliedCardModifierKind.ChakraRecoveryLock,
+            DurationMode = EffectDurationMode.UntilTheEndOfYourNextTurn,
+            TargetPlayerId = targetPlayerId,
+            AppliedByPlayerId = "p2",
+            AppliedTurnNumber = state.TurnNumber,
+        });
+    }
+
     private static AlterResourcesEffect CreateEffect(EffectSpec effectSpec)
     {
         return new AlterResourcesEffect(

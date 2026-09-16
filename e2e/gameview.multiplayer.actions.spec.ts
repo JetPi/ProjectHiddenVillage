@@ -81,7 +81,7 @@ test.describe('GameView multiplayer actions', () => {
     }
   })
 
-  test('set support requires slot selection and places card in selected slot with animation', async ({ browser, request }) => {
+  test('set support drops the card into the leftmost empty slot with animation', async ({ browser, request }) => {
     const setup = await setupMultiplayerGame(request)
     const pages = await openMultiplayerPages(browser, setup)
 
@@ -102,24 +102,17 @@ test.describe('GameView multiplayer actions', () => {
 
       const initialSupportCards = await getBottomSupportCardsBySlot(ownerPage)
       const occupiedSlots = new Set(initialSupportCards.map((entry) => entry.slotIndex))
-      const emptySlotIndex = [0, 1, 2, 3, 4].find((slotIndex) => !occupiedSlots.has(slotIndex))
+      // No slot pick: the card has to land in the leftmost empty slot on its own.
+      const expectedSlotIndex = [0, 1, 2, 3, 4].find((slotIndex) => !occupiedSlots.has(slotIndex))
 
-      expect(typeof emptySlotIndex).toBe('number')
-      if (typeof emptySlotIndex !== 'number') {
+      expect(typeof expectedSlotIndex).toBe('number')
+      if (typeof expectedSlotIndex !== 'number') {
         return
       }
 
       const supportCard = ownerPage.locator(`[data-testid="bottom-hand-card-${supportCardInstanceId}"]`)
       await supportCard.hover()
       await supportCard.getByRole('button', { name: /^set support$/i }).click()
-
-      await expect.poll(async () => {
-        return (await getBottomSupportCardsBySlot(ownerPage)).length
-      }, {
-        timeout: 2_000,
-      }).toBe(initialSupportCards.length)
-
-      await ownerPage.locator(`button[data-zone="support"][data-slot-side="bottom"][data-slot-index="${emptySlotIndex}"]`).click()
 
       await expect.poll(async () => {
         const state = await fetchGameState(request, setup.gameCode, supportActor.actor.session.accessToken)
@@ -135,7 +128,7 @@ test.describe('GameView multiplayer actions', () => {
         timeout: 12_000,
       }).toEqual(expect.arrayContaining([
         {
-          slotIndex: emptySlotIndex,
+          slotIndex: expectedSlotIndex,
           instanceId: supportCardInstanceId,
         },
       ]))

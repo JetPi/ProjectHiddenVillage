@@ -721,6 +721,54 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
+    public void ToGameStateResponse_DisablesRecoveryLeaderEffect_WhenChakraRecoveryIsLocked()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+        state.TurnNumber = 4;
+        state.Players[0].TurnCount = 2;
+        // There is face-down chakra to recover, so only the lock can keep Recovery disabled.
+        state.Players[0].ResourcePool = 3;
+
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "leader-recovery",
+                EffectType = EffectKind.Recovery,
+                Timing = EffectTiming.DuringYourMain,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+            }
+        ];
+
+        state.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = "lock-source",
+            EffectSpecId = "chakra-freeze",
+            ModifierKind = AppliedCardModifierKind.ChakraRecoveryLock,
+            DurationMode = EffectDurationMode.UntilTheEndOfYourNextTurn,
+            TargetPlayerId = requesterId,
+            AppliedByPlayerId = opponentId,
+            AppliedTurnNumber = state.TurnNumber,
+        });
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
+        Assert.IsFalse(GetLeaderEffectActions(requester.Leader)[0].IsEnabled);
+        Assert.AreEqual(
+            "Your chakra is locked and cannot be turned face-up.",
+            GetLeaderEffectActions(requester.Leader)[0].DisabledReason);
+    }
+
+    [TestMethod]
     public void ToGameStateResponse_DisablesActivateMainLeaderEffect_WhenNoValidTargetsExist()
     {
         var requesterId = Guid.NewGuid().ToString("N");
@@ -1049,6 +1097,139 @@ public sealed class GameStateResponseMapperCardActionsTests
         ];
     }
 
+
+    [TestMethod]
+    public void ToGameStateResponse_ProjectsSupportChain_WithNegateLinkAndTargets()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var requesterSupport = CreateCardInstance("support-1", "card-support", requesterId);
+        var opponentSupport = CreateCardInstance("support-2", "card-support-capable", opponentId);
+        var opponentCharacter = CreateCardInstance("enemy-1", "card-battle", opponentId);
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            supportCards: [requesterSupport],
+            opponentSupportCards: [opponentSupport],
+            opponentBattlefieldCards: [opponentCharacter]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+
+        state.EffectResolutionStack.Add(new EffectResolutionStackEntry
+        {
+            EntryId = "entry-1",
+            SourcePlayerId = requesterId,
+            SourceZone = PlayerZone.SupportZone,
+            SourceCardInstanceId = "support-1",
+            EffectTypeKey = "DestroyCard",
+            ActivatedEffectId = "support-primary",
+            SelectedTargets = [new GameEffectTargetReference(opponentId, PlayerZone.CharacterField, "enemy-1")],
+        });
+
+        // The opponent answers with a [Support Activated] negate: the target is the queued activation.
+        state.EffectResolutionStack.Add(new EffectResolutionStackEntry
+        {
+            EntryId = "entry-2",
+            SourcePlayerId = opponentId,
+            SourceZone = PlayerZone.SupportZone,
+            SourceCardInstanceId = "support-2",
+            EffectTypeKey = "NegateEffect",
+            ActivatedEffectId = "negate-effect",
+            SelectedTargets =
+            [
+                new GameEffectTargetReference(
+                    requesterId,
+                    PlayerZone.SupportZone,
+                    "support-1",
+                    IsEffectResolutionStackTarget: true,
+                    EffectResolutionEntryId: "entry-1")
+            ],
+        });
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+
+        Assert.IsTrue(response.IsSupportResponseWindowOpen);
+        Assert.IsNotNull(response.SupportChain);
+        var chain = response.SupportChain!;
+        Assert.AreEqual(2, chain.Count);
+
+        Assert.AreEqual(1, chain[0].Sequence);
+        Assert.AreEqual(requesterId, chain[0].PlayerId);
+        Assert.AreEqual("support-1", chain[0].SourceCardInstanceId);
+        Assert.AreEqual("Support Card", chain[0].SourceCardDisplayName);
+        Assert.AreEqual(1, chain[0].Targets.Count);
+        Assert.AreEqual("enemy-1", chain[0].Targets[0].CardInstanceId);
+        Assert.AreEqual("Battle Card", chain[0].Targets[0].DisplayName);
+        Assert.IsFalse(chain[0].Targets[0].IsChainEntry);
+
+        Assert.AreEqual(2, chain[1].Sequence);
+        Assert.AreEqual(opponentId, chain[1].PlayerId);
+        Assert.AreEqual("Support Capable Card", chain[1].SourceCardDisplayName);
+        Assert.AreEqual(1, chain[1].Targets.Count);
+        Assert.IsTrue(chain[1].Targets[0].IsChainEntry);
+        Assert.AreEqual("entry-1", chain[1].Targets[0].ChainEntryId);
+        // A chain-entry target is the source card of the activation it answers.
+        Assert.AreEqual("Support Card", chain[1].Targets[0].DisplayName);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_RecordsNoSupportChain_WhenNothingIsActivated()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            supportCards: [CreateCardInstance("support-1", "card-support", requesterId)]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+
+        Assert.IsNotNull(response.SupportChain);
+        Assert.AreEqual(0, response.SupportChain!.Count);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_StopsPublishingSupportAction_ForACardAlreadyInTheChain()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var chainedSupport = CreateCardInstance("support-1", "card-support", requesterId);
+        var freeSupport = CreateCardInstance("support-2", "card-support", requesterId);
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            supportCards: [chainedSupport, freeSupport]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+
+        state.EffectResolutionStack.Add(new EffectResolutionStackEntry
+        {
+            EntryId = "entry-1",
+            SourcePlayerId = requesterId,
+            SourceZone = PlayerZone.SupportZone,
+            SourceCardInstanceId = "support-1",
+            EffectTypeKey = "AlterResources",
+            ActivatedEffectId = "support-primary",
+        });
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        // The card is already part of the chain: no support action at all, so the client renders no button.
+        var chainedCard = requester.SupportZone.Single(card => card.InstanceId == "support-1");
+        Assert.AreEqual(0, chainedCard.AvailableActions.Count);
+
+        // Another support card is unaffected.
+        var freeCard = requester.SupportZone.Single(card => card.InstanceId == "support-2");
+        Assert.IsTrue(freeCard.AvailableActions.Any(action => action.ActionId == "activate-support:support-2"));
+    }
 
     private static GameState BuildState(
         string requesterId,

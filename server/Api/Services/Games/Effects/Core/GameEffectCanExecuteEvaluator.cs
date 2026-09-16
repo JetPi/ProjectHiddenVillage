@@ -44,7 +44,7 @@ public sealed class GameEffectCanExecuteEvaluator(
             return result;
         }
 
-        var targetCountBounds = TryResolveTargetCountBounds(effectSpec.TargetRules);
+        var targetCountBounds = TryResolveTargetCountBounds(effectSpec);
 
         // Effects that supply their own target ("draw 1 card, then place 1 card from your hand on top of
         // your deck") stay usable with nothing to select - unless there is nothing to draw either.
@@ -102,8 +102,9 @@ public sealed class GameEffectCanExecuteEvaluator(
         return result;
     }
 
-    private static TargetCountBounds TryResolveTargetCountBounds(EffectTargetRuleSet targetRules)
+    private static TargetCountBounds TryResolveTargetCountBounds(EffectSpec effectSpec)
     {
+        var targetRules = effectSpec.TargetRules;
         var hasExact = targetRules.ExactTargetCount.HasValue;
 
         if (hasExact)
@@ -111,10 +112,48 @@ public sealed class GameEffectCanExecuteEvaluator(
             return new TargetCountBounds(targetRules.ExactTargetCount!.Value);
         }
 
-        var minimum = targetRules.MinimumTargetCount ?? 1;
-        var maximum = targetRules.MaximumTargetCount ?? minimum;
+        if (targetRules.MinimumTargetCount.HasValue || targetRules.MaximumTargetCount.HasValue)
+        {
+            var explicitMinimum = targetRules.MinimumTargetCount ?? 0;
+            var explicitMaximum = targetRules.MaximumTargetCount ?? int.MaxValue;
+            return new TargetCountBounds(explicitMinimum, explicitMaximum);
+        }
 
-        return new TargetCountBounds(minimum, maximum);
+        // No declared counts: an effect that collects a player selection implicitly requires one
+        // ("choose 1 character"). Nodes that supply their own targets - source-supplied summons,
+        // own-leader modifications, `None`/`SourceCard` execution sources - must never demand a
+        // selection, because there is nothing for the player to pick.
+        return RequiresPlayerSelection(effectSpec)
+            ? new TargetCountBounds(1)
+            : new TargetCountBounds(0, int.MaxValue);
+    }
+
+    private static bool RequiresPlayerSelection(EffectSpec effectSpec)
+    {
+        if (effectSpec.TargetRules.Rules.Count > 0)
+        {
+            return true;
+        }
+
+        if (effectSpec.AttributeModifications.Any(modification =>
+            modification.TargetType == AttributeModificationTargetType.SelectedTargets))
+        {
+            return true;
+        }
+
+        if (effectSpec.KeywordModifications.Any(modification =>
+            modification.TargetType == KeywordModificationTargetType.SelectedTargets))
+        {
+            return true;
+        }
+
+        if (effectSpec.MoveCardActions.Any(action =>
+            action.Operation == MoveCardOperationType.Move && action.SourceZone is not null))
+        {
+            return true;
+        }
+
+        return effectSpec.ExecutionTargetSource == EffectExecutionTargetSource.SelectedTargets;
     }
 
     private static bool ShouldEnforceSelectedTargetCount(EffectTargetRuleSet targetRules, IReadOnlyDictionary<string, string> arguments)

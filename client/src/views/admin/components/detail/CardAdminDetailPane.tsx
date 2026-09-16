@@ -20,7 +20,7 @@ import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog
 
 export function CardAdminDetailPane({ selectedCard }: ICardAdminDetailPaneProps) {
   return (
-    <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
+    <div className="mt-4 mb-16 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
       {selectedCard ? (
         <CardAdminDetailEditor key={selectedCard.id} selectedCard={selectedCard} />
       ) : (

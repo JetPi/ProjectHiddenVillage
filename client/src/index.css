@@ -261,6 +261,25 @@ html[data-theme='light'] {
   animation: phase-indicator-text-swap 220ms ease-out;
 }
 
+/* Entrance for the support-chain bubble: it pops in when a chain starts (a support activated inside a
+   support reaction window). Transient only - no persistent transform is left behind, so the text inside
+   stays crisp. */
+.support-chain-bubble-enter {
+  animation: support-chain-bubble-enter 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes support-chain-bubble-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(8px, -8px, 0) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .attack-link-card-outline,
 .attack-link-leader-outline {
   position: relative;
@@ -391,7 +410,15 @@ html[data-theme='light'] {
 .battle-target-top > .card-overlay-float,
 .battle-target-bottom > .card-overlay-float,
 .battle-target-leader-top > .card-overlay-float,
-.battle-target-leader-bottom > .card-overlay-float {
+.battle-target-leader-bottom > .card-overlay-float,
+.battle-target-top > .card-overlay-layer,
+.battle-target-bottom > .card-overlay-layer,
+.battle-target-leader-top > .card-overlay-layer,
+.battle-target-leader-bottom > .card-overlay-layer,
+.battle-target-top > .card-selection-tint,
+.battle-target-bottom > .card-selection-tint,
+.battle-target-leader-top > .card-selection-tint,
+.battle-target-leader-bottom > .card-selection-tint {
   position: absolute;
 }
 

@@ -38,7 +38,7 @@ export function CountConstraintField({
   const selectControl = (
     <CardAdminSelect
       value={mode}
-      onChange={(event) => onModeChange(event.target.value as ICountConstraintMode)}
+      onValueChange={(value) => onModeChange(value as ICountConstraintMode)}
       className={selectClassName ? `block ${selectClassName}` : 'block w-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]'}
     >
       <option value="Exact">Exact</option>

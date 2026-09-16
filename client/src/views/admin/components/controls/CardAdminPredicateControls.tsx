@@ -51,8 +51,8 @@ export function CardAdminPredicateControls({
     <div className="flex flex-wrap items-start gap-2">
       <CardAdminSelect
         value={predicateProperty}
-        onChange={(event) => {
-          onPropertyChange(event.target.value as ICardCatalogPredicateProperty)
+        onValueChange={(value) => {
+          onPropertyChange(value as ICardCatalogPredicateProperty)
           setPendingEnumValue('')
         }}
         className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[11rem]"
@@ -64,7 +64,7 @@ export function CardAdminPredicateControls({
 
       <CardAdminSelect
         value={predicateOperator}
-        onChange={(event) => onOperatorChange(event.target.value)}
+        onValueChange={(value) => onOperatorChange(value)}
         className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[10rem]"
       >
         {PREDICATE_OPERATOR_OPTIONS.map((option) => (
@@ -76,8 +76,8 @@ export function CardAdminPredicateControls({
         <div className="min-w-[14rem] flex-1">
           <CardAdminSelect
             value={pendingEnumValue}
-            onChange={(event) => {
-              const nextValue = event.target.value.trim()
+            onValueChange={(value) => {
+              const nextValue = value.trim()
               setPendingEnumValue('')
 
               if (!nextValue) {

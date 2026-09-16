@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react'
 import { useGameHubStore } from '@/state/gameHubStore'
 import { preloadCardArtInPriorityBatches, type ICardArtPreloadEntry } from '@/services/cardPreloadService'
 import { preloadImageSources } from '@/services/imagePreloadCache'
@@ -9,11 +9,17 @@ import summonCardImage from '@/assets/SummonCard.webp'
 import cardBackImage from '@/assets/CardBackside.webp'
 import type {
   IGameLoaderData,
+  IPlayerCardZoneInstanceIds,
   IRevalidatorState,
   IUseAutoAdvancePhaseEffectArgs,
+  IUseCardMoveGhostAnimationEffectArgs,
   IUseHandZoneAnimationEffectsArgs,
 } from '@/views/game/types'
-import { runDeckToHandAnimation, runRectToDynamicElementAnimation } from '@/views/game/utils/functions'
+import {
+  runCardImageGhostToElementAnimation,
+  runDeckToHandAnimation,
+  runRectToDynamicElementAnimation,
+} from '@/views/game/utils/functions'
 const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackImage]
 const AUTO_SIGNAL_PHASES = new Set([
   'DrawInitialHand',
@@ -26,9 +32,160 @@ const AUTO_SIGNAL_PHASES = new Set([
 ])
 const DECK_TO_HAND_FLY_DURATION_MS = 420
 const DRAW_ANIMATION_COMPLETE_PADDING_MS = 140
+const CARD_TO_TRASH_FLY_DURATION_MS = 340
+const CARD_TO_TRASH_STAGGER_MS = 90
 const AUTO_ADVANCE_RECHECK_MS = 80
 const AUTO_ADVANCE_RETRY_DELAY_MS = 2_500
 const AUTO_ADVANCE_MAX_RETRIES = 3
+
+/**
+ * Where a card was rendered when the last snapshot was taken, so its exit can start from the exact spot
+ * it disappeared from (the game state that removed it already re-rendered the board by then).
+ */
+type ICardRenderedZone = 'battlefield' | 'support' | 'hand'
+
+type ICardGhostSnapshot = {
+  imageSrc: string
+  rect: DOMRect
+  side: 'top' | 'bottom'
+  zone: ICardRenderedZone
+}
+
+type ICardCurrentLocation = {
+  zone: ICardRenderedZone | 'trash' | 'deck' | 'exile'
+  side: 'top' | 'bottom'
+}
+
+function resolveRenderedZone(element: HTMLElement, fallbackZone: ICardRenderedZone): ICardRenderedZone {
+  if (element.dataset.zone === 'character-field-card') {
+    return 'battlefield'
+  }
+
+  if (element.dataset.zone === 'support') {
+    return 'support'
+  }
+
+  return fallbackZone
+}
+
+function collectCardGhostSnapshots(
+  root: HTMLElement | null,
+  selector: string,
+  fallbackSide: 'top' | 'bottom',
+  fallbackZone: ICardRenderedZone,
+  snapshots: Map<string, ICardGhostSnapshot>,
+): void {
+  if (!root) {
+    return
+  }
+
+  const elements = root.querySelectorAll<HTMLElement>(selector)
+  for (const element of elements) {
+    const instanceId = element.dataset.cardInstanceId ?? element.dataset.handInstanceId
+    if (!instanceId || snapshots.has(instanceId)) {
+      continue
+    }
+
+    const imageElement = element.querySelector<HTMLImageElement>('img')
+    const rect = element.getBoundingClientRect()
+    if (!imageElement || rect.width <= 0 || rect.height <= 0) {
+      continue
+    }
+
+    snapshots.set(instanceId, {
+      imageSrc: imageElement.currentSrc || imageElement.src,
+      rect,
+      side: element.dataset.slotSide === 'top' ? 'top' : element.dataset.slotSide === 'bottom' ? 'bottom' : fallbackSide,
+      zone: resolveRenderedZone(element, fallbackZone),
+    })
+  }
+}
+
+/**
+ * Snapshots every card face currently rendered on the board (character field + support slots) and in the
+ * hand rows, keyed by instance id. The maps handed to the move effect are always one render behind, which
+ * is what makes a disappearing card's geometry recoverable.
+ */
+function snapshotRenderedCardGhosts({
+  boardZoneRef,
+  topHandRowRef,
+  bottomHandRowRef,
+}: Pick<IUseCardMoveGhostAnimationEffectArgs, 'boardZoneRef' | 'topHandRowRef' | 'bottomHandRowRef'>): Map<string, ICardGhostSnapshot> {
+  const snapshots = new Map<string, ICardGhostSnapshot>()
+
+  collectCardGhostSnapshots(boardZoneRef.current, '[data-zone="character-field-card"][data-card-instance-id]', 'bottom', 'battlefield', snapshots)
+  collectCardGhostSnapshots(boardZoneRef.current, '[data-zone="support"][data-card-instance-id]', 'bottom', 'support', snapshots)
+  collectCardGhostSnapshots(topHandRowRef.current, '[data-hand-instance-id]', 'top', 'hand', snapshots)
+  collectCardGhostSnapshots(bottomHandRowRef.current, '[data-hand-instance-id]', 'bottom', 'hand', snapshots)
+
+  return snapshots
+}
+
+function buildZoneInstanceIdSets(instanceIds: IPlayerCardZoneInstanceIds): Record<ICardRenderedZone | 'trash', Set<string>> {
+  return {
+    battlefield: new Set(instanceIds.characterField),
+    support: new Set(instanceIds.supportZone),
+    hand: new Set(instanceIds.hand),
+    trash: new Set(instanceIds.trash),
+  }
+}
+
+/**
+ * Where the card is right now, per the authoritative game state. `null` means the card is not in a zone the
+ * board renders (deck/exile), which is never animated.
+ */
+function resolveCardCurrentLocation(
+  instanceId: string,
+  topZones: Record<ICardRenderedZone | 'trash', Set<string>>,
+  bottomZones: Record<ICardRenderedZone | 'trash', Set<string>>,
+): ICardCurrentLocation | null {
+  const sides: Array<{ side: 'top' | 'bottom'; zones: Record<ICardRenderedZone | 'trash', Set<string>> }> = [
+    { side: 'bottom', zones: bottomZones },
+    { side: 'top', zones: topZones },
+  ]
+
+  for (const { side, zones } of sides) {
+    for (const zone of ['trash', 'hand', 'battlefield', 'support'] as const) {
+      if (zones[zone].has(instanceId)) {
+        return { zone, side }
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * The element the ghost flies into. A returned card lands on its own freshly rendered hand card (so the
+ * flight ends exactly on it); anything else aims at the destination pile/row.
+ */
+function resolveMoveGhostDestinationElement({
+  instanceId,
+  location,
+  topHandRowRef,
+  bottomHandRowRef,
+  topTrashCardRef,
+  bottomTrashCardRef,
+}: {
+  instanceId: string
+  location: ICardCurrentLocation
+  topHandRowRef: RefObject<HTMLDivElement | null>
+  bottomHandRowRef: RefObject<HTMLDivElement | null>
+  topTrashCardRef: RefObject<HTMLDivElement | null>
+  bottomTrashCardRef: RefObject<HTMLDivElement | null>
+}): HTMLElement | null {
+  if (location.zone === 'hand') {
+    const handRowElement = location.side === 'top' ? topHandRowRef.current : bottomHandRowRef.current
+    return handRowElement?.querySelector<HTMLElement>(`[data-hand-instance-id="${instanceId}"]`)
+      ?? handRowElement
+  }
+
+  if (location.zone === 'trash') {
+    return (location.side === 'top' ? topTrashCardRef.current : bottomTrashCardRef.current)
+  }
+
+  return null
+}
 
 function useIdleRevalidationPoll(
   revalidatorState: IRevalidatorState,
@@ -396,6 +553,86 @@ function useHandZoneAnimationEffects({
   }, [animControllerRef])
 }
 
+/**
+ * Flies a ghost of every card that leaves the character field, the support area or the hand for another zone
+ * the board renders (trash pile or a hand row) — K.O.s, used supports, discards and cards bounced back to a
+ * hand by effects like N-020. The rect and art come from the snapshot taken on the previous render, because
+ * the state update that moved the card has already re-rendered the board: the real element is gone (or has
+ * jumped to its new zone) by the time the effect runs.
+ */
+function useCardMoveGhostAnimationEffect({
+  topPlayerCardInstanceIds,
+  bottomPlayerCardInstanceIds,
+  boardZoneRef,
+  topHandRowRef,
+  bottomHandRowRef,
+  topTrashCardRef,
+  bottomTrashCardRef,
+  animControllerRef,
+}: IUseCardMoveGhostAnimationEffectArgs): void {
+  const ghostSnapshotRef = useRef<Map<string, ICardGhostSnapshot>>(new Map())
+
+  useEffect(() => {
+    const previousSnapshots = ghostSnapshotRef.current
+    const nextSnapshots = snapshotRenderedCardGhosts({ boardZoneRef, topHandRowRef, bottomHandRowRef })
+    const topZones = buildZoneInstanceIdSets(topPlayerCardInstanceIds)
+    const bottomZones = buildZoneInstanceIdSets(bottomPlayerCardInstanceIds)
+    const animController = animControllerRef.current
+    let flyingIndex = 0
+
+    for (const [instanceId, snapshot] of previousSnapshots) {
+      const currentLocation = resolveCardCurrentLocation(instanceId, topZones, bottomZones)
+
+      // Unchanged zone (still on the board / in the same hand) or a zone the board does not render
+      // (deck, exile): nothing to animate.
+      if (!currentLocation || currentLocation.zone === snapshot.zone) {
+        continue
+      }
+
+      const destinationElement = resolveMoveGhostDestinationElement({
+        instanceId,
+        location: currentLocation,
+        topHandRowRef,
+        bottomHandRowRef,
+        topTrashCardRef,
+        bottomTrashCardRef,
+      })
+
+      if (!destinationElement) {
+        continue
+      }
+
+      // An explicit ghost already flew this card (tribute summon): drop the claim instead of flying twice.
+      if (animController.suppressedExitGhostInstanceIds.delete(instanceId)) {
+        continue
+      }
+
+      const movementDelay = flyingIndex * CARD_TO_TRASH_STAGGER_MS
+      flyingIndex += 1
+      const timeoutId = window.setTimeout(() => {
+        void runCardImageGhostToElementAnimation({
+          imageSrc: snapshot.imageSrc,
+          sourceRect: snapshot.rect,
+          destinationElement,
+          durationMs: CARD_TO_TRASH_FLY_DURATION_MS,
+        })
+      }, movementDelay)
+      animController.pendingDrawTimeoutIds.push(timeoutId)
+    }
+
+    ghostSnapshotRef.current = nextSnapshots
+  }, [
+    animControllerRef,
+    boardZoneRef,
+    bottomHandRowRef,
+    bottomPlayerCardInstanceIds,
+    bottomTrashCardRef,
+    topHandRowRef,
+    topPlayerCardInstanceIds,
+    topTrashCardRef,
+  ])
+}
+
 function useAutoAdvancePhaseEffect({
   isConnected,
   isActionPendingFlag,
@@ -534,5 +771,6 @@ export {
   useIdleRevalidationPoll,
   useCardCatalogPreload,
   useHandZoneAnimationEffects,
+  useCardMoveGhostAnimationEffect,
   useAutoAdvancePhaseEffect,
 }

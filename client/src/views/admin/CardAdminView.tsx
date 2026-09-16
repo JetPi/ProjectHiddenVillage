@@ -161,7 +161,7 @@ export function CardAdminView() {
             />
           </aside>
 
-          <Panel className="themed-scrollbar m-3 h-[calc(100%-1.5rem)] min-h-0 overflow-y-auto px-5 py-5">
+          <Panel className="themed-scrollbar m-3 h-[calc(100%-1.5rem)] min-h-0 overflow-y-auto">
             <div className="flex items-center justify-between gap-3">
               <h1 className="text-xl font-bold text-[var(--text-primary)]">Card Admin</h1>
               <Link to="/" className="text-sm text-[var(--text-secondary)] underline-offset-2 hover:underline">

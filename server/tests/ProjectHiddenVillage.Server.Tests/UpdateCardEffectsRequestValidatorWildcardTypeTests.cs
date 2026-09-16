@@ -1025,6 +1025,63 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
     }
 
     [TestMethod]
+    public void Validate_AllowsLockChakraRecovery_WithNonInstantDuration()
+    {
+        var request = BuildLockChakraRecoveryRequest(
+            executionTargetSource: EffectExecutionTargetSource.None,
+            targetRange: EffectTargetRange.Opponent);
+
+        var result = new UpdateCardEffectsRequestValidator().Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenLockChakraRecoveryAsksForSelectedTargets()
+    {
+        // The lock's audience is its TargetRange, so "Selected Targets" with no target rules is the shape
+        // that made N-016 unplayable: the validator has to reject it for the new runtime effect.
+        var request = BuildLockChakraRecoveryRequest(
+            executionTargetSource: EffectExecutionTargetSource.SelectedTargets,
+            targetRange: EffectTargetRange.Self);
+
+        var result = new UpdateCardEffectsRequestValidator().Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error =>
+            error.ErrorMessage.Contains("needs no selected targets", StringComparison.Ordinal)));
+    }
+
+    private static UpdateCardEffectsRequest BuildLockChakraRecoveryRequest(
+        EffectExecutionTargetSource executionTargetSource,
+        EffectTargetRange targetRange)
+    {
+        return new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-chakra-lock",
+                    RuntimeEffectType = RuntimeEffects.LockChakraRecovery,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.SupportActivated,
+                    DurationMode = EffectDurationMode.UntilTheEndOfYourNextTurn,
+                    TargetRange = targetRange,
+                    ExecutionTargetSource = executionTargetSource,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+    }
+
+    [TestMethod]
     public void Validate_ReturnsError_WhenFaceStateLocksUseInstantDuration()
     {
         var validator = new UpdateCardEffectsRequestValidator();

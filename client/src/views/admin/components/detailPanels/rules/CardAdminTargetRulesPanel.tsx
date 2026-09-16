@@ -35,7 +35,7 @@ export function CardAdminTargetRulesPanel({
   updateEffectAt,
 }: ICardAdminTargetRulesPanelProps) {
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-emerald-500/55 bg-[var(--surface-muted)] p-3" open>
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-emerald-500/55 pl-3 pt-3" open>
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Target Rules</span>
         <CardAdminChevronIcon rotateOnOpen />
@@ -46,10 +46,10 @@ export function CardAdminTargetRulesPanel({
           <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Rule Operator</label>
           <CardAdminSelect
             value={effect.targetRules.operator}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
-                targetRules: { ...current.targetRules, operator: event.target.value },
+                targetRules: { ...current.targetRules, operator: value },
               }))}
           >
             {RULE_OPERATOR_OPTIONS.map((option) => (
@@ -279,7 +279,7 @@ export function CardAdminTargetRulesPanel({
         </div>
       ) : null}
 
-      <div className="space-y-3 my-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/35 bg-[var(--surface-muted)] p-3">
+      <div className="space-y-3 my-2 border-l-2 border-l-emerald-500/30 pl-3">
         <div className="flex items-center  justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Rule Rows</p>
           <AppButton
@@ -374,7 +374,7 @@ export function CardAdminTargetRulesPanel({
           )
 
           return (
-            <div key={`target-rule-${targetRuleIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/30 bg-[var(--surface)] p-3 shadow-sm">
+            <div key={`target-rule-${targetRuleIndex}`} className="space-y-3 border-l-2 border-l-emerald-500/30 pl-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-[var(--text-primary)]">Rule #{targetRuleIndex + 1}</p>
                 <CardAdminRemoveButton
@@ -398,13 +398,13 @@ export function CardAdminTargetRulesPanel({
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Scope</label>
                       <CardAdminSelect
                         value={targetRule.scope}
-                        onChange={(event) =>
+                        onValueChange={(value) =>
                           updateEffectAt(effectIndex, (current) => ({
                             ...current,
                             targetRules: {
                               ...current.targetRules,
                               rules: current.targetRules.rules.map((rule, index) =>
-                                index === targetRuleIndex ? { ...rule, scope: event.target.value } : rule),
+                                index === targetRuleIndex ? { ...rule, scope: value } : rule),
                             },
                           }))}
                       >
@@ -418,7 +418,7 @@ export function CardAdminTargetRulesPanel({
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Zone</label>
                       <CardAdminSelect
                         value={targetRule.inZone}
-                        onChange={(event) =>
+                        onValueChange={(value) =>
                           updateEffectAt(effectIndex, (current) => ({
                             ...current,
                             targetRules: {
@@ -427,7 +427,7 @@ export function CardAdminTargetRulesPanel({
                                 index === targetRuleIndex
                                   ? {
                                       ...rule,
-                                      inZone: event.target.value,
+                                      inZone: value,
                                       locationSelector: {
                                         kind: rule.locationSelector?.kind ?? 'Any',
                                         supportSlotIndex: rule.locationSelector?.supportSlotIndex ?? null,
@@ -447,7 +447,7 @@ export function CardAdminTargetRulesPanel({
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Location Selector</label>
                       <CardAdminSelect
                         value={targetRule.locationSelector?.kind ?? 'Any'}
-                        onChange={(event) =>
+                        onValueChange={(value) =>
                           updateEffectAt(effectIndex, (current) => ({
                             ...current,
                             targetRules: {
@@ -457,8 +457,8 @@ export function CardAdminTargetRulesPanel({
                                   ? {
                                       ...rule,
                                       locationSelector: {
-                                        kind: event.target.value,
-                                        supportSlotIndex: event.target.value === 'Support Slot Index'
+                                        kind: value,
+                                        supportSlotIndex: value === 'Support Slot Index'
                                           ? (rule.locationSelector?.supportSlotIndex ?? 0)
                                           : null,
                                       },
@@ -478,14 +478,14 @@ export function CardAdminTargetRulesPanel({
                         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Tribute Role</label>
                         <CardAdminSelect
                           value={targetRule.tributeRole ?? ''}
-                          onChange={(event) =>
+                          onValueChange={(value) =>
                             updateEffectAt(effectIndex, (current) => ({
                               ...current,
                               targetRules: {
                                 ...current.targetRules,
                                 rules: current.targetRules.rules.map((rule, index) =>
                                   index === targetRuleIndex
-                                    ? { ...rule, tributeRole: event.target.value || null }
+                                    ? { ...rule, tributeRole: value || null }
                                     : rule),
                               },
                             }))}
@@ -535,7 +535,7 @@ export function CardAdminTargetRulesPanel({
                   <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Restriction Match Mode</label>
                   <CardAdminSelect
                     value={targetRule.restriction.matchMode}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       updateEffectAt(effectIndex, (current) => ({
                         ...current,
                         targetRules: {
@@ -546,7 +546,7 @@ export function CardAdminTargetRulesPanel({
                                   ...rule,
                                   restriction: {
                                     ...rule.restriction,
-                                    matchMode: event.target.value,
+                                    matchMode: value,
                                   },
                                 }
                               : rule),
@@ -560,7 +560,7 @@ export function CardAdminTargetRulesPanel({
                 </div>
               </div>
 
-              <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/25 bg-[var(--surface-muted)] p-2">
+              <div className="space-y-2 border-l-2 border-l-emerald-500/30 pl-2">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-[var(--text-secondary)]">Predicates</p>
                   <AppButton
@@ -592,7 +592,7 @@ export function CardAdminTargetRulesPanel({
                   const predicateEntries = getPredicateEntries(predicate)
 
                   return (
-                    <div key={`predicate-${predicateIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/20 bg-[var(--surface)] p-2">
+                    <div key={`predicate-${predicateIndex}`} className="space-y-2 border-l-2 border-l-emerald-500/30 pl-2">
                       <CardAdminPredicateControls
                         predicateProperty={predicate.property}
                         predicateOperator={predicate.operator}

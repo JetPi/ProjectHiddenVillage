@@ -24,7 +24,7 @@ export function CardAdminRevealCardPanel({
   updateEffectAt,
 }: ICardAdminRevealCardPanelProps) {
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-emerald-500/55 bg-[var(--surface-muted)] p-3">
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-emerald-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Reveal Card Settings</span>
         <CardAdminChevronIcon rotateOnOpen />
@@ -35,7 +35,7 @@ export function CardAdminRevealCardPanel({
         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Reveal Timing</label>
         <CardAdminSelect
           value={effect.revealTimingMode}
-          onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, revealTimingMode: event.target.value }))}
+          onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, revealTimingMode: value }))}
         >
           {REVEAL_TIMING_MODE_OPTIONS.map((option) => (
             <option key={option} value={option}>{option}</option>
@@ -75,7 +75,7 @@ export function CardAdminRevealCardPanel({
       </label>
 
       {resolveRevealPostConditionRuleSet(effect) ? (
-        <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/30 bg-[var(--surface)] p-3 sm:col-span-2">
+        <div className="space-y-2 border-l-2 border-l-emerald-500/30 pl-3 sm:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Post-Reveal Condition</p>
             <div className="flex items-center gap-2">
@@ -115,7 +115,7 @@ export function CardAdminRevealCardPanel({
             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Group Operator</label>
             <CardAdminSelect
               value={resolveRevealPostConditionRuleSet(effect)?.operator ?? 'All'}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 updateEffectAt(effectIndex, (current) => {
                   const ruleSet = resolveRevealPostConditionRuleSet(current)
                   if (!ruleSet) {
@@ -126,7 +126,7 @@ export function CardAdminRevealCardPanel({
                     ...current,
                     revealPostConditionRuleSet: {
                       ...ruleSet,
-                      operator: event.target.value,
+                      operator: value,
                     },
                     revealPostConditionRestriction: null,
                     revealPostConditionPredicate: null,
@@ -142,7 +142,7 @@ export function CardAdminRevealCardPanel({
           {(resolveRevealPostConditionRuleSet(effect)?.restrictions ?? []).map((restriction, groupIndex) => (
             <div
               key={`reveal-post-group-${groupIndex}`}
-              className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/30 bg-[var(--surface-muted)] p-3"
+              className="space-y-2 border-l-2 border-l-emerald-500/30 pl-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Group {groupIndex + 1}</p>
@@ -174,7 +174,7 @@ export function CardAdminRevealCardPanel({
                   <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Group Match Mode</label>
                   <CardAdminSelect
                     value={restriction.matchMode}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       updateEffectAt(effectIndex, (current) => {
                         const ruleSet = resolveRevealPostConditionRuleSet(current)
                         if (!ruleSet) {
@@ -189,7 +189,7 @@ export function CardAdminRevealCardPanel({
                               rowIndex === groupIndex
                                 ? {
                                     ...row,
-                                    matchMode: event.target.value,
+                                    matchMode: value,
                                   }
                                 : row),
                           },
@@ -241,7 +241,7 @@ export function CardAdminRevealCardPanel({
                 return (
                   <div
                     key={`reveal-post-group-${groupIndex}-predicate-${predicateIndex}`}
-                    className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-2"
+                    className="space-y-2 border-t border-[var(--border-subtle)] pt-2"
                   >
                     <CardAdminPredicateControls
                       predicateProperty={predicate.property}

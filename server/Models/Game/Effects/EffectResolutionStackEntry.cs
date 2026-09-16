@@ -12,6 +12,13 @@ public sealed class EffectResolutionStackEntry
 
     public string EffectTypeKey { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Set for a support activation: the id of the effect inside the source card's definition that the
+    /// activation is rooted at. The engine replays the whole activation chain when the window closes,
+    /// while <see cref="EffectTypeKey"/> alone describes a single passive consequence.
+    /// </summary>
+    public string ActivatedEffectId { get; set; } = string.Empty;
+
     public List<GameEffectTargetReference> SelectedTargets { get; set; } = [];
 
     public Dictionary<string, string> Arguments { get; set; } = new(StringComparer.Ordinal);

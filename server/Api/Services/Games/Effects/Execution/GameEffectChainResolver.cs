@@ -39,8 +39,9 @@ public sealed class GameEffectChainResolver : IGameEffectChainResolver
         var resolvedEntryIds = new List<string>();
         var skippedNegatedEntryIds = new List<string>();
         var processedCount = 0;
+        var reachedActivationEntry = false;
 
-        for (var depth = 0; depth < options.MaxDepth; depth++)
+        for (var depth = 0; depth < options.MaxDepth && !reachedActivationEntry; depth++)
         {
             if (game.State.EffectResolutionStack.Count == 0)
             {
@@ -64,6 +65,16 @@ public sealed class GameEffectChainResolver : IGameEffectChainResolver
                 }
 
                 var entry = game.State.EffectResolutionStack[stackIndex];
+
+                if (!string.IsNullOrWhiteSpace(entry.ActivatedEffectId))
+                {
+                    // Support activations are replayed by the engine when the cut-in window closes, not
+                    // by this passive/passive-consequence sweep. Anything below the activation must wait
+                    // for it (LIFO), so stop here instead of resolving past it.
+                    reachedActivationEntry = true;
+                    break;
+                }
+
                 game.State.EffectResolutionStack.RemoveAt(stackIndex);
                 processedCount++;
 

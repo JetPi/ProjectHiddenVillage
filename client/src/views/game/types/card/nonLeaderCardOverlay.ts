@@ -21,6 +21,9 @@ export type INonLeaderCardOverlayProps = {
   isSummonTargetCandidate?: boolean
   onToggleSummonTarget?: () => void
   isSummonTargetSelected?: boolean
+  isEffectTargetCandidate?: boolean
+  isEffectTargetSelected?: boolean
+  onToggleEffectTarget?: () => void
   summonRequirementText?: string | null
   isConnected: boolean
   isActionPending: boolean

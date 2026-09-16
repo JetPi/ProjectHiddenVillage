@@ -75,7 +75,7 @@ export function CardAdminSelectedCardSummary({
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Type</p>
           <CardAdminSelect
             value={draft.type}
-            onChange={(event) => onTypeChange(event.target.value)}
+            onValueChange={(value) => onTypeChange(value)}
             className="mt-1 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
           >
             {CARD_TYPE_OPTIONS.map((option) => (
@@ -88,7 +88,7 @@ export function CardAdminSelectedCardSummary({
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Color</p>
           <CardAdminSelect
             value={draft.color}
-            onChange={(event) => onColorChange(event.target.value)}
+            onValueChange={(value) => onColorChange(value)}
             className="mt-1 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
           >
             {CARD_COLOR_OPTIONS.map((option) => (

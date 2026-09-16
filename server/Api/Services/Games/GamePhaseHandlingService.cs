@@ -9,6 +9,7 @@ public sealed class GamePhaseHandlingService(
     IGameSequentialEffectExecutor sequentialEffectExecutor,
     IGameEffectCanExecuteEvaluator canExecuteEvaluator,
     IGameReactiveEffectOrchestrator reactiveEffectOrchestrator,
+    IGameCardEffectRegistry cardEffectRegistry,
     ILogger<GamePhaseHandlingService> logger) : IGamePhaseHandlingService
 {
     private readonly IGameSequentialEffectExecutor sequentialEffectExecutor = sequentialEffectExecutor;
@@ -26,7 +27,7 @@ public sealed class GamePhaseHandlingService(
     {
         return ExecuteRegistryOperation(
             operationName: "Game.AdvancePhase",
-            operation: () => registry.AdvancePhase(gameId, reactiveEffectOrchestrator));
+            operation: () => registry.AdvancePhase(gameId, reactiveEffectOrchestrator, sequentialEffectExecutor));
     }
 
     public ErrorOr<GameInstance> DeclarePassInActionStep(string gameId, PlayerPhaseActionRequest request)
@@ -34,7 +35,7 @@ public sealed class GamePhaseHandlingService(
         ArgumentNullException.ThrowIfNull(request);
         return ExecuteRegistryOperation(
             operationName: "Game.DeclarePassInActionStep",
-            operation: () => registry.DeclarePassInActionStep(gameId, request.PlayerId, reactiveEffectOrchestrator));
+            operation: () => registry.DeclarePassInActionStep(gameId, request.PlayerId, reactiveEffectOrchestrator, sequentialEffectExecutor));
     }
 
     public ErrorOr<GameInstance> DeclareActionInActionStep(string gameId, PlayerPhaseActionRequest request)
@@ -59,7 +60,7 @@ public sealed class GamePhaseHandlingService(
 
         try
         {
-            return registry.GetCardActionTargets(gameId, request, canExecuteEvaluator);
+            return registry.GetCardActionTargets(gameId, request, canExecuteEvaluator, cardEffectRegistry);
         }
         catch (KeyNotFoundException ex)
         {
@@ -79,14 +80,14 @@ public sealed class GamePhaseHandlingService(
     {
         return ExecuteRegistryOperation(
             operationName: "Game.DeclareEndStep",
-            operation: () => registry.DeclareEndStep(gameId));
+            operation: () => registry.DeclareEndStep(gameId, sequentialEffectExecutor));
     }
 
     public ErrorOr<GameInstance> CompleteEndStep(string gameId)
     {
         return ExecuteRegistryOperation(
             operationName: "Game.CompleteEndStep",
-            operation: () => registry.CompleteEndStep(gameId, reactiveEffectOrchestrator));
+            operation: () => registry.CompleteEndStep(gameId, reactiveEffectOrchestrator, sequentialEffectExecutor));
     }
 
     private ErrorOr<GameInstance> ExecuteRegistryOperation(string operationName, Func<GameInstance> operation)
