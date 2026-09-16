@@ -163,10 +163,32 @@ paths:
   click whose own pointer press started inside the list (`pressStartedOnTriggerRef`), with Escape/outside-click
   to close and Arrow/Home/End/Enter/Space keyboard support.
 - API: `value` + **`onValueChange(value)`**, options declared as `<option value="…">Label</option>` children
-  (read by `readOptions`, so call sites still read like a native select). The detail pane is a scroll
-  container, so the list flips above a trigger with no room below (`resolvePlacement`).
+  (read by `readOptions`, so call sites still read like a native select). `className` styles the **trigger**,
+  like it did on the native element.
+- **The list is portalled to `document.body`** and positioned `fixed` from the trigger rect
+  (`resolveListboxBox` / `resolveListboxStyle`): it flips above a trigger with no room below, shrinks its
+  `max-height` to the space available, clamps into the viewport and is re-measured on scroll/resize. That is
+  what keeps it out of the detail pane's scroll container, which used to slice open dropdowns at its edge —
+  do not go back to an in-flow `absolute` list.
 - `FormSelect` (`components/forms/`) is the same idiom for the auth/forms flows; there is no native `<select>`
-  left anywhere in `client/src`.
+  left anywhere in `client/src`. `e2e/admin.card-editor.spec.ts` pins the geometry (portalled list fully
+  inside the viewport, header rows neither overflowing nor clipping their controls, sections drawing no box).
+
+## Admin card editor layout (flattened sections)
+
+- **One surface per effect, no card-in-card-in-panel.** The detail pane draws the outer card, each effect is a
+  single `rounded-lg border bg-[var(--surface)]` card, and the panels inside it (`CardAdmin*Panel`) are
+  divider sections: `group border-t border-[var(--border-subtle)] border-l-2 border-l-<colour>-500/55 pl-3 pt-3`
+  (no rounding, background or padding box). Repeated rows inside a panel use
+  `border-t border-[var(--border-subtle)] pt-2` or the accent-rule indent only. Border/background boxes are
+  reserved for actual controls (inputs, selects) and semantic messages (the amber authoring warning).
+- The effect header is **one row** (`flex flex-wrap`): identity (remove, effect id), branch wiring (✓/✕ selects)
+  and the flags (Ch/Opt/Sub chips) then a trailing `ml-auto` group with the collapse toggle and the drag
+  handle. It stays a single line on a desktop-width rail (~1600px+ viewport, the admin's normal window) and
+  only wraps as groups on genuinely narrow rails. The previous `flex-nowrap overflow-hidden` version sliced
+  off whatever did not fit, so never reintroduce `overflow-hidden` (or `nowrap`) here; the id input and both
+  selects carry `min-w-[4.5rem]` so the row stays compact and wraps instead of collapsing.
+- The editor container keeps `mb-16` so the last section clears the floating Save button.
 
 ## Testing notes
 

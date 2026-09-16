@@ -32,7 +32,7 @@ export function CardAdminContextRulesPanel({
   updateEffectAt,
 }: ICardAdminContextRulesPanelProps) {
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-cyan-500/55 bg-[var(--surface-muted)] p-3">
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-cyan-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Context Rules</span>
         <CardAdminChevronIcon rotateOnOpen />
@@ -55,7 +55,7 @@ export function CardAdminContextRulesPanel({
       </div>
 
       {effect.contextRules.map((_, contextRuleIndex) => (
-        <div key={`context-rule-${contextRuleIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/35 bg-[var(--surface-muted)] p-3">
+        <div key={`context-rule-${contextRuleIndex}`} className="space-y-3 border-l-2 border-l-cyan-500/30 pl-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-semibold text-[var(--text-primary)]">Context #{contextRuleIndex + 1}</p>
             <CardAdminRemoveButton
@@ -108,7 +108,7 @@ function ContextRulePlayerPanel({
   const audienceValue = contextRule[audience]
 
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/30 bg-[var(--surface)] p-3">
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-cyan-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>{title} Conditions</span>
         <CardAdminChevronIcon rotateOnOpen />
@@ -198,7 +198,7 @@ function ContextRulePlayerPanel({
           </label>
 
           {audienceValue.inZoneRequirements ? (
-            <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/25 bg-[var(--surface-muted)] p-2">
+            <div className="space-y-2 border-l-2 border-l-cyan-500/30 pl-2">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Requirement Operator</label>
@@ -309,7 +309,7 @@ function ContextRulePlayerPanel({
                 const requirementPredicateKey = `${audience}-requirement-${requirementIndex}`
 
                 return (
-                  <div key={requirementPredicateKey} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/20 bg-[var(--surface)] p-2">
+                  <div key={requirementPredicateKey} className="space-y-2 border-l-2 border-l-cyan-500/30 pl-2">
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
                       <CountConstraintField
                         className="sm:col-span-2 grid grid-cols-1 gap-2 sm:grid-cols-2"
@@ -447,7 +447,7 @@ function ContextRulePlayerPanel({
                       />
                     </div>
 
-                    <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/20 bg-[var(--surface-muted)] p-2">
+                    <div className="space-y-2 border-l-2 border-l-cyan-500/30 pl-2">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-semibold text-[var(--text-secondary)]">Predicates</p>
                         <AppButton
@@ -496,7 +496,7 @@ function ContextRulePlayerPanel({
                         const predicateEntries = getPredicateEntries(predicate)
 
                         return (
-                          <div key={`${requirementPredicateKey}-predicate-${predicateIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-cyan-500/15 bg-[var(--surface)] p-2">
+                          <div key={`${requirementPredicateKey}-predicate-${predicateIndex}`} className="space-y-2 border-l-2 border-l-cyan-500/30 pl-2">
                             <CardAdminPredicateControls
                               predicateProperty={predicate.property}
                               predicateOperator={predicate.operator}

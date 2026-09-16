@@ -68,7 +68,7 @@ export function CardAdminEffectsSection({
           </AppButton>
         </div>
 
-        <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-sky-500/45 bg-[var(--surface-muted)] p-3">
+        <div className="space-y-2 border-t border-[var(--border-subtle)] border-l-2 border-l-sky-500/45 pl-3 pt-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Interlinked Effects</p>
           {linkedEffectGroups.length > 0 ? (
             <div className="space-y-1">
@@ -105,7 +105,7 @@ export function CardAdminEffectsSection({
         {parsedEffects.map((effect, effectIndex) => (
           <div
             key={`effect-${effectIndex}`}
-            className="space-y-3 rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-slate-400/55 bg-[var(--surface)] p-3 shadow-sm"
+            className="space-y-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3 shadow-sm"
             draggable={collapsedEffects.has(effectIndex)}
             onDragStart={() => setDraggedEffectIndex(effectIndex)}
             onDragOver={(event) => {
@@ -124,9 +124,10 @@ export function CardAdminEffectsSection({
             }}
             onDragEnd={() => setDraggedEffectIndex(null)}
           >
-            <div
-              className="flex flex-nowrap items-center gap-1 overflow-hidden cursor-grab active:cursor-grabbing"
-            >
+            {/* One line, like the original layout: identity, branch wiring and the flags share the row and
+                wrap as groups only when the rail is genuinely too narrow - never slicing the way the old
+                `flex-nowrap overflow-hidden` row did. */}
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 cursor-grab active:cursor-grabbing">
               <CardAdminRemoveButton
                 onClick={() => removeEffectAt(effectIndex)}
                 className="h-6 w-6 shrink-0"
@@ -137,11 +138,11 @@ export function CardAdminEffectsSection({
                 type="text"
                 value={effect.id}
                 onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, id: event.target.value }))}
-                className="h-7 min-w-0 flex-[1.2] rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 text-[11px] text-[var(--text-primary)]"
+                className="h-7 min-w-[4.5rem] flex-[1.2] rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 text-[11px] text-[var(--text-primary)]"
                 placeholder={`Effect ${effectIndex + 1}`}
               />
 
-              <div className="flex min-w-0 flex-[1] items-center gap-1">
+              <div className="flex min-w-[4.5rem] flex-1 items-center gap-1">
                 <span className="text-xs text-emerald-600" aria-hidden="true">✓</span>
                 <CardAdminSelect
                   value={effect.onSuccessEffectId ?? ''}
@@ -161,7 +162,7 @@ export function CardAdminEffectsSection({
                 </CardAdminSelect>
               </div>
 
-              <div className="flex min-w-0 flex-[1] items-center gap-1">
+              <div className="flex min-w-[4.5rem] flex-1 items-center gap-1">
                 <span className="text-xs text-rose-600" aria-hidden="true">✕</span>
                 <CardAdminSelect
                   value={effect.onFailureEffectId ?? ''}

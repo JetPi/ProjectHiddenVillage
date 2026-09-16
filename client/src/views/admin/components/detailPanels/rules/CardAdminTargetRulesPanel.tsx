@@ -35,7 +35,7 @@ export function CardAdminTargetRulesPanel({
   updateEffectAt,
 }: ICardAdminTargetRulesPanelProps) {
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-emerald-500/55 bg-[var(--surface-muted)] p-3" open>
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-emerald-500/55 pl-3 pt-3" open>
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Target Rules</span>
         <CardAdminChevronIcon rotateOnOpen />
@@ -279,7 +279,7 @@ export function CardAdminTargetRulesPanel({
         </div>
       ) : null}
 
-      <div className="space-y-3 my-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/35 bg-[var(--surface-muted)] p-3">
+      <div className="space-y-3 my-2 border-l-2 border-l-emerald-500/30 pl-3">
         <div className="flex items-center  justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Rule Rows</p>
           <AppButton
@@ -374,7 +374,7 @@ export function CardAdminTargetRulesPanel({
           )
 
           return (
-            <div key={`target-rule-${targetRuleIndex}`} className="space-y-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/30 bg-[var(--surface)] p-3 shadow-sm">
+            <div key={`target-rule-${targetRuleIndex}`} className="space-y-3 border-l-2 border-l-emerald-500/30 pl-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-[var(--text-primary)]">Rule #{targetRuleIndex + 1}</p>
                 <CardAdminRemoveButton
@@ -560,7 +560,7 @@ export function CardAdminTargetRulesPanel({
                 </div>
               </div>
 
-              <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/25 bg-[var(--surface-muted)] p-2">
+              <div className="space-y-2 border-l-2 border-l-emerald-500/30 pl-2">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-[var(--text-secondary)]">Predicates</p>
                   <AppButton
@@ -592,7 +592,7 @@ export function CardAdminTargetRulesPanel({
                   const predicateEntries = getPredicateEntries(predicate)
 
                   return (
-                    <div key={`predicate-${predicateIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-emerald-500/20 bg-[var(--surface)] p-2">
+                    <div key={`predicate-${predicateIndex}`} className="space-y-2 border-l-2 border-l-emerald-500/30 pl-2">
                       <CardAdminPredicateControls
                         predicateProperty={predicate.property}
                         predicateOperator={predicate.operator}

@@ -16,7 +16,7 @@ export function CardAdminFaceStateFlipsPanel({
   updateEffectAt,
 }: ICardAdminFaceStateFlipsPanelProps) {
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-indigo-500/55 bg-[var(--surface-muted)] p-3">
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-indigo-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Face State Flips</span>
         <CardAdminChevronIcon rotateOnOpen />
@@ -39,7 +39,7 @@ export function CardAdminFaceStateFlipsPanel({
       </div>
 
       {effect.summonCardFlips.map((summonCardFlip, summonFlipIndex) => (
-        <div key={`summon-flip-${summonFlipIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-indigo-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
+        <div key={`summon-flip-${summonFlipIndex}`} className="grid grid-cols-1 gap-3 border-l-2 border-l-indigo-500/30 pl-3 sm:grid-cols-4">
           <CardAdminSelect
             value={summonCardFlip.targetCategory}
             onValueChange={(value) =>

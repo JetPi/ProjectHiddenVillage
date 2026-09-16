@@ -16,7 +16,7 @@ export function CardAdminGainEffectPanel({
   effectConditionKeywordOptions,
 }: ICardAdminGainEffectPanelProps) {
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-fuchsia-500/55 bg-[var(--surface-muted)] p-3">
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-fuchsia-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Gain Effect Settings</span>
         <CardAdminChevronIcon rotateOnOpen />
@@ -24,7 +24,7 @@ export function CardAdminGainEffectPanel({
 
       <div className="mt-3 grid grid-cols-1 gap-3">
 
-      <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-fuchsia-500/35 bg-[var(--surface)] p-3">
+      <div className="space-y-2 border-l-2 border-l-fuchsia-500/30 pl-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Keyword Modifications</p>
           <AppButton
@@ -41,7 +41,7 @@ export function CardAdminGainEffectPanel({
         </div>
 
         {(effect.keywordModifications ?? []).map((modification, keywordIndex) => (
-          <div key={`keyword-mod-${keywordIndex}`} className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
+          <div key={`keyword-mod-${keywordIndex}`} className="space-y-2 border-t border-[var(--border-subtle)] pt-2">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
               <CardAdminSelect
                 value={modification.targetType}

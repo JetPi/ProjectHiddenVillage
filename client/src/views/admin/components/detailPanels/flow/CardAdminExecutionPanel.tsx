@@ -28,7 +28,7 @@ export function CardAdminExecutionPanel({
     effect.executionTargetSource === 'Selected Targets' && !declaresSelectableTargets
 
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-sky-500/55 bg-[var(--surface-muted)] p-3" open>
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-sky-500/55 pl-3 pt-3" open>
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Execution Target</span>
         <CardAdminChevronIcon rotateOnOpen />

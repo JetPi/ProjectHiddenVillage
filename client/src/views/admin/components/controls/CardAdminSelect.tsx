@@ -1,17 +1,39 @@
 import { Children, isValidElement, useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { FocusEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
+import type { CSSProperties, FocusEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { twMerge } from 'tailwind-merge'
 import { CardAdminChevronIcon } from './CardAdminChevronIcon'
 import type { ICardAdminSelectOption, ICardAdminSelectProps } from '@/views/admin/types/cardAdminSelect'
 
 const TRIGGER_CLASSNAME =
-  'flex w-full items-center justify-between gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-left text-sm text-[var(--text-primary)] focus:border-[var(--focus-ring)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
+  'flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-left text-sm text-[var(--text-primary)] focus:border-[var(--focus-ring)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
 
 const OPTION_CLASSNAME =
   'w-full rounded-md px-3 py-2 text-left text-sm transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50'
 
-/** `max-h-60` (15rem) plus its own padding, used to decide whether the list fits below the trigger. */
+/**
+ * The list is portalled to the body with a fixed position, so no scroll container, `overflow-hidden`
+ * wrapper or rounded card on the way up can slice it (the admin detail pane scrolls and the effect rows
+ * clip, which is what used to cut dropdowns off at a container boundary).
+ */
+const LISTBOX_CLASSNAME =
+  'fixed z-50 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--dropdown-bg)] p-1 text-sm shadow-[var(--panel-shadow)]'
+
+/** Preferred height of the list plus the room it needs; it shrinks when the viewport has less to give. */
 const LIST_MAX_HEIGHT_PX = 256
+const LIST_MIN_HEIGHT_PX = 120
+const LIST_GAP_PX = 4
+const VIEWPORT_PADDING_PX = 8
+/** Narrow triggers (the effect header chips) still deserve a readable list. */
+const LISTBOX_MIN_WIDTH_PX = 160
+
+type ICardAdminSelectListboxBox = {
+  left: number
+  width: number
+  maxHeight: number
+  top?: number
+  bottom?: number
+}
 
 /**
  * Admin dropdown.
@@ -35,9 +57,10 @@ export function CardAdminSelect({
 }: ICardAdminSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
-  const [placement, setPlacement] = useState<'below' | 'above'>('below')
+  const [listboxBox, setListboxBox] = useState<ICardAdminSelectListboxBox | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const listboxRef = useRef<HTMLUListElement | null>(null)
   const listboxId = `${useId()}-listbox`
 
   // The press that opens the list must never also choose an option: only a click whose own pointer press
@@ -54,7 +77,9 @@ export function CardAdminSelect({
     }
 
     const handleDocumentPointerDown = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node
+      // The list lives in a portal, so "outside" means outside the trigger *and* outside the list.
+      if (!containerRef.current?.contains(target) && !listboxRef.current?.contains(target)) {
         setIsOpen(false)
       }
     }
@@ -63,14 +88,44 @@ export function CardAdminSelect({
     return () => document.removeEventListener('mousedown', handleDocumentPointerDown)
   }, [isOpen])
 
+  // Keep the portalled list pinned to the trigger while the detail pane (or the window) scrolls.
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const reposition = () => setListboxBox(resolveListboxBox(triggerRef.current))
+
+    reposition()
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [isOpen])
+
+  // Arrow-key navigation can walk past the visible window: keep the highlighted option in view.
+  useEffect(() => {
+    if (!isOpen || activeIndex < 0) {
+      return
+    }
+
+    listboxRef.current
+      ?.querySelector(`[data-option-index="${activeIndex}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, isOpen])
+
   const closeList = () => {
     setIsOpen(false)
     setActiveIndex(-1)
+    setListboxBox(null)
   }
 
   const openList = () => {
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : findEnabledIndex(options, -1, 1))
-    setPlacement(resolvePlacement(triggerRef.current))
+    setListboxBox(resolveListboxBox(triggerRef.current))
     setIsOpen(true)
   }
 
@@ -172,7 +227,7 @@ export function CardAdminSelect({
   return (
     <div
       ref={containerRef}
-      className={twMerge('relative w-full', className)}
+      className="relative w-full min-w-0"
       onKeyDown={handleKeyDown}
       onBlur={handleBlur}
     >
@@ -189,57 +244,58 @@ export function CardAdminSelect({
         onPointerDown={() => {
           pressStartedOnTriggerRef.current = true
         }}
-        className={TRIGGER_CLASSNAME}
+        className={twMerge(TRIGGER_CLASSNAME, className)}
         {...props}
       >
         <span className="truncate">{selectedOption?.label ?? value}</span>
         <CardAdminChevronIcon expanded={isOpen} className="shrink-0 text-[var(--text-muted)]" />
       </button>
 
-      {isOpen ? (
-        <ul
-          id={listboxId}
-          role="listbox"
-          data-testid="admin-select-listbox"
-          className={twMerge(
-            'absolute z-30 max-h-60 w-full overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--dropdown-bg)] p-1 text-sm shadow-[var(--panel-shadow)]',
-            // The detail pane is a scroll container, so the list flips above a trigger that is too close to
-            // the bottom to show it (a native popup never had to care).
-            placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1',
-          )}
-        >
-          {options.map((option, index) => {
-            const isSelected = option.value === value
+      {isOpen && listboxBox && typeof document !== 'undefined'
+        ? createPortal(
+          <ul
+            ref={listboxRef}
+            id={listboxId}
+            role="listbox"
+            data-testid="admin-select-listbox"
+            style={resolveListboxStyle(listboxBox)}
+            className={LISTBOX_CLASSNAME}
+          >
+            {options.map((option, index) => {
+              const isSelected = option.value === value
 
-            return (
-              <li key={`${option.value}-${index}`} role="presentation">
-                <button
-                  type="button"
-                  id={`${listboxId}-option-${index}`}
-                  role="option"
-                  aria-selected={isSelected}
-                  disabled={option.disabled}
-                  onClick={() => handleOptionClick(option)}
-                  onPointerDown={() => {
-                    pressStartedOnTriggerRef.current = false
-                  }}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  className={twMerge(
-                    OPTION_CLASSNAME,
-                    isSelected
-                      ? 'bg-[var(--button-primary-bg)] font-semibold text-[var(--button-primary-text)]'
-                      : 'text-[var(--text-primary)] hover:bg-[var(--surface-hover)]',
-                    !isSelected && index === activeIndex ? 'bg-[var(--surface-hover)]' : '',
-                  )}
-                >
-                  {option.label}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      ) : null}
+              return (
+                <li key={`${option.value}-${index}`} role="presentation">
+                  <button
+                    type="button"
+                    id={`${listboxId}-option-${index}`}
+                    data-option-index={index}
+                    role="option"
+                    aria-selected={isSelected}
+                    disabled={option.disabled}
+                    onClick={() => handleOptionClick(option)}
+                    onPointerDown={() => {
+                      pressStartedOnTriggerRef.current = false
+                    }}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    className={twMerge(
+                      OPTION_CLASSNAME,
+                      isSelected
+                        ? 'bg-[var(--button-primary-bg)] font-semibold text-[var(--button-primary-text)]'
+                        : 'text-[var(--text-primary)] hover:bg-[var(--surface-hover)]',
+                      !isSelected && index === activeIndex ? 'bg-[var(--surface-hover)]' : '',
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>,
+          document.body,
+        )
+        : null}
     </div>
   )
 }
@@ -263,17 +319,44 @@ function readOptions(children: ReactNode): ICardAdminSelectOption[] {
   })
 }
 
-/** Enough room below the trigger, otherwise open upwards: the admin detail pane clips the list. */
-function resolvePlacement(trigger: HTMLButtonElement | null): 'below' | 'above' {
+/**
+ * Pins the portalled list to its trigger: flips above when there is no room below and clamps into the
+ * viewport, so the list is fully visible wherever the trigger sits in the pane.
+ */
+function resolveListboxBox(trigger: HTMLButtonElement | null): ICardAdminSelectListboxBox | null {
   if (!trigger) {
-    return 'below'
+    return null
   }
 
   const rect = trigger.getBoundingClientRect()
-  const spaceBelow = window.innerHeight - rect.bottom
-  const spaceAbove = rect.top
+  const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_PADDING_PX
+  const spaceAbove = rect.top - VIEWPORT_PADDING_PX
+  const opensAbove = spaceBelow < LIST_MAX_HEIGHT_PX && spaceAbove > spaceBelow
+  const maxHeight = Math.min(
+    LIST_MAX_HEIGHT_PX,
+    Math.max(LIST_MIN_HEIGHT_PX, opensAbove ? spaceAbove : spaceBelow),
+  )
+  const width = Math.max(rect.width, LISTBOX_MIN_WIDTH_PX)
+  const left = Math.min(
+    Math.max(VIEWPORT_PADDING_PX, rect.left),
+    Math.max(VIEWPORT_PADDING_PX, window.innerWidth - width - VIEWPORT_PADDING_PX),
+  )
 
-  return spaceBelow < LIST_MAX_HEIGHT_PX && spaceAbove > spaceBelow ? 'above' : 'below'
+  if (opensAbove) {
+    return { left, width, maxHeight, bottom: window.innerHeight - rect.top + LIST_GAP_PX }
+  }
+
+  return { left, width, maxHeight, top: rect.bottom + LIST_GAP_PX }
+}
+
+function resolveListboxStyle(box: ICardAdminSelectListboxBox): CSSProperties {
+  return {
+    left: `${box.left}px`,
+    width: `${box.width}px`,
+    maxHeight: `${box.maxHeight}px`,
+    top: box.top === undefined ? undefined : `${box.top}px`,
+    bottom: box.bottom === undefined ? undefined : `${box.bottom}px`,
+  }
 }
 
 /** Next enabled option, wrapping around like a native select and skipping disabled entries. */

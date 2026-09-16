@@ -21,7 +21,7 @@ export function CardAdminPassiveSettingsPanel({
   updateEffectAt,
 }: ICardAdminPassiveSettingsPanelProps) {
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-violet-500/55 bg-[var(--surface-muted)] p-3">
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-violet-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Passive Settings</span>
         <CardAdminChevronIcon rotateOnOpen />
@@ -84,7 +84,7 @@ export function CardAdminPassiveSettingsPanel({
         </div>
       ) : null}
 
-      <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-violet-500/35 bg-[var(--surface)] p-3">
+      <div className="space-y-2 border-l-2 border-l-violet-500/30 pl-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Consequences</p>
           <AppButton
@@ -101,7 +101,7 @@ export function CardAdminPassiveSettingsPanel({
         </div>
 
         {(effect.passiveConsequences ?? []).map((consequence, consequenceIndex) => (
-          <div key={`passive-consequence-${consequenceIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <div key={`passive-consequence-${consequenceIndex}`} className="grid grid-cols-1 gap-2 border-t border-[var(--border-subtle)] pt-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
             <CardAdminSelect
               value={consequence.consequenceEffectTypeKey}
               onValueChange={(value) =>

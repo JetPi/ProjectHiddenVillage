@@ -10,7 +10,7 @@ export function CardAdminConditionsSection({
   availableConditionOptions,
 }: ICardAdminConditionsSectionProps) {
   return (
-    <div className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3">
+    <div className="grid grid-cols-1 gap-2 border-t border-[var(--border-subtle)] pt-3">
       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         Conditions
       </label>
