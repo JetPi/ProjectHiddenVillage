@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import type { DragEvent } from 'react'
+import { twMerge } from 'tailwind-merge'
 import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { CardAdminSelect } from '@/views/admin/components/controls'
@@ -53,6 +55,51 @@ export function CardAdminEffectsSection({
   effectBranchErrors,
 }: ICardAdminEffectsSectionProps) {
   const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null)
+  const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null)
+  // The card-sized ghost handed to the browser during a drag (`setDragImage` snapshots it immediately).
+  const dragPreviewRef = useRef<HTMLDivElement | null>(null)
+
+  const clearDragState = () => {
+    setDraggedEffectIndex(null)
+    setDragOverEffectIndex(null)
+    dragPreviewRef.current?.remove()
+    dragPreviewRef.current = null
+  }
+
+  /**
+   * Only the drag handle starts a drag (the card used to be draggable as a whole, which hijacked clicks on
+   * the flag toggles). The handle is a 24px icon, so the browser's default ghost would be a speck: hand it a
+   * card-sized preview of the effect instead, which is what shows where the effect will land.
+   */
+  const handleEffectDragStart = (event: DragEvent<HTMLSpanElement>, effectIndex: number, label: string) => {
+    setDraggedEffectIndex(effectIndex)
+    setDragOverEffectIndex(null)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(effectIndex))
+
+    const preview = document.createElement('div')
+    preview.textContent = label
+    preview.style.cssText = [
+      'position: fixed',
+      'top: -1000px',
+      'left: -1000px',
+      'max-width: 16rem',
+      'padding: 6px 10px',
+      'border: 1px solid var(--border-subtle)',
+      'border-radius: 8px',
+      'background: var(--surface)',
+      'box-shadow: var(--panel-shadow)',
+      'font-size: 11px',
+      'color: var(--text-primary)',
+      'white-space: nowrap',
+      'overflow: hidden',
+      'text-overflow: ellipsis',
+    ].join(';')
+
+    document.body.appendChild(preview)
+    dragPreviewRef.current = preview
+    event.dataTransfer.setDragImage(preview, 12, 14)
+  }
 
   return (
     <div className="grid grid-cols-1 gap-2">
@@ -105,29 +152,40 @@ export function CardAdminEffectsSection({
         {parsedEffects.map((effect, effectIndex) => (
           <div
             key={`effect-${effectIndex}`}
-            className="space-y-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3 shadow-sm"
-            draggable={collapsedEffects.has(effectIndex)}
-            onDragStart={() => setDraggedEffectIndex(effectIndex)}
+            data-testid="effect-card"
+            className={twMerge(
+              'space-y-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3 shadow-sm transition-shadow',
+              draggedEffectIndex === effectIndex ? 'opacity-60' : '',
+              dragOverEffectIndex === effectIndex && draggedEffectIndex !== effectIndex
+                ? 'border-[var(--focus-ring)] ring-2 ring-[var(--focus-ring)]/45'
+                : '',
+            )}
             onDragOver={(event) => {
               if (draggedEffectIndex === null || draggedEffectIndex === effectIndex) {
                 return
               }
+
               event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
+              setDragOverEffectIndex(effectIndex)
             }}
             onDrop={(event) => {
               event.preventDefault()
+
               if (draggedEffectIndex === null || draggedEffectIndex === effectIndex) {
+                clearDragState()
                 return
               }
+
               reorderEffect(draggedEffectIndex, effectIndex)
-              setDraggedEffectIndex(null)
+              clearDragState()
             }}
-            onDragEnd={() => setDraggedEffectIndex(null)}
+            onDragEnd={clearDragState}
           >
             {/* One line, like the original layout: identity, branch wiring and the flags share the row and
                 wrap as groups only when the rail is genuinely too narrow - never slicing the way the old
                 `flex-nowrap overflow-hidden` row did. */}
-            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 cursor-grab active:cursor-grabbing">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
               <CardAdminRemoveButton
                 onClick={() => removeEffectAt(effectIndex)}
                 className="h-6 w-6 shrink-0"
@@ -231,9 +289,17 @@ export function CardAdminEffectsSection({
                   <CardAdminChevronIcon expanded={!collapsedEffects.has(effectIndex)} className="transition-transform duration-200" />
                 </button>
                 <span
-                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                  draggable
+                  onDragStart={(event) =>
+                    handleEffectDragStart(
+                      event,
+                      effectIndex,
+                      `${effect.id.trim().length > 0 ? effect.id.trim() : `Effect ${effectIndex + 1}`}${effect.runtimeEffectType ? ` · ${effect.runtimeEffectType}` : ''}`,
+                    )}
+                  className="inline-flex h-6 w-6 shrink-0 cursor-grab items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] active:cursor-grabbing"
                   aria-hidden="true"
                   title="Drag to reorder"
+                  data-testid="effect-drag-handle"
                 >
                   <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-3.5 w-3.5">
                     <circle cx="7" cy="6" r="1.2" />

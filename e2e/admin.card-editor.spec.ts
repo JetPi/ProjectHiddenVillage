@@ -145,5 +145,97 @@ test('admin card editor keeps dropdowns, headers and sections inside their conta
   await listbox.getByRole('option').nth(1).click()
   await expect(listbox).toBeHidden()
 
+  // 5. Flags can be toggled: the switch surface used to swallow these clicks (and a card-wide drag grabbed
+  //    them for itself), which made chakra costs impossible to switch on.
+  const chakraToggle = page.getByRole('checkbox', { name: 'Chakra Cost Enabled' }).first()
+  const chakraChip = chakraToggle.locator('xpath=../..')
+  const chakraToggleSurface = chakraToggle.locator('..')
+  const chakraAmountInput = chakraChip.locator('input[type="number"]')
+  await expect(chakraAmountInput).toBeDisabled()
+  await chakraToggleSurface.click()
+  await expect(chakraToggle).toBeChecked()
+  await expect(chakraAmountInput).toBeEnabled()
+
+  // 6. Only the drag handle starts a drag, it hands the browser a labelled ghost, and the drop reorders.
+  const dragConfig = await page.evaluate(() => {
+    const handle = document.querySelector('[data-testid="effect-drag-handle"]')
+    if (!handle) {
+      return null
+    }
+
+    let draggableAncestors = 0
+    let node: Element | null = handle.parentElement
+    while (node && node !== document.body) {
+      if ((node as HTMLElement).draggable) {
+        draggableAncestors += 1
+      }
+      node = node.parentElement
+    }
+
+    const ghosts: string[] = []
+    ;(window as unknown as { __dragGhosts: string[] }).__dragGhosts = ghosts
+    const original = DataTransfer.prototype.setDragImage
+    DataTransfer.prototype.setDragImage = function (image: Element, x: number, y: number) {
+      ghosts.push((image as HTMLElement).textContent ?? '')
+      return original.call(this, image, x, y)
+    }
+
+    return { handleDraggable: (handle as HTMLElement).draggable, draggableAncestors }
+  })
+  expect(dragConfig?.handleDraggable, 'the drag handle must be the drag source').toBe(true)
+  expect(dragConfig?.draggableAncestors, 'no ancestor of the handle may start a drag').toBe(0)
+
+  const effectIds = page.locator('input[placeholder^="Effect "]')
+  const idsBefore = await effectIds.evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value))
+  expect(idsBefore.length, 'the fixture card needs at least two effects to reorder').toBeGreaterThan(1)
+
+  const effectCards = page.getByTestId('effect-card')
+
+  // Headless Chromium will not start an HTML5 drag from synthetic mouse moves, so the native gesture is
+  // replaced by a real `DragEvent` sequence (same events React's handlers receive for a mouse drag).
+  const dispatchDragEvent = (type: string, testId: string, index: number) =>
+    page.evaluate(
+      ({ eventType, targetTestId, targetIndex }) => {
+        const nodes = document.querySelectorAll<HTMLElement>(`[data-testid="${targetTestId}"]`)
+        const target = nodes[targetIndex]
+        if (!target) {
+          return false
+        }
+
+        const host = window as unknown as { __dragData?: DataTransfer }
+        host.__dragData = host.__dragData ?? new DataTransfer()
+        target.dispatchEvent(new DragEvent(eventType, { bubbles: true, cancelable: true, dataTransfer: host.__dragData }))
+        return true
+      },
+      { eventType: type, targetTestId: testId, targetIndex: index },
+    )
+
+  expect(await dispatchDragEvent('dragstart', 'effect-drag-handle', 1)).toBe(true)
+  await expect(effectCards.nth(1), 'the dragged card should be dimmed while the drag is live').toHaveClass(/opacity-60/)
+
+  expect(await dispatchDragEvent('dragover', 'effect-card', 0)).toBe(true)
+  await expect(effectCards.nth(0), 'the drop target should be highlighted').toHaveClass(/ring-2/)
+
+  expect(await dispatchDragEvent('drop', 'effect-card', 0)).toBe(true)
+
+  const ghosts = await page.evaluate(() => (window as unknown as { __dragGhosts?: string[] }).__dragGhosts ?? [])
+  expect(ghosts.length, 'the drag must supply a custom drag image').toBeGreaterThan(0)
+  expect(ghosts[0], 'the ghost should name the effect being dragged').toContain(idsBefore[1])
+
+  const idsAfter = await effectIds.evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value))
+  expect(idsAfter, 'dragging the second effect onto the first should swap them').toEqual([
+    idsBefore[1],
+    idsBefore[0],
+    ...idsBefore.slice(2),
+  ])
+
+  // The highlight and the dim must both be gone once the drag ends.
+  expect(await dispatchDragEvent('dragend', 'effect-drag-handle', 1)).toBe(true)
+  await expect(effectCards.nth(0)).not.toHaveClass(/ring-2/)
+  await expect(effectCards.nth(0)).not.toHaveClass(/opacity-60/)
+
+  const previewNodes = await page.evaluate(() => document.querySelectorAll('body > div[style*="top: -1000px"]').length)
+  expect(previewNodes, 'the drag ghost node must not be left behind in the DOM').toBe(0)
+
   await context.close()
 })

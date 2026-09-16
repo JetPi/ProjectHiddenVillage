@@ -189,6 +189,18 @@ paths:
   off whatever did not fit, so never reintroduce `overflow-hidden` (or `nowrap`) here; the id input and both
   selects carry `min-w-[4.5rem]` so the row stays compact and wraps instead of collapsing.
 - The editor container keeps `mb-16` so the last section clears the floating Save button.
+- **Reordering is handle-only.** The effect card's drag handle (`data-testid="effect-drag-handle"`) is the
+  *only* `draggable` element — never the card itself, which used to swallow clicks on its own flag toggles
+  (so chakra costs could not be switched on). `handleEffectDragStart` in `CardAdminEffectsSection` hands the
+  browser a card-sized ghost through `DataTransfer.setDragImage` (built imperatively, removed on dragend) so
+  the author can see which effect they are carrying; the hovered drop target gets
+  `border/ring [--focus-ring]` and the dragged card dims to `opacity-60`.
+  `e2e/admin.card-editor.spec.ts` pins the ghost, both highlights and the reorder — headless Chromium will not
+  start an HTML5 drag from synthetic mouse moves, so the spec dispatches real `DragEvent`s instead of
+  `dragTo`.
+- **`CardAdminToggleSwitch` must stay a `<label>` wrapper**: the visible track/thumb draw *on top of* the
+  `sr-only` checkbox, so with a plain `<span>` wrapper the switch surface swallowed every click and the
+  control could not be toggled at all.
 
 ## Testing notes
 
