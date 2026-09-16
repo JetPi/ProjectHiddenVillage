@@ -18,8 +18,8 @@ export function CardAdminConditionsSection({
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <CardAdminSelect
           value={conditionToAdd}
-          onChange={(event) => {
-            const nextCondition = event.target.value
+          onValueChange={(value) => {
+            const nextCondition = value
             setConditionToAdd(nextCondition)
 
             if (!nextCondition) {

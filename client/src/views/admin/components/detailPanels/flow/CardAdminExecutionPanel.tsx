@@ -6,6 +6,7 @@ import {
   EXECUTION_FLOW_MODE_OPTIONS,
   EXECUTION_TARGET_SOURCE_OPTIONS,
 } from '@/views/admin/constants'
+import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 import type { ICardAdminExecutionPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
@@ -17,6 +18,15 @@ export function CardAdminExecutionPanel({
   updateEffectAt,
   effectBranchErrors,
 }: ICardAdminExecutionPanelProps) {
+  const declaresSelectableTargets = effect.targetRules.rules.length > 0
+    || effect.targetRules.exactTargetCount !== null
+    || effect.targetRules.minimumTargetCount !== null
+    || effect.targetRules.maximumTargetCount !== null
+  const isPlayerScopedChakraLock = effect.runtimeEffectType === 'Lock Chakra Recovery'
+  // The shape that made N-016 unplayable: asking for a pick while declaring nothing to pick from.
+  const asksForSelectionWithoutTargetRules =
+    effect.executionTargetSource === 'Selected Targets' && !declaresSelectableTargets
+
   return (
     <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-sky-500/55 bg-[var(--surface-muted)] p-3" open>
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
@@ -29,19 +39,43 @@ export function CardAdminExecutionPanel({
         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Execution Target Source</label>
         <CardAdminSelect
           value={effect.executionTargetSource}
-          onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, executionTargetSource: event.target.value }))}
+          onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, executionTargetSource: value }))}
         >
           {EXECUTION_TARGET_SOURCE_OPTIONS.map((option) => (
             <option key={option} value={option}>{option}</option>
           ))}
         </CardAdminSelect>
+
+        {isPlayerScopedChakraLock ? (
+          <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
+            Locks the chakra of the players in Target Range (Self / Opponent / Any) for the effect&apos;s duration: while it
+            lasts they cannot turn chakra face-up, so Recovery is refused. Keep Execution Target Source at None - this
+            effect never picks a card.
+          </p>
+        ) : null}
+
+        {asksForSelectionWithoutTargetRules ? (
+          <div className="space-y-1 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2">
+            <p className="text-[11px] leading-snug text-amber-700">
+              This effect asks for a target selection but declares no selectable target rules, so activation is refused
+              with &ldquo;No valid targets available.&rdquo;. Set Execution Target Source to None, or add target rules below.
+            </p>
+            <AppButton
+              type="button"
+              variant="ghost"
+              onClick={() => updateEffectAt(effectIndex, (current) => ({ ...current, executionTargetSource: 'None' }))}
+            >
+              Set Execution Target Source to None
+            </AppButton>
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-1">
         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Execution Flow Mode</label>
         <CardAdminSelect
           value={effect.executionFlowMode}
-          onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, executionFlowMode: event.target.value }))}
+          onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, executionFlowMode: value }))}
         >
           {EXECUTION_FLOW_MODE_OPTIONS.map((option) => (
             <option key={option} value={option}>{option}</option>
@@ -75,13 +109,13 @@ export function CardAdminExecutionPanel({
             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Condition Argument Key</label>
             <CardAdminSelect
               value={effect.executionCondition.argumentKey}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   executionCondition: current.executionCondition
                     ? {
                         ...current.executionCondition,
-                        argumentKey: event.target.value as ICardCatalogEffectExecutionConditionArgumentKey,
+                        argumentKey: value as ICardCatalogEffectExecutionConditionArgumentKey,
                       }
                     : null,
                 }))}

@@ -16,14 +16,29 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 /// The plan is therefore: every root (declared order after the documented negate-first rule) followed by
 /// the effects reachable from it. The entry root determines the activation's chakra cost, which matches
 /// every support card's printed <c>supportCost</c>.
+///
+/// <see cref="PlanActivationGroups"/> keeps those root groups separate because the sequential executor
+/// walks a single chain per call: the activation replay executes one call per group, so a card whose
+/// second root is not linked to the first (N-016's chakra lock) still runs its whole plan.
 /// </summary>
 public static class SupportActivationPlanner
 {
     /// <summary>
-    /// Ordered effects an activation of this card runs. Always contains at least one effect when the
-    /// card declares any.
+    /// Ordered effects an activation of this card runs: every root group flattened, in plan order.
     /// </summary>
     public static IReadOnlyList<EffectSpec> PlanActivationNodes(Card cardDefinition)
+    {
+        return PlanActivationGroups(cardDefinition).SelectMany(group => group).ToList();
+    }
+
+    /// <summary>
+    /// The activation's root groups: each unlinked root followed by the effects reachable from it.
+    ///
+    /// A card can declare several unlinked roots (N-016 declares the chakra lock *and* the negate), and every
+    /// root has to run. The sequential executor walks a single chain per call, so the activation replay
+    /// executes one call per group instead of running the whole plan in one go.
+    /// </summary>
+    public static IReadOnlyList<IReadOnlyList<EffectSpec>> PlanActivationGroups(Card cardDefinition)
     {
         ArgumentNullException.ThrowIfNull(cardDefinition);
 
@@ -48,16 +63,19 @@ public static class SupportActivationPlanner
 
         roots = OrderRoots(roots);
 
-        var planned = new List<EffectSpec>(effects.Count);
+        var groups = new List<IReadOnlyList<EffectSpec>>(roots.Count + 1);
         var emittedIds = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var root in roots)
         {
-            EmitGroup(root, effectById, planned, emittedIds, new HashSet<string>(StringComparer.Ordinal));
+            var group = new List<EffectSpec>(effects.Count);
+            EmitGroup(root, effectById, group, emittedIds, new HashSet<string>(StringComparer.Ordinal));
+            groups.Add(group);
         }
 
-        // Anything unreachable from a root (malformed branch ids) is appended in declared order so a
-        // card can never lose an effect entirely.
+        // Anything unreachable from a root (malformed branch ids) is emitted as its own group in declared
+        // order so a card can never lose an effect entirely.
+        var leftovers = new List<EffectSpec>();
         foreach (var effect in effects)
         {
             var nodeId = NormalizeEffectId(effect.Id);
@@ -66,11 +84,16 @@ public static class SupportActivationPlanner
                 continue;
             }
 
-            planned.Add(effect);
+            leftovers.Add(effect);
             emittedIds.Add(nodeId);
         }
 
-        return planned;
+        if (leftovers.Count > 0)
+        {
+            groups.Add(leftovers);
+        }
+
+        return groups;
     }
 
     /// <summary>The effect a support activation starts from, or null when the card has no effects.</summary>

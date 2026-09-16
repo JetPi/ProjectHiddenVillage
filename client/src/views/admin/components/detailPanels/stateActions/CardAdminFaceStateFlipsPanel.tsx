@@ -42,11 +42,11 @@ export function CardAdminFaceStateFlipsPanel({
         <div key={`summon-flip-${summonFlipIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-indigo-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
           <CardAdminSelect
             value={summonCardFlip.targetCategory}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 summonCardFlips: current.summonCardFlips.map((row, index) =>
-                  index === summonFlipIndex ? { ...row, targetCategory: event.target.value } : row),
+                  index === summonFlipIndex ? { ...row, targetCategory: value } : row),
               }))}
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
@@ -57,11 +57,11 @@ export function CardAdminFaceStateFlipsPanel({
 
           <CardAdminSelect
             value={summonCardFlip.targetRange}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 summonCardFlips: current.summonCardFlips.map((row, index) =>
-                  index === summonFlipIndex ? { ...row, targetRange: event.target.value } : row),
+                  index === summonFlipIndex ? { ...row, targetRange: value } : row),
               }))}
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
@@ -72,11 +72,11 @@ export function CardAdminFaceStateFlipsPanel({
 
           <CardAdminSelect
             value={summonCardFlip.faceState}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 summonCardFlips: current.summonCardFlips.map((row, index) =>
-                  index === summonFlipIndex ? { ...row, faceState: event.target.value } : row),
+                  index === summonFlipIndex ? { ...row, faceState: value } : row),
               }))}
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >

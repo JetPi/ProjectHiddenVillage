@@ -1598,30 +1598,36 @@ public sealed class InMemoryGameInstanceRegistry
             return;
         }
 
-        var context = new GameCardEffectContext(
-            game: instance,
-            actingPlayer: new Player { Id = entry.SourcePlayerId },
-            // Rebuild the definition from the card's data: planned nodes only, source-supplied nodes
-            // normalised, so the replay executes exactly the activation the player paid for.
-            sourceCardDefinition: SupportActivationNormalizer.NormalizeForActivation(
-                instance.State,
-                sourceCardDefinition,
-                sourceCardInstance),
-            sourceCardInstance: sourceCardInstance,
-            arguments: new Dictionary<string, string>(entry.Arguments, StringComparer.Ordinal)
-            {
-                [ReactiveEffectExecutionConstants.ActivationCostPaidArgument] = bool.TrueString,
-            },
-            selectedTargets: [.. entry.SelectedTargets]);
-
-        var executeResult = sequentialEffectExecutor.Execute(context);
-        if (executeResult.IsError)
+        // The card can declare several unlinked roots (N-016: the chakra lock *and* the negate) and the
+        // sequential executor walks one chain per call, so the activation is replayed group by group. Each
+        // group is rebuilt from the card's data with its source-supplied nodes normalised, so the replay
+        // executes exactly the activation the player paid for.
+        foreach (var activationGroup in SupportActivationPlanner.PlanActivationGroups(sourceCardDefinition))
         {
-            // A single unresolvable activation must not strand both players: log it and continue.
-            instance.AddActionLogEntry(
-                actionType: "support_activation_failed",
-                message: $"Support activation '{entry.EntryId}' failed: {executeResult.FirstError.Description}",
-                playerId: entry.SourcePlayerId);
+            var context = new GameCardEffectContext(
+                game: instance,
+                actingPlayer: new Player { Id = entry.SourcePlayerId },
+                sourceCardDefinition: SupportActivationNormalizer.NormalizeForActivation(
+                    instance.State,
+                    sourceCardDefinition,
+                    sourceCardInstance,
+                    activationGroup),
+                sourceCardInstance: sourceCardInstance,
+                arguments: new Dictionary<string, string>(entry.Arguments, StringComparer.Ordinal)
+                {
+                    [ReactiveEffectExecutionConstants.ActivationCostPaidArgument] = bool.TrueString,
+                },
+                selectedTargets: [.. entry.SelectedTargets]);
+
+            var executeResult = sequentialEffectExecutor.Execute(context);
+            if (executeResult.IsError)
+            {
+                // A single unresolvable activation must not strand both players: log it and continue.
+                instance.AddActionLogEntry(
+                    actionType: "support_activation_failed",
+                    message: $"Support activation '{entry.EntryId}' failed: {executeResult.FirstError.Description}",
+                    playerId: entry.SourcePlayerId);
+            }
         }
     }
 

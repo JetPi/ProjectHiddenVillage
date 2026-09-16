@@ -28,7 +28,27 @@ public static class SupportActivationNormalizer
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(sourceDefinition);
 
-        var plannedNodes = SupportActivationPlanner.PlanActivationNodes(sourceDefinition);
+        return NormalizeForActivation(
+            state,
+            sourceDefinition,
+            sourceInstance,
+            SupportActivationPlanner.PlanActivationNodes(sourceDefinition));
+    }
+
+    /// <summary>
+    /// Normalises one planned root group (see <see cref="SupportActivationPlanner.PlanActivationGroups"/>),
+    /// so the caller can execute the plan group by group.
+    /// </summary>
+    public static Card NormalizeForActivation(
+        GameState state,
+        Card sourceDefinition,
+        CardInstance? sourceInstance,
+        IReadOnlyList<EffectSpec> plannedNodes)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(sourceDefinition);
+        ArgumentNullException.ThrowIfNull(plannedNodes);
+
         var normalizedEffects = plannedNodes
             .Select(effect => NormalizeEffect(state, sourceDefinition, sourceInstance, effect))
             .ToList();
@@ -53,6 +73,11 @@ public static class SupportActivationNormalizer
         }
 
         if (IsOwnLeaderOnlyModification(effect))
+        {
+            return WithSelectionFreeTargets(effect, EffectExecutionTargetSource.None);
+        }
+
+        if (IsOwnStateEffect(effect))
         {
             return WithSelectionFreeTargets(effect, EffectExecutionTargetSource.None);
         }
@@ -130,5 +155,55 @@ public static class SupportActivationNormalizer
             && effect.MoveCardActions.Count == 0
             && effect.SummonCardFlips.Count == 0
             && effect.FaceStateLocks.Count == 0;
+    }
+
+    /// <summary>
+    /// A node that only changes the acting player's own state - their chakra face state (N-016) or their
+    /// chakra recovery - resolves its audience by <see cref="EffectSpec.TargetRange"/>, so a selection is
+    /// never required.
+    ///
+    /// Ingested data can still mark such a node as <c>Selected Targets</c> while declaring no target rules
+    /// at all (N-016's chakra lock was authored exactly that way), which leaves the activation planner
+    /// asking for a pick that cannot exist: "No valid targets available." Normalising the node to a
+    /// selection-free one is what keeps those cards playable instead of unplayable.
+    /// </summary>
+    private static bool IsOwnStateEffect(EffectSpec effect)
+    {
+        // A node that could ask for a card selection is left alone, even when its rules are incomplete:
+        // silently neutering an authored selection would hide the authoring bug instead of surfacing it.
+        if (effect.TargetRules.Rules.Count > 0
+            || effect.TargetRules.ExactTargetCount.HasValue
+            || effect.TargetRules.MinimumTargetCount.HasValue
+            || effect.TargetRules.MaximumTargetCount.HasValue)
+        {
+            return false;
+        }
+
+        if (effect.MoveCardActions.Count > 0
+            || effect.KeywordModifications.Any(modification =>
+                modification.TargetType == KeywordModificationTargetType.SelectedTargets)
+            || effect.AttributeModifications.Any(modification =>
+                modification.TargetType == AttributeModificationTargetType.SelectedTargets))
+        {
+            return false;
+        }
+
+        // The chakra recovery lock is player-scoped by design: its audience is the effect's TargetRange,
+        // so it needs no selection whichever player it points at.
+        if (effect.RuntimeEffectType == RuntimeEffects.LockChakraRecovery)
+        {
+            return true;
+        }
+
+        var hasOwnStatePayload = effect.FaceStateLocks.Count > 0
+            || effect.ChakraAdjustments.Count > 0
+            || effect.SummonCardFlips.Count > 0
+            || effect.AttributeModifications.Count > 0;
+
+        return hasOwnStatePayload
+            && effect.TargetRange == EffectTargetRange.Self
+            && effect.FaceStateLocks.All(faceStateLock => faceStateLock.TargetRange == EffectTargetRange.Self)
+            && effect.ChakraAdjustments.All(adjustment => adjustment.TargetRange == EffectTargetRange.Self)
+            && effect.SummonCardFlips.All(flip => flip.TargetRange == EffectTargetRange.Self);
     }
 }

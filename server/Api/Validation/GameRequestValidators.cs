@@ -490,8 +490,27 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                 effect.RuleFor(value => value)
                     .Must(value => value.DurationMode == EffectDurationMode.Instant
                         || value.RuntimeEffectType is RuntimeEffects.ChangeValues or RuntimeEffects.GainEffect or RuntimeEffects.FreezeCard
+                        || value.RuntimeEffectType == RuntimeEffects.LockChakraRecovery
                         || (value.RuntimeEffectType == RuntimeEffects.AlterResources && value.FaceStateLocks.Count > 0))
-                    .WithMessage("Non-instant duration is currently supported only for Change Values, Gain Effect, Freeze Card, and Alter Resources face-state lock effects.");
+                    .WithMessage("Non-instant duration is currently supported only for Change Values, Gain Effect, Freeze Card, Lock Chakra Recovery, and Alter Resources face-state lock effects.");
+
+                // "You cannot turn your CHAKRA face-up" restricts a *player*: the audience comes from the
+                // effect's TargetRange, so the node must not ask for a selection and carries no other
+                // payload (that combination is what used to make N-016 unplayable with "No valid targets").
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType != RuntimeEffects.LockChakraRecovery
+                        || value.ExecutionTargetSource == EffectExecutionTargetSource.None)
+                    .WithMessage("Lock Chakra Recovery affects the players in Target Range, so it needs no selected targets: set Execution Target Source to None.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType != RuntimeEffects.LockChakraRecovery
+                        || (value.AttributeModifications.Count == 0
+                            && value.ChakraAdjustments.Count == 0
+                            && value.SummonCardFlips.Count == 0
+                            && value.FaceStateLocks.Count == 0
+                            && value.MoveCardActions.Count == 0
+                            && value.KeywordModifications.Count == 0))
+                    .WithMessage("Lock Chakra Recovery carries no other effect payload: use a separate node for each behaviour.");
 
                 effect.RuleForEach(value => value.SummonCardFlips)
                     .ChildRules(flipSpec =>

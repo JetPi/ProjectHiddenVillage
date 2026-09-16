@@ -42,11 +42,11 @@ export function CardAdminFaceStateLocksPanel({
         <div key={`face-lock-${faceStateLockIndex}`} className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-violet-500/30 bg-[var(--surface)] p-3 sm:grid-cols-4">
           <CardAdminSelect
             value={faceStateLock.targetCategory}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 faceStateLocks: current.faceStateLocks.map((row, index) =>
-                  index === faceStateLockIndex ? { ...row, targetCategory: event.target.value } : row),
+                  index === faceStateLockIndex ? { ...row, targetCategory: value } : row),
               }))}
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
@@ -57,11 +57,11 @@ export function CardAdminFaceStateLocksPanel({
 
           <CardAdminSelect
             value={faceStateLock.operation}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 faceStateLocks: current.faceStateLocks.map((row, index) =>
-                  index === faceStateLockIndex ? { ...row, operation: event.target.value } : row),
+                  index === faceStateLockIndex ? { ...row, operation: value } : row),
               }))}
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
@@ -72,11 +72,11 @@ export function CardAdminFaceStateLocksPanel({
 
           <CardAdminSelect
             value={faceStateLock.targetRange}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
                 faceStateLocks: current.faceStateLocks.map((row, index) =>
-                  index === faceStateLockIndex ? { ...row, targetRange: event.target.value } : row),
+                  index === faceStateLockIndex ? { ...row, targetRange: value } : row),
               }))}
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >

@@ -27,6 +27,13 @@ public static partial class GameStateResponseMapper
                 return (false, "Recovery can only be activated starting from your second turn.");
             }
 
+            // A chakra recovery lock (N-016) means "you cannot turn your CHAKRA face-up": while it lasts
+            // there is nothing Recovery could do, so the option is disabled instead of failing on submit.
+            if (CardRuntimeEffectStateService.IsChakraRecoveryBlocked(state, player.PlayerId))
+            {
+                return (false, "Your chakra is locked and cannot be turned face-up.");
+            }
+
             if (!HasFaceDownChakra(state, player.PlayerId))
             {
                 return (false, "All chakra cards are already face up.");

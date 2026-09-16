@@ -145,10 +145,10 @@ export function CardAdminEffectsSection({
                 <span className="text-xs text-emerald-600" aria-hidden="true">✓</span>
                 <CardAdminSelect
                   value={effect.onSuccessEffectId ?? ''}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     updateEffectAt(effectIndex, (current) => ({
                       ...current,
-                      onSuccessEffectId: event.target.value.trim().length > 0 ? event.target.value : null,
+                      onSuccessEffectId: value.trim().length > 0 ? value : null,
                     }))}
                   className="h-7 min-w-0 px-2 py-0 text-[11px]"
                 >
@@ -165,10 +165,10 @@ export function CardAdminEffectsSection({
                 <span className="text-xs text-rose-600" aria-hidden="true">✕</span>
                 <CardAdminSelect
                   value={effect.onFailureEffectId ?? ''}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     updateEffectAt(effectIndex, (current) => ({
                       ...current,
-                      onFailureEffectId: event.target.value.trim().length > 0 ? event.target.value : null,
+                      onFailureEffectId: value.trim().length > 0 ? value : null,
                     }))}
                   className="h-7 min-w-0 px-2 py-0 text-[11px]"
                 >
@@ -253,7 +253,7 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Global Restrictions</label>
                     <CardAdminSelect
                       value={effect.globalRestrictions}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, globalRestrictions: event.target.value }))}
+                      onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, globalRestrictions: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {RESTRICTIONS_OPTIONS.map((option) => (
@@ -266,9 +266,9 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Runtime Effect Type</label>
                     <CardAdminSelect
                       value={effect.runtimeEffectType}
-                      onChange={(event) =>
+                      onValueChange={(value) =>
                         updateEffectAt(effectIndex, (current) => {
-                          const nextRuntimeEffectType = event.target.value
+                          const nextRuntimeEffectType = value
                           const isTributeEffect = nextRuntimeEffectType === 'Tribute'
                           const supportsTributeRole = isSummonOrTributeRuntimeEffect(nextRuntimeEffectType)
                           const hidesTargetCount = isAttackNegationRuntimeEffect(nextRuntimeEffectType)
@@ -292,10 +292,14 @@ export function CardAdminEffectsSection({
                           return {
                             ...current,
                             runtimeEffectType: nextRuntimeEffectType,
+                            // "Lock Chakra Recovery" locks the players in Target Range, so it never asks for
+                            // a selected target - the server rejects the combination outright.
                             executionTargetSource:
                               nextRuntimeEffectType === 'Reveal Card'
                                 ? 'Selected Targets'
-                                : current.executionTargetSource,
+                                : nextRuntimeEffectType === 'Lock Chakra Recovery'
+                                  ? 'None'
+                                  : current.executionTargetSource,
                             suppressSummonedTargetsEffectsWhileOnField:
                               nextRuntimeEffectType === 'Summon Card'
                                 ? current.suppressSummonedTargetsEffectsWhileOnField
@@ -368,7 +372,7 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Effect Type</label>
                     <CardAdminSelect
                       value={effect.effectType}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, effectType: event.target.value }))}
+                      onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, effectType: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {EFFECT_KIND_OPTIONS.map((option) => (
@@ -381,7 +385,7 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Timing</label>
                     <CardAdminSelect
                       value={effect.timing}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, timing: event.target.value }))}
+                      onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, timing: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {EFFECT_TIMING_OPTIONS.map((option) => (
@@ -394,7 +398,7 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Duration</label>
                     <CardAdminSelect
                       value={effect.durationMode}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, durationMode: event.target.value }))}
+                      onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, durationMode: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {EFFECT_DURATION_MODE_OPTIONS.map((option) => (
@@ -407,9 +411,9 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Mode</label>
                     <CardAdminSelect
                       value={effect.passiveMode}
-                      onChange={(event) =>
+                      onValueChange={(value) =>
                         updateEffectAt(effectIndex, (current) => {
-                          const nextPassiveMode = event.target.value
+                          const nextPassiveMode = value
                           const isPassiveEnabled = nextPassiveMode !== 'None'
 
                           return {
@@ -435,7 +439,7 @@ export function CardAdminEffectsSection({
                     <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Range</label>
                     <CardAdminSelect
                       value={effect.targetRange}
-                      onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, targetRange: event.target.value }))}
+                      onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, targetRange: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {TARGET_RANGE_OPTIONS.map((option) => (

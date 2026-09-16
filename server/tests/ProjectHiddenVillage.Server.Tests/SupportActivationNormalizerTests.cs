@@ -187,6 +187,129 @@ public sealed class SupportActivationNormalizerTests
         };
     }
 
+    [TestMethod]
+    public void NormalizeForActivation_TreatsPlayerScopedChakraLockAsSelectionFree()
+    {
+        // N-016's chakra lock is authored as a target-pick node that declares no target rules at all, which
+        // used to make the whole activation unplayable ("No valid targets available."). The lock's audience
+        // is its TargetRange, so the node must reach the executor selection-free.
+        var definition = BuildChakraLockDefinition(RuntimeEffects.LockChakraRecovery);
+        var sourceInstance = new CardInstance
+        {
+            InstanceId = "support-1",
+            CardDefinitionId = definition.Id,
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        };
+
+        var normalized = SupportActivationNormalizer.NormalizeForActivation(BuildState(), definition, sourceInstance);
+
+        var lockNode = normalized.Effects.Single(effect => effect.Id == "chakra-freeze");
+        Assert.AreEqual(EffectExecutionTargetSource.None, lockNode.ExecutionTargetSource);
+        Assert.AreEqual(0, lockNode.TargetRules.Rules.Count);
+
+        // The negate beside it keeps its single pick.
+        var negateNode = normalized.Effects.Single(effect => effect.Id == "negate-effect");
+        Assert.AreEqual(EffectExecutionTargetSource.SelectedTargets, negateNode.ExecutionTargetSource);
+        Assert.AreEqual(1, negateNode.TargetRules.Rules.Count);
+
+        // The shared catalogue definition is never mutated.
+        var originalLockNode = definition.Effects.Single(effect => effect.Id == "chakra-freeze");
+        Assert.AreEqual(EffectExecutionTargetSource.SelectedTargets, originalLockNode.ExecutionTargetSource);
+    }
+
+    [TestMethod]
+    public void NormalizeForActivation_TreatsSelfScopedFaceStateLockNodeAsSelectionFree()
+    {
+        // The shape N-016 shipped with before the chakra lock had its own runtime effect: Alter Resources
+        // carrying a self-scoped face-state lock, marked Selected Targets without any target rules.
+        var definition = BuildChakraLockDefinition(RuntimeEffects.AlterResources);
+        var sourceInstance = new CardInstance
+        {
+            InstanceId = "support-1",
+            CardDefinitionId = definition.Id,
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        };
+
+        var normalized = SupportActivationNormalizer.NormalizeForActivation(BuildState(), definition, sourceInstance);
+
+        var lockNode = normalized.Effects.Single(effect => effect.Id == "chakra-freeze");
+        Assert.AreEqual(EffectExecutionTargetSource.None, lockNode.ExecutionTargetSource);
+        Assert.AreEqual(0, lockNode.TargetRules.Rules.Count);
+    }
+
+    /// <summary>
+    /// N-016 shape: "[Support Activated] Negate that card. Then, you cannot turn your CHAKRA face-up." The
+    /// lock node is deliberately authored the way the ingestion wrote it: <c>Selected Targets</c> with no
+    /// target rules.
+    /// </summary>
+    private static CharacterCard BuildChakraLockDefinition(RuntimeEffects lockRuntimeEffect)
+    {
+        return new CharacterCard
+        {
+            Id = "chakra-lock-support",
+            DisplayName = "Chakra Lock Support",
+            Name = ["Chakra Lock Support"],
+            Type = CardType.Character,
+            Color = CardColor.Blue,
+            Traits = [],
+            Description = string.Empty,
+            Damage = 1,
+            Power = 5,
+            Health = 6,
+            SupportName = "Koto Amatsukami",
+            SupportEffect = "[Support Activated] Negate that card. Then, you cannot turn your CHAKRA face-up.",
+            Effects =
+            [
+                new EffectSpec
+                {
+                    Id = "chakra-freeze",
+                    RuntimeEffectType = lockRuntimeEffect,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.SupportActivated,
+                    DurationMode = EffectDurationMode.UntilTheEndOfYourNextTurn,
+                    TargetRange = EffectTargetRange.Self,
+                    ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                    FaceStateLocks = lockRuntimeEffect == RuntimeEffects.AlterResources
+                        ?
+                        [
+                            new FaceStateLockSpec
+                            {
+                                TargetCategory = FaceStateTargetCategory.ChakraCard,
+                                Operation = FaceStateLockOperation.CannotTurnFaceUp,
+                                TargetRange = EffectTargetRange.Self,
+                            }
+                        ]
+                        : [],
+                    TargetRules = new EffectTargetRuleSet(),
+                },
+                new EffectSpec
+                {
+                    Id = "negate-effect",
+                    RuntimeEffectType = RuntimeEffects.NegateEffect,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.SupportActivated,
+                    ChakraCost = 1,
+                    ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        ExactTargetCount = 1,
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Any,
+                                InZone = PlayerZone.SupportZone,
+                                ExactSelectedTargetCount = 1,
+                            },
+                        ],
+                    },
+                },
+            ],
+        };
+    }
+
     private static GameState BuildState()
     {
         return new GameState

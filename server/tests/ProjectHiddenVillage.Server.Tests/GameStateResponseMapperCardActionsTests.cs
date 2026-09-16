@@ -721,6 +721,54 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
+    public void ToGameStateResponse_DisablesRecoveryLeaderEffect_WhenChakraRecoveryIsLocked()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+        state.TurnNumber = 4;
+        state.Players[0].TurnCount = 2;
+        // There is face-down chakra to recover, so only the lock can keep Recovery disabled.
+        state.Players[0].ResourcePool = 3;
+
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "leader-recovery",
+                EffectType = EffectKind.Recovery,
+                Timing = EffectTiming.DuringYourMain,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+            }
+        ];
+
+        state.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = "lock-source",
+            EffectSpecId = "chakra-freeze",
+            ModifierKind = AppliedCardModifierKind.ChakraRecoveryLock,
+            DurationMode = EffectDurationMode.UntilTheEndOfYourNextTurn,
+            TargetPlayerId = requesterId,
+            AppliedByPlayerId = opponentId,
+            AppliedTurnNumber = state.TurnNumber,
+        });
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
+        Assert.IsFalse(GetLeaderEffectActions(requester.Leader)[0].IsEnabled);
+        Assert.AreEqual(
+            "Your chakra is locked and cannot be turned face-up.",
+            GetLeaderEffectActions(requester.Leader)[0].DisabledReason);
+    }
+
+    [TestMethod]
     public void ToGameStateResponse_DisablesActivateMainLeaderEffect_WhenNoValidTargetsExist()
     {
         var requesterId = Guid.NewGuid().ToString("N");

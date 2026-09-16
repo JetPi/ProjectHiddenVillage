@@ -63,11 +63,11 @@ export function CardAdminAttributeModificationsPanel({
               <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Type</label>
               <CardAdminSelect
                 value={attributeModification.targetType}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   updateEffectAt(effectIndex, (current) => ({
                     ...current,
                     attributeModifications: current.attributeModifications.map((row, index) =>
-                      index === attributeIndex ? { ...row, targetType: event.target.value } : row),
+                      index === attributeIndex ? { ...row, targetType: value } : row),
                   }))}
                 className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
               >
@@ -81,11 +81,11 @@ export function CardAdminAttributeModificationsPanel({
               <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Range</label>
               <CardAdminSelect
                 value={attributeModification.targetRange}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   updateEffectAt(effectIndex, (current) => ({
                     ...current,
                     attributeModifications: current.attributeModifications.map((row, index) =>
-                      index === attributeIndex ? { ...row, targetRange: event.target.value } : row),
+                      index === attributeIndex ? { ...row, targetRange: value } : row),
                   }))}
                 className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
               >
@@ -99,11 +99,11 @@ export function CardAdminAttributeModificationsPanel({
               <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Affected Property</label>
               <CardAdminSelect
                 value={attributeModification.attribute}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   updateEffectAt(effectIndex, (current) => ({
                     ...current,
                     attributeModifications: current.attributeModifications.map((row, index) =>
-                      index === attributeIndex ? { ...row, attribute: event.target.value } : row),
+                      index === attributeIndex ? { ...row, attribute: value } : row),
                   }))}
                 className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
               >
@@ -138,11 +138,11 @@ export function CardAdminAttributeModificationsPanel({
                   <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Operation</label>
                   <CardAdminSelect
                     value={attributeModification.operation}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       updateEffectAt(effectIndex, (current) => ({
                         ...current,
                         attributeModifications: current.attributeModifications.map((row, index) =>
-                          index === attributeIndex ? { ...row, operation: event.target.value } : row),
+                          index === attributeIndex ? { ...row, operation: value } : row),
                       }))}
                     className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                   >

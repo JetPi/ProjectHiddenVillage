@@ -46,10 +46,10 @@ export function CardAdminTargetRulesPanel({
           <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Rule Operator</label>
           <CardAdminSelect
             value={effect.targetRules.operator}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateEffectAt(effectIndex, (current) => ({
                 ...current,
-                targetRules: { ...current.targetRules, operator: event.target.value },
+                targetRules: { ...current.targetRules, operator: value },
               }))}
           >
             {RULE_OPERATOR_OPTIONS.map((option) => (
@@ -398,13 +398,13 @@ export function CardAdminTargetRulesPanel({
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Scope</label>
                       <CardAdminSelect
                         value={targetRule.scope}
-                        onChange={(event) =>
+                        onValueChange={(value) =>
                           updateEffectAt(effectIndex, (current) => ({
                             ...current,
                             targetRules: {
                               ...current.targetRules,
                               rules: current.targetRules.rules.map((rule, index) =>
-                                index === targetRuleIndex ? { ...rule, scope: event.target.value } : rule),
+                                index === targetRuleIndex ? { ...rule, scope: value } : rule),
                             },
                           }))}
                       >
@@ -418,7 +418,7 @@ export function CardAdminTargetRulesPanel({
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Zone</label>
                       <CardAdminSelect
                         value={targetRule.inZone}
-                        onChange={(event) =>
+                        onValueChange={(value) =>
                           updateEffectAt(effectIndex, (current) => ({
                             ...current,
                             targetRules: {
@@ -427,7 +427,7 @@ export function CardAdminTargetRulesPanel({
                                 index === targetRuleIndex
                                   ? {
                                       ...rule,
-                                      inZone: event.target.value,
+                                      inZone: value,
                                       locationSelector: {
                                         kind: rule.locationSelector?.kind ?? 'Any',
                                         supportSlotIndex: rule.locationSelector?.supportSlotIndex ?? null,
@@ -447,7 +447,7 @@ export function CardAdminTargetRulesPanel({
                       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Location Selector</label>
                       <CardAdminSelect
                         value={targetRule.locationSelector?.kind ?? 'Any'}
-                        onChange={(event) =>
+                        onValueChange={(value) =>
                           updateEffectAt(effectIndex, (current) => ({
                             ...current,
                             targetRules: {
@@ -457,8 +457,8 @@ export function CardAdminTargetRulesPanel({
                                   ? {
                                       ...rule,
                                       locationSelector: {
-                                        kind: event.target.value,
-                                        supportSlotIndex: event.target.value === 'Support Slot Index'
+                                        kind: value,
+                                        supportSlotIndex: value === 'Support Slot Index'
                                           ? (rule.locationSelector?.supportSlotIndex ?? 0)
                                           : null,
                                       },
@@ -478,14 +478,14 @@ export function CardAdminTargetRulesPanel({
                         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Tribute Role</label>
                         <CardAdminSelect
                           value={targetRule.tributeRole ?? ''}
-                          onChange={(event) =>
+                          onValueChange={(value) =>
                             updateEffectAt(effectIndex, (current) => ({
                               ...current,
                               targetRules: {
                                 ...current.targetRules,
                                 rules: current.targetRules.rules.map((rule, index) =>
                                   index === targetRuleIndex
-                                    ? { ...rule, tributeRole: event.target.value || null }
+                                    ? { ...rule, tributeRole: value || null }
                                     : rule),
                               },
                             }))}
@@ -535,7 +535,7 @@ export function CardAdminTargetRulesPanel({
                   <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Restriction Match Mode</label>
                   <CardAdminSelect
                     value={targetRule.restriction.matchMode}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       updateEffectAt(effectIndex, (current) => ({
                         ...current,
                         targetRules: {
@@ -546,7 +546,7 @@ export function CardAdminTargetRulesPanel({
                                   ...rule,
                                   restriction: {
                                     ...rule.restriction,
-                                    matchMode: event.target.value,
+                                    matchMode: value,
                                   },
                                 }
                               : rule),

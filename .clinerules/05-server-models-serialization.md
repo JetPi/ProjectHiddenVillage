@@ -137,6 +137,37 @@ paths:
   **without any network call** (verified: 404 in ~0.1 s) so `CardImage` falls back deterministically.
   Use the indexed (`__0`) env form — a comma-less single value is not a reliable `List<string>` binding.
 
+## Card data authoring: runtime effect types (admin view + validator)
+
+- A new behaviour is a `RuntimeEffects` enum member whose name matches the effect class's `EffectTypeKey`
+  (`RuntimeEffectKeys.TryResolve` maps enum → key → `GameCardEffectRegistry`; the class is registered in
+  `Program.cs`). Its admin label is the split-Pascal name, listed in the admin view's `RUNTIME_EFFECT_OPTIONS`
+  (`views/admin/constants/effectOptions.ts`) — the request model deserializes that string through the flexible
+  enum converter, so label and enum member must stay in sync.
+- `UpdateCardEffectsRequestValidator` owns each type's authoring contract. Example: `Lock Chakra Recovery`
+  (N-016's “you cannot turn your CHAKRA face-up”) requires a non-instant duration, requires
+  `Execution Target Source: None` (it locks the players in `TargetRange` instead of picking a card) and must
+  not carry any other payload.
+- The admin view enforces the same contract while authoring: `CardAdminEffectsSection` sets
+  `Execution Target Source = None` when the type is selected, and `CardAdminExecutionPanel` warns — with a
+  one-click “Set Execution Target Source to None” — whenever an effect says `Selected Targets` while declaring
+  no selectable target rules. That combination is what made N-016 unplayable
+  (“No valid targets available.”) and is rejected by the validator for the new type.
+
+## Admin dropdowns (`CardAdminSelect`)
+
+- **Never a native `<select>`** in the admin view. On Linux the native popup can commit whichever option ends
+  up under the cursor the moment it opens, so a single click picked a value instead of just opening the list
+  (the reported “it instantly selects whatever is in the middle”). `CardAdminSelect`
+  (`views/admin/components/controls/`) is a custom listbox: it opens on the first click and only chooses on a
+  click whose own pointer press started inside the list (`pressStartedOnTriggerRef`), with Escape/outside-click
+  to close and Arrow/Home/End/Enter/Space keyboard support.
+- API: `value` + **`onValueChange(value)`**, options declared as `<option value="…">Label</option>` children
+  (read by `readOptions`, so call sites still read like a native select). The detail pane is a scroll
+  container, so the list flips above a trigger with no room below (`resolvePlacement`).
+- `FormSelect` (`components/forms/`) is the same idiom for the auth/forms flows; there is no native `<select>`
+  left anywhere in `client/src`.
+
 ## Testing notes
 
 - `dotnet build server/…` and targeted tests (`GameStateResponseMapper*`,

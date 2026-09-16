@@ -278,6 +278,7 @@ public sealed class SupportActivationResolutionTests
             new DestroyCardEffect(effectSpecResolver, CanExecuteEvaluator, targetResolver),
             new NegateCardEffect(effectSpecResolver, CanExecuteEvaluator, new GameValidTargetResultFactory()),
             new ModifyAttributeEffect(effectSpecResolver, CanExecuteEvaluator, targetResolver),
+            new LockChakraRecoveryEffect(effectSpecResolver, CanExecuteEvaluator),
         ];
     }
 
@@ -456,6 +457,80 @@ public sealed class SupportActivationResolutionTests
         Assert.AreEqual(2, targetsResponse.ValidTargets.Count);
     }
 
+    [TestMethod]
+    public void GetSupportTargets_AsksOnlyForTheNegate_WhenTheOtherNodeLocksChakra()
+    {
+        var game = CreateGame();
+        EnterCutInWindow(game, priorityPlayerId: "p2");
+        AddSupportZoneCard(game, playerIndex: 1, instanceId: "support-1", definitionId: "destroy-support-attack");
+        AddBattlefieldCard(game, playerIndex: 0, instanceId: "enemy-1", definitionId: "filler");
+        AddSupportZoneCard(game, playerIndex: 0, instanceId: "negate-1", definitionId: "negate-with-chakra-lock");
+        game.State.Players[0].ResourcePool = 5;
+        game.State.Players[1].ResourcePool = 5;
+
+        ExecuteSupport(
+            game,
+            playerId: "p2",
+            instanceId: "support-1",
+            CreateSequentialExecutor(),
+            selectedTargets: [CharacterTarget("p1", "enemy-1")]);
+
+        // N-016 used to be unplayable here: the chakra lock node was authored as a target pick with no rules,
+        // so the plan reported "No valid targets available." even though the lock needs no target at all.
+        var targetsResponse = GetSupportTargets(game, playerId: "p1", instanceId: "negate-1");
+
+        Assert.IsTrue(targetsResponse.IsEnabled, targetsResponse.DisabledReason);
+        Assert.AreEqual(1, targetsResponse.ValidTargets.Count);
+        Assert.IsTrue(targetsResponse.ValidTargets[0].IsEffectResolutionStackTarget);
+    }
+
+    [TestMethod]
+    public void ActivateSupport_WithChakraLock_NegatesTheActivation_AndLocksTheActivatorsChakra()
+    {
+        var game = CreateGame();
+        EnterCutInWindow(game, priorityPlayerId: "p2");
+        AddSupportZoneCard(game, playerIndex: 1, instanceId: "support-1", definitionId: "destroy-support-attack");
+        AddBattlefieldCard(game, playerIndex: 0, instanceId: "enemy-1", definitionId: "filler");
+        AddSupportZoneCard(game, playerIndex: 0, instanceId: "negate-1", definitionId: "negate-with-chakra-lock");
+        game.State.Players[0].ResourcePool = 5;
+        game.State.Players[1].ResourcePool = 5;
+
+        var executor = CreateSequentialExecutor();
+
+        ExecuteSupport(
+            game,
+            playerId: "p2",
+            instanceId: "support-1",
+            executor,
+            selectedTargets: [CharacterTarget("p1", "enemy-1")]);
+
+        var targetsResponse = GetSupportTargets(game, playerId: "p1", instanceId: "negate-1");
+        Assert.IsTrue(targetsResponse.IsEnabled, targetsResponse.DisabledReason);
+
+        ExecuteSupport(
+            game,
+            playerId: "p1",
+            instanceId: "negate-1",
+            executor,
+            selectedTargets: [targetsResponse.ValidTargets[0]]);
+
+        // The chakra lock registers when the chain resolves, not when it is queued.
+        Assert.IsFalse(game.State.AppliedCardEffects.Any(effect =>
+            effect.ModifierKind == AppliedCardModifierKind.ChakraRecoveryLock));
+
+        PassInActionStep(game, "p2", executor);
+        PassInActionStep(game, "p1", executor);
+
+        Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
+        // The negated activation never destroyed the character, while the lock landed on its activator
+        // (TargetRange: Self) with the card's "until your next turn" duration.
+        Assert.AreEqual(1, game.State.Players[0].Battlefield.Count);
+        var appliedLock = game.State.AppliedCardEffects.Single(effect =>
+            effect.ModifierKind == AppliedCardModifierKind.ChakraRecoveryLock);
+        Assert.AreEqual("p1", appliedLock.TargetPlayerId);
+        Assert.AreEqual(EffectDurationMode.UntilTheEndOfYourNextTurn, appliedLock.DurationMode);
+    }
+
     private GameInstance CreateMainPhaseGameWithSetSupport(string defenderSupportDefinitionId)
     {
         var game = CreateGame();
@@ -516,6 +591,7 @@ public sealed class SupportActivationResolutionTests
                 EffectTiming.DuringOpponentAttack,
                 chakraCost: 1),
             ["negate-support"] = BuildNegateSupport(),
+            ["negate-with-chakra-lock"] = BuildNegateWithChakraLockSupport(),
             ["destroy-two-support"] = BuildDestroyTwoSupport(),
         };
     }
@@ -557,6 +633,66 @@ public sealed class SupportActivationResolutionTests
                                 Scope = EffectTargetRange.Any,
                                 InZone = PlayerZone.CharacterField,
                                 MaximumSelectedTargetCount = 2,
+                            },
+                        ],
+                    },
+                },
+            ],
+        };
+    }
+
+    /// <summary>
+    /// N-016 shape: "[Support Activated] Negate that card. Then, ... you cannot turn your CHAKRA face-up."
+    /// The chakra lock is player-scoped (its audience is the effect's TargetRange), so it must not make the
+    /// activation ask for a second target selection.
+    /// </summary>
+    private static CharacterCard BuildNegateWithChakraLockSupport()
+    {
+        return new CharacterCard
+        {
+            Id = "negate-with-chakra-lock",
+            DisplayName = "Negate With Chakra Lock",
+            Name = ["Negate With Chakra Lock"],
+            Type = CardType.Character,
+            Color = CardColor.Blue,
+            Traits = [],
+            Description = string.Empty,
+            Damage = 1,
+            Power = 5,
+            Health = 6,
+            SupportName = "Koto Amatsukami",
+            SupportEffect = "[Support Activated] Negate that card. Then, you cannot turn your CHAKRA face-up.",
+            Effects =
+            [
+                // Declared first, exactly like the ingested N-016 data: the lock is not the entry effect.
+                new EffectSpec
+                {
+                    Id = "chakra-freeze",
+                    RuntimeEffectType = RuntimeEffects.LockChakraRecovery,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.SupportActivated,
+                    DurationMode = EffectDurationMode.UntilTheEndOfYourNextTurn,
+                    TargetRange = EffectTargetRange.Self,
+                    ExecutionTargetSource = EffectExecutionTargetSource.None,
+                },
+                new EffectSpec
+                {
+                    Id = "negate-effect",
+                    RuntimeEffectType = RuntimeEffects.NegateEffect,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.SupportActivated,
+                    ChakraCost = 1,
+                    ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        ExactTargetCount = 1,
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Any,
+                                InZone = PlayerZone.SupportZone,
+                                ExactSelectedTargetCount = 1,
                             },
                         ],
                     },

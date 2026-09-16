@@ -35,7 +35,7 @@ export function CardAdminRevealCardPanel({
         <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Reveal Timing</label>
         <CardAdminSelect
           value={effect.revealTimingMode}
-          onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, revealTimingMode: event.target.value }))}
+          onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, revealTimingMode: value }))}
         >
           {REVEAL_TIMING_MODE_OPTIONS.map((option) => (
             <option key={option} value={option}>{option}</option>
@@ -115,7 +115,7 @@ export function CardAdminRevealCardPanel({
             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Group Operator</label>
             <CardAdminSelect
               value={resolveRevealPostConditionRuleSet(effect)?.operator ?? 'All'}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 updateEffectAt(effectIndex, (current) => {
                   const ruleSet = resolveRevealPostConditionRuleSet(current)
                   if (!ruleSet) {
@@ -126,7 +126,7 @@ export function CardAdminRevealCardPanel({
                     ...current,
                     revealPostConditionRuleSet: {
                       ...ruleSet,
-                      operator: event.target.value,
+                      operator: value,
                     },
                     revealPostConditionRestriction: null,
                     revealPostConditionPredicate: null,
@@ -174,7 +174,7 @@ export function CardAdminRevealCardPanel({
                   <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Group Match Mode</label>
                   <CardAdminSelect
                     value={restriction.matchMode}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       updateEffectAt(effectIndex, (current) => {
                         const ruleSet = resolveRevealPostConditionRuleSet(current)
                         if (!ruleSet) {
@@ -189,7 +189,7 @@ export function CardAdminRevealCardPanel({
                               rowIndex === groupIndex
                                 ? {
                                     ...row,
-                                    matchMode: event.target.value,
+                                    matchMode: value,
                                   }
                                 : row),
                           },

@@ -45,11 +45,11 @@ export function CardAdminGainEffectPanel({
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
               <CardAdminSelect
                 value={modification.targetType}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   updateEffectAt(effectIndex, (current) => ({
                     ...current,
                     keywordModifications: (current.keywordModifications ?? []).map((row, index) =>
-                      index === keywordIndex ? { ...row, targetType: event.target.value } : row),
+                      index === keywordIndex ? { ...row, targetType: value } : row),
                   }))}
                 className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
               >
@@ -60,11 +60,11 @@ export function CardAdminGainEffectPanel({
 
               <CardAdminSelect
                 value={modification.operation}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   updateEffectAt(effectIndex, (current) => ({
                     ...current,
                     keywordModifications: (current.keywordModifications ?? []).map((row, index) =>
-                      index === keywordIndex ? { ...row, operation: event.target.value } : row),
+                      index === keywordIndex ? { ...row, operation: value } : row),
                   }))}
                 className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
               >
@@ -75,11 +75,11 @@ export function CardAdminGainEffectPanel({
 
               <CardAdminSelect
                 value={modification.keyword}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   updateEffectAt(effectIndex, (current) => ({
                     ...current,
                     keywordModifications: (current.keywordModifications ?? []).map((row, index) =>
-                      index === keywordIndex ? { ...row, keyword: event.target.value } : row),
+                      index === keywordIndex ? { ...row, keyword: value } : row),
                   }))}
               >
                 <option value="">Select keyword</option>

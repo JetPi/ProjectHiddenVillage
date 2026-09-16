@@ -120,6 +120,16 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   `SourceCardDisplayName`, `IsNegated`, `Targets`), where a target with `IsChainEntry` + `ChainEntryId` is the
   queued activation that this one answers (a `[Support Activated]` negate). The board renders it as the
   support-chain bubble (see `02-board-ui-hud.md`).
+- **Every root group of a support runs**: `SupportActivationPlanner.PlanActivationGroups` keeps each unlinked
+  root separate because `GameSequentialEffectExecutor` walks *one* chain per call (entry node +
+  `OnSuccess/OnFailure` branches). `ExecutePendingActivation` therefore replays one `Execute` per group, which
+  is what makes N-016 work — its chakra lock is a second root that no branch reaches. The activation cost is
+  already paid at queue time (`ActivationCostPaidArgument`), so replaying several groups charges nothing extra.
+- **Player-scoped nodes need no selection**: a node whose payload only touches players by `TargetRange`
+  (N-016's chakra lock; own-leader/own-chakra modifications) is normalised to
+  `EffectExecutionTargetSource.None` by `SupportActivationNormalizer`, which also rescues ingested data that
+  marks such a node as `Selected Targets` with no target rules — the shape that used to fail with
+  “No valid targets available.” (`IsOwnLeaderOnlyModification` / `IsOwnStateEffect`).
 - A hand activation sends the card to the trash as it is queued (the trash fills *before* the effect
   resolves); **a support-area activation stays revealed in its slot until it resolves, then the used card
   leaves the support area for the trash** (`DiscardUsedSupportSource` — a spent support is never parked
@@ -159,10 +169,12 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   targeting the queued activation, i.e. a card in the *opponent's* support row → K.O. never happens) and pins
   the support-row geometry across the highlight (see `02-board-ui-hud.md`).
 - Not yet covered by e2e although the cards are seeded: quick support cut-in
-  (N-002/N-008/N-010/N-021), the N-016 negate (its chain still asks for two target
-  selections, which the server rejects), When-Attacking reveal-summon (N-013/N-019/N-022),
+  (N-002/N-008/N-010/N-021), When-Attacking reveal-summon (N-013/N-019/N-022),
   conditional Rush (N-007/N-011), leader Recovery (N-001/N-012), on-summon chains
-  (N-003/N-005/N-013/N-014/N-022).
+  (N-003/N-005/N-013/N-014/N-022). N-016's negate works again (its chakra lock is its own runtime effect,
+  see `05-server-models-serialization.md`) and is covered by
+  `SupportActivationResolutionTests.ActivateSupport_WithChakraLock_…` plus
+  `LockChakraRecoveryEffectTests`; an e2e for it is still open.
 
 ## Card-property predicate values (`Type` normalization)
 

@@ -140,7 +140,7 @@ function ContextRulePlayerPanel({
             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{title} In Zone</label>
             <CardAdminSelect
               value={audienceValue.inZone ?? ''}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   contextRules: current.contextRules.map((row, index) => {
@@ -155,7 +155,7 @@ function ContextRulePlayerPanel({
 
                     return {
                       ...row,
-                      [audience]: { ...nextAudienceValue, inZone: event.target.value || null },
+                      [audience]: { ...nextAudienceValue, inZone: value || null },
                     }
                   }),
                 }))}
@@ -204,7 +204,7 @@ function ContextRulePlayerPanel({
                   <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Requirement Operator</label>
                   <CardAdminSelect
                     value={audienceValue.inZoneRequirements.operator}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       updateEffectAt(effectIndex, (current) => ({
                         ...current,
                         contextRules: current.contextRules.map((row, index) => {
@@ -223,7 +223,7 @@ function ContextRulePlayerPanel({
                               ...nextAudienceValue,
                               inZoneRequirements: {
                                 ...nextAudienceValue.inZoneRequirements,
-                                operator: event.target.value,
+                                operator: value,
                               },
                             },
                           }
@@ -375,7 +375,7 @@ function ContextRulePlayerPanel({
 
                       <CardAdminSelect
                         value={requirement.restriction.matchMode}
-                        onChange={(event) =>
+                        onValueChange={(value) =>
                           updateEffectAt(effectIndex, (current) => ({
                             ...current,
                             contextRules: current.contextRules.map((row, index) => {
@@ -400,7 +400,7 @@ function ContextRulePlayerPanel({
                                             ...entry,
                                             restriction: {
                                               ...entry.restriction,
-                                              matchMode: event.target.value,
+                                              matchMode: value,
                                             },
                                           }
                                         : entry),
