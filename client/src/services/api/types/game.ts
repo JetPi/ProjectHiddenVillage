@@ -98,6 +98,26 @@ export type IPendingAttackVisualStateResponse = {
   defenderZone: string
 }
 
+export type ISupportChainTargetResponse = {
+  cardInstanceId: string
+  displayName: string
+  ownerPlayerId: string
+  // True when the target is another queued activation: the card this one answers with a negate.
+  isChainEntry: boolean
+  chainEntryId: string | null
+}
+
+export type ISupportChainEntryResponse = {
+  entryId: string
+  // Activation order inside the chain, oldest first.
+  sequence: number
+  playerId: string
+  sourceCardInstanceId: string
+  sourceCardDisplayName: string
+  isNegated: boolean
+  targets: ISupportChainTargetResponse[]
+}
+
 export type IGameStateResponse = {
   gameId: string
   turnNumber: number
@@ -108,6 +128,8 @@ export type IGameStateResponse = {
   isAttackSequencePending: boolean
   // True while an activated support waits for responses in the MainPhase ([Support Activated] window).
   isSupportResponseWindowOpen?: boolean
+  // Support activations still waiting on the resolution stack, oldest first.
+  supportChain?: ISupportChainEntryResponse[] | null
   pendingAttackVisualState: IPendingAttackVisualStateResponse | null
   pendingPrompt: IPendingPromptResponse | null
   availableActions: IGameActionOptionResponse[]

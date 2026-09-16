@@ -13,7 +13,7 @@ import {
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IAttackTargetingState, IEffectTargetingState, IGameLoaderData, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
-import { BottomHandReorderRow, GameHandRow, GamePromptOverlay, GameZones } from '@/views/game/components'
+import { BottomHandReorderRow, GameHandRow, GamePromptOverlay, GameZones, SupportChainBubble } from '@/views/game/components'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
@@ -309,6 +309,8 @@ export function GameView() {
             void handlePromptResolve(selectedOption)
           }}
         />
+
+        <SupportChainBubble gameInstance={gameState} authUserId={authUserId} />
 
         {actionError ? (
           <div

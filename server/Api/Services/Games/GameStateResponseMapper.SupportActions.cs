@@ -8,6 +8,13 @@ public static partial class GameStateResponseMapper
 {
     private static IReadOnlyList<GameActionOptionResponse> BuildSupportAvailableActions(CardInstance card, GameState state)
     {
+        // A support cannot be activated twice inside the same chain, so a card whose own activation is
+        // still queued offers no support action at all: the button must be gone, not merely disabled.
+        if (SupportTimingRules.IsCardPendingOnResolutionStack(state, card.InstanceId))
+        {
+            return [];
+        }
+
         if (!state.CardDefinitions.TryGetValue(card.CardDefinitionId, out var cardDefinition))
         {
             return [];

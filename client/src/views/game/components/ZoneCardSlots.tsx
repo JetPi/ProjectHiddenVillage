@@ -133,7 +133,11 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               data-card-instance-id={card.instanceId}
               data-slot-card="true"
               className={twMerge(
-                'group relative h-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
+                // `min-w-0 min-h-0` keep the slot's size out of reach of the targeting highlight: the
+                // `.battle-target-*` rules force `overflow: visible` on the card, which would otherwise
+                // restore this grid item's automatic minimum size (the art's min-content box) and blow the
+                // row's `1fr` tracks out - cards grew, got clipped and left their slots.
+                'group relative h-full min-h-0 w-auto min-w-0 max-w-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
                 zone === 'support' ? 'border-transparent' : 'border border-[var(--border-subtle)]',
                 visibilityFlags.shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
                 targetFlags.isBattleTarget ? getBattleTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
@@ -154,12 +158,12 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               )}
 
               {cardStateFlags.isConcealedSupportCard ? (
-                <div className="pointer-events-none absolute inset-0 z-10 rounded-lg bg-black/18" />
+                <div className="card-overlay-layer pointer-events-none absolute inset-0 z-10 rounded-lg bg-black/18" />
               ) : null}
 
               {visibilityFlags.isOwnConcealedSupport ? (
                 <div
-                  className="pointer-events-none absolute inset-0 z-10 rounded-lg"
+                  className="card-overlay-layer pointer-events-none absolute inset-0 z-10 rounded-lg"
                   style={{
                     backgroundImage: 'repeating-linear-gradient(135deg, rgba(203, 213, 225, 0.46) 0px, rgba(203, 213, 225, 0.46) 7px, rgba(15, 23, 42, 0.06) 7px, rgba(15, 23, 42, 0.06) 15px)',
                     backgroundColor: 'rgba(51, 65, 85, 0.12)',

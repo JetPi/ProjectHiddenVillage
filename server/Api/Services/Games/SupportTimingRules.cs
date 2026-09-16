@@ -47,6 +47,26 @@ public static class SupportTimingRules
     }
 
     /// <summary>
+    /// True while this card's own support activation is still waiting on the resolution stack. A support
+    /// cannot be activated twice inside the same chain: the mapper stops publishing its support action (so
+    /// the button is gone, not merely disabled) and the engine refuses the submit. The card leaves the stack
+    /// as soon as the window closes - once spent, a support is gone from the support area too.
+    /// </summary>
+    public static bool IsCardPendingOnResolutionStack(GameState state, string? cardInstanceId)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        if (string.IsNullOrWhiteSpace(cardInstanceId))
+        {
+            return false;
+        }
+
+        return state.EffectResolutionStack.Any(entry =>
+            !string.IsNullOrWhiteSpace(entry.ActivatedEffectId)
+            && string.Equals(entry.SourceCardInstanceId, cardInstanceId, StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// On the active player's turn a support may originate from hand or the support area; on the
     /// opponent's turn only from the support area.
     /// </summary>

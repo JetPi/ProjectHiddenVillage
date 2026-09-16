@@ -109,6 +109,17 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   `Support Activated · Opponent Response` from it (see `getSupportResponseWindowPhaseValue` in
   `views/game/utils/functions/helpers/index.ts`). While the window is open only support responses + `pass`
   are offered, so the phase row is what tells the player why everything else is waiting.
+- **One activation per card and chain**: while a card's own activation is still queued it cannot be activated
+  again. The rule lives in `SupportTimingRules.IsCardPendingOnResolutionStack`, and both sides use it — the
+  mapper publishes **no** `activate-support:` action for that card (the client's Support button is removed,
+  not disabled) and the engine refuses a direct submit with
+  `EffectRestrictionMessages.AlreadyActivatedInChain`. The card drops off the stack as soon as the window
+  closes (resolved or negated, a spent support leaves the support area anyway).
+- The chain itself is published for the UI: `GameStateResponse.SupportChain` lists the queued activations
+  oldest-first (`SupportChainEntryResponse`: `EntryId`, `Sequence`, `PlayerId`, `SourceCardInstanceId`,
+  `SourceCardDisplayName`, `IsNegated`, `Targets`), where a target with `IsChainEntry` + `ChainEntryId` is the
+  queued activation that this one answers (a `[Support Activated]` negate). The board renders it as the
+  support-chain bubble (see `02-board-ui-hud.md`).
 - A hand activation sends the card to the trash as it is queued (the trash fills *before* the effect
   resolves); **a support-area activation stays revealed in its slot until it resolves, then the used card
   leaves the support area for the trash** (`DiscardUsedSupportSource` — a spent support is never parked
@@ -143,10 +154,15 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   support area → `[During Your Opponent's Attack]` activation in the cut-in window → multi-pick “Select” +
   **Confirm** → K.O. of the rested attacker, then the used support leaving for the trash), and the N-020
   bounce (single-pick “Choose” → the character flies back into its owner's hand).
+- `e2e/gameview.multiplayer.support-target-visuals.spec.ts` covers the N-009 `[Support Activated]` negate
+  (set face down → the opponent's `During Your Main` K.O. support activated from the support area → the negate
+  targeting the queued activation, i.e. a card in the *opponent's* support row → K.O. never happens) and pins
+  the support-row geometry across the highlight (see `02-board-ui-hud.md`).
 - Not yet covered by e2e although the cards are seeded: quick support cut-in
-  (N-002/N-008/N-010/N-021), Support-Activated negate (N-009/N-016), When-Attacking
-  reveal-summon (N-013/N-019/N-022), conditional Rush (N-007/N-011), leader Recovery (N-001/N-012),
-  on-summon chains (N-003/N-005/N-013/N-014/N-022).
+  (N-002/N-008/N-010/N-021), the N-016 negate (its chain still asks for two target
+  selections, which the server rejects), When-Attacking reveal-summon (N-013/N-019/N-022),
+  conditional Rush (N-007/N-011), leader Recovery (N-001/N-012), on-summon chains
+  (N-003/N-005/N-013/N-014/N-022).
 
 ## Card-property predicate values (`Type` normalization)
 

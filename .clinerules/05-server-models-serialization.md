@@ -37,6 +37,11 @@ paths:
 - `LeaderCardInstanceResponse : CardInstanceResponse` adds `Damage, Power,
   TotalLife, CurrentLife, RecoveryEffect` — resolved via
   `CardRuntimeEffectStateService.ResolveEffectiveLeaderPower/Damage`.
+- `GameStateResponse.SupportChain` is a trailing **optional** param (default `null`) so existing constructor
+  call sites keep compiling; the client reads `supportChain ?? []`. It is rebuilt from
+  `EffectResolutionStack` (activations only, oldest first) on every push, and the source/target display names
+  are resolved from `CardDefinitions` by locating the instance across the player's zones — a hand activation's
+  card already sits in the trash, and a chain-entry target *is* the source card of the entry it negates.
 - Engine stats live on `CardInstance` (`PowerOverride/DamageOverride/
   HealthOverride/CurrentHealth`) and `LeaderCardInstanceState`
   (`Power/Damage/TotalLife/CurrentLife`). `LeaderCardInstanceState` now **derives from

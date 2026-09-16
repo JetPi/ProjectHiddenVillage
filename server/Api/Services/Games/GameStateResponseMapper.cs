@@ -55,7 +55,8 @@ public static partial class GameStateResponseMapper
             Players: state.Players
                 .ConvertAll(player => ToPlayerZonesResponse(player, requestingPlayerId, state, pendingPrompt)),
             IsSupportResponseWindowOpen: state.Phase == GamePhase.MainPhase
-                && SupportTimingRules.HasPendingSupportActivation(state));
+                && SupportTimingRules.HasPendingSupportActivation(state),
+            SupportChain: BuildSupportChain(state));
     }
 
     private static string? ResolveAttackSequenceStage(GameState state)

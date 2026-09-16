@@ -1379,6 +1379,13 @@ public sealed class InMemoryGameInstanceRegistry
                 $"Support card instance '{request.SourceCardInstanceId}' was not found for player '{playerId}'.");
         }
 
+        // One activation per card and chain: while this card's activation is still queued it cannot be
+        // activated again (the mapper stops publishing the action too - see SupportTimingRules).
+        if (SupportTimingRules.IsCardPendingOnResolutionStack(instance.State, sourceCardInstance.InstanceId))
+        {
+            throw new InvalidOperationException(EffectRestrictionMessages.AlreadyActivatedInChain);
+        }
+
         if (!SupportTimingRules.IsZoneAllowed(instance.State, playerId, isFromSupportZone))
         {
             throw new InvalidOperationException("Opponent-turn supports, including Quick, must be played from support area.");

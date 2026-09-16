@@ -15,7 +15,31 @@ public sealed record GameStateResponse(
     IReadOnlyList<PlayerZonesResponse> Players,
     // True while an activated support waits for responses in the MainPhase ([Support Activated] window).
     // The client names that window in the phase row, so it must not have to infer it from action lists.
-    bool IsSupportResponseWindowOpen = false);
+    bool IsSupportResponseWindowOpen = false,
+    // Support activations still waiting on the resolution stack, oldest first. The client renders the
+    // support-chain bubble from this list (see SupportChainEntryResponse).
+    IReadOnlyList<SupportChainEntryResponse>? SupportChain = null);
+
+/// <summary>
+/// One queued support activation of the current reaction chain. <see cref="Sequence"/> is the activation
+/// order inside the chain, and a target with <see cref="SupportChainTargetResponse.IsChainEntry"/> set is
+/// another queued activation this one answers (a [Support Activated] negate).
+/// </summary>
+public sealed record SupportChainEntryResponse(
+    string EntryId,
+    int Sequence,
+    string PlayerId,
+    string SourceCardInstanceId,
+    string SourceCardDisplayName,
+    bool IsNegated,
+    IReadOnlyList<SupportChainTargetResponse> Targets);
+
+public sealed record SupportChainTargetResponse(
+    string CardInstanceId,
+    string DisplayName,
+    string OwnerPlayerId,
+    bool IsChainEntry,
+    string? ChainEntryId);
 
 public sealed record PendingAttackVisualStateResponse(
     string AttackerCardInstanceId,

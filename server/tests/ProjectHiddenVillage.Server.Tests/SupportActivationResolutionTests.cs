@@ -198,6 +198,49 @@ public sealed class SupportActivationResolutionTests
         Assert.AreEqual(4, game.State.Players[1].ResourcePool);
     }
 
+    [TestMethod]
+    public void ActivateSupport_InsideTheSameChain_RejectsASecondActivationOfTheSameCard()
+    {
+        var game = CreateGame();
+        EnterCutInWindow(game, priorityPlayerId: "p2");
+        AddSupportZoneCard(game, playerIndex: 1, instanceId: "support-1", definitionId: "destroy-support-attack");
+        AddBattlefieldCard(game, playerIndex: 0, instanceId: "enemy-1", definitionId: "filler");
+        AddBattlefieldCard(game, playerIndex: 0, instanceId: "enemy-2", definitionId: "filler");
+        game.State.Players[1].ResourcePool = 5;
+
+        var executor = CreateSequentialExecutor();
+
+        ExecuteSupport(
+            game,
+            playerId: "p2",
+            instanceId: "support-1",
+            executor,
+            selectedTargets: [CharacterTarget("p1", "enemy-1")]);
+
+        // The card is part of the chain now, so it cannot be activated again before the window closes -
+        // even though the activator normally holds priority to keep playing supports.
+        game.State.PriorityPlayerId = "p2";
+
+        var exception = Assert.ThrowsException<InvalidOperationException>(() =>
+            ExecuteSupport(
+                game,
+                playerId: "p2",
+                instanceId: "support-1",
+                executor,
+                selectedTargets: [CharacterTarget("p1", "enemy-2")]));
+
+        Assert.AreEqual(EffectRestrictionMessages.AlreadyActivatedInChain, exception.Message);
+        // The refused activation changed nothing: one queue entry, one cost, both characters alive.
+        Assert.AreEqual(1, game.State.EffectResolutionStack.Count);
+        Assert.AreEqual(4, game.State.Players[1].ResourcePool);
+        Assert.AreEqual(2, game.State.Players[0].Battlefield.Count);
+
+        // Once the window closes the card is gone from the stack, so nothing lingers.
+        PassInActionStep(game, "p2", executor);
+        Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
+        Assert.IsFalse(SupportTimingRules.IsCardPendingOnResolutionStack(game.State, "support-1"));
+    }
+
     private InMemoryGameInstanceRegistry registry = null!;
 
     [TestInitialize]

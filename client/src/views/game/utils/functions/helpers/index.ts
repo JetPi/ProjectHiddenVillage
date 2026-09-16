@@ -1,6 +1,12 @@
 import { PhaseValues } from "@/views/game/components/constants/gamePhaseActionRow"
-import type { IGameStateResponse } from "@/services/api/gameApi"
-import type { IEffectTargetingState, ISummonTargetingState } from '@/views/game/types'
+import type { IGameStateResponse, ISupportChainEntryResponse } from "@/services/api/gameApi"
+import type {
+  IEffectTargetingState,
+  ISummonTargetingState,
+  ISupportChainViewActor,
+  ISupportChainViewEntry,
+  ISupportChainViewNegatedTarget,
+} from '@/views/game/types'
 import { canConfirmEffectTargetSelection, resolveEffectTargetRequiredCount } from '@/views/game/utils/functions/gameState/canConfirmEffectTargetSelection'
 import { canConfirmSummonTargetSelection } from '@/views/game/utils/functions/gameState/canConfirmSummonTargetSelection'
 
@@ -329,5 +335,111 @@ function getPhaseThemeClasses(gameInstance: IGameStateResponse, phaseValue: stri
     : 'turn-indicator-blue turn-indicator-text-dark-theme'
 }
 
-export { normalizeId, getPhaseValue, getPhaseThemeClasses, getTributeRequirementSummary, getTributeSelectionPhaseValue }
+/**
+ * The support reaction chain as the board bubble shows it: every queued activation with its order, who
+ * activated it, the card it targets (a board card, or another queued activation when it negates it) and
+ * which activations a later negate claims. The engine publishes the raw chain on the state
+ * (`supportChain`), so the labels here are pure presentation - no client-side chain bookkeeping.
+ */
+function buildSupportChainView(
+  gameInstance: IGameStateResponse,
+  authUserId?: string,
+): ISupportChainViewEntry[] {
+  const chain = gameInstance.supportChain ?? []
+  if (chain.length === 0) {
+    return []
+  }
+
+  const normalizedAuthUserId = normalizeId(authUserId)
+  const entriesBySequence = new Map<number, ISupportChainEntryResponse>()
+  const sequenceByEntryId = new Map<string, number>()
+
+  for (const entry of chain) {
+    entriesBySequence.set(entry.sequence, entry)
+    sequenceByEntryId.set(entry.entryId, entry.sequence)
+  }
+
+  const resolveActor = (playerId: string): ISupportChainViewActor => {
+    const normalizedPlayerId = normalizeId(playerId)
+    if (normalizedPlayerId.length === 0 || normalizedAuthUserId.length === 0) {
+      return 'unknown'
+    }
+
+    return normalizedPlayerId === normalizedAuthUserId ? 'you' : 'opponent'
+  }
+
+  const resolvedEntries = [...chain]
+    .sort((left, right) => left.sequence - right.sequence)
+    .map((entry) => {
+      const negatedTargets = entry.targets
+        .filter((target) => target.isChainEntry)
+        .map((target) => {
+          const sequence = target.chainEntryId ? sequenceByEntryId.get(target.chainEntryId) ?? null : null
+          const answeredEntry = sequence === null ? null : entriesBySequence.get(sequence) ?? null
+
+          return sequence === null
+            ? null
+            : {
+              sequence,
+              displayName: answeredEntry?.sourceCardDisplayName ?? target.displayName,
+            }
+        })
+        .filter((target): target is ISupportChainViewNegatedTarget => target !== null)
+
+      return {
+        entryId: entry.entryId,
+        sequence: entry.sequence,
+        actor: resolveActor(entry.playerId),
+        sourceCardInstanceId: entry.sourceCardInstanceId,
+        sourceCardDisplayName: entry.sourceCardDisplayName,
+        isNegated: entry.isNegated,
+        negatedTargets,
+        cardTargets: entry.targets
+          .filter((target) => !target.isChainEntry)
+          .map((target) => ({
+            cardInstanceId: target.cardInstanceId,
+            displayName: target.displayName,
+            ownerPlayerId: target.ownerPlayerId,
+            isOwnCard: normalizeId(target.ownerPlayerId) === normalizedAuthUserId,
+          })),
+        negatedBySequence: null,
+        resolvesNext: false,
+      } satisfies ISupportChainViewEntry
+    })
+
+  const negatedBySequenceByEntrySequence = new Map<number, number>()
+  for (const entry of resolvedEntries) {
+    for (const target of entry.negatedTargets) {
+      negatedBySequenceByEntrySequence.set(target.sequence, entry.sequence)
+    }
+  }
+
+  // The chain resolves last in, first out: the most recent activation is the one that happens next, unless
+  // a later entry has already claimed it with a negate.
+  const newestEntry = resolvedEntries[resolvedEntries.length - 1]
+
+  return resolvedEntries.map((entry) => ({
+    ...entry,
+    negatedBySequence: negatedBySequenceByEntrySequence.get(entry.sequence) ?? null,
+    resolvesNext: entry.entryId === newestEntry.entryId,
+  }))
+}
+
+/**
+ * A single support activation opens a reaction window; the bubble is for what follows - a chain where
+ * someone actually answered (a support activated inside that window), so a lone activation never pops it.
+ */
+function shouldShowSupportChainBubble(entries: ISupportChainViewEntry[]): boolean {
+  return entries.length >= 2
+}
+
+export {
+  normalizeId,
+  getPhaseValue,
+  getPhaseThemeClasses,
+  getTributeRequirementSummary,
+  getTributeSelectionPhaseValue,
+  buildSupportChainView,
+  shouldShowSupportChainBubble,
+}
 export type { ITributeMaterialRequirementGroup, ITributeRequirementSummary }
