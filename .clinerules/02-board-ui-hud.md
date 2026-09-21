@@ -43,6 +43,12 @@ paths:
 - `disableInteractions=true` hides the whole overlay (`pointer-events-none
   opacity-0`) — used for hand reorder dragging.
 - `hidePreviewButton=true` suppresses only the eye.
+- The card-details side panel (`CardPreviewCard`, used by `NonLeaderCardOverlay` and
+  `LeaderCard`) is the game view's only scroll container: the panel that scrolls the
+  header/art/stats/description carries the shared **`themed-scrollbar`** class
+  (`index.css`) — the same idiom as the admin panes — so the game view never falls
+  back to the chunky OS scrollbar. `e2e/gameview.spec.ts` pins `scrollbar-width:
+  thin` on it.
 - **Targeting mode**: when a card is a valid target during battle/effect targeting,
   rows pass `isTargetCandidate` + `onChooseTarget`. Then hover reveals the eye AND
   a single **“Choose”** button (instead of the action list); clicking Choose calls
