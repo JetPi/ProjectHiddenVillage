@@ -19,7 +19,7 @@ import {
   GAMEBOARD_COLUMNS_CLASS,
   LEADER_CARD_FRAME_CLASS,
 } from '@/views/game/utils/contants'
-import { handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitEffectTargetSelection as submitEffectTargetAction, submitMappedAction as submitMappedGameAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
+import { buildPromptCandidateCards, handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitEffectTargetSelection as submitEffectTargetAction, submitMappedAction as submitMappedGameAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
 import { CardBack } from '@/components/ui/cards'
 import { useGameUIStore } from '@/state/gameUIStore'
 import { useGameHubStore } from '@/state/gameHubStore'
@@ -88,6 +88,9 @@ export function GameView() {
   usePersistedBattlefieldDisplayOrderEffect(battlefieldDisplayOrderStorageKey, topBattlefieldDisplayOrder, bottomBattlefieldDisplayOrder)
 
   const players = gameState.players
+  // A prompt's candidates are resolved against the requesting player's own zones - the deck matters for
+  // search prompts, where the player picks a card out of their deck.
+  const requestingPlayerDeckCards = players.find((player) => player.playerId === authUserId)?.deck ?? []
   useGameCardsBackfill({ players, liveGameCards, gameCardsQuery })
 
   const derivedGameState = useDerivedGameViewState(liveGameCards, players, authUserId)
@@ -303,6 +306,12 @@ export function GameView() {
         <GamePromptOverlay
           isOpen={shouldShowPromptOverlay}
           prompt={promptPresentation}
+          candidateCards={buildPromptCandidateCards({
+            prompt: promptPresentation,
+            handCards: bottomHandCards,
+            deckCards: requestingPlayerDeckCards,
+            catalogCards: liveGameCards,
+          })}
           isConnected={isConnected}
           isActionPending={isActionPending || isMulliganAnimationPending}
           onResolve={(selectedOption) => {

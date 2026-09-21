@@ -35,6 +35,7 @@ import {
   CardAdminMoveCardActionsPanel,
   CardAdminPassiveSettingsPanel,
   CardAdminRevealCardPanel,
+  CardAdminSearchCardPanel,
   CardAdminSummonSettingsPanel,
   CardAdminTargetRulesPanel,
 } from '@/views/admin/components/detailPanels'
@@ -404,7 +405,7 @@ export function CardAdminEffectsSection({
                                 ? current.faceStateLocks
                                 : [],
                             moveCardActions:
-                              nextRuntimeEffectType === 'Move Card'
+                              nextRuntimeEffectType === 'Move Card' || nextRuntimeEffectType === 'Search Card'
                                 ? current.moveCardActions
                                 : [],
                             targetRules: {
@@ -595,7 +596,15 @@ export function CardAdminEffectsSection({
                   />
                 ) : null}
 
-                {effect.runtimeEffectType === 'Move Card' ? (
+                {effect.runtimeEffectType === 'Search Card' ? (
+                  <CardAdminSearchCardPanel
+                    effect={effect}
+                    effectIndex={effectIndex}
+                    updateEffectAt={updateEffectAt}
+                  />
+                ) : null}
+
+                {effect.runtimeEffectType === 'Move Card' || effect.runtimeEffectType === 'Search Card' ? (
                   <CardAdminMoveCardActionsPanel
                     effect={effect}
                     effectIndex={effectIndex}

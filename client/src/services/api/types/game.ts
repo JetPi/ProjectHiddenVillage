@@ -89,6 +89,11 @@ export type IPendingPromptResponse = {
   type: string
   isAwaitingRequestingPlayer: boolean
   options: string[]
+  // Effect selection prompts (type 'Effect'): copy bucket + where the candidate cards live.
+  selectionPromptKind?: string | null
+  candidateZone?: string | null
+  minimumSelection?: number | null
+  maximumSelection?: number | null
 }
 
 export type IPendingAttackVisualStateResponse = {

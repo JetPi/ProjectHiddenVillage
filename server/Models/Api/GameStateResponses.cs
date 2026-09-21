@@ -65,7 +65,13 @@ public sealed record PendingPromptResponse(
     string PromptId,
     string Type,
     bool IsAwaitingRequestingPlayer,
-    IReadOnlyList<string> Options);
+    IReadOnlyList<string> Options,
+    // Effect selection prompts (GamePromptType.Effect): the copy bucket and where the candidates live, so the
+    // client can render the right wording and the right card collection. Null for phase prompts.
+    string? SelectionPromptKind = null,
+    string? CandidateZone = null,
+    int? MinimumSelection = null,
+    int? MaximumSelection = null);
 
 public sealed record GameActionOptionResponse(
     string ActionId,

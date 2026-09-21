@@ -1519,6 +1519,155 @@ public sealed class GameSequentialEffectExecutorTests
         };
     }
 
+    [TestMethod]
+    public void Execute_PromptedSelection_SuspendsTheChainAndAsksWithTheCurrentCandidates()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        // "draw 1 card, then place 1 card from your hand on top of your deck": the second node defers its
+        // target choice, so the chain must stop and ask - not resolve (or fail) before the player answers.
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "draw-step",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                OnSuccessEffectId = "choose-step",
+                ContextRules = [],
+            },
+            new EffectSpec
+            {
+                Id = "choose-step",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                SelectionTiming = EffectSelectionTiming.Prompted,
+                SelectionPromptKind = EffectSelectionPromptKind.PlaceOnDeckTop,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet
+                {
+                    ExactTargetCount = 1,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Self,
+                            InZone = PlayerZone.Hand,
+                            LocationSelector = new EffectTargetLocationSelector
+                            {
+                                Kind = EffectTargetLocationSelectorKind.Any,
+                            },
+                        },
+                    ],
+                },
+            });
+
+        var context = CreateContext(sourceDefinition);
+        AddHandCard(context, "hand-1", "hand-def");
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        // Only the draw step ran: the chain suspended instead of executing the prompted node.
+        CollectionAssert.AreEqual(new[] { "draw-step" }, observedSpecIds.ToArray());
+
+        var prompt = context.Game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual(GamePromptType.Effect, prompt.Type);
+        Assert.AreEqual("p1", prompt.RequestedPlayerId);
+        Assert.AreEqual(PlayerZone.Hand, prompt.CandidateZone);
+        Assert.AreEqual("p1", prompt.CandidatePlayerId);
+        Assert.AreEqual(EffectSelectionPromptKind.PlaceOnDeckTop, prompt.SelectionPromptKind);
+        CollectionAssert.AreEqual(new[] { "hand-1" }, prompt.Options.ToArray());
+        Assert.IsNotNull(prompt.EffectContinuation);
+        Assert.AreEqual("choose-step", prompt.EffectContinuation.ResumeNodeId);
+
+        var resumeResult = executor.Resume(
+            context.Game,
+            prompt.EffectContinuation,
+            [new GameEffectTargetReference("p1", PlayerZone.Hand, "hand-1")]);
+
+        Assert.IsFalse(resumeResult.IsError);
+        CollectionAssert.AreEqual(new[] { "draw-step", "choose-step" }, observedSpecIds.ToArray());
+    }
+
+
+    [TestMethod]
+    public void Execute_LeaderEffectKey_StartsAtTheRequestedAbility_NotTheFirstOne()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        // A leader can hold several abilities; the submitted action names the one it belongs to, so the
+        // chain must start at that ability's node instead of the card's first non-subordinate effect.
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "recovery",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Recovery,
+                Timing = EffectTiming.ActivateMain,
+                TargetRange = EffectTargetRange.Self,
+                ContextRules = [],
+            },
+            new EffectSpec
+            {
+                Id = "draw-n-place-card",
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                TargetRange = EffectTargetRange.Self,
+                ContextRules = [],
+            });
+
+        var context = CreateContext(
+            sourceDefinition,
+            arguments: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [ReactiveEffectExecutionConstants.LeaderEffectKeyArgument] = "draw-n-place-card",
+            });
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "draw-n-place-card" }, observedSpecIds.ToArray());
+    }
+
+    private static void AddHandCard(GameCardEffectContext context, string instanceId, string definitionId)
+    {
+        var player = context.Game.State.Players.First(entry => entry.PlayerId == "p1");
+        player.Hand.Add(new CardInstance
+        {
+            InstanceId = instanceId,
+            CardDefinitionId = definitionId,
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        });
+
+        context.Game.State.CardDefinitions[definitionId] = new Card
+        {
+            Id = definitionId,
+            DisplayName = "Hand Card",
+            Name = ["Hand Card"],
+            Type = CardType.Character,
+            Color = CardColor.Red,
+            Traits = [],
+            Damage = 1,
+            Power = 1,
+        };
+    }
+
     private sealed class RecordingEffect : IGameCardEffect
     {
         private readonly List<string> observedSpecIds;

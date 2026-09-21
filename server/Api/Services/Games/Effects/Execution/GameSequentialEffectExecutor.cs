@@ -37,9 +37,94 @@ public sealed class GameSequentialEffectExecutor(
             return Result.Success;
         }
 
+        return RunNodes(context, nodes, ResolveEntryNodeId(nodes, context));
+    }
+
+    /// <summary>
+    /// Resumes a chain that suspended to ask the player for a selection: the node that asked re-enters with
+    /// the answer as its targets and the chain carries on from its success branch.
+    /// </summary>
+    public ErrorOr<Success> Resume(
+        GameInstance game,
+        PendingEffectContinuation continuation,
+        IReadOnlyList<GameEffectTargetReference> selection)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+        ArgumentNullException.ThrowIfNull(continuation);
+
+        if (!game.State.CardDefinitions.TryGetValue(continuation.SourceCardDefinitionId, out var sourceCardDefinition))
+        {
+            return Error.Validation(
+                code: "Game.Effect.Sequential.ResumeSourceMissing",
+                description: $"Resumed effect source card definition '{continuation.SourceCardDefinitionId}' was not found.");
+        }
+
+        var nodes = BuildExecutionNodes(sourceCardDefinition.Effects);
+        if (nodes.Count == 0)
+        {
+            return Result.Success;
+        }
+
+        // The prompt answer IS this node's selection; a node that never prompted keeps whatever it had.
+        var selectedTargets = selection.Count > 0 ? selection : continuation.SelectedTargets;
+        var context = new GameCardEffectContext(
+            game: game,
+            actingPlayer: new Player { Id = continuation.ActingPlayerId },
+            sourceCardDefinition: sourceCardDefinition,
+            sourceCardInstance: ResolveResumedSourceCardInstance(game, continuation),
+            arguments: continuation.Arguments,
+            selectedTargets: selectedTargets);
+
+        return RunNodes(context, nodes, continuation.ResumeNodeId);
+    }
+
+    private static CardInstance? ResolveResumedSourceCardInstance(GameInstance game, PendingEffectContinuation continuation)
+    {
+        if (string.IsNullOrWhiteSpace(continuation.SourceCardInstanceId))
+        {
+            return null;
+        }
+
+        var sourcePlayer = game.State.Players.FirstOrDefault(player =>
+            string.Equals(player.PlayerId, continuation.ActingPlayerId, StringComparison.Ordinal));
+        if (sourcePlayer is null)
+        {
+            return null;
+        }
+
+        PlayerZone[] zones =
+        [
+            PlayerZone.SupportZone,
+            PlayerZone.Hand,
+            PlayerZone.CharacterField,
+            PlayerZone.Deck,
+            PlayerZone.Trash,
+            PlayerZone.ExileZone,
+        ];
+
+        foreach (var zone in zones)
+        {
+            var match = PlayerZoneCardAccessor
+                .GetCards(zone, sourcePlayer)
+                .FirstOrDefault(card => string.Equals(card.InstanceId, continuation.SourceCardInstanceId, StringComparison.Ordinal));
+
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private ErrorOr<Success> RunNodes(
+        GameCardEffectContext context,
+        List<ExecutionNode> nodes,
+        string startNodeId)
+    {
         var nodeById = nodes.ToDictionary(node => node.NodeId, node => node, StringComparer.Ordinal);
         var visitCounts = new Dictionary<string, int>(StringComparer.Ordinal);
-        var currentNodeId = ResolveEntryNodeId(nodes);
+        var currentNodeId = startNodeId;
 
         // One mutable arguments dictionary is shared by every step of this execution so values an
         // earlier step produces (for example the cards revealed by a RevealCard step) are visible to
@@ -121,6 +206,19 @@ public sealed class GameSequentialEffectExecutor(
                 sourceCardInstance: context.SourceCardInstance,
                 arguments: arguments,
                 selectedTargets: context.SelectedTargets);
+
+            // A node that defers its target choice asks the player now - i.e. after the earlier steps of this
+            // chain have run, which is what lets "draw 1 card, then place 1 card from your hand on top of your
+            // deck" offer the post-draw hand. The chain suspends here and resumes from this same node once the
+            // player answers (registry.ResolvePrompt -> IGameSequentialEffectExecutor.Resume).
+            if (effectSpec.SelectionTiming == EffectSelectionTiming.Prompted
+                && !HasSelectionForPromptedStep(context, effectSpec)
+                && TryCreateSelectionPrompt(stepContext, effectSpec, node.NodeId, sharedArguments, out var selectionPrompt))
+            {
+                context.Game.EnqueuePrompt(selectionPrompt);
+                return Result.Success;
+            }
+
 
             var selectedTargetsResult = ResolveStepTargets(stepContext, effectSpec);
             if (selectedTargetsResult.IsError)
@@ -635,10 +733,110 @@ public sealed class GameSequentialEffectExecutor(
             : effectSpec.Id.Trim();
     }
 
-    private static string ResolveEntryNodeId(IReadOnlyList<ExecutionNode> nodes)
+    private static string ResolveEntryNodeId(IReadOnlyList<ExecutionNode> nodes, GameCardEffectContext context)
     {
+        // A card can hold several independent abilities, and the action that started this execution names the
+        // one it belongs to (`leader-effect:{instanceId}:{effectKey}`). Start at that ability's node so its own
+        // on-success chain runs: always picking the first non-subordinate node made a leader's second ability
+        // execute the first ability's chain.
+        if (context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.LeaderEffectKeyArgument, out var leaderEffectKey)
+            && !string.IsNullOrWhiteSpace(leaderEffectKey))
+        {
+            var requestedNode = nodes.FirstOrDefault(node =>
+                string.Equals(node.NodeId, leaderEffectKey.Trim(), StringComparison.Ordinal));
+
+            if (requestedNode is not null)
+            {
+                return requestedNode.NodeId;
+            }
+        }
+
         var independentRoot = nodes.FirstOrDefault(node => !node.EffectSpec.IsSubordinate);
         return independentRoot?.NodeId ?? nodes[0].NodeId;
+    }
+
+    /// <summary>
+    /// True when the incoming selection already satisfies a prompted node - which is the case on the resume
+    /// pass, where the prompt answer arrives as the context's selected targets.
+    /// </summary>
+    private static bool HasSelectionForPromptedStep(GameCardEffectContext context, EffectSpec effectSpec)
+    {
+        return effectSpec.TargetRules.AutoSelectAllValidTargets || context.SelectedTargets.Count > 0;
+    }
+
+    /// <summary>
+    /// Builds the prompt that asks the player to pick a prompted node's targets. Returns false when there is
+    /// nothing to ask about, so the node falls through to its normal (failing) execution path instead of
+    /// stranding the chain on an empty prompt.
+    /// </summary>
+    private bool TryCreateSelectionPrompt(
+        GameCardEffectContext stepContext,
+        EffectSpec effectSpec,
+        string nodeId,
+        IReadOnlyDictionary<string, string> sharedArguments,
+        out GamePrompt prompt)
+    {
+        prompt = null!;
+
+        var candidates = FilterSupportEffectImmuneTargets(
+            stepContext,
+            effectSpec,
+            targetResolver.ResolveTargets(stepContext, effectSpec));
+
+        var options = candidates
+            .Select(candidate => candidate.CardInstanceId)
+            .Where(candidateId => !string.IsNullOrWhiteSpace(candidateId))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (options.Count == 0)
+        {
+            return false;
+        }
+
+        var primaryCandidate = candidates[0];
+        var (minimumSelection, maximumSelection) = ResolvePromptSelectionBounds(effectSpec);
+
+        prompt = new GamePrompt
+        {
+            Type = GamePromptType.Effect,
+            RequestedPlayerId = stepContext.ActingPlayer.Id,
+            Options = options,
+            SelectionPromptKind = effectSpec.SelectionPromptKind,
+            CandidateZone = primaryCandidate.Zone,
+            CandidatePlayerId = primaryCandidate.PlayerId,
+            MinimumSelection = minimumSelection,
+            MaximumSelection = maximumSelection,
+            EffectContinuation = new PendingEffectContinuation
+            {
+                ResumeNodeId = nodeId,
+                ActingPlayerId = stepContext.ActingPlayer.Id,
+                SourceCardDefinitionId = stepContext.SourceCardDefinition.Id,
+                SourceCardInstanceId = stepContext.SourceCardInstance?.InstanceId,
+                Arguments = new Dictionary<string, string>(sharedArguments, StringComparer.Ordinal),
+                SelectedTargets = stepContext.SelectedTargets.ToList(),
+            },
+        };
+
+        prompt.EffectContinuation.PromptId = prompt.PromptId;
+        return true;
+    }
+
+    private static (int Minimum, int Maximum) ResolvePromptSelectionBounds(EffectSpec effectSpec)
+    {
+        var targetRules = effectSpec.TargetRules;
+
+        if (targetRules.ExactTargetCount.HasValue)
+        {
+            return (targetRules.ExactTargetCount.Value, targetRules.ExactTargetCount.Value);
+        }
+
+        if (targetRules.MinimumTargetCount.HasValue || targetRules.MaximumTargetCount.HasValue)
+        {
+            return (targetRules.MinimumTargetCount ?? 1, targetRules.MaximumTargetCount ?? int.MaxValue);
+        }
+
+        return (1, 1);
     }
 
     private static string? NormalizeEffectId(string? effectId)

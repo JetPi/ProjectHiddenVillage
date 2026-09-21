@@ -5,6 +5,8 @@ import {
 import {
   EXECUTION_FLOW_MODE_OPTIONS,
   EXECUTION_TARGET_SOURCE_OPTIONS,
+  SELECTION_PROMPT_KIND_OPTIONS,
+  SELECTION_TIMING_OPTIONS,
 } from '@/views/admin/constants'
 import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
@@ -26,6 +28,13 @@ export function CardAdminExecutionPanel({
   // The shape that made N-016 unplayable: asking for a pick while declaring nothing to pick from.
   const asksForSelectionWithoutTargetRules =
     effect.executionTargetSource === 'Selected Targets' && !declaresSelectableTargets
+  const isPromptedSelection = effect.selectionTiming === 'Prompted'
+  // A prompted node with nothing to draw candidates from never asks - the engine skips the prompt when the
+  // candidate pool is empty - so the step would silently do nothing.
+  const promptedWithoutCandidateSource =
+    isPromptedSelection
+    && !declaresSelectableTargets
+    && !effect.moveCardActions.some((action) => action.sourceZone !== null)
 
   return (
     <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-sky-500/55 pl-3 pt-3" open>
@@ -82,6 +91,58 @@ export function CardAdminExecutionPanel({
           ))}
         </CardAdminSelect>
       </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Selection Timing</label>
+        <CardAdminSelect
+          value={effect.selectionTiming ?? 'Upfront'}
+          onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, selectionTiming: value }))}
+        >
+          {SELECTION_TIMING_OPTIONS.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </CardAdminSelect>
+        <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
+          Upfront asks for the targets together with the activation. Prompted asks with a pop-up once this
+          step runs, so an earlier step can change the candidate pool first (&ldquo;draw 1 card, then place 1
+          card from your hand on top of your deck&rdquo;) - author that as two chained effects, the second one
+          Prompted.
+        </p>
+      </div>
+
+      {isPromptedSelection ? (
+        <div className="space-y-1">
+          <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Selection Prompt Kind</label>
+          <CardAdminSelect
+            value={effect.selectionPromptKind ?? 'Generic'}
+            onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, selectionPromptKind: value }))}
+          >
+            {SELECTION_PROMPT_KIND_OPTIONS.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </CardAdminSelect>
+          <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
+            Which wording the prompt uses. The copy lives in the client, so a new kind here needs a matching
+            client entry.
+          </p>
+        </div>
+      ) : null}
+
+      {promptedWithoutCandidateSource ? (
+        <div className="space-y-1 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2 sm:col-span-2">
+          <p className="text-[11px] leading-snug text-amber-700">
+            A prompted selection needs something to pick from: add target rules, a target count, or a move-card
+            action with a source zone (that zone supplies the candidates). Without one the prompt is skipped.
+          </p>
+          <AppButton
+            type="button"
+            variant="ghost"
+            onClick={() => updateEffectAt(effectIndex, (current) => ({ ...current, selectionTiming: 'Upfront' }))}
+          >
+            Set Selection Timing to Upfront
+          </AppButton>
+        </div>
+      ) : null}
 
       <label className="flex items-center gap-2 text-sm text-[var(--text-primary)] sm:col-span-2">
         <CardAdminToggleSwitch

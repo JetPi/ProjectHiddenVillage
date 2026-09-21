@@ -18,7 +18,6 @@ public sealed class InMemoryGameInstanceRegistry
     private const string LeaderEffectActionPrefix = "leader-effect:";
     private const string ResolveOptionalAttackEffectActionPrefix = "resolve-optional-attack-effect:";
     private const string SupportSlotIndexArgumentKey = "supportSlotIndex";
-    private const string FallbackEffectKeyArgument = "__leaderEffectKey";
     private const string SummonTargetIdArgumentKey = "summonTargetId";
     private const int MaxSupportSlots = 5;
     private static readonly Regex GameCodePattern = new("^[A-Za-z0-9]{5}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -135,14 +134,19 @@ public sealed class InMemoryGameInstanceRegistry
         string gameId,
         string requestedPlayerId,
         string selectedOption,
-        IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null)
+        IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null,
+        IGameSequentialEffectExecutor? sequentialEffectExecutor = null)
     {
         var instance = GetRequired(gameId);
 
         lock (instance)
         {
             var phaseBeforeResolve = instance.State.Phase;
+            // Captured before resolving: the continuation lives on the prompt, which the resolve dequeues.
+            var resolvedPrompt = instance.GetPendingPrompt();
             instance.ResolvePrompt(requestedPlayerId, selectedOption);
+
+            ResumeSuspendedEffectIfNeeded(instance, resolvedPrompt, selectedOption, sequentialEffectExecutor);
 
             if (ShouldAdvanceAfterPromptResolution(phaseBeforeResolve, instance.GetPendingPrompt()))
             {
@@ -154,6 +158,37 @@ public sealed class InMemoryGameInstanceRegistry
 
             instance.ValidateInvariants();
             return instance;
+        }
+    }
+
+    /// <summary>
+    /// Picks a chain back up when the resolved prompt was raised by an effect that deferred its target choice
+    /// (see <see cref="EffectSelectionTiming.Prompted"/>): the answer becomes the suspended node's targets.
+    /// </summary>
+    private static void ResumeSuspendedEffectIfNeeded(
+        GameInstance instance,
+        GamePrompt? resolvedPrompt,
+        string selectedOption,
+        IGameSequentialEffectExecutor? sequentialEffectExecutor)
+    {
+        if (resolvedPrompt?.EffectContinuation is not { } continuation || sequentialEffectExecutor is null)
+        {
+            return;
+        }
+
+        var candidateZone = resolvedPrompt.CandidateZone ?? PlayerZone.Hand;
+        var candidatePlayerId = resolvedPrompt.CandidatePlayerId ?? resolvedPrompt.RequestedPlayerId;
+
+        IReadOnlyList<GameEffectTargetReference> selection =
+        [
+            new GameEffectTargetReference(candidatePlayerId, candidateZone, selectedOption)
+        ];
+
+        var resumeResult = sequentialEffectExecutor.Resume(instance, continuation, selection);
+        if (resumeResult.IsError)
+        {
+            var error = resumeResult.Errors.First();
+            throw new InvalidOperationException($"{error.Code}: {error.Description}");
         }
     }
 
@@ -1273,6 +1308,14 @@ public sealed class InMemoryGameInstanceRegistry
             return [];
         }
 
+        // A node that defers its target choice asks the player *after* the chain's earlier steps have run, so
+        // there is nothing to publish up front: offering candidates here would make the client pick before
+        // (for example) the draw that changes the hand. The engine sends the candidates with the prompt instead.
+        if (effectSpec.SelectionTiming == EffectSelectionTiming.Prompted)
+        {
+            return [];
+        }
+
         if (effectSpec.TargetRules.Rules.Count == 0)
         {
             return [];
@@ -1332,7 +1375,7 @@ public sealed class InMemoryGameInstanceRegistry
         arguments[ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument] = string.IsNullOrWhiteSpace(effectSpec.Id)
             ? effectSpec.RuntimeEffectType.ToString()
             : effectSpec.Id;
-        arguments[FallbackEffectKeyArgument] = effectKey;
+        arguments[ReactiveEffectExecutionConstants.LeaderEffectKeyArgument] = effectKey;
 
         var selectedTargets = request.SelectedTargets ?? [];
         var context = new GameCardEffectContext(

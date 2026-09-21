@@ -12,6 +12,12 @@ export type IPromptPresentation = {
   isAwaitingRequestingPlayer: boolean
   renderAsOverlay: boolean
   options: IPromptPresentationOption[]
+  /**
+   * Set for effect selection prompts ('Effect'): the copy bucket the server published and the zone the
+   * candidate cards live in ('Hand', 'Deck', ...), which decides which collection the overlay renders.
+   */
+  selectionPromptKind?: string | null
+  candidateZone?: string | null
 }
 
 export type IPromptPresentationSource = IPendingPromptResponse | null

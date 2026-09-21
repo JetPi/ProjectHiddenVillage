@@ -20,7 +20,12 @@ public sealed class GamePhaseHandlingService(
         ArgumentNullException.ThrowIfNull(request);
         return ExecuteRegistryOperation(
             operationName: "Game.ResolvePrompt",
-            operation: () => registry.ResolvePrompt(gameId, request.RequestedPlayerId, request.SelectedOption, reactiveEffectOrchestrator));
+            operation: () => registry.ResolvePrompt(
+                gameId,
+                request.RequestedPlayerId,
+                request.SelectedOption,
+                reactiveEffectOrchestrator,
+                sequentialEffectExecutor));
     }
 
     public ErrorOr<GameInstance> AdvancePhase(string gameId)
