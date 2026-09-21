@@ -1237,7 +1237,7 @@ public sealed class InMemoryGameInstanceRegistryTests
         SetQuickSupportEffect(game.State, "card-2", "stack-alpha");
         SetQuickSupportEffect(game.State, "card-3", "stack-beta");
 
-        var enqueueExecutor = new StackEnqueueingSequentialExecutor();
+        var recordingExecutor = new RecordingSequentialExecutor();
 
         registry.ExecuteCardAction(
             game.Id,
@@ -1245,7 +1245,7 @@ public sealed class InMemoryGameInstanceRegistryTests
                 PlayerId: "p2",
                 ActionId: "activate-support:support-1",
                 SourceCardInstanceId: "support-1"),
-            enqueueExecutor);
+            recordingExecutor);
 
         game.State.PriorityPlayerId = "p2";
 
@@ -1255,23 +1255,23 @@ public sealed class InMemoryGameInstanceRegistryTests
                 PlayerId: "p2",
                 ActionId: "activate-support:support-2",
                 SourceCardInstanceId: "support-2"),
-            enqueueExecutor);
+            recordingExecutor);
 
+        // Both activations are queued in activation order and nothing has resolved yet.
         Assert.AreEqual(2, game.State.EffectResolutionStack.Count);
-        Assert.AreEqual("stack-alpha", game.State.EffectResolutionStack[0].EffectTypeKey);
-        Assert.AreEqual("stack-beta", game.State.EffectResolutionStack[1].EffectTypeKey);
+        Assert.AreEqual("support-1", game.State.EffectResolutionStack[0].SourceCardInstanceId);
+        Assert.AreEqual("support-2", game.State.EffectResolutionStack[1].SourceCardInstanceId);
+        Assert.AreEqual(0, recordingExecutor.Contexts.Count);
 
-        var resolutionOrder = new List<string>();
-        var chainResolver = new GameEffectChainResolver(new GameCardEffectRegistry(
-        [
-            new RecordingStackEffect("stack-alpha", resolutionOrder),
-            new RecordingStackEffect("stack-beta", resolutionOrder),
-        ]));
+        // Double pass closes the cut-in window: supports resolve most-recent-first.
+        registry.DeclarePassInActionStep(game.Id, "p1", reactiveEffectOrchestrator: null, sequentialEffectExecutor: recordingExecutor);
+        registry.DeclarePassInActionStep(game.Id, "p2", reactiveEffectOrchestrator: null, sequentialEffectExecutor: recordingExecutor);
 
-        var result = chainResolver.Resolve(game, actingPlayerId: "p2", new PassiveChainResolutionOptions());
-
-        Assert.IsFalse(result.IsError);
-        CollectionAssert.AreEqual(new[] { "stack-beta", "stack-alpha" }, resolutionOrder.ToArray());
+        Assert.AreEqual(2, recordingExecutor.Contexts.Count);
+        Assert.AreEqual("stack-beta", recordingExecutor.Contexts[0].SourceCardDefinition.Effects[0].Id);
+        Assert.AreEqual("support-2", recordingExecutor.Contexts[0].SourceCardInstance?.InstanceId);
+        Assert.AreEqual("stack-alpha", recordingExecutor.Contexts[1].SourceCardDefinition.Effects[0].Id);
+        Assert.AreEqual("support-1", recordingExecutor.Contexts[1].SourceCardInstance?.InstanceId);
         Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
     }
 
@@ -1310,7 +1310,7 @@ public sealed class InMemoryGameInstanceRegistryTests
         SetQuickSupportEffect(game.State, "card-2", "stack-gamma");
         SetQuickSupportEffect(game.State, "card-3", "stack-delta");
 
-        var enqueueExecutor = new StackEnqueueingSequentialExecutor();
+        var recordingExecutor = new RecordingSequentialExecutor();
 
         registry.ExecuteCardAction(
             game.Id,
@@ -1318,7 +1318,7 @@ public sealed class InMemoryGameInstanceRegistryTests
                 PlayerId: "p1",
                 ActionId: "activate-support:support-1",
                 SourceCardInstanceId: "support-1"),
-            enqueueExecutor);
+            recordingExecutor);
 
         game.State.PriorityPlayerId = "p1";
 
@@ -1328,23 +1328,21 @@ public sealed class InMemoryGameInstanceRegistryTests
                 PlayerId: "p1",
                 ActionId: "activate-support:support-2",
                 SourceCardInstanceId: "support-2"),
-            enqueueExecutor);
+            recordingExecutor);
 
         Assert.AreEqual(2, game.State.EffectResolutionStack.Count);
-        Assert.AreEqual("stack-gamma", game.State.EffectResolutionStack[0].EffectTypeKey);
-        Assert.AreEqual("stack-delta", game.State.EffectResolutionStack[1].EffectTypeKey);
+        Assert.AreEqual("support-1", game.State.EffectResolutionStack[0].SourceCardInstanceId);
+        Assert.AreEqual("support-2", game.State.EffectResolutionStack[1].SourceCardInstanceId);
+        Assert.AreEqual(0, recordingExecutor.Contexts.Count);
 
-        var resolutionOrder = new List<string>();
-        var chainResolver = new GameEffectChainResolver(new GameCardEffectRegistry(
-        [
-            new RecordingStackEffect("stack-gamma", resolutionOrder),
-            new RecordingStackEffect("stack-delta", resolutionOrder),
-        ]));
+        registry.DeclarePassInActionStep(game.Id, "p2", reactiveEffectOrchestrator: null, sequentialEffectExecutor: recordingExecutor);
+        registry.DeclarePassInActionStep(game.Id, "p1", reactiveEffectOrchestrator: null, sequentialEffectExecutor: recordingExecutor);
 
-        var result = chainResolver.Resolve(game, actingPlayerId: "p1", new PassiveChainResolutionOptions());
-
-        Assert.IsFalse(result.IsError);
-        CollectionAssert.AreEqual(new[] { "stack-delta", "stack-gamma" }, resolutionOrder.ToArray());
+        Assert.AreEqual(2, recordingExecutor.Contexts.Count);
+        Assert.AreEqual("stack-delta", recordingExecutor.Contexts[0].SourceCardDefinition.Effects[0].Id);
+        Assert.AreEqual("support-2", recordingExecutor.Contexts[0].SourceCardInstance?.InstanceId);
+        Assert.AreEqual("stack-gamma", recordingExecutor.Contexts[1].SourceCardDefinition.Effects[0].Id);
+        Assert.AreEqual("support-1", recordingExecutor.Contexts[1].SourceCardInstance?.InstanceId);
         Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
     }
 
@@ -1492,7 +1490,7 @@ public sealed class InMemoryGameInstanceRegistryTests
     }
 
     [TestMethod]
-    public void ExecuteCardAction_ActivateSupport_ExecutesSequentialEffect_AndSwapsPriority()
+    public void ExecuteCardAction_ActivateSupport_QueuesActivation_AndSwapsPriority()
     {
         var game = registry.Create(
             players:
@@ -1500,13 +1498,14 @@ public sealed class InMemoryGameInstanceRegistryTests
                 new Player { Id = "p1", Deck = ["card-1"] },
                 new Player { Id = "p2", Deck = ["card-1"] }
             ],
-            cardDefinitions: BuildDefinitions("card-1"),
+            cardDefinitions: BuildSupportCapableDefinitions("card-1"),
             random: new FixedIndexRandom(0));
 
         game.PendingPrompts.Clear();
         game.State.Phase = GamePhase.ActionStep;
         game.State.ActivePlayerId = "p2";
         game.State.PriorityPlayerId = "p2";
+        game.State.HasPendingAttack = true;
         game.State.Players[1].SupportZone.Add(new CardInstance
         {
             InstanceId = "support-1",
@@ -1514,6 +1513,8 @@ public sealed class InMemoryGameInstanceRegistryTests
             OwnerPlayerId = "p2",
             ControllerPlayerId = "p2",
         });
+
+        SetQuickSupportEffect(game.State, "card-1", "support-quick");
 
         var recordingExecutor = new RecordingSequentialExecutor();
         var request = new GameCardActionExecutionRequest(
@@ -1523,8 +1524,13 @@ public sealed class InMemoryGameInstanceRegistryTests
 
         registry.ExecuteCardAction(game.Id, request, recordingExecutor);
 
-        Assert.AreEqual(1, recordingExecutor.Contexts.Count);
-        Assert.AreEqual("support-1", recordingExecutor.Contexts[0].SourceCardInstance?.InstanceId);
+        // The activation is paid and queued, but it only resolves when the cut-in window closes (the
+        // opponent still gets a chance to respond with a Support Activated card).
+        Assert.AreEqual(0, recordingExecutor.Contexts.Count);
+        Assert.AreEqual(1, game.State.EffectResolutionStack.Count);
+        Assert.AreEqual("support-1", game.State.EffectResolutionStack[0].SourceCardInstanceId);
+        Assert.AreEqual(PlayerZone.SupportZone, game.State.EffectResolutionStack[0].SourceZone);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(game.State.EffectResolutionStack[0].ActivatedEffectId));
         Assert.AreEqual("p1", game.State.PriorityPlayerId);
         Assert.AreEqual(0, game.State.ConsecutivePasses);
         Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
@@ -1745,6 +1751,60 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.AreEqual(1, game.State.Players[1].SupportZone.Count);
         Assert.AreEqual("hand-1", game.State.Players[1].SupportZone[0].InstanceId);
         Assert.AreEqual(0, game.State.Players[1].SupportZone[0].SupportSlotIndex);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_SetSupport_WithoutSlotArgument_UsesLeftmostEmptySlot()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildSupportCapableDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
+        game.State.PriorityPlayerId = "p2";
+        // Slots 0 and 1 are taken, so the card has to land in slot 2 without the player choosing it.
+        game.State.Players[1].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-0",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+            SupportSlotIndex = 0,
+        });
+        game.State.Players[1].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+            SupportSlotIndex = 1,
+        });
+        game.State.Players[1].Hand.Add(new CardInstance
+        {
+            InstanceId = "hand-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p2",
+            ActionId: "set-support:hand-1",
+            SourceCardInstanceId: "hand-1");
+
+        registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor());
+
+        Assert.AreEqual(0, game.State.Players[1].Hand.Count);
+        Assert.AreEqual(3, game.State.Players[1].SupportZone.Count);
+        Assert.IsTrue(game.State.Players[1].SupportZone
+            .Any(card => card.InstanceId == "hand-1" && card.SupportSlotIndex == 2));
     }
 
     [TestMethod]
@@ -2306,32 +2366,9 @@ public sealed class InMemoryGameInstanceRegistryTests
         }
     }
 
-    private sealed class StackEnqueueingSequentialExecutor : IGameSequentialEffectExecutor
-    {
-        public ErrorOr<Success> Execute(GameCardEffectContext context)
-        {
-            var effectTypeKey = context.SourceCardDefinition.Effects.FirstOrDefault()?.Id;
-            if (string.IsNullOrWhiteSpace(effectTypeKey))
-            {
-                return Result.Success;
-            }
-
-            context.Game.State.EffectResolutionStack.Add(new EffectResolutionStackEntry
-            {
-                SourcePlayerId = context.ActingPlayer.Id,
-                SourceZone = PlayerZone.SupportZone,
-                SourceCardInstanceId = context.SourceCardInstance?.InstanceId ?? string.Empty,
-                EffectTypeKey = effectTypeKey,
-            });
-
-            return Result.Success;
-        }
-    }
-
     private sealed class RecordingStackEffect(string effectTypeKey, List<string> order) : IGameCardEffect
     {
         public string EffectTypeKey => effectTypeKey;
-
         public CanExecuteResult CanExecute(GameCardEffectContext context)
         {
             return new CanExecuteResult { CanExecute = true };

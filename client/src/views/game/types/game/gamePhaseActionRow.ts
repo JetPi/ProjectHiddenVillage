@@ -9,4 +9,6 @@ export type IGamePhaseActionRowProps = {
   onSelectAction: (action: IGameActionOptionResponse) => void
   phaseTestId?: string
   onConfirmSummonTargetSelection: () => void
+  onConfirmEffectTargetSelection: () => void
+
 }

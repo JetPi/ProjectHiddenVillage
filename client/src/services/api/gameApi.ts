@@ -17,6 +17,8 @@ export type {
   IGamePlayerStateResponse,
   IGameStateResponse,
   IJoinGameAsPlayerRequest,
+  ISupportChainEntryResponse,
+  ISupportChainTargetResponse,
 } from '@/services/api/types/game'
 
 function toGameInstanceResponse(payload: unknown): IGameInstanceResponse {

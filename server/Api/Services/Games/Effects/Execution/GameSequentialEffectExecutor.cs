@@ -104,7 +104,8 @@ public sealed class GameSequentialEffectExecutor(
             }
 
             var activationCost = ResolveActivationCost(
-                effectSpec: effectSpec);
+                effectSpec: effectSpec,
+                arguments: sharedArguments);
 
             var arguments = new Dictionary<string, string>(sharedArguments, StringComparer.Ordinal)
             {
@@ -342,7 +343,8 @@ public sealed class GameSequentialEffectExecutor(
             }
 
             var activationCost = ResolveActivationCost(
-                effectSpec: effectSpec);
+                effectSpec: effectSpec,
+                arguments: sharedArguments);
 
             var arguments = new Dictionary<string, string>(sharedArguments, StringComparer.Ordinal)
             {
@@ -385,7 +387,7 @@ public sealed class GameSequentialEffectExecutor(
 
             var preflightResult = TryReserveActivationCost(
                 actingPlayerId: perEffectContext.ActingPlayer.Id,
-                chakraCost: activationCost,
+                chakraCost: IsActivationCostAlreadyPaid(sharedArguments) ? 0 : activationCost,
                 simulatedResourcePoolByPlayer: simulatedResourcePoolByPlayer);
             if (preflightResult.IsError)
             {
@@ -896,23 +898,26 @@ public sealed class GameSequentialEffectExecutor(
 
     private static bool TryResolveEffectKey(RuntimeEffects runtimeEffectType, out string effectTypeKey)
     {
-        effectTypeKey = runtimeEffectType switch
-        {
-            RuntimeEffects.DestroyCard => DestroyCardEffect.EffectKey,
-            RuntimeEffects.NegateEffect => NegateCardEffect.EffectKey,
-            RuntimeEffects.FreezeCard => FreezeCardEffect.EffectKey,
-            RuntimeEffects.InterruptAttack => InterruptAttackEffect.EffectKey,
-            RuntimeEffects.GainEffect => GainKeywordEffect.EffectKey,
-            RuntimeEffects.ChangeValues => ModifyAttributeEffect.EffectKey,
-            RuntimeEffects.AlterResources => AlterResourcesEffect.EffectKey,
-            RuntimeEffects.Tribute => TributeSummonCardEffect.EffectKey,
-            RuntimeEffects.SummonCard => SummonCardEffect.EffectKey,
-            RuntimeEffects.MoveCard => MoveCardEffect.EffectKey,
-            RuntimeEffects.RevealCard => RevealCardEffect.EffectKey,
-            _ => string.Empty,
-        };
+        return RuntimeEffectKeys.TryResolve(runtimeEffectType, out effectTypeKey);
+    }
 
-        return !string.IsNullOrWhiteSpace(effectTypeKey);
+    private static int ResolveActivationCost(EffectSpec effectSpec, IReadOnlyDictionary<string, string> arguments)
+    {
+        // Support activations are paid when they are activated, not when the (possibly negated)
+        // activation resolves, so the replay must not charge the same chakra a second time.
+        if (IsActivationCostAlreadyPaid(arguments))
+        {
+            return 0;
+        }
+
+        return ResolveActivationCost(effectSpec);
+    }
+
+    private static bool IsActivationCostAlreadyPaid(IReadOnlyDictionary<string, string> arguments)
+    {
+        return arguments.TryGetValue(ReactiveEffectExecutionConstants.ActivationCostPaidArgument, out var rawValue)
+            && bool.TryParse(rawValue, out var isPaid)
+            && isPaid;
     }
 
     private static int ResolveActivationCost(EffectSpec effectSpec)

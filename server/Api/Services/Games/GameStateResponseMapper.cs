@@ -53,7 +53,10 @@ public static partial class GameStateResponseMapper
                     AppliedTurnNumber: effect.AppliedTurnNumber))
                 .ToList(),
             Players: state.Players
-                .ConvertAll(player => ToPlayerZonesResponse(player, requestingPlayerId, state, pendingPrompt)));
+                .ConvertAll(player => ToPlayerZonesResponse(player, requestingPlayerId, state, pendingPrompt)),
+            IsSupportResponseWindowOpen: state.Phase == GamePhase.MainPhase
+                && SupportTimingRules.HasPendingSupportActivation(state),
+            SupportChain: BuildSupportChain(state));
     }
 
     private static string? ResolveAttackSequenceStage(GameState state)

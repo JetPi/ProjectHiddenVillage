@@ -5,6 +5,13 @@ public enum AppliedCardModifierKind
     Attribute,
     Keyword,
     FaceStateLock,
+
+    /// <summary>
+    /// Player-scoped: while active, the player in <see cref="AppliedCardEffectState.TargetPlayerId"/>
+    /// cannot turn their chakra face-up (no Recovery). Registered by
+    /// <c>LockChakraRecoveryEffect</c> and consumed by the chakra recovery paths.
+    /// </summary>
+    ChakraRecoveryLock,
 }
 
 public sealed class AppliedCardEffectState

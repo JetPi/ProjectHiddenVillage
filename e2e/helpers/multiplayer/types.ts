@@ -59,6 +59,7 @@ type GameCardInstanceStateResponse = {
   cardDefinitionId?: string
   isExhausted?: boolean
   isRested?: boolean
+  isFaceUp?: boolean
   availableActions?: GameActionOptionResponse[]
 }
 
@@ -81,7 +82,9 @@ export type GamePlayerStateResponse = {
 export type GameStateResponse = {
   gameId: string
   activePlayerId: string
+  priorityPlayerId?: string
   phase: string
+  isSupportResponseWindowOpen?: boolean
   pendingPrompt: PromptResponse | null
   availableActions: GameActionOptionResponse[]
   players: GamePlayerStateResponse[]

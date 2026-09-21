@@ -21,6 +21,13 @@ public enum RuntimeEffects
     SummonCard = 11,
     InterruptAttack = 12,
     MoveCard = 13,
+    /// <summary>
+    /// Locks a player's chakra: while it lasts the affected player cannot turn their own chakra face-up,
+    /// so their resource pool can only go down (N-016's "you cannot turn your CHAKRA face-up"). The
+    /// affected players come from the effect's <see cref="EffectSpec.TargetRange"/>, so the node needs no
+    /// selected targets. Distinct from <see cref="FreezeCard"/>, which freezes a chosen card's keyword.
+    /// </summary>
+    LockChakraRecovery = 14,
 }
 
 public sealed class EffectContextCondition

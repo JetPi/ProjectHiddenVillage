@@ -46,10 +46,15 @@ public static partial class GameStateResponseMapper
                 Label: "Set Support",
                 IsEnabled: true));
 
+            // On your own turn a support may be activated from hand or from the support area, but only
+            // while its timing window is open and only if it is affordable. Without this the chip looks
+            // usable and then silently does nothing when clicked.
+            var (supportEnabled, supportDisabledReason) = EvaluateHandSupportAvailability(state, card, cardDefinition);
             actions.Add(new GameActionOptionResponse(
                 ActionId: $"activate-support:{card.InstanceId}",
                 Label: "Support",
-                IsEnabled: true));
+                IsEnabled: supportEnabled,
+                DisabledReason: supportEnabled ? null : supportDisabledReason));
         }
 
         return actions;
@@ -64,6 +69,51 @@ public static partial class GameStateResponseMapper
 
         return !string.IsNullOrWhiteSpace(characterCard.SupportName)
             || !string.IsNullOrWhiteSpace(characterCard.SupportEffect);
+    }
+
+    /// <summary>
+    /// Whether a support-capable hand card can be activated right now. Hand-origin supports are only
+    /// legal on the active player's turn, so this checks the entry effect's timing window, the
+    /// once-per-turn restriction and the chakra cost - the same gates the engine enforces on submit.
+    /// </summary>
+    private static (bool IsEnabled, string? DisabledReason) EvaluateHandSupportAvailability(
+        GameState state,
+        CardInstance card,
+        Card cardDefinition)
+    {
+        var entryEffect = SupportActivationPlanner.ResolveEntry(cardDefinition);
+        if (entryEffect is null)
+        {
+            return (false, "This card has no support effect to activate.");
+        }
+
+        if (!SupportTimingRules.IsTimingAvailable(
+            entryEffect.Timing,
+            state,
+            card.ControllerPlayerId,
+            isFromSupportZone: false))
+        {
+            return (false, "Support timing is not available right now.");
+        }
+
+        var effectKey = string.IsNullOrWhiteSpace(entryEffect.Id)
+            ? entryEffect.RuntimeEffectType.ToString()
+            : entryEffect.Id.Trim();
+        if (entryEffect.GlobalRestrictions == EffectRestrictions.OncePerTurn
+            && state.IsEffectUsedThisTurn(card.ControllerPlayerId, card.InstanceId, effectKey))
+        {
+            return (false, EffectRestrictionMessages.OncePerTurn);
+        }
+
+        var activationCost = SupportActivationPlanner.ResolveActivationCost(entryEffect);
+        var actingPlayer = state.Players.FirstOrDefault(player =>
+            IsSamePlayerId(player.PlayerId, card.ControllerPlayerId));
+        if (activationCost > 0 && actingPlayer is not null && actingPlayer.ResourcePool < activationCost)
+        {
+            return (false, $"You need {activationCost} chakra to activate this support.");
+        }
+
+        return (true, null);
     }
 
     private static (bool IsEnabled, string DisabledReason) EvaluateSummonRequirementAvailability(

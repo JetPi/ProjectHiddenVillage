@@ -1,9 +1,10 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { IGameActionOptionResponse, IGameCardInstanceResponse } from '@/services/api/types/game'
 import type { IGameCardActionTargetsRequest, IGameCardActionTargetsResponse } from '@/services/api/types/gameHub'
-import type { IAttackTargetingState, IPendingCardTargetingState, ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
+import type { IAttackTargetingState, IEffectTargetingState, IPendingCardTargetingState, ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
 import { mapActionToHubIntent } from './helpers'
 import { runSubmitThenZoneEntryAnimation } from './runSubmitThenZoneEntryAnimation'
+import { submitSetSupport } from './submitSetSupport'
 import { trySubmitTargetedCardEffect } from './trySubmitTargetedCardEffect'
 
 function buildRequirementLabelsByCardInstanceId(
@@ -45,12 +46,12 @@ function submitMappedAction({
   submitHubIntent,
   getCardActionTargets,
   characterFieldCards,
-  setPendingSetSupportCardInstanceId,
   setPendingCardTargeting,
   setPendingSummonTargeting,
   beginBattleTargeting,
   beginEffectTargeting,
   beginSummonTargeting,
+  beginEffectMultiTargeting,
   bottomHandRowRef,
   boardZoneRef,
   currentBottomBattlefieldRawCards,
@@ -67,6 +68,7 @@ function submitMappedAction({
       submitHubIntent,
       getCardActionTargets,
       beginEffectTargeting,
+      beginEffectMultiTargeting,
     })
     return
   }
@@ -107,6 +109,7 @@ function submitMappedAction({
       submitHubIntent,
       getCardActionTargets,
       beginEffectTargeting,
+      beginEffectMultiTargeting,
     })
     return
   }
@@ -117,7 +120,15 @@ function submitMappedAction({
       return
     }
 
-    setPendingSetSupportCardInstanceId(action.actionId.slice(delimiterIndex + 1))
+    // No slot pick anymore: the engine drops the card into the leftmost empty support slot.
+    submitSetSupport({
+      action,
+      cardInstanceId: action.actionId.slice(delimiterIndex + 1),
+      canResolvePrompt,
+      submitHubIntent,
+      bottomHandRowRef,
+      boardZoneRef,
+    })
     return
   }
 
@@ -264,7 +275,6 @@ function submitMappedAction({
     return
   }
 
-  setPendingSetSupportCardInstanceId(null)
   setPendingCardTargeting(null)
   setPendingSummonTargeting(null)
 
@@ -279,12 +289,12 @@ interface ISubmitMappedActionArgs {
     request: Omit<IGameCardActionTargetsRequest, 'playerId'>,
   ) => Promise<IGameCardActionTargetsResponse | null>
   characterFieldCards: IGameCardInstanceResponse[]
-  setPendingSetSupportCardInstanceId: Dispatch<SetStateAction<string | null>>
   setPendingCardTargeting: Dispatch<SetStateAction<IPendingCardTargetingState | null>>
   setPendingSummonTargeting: Dispatch<SetStateAction<ISummonTargetingState | null>>
   beginBattleTargeting: (targeting: IAttackTargetingState) => void
   beginEffectTargeting: (targeting: IAttackTargetingState) => void
   beginSummonTargeting: (targeting: ISummonTargetingState) => void
+  beginEffectMultiTargeting: (targeting: IEffectTargetingState) => void
   bottomHandRowRef: RefObject<HTMLDivElement | null>
   boardZoneRef: RefObject<HTMLDivElement | null>
   currentBottomBattlefieldRawCards: IGameCardInstanceResponse[]

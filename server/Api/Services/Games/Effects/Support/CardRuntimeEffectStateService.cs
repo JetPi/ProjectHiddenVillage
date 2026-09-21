@@ -116,6 +116,15 @@ internal static class CardRuntimeEffectStateService
             || durationMode == EffectDurationMode.DuringThisBattle;
     }
 
+    /// <summary>
+    /// A chakra recovery lock has to last longer than the activation itself, exactly like the other
+    /// temporary restrictions (N-016 lasts "until the end of your next turn").
+    /// </summary>
+    public static bool IsDurationSupportedForChakraRecoveryLocks(EffectDurationMode durationMode)
+    {
+        return IsDurationSupportedForFaceStateLocks(durationMode);
+    }
+
     public static void AddTemporaryAttributeEffect(
         GameState state,
         CardInstance sourceCardInstance,
@@ -210,6 +219,42 @@ internal static class CardRuntimeEffectStateService
             AppliedByPlayerId = sourceCardInstance.ControllerPlayerId,
             AppliedTurnNumber = state.TurnNumber,
         });
+    }
+
+    public static void AddTemporaryChakraRecoveryLockEffect(
+        GameState state,
+        CardInstance sourceCardInstance,
+        string effectSpecId,
+        string targetPlayerId,
+        EffectDurationMode durationMode)
+    {
+        state.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = sourceCardInstance.InstanceId,
+            EffectSpecId = effectSpecId,
+            TargetCardInstanceId = string.Empty,
+            ModifierKind = AppliedCardModifierKind.ChakraRecoveryLock,
+            DurationMode = durationMode,
+            TargetPlayerId = targetPlayerId,
+            AppliedByPlayerId = sourceCardInstance.ControllerPlayerId,
+            AppliedTurnNumber = state.TurnNumber,
+        });
+    }
+
+    /// <summary>
+    /// True while the player cannot turn their chakra face-up, i.e. cannot recover chakra (N-016).
+    /// Chakra that is already face-up stays spent-free to flip back down, so the player's resource pool
+    /// can only go down while the lock lasts.
+    /// </summary>
+    public static bool IsChakraRecoveryBlocked(GameState state, string targetPlayerId)
+    {
+        return state.AppliedCardEffects.Any(effect =>
+            effect.ModifierKind == AppliedCardModifierKind.ChakraRecoveryLock
+            && string.Equals(effect.TargetPlayerId, targetPlayerId, StringComparison.Ordinal)
+            && effect.DurationMode is EffectDurationMode.DuringThisTurn
+                or EffectDurationMode.DuringOpponentNextTurn
+                or EffectDurationMode.UntilTheEndOfYourNextTurn
+                or EffectDurationMode.DuringThisBattle);
     }
 
     public static bool IsFaceUpTransitionBlocked(

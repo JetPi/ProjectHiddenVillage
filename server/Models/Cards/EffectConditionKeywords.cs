@@ -44,4 +44,7 @@ public static class EffectConditionKeywords
 public static class EffectRestrictionMessages
 {
     public const string OncePerTurn = "This effect can only be used once per turn.";
+
+    /// <summary>A support card cannot be activated twice inside the same reaction chain.</summary>
+    public const string AlreadyActivatedInChain = "This support is already part of the current chain.";
 }

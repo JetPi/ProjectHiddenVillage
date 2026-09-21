@@ -21,7 +21,7 @@ export function CardAdminPassiveSettingsPanel({
   updateEffectAt,
 }: ICardAdminPassiveSettingsPanelProps) {
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-violet-500/55 bg-[var(--surface-muted)] p-3">
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-violet-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Passive Settings</span>
         <CardAdminChevronIcon rotateOnOpen />
@@ -50,11 +50,11 @@ export function CardAdminPassiveSettingsPanel({
             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Reevaluation Scope</label>
             <CardAdminSelect
               value={effect.passiveReevaluation.scope}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   passiveReevaluation: current.passiveReevaluation
-                    ? { ...current.passiveReevaluation, scope: event.target.value }
+                    ? { ...current.passiveReevaluation, scope: value }
                     : null,
                 }))}
             >
@@ -68,11 +68,11 @@ export function CardAdminPassiveSettingsPanel({
             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Trigger Kind</label>
             <CardAdminSelect
               value={effect.passiveReevaluation.triggerKinds[0] ?? 'Any'}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   passiveReevaluation: current.passiveReevaluation
-                    ? { ...current.passiveReevaluation, triggerKinds: [event.target.value] }
+                    ? { ...current.passiveReevaluation, triggerKinds: [value] }
                     : null,
                 }))}
             >
@@ -84,7 +84,7 @@ export function CardAdminPassiveSettingsPanel({
         </div>
       ) : null}
 
-      <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] border-l-2 border-l-violet-500/35 bg-[var(--surface)] p-3">
+      <div className="space-y-2 border-l-2 border-l-violet-500/30 pl-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Consequences</p>
           <AppButton
@@ -101,14 +101,14 @@ export function CardAdminPassiveSettingsPanel({
         </div>
 
         {(effect.passiveConsequences ?? []).map((consequence, consequenceIndex) => (
-          <div key={`passive-consequence-${consequenceIndex}`} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <div key={`passive-consequence-${consequenceIndex}`} className="grid grid-cols-1 gap-2 border-t border-[var(--border-subtle)] pt-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
             <CardAdminSelect
               value={consequence.consequenceEffectTypeKey}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   passiveConsequences: (current.passiveConsequences ?? []).map((row, index) =>
-                    index === consequenceIndex ? { ...row, consequenceEffectTypeKey: event.target.value } : row),
+                    index === consequenceIndex ? { ...row, consequenceEffectTypeKey: value } : row),
                 }))}
               className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
             >
@@ -119,12 +119,12 @@ export function CardAdminPassiveSettingsPanel({
 
             <CardAdminSelect
               value={consequence.targetPolicy}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   passiveConsequences: (current.passiveConsequences ?? []).map((row, index) =>
                     index === consequenceIndex
-                      ? { ...row, targetPolicy: event.target.value }
+                      ? { ...row, targetPolicy: value }
                       : row),
                 }))}
               className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"

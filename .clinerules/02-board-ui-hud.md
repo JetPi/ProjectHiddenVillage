@@ -36,6 +36,10 @@ paths:
 
 - Normal mode (not targeting): hover reveals the preview **eye** (top-right) plus
   the action-button list (or the “no actions” fallback / `mixed` bar).
+- A card with **no** options shows the eye plus a single disabled **“No actions”**
+  chip (`data-testid="card-no-actions-chip"`), styled by the same
+  `ACTION_CHIP_CLASSNAME` as the action buttons so the empty state cannot drift from
+  the populated one (the old “Actions pending backend wiring” text is gone).
 - `disableInteractions=true` hides the whole overlay (`pointer-events-none
   opacity-0`) — used for hand reorder dragging.
 - `hidePreviewButton=true` suppresses only the eye.
@@ -47,7 +51,11 @@ paths:
   valid tribute cards receive `isSummonTargetCandidate` + `onToggleSummonTarget`,
   and hover shows a single **“Tribute”** toggle button (instead of the action
   list) — the card can only be toggled through that button, never by clicking the
-  card as a whole.
+  card as a whole. Multi-target effect picks (range supports) reuse that idiom with
+  `isEffectTargetCandidate` + `isEffectTargetSelected` + `onToggleEffectTarget`: the
+  hover button reads **“Select”** and flips to a filled amber **“Selected”**
+  (`data-testid="effect-target-toggle"`), and selected candidates also get the amber
+  `card-selection-tint`.
 - The overlay’s “reveal on hover” lives on the `card-overlay-controls` container
   (`group-hover:*` + transition), so any absolute children it contains inherit the
   reveal. Eye/buttons are hover-only by design.
@@ -70,9 +78,19 @@ paths:
 
 - `GamePhaseActionRow` renders a **Cancel** chip next to the phase action chips
   whenever any selection mode is active (`pendingCardTargeting`, summon tribute,
-  or set-support slot pick). Clicking it clears the mode through the store’s
-  `cancelBattleTargeting`/`cancelSummonTargeting`/`cancelSetSupportSelection` —
-  client-only, no hub submit. There is also the small sidebar `X` (same actions).
+  or effect multi-pick). Clicking it clears the mode through
+  the store’s
+  `cancelBattleTargeting`/`cancelSummonTargeting`/`cancelEffectTargeting`/
+  `cancelSetSupportSelection` — client-only, no hub submit. There is also the small
+  sidebar `X` (same actions). While an effect multi-pick is open the row also renders a
+  **Confirm** chip (`data-testid="confirm-effect-target-selection-button"`), disabled
+  until `canConfirmEffectTargetSelection` passes.
+- The phase text itself comes from `getPhaseValue`:
+  `Support Activated · Your Response` / `Support Activated · Opponent Response` while a MainPhase support
+  activation waits for reactions (server flag `isSupportResponseWindowOpen`, see
+  `03-targeting-contract.md`), plus the tribute/effect-selection values. Add new values to `PhaseValues`
+  (`components/constants/gamePhaseActionRow.ts`) and give them a theme in `getPhaseThemeClasses` — the
+  row’s chips and the phase banner share those classes.
 - All chips in the row (actions + Cancel) share one base class constant
   (`phaseActionChipClassName`) incl. `enabled:hover:brightness-110` and the
   `phaseThemeClasses`. Do not give individual chips divergent hover styles.
@@ -119,6 +137,24 @@ paths:
   disappears from the field lookup. The same applies to `gameUIStore`’s optimistic-rest
   reconciliation.
 
+## Support chain bubble (`SupportChainBubble`)
+
+- Pops up in the top-right corner of the game view (`fixed right-2 top-2 z-40`, `pointer-events-none`, next to
+  the action-error banner) when a **support chain** exists: a support was activated *inside* a support
+  reaction window. A lone activation that merely opened the window does not pop it
+  (`shouldShowSupportChainBubble` = at least two queued activations), and it disappears when the chain
+  resolves, because the entries leave `GameStateResponse.SupportChain`.
+- One row per activation in activation order (`#1` …), each with an actor chip (`You` / `Opponent`), the
+  activating card's name, a `Next` chip on the newest entry (the stack resolves last in, first out),
+  `⚡ Negates #n <card>` for a negate target, `→ Targets <card> (yours|theirs)` for board targets, and a rose
+  `Will be negated by #n` note on entries a queued negate claims.
+- The view model and every label are pure (`buildSupportChainView` in
+  `views/game/utils/functions/helpers/index.ts`); the server is the only writer of the chain. Testids:
+  `support-chain-bubble`, `support-chain-entry` (+ `data-entry-sequence`), `support-chain-negate-link`,
+  `support-chain-count`.
+- `.support-chain-bubble-enter` (`index.css`) is a transient entrance animation only — no persistent
+  transform, so the text inside stays crisp.
+
 ## Targeting-highlight CSS gotcha (`client/src/index.css`)
 
 - `.battle-target-top > *`, `.battle-target-bottom > *` (and the leader variants)
@@ -129,7 +165,21 @@ paths:
 - Keep them pinned by the higher-specificity overrides in `index.css`:
   `.battle-target-* > .card-overlay-badge, .battle-target-* >
   .card-overlay-controls { position: absolute; }`. If you add a new absolutely
-  positioned direct child of a highlighted card, add it to that list.
+  positioned direct child of a highlighted card, add its marker class to that list
+  (the concealed-support layers use `card-overlay-layer`, the amber selection tint
+  uses `card-selection-tint`).
+- `.battle-target-*` also forces `overflow: visible` on the card, which is what
+  breaks **support slots**: a support-row card *is* one cell of the row's
+  `grid-cols-5`, and its `overflow-hidden` is what keeps the cell's automatic
+  minimum size at 0. With `visible` the cell jumps to the art's min-content box
+  (measured ~112×155 instead of ~73×101 on a 1080p board), so every `1fr` track
+  blows out, the row clips the oversized cells and the cards drift sideways.
+  Guard the slot with `min-w-0 min-h-0` (`ZoneCardSlots`) so the highlight stays
+  purely decorative; the empty placeholders next to it have no highlight of their
+  own and only moved because they share the blown-out tracks.
+  `e2e/gameview.multiplayer.support-target-visuals.spec.ts` measures all five
+  slot rects before/after a negate target highlights and fails by ~40×53px per slot
+  without the guard.
 
 ## Attack-link arrow: anchors + arrowhead (measured live, never predicted)
 

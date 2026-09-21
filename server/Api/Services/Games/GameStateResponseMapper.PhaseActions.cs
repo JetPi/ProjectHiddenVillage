@@ -34,12 +34,42 @@ public static partial class GameStateResponseMapper
         var isRequestingPlayerActive = IsSamePlayerId(state.ActivePlayerId, requestingPlayerId);
         var isRequestingPlayerPriority = IsSamePlayerId(state.PriorityPlayerId, requestingPlayerId);
 
-        AddActivePlayerPhaseOptionActions(actions, phaseData, isRequestingPlayerActive);
+        // While a support reaction window is open only pass/support responses are offered: summons,
+        // battle declarations and ending the turn wait for both players to pass.
+        var isSupportResponseWindowOpen = state.Phase == GamePhase.MainPhase
+            && SupportTimingRules.HasPendingSupportActivation(state);
+
+        if (!isSupportResponseWindowOpen)
+        {
+            AddActivePlayerPhaseOptionActions(actions, phaseData, isRequestingPlayerActive);
+        }
+
         AddActionStepPriorityActions(actions, state.Phase, isRequestingPlayerPriority);
+        AddResponseWindowPassAction(actions, state, requestingPlayerId);
         AddOptionalAttackEffectChoiceActions(actions, state, requestingPlayerId);
         AddDefaultAdvancePhaseAction(actions, phaseData, isRequestingPlayerActive);
 
         return actions;
+    }
+
+    /// <summary>
+    /// The priority player may pass out of a response window. The attack cut-in window already
+    /// publishes its pass through the phase options; an open MainPhase support reaction window needs it
+    /// too, because the activation only resolves after both players pass.
+    /// </summary>
+    private static void AddResponseWindowPassAction(
+        List<GameActionOptionResponse> actions,
+        GameState state,
+        string requestingPlayerId)
+    {
+        if (state.Phase != GamePhase.MainPhase
+            || !SupportTimingRules.HasPendingSupportActivation(state)
+            || !IsSamePlayerId(state.PriorityPlayerId, requestingPlayerId))
+        {
+            return;
+        }
+
+        actions.Add(new GameActionOptionResponse(ActionId: "pass-turn", Label: "Pass Turn", IsEnabled: true));
     }
 
     private static void AddActivePlayerPhaseOptionActions(

@@ -8,7 +8,7 @@ export function CardAdminSummonSettingsPanel({
   updateEffectAt,
 }: ICardAdminSummonSettingsPanelProps) {
   return (
-    <details className="group rounded-lg border border-[var(--border-subtle)] border-l-4 border-l-amber-500/55 bg-[var(--surface-muted)] p-3">
+    <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-amber-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
         <span>Summon Settings</span>
         <CardAdminChevronIcon rotateOnOpen />

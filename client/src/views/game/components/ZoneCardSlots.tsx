@@ -18,12 +18,12 @@ import type { IZoneCardSlotsProps } from '@/views/game/types'
 import { useGameUIStore } from '@/state/gameUIStore'
 
 export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
-    const { cards, zone, visibilityMode, isCurrentPlayerZone, validBattleTargetsByCardId, validSummonTargetsByCardId, selectedSummonTargetsByCardId, props } = data
+    const { cards, zone, visibilityMode, isCurrentPlayerZone, validBattleTargetsByCardId, validSummonTargetsByCardId, selectedSummonTargetsByCardId, validEffectTargetsByCardId, selectedEffectTargetsByCardId, props } = data
     const cardOptions = getCardsAndOptions(data.props, null)
-    const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
     const optimisticRestedByInstanceId = useGameUIStore((state) => state.optimisticRestedByInstanceId)
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
     const isSummonActionTargeting = useGameUIStore((state) => state.pendingSummonTargeting !== null)
+    const isEffectMultiTargeting = useGameUIStore((state) => state.pendingEffectTargeting !== null)
     
     const bottomSupportCardsBySlotIndex = useMemo(() => {
     const cardsBySlot = new Map<number, ReturnType<typeof resolveNonLeaderCards>[number]>()
@@ -63,13 +63,6 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               ? (bottomSupportCardsBySlotIndex.get(index) ?? null)
               : (topSupportCardsBySlotIndex.get(index) ?? null))
             : (cards[index] ?? null)
-          const isSelectionSlot = isCurrentPlayerZone
-            && pendingSetSupportCardInstanceId !== null
-            && card === null
-
-          const isSelectionBlocked = isCurrentPlayerZone
-            && pendingSetSupportCardInstanceId !== null
-            && !isSelectionSlot
 
           if (!card) {
             return (
@@ -79,27 +72,15 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                 data-zone={zone}
                 data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
                 data-slot-index={index}
-                disabled={!isSelectionSlot}
-                onClick={
-                  isSelectionSlot
-                    ? () => props.  onSelectSupportSlotForSet(index)
-                    : undefined
-                }
-                className={twMerge(
-                  'h-full rounded-lg',
-                  !isSelectionSlot ? 'cursor-default' : 'cursor-pointer',
-                )}
+                disabled
+                className="h-full cursor-default rounded-lg"
               >
                 <PlayCard
                   data-zone={zone}
                   data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
                   data-slot-index={index}
                   data-slot-card="true"
-                  className={twMerge(
-                    'h-full rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]',
-                    isSelectionBlocked ? 'opacity-45' : '',
-                    isSelectionSlot ? 'border-amber-400/90 bg-amber-300/20' : '',
-                  )}
+                  className="h-full rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]"
                 />
               </button>
             )
@@ -118,9 +99,10 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
             isSummonTarget: validSummonTargetsByCardId.has(normalizedCardId),
             isSummonTargetCandidate: isSummonActionTargeting && validSummonTargetsByCardId.has(normalizedCardId),
             isSelectedSummonTarget: selectedSummonTargetsByCardId.has(normalizedCardId),
+            isEffectTargetCandidate: isEffectMultiTargeting && validEffectTargetsByCardId.has(normalizedCardId),
+            isSelectedEffectTarget: selectedEffectTargetsByCardId.has(normalizedCardId),
             isAttackLinkSource: isMatchingInstance(cardOptions.normalizedAttackLinkSourceCardId, normalizedCardId),
             isAttackLinkTarget: isMatchingInstance(cardOptions.normalizedAttackLinkTargetCardId, normalizedCardId),
-            isSelectionBlocked
           };
 
           const summonRequirementText = targetFlags.isSummonTarget
@@ -151,10 +133,13 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               data-card-instance-id={card.instanceId}
               data-slot-card="true"
               className={twMerge(
-                'group relative h-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
+                // `min-w-0 min-h-0` keep the slot's size out of reach of the targeting highlight: the
+                // `.battle-target-*` rules force `overflow: visible` on the card, which would otherwise
+                // restore this grid item's automatic minimum size (the art's min-content box) and blow the
+                // row's `1fr` tracks out - cards grew, got clipped and left their slots.
+                'group relative h-full min-h-0 w-auto min-w-0 max-w-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
                 zone === 'support' ? 'border-transparent' : 'border border-[var(--border-subtle)]',
                 visibilityFlags.shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
-                targetFlags.isSelectionBlocked ? 'opacity-45' : '',
                 targetFlags.isBattleTarget ? getBattleTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
                 targetFlags.isSummonTarget ? getSummonTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
                 targetFlags.isAttackLinkSource || targetFlags.isAttackLinkTarget ? 'attack-link-card-outline' : '',
@@ -173,12 +158,12 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               )}
 
               {cardStateFlags.isConcealedSupportCard ? (
-                <div className="pointer-events-none absolute inset-0 z-10 rounded-lg bg-black/18" />
+                <div className="card-overlay-layer pointer-events-none absolute inset-0 z-10 rounded-lg bg-black/18" />
               ) : null}
 
               {visibilityFlags.isOwnConcealedSupport ? (
                 <div
-                  className="pointer-events-none absolute inset-0 z-10 rounded-lg"
+                  className="card-overlay-layer pointer-events-none absolute inset-0 z-10 rounded-lg"
                   style={{
                     backgroundImage: 'repeating-linear-gradient(135deg, rgba(203, 213, 225, 0.46) 0px, rgba(203, 213, 225, 0.46) 7px, rgba(15, 23, 42, 0.06) 7px, rgba(15, 23, 42, 0.06) 15px)',
                     backgroundColor: 'rgba(51, 65, 85, 0.12)',
@@ -186,7 +171,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                 />
               ) : null}
 
-              {!cardStateFlags.isConcealedSupportCard && targetFlags.isSelectedSummonTarget ? (
+              {!cardStateFlags.isConcealedSupportCard && (targetFlags.isSelectedSummonTarget || targetFlags.isSelectedEffectTarget) ? (
                 <div className="card-selection-tint pointer-events-none absolute inset-0 rounded-lg border-2 border-amber-300/95 bg-amber-300/15" />
               ) : null}
 
@@ -207,6 +192,13 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                       : undefined
                   }
                   summonRequirementText={summonRequirementText}
+                  isEffectTargetCandidate={targetFlags.isEffectTargetCandidate}
+                  isEffectTargetSelected={targetFlags.isSelectedEffectTarget}
+                  onToggleEffectTarget={
+                    targetFlags.isEffectTargetCandidate
+                      ? () => useGameUIStore.getState().toggleEffectTarget(card.instanceId)
+                      : undefined
+                  }
                   showEmptyActionMessage={isCurrentPlayerZone}
                   suppressActionFallback={!isCurrentPlayerZone}
                   isConnected={props.isConnected}

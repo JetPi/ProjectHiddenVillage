@@ -30,9 +30,17 @@ paths:
   multi-toggle + confirm (see SidebarButtons). Tributes are toggled via each valid
   card’s hover **“Tribute”** button (see `02-board-ui-hud.md`), not by whole-card
   clicks.
-- Every selection mode (battle/effect/summon/set-support) can be exited via the
-  phase-row **Cancel** chip (`02-board-ui-hud.md`) or the sidebar `X`; both call
-  the store’s `cancel*` actions and never submit to the hub.
+- Range effects (“choose up to 2 rested Characters”) use a third picker state,
+  `pendingEffectTargeting = { actionId, sourceCardInstanceId, validTargets,
+  exact/min/maxTargetCount, selectedTargets }`. `trySubmitTargetedCardEffect` routes
+  there whenever `exactTargetCount > 1 || maximumTargetCount > 1`; candidates toggle
+  through the same per-card hover pattern (**“Select”/“Selected”**) and the phase row
+  **Confirm** chip submits. `canConfirmEffectTargetSelection` decides the chip and the
+  phase text (`Selecting support targets (needs: N)` → `Fulfilled target selection`)
+  from the server counts; with only a maximum the floor is one pick.
+- Every selection mode (battle/effect/summon/effect-range) can be exited
+  via the phase-row **Cancel** chip (`02-board-ui-hud.md`) or the sidebar `X`; both
+  call the store’s `cancel*` actions and never submit to the hub.
 
 ## Effect activation decision (`trySubmitTargetedCardEffect`)
 
@@ -87,6 +95,50 @@ for prefixes `summon-to-field`, `activate-support`, `battle-action`, and
 request’s `SelectedTargets`; effects auto-resolve targets only when
 `TargetRules.AutoSelectAllValidTargets` is set.
 
+## Support activation window (MainPhase)
+
+- A MainPhase support activation is **paid + consumed immediately** but only *resolves* when the window
+  closes (`ResolvePendingActivations` replays the queue LIFO). Queueing hands priority to the opponent, so
+  they may answer with a `[Support Activated]` card (or a negate) first.
+- **One decline closes the window**: `DeclarePassInSupportWindow` resolves on the passing player's first
+  pass. The activator is therefore only ever asked for a response after the opponent actually reacted
+  (their activation flipped priority back) — a decline by the asked player has nothing left to answer, so
+  the activation resolves and priority returns to the turn player, who can play the next support.
+- The server publishes `GameStateResponse.IsSupportResponseWindowOpen` (`true` only in the MainPhase with a
+  pending activation); the phase row renders `Support Activated · Your Response` /
+  `Support Activated · Opponent Response` from it (see `getSupportResponseWindowPhaseValue` in
+  `views/game/utils/functions/helpers/index.ts`). While the window is open only support responses + `pass`
+  are offered, so the phase row is what tells the player why everything else is waiting.
+- **One activation per card and chain**: while a card's own activation is still queued it cannot be activated
+  again. The rule lives in `SupportTimingRules.IsCardPendingOnResolutionStack`, and both sides use it — the
+  mapper publishes **no** `activate-support:` action for that card (the client's Support button is removed,
+  not disabled) and the engine refuses a direct submit with
+  `EffectRestrictionMessages.AlreadyActivatedInChain`. The card drops off the stack as soon as the window
+  closes (resolved or negated, a spent support leaves the support area anyway).
+- The chain itself is published for the UI: `GameStateResponse.SupportChain` lists the queued activations
+  oldest-first (`SupportChainEntryResponse`: `EntryId`, `Sequence`, `PlayerId`, `SourceCardInstanceId`,
+  `SourceCardDisplayName`, `IsNegated`, `Targets`), where a target with `IsChainEntry` + `ChainEntryId` is the
+  queued activation that this one answers (a `[Support Activated]` negate). The board renders it as the
+  support-chain bubble (see `02-board-ui-hud.md`).
+- **Every root group of a support runs**: `SupportActivationPlanner.PlanActivationGroups` keeps each unlinked
+  root separate because `GameSequentialEffectExecutor` walks *one* chain per call (entry node +
+  `OnSuccess/OnFailure` branches). `ExecutePendingActivation` therefore replays one `Execute` per group, which
+  is what makes N-016 work — its chakra lock is a second root that no branch reaches. The activation cost is
+  already paid at queue time (`ActivationCostPaidArgument`), so replaying several groups charges nothing extra.
+- **Player-scoped nodes need no selection**: a node whose payload only touches players by `TargetRange`
+  (N-016's chakra lock; own-leader/own-chakra modifications) is normalised to
+  `EffectExecutionTargetSource.None` by `SupportActivationNormalizer`, which also rescues ingested data that
+  marks such a node as `Selected Targets` with no target rules — the shape that used to fail with
+  “No valid targets available.” (`IsOwnLeaderOnlyModification` / `IsOwnStateEffect`).
+- A hand activation sends the card to the trash as it is queued (the trash fills *before* the effect
+  resolves); **a support-area activation stays revealed in its slot until it resolves, then the used card
+  leaves the support area for the trash** (`DiscardUsedSupportSource` — a spent support is never parked
+  face up, and a negated activation is spent all the same).
+- `set-support:{instanceId}` stops being a targeting action: the engine places the card in the **leftmost
+  empty support slot** (`TryResolveSupportSlotIndex`), so the client submits straight from the hand chip and
+  animates the card to its landing slot. An explicit `arguments.supportSlotIndex` is still honoured when it
+  is valid and free (the request validator only checks it when it is present).
+
 ## Tribute material requirements (server-declared — never derived client-side)
 
 - `GameCardActionTargetsResponse` carries both `RequirementLabels` (per-candidate short labels; an
@@ -107,10 +159,22 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   `views/game/utils/functions/helpers/index.ts` (`getTributeSelectionPhaseValue`).
 - Summon-rule fixtures: N-005/Gamabunta = one `Power ≥ 10` material (satisfied by the T-120 fixture);
   N-014 = `any x1` + `The Taka x1` (paid with N-011 + N-019); N-003 = `Power ≥ 10` + `any`.
+- Covered in `e2e/gameview.multiplayer.support.spec.ts` after the seeded real cards landed: a hand
+  support resolving after the opponent's single decline, the N-006/N-017 range flow (support set into the
+  support area → `[During Your Opponent's Attack]` activation in the cut-in window → multi-pick “Select” +
+  **Confirm** → K.O. of the rested attacker, then the used support leaving for the trash), and the N-020
+  bounce (single-pick “Choose” → the character flies back into its owner's hand).
+- `e2e/gameview.multiplayer.support-target-visuals.spec.ts` covers the N-009 `[Support Activated]` negate
+  (set face down → the opponent's `During Your Main` K.O. support activated from the support area → the negate
+  targeting the queued activation, i.e. a card in the *opponent's* support row → K.O. never happens) and pins
+  the support-row geometry across the highlight (see `02-board-ui-hud.md`).
 - Not yet covered by e2e although the cards are seeded: quick support cut-in
-  (N-002/N-008/N-010/N-020/N-021), Support-Activated negate (N-009/N-016), When-Attacking
-  reveal-summon (N-013/N-019/N-022), conditional Rush (N-007/N-011), leader Recovery (N-001/N-012),
-  on-summon chains (N-003/N-005/N-013/N-014/N-022).
+  (N-002/N-008/N-010/N-021), When-Attacking reveal-summon (N-013/N-019/N-022),
+  conditional Rush (N-007/N-011), leader Recovery (N-001/N-012), on-summon chains
+  (N-003/N-005/N-013/N-014/N-022). N-016's negate works again (its chakra lock is its own runtime effect,
+  see `05-server-models-serialization.md`) and is covered by
+  `SupportActivationResolutionTests.ActivateSupport_WithChakraLock_…` plus
+  `LockChakraRecoveryEffectTests`; an e2e for it is still open.
 
 ## Card-property predicate values (`Type` normalization)
 

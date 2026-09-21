@@ -12,6 +12,8 @@ export type IZoneCardSlotsProps = {
     validBattleTargetsByCardId: Set<string>,
     validSummonTargetsByCardId: Set<string>,
     selectedSummonTargetsByCardId: Set<string>,
+    validEffectTargetsByCardId: Set<string>,
+    selectedEffectTargetsByCardId: Set<string>,
     summonRequirementTextByCardInstanceId: ReadonlyMap<string, string>,
     props: IGameZonesProps,
   }
@@ -34,9 +36,9 @@ export type IGameZonesProps = {
   isConnected: boolean
   isActionPending: boolean
   onSelectAction: (action: IGameActionOptionResponse) => void
-  onSelectSupportSlotForSet: (slotIndex: number) => void
   onSelectAttackTarget: (targetCardInstanceId: string) => void
   onConfirmSummonTargetSelection: () => void
+  onConfirmEffectTargetSelection: () => void
   onToggleTheme: () => void
   onPassTurn: () => void
 }

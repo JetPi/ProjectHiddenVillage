@@ -50,8 +50,8 @@ export function CardAdminFilterPanel({
         <CardAdminSelect
           value={pendingTypeSelection}
           disabled={availableTypeOptions.length === 0}
-          onChange={(event) => {
-            const nextValue = event.target.value
+          onValueChange={(value) => {
+            const nextValue = value
             setPendingTypeSelection(nextValue)
 
             if (!nextValue) {
@@ -82,8 +82,8 @@ export function CardAdminFilterPanel({
         <CardAdminSelect
           value={pendingColorSelection}
           disabled={availableColorOptions.length === 0}
-          onChange={(event) => {
-            const nextValue = event.target.value
+          onValueChange={(value) => {
+            const nextValue = value
             setPendingColorSelection(nextValue)
 
             if (!nextValue) {

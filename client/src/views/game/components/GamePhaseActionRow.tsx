@@ -2,6 +2,7 @@ import { AppButton } from '@/components/ui/AppButton'
 import { useGameUIStore } from '@/state/gameUIStore'
 import type { IGamePhaseActionRowProps } from '@/views/game/types'
 import { getPhaseValue, getPhaseThemeClasses, getTributeRequirementSummary } from '@/views/game/utils/functions/helpers'
+import { canConfirmEffectTargetSelection } from '@/views/game/utils/functions/gameState/canConfirmEffectTargetSelection'
 import { invertedPhaseThemeClassByPhaseTheme, phaseActionChipClassName } from './constants/gamePhaseActionRow'
 
 function cancelActiveTargetingMode(): void {
@@ -10,8 +11,8 @@ function cancelActiveTargetingMode(): void {
     state.cancelBattleTargeting()
   } else if (state.pendingSummonTargeting) {
     state.cancelSummonTargeting()
-  } else if (state.pendingSetSupportCardInstanceId) {
-    state.cancelSetSupportSelection()
+  } else if (state.pendingEffectTargeting) {
+    state.cancelEffectTargeting()
   }
 }
 
@@ -24,12 +25,13 @@ function GamePhaseActionRow({
   onSelectAction,
   phaseTestId,
   onConfirmSummonTargetSelection,
+  onConfirmEffectTargetSelection,
 }: IGamePhaseActionRowProps) {
   const pendingCardTargeting = useGameUIStore((state) => state.pendingCardTargeting)
   const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
-  const pendingSetSupportCardInstanceId = useGameUIStore((state) => state.pendingSetSupportCardInstanceId)
+  const pendingEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting)
 
-  const phaseValue = getPhaseValue(gameInstance, authUserId, pendingSummonTargeting)
+  const phaseValue = getPhaseValue(gameInstance, authUserId, pendingSummonTargeting, pendingEffectTargeting)
   const phaseThemeClasses = getPhaseThemeClasses(gameInstance, phaseValue, authUserId)
   const payButtonThemeClasses = invertedPhaseThemeClassByPhaseTheme[phaseThemeClasses] ?? 'turn-indicator-inverted-light-gray'
 
@@ -39,7 +41,7 @@ function GamePhaseActionRow({
   const isTargetingActive =
     pendingCardTargeting !== null
     || pendingSummonTargeting !== null
-    || pendingSetSupportCardInstanceId !== null
+    || pendingEffectTargeting !== null
   const renderedActions = availableActions.filter((action) => action.actionId !== 'declare-action')
   const hasOptions = renderedActions.length > 0
 
@@ -103,6 +105,19 @@ function GamePhaseActionRow({
               </AppButton>
             </div>
           ): null}
+
+          {pendingEffectTargeting ? (
+            <button
+              type="button"
+              data-testid="confirm-effect-target-selection-button"
+              aria-label="Confirm target selection"
+              onClick={onConfirmEffectTargetSelection}
+              disabled={!isConnected || isActionPending || !canConfirmEffectTargetSelection(pendingEffectTargeting)}
+              className={`${phaseActionChipClassName} ${payButtonThemeClasses} disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              Confirm
+            </button>
+          ) : null}
           </>
         ) : null}
 

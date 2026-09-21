@@ -1,4 +1,5 @@
 using ProjectHiddenVillage.Server;
+using ProjectHiddenVillage.Server.Api.Services.Games;
 using ProjectHiddenVillage.Server.Engine.Interfaces;
 
 namespace ProjectHiddenVillage.Server.Engine;
@@ -102,6 +103,41 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
             Type = PhaseDirectiveType.JumpToPhase,
             Phase = targetPhase
         });
+    }
+
+    /// <summary>
+    /// Declares a pass inside an open MainPhase support reaction window. A support activated during the
+    /// MainPhase keeps that window open until both players pass, exactly like the attack cut-in window;
+    /// returns true when the window closes and the pending activations can resolve.
+    /// </summary>
+    /// <summary>
+    /// A pass in the MainPhase support reaction window closes it. Priority is handed to the opponent of
+    /// the latest activator when that activation is queued, so the player passing is the one being asked
+    /// for a response: declining without reacting leaves nothing to answer, and the activation resolves
+    /// immediately instead of demanding a second, meaningless pass from the activator. The activator is
+    /// only ever asked when the opponent actually reacted (another activation flipped priority back).
+    /// </summary>
+    public bool DeclarePassInSupportWindow(GameState state, string playerId)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        if (state.Phase != GamePhase.MainPhase)
+        {
+            throw new InvalidOperationException("Support window passes are only valid during MainPhase.");
+        }
+
+        if (!SupportTimingRules.HasPendingSupportActivation(state))
+        {
+            throw new InvalidOperationException("No support activation is waiting for responses.");
+        }
+
+        if (!string.Equals(state.PriorityPlayerId, playerId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Only the priority player can declare pass.");
+        }
+
+        ClearConsecutivePasses(state);
+        return true;
     }
 
     public bool DeclarePassInActionStep(GameState state, string playerId)

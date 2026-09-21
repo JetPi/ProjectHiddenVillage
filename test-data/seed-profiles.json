@@ -1999,7 +1999,7 @@
               "targetRange": "Self",
               "attribute": "Leader Current Life",
               "operation": "Add",
-              "value": 0,
+              "value": 2,
               "minimumValue": null,
               "maximumValue": null
             }
@@ -2770,7 +2770,7 @@
           "isSubordinate": false,
           "onSuccessEffectId": null,
           "onFailureEffectId": null,
-          "runtimeEffectType": "Alter Resources",
+          "runtimeEffectType": "Lock Chakra Recovery",
           "effectType": "Support",
           "timing": "Support Activated",
           "durationMode": "Until The End Of Your Next Turn",
@@ -2782,7 +2782,7 @@
           "isOptional": false,
           "chakraCost": null,
           "globalRestrictions": "None",
-          "executionTargetSource": "Selected Targets",
+          "executionTargetSource": "None",
           "executionFlowMode": "Per Step",
           "suppressSummonedTargetsEffectsWhileOnField": false,
           "revealTimingMode": "Reveal Last",
@@ -2793,13 +2793,7 @@
           "attributeModifications": [],
           "chakraAdjustments": [],
           "summonCardFlips": [],
-          "faceStateLocks": [
-            {
-              "targetCategory": "Chakra Card",
-              "operation": "Cannot Turn Face Up",
-              "targetRange": "Self"
-            }
-          ],
+          "faceStateLocks": [],
           "moveCardActions": [],
           "contextRules": [],
           "targetRules": {
