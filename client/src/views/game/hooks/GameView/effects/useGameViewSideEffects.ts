@@ -157,33 +157,38 @@ function usePromptSelectionSubmitEffect({
     const selection = pendingPromptSelection
     const pendingPrompt = gameState.pendingPrompt
 
-    // Consume the pick straight away: it is a one-shot answer, and the pruner treats a pick whose prompt is
-    // gone as stale.
-    clearPromptSelection()
-
     if (!pendingPrompt || pendingPrompt.promptId !== selection.promptId) {
+      clearPromptSelection()
       return
     }
 
     const pileDestination = resolveHandPileDestination(pendingPrompt.selectionPromptKind)
-    if (pendingPrompt.candidateZone === 'Hand' && pileDestination) {
-      void runHandToPileAnimation({
-        side: 'bottom',
-        destination: pileDestination,
-        cardInstanceId: selection.selectedInstanceId,
-        topDeckCardRef: viewRefs.topDeckCardRef,
-        bottomDeckCardRef: viewRefs.bottomDeckCardRef,
-        topTrashCardRef: viewRefs.topTrashCardRef,
-        bottomTrashCardRef: viewRefs.bottomTrashCardRef,
-        topHandRowRef: viewRefs.topHandRowRef,
-        bottomHandRowRef: viewRefs.bottomHandRowRef,
-      })
-    }
 
-    void submitHubIntent({
-      intent: 'resolve-prompt',
-      selectedOption: selection.selectedInstanceId,
-    })
+    void (async () => {
+      // Let the card visibly finish travelling to its pile BEFORE the prompt resolves. The flight animates the
+      // real hand element, so submitting first would let the pushed state unmount it mid-air and the card would
+      // simply vanish instead of landing.
+      if (pendingPrompt.candidateZone === 'Hand' && pileDestination) {
+        await runHandToPileAnimation({
+          side: 'bottom',
+          destination: pileDestination,
+          cardInstanceId: selection.selectedInstanceId,
+          topDeckCardRef: viewRefs.topDeckCardRef,
+          bottomDeckCardRef: viewRefs.bottomDeckCardRef,
+          topTrashCardRef: viewRefs.topTrashCardRef,
+          bottomTrashCardRef: viewRefs.bottomTrashCardRef,
+          topHandRowRef: viewRefs.topHandRowRef,
+          bottomHandRowRef: viewRefs.bottomHandRowRef,
+        })
+      }
+
+      clearPromptSelection()
+
+      await submitHubIntent({
+        intent: 'resolve-prompt',
+        selectedOption: selection.selectedInstanceId,
+      })
+    })()
   }, [clearPromptSelection, gameState.pendingPrompt, pendingPromptSelection, submitHubIntent, viewRefs])
 }
 
