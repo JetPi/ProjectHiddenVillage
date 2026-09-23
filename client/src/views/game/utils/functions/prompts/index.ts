@@ -68,6 +68,17 @@ function toReadableOptionLabel(optionValue: string): string {
   return OPTION_LABELS[optionValue] ?? toTitleCaseWords(optionValue)
 }
 
+/**
+ * Zones whose cards are rendered on the board, so an effect selection there is answered by clicking the card
+ * itself (the hover options become a "Select" button) rather than by the card-list overlay. Zones that are not
+ * drawn as selectable cards (a search's deck) keep the overlay.
+ */
+const BOARD_SELECTION_ZONES = new Set<string>(['Hand', 'CharacterField', 'SupportZone'])
+
+function isBoardSelectionPrompt(pendingPrompt: IPromptPresentationSource): boolean {
+  return pendingPrompt?.type === 'Effect' && BOARD_SELECTION_ZONES.has(pendingPrompt.candidateZone ?? '')
+}
+
 function toPromptOption(optionValue: string, promptType: string): IPromptPresentationOption {
   return {
     value: optionValue,
@@ -99,7 +110,7 @@ function toPromptPresentation(pendingPrompt: IPromptPresentationSource): IPrompt
     title,
     subtitle,
     isAwaitingRequestingPlayer: pendingPrompt.isAwaitingRequestingPlayer,
-    renderAsOverlay: OVERLAY_PROMPT_TYPES.has(pendingPrompt.type),
+    renderAsOverlay: OVERLAY_PROMPT_TYPES.has(pendingPrompt.type) && !isBoardSelectionPrompt(pendingPrompt),
     options: pendingPrompt.options.map((option) => toPromptOption(option, pendingPrompt.type)),
     selectionPromptKind: pendingPrompt.selectionPromptKind ?? null,
     candidateZone: pendingPrompt.candidateZone ?? null,

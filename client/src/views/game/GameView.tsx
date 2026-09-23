@@ -13,7 +13,7 @@ import {
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IAttackTargetingState, IEffectTargetingState, IGameLoaderData, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
-import { BottomHandReorderRow, GameHandRow, GamePromptOverlay, GameZones, SupportChainBubble } from '@/views/game/components'
+import { BottomHandReorderRow, GameHandRow, GamePromptOverlay, GameZones, PromptSelectionBanner, SupportChainBubble } from '@/views/game/components'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
@@ -21,7 +21,7 @@ import {
 } from '@/views/game/utils/contants'
 import { buildPromptCandidateCards, handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitEffectTargetSelection as submitEffectTargetAction, submitMappedAction as submitMappedGameAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
 import { CardBack } from '@/components/ui/cards'
-import { useGameUIStore } from '@/state/gameUIStore'
+import { resolveBoardPromptCandidateInstanceIds, useGameUIStore } from '@/state/gameUIStore'
 import { useGameHubStore } from '@/state/gameHubStore'
 import {
   useDerivedGameViewState,
@@ -109,10 +109,18 @@ export function GameView() {
   const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
 
   const isEffectActionTargeting = pendingCardTargeting?.kind === 'effect'
-  const validEffectTargetsByCardId = useMemo(
-    () => (isEffectActionTargeting ? extractTargetIds(pendingCardTargeting?.validTargets) : new Set<string>()),
-    [isEffectActionTargeting, pendingCardTargeting],
-  )
+  const validEffectTargetsByCardId = useMemo(() => {
+    const targets = isEffectActionTargeting ? extractTargetIds(pendingCardTargeting?.validTargets) : new Set<string>()
+
+    // A board-answerable effect selection prompt (hand/field/support) adds its own candidates, so the hand
+    // cards offer the same Select button the field rows do, and nothing outside the effect's declared set can
+    // be picked.
+    for (const instanceId of resolveBoardPromptCandidateInstanceIds(gameState.pendingPrompt)) {
+      targets.add(instanceId.trim().toLowerCase())
+    }
+
+    return targets
+  }, [isEffectActionTargeting, pendingCardTargeting, gameState.pendingPrompt])
 
   const promptPresentation = toPromptPresentation(gameState.pendingPrompt)
 
@@ -120,7 +128,10 @@ export function GameView() {
     promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
   const canResolvePrompt = gameState.pendingPrompt?.isAwaitingRequestingPlayer ?? false
 
-  const mappedAvailableActions = shouldShowPromptOverlay
+  // A pending prompt is answered by its own UI - the prompt overlay for a deck pick, the cards' Select buttons
+  // for a board pick - so its options must never also render as middle-row action chips.
+  const isPromptAwaitingAnswer = gameState.pendingPrompt?.isAwaitingRequestingPlayer === true
+  const mappedAvailableActions = isPromptAwaitingAnswer
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:'))
     : gameState.availableActions
 
@@ -317,6 +328,12 @@ export function GameView() {
           onResolve={(selectedOption) => {
             void handlePromptResolve(selectedOption)
           }}
+        />
+
+        <PromptSelectionBanner
+          key={promptPresentation?.promptType === 'Effect' ? gameState.pendingPrompt?.promptId ?? 'none' : 'none'}
+          promptKey={promptPresentation?.promptType === 'Effect' ? gameState.pendingPrompt?.promptId ?? null : null}
+          title={promptPresentation?.promptType === 'Effect' ? promptPresentation.title : null}
         />
 
         <SupportChainBubble gameInstance={gameState} authUserId={authUserId} />

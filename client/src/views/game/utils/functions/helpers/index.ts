@@ -30,6 +30,14 @@ function getPhaseValue(
     return effectTargetSelectionPhaseValue
   }
 
+  // An effect selection prompt ("select a card to place on deck top") shows its own message while it waits for
+  // this player's answer - the message names what to pick, and the picking itself happens on the cards' Select
+  // buttons. Nothing else is added to this line for a prompt: no counts, no confirm chip.
+  const promptSelectionPhaseValue = getPromptSelectionPhaseValue(gameInstance)
+  if (promptSelectionPhaseValue !== null) {
+    return promptSelectionPhaseValue
+  }
+
   const supportResponseWindowPhaseValue = getSupportResponseWindowPhaseValue(gameInstance, authUserId)
   if (supportResponseWindowPhaseValue !== null) {
     return supportResponseWindowPhaseValue
@@ -88,6 +96,37 @@ function getPhaseValue(
  * `TributeRequirementDescription.GenericMaterialLabel`. The server normally declares it explicitly
  * (and flags it with `isGeneric`), so this only backs up an incomplete payload.
  */
+/**
+ * Names what an effect selection prompt is asking for, keyed by the server's EffectSelectionPromptKind /
+ * {@link IPromptPresentation.selectionPromptKind}. Adding a kind means one entry here (plus the prompt copy in
+ * `utils/functions/prompts`) - no server change.
+ */
+function getPromptSelectionPhaseValue(gameInstance: IGameStateResponse): string | null {
+  const pendingPrompt = gameInstance.pendingPrompt
+  if (!pendingPrompt || promptType(pendingPrompt.type) !== 'effect' || !pendingPrompt.isAwaitingRequestingPlayer) {
+    return null
+  }
+
+  switch (pendingPrompt.selectionPromptKind) {
+    case 'PlaceOnDeckTop':
+      return PhaseValues['select-prompt-place-on-deck-top']
+    case 'PlaceOnDeckBottom':
+      return PhaseValues['select-prompt-place-on-deck-bottom']
+    case 'DiscardFromHand':
+      return PhaseValues['select-prompt-discard-from-hand']
+    case 'ReturnToHand':
+      return PhaseValues['select-prompt-return-to-hand']
+    case 'SearchDeck':
+      return PhaseValues['select-prompt-search-deck']
+    default:
+      return PhaseValues['select-prompt-generic']
+  }
+}
+
+function promptType(rawType: string): string {
+  return rawType.trim().toLowerCase()
+}
+
 const GENERIC_TRIBUTE_MATERIAL_LABEL = 'any'
 
 type ITributeMaterialRequirementGroup = {

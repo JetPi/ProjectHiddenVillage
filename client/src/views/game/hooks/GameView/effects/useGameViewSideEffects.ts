@@ -1,4 +1,4 @@
-import { useMemo, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import { useEffect, useMemo, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type {
   IGameCardInstanceResponse,
   IGameStateResponse,
@@ -10,8 +10,9 @@ import type {
   IUseGameHubStateResult,
 } from '@/views/game/types'
 import { DRAW_TO_HAND_REVEAL_DELAY_MS, DRAW_TO_HAND_STAGGER_MS, HAND_TO_PILE_STAGGER_MS } from '@/views/game/utils/contants'
+import { runHandToPileAnimation } from '@/views/game/utils/functions/animations'
 import type { useGameRefs } from '@/views/game/hooks/GameView/memos/useGameRefs'
-import type { IGameUIStoreState } from '@/state/types/gameUIStore'
+import type { IGameUIStoreState, IPendingPromptSelectionState } from '@/state/types/gameUIStore'
 import { useBattlefieldCardReorderEffect } from './useBattleFieldCards'
 import { useGetMainPhaseActions } from './useGetMainPhaseActions'
 import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useCardMoveGhostAnimationEffect, useHandZoneAnimationEffects } from './useGameViewEffects'
@@ -100,6 +101,14 @@ function useGameViewSideEffects({
     animControllerRef,
   })
 
+  usePromptSelectionSubmitEffect({
+    gameState,
+    pendingPromptSelection: ui.pendingPromptSelection,
+    clearPromptSelection: ui.clearPromptSelection,
+    submitHubIntent: gameHubState.submitHubIntent,
+    viewRefs,
+  })
+
   useAutoAdvancePhaseEffect({
     isConnected,
     isActionPendingFlag: isActionPending,
@@ -124,6 +133,79 @@ function useGameViewSideEffects({
     bottomHandCards,
     refreshGameState,
   })
+}
+
+/**
+ * Submits the card the player picked on a prompt's own Select button. Board clicks only record the pick (the
+ * rows call the store directly, per the interaction-state boundary), so the hub submission happens here,
+ * together with the flight the pick should show: a hand card on its way to the deck or the trash. A deck
+ * search needs no flight here - the hand-zone effect already flies the searched card out of the deck once the
+ * resolved state arrives.
+ */
+function usePromptSelectionSubmitEffect({
+  gameState,
+  pendingPromptSelection,
+  clearPromptSelection,
+  submitHubIntent,
+  viewRefs,
+}: IUsePromptSelectionSubmitEffectArgs): void {
+  useEffect(() => {
+    if (!pendingPromptSelection) {
+      return
+    }
+
+    const selection = pendingPromptSelection
+    const pendingPrompt = gameState.pendingPrompt
+
+    // Consume the pick straight away: it is a one-shot answer, and the pruner treats a pick whose prompt is
+    // gone as stale.
+    clearPromptSelection()
+
+    if (!pendingPrompt || pendingPrompt.promptId !== selection.promptId) {
+      return
+    }
+
+    const pileDestination = resolveHandPileDestination(pendingPrompt.selectionPromptKind)
+    if (pendingPrompt.candidateZone === 'Hand' && pileDestination) {
+      void runHandToPileAnimation({
+        side: 'bottom',
+        destination: pileDestination,
+        cardInstanceId: selection.selectedInstanceId,
+        topDeckCardRef: viewRefs.topDeckCardRef,
+        bottomDeckCardRef: viewRefs.bottomDeckCardRef,
+        topTrashCardRef: viewRefs.topTrashCardRef,
+        bottomTrashCardRef: viewRefs.bottomTrashCardRef,
+        topHandRowRef: viewRefs.topHandRowRef,
+        bottomHandRowRef: viewRefs.bottomHandRowRef,
+      })
+    }
+
+    void submitHubIntent({
+      intent: 'resolve-prompt',
+      selectedOption: selection.selectedInstanceId,
+    })
+  }, [clearPromptSelection, gameState.pendingPrompt, pendingPromptSelection, submitHubIntent, viewRefs])
+}
+
+/** Which pile a hand card picked by a prompt leaves for (null when the prompt's action moves no hand card). */
+function resolveHandPileDestination(selectionPromptKind: string | null | undefined): 'deck' | 'trash' | null {
+  switch (selectionPromptKind) {
+    case 'PlaceOnDeckTop':
+    case 'PlaceOnDeckBottom':
+      return 'deck'
+    case 'DiscardFromHand':
+      return 'trash'
+    default:
+      return null
+  }
+}
+
+type IUsePromptSelectionSubmitEffectArgs = {
+  gameState: IGameStateResponse
+  pendingPromptSelection: IPendingPromptSelectionState | null
+  clearPromptSelection: () => void
+  submitHubIntent: IUseGameHubStateResult['submitHubIntent']
+  viewRefs: ReturnType<typeof useGameRefs>
 }
 
 type IUseGameViewSideEffectsArgs = {

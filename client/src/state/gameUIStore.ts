@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { SetStateAction } from 'react'
+import type { IGameStateResponse } from '@/services/api/types/game'
 import { useAuthSessionStore } from '@/state/authSession'
 import { useGameHubStore } from '@/state/gameHubStore'
 import { resolveCurrentPlayer, toggleEffectTargetSelection, toggleSummonTargetSelection } from '@/views/game/utils/functions'
@@ -9,9 +10,45 @@ function resolveUpdate<T>(value: SetStateAction<T>, previous: T): T {
   return typeof value === 'function' ? (value as (previous: T) => T)(previous) : value
 }
 
+/**
+ * Zones whose cards are drawn on the board, so a prompt asking for a card there is answered by clicking the
+ * card's own Select button instead of the card-list overlay. Kept next to the store because the store decides
+ * whether a click picks a prompt candidate or toggles an effect-target selection.
+ */
+const BOARD_PROMPT_SELECTION_ZONES = new Set<string>(['Hand', 'CharacterField', 'SupportZone'])
+
+/**
+ * The instance ids a board-answerable effect selection prompt offers. The server resolves them from the
+ * effect's own target rules, so this IS the effect's declared set of selectable cards - the board can never
+ * offer anything else.
+ */
+export function resolveBoardPromptCandidateInstanceIds(pendingPrompt: IGameStateResponse['pendingPrompt']): string[] {
+  if (!pendingPrompt || pendingPrompt.type !== 'Effect' || !pendingPrompt.isAwaitingRequestingPlayer) {
+    return []
+  }
+
+  if (!BOARD_PROMPT_SELECTION_ZONES.has(pendingPrompt.candidateZone ?? '')) {
+    return []
+  }
+
+  return pendingPrompt.options ?? []
+}
+
+function normalizeInstanceId(instanceId: string): string {
+  return instanceId.trim().toLowerCase()
+}
+
+function isBoardPromptCandidate(pendingPrompt: IGameStateResponse['pendingPrompt'], cardInstanceId: string): boolean {
+  const normalized = normalizeInstanceId(cardInstanceId)
+  return resolveBoardPromptCandidateInstanceIds(pendingPrompt).some(
+    (candidateInstanceId) => normalizeInstanceId(candidateInstanceId) === normalized,
+  )
+}
+
 const initialState = {
   bottomHandFaceUpByInstanceId: {},
   isMulliganAnimationPending: false,
+  pendingPromptSelection: null,
   pendingCardTargeting: null,
   pendingSummonTargeting: null,
   pendingEffectTargeting: null,
@@ -67,12 +104,28 @@ export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
       pendingEffectTargeting: targeting,
     })),
   cancelEffectTargeting: () => set({ pendingEffectTargeting: null }),
-  toggleEffectTarget: (targetCardInstanceId) =>
+  clearPromptSelection: () => set({ pendingPromptSelection: null }),
+  toggleEffectTarget: (targetCardInstanceId) => {
+    // A click on one of a prompt's candidates answers that prompt (the card's own Select button): the prompt
+    // lists exactly the cards the effect declared selectable, so nothing else can be picked. Everything else
+    // stays an effect-target toggle.
+    const pendingPrompt = useGameHubStore.getState().gameState?.pendingPrompt ?? null
+    if (isBoardPromptCandidate(pendingPrompt, targetCardInstanceId)) {
+      set({
+        pendingPromptSelection: {
+          promptId: pendingPrompt?.promptId ?? '',
+          selectedInstanceId: targetCardInstanceId,
+        },
+      })
+      return
+    }
+
     toggleEffectTargetSelection({
       targetCardInstanceId,
       setPendingEffectTargeting: (action) =>
         set((state) => ({ pendingEffectTargeting: resolveUpdate(action, state.pendingEffectTargeting) })),
-    }),
+    })
+  },
   toggleSummonTarget: (targetCardInstanceId) =>
     toggleSummonTargetSelection({
       targetCardInstanceId,
@@ -148,6 +201,13 @@ function pruneStaleGameUIState(): void {
     if (!stillAvailable) {
       ui.setPendingCardTargeting(null)
     }
+  }
+
+  // A picked prompt candidate is only meaningful while that prompt is still the pending one: the submit
+  // effect consumes it, and a prompt answered elsewhere must not leave a stale pick behind.
+  const pendingPromptSelection = ui.pendingPromptSelection
+  if (pendingPromptSelection && pendingPromptSelection.promptId !== (gameState.pendingPrompt?.promptId ?? '')) {
+    ui.clearPromptSelection()
   }
 
   const pendingSummonTargeting = ui.pendingSummonTargeting
