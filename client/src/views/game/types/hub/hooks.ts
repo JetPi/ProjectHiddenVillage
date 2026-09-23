@@ -1,4 +1,5 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react'
+import type { IGamePlayerStateResponse } from '@/services/api/gameApi'
 import type { ILeaderCardViewModel } from './viewModels'
 import type { IHandZoneSnapshot } from '@/views/game/types'
 import type { IGameHubActionIntent, ISubmitHubIntentRequest } from './hub'
@@ -66,6 +67,19 @@ export type IUseCardMoveGhostAnimationEffectArgs = {
   topTrashCardRef: RefObject<HTMLDivElement | null>
   bottomTrashCardRef: RefObject<HTMLDivElement | null>
   animControllerRef: RefObject<IGameViewAnimController>
+}
+
+/**
+ * Flies the card a reveal turned face up out of the deck slot and onto its owner's character field (a
+ * "Reveal First" chain that summons the revealed card). Driven purely by the reveal: the card is drawn by the
+ * deck pile rather than as a card face, so the generic move-ghost effect has no snapshot to fly from.
+ */
+export type IUseRevealedCardSummonFlightEffectArgs = {
+  currentPlayer: IGamePlayerStateResponse | null
+  opponentPlayer: IGamePlayerStateResponse | null
+  topDeckCardRef: RefObject<HTMLDivElement | null>
+  bottomDeckCardRef: RefObject<HTMLDivElement | null>
+  boardZoneRef: RefObject<HTMLDivElement | null>
 }
 
 export type IUseAutoAdvancePhaseEffectArgs = {

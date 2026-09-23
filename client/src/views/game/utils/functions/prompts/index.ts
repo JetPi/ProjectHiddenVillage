@@ -44,6 +44,12 @@ const EFFECT_SELECTION_PROMPT_COPY: Record<string, { title: string; subtitle: st
     title: 'Search Your Deck',
     subtitle: 'Choose a card from your deck.',
   },
+  // A "Reveal First" chain suspends so the player can see the card it turned over; the client acknowledges it
+  // on its own, so the copy is only shown if the presentation ever needs a caption.
+  RevealPresentation: {
+    title: 'Card Revealed',
+    subtitle: 'The revealed card stays face up while the effect resolves.',
+  },
 }
 
 const OPTION_LABELS: Record<string, string> = {
@@ -74,6 +80,17 @@ function toReadableOptionLabel(optionValue: string): string {
  * drawn as selectable cards (a search's deck) keep the overlay.
  */
 const BOARD_SELECTION_ZONES = new Set<string>(['Hand', 'CharacterField', 'SupportZone'])
+
+/**
+ * Presentation prompts are not questions: a "Reveal First" chain suspends so the player can look at the card it
+ * turned over, and the client acknowledges it on its own (see the reveal presentation ack effect). Never render
+ * a picker - the only option IS the acknowledgement.
+ */
+const PRESENTATION_PROMPT_KINDS = new Set<string>(['RevealPresentation'])
+
+function isPresentationPrompt(pendingPrompt: IPromptPresentationSource): boolean {
+  return PRESENTATION_PROMPT_KINDS.has(pendingPrompt?.selectionPromptKind ?? '')
+}
 
 function isBoardSelectionPrompt(pendingPrompt: IPromptPresentationSource): boolean {
   return pendingPrompt?.type === 'Effect' && BOARD_SELECTION_ZONES.has(pendingPrompt.candidateZone ?? '')
@@ -110,7 +127,10 @@ function toPromptPresentation(pendingPrompt: IPromptPresentationSource): IPrompt
     title,
     subtitle,
     isAwaitingRequestingPlayer: pendingPrompt.isAwaitingRequestingPlayer,
-    renderAsOverlay: OVERLAY_PROMPT_TYPES.has(pendingPrompt.type) && !isBoardSelectionPrompt(pendingPrompt),
+    renderAsOverlay:
+      OVERLAY_PROMPT_TYPES.has(pendingPrompt.type)
+      && !isBoardSelectionPrompt(pendingPrompt)
+      && !isPresentationPrompt(pendingPrompt),
     options: pendingPrompt.options.map((option) => toPromptOption(option, pendingPrompt.type)),
     selectionPromptKind: pendingPrompt.selectionPromptKind ?? null,
     candidateZone: pendingPrompt.candidateZone ?? null,

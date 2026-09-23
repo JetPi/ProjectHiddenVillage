@@ -143,6 +143,29 @@ paths:
   disappears from the field lookup. The same applies to `gameUIStore`’s optimistic-rest
   reconciliation.
 
+## Revealed cards on the board (`isRevealed`)
+
+- `PlayPileZone` renders the deck slot as a `FlippableCard` (`isFlipped` once that side's deck list carries a card with
+  `isRevealed === true`), so a `Reveal First` effect flips the card over in place and it flips back when the server
+  clears the flag (contract in `03-targeting-contract.md`). Both sides use the same lookup: the owner receives every
+  deck card, the opponent only receives their revealed ones.
+- The face comes from the catalog (`gameState.cardById`), exactly like the trash pile's top card — the deck branch of
+  the zone mapper sends a base `CardInstanceResponse`, so no `displayName`/`power` is available there.
+- The presentation is client-timed, not click-driven: the ack fires after `REVEAL_PRESENTATION_MS` (2000 ms,
+  `views/game/utils/contants.ts`) through `useRevealPresentationAckEffect`, so the deck slot has to stay mounted (and
+  keep its box) while the reveal lasts — the deck slot is also the origin of the deck→hand draw animation.
+- A reveal of an **opponent's hand** card flips that one card in the top hand row (`GameView`'s `renderCard`): the
+  payload carries the real identity plus `isRevealed`, while every concealed card still arrives as the concealed
+  definition id — so no art is ever mounted for a hidden card.
+- A reveal of a **support** card shows its face in `ZoneCardSlots` (`isShownFaceUp = card.isFaceUp || card.isRevealed`),
+  the same flag that drops the concealed darkening / own-stripe overlays and enables the hover preview. The server
+  keeps reporting a set support as `isFaceUp: false`, so `isRevealed` is the only signal that it was turned over.
+- A reveal followed by a **summon** (N-019/N-022) flies the card out of the deck slot onto its owner's character
+  field: `useRevealedCardSummonFlightEffect` remembers the revealed deck card (id + side) and, on the next pass,
+  animates that card's freshly rendered battlefield element from the deck-slot rect (scale 0.92 → 1, the same
+  invocation an explicit hand→field summon uses). The generic move-ghost effect cannot do this — a card drawn by the
+  deck pile has no card-face snapshot — and because the flight is state-driven it also plays on the opponent's client.
+
 ## Support chain bubble (`SupportChainBubble`)
 
 - Pops up in the top-right corner of the game view (`fixed right-2 top-2 z-40`, `pointer-events-none`, next to

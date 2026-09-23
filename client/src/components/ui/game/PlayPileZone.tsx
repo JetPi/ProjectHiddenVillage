@@ -3,6 +3,7 @@ import { PlayCard } from '@/components/ui/game/PlayCard'
 import { CardBack } from '@/components/ui/cards/CardBack'
 import { CardImage } from '@/components/ui/cards/CardImage'
 import { CardOverlayBadge } from '@/components/ui/cards/CardOverlayBadge'
+import { FlippableCard } from '@/components/ui/cards/FlippableCard'
 import type { IPlayPileZoneProps } from '@/components/ui/types'
 
 function isDeckLabel(label: string): boolean {
@@ -41,6 +42,14 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
     : null
   const latestTrashCard = latestTrashInstance
     ? (gameState?.cardById.get(latestTrashInstance.cardDefinitionId.trim().toLowerCase()) ?? null)
+    : null
+
+  // A reveal turns one deck card face up for both players (the owner's deck list carries every card, the
+  // opponent only receives their revealed ones), so the deck slot flips it over while the reveal lasts.
+  const deckOwner = side === 'bottom' ? currentPlayer : opponentPlayer
+  const revealedDeckInstance = deckOwner?.deck.find((card) => card.isRevealed === true) ?? null
+  const revealedDeckCard = revealedDeckInstance
+    ? (gameState?.cardById.get(revealedDeckInstance.cardDefinitionId.trim().toLowerCase()) ?? null)
     : null
   
   return (
@@ -81,7 +90,20 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                 )}
               >{badgeValue}</CardOverlayBadge>
               {isDeckLabel(label) ? (
-                <CardBack className="border-0 bg-transparent [&_img]:object-cover" tone={cardBackTone} />
+                <FlippableCard
+                  isFlipped={revealedDeckInstance !== null}
+                  back={<CardBack className="border-0 bg-transparent [&_img]:object-cover" tone={cardBackTone} />}
+                  front={
+                    revealedDeckCard ? (
+                      <CardImage
+                        card={revealedDeckCard}
+                        variant="board"
+                        alt="Revealed deck card"
+                        className="h-full w-full rounded-lg object-cover"
+                      />
+                    ) : null
+                  }
+                />
               ) : isTrashLabel(label) && latestTrashCard ? (
                 <CardImage
                   card={latestTrashCard}

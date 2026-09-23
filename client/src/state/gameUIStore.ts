@@ -27,6 +27,11 @@ export function resolveBoardPromptCandidateInstanceIds(pendingPrompt: IGameState
     return []
   }
 
+  // A reveal presentation's single option is its acknowledgement, not a card to pick.
+  if (pendingPrompt.selectionPromptKind === 'RevealPresentation') {
+    return []
+  }
+
   if (!BOARD_PROMPT_SELECTION_ZONES.has(pendingPrompt.candidateZone ?? '')) {
     return []
   }

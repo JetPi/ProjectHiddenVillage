@@ -52,6 +52,14 @@ task touches that area).
   **N-016's negate is fixed** (its chakra lock is now its own `Lock Chakra Recovery` runtime effect instead of
   a target-demanding `Alter Resources` node — see `05-server-models-serialization.md`) and covered by server
   tests; it still has no e2e.
+- **Reveal presentation: only the e2e is left.** The engine pause (see `03-targeting-contract.md` →
+  "Reveal presentation") and every client surface are shipped: the deck slot flips via `FlippableCard`, the ack
+  fires after `REVEAL_PRESENTATION_MS`, an opponent's revealed **hand**/**support** card is shown face up, and a
+  reveal that summons flies the card out of the deck slot onto the field (`02-board-ui-hud.md` → "Revealed cards on
+  the board"). Still open: an e2e that actually *plays* N-013/N-019/N-022 — the specs only use N-019 as
+  summon/tribute material, which is also why the flight is not pinned yet. The first step is a DOM hook for the
+  presentation (e.g. a `data-testid`/`data-revealed` on the flipped deck slot in `PlayPileZone`), because a
+  presentation prompt renders no overlay: during the pause nothing else in the DOM says "a card is face up here".
 - **Optional regression test** for N-009 (Kakashi, Support-Activated “reduce your life by 2”):
   its `reduce-self-life` effect declares a target entry with `exactSelectedTargetCount: 0` while
   `targetRules.exactTargetCount` is 1 — harmless today, but pin the behaviour before touching it.

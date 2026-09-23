@@ -9,13 +9,14 @@ import type {
   IGameViewAnimController,
   IUseGameHubStateResult,
 } from '@/views/game/types'
-import { DRAW_TO_HAND_REVEAL_DELAY_MS, DRAW_TO_HAND_STAGGER_MS, HAND_TO_PILE_STAGGER_MS } from '@/views/game/utils/contants'
+import { DRAW_TO_HAND_REVEAL_DELAY_MS, DRAW_TO_HAND_STAGGER_MS, HAND_TO_PILE_STAGGER_MS, REVEAL_PRESENTATION_MS } from '@/views/game/utils/contants'
 import { runHandToPileAnimation } from '@/views/game/utils/functions/animations'
+import { useGameHubStore } from '@/state/gameHubStore'
 import type { useGameRefs } from '@/views/game/hooks/GameView/memos/useGameRefs'
 import type { IGameUIStoreState, IPendingPromptSelectionState } from '@/state/types/gameUIStore'
 import { useBattlefieldCardReorderEffect } from './useBattleFieldCards'
 import { useGetMainPhaseActions } from './useGetMainPhaseActions'
-import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useCardMoveGhostAnimationEffect, useHandZoneAnimationEffects } from './useGameViewEffects'
+import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useCardMoveGhostAnimationEffect, useHandZoneAnimationEffects, useRevealedCardSummonFlightEffect } from './useGameViewEffects'
 
 function useGameViewSideEffects({
   authUserId,
@@ -101,12 +102,26 @@ function useGameViewSideEffects({
     animControllerRef,
   })
 
+  useRevealedCardSummonFlightEffect({
+    currentPlayer,
+    opponentPlayer,
+    topDeckCardRef: viewRefs.topDeckCardRef,
+    bottomDeckCardRef: viewRefs.bottomDeckCardRef,
+    boardZoneRef: viewRefs.boardZoneRef,
+  })
+
   usePromptSelectionSubmitEffect({
     gameState,
     pendingPromptSelection: ui.pendingPromptSelection,
     clearPromptSelection: ui.clearPromptSelection,
     submitHubIntent: gameHubState.submitHubIntent,
     viewRefs,
+  })
+
+  useRevealPresentationAckEffect({
+    isConnected,
+    gameState,
+    submitHubIntent: gameHubState.submitHubIntent,
   })
 
   useAutoAdvancePhaseEffect({
@@ -203,6 +218,63 @@ function resolveHandPileDestination(selectionPromptKind: string | null | undefin
     default:
       return null
   }
+}
+
+/**
+ * A reveal presentation is not a question: the server suspends a "Reveal First" chain until the player has seen
+ * the card it turned over (the deck slot flips it face up meanwhile). The client therefore acknowledges it on its
+ * own once the presentation window has passed, using the prompt's single option - the only option a presentation
+ * prompt ever has. The ack is re-armed while that same prompt is still pending, because a failed submit would
+ * otherwise strand the chain with nothing left to answer it.
+ */
+function useRevealPresentationAckEffect({
+  isConnected,
+  gameState,
+  submitHubIntent,
+}: IUseRevealPresentationAckEffectArgs): void {
+  const pendingPrompt = gameState.pendingPrompt
+  const promptId = pendingPrompt?.promptId ?? null
+  const ackOption =
+    pendingPrompt?.selectionPromptKind === 'RevealPresentation' && pendingPrompt.isAwaitingRequestingPlayer
+      ? (pendingPrompt.options?.[0] ?? null)
+      : null
+
+  useEffect(() => {
+    if (!isConnected || !promptId || !ackOption) {
+      return
+    }
+
+    let isCancelled = false
+    let timeoutId = 0
+
+    const scheduleAck = (): void => {
+      timeoutId = window.setTimeout(() => {
+        void (async () => {
+          await submitHubIntent({ intent: 'resolve-prompt', selectedOption: ackOption })
+
+          const isStillPending =
+            useGameHubStore.getState().gameState?.pendingPrompt?.promptId === promptId
+
+          if (!isCancelled && isStillPending) {
+            scheduleAck()
+          }
+        })()
+      }, REVEAL_PRESENTATION_MS)
+    }
+
+    scheduleAck()
+
+    return () => {
+      isCancelled = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [ackOption, isConnected, promptId, submitHubIntent])
+}
+
+type IUseRevealPresentationAckEffectArgs = {
+  isConnected: boolean
+  gameState: IGameStateResponse
+  submitHubIntent: IUseGameHubStateResult['submitHubIntent']
 }
 
 type IUsePromptSelectionSubmitEffectArgs = {

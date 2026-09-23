@@ -25,6 +25,14 @@ public enum EffectSelectionPromptKind
     DiscardFromHand,
     ReturnToHand,
     SearchDeck,
+
+    /// <summary>
+    /// Not a selection: a <see cref="RevealTimingMode.RevealFirst"/> step turned a card face up that the acting
+    /// player could not see before (the top card of a deck, an opponent's hand / face-down support card), and the
+    /// chain waits for them to acknowledge the presentation before it carries on. The prompt's single option is
+    /// the acknowledgement, so the client never renders a picker for it.
+    /// </summary>
+    RevealPresentation,
 }
 
 public class CanExecuteResult

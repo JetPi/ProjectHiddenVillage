@@ -130,6 +130,13 @@ public record CardInstanceResponse(
 {
     public bool IsFaceUp { get; init; } = true;
 
+    /// <summary>
+    /// True while this card's face is shown to both players (a reveal). Distinct from <see cref="IsFaceUp"/>,
+    /// which describes the card's own face state: a deck card is always "face up" in the data model yet hidden
+    /// from the opponent until a reveal makes it visible.
+    /// </summary>
+    public bool IsRevealed { get; init; }
+
     public bool IsExhausted { get; init; }
 
     public bool IsRested { get; init; }

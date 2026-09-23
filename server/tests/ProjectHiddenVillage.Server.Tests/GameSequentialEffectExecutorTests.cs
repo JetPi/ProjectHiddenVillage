@@ -750,6 +750,195 @@ public sealed class GameSequentialEffectExecutorTests
     }
 
     [TestMethod]
+    public void Execute_RevealFirstDeckTopReveal_SuspendsForPresentationThenResumesIntoTheSuccessBranch()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new DeckTopRevealEffect(observedSpecIds),
+            new RecordingEffect(FreezeCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                RevealTimingMode = RevealTimingMode.RevealFirst,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                OnSuccessEffectId = "freeze-step",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "freeze-step",
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+        AddDeckCard(context, "deck-1", "deck-def");
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        // Only the reveal ran: the chain stopped so the client can present the card it turned over.
+        CollectionAssert.AreEqual(new[] { "reveal-step" }, observedSpecIds.ToArray());
+
+        var deckCard = context.Game.State.Players[0].Deck.Single();
+        Assert.IsTrue(deckCard.IsRevealedToBothPlayers);
+        Assert.AreEqual(PlayerZone.Deck, deckCard.RevealedInZone);
+
+        var prompt = context.Game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual(GamePromptType.Effect, prompt.Type);
+        Assert.AreEqual(EffectSelectionPromptKind.RevealPresentation, prompt.SelectionPromptKind);
+        Assert.AreEqual("p1", prompt.RequestedPlayerId);
+        Assert.AreEqual(PlayerZone.Deck, prompt.CandidateZone);
+        Assert.AreEqual("p1", prompt.CandidatePlayerId);
+        CollectionAssert.AreEqual(
+            new[] { ReactiveEffectExecutionConstants.RevealPresentedOption },
+            prompt.Options.ToArray());
+        Assert.IsNotNull(prompt.EffectContinuation);
+        Assert.AreEqual("freeze-step", prompt.EffectContinuation.ResumeNodeId);
+
+        // The acknowledgement is not a selection, so the resumed chain carries on to the success branch and the
+        // presented card goes back face down once the chain is over.
+        var resumeResult = executor.Resume(context.Game, prompt.EffectContinuation, []);
+
+        Assert.IsFalse(resumeResult.IsError);
+        CollectionAssert.AreEqual(new[] { "reveal-step", "freeze-step" }, observedSpecIds.ToArray());
+        Assert.IsFalse(deckCard.IsRevealedToBothPlayers);
+        Assert.IsNull(deckCard.RevealedInZone);
+    }
+
+    [TestMethod]
+    public void Execute_RevealFirstDeckTopReveal_FlipsTheCardBack_WhenThePostConditionEndsTheChain()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new DeckTopRevealEffect(observedSpecIds),
+            new RecordingEffect(FreezeCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        // The post-condition looks for a Leader, so the deck card can never satisfy it and there is no failure
+        // branch: the reveal is the whole effect, like the real "reveal the top card, and if ..." cards.
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                RevealTimingMode = RevealTimingMode.RevealFirst,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                RevealPostConditionRestriction = new ZoneCardRestriction
+                {
+                    MatchMode = ZoneRestrictionMatchMode.All,
+                    Predicates =
+                    [
+                        new ZoneCardPropertyPredicate
+                        {
+                            Property = ZoneCardProperty.Type,
+                            Operator = ZoneCardPredicateOperator.Equals,
+                            Value = "Leader",
+                            IgnoreCase = true,
+                        },
+                    ],
+                },
+                OnSuccessEffectId = "freeze-step",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "freeze-step",
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+        AddDeckCard(context, "deck-1", "deck-def");
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "reveal-step" }, observedSpecIds.ToArray());
+
+        var deckCard = context.Game.State.Players[0].Deck.Single();
+        Assert.IsTrue(deckCard.IsRevealedToBothPlayers);
+
+        var prompt = context.Game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual(EffectSelectionPromptKind.RevealPresentation, prompt.SelectionPromptKind);
+        // No failure branch means acknowledging the presentation ends the chain.
+        Assert.AreEqual(string.Empty, prompt.EffectContinuation!.ResumeNodeId);
+
+        var resumeResult = executor.Resume(context.Game, prompt.EffectContinuation, []);
+
+        Assert.IsFalse(resumeResult.IsError);
+        CollectionAssert.AreEqual(new[] { "reveal-step" }, observedSpecIds.ToArray());
+        Assert.IsFalse(deckCard.IsRevealedToBothPlayers);
+        Assert.IsNull(deckCard.RevealedInZone);
+    }
+
+    [TestMethod]
+    public void Execute_RevealFirstRevealOfAVisibleCard_DoesNotSuspend()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingRevealEffect(observedSpecIds, "o-field"),
+            new RecordingEffect(FreezeCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                RevealTimingMode = RevealTimingMode.RevealFirst,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                OnSuccessEffectId = "freeze-step",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "freeze-step",
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        // The revealed card sits on the opponent's battlefield - both players could already see it, so there is
+        // nothing to present and the chain never stops.
+        var context = CreateContext(
+            sourceDefinition,
+            playerTwoFieldCards:
+            [
+                CreateCardOnField("revealed-card", "o-field", "p2", "Revealed Card"),
+            ]);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.IsNull(context.Game.GetPendingPrompt());
+        CollectionAssert.AreEqual(new[] { "reveal-step", "freeze-step" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
     public void Execute_RevealLast_BranchesOnFailureWithoutExecuting_WhenConditionDoesNotMatch()
     {
         var observedSpecIds = new List<string>();
@@ -1668,6 +1857,31 @@ public sealed class GameSequentialEffectExecutorTests
         };
     }
 
+    private static void AddDeckCard(GameCardEffectContext context, string instanceId, string definitionId)
+    {
+        var player = context.Game.State.Players.First(entry => entry.PlayerId == "p1");
+        player.Deck.Add(new CardInstance
+        {
+            InstanceId = instanceId,
+            CardDefinitionId = definitionId,
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        });
+
+        context.Game.State.CardDefinitions[definitionId] = new CharacterCard
+        {
+            Id = definitionId,
+            DisplayName = "Deck Card",
+            Name = ["Deck Card"],
+            Type = CardType.Character,
+            Color = CardColor.Red,
+            Traits = [],
+            Damage = 1,
+            Power = 1,
+            Health = 2,
+        };
+    }
+
     private sealed class RecordingEffect : IGameCardEffect
     {
         private readonly List<string> observedSpecIds;
@@ -1721,6 +1935,44 @@ public sealed class GameSequentialEffectExecutorTests
             {
                 mutableArguments[ReactiveEffectExecutionConstants.RevealedPrimaryTargetIdArgument] = revealedPrimaryTargetId;
                 mutableArguments[ReactiveEffectExecutionConstants.RevealedTargetIdsArgument] = revealedPrimaryTargetId;
+            }
+
+            return Result.Success;
+        }
+    }
+
+    /// <summary>
+    /// Reveals the top card of the acting player's deck the way <see cref="RevealCardEffect"/> does, publishing the
+    /// revealed id so the following steps - and the presentation - can find it.
+    /// </summary>
+    private sealed class DeckTopRevealEffect(List<string> observedSpecIds) : IGameCardEffect
+    {
+        public string EffectTypeKey => RevealCardEffect.EffectKey;
+
+        public CanExecuteResult CanExecute(GameCardEffectContext context)
+        {
+            return new CanExecuteResult { CanExecute = true };
+        }
+
+        public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
+        {
+            return [];
+        }
+
+        public ErrorOr<Success> Execute(GameCardEffectContext context, IReadOnlyList<GameEffectTargetReference> selectedTargets)
+        {
+            Assert.IsTrue(context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument, out var activeEffectSpecId));
+            observedSpecIds.Add(activeEffectSpecId!);
+
+            var deck = context.Game.State.Players.First(player => player.PlayerId == "p1").Deck;
+            var topCard = deck[0];
+            topCard.IsRevealedToBothPlayers = true;
+            topCard.RevealedInZone = PlayerZone.Deck;
+
+            if (context.Arguments is IDictionary<string, string> mutableArguments)
+            {
+                mutableArguments[ReactiveEffectExecutionConstants.RevealedTargetIdsArgument] = topCard.InstanceId;
+                mutableArguments[ReactiveEffectExecutionConstants.RevealedPrimaryTargetIdArgument] = topCard.InstanceId;
             }
 
             return Result.Success;

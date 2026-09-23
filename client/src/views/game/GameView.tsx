@@ -20,7 +20,7 @@ import {
   LEADER_CARD_FRAME_CLASS,
 } from '@/views/game/utils/contants'
 import { buildPromptCandidateCards, handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitEffectTargetSelection as submitEffectTargetAction, submitMappedAction as submitMappedGameAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
-import { CardBack } from '@/components/ui/cards'
+import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 import { resolveBoardPromptCandidateInstanceIds, useGameUIStore } from '@/state/gameUIStore'
 import { useGameHubStore } from '@/state/gameHubStore'
 import {
@@ -261,15 +261,40 @@ export function GameView() {
               rowRef={viewRefs.setTopHandRowRefs}
               rowTestId="top-hand-row"
               rowClassName="h-[230%] -translate-y-[62%]"
-              renderCard={(card) => (
-                <div
-                  key={`top-hand-${card.instanceId}`}
-                  data-hand-instance-id={card.instanceId}
-                  className="h-full aspect-[200/277] shrink-0"
-                >
-                  <CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                </div>
-              )}
+              renderCard={(card) => {
+                // A revealed card in the opponent's hand is sent with its real identity and `isRevealed`, so the
+                // row can turn that one card face up (and back down when the reveal clears) instead of always
+                // drawing a back.
+                const revealedCard = card.isRevealed === true
+                  ? (derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null)
+                  : null
+
+                return (
+                  <div
+                    key={`top-hand-${card.instanceId}`}
+                    data-hand-instance-id={card.instanceId}
+                    className="h-full aspect-[200/277] shrink-0"
+                  >
+                    <FlippableCard
+                      isFlipped={revealedCard !== null}
+                      durationMs={340}
+                      back={<CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />}
+                      front={
+                        revealedCard ? (
+                          <CardImage
+                            card={revealedCard}
+                            variant="board"
+                            alt={revealedCard.displayName}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full rounded-md object-cover"
+                          />
+                        ) : null
+                      }
+                    />
+                  </div>
+                )
+              }}
             />
 
             <GameZones

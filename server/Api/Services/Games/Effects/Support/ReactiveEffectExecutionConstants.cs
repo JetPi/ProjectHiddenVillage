@@ -28,4 +28,10 @@ public static class ReactiveEffectExecutionConstants
     public const string RevealedTargetIdsArgument = "revealedTargetIds";
 
     public const string RevealedPrimaryTargetIdArgument = "revealedPrimaryTargetId";
+
+    /// <summary>
+    /// The single option of a reveal presentation prompt: acknowledging it is not a choice, it only tells the
+    /// suspended chain that the player has seen the revealed card and it may carry on.
+    /// </summary>
+    public const string RevealPresentedOption = "__reveal-presented";
 }

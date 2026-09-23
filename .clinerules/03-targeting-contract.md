@@ -176,6 +176,36 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   `SupportActivationResolutionTests.ActivateSupport_WithChakraLock_…` plus
   `LockChakraRecoveryEffectTests`; an e2e for it is still open.
 
+## Reveal presentation (a `Reveal First` reveal)
+
+- A `RevealTimingMode.RevealFirst` reveal is *presented*, not silently applied: the step runs, the success/failure
+  branch is picked, and then `GameSequentialEffectExecutor` suspends the chain on a `GamePromptType.Effect` prompt with
+  `SelectionPromptKind = RevealPresentation` (single option `ReactiveEffectExecutionConstants.RevealPresentedOption`) so
+  the client can show the card before the rest of the chain (summon / freeze) runs. Both the per-step path and the
+  atomic-chain path suspend — N-019's reveal is an atomic chain, N-013/N-022 are per-step.
+- Only reveals the acting player could not already see are presented (`FilterPresentableReveals`): a deck card, or an
+  opponent's hand / face-down support card. Revealing an already-visible card keeps the chain moving. A reveal whose
+  picked branch target does not exist (`CanResumeAt`) never suspends either: the chain has to fail inside the caller
+  that records the skip, not later from the prompt resolver.
+- The acknowledgement is not a selection: `Resume` reuses `continuation.SelectedTargets` whenever
+  `PendingEffectContinuation.RevealPresentation` is set, so a resumed "summon the revealed card" node still summons the
+  card the reveal published (through the `revealedTargetIds` argument).
+- Reveals made by a `Reveal First` step are **transient**: when the chain that made them finishes — including the
+  resumed one — `ClearPresentedReveals` turns the cards back down, unless a card left the zone it was revealed in (that
+  cleared the reveal on its own). `RevealTimingMode.RevealLast` keeps the old "stays revealed until it changes zone"
+  semantics, so an information reveal opts out simply by not using `Reveal First` (all three real `Reveal First` cards —
+  N-013/N-019/N-022 — are transient deck-top reveals).
+- `CardInstanceResponse.IsRevealed` publishes the reveal (set in the deck, concealed-support and enriched branches of
+  `GameStateResponseMapper.Zones`) so the board can flip the card face up (see `02-board-ui-hud.md`). `IsFaceUp` cannot
+  stand in for it: a deck card is data-wise face up, so the reveal would be invisible in the payload.
+- The client never renders a picker for a presentation prompt (`toPromptPresentation` keeps it out of the overlay and
+  `resolveBoardPromptCandidateInstanceIds` ignores it) — it acks on its own after `REVEAL_PRESENTATION_MS`
+  (`useRevealPresentationAckEffect`).
+- Covered by `GameSequentialEffectExecutorTests.Execute_RevealFirst*` and
+  `InMemoryGameInstanceRegistryWhenAttackingTests` (when-attacking reveal → attack still completes → ack → summon, or
+  flip back when the post-condition fails). No e2e yet: a reveal needs N-013/N-019/N-022 to be *played*, and the specs
+  only use N-019 as a summon/tribute material.
+
 ## Card-property predicate values (`Type` normalization)
 
 - `ZoneCardPropertyValueMatcher.IsMatch` backs `Equals`/`Not Equals`/`In` in both

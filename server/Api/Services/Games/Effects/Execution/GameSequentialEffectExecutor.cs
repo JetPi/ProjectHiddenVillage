@@ -65,8 +65,14 @@ public sealed class GameSequentialEffectExecutor(
             return Result.Success;
         }
 
-        // The prompt answer IS this node's selection; a node that never prompted keeps whatever it had.
-        var selectedTargets = selection.Count > 0 ? selection : continuation.SelectedTargets;
+        // The prompt answer IS this node's selection; a node that never prompted keeps whatever it had. A
+        // reveal presentation prompt is the exception: its option is an acknowledgement, not a selection, so the
+        // targets the suspended step already had stay in place.
+        var selectedTargets = continuation.RevealPresentation is not null
+            ? continuation.SelectedTargets
+            : selection.Count > 0
+                ? selection
+                : continuation.SelectedTargets;
         var context = new GameCardEffectContext(
             game: game,
             actingPlayer: new Player { Id = continuation.ActingPlayerId },
@@ -75,7 +81,9 @@ public sealed class GameSequentialEffectExecutor(
             arguments: continuation.Arguments,
             selectedTargets: selectedTargets);
 
-        return RunNodes(context, nodes, continuation.ResumeNodeId);
+        // Carrying the presentation forward means the resumed chain turns the presented reveals back down when
+        // it finishes - the other end of the suspension below.
+        return RunNodes(context, nodes, continuation.ResumeNodeId, continuation.RevealPresentation);
     }
 
     private static CardInstance? ResolveResumedSourceCardInstance(GameInstance game, PendingEffectContinuation continuation)
@@ -120,11 +128,16 @@ public sealed class GameSequentialEffectExecutor(
     private ErrorOr<Success> RunNodes(
         GameCardEffectContext context,
         List<ExecutionNode> nodes,
-        string startNodeId)
+        string startNodeId,
+        PendingRevealPresentation? carriedPresentation = null)
     {
         var nodeById = nodes.ToDictionary(node => node.NodeId, node => node, StringComparer.Ordinal);
         var visitCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         var currentNodeId = startNodeId;
+
+        // Reveals a "Reveal First" step presented to the acting player are transient: they stay face up while
+        // the chain runs (so the client can animate them) and are turned back down when the chain finishes.
+        var revealPresentation = carriedPresentation ?? new PendingRevealPresentation();
 
         // One mutable arguments dictionary is shared by every step of this execution so values an
         // earlier step produces (for example the cards revealed by a RevealCard step) are visible to
@@ -160,11 +173,18 @@ public sealed class GameSequentialEffectExecutor(
                     nodeById: nodeById,
                     context: context,
                     sharedArguments: sharedArguments,
-                    visitCounts: visitCounts);
+                    visitCounts: visitCounts,
+                    revealPresentation: revealPresentation);
 
                 if (atomicResult.IsError)
                 {
                     return atomicResult.Errors;
+                }
+
+                if (atomicResult.Value.IsSuspended)
+                {
+                    // The atomic chain stopped on a reveal presentation prompt; the continuation owns the rest.
+                    return Result.Success;
                 }
 
                 currentNodeId = atomicResult.Value.NextNodeId;
@@ -213,7 +233,8 @@ public sealed class GameSequentialEffectExecutor(
             // player answers (registry.ResolvePrompt -> IGameSequentialEffectExecutor.Resume).
             if (effectSpec.SelectionTiming == EffectSelectionTiming.Prompted
                 && !HasSelectionForPromptedStep(context, effectSpec)
-                && TryCreateSelectionPrompt(stepContext, effectSpec, node.NodeId, sharedArguments, out var selectionPrompt))
+                && TryCreateSelectionPrompt(
+                    stepContext, effectSpec, node.NodeId, sharedArguments, revealPresentation, out var selectionPrompt))
             {
                 context.Game.EnqueuePrompt(selectionPrompt);
                 return Result.Success;
@@ -273,17 +294,36 @@ public sealed class GameSequentialEffectExecutor(
             // steps that follow it in this chain.
             PropagateRevealedArguments(perEffectContext.Arguments, sharedArguments);
 
+            var nextNodeId = branchOnSuccess;
             if (shouldExecuteBeforeCondition
                 && (!ConditionMatches(effectSpec.ExecutionCondition, perEffectContext.Arguments)
                     || !RevealPostConditionMatches(effectSpec, perEffectContext)))
             {
-                currentNodeId = branchOnFailure;
-                continue;
+                nextNodeId = branchOnFailure;
             }
 
-            currentNodeId = branchOnSuccess;
+            // A "Reveal First" step that turned a card face up for the acting player suspends the chain so the
+            // reveal can be presented; the chain then resumes at the branch the reveal just picked.
+            if (shouldExecuteBeforeCondition && CanResumeAt(nextNodeId, nodeById))
+            {
+                var presentedNow = FilterPresentableReveals(perEffectContext, ResolveRevealedTargets(perEffectContext));
+                revealPresentation.Add(presentedNow);
+
+                if (TrySuspendForRevealPresentation(
+                    stepContext: perEffectContext,
+                    presentedNow: presentedNow,
+                    resumeNodeId: nextNodeId,
+                    sharedArguments: sharedArguments,
+                    presentation: revealPresentation))
+                {
+                    return Result.Success;
+                }
+            }
+
+            currentNodeId = nextNodeId;
         }
 
+        ClearPresentedReveals(context.Game, revealPresentation);
         return Result.Success;
     }
 
@@ -292,7 +332,8 @@ public sealed class GameSequentialEffectExecutor(
         IReadOnlyDictionary<string, ExecutionNode> nodeById,
         GameCardEffectContext context,
         Dictionary<string, string> sharedArguments,
-        Dictionary<string, int> visitCounts)
+        Dictionary<string, int> visitCounts,
+        PendingRevealPresentation revealPresentation)
     {
         var currentNodeId = startNodeId;
         var planningContext = context;
@@ -356,9 +397,29 @@ public sealed class GameSequentialEffectExecutor(
                 arguments: sharedArguments,
                 selectedTargets: revealFirstStep.Context.SelectedTargets);
 
-            currentNodeId = RevealPostConditionMatches(revealEffectSpec, planningContext)
+            var nextNodeId = RevealPostConditionMatches(revealEffectSpec, planningContext)
                 ? NormalizeEffectId(revealEffectSpec.OnSuccessEffectId)
                 : NormalizeEffectId(revealEffectSpec.OnFailureEffectId);
+
+            // A reveal the acting player could not see before suspends the chain so the client can present it;
+            // otherwise the chain simply carries on to the branch the reveal just picked.
+            var presentedNow = FilterPresentableReveals(
+                revealFirstStep.Context,
+                ResolveRevealedTargets(revealFirstStep.Context));
+            revealPresentation.Add(presentedNow);
+
+            if (CanResumeAt(nextNodeId, nodeById)
+                && TrySuspendForRevealPresentation(
+                    stepContext: revealFirstStep.Context,
+                    presentedNow: presentedNow,
+                    resumeNodeId: nextNodeId,
+                    sharedArguments: sharedArguments,
+                    presentation: revealPresentation))
+            {
+                return new AtomicChainExecutionResult(NextNodeId: null, IsSuspended: true);
+            }
+
+            currentNodeId = nextNodeId;
         }
 
         return new AtomicChainExecutionResult(null);
@@ -711,6 +772,127 @@ public sealed class GameSequentialEffectExecutor(
             && effectSpec.RevealTimingMode == RevealTimingMode.RevealFirst;
     }
 
+    /// <summary>
+    /// True when the branch a reveal picked can actually be resumed at. A reveal whose branch target is missing
+    /// must not suspend the chain: it has to keep walking so it fails where it always did, inside the caller that
+    /// records the failure, instead of surfacing that error later from the prompt resolver.
+    /// </summary>
+    private static bool CanResumeAt(string? nodeId, IReadOnlyDictionary<string, ExecutionNode> nodeById)
+    {
+        return string.IsNullOrWhiteSpace(nodeId) || nodeById.ContainsKey(nodeId);
+    }
+
+    /// <summary>
+    /// The revealed cards the acting player could not see before the reveal - the top card of a deck, or an
+    /// opponent's hand / support card. Those are the only reveals worth stopping the chain for; a card both
+    /// players could already see (a battlefield character, a trash card, the acting player's own hand) needs no
+    /// presentation.
+    /// </summary>
+    private static IReadOnlyList<GameEffectTargetReference> FilterPresentableReveals(
+        GameCardEffectContext stepContext,
+        IReadOnlyList<GameEffectTargetReference> revealedTargets)
+    {
+        return revealedTargets.Where(target => IsPresentableReveal(stepContext, target)).ToList();
+    }
+
+    private static bool IsPresentableReveal(GameCardEffectContext stepContext, GameEffectTargetReference target)
+    {
+        if (target.Zone == PlayerZone.Deck)
+        {
+            return true;
+        }
+
+        var isActingPlayerCard = string.Equals(
+            target.PlayerId,
+            stepContext.ActingPlayer.Id,
+            StringComparison.Ordinal);
+
+        return !isActingPlayerCard
+            && (target.Zone == PlayerZone.Hand || target.Zone == PlayerZone.SupportZone);
+    }
+
+    /// <summary>
+    /// Suspends a chain right after a "Reveal First" reveal so the client can present the card: the prompt's
+    /// single option acknowledges it and the continuation resumes at the branch the reveal picked (an empty
+    /// resume node means the reveal ended the chain). Returns false when there is nothing to present, in which
+    /// case the caller carries on immediately.
+    /// </summary>
+    private static bool TrySuspendForRevealPresentation(
+        GameCardEffectContext stepContext,
+        IReadOnlyList<GameEffectTargetReference> presentedNow,
+        string? resumeNodeId,
+        IReadOnlyDictionary<string, string> sharedArguments,
+        PendingRevealPresentation presentation)
+    {
+        if (presentedNow.Count == 0)
+        {
+            return false;
+        }
+
+        var primaryTarget = presentedNow[0];
+
+        var prompt = new GamePrompt
+        {
+            Type = GamePromptType.Effect,
+            RequestedPlayerId = stepContext.ActingPlayer.Id,
+            Options = [ReactiveEffectExecutionConstants.RevealPresentedOption],
+            SelectionPromptKind = EffectSelectionPromptKind.RevealPresentation,
+            CandidateZone = primaryTarget.Zone,
+            CandidatePlayerId = primaryTarget.PlayerId,
+            MinimumSelection = 1,
+            MaximumSelection = 1,
+            EffectContinuation = new PendingEffectContinuation
+            {
+                ResumeNodeId = resumeNodeId ?? string.Empty,
+                ActingPlayerId = stepContext.ActingPlayer.Id,
+                SourceCardDefinitionId = stepContext.SourceCardDefinition.Id,
+                SourceCardInstanceId = stepContext.SourceCardInstance?.InstanceId,
+                Arguments = new Dictionary<string, string>(sharedArguments, StringComparer.Ordinal),
+                SelectedTargets = stepContext.SelectedTargets.ToList(),
+                RevealPresentation = presentation,
+            },
+        };
+
+        prompt.EffectContinuation.PromptId = prompt.PromptId;
+        stepContext.Game.EnqueuePrompt(prompt);
+        return true;
+    }
+
+    /// <summary>
+    /// Turns the cards a finished chain presented back face down. A card that left the zone it was revealed in
+    /// (summoned, discarded, moved to the field) already cleared its own reveal on the way, so it is skipped.
+    /// </summary>
+    private static void ClearPresentedReveals(GameInstance game, PendingRevealPresentation? presentation)
+    {
+        if (presentation is null || presentation.PresentedTargets.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var target in presentation.PresentedTargets)
+        {
+            var player = game.State.Players.FirstOrDefault(candidate =>
+                string.Equals(candidate.PlayerId, target.PlayerId, StringComparison.Ordinal));
+
+            if (player is null)
+            {
+                continue;
+            }
+
+            var card = PlayerZoneCardAccessor
+                .GetCards(target.Zone, player)
+                .FirstOrDefault(entry => string.Equals(entry.InstanceId, target.CardInstanceId, StringComparison.Ordinal));
+
+            if (card is null || card.RevealedInZone != target.Zone)
+            {
+                continue;
+            }
+
+            card.IsRevealedToBothPlayers = false;
+            card.RevealedInZone = null;
+        }
+    }
+
     private static List<ExecutionNode> BuildExecutionNodes(IReadOnlyList<EffectSpec> effectSpecs)
     {
         var nodes = new List<ExecutionNode>(effectSpecs.Count);
@@ -774,6 +956,7 @@ public sealed class GameSequentialEffectExecutor(
         EffectSpec effectSpec,
         string nodeId,
         IReadOnlyDictionary<string, string> sharedArguments,
+        PendingRevealPresentation revealPresentation,
         out GamePrompt prompt)
     {
         prompt = null!;
@@ -815,6 +998,9 @@ public sealed class GameSequentialEffectExecutor(
                 SourceCardInstanceId = stepContext.SourceCardInstance?.InstanceId,
                 Arguments = new Dictionary<string, string>(sharedArguments, StringComparer.Ordinal),
                 SelectedTargets = stepContext.SelectedTargets.ToList(),
+                // A prompt raised after a presented reveal carries it, so the chain still turns the card back
+                // down once the player answers this one.
+                RevealPresentation = revealPresentation.PresentedTargets.Count > 0 ? revealPresentation : null,
             },
         };
 
@@ -1181,7 +1367,7 @@ public sealed class GameSequentialEffectExecutor(
         return Result.Success;
     }
 
-    private sealed record AtomicChainExecutionResult(string? NextNodeId);
+    private sealed record AtomicChainExecutionResult(string? NextNodeId, bool IsSuspended = false);
 
     private sealed record AtomicExecutionPlan(
         IReadOnlyList<PlannedExecutionStep> Steps,

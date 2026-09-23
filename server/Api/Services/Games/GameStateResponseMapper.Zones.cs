@@ -142,6 +142,7 @@ public static partial class GameStateResponseMapper
                     IsFaceUp = card.IsFaceUp,
                     IsExhausted = card.IsExhausted,
                     IsRested = card.IsRested,
+                    IsRevealed = card.IsRevealedToBothPlayers,
                     AvailableActions = cardActions
                 },
             PlayerZone.SupportZone =>
@@ -173,6 +174,7 @@ public static partial class GameStateResponseMapper
                             ControllerPlayerId: card.ControllerPlayerId)
                         {
                             IsFaceUp = card.IsFaceUp,
+                            IsRevealed = card.IsRevealedToBothPlayers,
                             SupportSlotIndex = card.SupportSlotIndex,
                         },
 
@@ -181,6 +183,11 @@ public static partial class GameStateResponseMapper
                 CardDefinitionId: card.CardDefinitionId,
                 OwnerPlayerId: card.OwnerPlayerId,
                 ControllerPlayerId: card.ControllerPlayerId)
+            {
+                // The deck is the zone this matters for: its owner receives every deck card, so only this flag
+                // tells the client which one a reveal has turned face-up.
+                IsRevealed = card.IsRevealedToBothPlayers,
+            }
         };
     }
 }

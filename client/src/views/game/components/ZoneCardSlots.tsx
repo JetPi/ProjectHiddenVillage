@@ -109,17 +109,21 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
             ? (data.summonRequirementTextByCardInstanceId.get(normalizedCardId) ?? null)
             : null
 
+          const isShownFaceUp = card.isFaceUp || card.isRevealed
+
           const cardStateFlags = {
             isRested: isCardRestedState(card, optimisticRestedByInstanceId),
             shouldDelayRestedDimming: Boolean(props.gameState.isAttackSequencePending) && targetFlags.isAttackLinkSource,
-            isConcealedSupportCard: zone === 'support' && !isCurrentPlayerZone && !card.isFaceUp,
+            // A revealed support card (a "Reveal First" effect turned it over) shows its face even though the
+            // server still reports it as face down, so it counts as not concealed for both players.
+            isConcealedSupportCard: zone === 'support' && !isCurrentPlayerZone && !isShownFaceUp,
           };
 
           const visibilityFlags = {
             isCardRested: cardStateFlags.isRested,
             shouldDimRestedCard: cardStateFlags.isRested && !cardStateFlags.shouldDelayRestedDimming,
             isOwnConcealedSupport: zone === 'support' && isCurrentPlayerZone && card.isConcealedFromOpponent === true,
-            isConcealedSupport: zone === 'support' && !isCurrentPlayerZone && !card.isFaceUp,
+            isConcealedSupport: zone === 'support' && !isCurrentPlayerZone && !isShownFaceUp,
           };
 
 
@@ -145,7 +149,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                 targetFlags.isAttackLinkSource || targetFlags.isAttackLinkTarget ? 'attack-link-card-outline' : '',
               )}
             >
-              {card.isFaceUp ? (
+              {isShownFaceUp ? (
                 <CardImage
                   src={card.image}
                   alt={card.displayName}
@@ -177,7 +181,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
 
               {!cardStateFlags.isConcealedSupportCard ? (
                 <NonLeaderCardOverlay
-                  previewCard={card.isFaceUp ? (props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
+                  previewCard={isShownFaceUp ? (props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null) : null}
                   card={card}
                   zone={zone}
                   visibilityMode={visibilityMode}

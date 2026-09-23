@@ -106,6 +106,7 @@ function resolveNonLeaderCards(
       type: catalogCard.type,
       isFaceUp: card.isFaceUp,
       isConcealedFromOpponent: card.isConcealedFromOpponent,
+      isRevealed: card.isRevealed === true,
       isExhausted: card.isExhausted,
       availableActions: card.availableActions,
       isRested: card.isRested,

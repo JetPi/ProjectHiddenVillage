@@ -41,6 +41,9 @@ export type INonLeaderCardViewModel = {
   type: string
   isFaceUp: boolean
   isConcealedFromOpponent?: boolean
+  // True while a reveal shows this card's face to both players (a "Reveal First" effect can turn an opponent's
+  // face-down support card over, or show one of their hand cards).
+  isRevealed: boolean
   isExhausted: boolean
   availableActions?: IGameActionOptionResponse[]
   isRested: boolean
