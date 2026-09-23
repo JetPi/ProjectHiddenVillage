@@ -10,11 +10,9 @@ internal static class LeaderTargetRestrictionMatcher
             return true;
         }
 
-        var predicateMatches = restriction.Predicates!.All(predicate => PredicateMatches(gameState, leader, predicate));
-        if (restriction.MatchMode == ZoneRestrictionMatchMode.All)
-        {
-            return predicateMatches;
-        }
+        var predicateMatches = restriction.MatchMode == ZoneRestrictionMatchMode.All
+            ? restriction.Predicates!.All(predicate => PredicateMatches(gameState, leader, predicate))
+            : restriction.Predicates!.Any(predicate => PredicateMatches(gameState, leader, predicate));
 
         return predicateMatches;
     }

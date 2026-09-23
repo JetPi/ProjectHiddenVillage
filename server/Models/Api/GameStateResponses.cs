@@ -65,7 +65,13 @@ public sealed record PendingPromptResponse(
     string PromptId,
     string Type,
     bool IsAwaitingRequestingPlayer,
-    IReadOnlyList<string> Options);
+    IReadOnlyList<string> Options,
+    // Effect selection prompts (GamePromptType.Effect): the copy bucket and where the candidates live, so the
+    // client can render the right wording and the right card collection. Null for phase prompts.
+    string? SelectionPromptKind = null,
+    string? CandidateZone = null,
+    int? MinimumSelection = null,
+    int? MaximumSelection = null);
 
 public sealed record GameActionOptionResponse(
     string ActionId,
@@ -123,6 +129,13 @@ public record CardInstanceResponse(
     string ControllerPlayerId)
 {
     public bool IsFaceUp { get; init; } = true;
+
+    /// <summary>
+    /// True while this card's face is shown to both players (a reveal). Distinct from <see cref="IsFaceUp"/>,
+    /// which describes the card's own face state: a deck card is always "face up" in the data model yet hidden
+    /// from the opponent until a reveal makes it visible.
+    /// </summary>
+    public bool IsRevealed { get; init; }
 
     public bool IsExhausted { get; init; }
 

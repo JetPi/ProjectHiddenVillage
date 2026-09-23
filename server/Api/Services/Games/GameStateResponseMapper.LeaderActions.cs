@@ -58,6 +58,14 @@ public static partial class GameStateResponseMapper
         var candidateEffects = new List<(EffectSpec Effect, int Index, string EffectKey, string BaseLabel)>();
         foreach (var entry in leaderDefinition.Effects.Select((effect, index) => new { Effect = effect, Index = index }))
         {
+            // A subordinate node is a step of another ability's chain ("draw 1 card, then place 1 card from
+            // your hand on top of your deck"), not an independently activatable ability, so it never gets its
+            // own `leader-effect:` action - the chain reaches it through its parent's success branch.
+            if (entry.Effect.IsSubordinate)
+            {
+                continue;
+            }
+
             if (!IsLeaderEffectTimingAvailable(entry.Effect.Timing, state, player.PlayerId))
             {
                 continue;

@@ -185,6 +185,12 @@ export type ICardCatalogEffectResponse = {
   globalRestrictions: string
   executionTargetSource: string
   executionFlowMode: string
+  /** 'Upfront' (default) picks targets with the activation; 'Prompted' asks mid-resolution. */
+  selectionTiming?: string
+  /** Copy bucket for a prompted selection ('PlaceOnDeckTop', 'SearchDeck', ...). */
+  selectionPromptKind?: string
+  searchRevealSelection?: boolean
+  searchShuffleAfter?: boolean
   suppressSummonedTargetsEffectsWhileOnField: boolean
   revealTimingMode: string
   revealPostConditionRuleSet: ICardCatalogZoneCardRestrictionRuleSetResponse | null

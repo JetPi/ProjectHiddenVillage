@@ -35,6 +35,8 @@ export type ICardAdminFaceStateLocksPanelProps = ICardAdminEffectPanelBaseProps
 
 export type ICardAdminMoveCardActionsPanelProps = ICardAdminEffectPanelBaseProps
 
+export type ICardAdminSearchCardPanelProps = ICardAdminEffectPanelBaseProps
+
 export type ICardAdminRevealCardPanelProps = ICardAdminEffectPanelBaseProps
 
 export type ICardAdminPassiveSettingsPanelProps = ICardAdminEffectPanelBaseProps

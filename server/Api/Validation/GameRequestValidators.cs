@@ -578,6 +578,43 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                     .Must(value => value.RuntimeEffectType != RuntimeEffects.MoveCard || value.MoveCardActions.Count > 0)
                     .WithMessage("MoveCard runtime effects require at least one move-card action.");
 
+                // A node that defers its target choice asks the player mid-resolution ("draw 1 card, then place
+                // 1 card from your hand on top of your deck"). It needs something to pick from, and it cannot
+                // live in an atomic chain, which pre-plans and therefore cannot suspend.
+                effect.RuleFor(value => value)
+                    .Must(value => value.SelectionTiming != EffectSelectionTiming.Prompted
+                        || value.ExecutionTargetSource == EffectExecutionTargetSource.SelectedTargets)
+                    .WithMessage("Prompted selection needs Execution Target Source = Selected Targets.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.SelectionTiming != EffectSelectionTiming.Prompted
+                        || value.ExecutionFlowMode != EffectExecutionFlowMode.AtomicChain)
+                    .WithMessage("Prompted selection cannot run inside an Atomic Chain: atomic chains pre-plan and cannot suspend.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.SelectionTiming != EffectSelectionTiming.Prompted
+                        || value.TargetRules.Rules.Count > 0
+                        || value.TargetRules.ExactTargetCount.HasValue
+                        || value.TargetRules.MinimumTargetCount.HasValue
+                        || value.TargetRules.MaximumTargetCount.HasValue
+                        || value.MoveCardActions.Any(action =>
+                            action.Operation == MoveCardOperationType.Move && action.SourceZone is not null))
+                    .WithMessage("Prompted selection needs candidates: declare target rules/counts, or a move-card action with a source zone.");
+
+                // "Search your deck for a card": the searched deck is the candidate pool, so exactly one move
+                // action from the deck describes what happens to the chosen card.
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType != RuntimeEffects.SearchCard
+                        || value.MoveCardActions.Count(action => action.Operation == MoveCardOperationType.Move) == 1)
+                    .WithMessage("Search Card requires exactly one move action.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType != RuntimeEffects.SearchCard
+                        || value.MoveCardActions
+                            .Where(action => action.Operation == MoveCardOperationType.Move)
+                            .All(action => action.SourceZone == PlayerZone.Deck))
+                    .WithMessage("Search Card move actions must search the deck (Source Zone = Deck).");
+
                 effect.RuleForEach(value => value.MoveCardActions)
                     .ChildRules(action =>
                     {

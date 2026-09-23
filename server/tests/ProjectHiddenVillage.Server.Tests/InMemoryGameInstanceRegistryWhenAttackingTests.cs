@@ -29,12 +29,23 @@ public sealed class InMemoryGameInstanceRegistryWhenAttackingTests
 
         registry.ExecuteCardAction(game.Id, CreateBattleActionRequest(game), CreateSequentialExecutor());
 
+        // The attack always completes (attacker rested, cut-in window open) even though the "Reveal First"
+        // chain suspends on its presentation prompt before the dependent summon runs.
         AssertAttackCompleted(game);
         Assert.AreEqual(0, CountSkippedWhenAttackingEntries(game));
+        Assert.AreEqual(deckCountBefore, game.State.Players[0].Deck.Count);
+        Assert.AreEqual(battlefieldCountBefore, game.State.Players[0].Battlefield.Count);
 
-        // The chain revealed the top card of the deck ("Reveal First") and then summoned that revealed
-        // card to the character field, which only works when the revealed card is handed to the
-        // follow-up step as its target.
+        var prompt = game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual(EffectSelectionPromptKind.RevealPresentation, prompt.SelectionPromptKind);
+        Assert.AreEqual("p1", prompt.RequestedPlayerId);
+        Assert.AreEqual(PlayerZone.Deck, prompt.CandidateZone);
+        Assert.AreEqual(1, game.State.Players[0].Deck.Count(card => card.IsRevealedToBothPlayers));
+
+        AcknowledgeRevealPresentation(game);
+
+        // The reveal handed the top card to the follow-up step as its target, so the summon happens on resume.
         Assert.AreEqual(deckCountBefore - 1, game.State.Players[0].Deck.Count);
         Assert.AreEqual(battlefieldCountBefore + 1, game.State.Players[0].Battlefield.Count);
         Assert.IsTrue(game.State.Players[0].Battlefield.Any(card => card.CardDefinitionId == "card-1"));
@@ -86,6 +97,12 @@ public sealed class InMemoryGameInstanceRegistryWhenAttackingTests
 
         AssertAttackCompleted(game);
         Assert.AreEqual(0, CountSkippedWhenAttackingEntries(game));
+
+        // The reveal is presented first: nothing is summoned until the player has acknowledged it.
+        Assert.AreEqual(deckCountBefore, game.State.Players[0].Deck.Count);
+
+        AcknowledgeRevealPresentation(game);
+
         Assert.AreEqual(deckCountBefore - 1, game.State.Players[0].Deck.Count);
         Assert.IsTrue(game.State.Players[0].Battlefield.Any(card => card.CardDefinitionId == "card-1"));
     }
@@ -106,9 +123,30 @@ public sealed class InMemoryGameInstanceRegistryWhenAttackingTests
         Assert.AreEqual(deckCountBefore, game.State.Players[0].Deck.Count);
         Assert.AreEqual(battlefieldCountBefore, game.State.Players[0].Battlefield.Count);
 
-        // The reveal still happened (the card stays revealed until it changes zone), only the
-        // dependent summon is skipped.
-        Assert.IsTrue(game.State.Players[0].Deck.Any(card => card.IsRevealedToBothPlayers));
+        // The failed post-condition ends the chain, but the reveal is still presented (and then acknowledged)
+        // so the player sees what the effect turned over.
+        Assert.AreEqual(1, game.State.Players[0].Deck.Count(card => card.IsRevealedToBothPlayers));
+
+        AcknowledgeRevealPresentation(game);
+
+        // The presentation is over and the summon was skipped, so the deck card goes back face down.
+        Assert.AreEqual(deckCountBefore, game.State.Players[0].Deck.Count);
+        Assert.AreEqual(battlefieldCountBefore, game.State.Players[0].Battlefield.Count);
+        Assert.AreEqual(0, game.State.Players[0].Deck.Count(card => card.IsRevealedToBothPlayers));
+        Assert.IsNull(game.GetPendingPrompt());
+    }
+
+    private void AcknowledgeRevealPresentation(GameInstance game)
+    {
+        var prompt = game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual(EffectSelectionPromptKind.RevealPresentation, prompt.SelectionPromptKind);
+
+        registry.ResolvePrompt(
+            game.Id,
+            prompt.RequestedPlayerId,
+            ReactiveEffectExecutionConstants.RevealPresentedOption,
+            sequentialEffectExecutor: CreateSequentialExecutor());
     }
 
     private static void AssertAttackCompleted(GameInstance game)

@@ -126,7 +126,7 @@ export function CardPreviewCard({
                       </h4>
 
                       <div
-                          className="card-preview-slide-in relative flex h-screen max-h-screen w-[min(92vw,22rem)] flex-col justify-start gap-3 overflow-y-auto rounded-none border-r border-[var(--border-subtle)] bg-[var(--surface)]/96 p-2 shadow-2xl sm:p-3"
+                          className="card-preview-slide-in themed-scrollbar relative flex h-screen max-h-screen w-[min(92vw,22rem)] flex-col justify-start gap-3 overflow-y-auto rounded-none border-r border-[var(--border-subtle)] bg-[var(--surface)]/96 p-2 shadow-2xl sm:p-3"
                           onClick={(event) => event.stopPropagation()}
                       >
                           <div className="shrink-0 border-b border-[var(--border-subtle)] pb-2 text-center">

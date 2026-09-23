@@ -444,6 +444,204 @@ export async function resolveActorWithLeaderBattleAction(
   throw new Error('No enabled leader Battle action was found within retry limit.')
 }
 
+export type DeckRevealObservation = {
+  revealed: boolean
+  definitionId: string | null
+  /** Page-clock timestamp (`performance.now()`), comparable with the battlefield entry recordings. */
+  at: number
+}
+
+/**
+ * Records every face-up / face-down change of the acting player's deck slot. A reveal presentation only lasts
+ * `REVEAL_PRESENTATION_MS` (2 s) before the client acknowledges it, so a test that starts polling *after* the
+ * action was submitted can miss the flip entirely - observing in the page catches it however briefly it shows.
+ */
+export async function installDeckRevealObserver(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const marker = '__phvDeckRevealObserverInstalled'
+    const state = window as unknown as {
+      [key: string]: unknown
+      __phvDeckReveals?: Array<{ revealed: boolean; definitionId: string | null; at: number }>
+    }
+
+    if (state[marker] === true) {
+      return
+    }
+
+    const record = () => {
+      const pile = document.querySelector('[data-side="bottom"] [data-testid="deck-pile-card"]')
+      if (!pile) {
+        return
+      }
+
+      const revealed = pile.getAttribute('data-revealed') === 'true'
+      const definitionId = pile.getAttribute('data-card-definition-id')
+      const entries = state.__phvDeckReveals ?? []
+      const last = entries[entries.length - 1]
+
+      // Only recorded when the state actually changed, so re-renders do not fill the list with duplicates.
+      if (last && last.revealed === revealed && last.definitionId === definitionId) {
+        return
+      }
+
+      entries.push({
+        revealed,
+        definitionId,
+        at: Math.round(performance.now()),
+      })
+      state.__phvDeckReveals = entries
+    }
+
+    const observer = new MutationObserver(record)
+    observer.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-revealed', 'data-card-definition-id'],
+    })
+
+    state.__phvDeckReveals = []
+    record()
+    state[marker] = true
+  })
+}
+
+export async function getDeckRevealObservations(page: Page): Promise<DeckRevealObservation[]> {
+  return await page.evaluate(() => {
+    const state = window as unknown as {
+      __phvDeckReveals?: Array<{ revealed: boolean; definitionId: string | null; at: number }>
+    }
+    return state.__phvDeckReveals ?? []
+  })
+}
+
+/**
+ * Records the entry animations of character-field cards. `runRectToDynamicElementAnimation` animates the real
+ * destination element from its source rectangle, so a recorded frame whose start transform is offset proves the
+ * card FLEW into its slot (a reveal-summon out of the deck, a hand summon) instead of simply appearing there.
+ */
+export async function installBattlefieldEntryAnimationRecorder(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const marker = '__phvBattlefieldEntryRecorderInstalled'
+    const state = window as unknown as {
+      [key: string]: unknown
+      __phvBattlefieldEntryAnimations?: Array<{ instanceId: string; fromTransform: string; at: number }>
+    }
+
+    if (state[marker] === true) {
+      return
+    }
+
+    const originalAnimate = Element.prototype.animate
+    Element.prototype.animate = function patchedAnimate(
+      keyframes: PropertyIndexedKeyframes | Keyframe[],
+      options?: number | KeyframeAnimationOptions,
+    ): Animation {
+      const target = this instanceof Element ? this : null
+      if (target?.getAttribute('data-zone') === 'character-field-card') {
+        const firstKeyframe = Array.isArray(keyframes) ? keyframes[0] : keyframes
+        const fromTransform =
+          firstKeyframe && typeof firstKeyframe === 'object'
+            ? String((firstKeyframe as Keyframe).transform ?? '')
+            : ''
+        const recorded = state.__phvBattlefieldEntryAnimations ?? []
+        recorded.push({
+          instanceId: target.getAttribute('data-card-instance-id') ?? '',
+          fromTransform,
+          at: Math.round(performance.now()),
+        })
+        state.__phvBattlefieldEntryAnimations = recorded
+      }
+
+      return originalAnimate.call(this, keyframes, options)
+    }
+
+    state.__phvBattlefieldEntryAnimations = []
+    state[marker] = true
+  })
+}
+
+export async function getBattlefieldEntryAnimations(
+  page: Page,
+): Promise<Array<{ instanceId: string; fromTransform: string; at: number }>> {
+  return await page.evaluate(() => {
+    const state = window as unknown as {
+      __phvBattlefieldEntryAnimations?: Array<{ instanceId: string; fromTransform: string; at: number }>
+    }
+    return state.__phvBattlefieldEntryAnimations ?? []
+  })
+}
+
+/**
+ * Resolves an enabled leader effect (`leader-effect:{instanceId}:{effectKey}`) for the requested actor. Leader
+ * effects are published on the leader card, never in the global action list, and [Activate: Main] ones need the
+ * actor's own MainPhase with no prompt pending - so this advances turns until that window arrives.
+ */
+export async function resolveActorWithLeaderEffectAction(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+  options: { actorUserId?: string; effectKey: string },
+): Promise<{ actor: PlayerAuth; actorPage: Page; leaderInstanceId: string; actionId: string }> {
+  const maxCycles = 180
+  const normalizedRequestedActorUserId = options.actorUserId?.trim().toLowerCase() ?? ''
+  const actionSuffix = `:${options.effectKey}`
+
+  const resolveLeaderActionFromState = (state: GameStateResponse, actor: PlayerAuth) => {
+    const actorState = resolvePlayerState(state, actor)
+    const leaderInstanceId = actorState.leader.instanceId ?? ''
+    const matchedAction = (actorState.leader.availableActions ?? []).find((action) => {
+      return action.isEnabled
+        && action.actionId.startsWith('leader-effect:')
+        && action.actionId.endsWith(actionSuffix)
+    })
+
+    if (!matchedAction || !leaderInstanceId) {
+      return null
+    }
+
+    return { leaderInstanceId, actionId: matchedAction.actionId }
+  }
+
+  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+    const [playerOneState, playerTwoState] = await Promise.all([
+      fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+      fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+    ])
+
+    const candidates = [
+      { actor: setup.playerOne, state: playerOneState, page: pages.playerOnePage },
+      { actor: setup.playerTwo, state: playerTwoState, page: pages.playerTwoPage },
+    ]
+
+    for (const candidate of candidates) {
+      const matchesActor = normalizedRequestedActorUserId.length === 0
+        || candidate.actor.userId.trim().toLowerCase() === normalizedRequestedActorUserId
+      const canActivate = candidate.state.phase === 'MainPhase'
+        && candidate.state.pendingPrompt === null
+        && normalizeUserId(candidate.state.activePlayerId) === candidate.actor.normalizedUserId
+
+      if (!matchesActor || !canActivate) {
+        continue
+      }
+
+      const resolvedAction = resolveLeaderActionFromState(candidate.state, candidate.actor)
+      if (resolvedAction) {
+        return {
+          actor: candidate.actor,
+          actorPage: candidate.page,
+          leaderInstanceId: resolvedAction.leaderInstanceId,
+          actionId: resolvedAction.actionId,
+        }
+      }
+    }
+
+    await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
+  }
+
+  throw new Error(`No enabled leader effect '${options.effectKey}' action was found within retry limit.`)
+}
+
 export async function resolveBattleActionForSpecificCard(
   request: APIRequestContext,
   setup: MultiplayerSetup,

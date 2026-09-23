@@ -16,7 +16,7 @@ import { renderBattlefieldRow } from './BattleFieldRow'
 import { RenderZoneCardSlots } from './ZoneCardSlots'
 import { AttackLinkArrow } from './AttackLinkArrow'
 import { SideBarButtons } from './SidebarButtons'
-import { useGameUIStore } from '@/state/gameUIStore'
+import { resolveBoardPromptCandidateInstanceIds, useGameUIStore } from '@/state/gameUIStore'
 import { useBackendAttackLink } from '@/views/game/hooks/GameView/memos/useBackendAttackLink'
 
 const ATTACK_OUTLINE_WIDTH_PX = 4.5
@@ -39,7 +39,10 @@ function GameZones(props: IGameZonesProps) {
   const optimisticActiveAttackLink = useGameUIStore((state) => state.activeAttackLink)
   const isBattleActionTargeting = pendingCardTargeting !== null
   const isEffectActionTargeting = pendingCardTargeting?.kind === 'effect'
-  const isEffectMultiTargeting = pendingEffectTargeting !== null
+  const isEffectMultiTargeting =
+    pendingEffectTargeting !== null
+    // A board-answerable prompt puts the board into the same selection mode: the cards offer Select buttons.
+    || resolveBoardPromptCandidateInstanceIds(props.gameState.pendingPrompt).length > 0
   const backendAttackLink = useBackendAttackLink({ gameState: props.gameState })
   const renderedAttackLink = optimisticActiveAttackLink ?? backendAttackLink
   const {
@@ -115,10 +118,17 @@ function GameZones(props: IGameZonesProps) {
     [pendingSummonTargeting]
   );
 
-  const validEffectTargetsByCardId = useMemo(
-    () => extractTargetIds(pendingEffectTargeting?.validTargets),
-    [pendingEffectTargeting]
-  );
+  const validEffectTargetsByCardId = useMemo(() => {
+    const targets = extractTargetIds(pendingEffectTargeting?.validTargets)
+
+    // A board-answerable effect selection prompt adds its own candidates (the cards the effect declared
+    // selectable) to the same "Select" affordance, so clicking one answers the prompt.
+    for (const instanceId of resolveBoardPromptCandidateInstanceIds(props.gameState.pendingPrompt)) {
+      targets.add(instanceId.trim().toLowerCase())
+    }
+
+    return targets
+  }, [pendingEffectTargeting, props.gameState.pendingPrompt]);
 
   const selectedEffectTargetsByCardId = useMemo(
     () => extractTargetIds(pendingEffectTargeting?.selectedTargets),

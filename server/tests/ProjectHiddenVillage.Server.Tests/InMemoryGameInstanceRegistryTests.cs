@@ -2351,6 +2351,14 @@ public sealed class InMemoryGameInstanceRegistryTests
             Contexts.Add(context);
             return Result.Success;
         }
+
+        public ErrorOr<Success> Resume(
+            GameInstance game,
+            PendingEffectContinuation continuation,
+            IReadOnlyList<GameEffectTargetReference> selection)
+        {
+            return Result.Success;
+        }
     }
 
     private sealed class AttackerUnrestingSequentialExecutor : IGameSequentialEffectExecutor
@@ -2362,6 +2370,14 @@ public sealed class InMemoryGameInstanceRegistryTests
                 context.SourceCardInstance.IsRested = false;
             }
 
+            return Result.Success;
+        }
+
+        public ErrorOr<Success> Resume(
+            GameInstance game,
+            PendingEffectContinuation continuation,
+            IReadOnlyList<GameEffectTargetReference> selection)
+        {
             return Result.Success;
         }
     }

@@ -3,6 +3,7 @@ import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 import { GameHandRow } from './GameHandRow'
 import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
+import { useGameUIStore } from '@/state/gameUIStore'
 import { useLongPressHandReorder } from '@/views/game/hooks/useLongPressHandReorder'
 import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions'
 import type { IBottomHandReorderRowProps } from '@/views/game/types'
@@ -99,6 +100,16 @@ export function BottomHandReorderRow({
                     onChooseTarget={
                       isEffectTargetCandidate && onChooseTarget
                         ? () => onChooseTarget(card.instanceId)
+                        : undefined
+                    }
+                    // A hand card that an effect selection prompt lists as a candidate answers the prompt with
+                    // its own Select button - the same store branch the field/support rows use.
+                    isEffectTargetCandidate={
+                      validEffectTargetsByCardId?.has(card.instanceId.trim().toLowerCase()) === true
+                    }
+                    onToggleEffectTarget={
+                      validEffectTargetsByCardId?.has(card.instanceId.trim().toLowerCase()) === true
+                        ? () => useGameUIStore.getState().toggleEffectTarget(card.instanceId)
                         : undefined
                     }
                     isConnected={isConnected}

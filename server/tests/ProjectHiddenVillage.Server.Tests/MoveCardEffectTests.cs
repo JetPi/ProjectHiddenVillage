@@ -256,8 +256,11 @@ public sealed class MoveCardEffectTests
     }
 
     [TestMethod]
-    public void Execute_DrawThenPlaceMode_PlacesTheDrawnCard_WhenHandIsEmpty()
+    public void Execute_DrawThenPlaceMode_DoesNotConsumeTheDrawnCard()
     {
+        // "draw 1 card, then place 1 card from your hand on top of your deck" is authored as two chained
+        // nodes, the second one prompted (EffectSelectionTiming.Prompted). A lone draw must therefore never
+        // satisfy a later move action by itself - that used to silently put the drawn card straight back.
         var effectSpec = CreateMoveCardEffectSpec(
             new MoveCardActionSpec
             {
@@ -280,11 +283,8 @@ public sealed class MoveCardEffectTests
         var effect = CreateEffect(effectSpec);
         var result = effect.Execute(context, []);
 
-        Assert.IsFalse(result.IsError);
-
-        Assert.AreEqual(0, player.Hand.Count);
-        Assert.AreEqual(2, player.Deck.Count);
-        Assert.AreEqual("deck-1", player.Deck[0].InstanceId);
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Game.Effect.MoveCard.Move.MissingTargets", result.FirstError.Code);
     }
 
 

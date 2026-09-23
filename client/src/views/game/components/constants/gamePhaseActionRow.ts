@@ -27,6 +27,14 @@ const PhaseValues = {
   'fulfilled-effect-targets': 'Fulfilled target selection',
   'support-activated-your-response': 'Support Activated · Your Response',
   'support-activated-opponent-response': 'Support Activated · Opponent Response',
+  // Effect selection prompts (GamePromptType.Effect): the middle indicator names what the player is picking,
+  // keyed by the server's EffectSelectionPromptKind.
+  'select-prompt-place-on-deck-top': 'Select a card to place on deck top',
+  'select-prompt-place-on-deck-bottom': 'Select a card to place on the bottom of your deck',
+  'select-prompt-discard-from-hand': 'Select a card to discard',
+  'select-prompt-return-to-hand': 'Select a card to return to hand',
+  'select-prompt-search-deck': 'Select a card from your deck',
+  'select-prompt-generic': 'Select a card',
 }
 
 export { phaseActionChipClassName, invertedPhaseThemeClassByPhaseTheme, PhaseValues }

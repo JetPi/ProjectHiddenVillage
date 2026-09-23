@@ -6,6 +6,7 @@ export { CardAdminTargetRulesPanel } from './rules/CardAdminTargetRulesPanel'
 export { CardAdminGainEffectPanel } from './runtime/CardAdminGainEffectPanel'
 export { CardAdminPassiveSettingsPanel } from './runtime/CardAdminPassiveSettingsPanel'
 export { CardAdminRevealCardPanel } from './runtime/CardAdminRevealCardPanel'
+export { CardAdminSearchCardPanel } from './runtime/CardAdminSearchCardPanel'
 export { CardAdminSummonSettingsPanel } from './runtime/CardAdminSummonSettingsPanel'
 
 export { CardAdminAttributeModificationsPanel } from './stateActions/CardAdminAttributeModificationsPanel'
