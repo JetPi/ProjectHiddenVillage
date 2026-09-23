@@ -25,11 +25,11 @@ const PROMPT_SUBTITLES: Record<string, string> = {
  */
 const EFFECT_SELECTION_PROMPT_COPY: Record<string, { title: string; subtitle: string }> = {
   PlaceOnDeckTop: {
-    title: 'Place a Card on Top',
+    title: 'Choose a card to place on deck top',
     subtitle: 'Choose a card from your hand to place on top of your deck.',
   },
   PlaceOnDeckBottom: {
-    title: 'Place a Card on the Bottom',
+    title: 'Choose a card to place on deck bottom',
     subtitle: 'Choose a card from your hand to place on the bottom of your deck.',
   },
   DiscardFromHand: {
