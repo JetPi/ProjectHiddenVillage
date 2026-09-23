@@ -52,14 +52,21 @@ task touches that area).
   **N-016's negate is fixed** (its chakra lock is now its own `Lock Chakra Recovery` runtime effect instead of
   a target-demanding `Alter Resources` node — see `05-server-models-serialization.md`) and covered by server
   tests; it still has no e2e.
-- **Reveal presentation: only the e2e is left.** The engine pause (see `03-targeting-contract.md` →
-  "Reveal presentation") and every client surface are shipped: the deck slot flips via `FlippableCard`, the ack
-  fires after `REVEAL_PRESENTATION_MS`, an opponent's revealed **hand**/**support** card is shown face up, and a
-  reveal that summons flies the card out of the deck slot onto the field (`02-board-ui-hud.md` → "Revealed cards on
-  the board"). Still open: an e2e that actually *plays* N-013/N-019/N-022 — the specs only use N-019 as
-  summon/tribute material, which is also why the flight is not pinned yet. The first step is a DOM hook for the
-  presentation (e.g. a `data-testid`/`data-revealed` on the flipped deck slot in `PlayPileZone`), because a
-  presentation prompt renders no overlay: during the pause nothing else in the DOM says "a card is face up here".
+- **Reveal presentation: shipped and covered end-to-end.**
+  `e2e/gameview.multiplayer.reveal-presentation.spec.ts` plays N-019 for real — summon Jugo → stack the deck top with
+  the leader's own `draw-n-place-card` ability (N-012) → attack → the reveal is presented (deck slot flips with the
+  stacked card's definition id) → the client acks after `REVEAL_PRESENTATION_MS` → the revealed card **flies** out of
+  the deck slot onto the field (asserted via the recorded entry animation + timestamp ordering), and the second test
+  covers the un-reveal of a card the post-condition refuses. The DOM hooks it needs are in place
+  (`data-testid="deck-pile-card"` / `data-revealed` / `data-card-definition-id` in `PlayPileZone`, see
+  `02-board-ui-hud.md`), and both specs observe instead of polling because the presentation only lasts 2 s.
+  Fixing that spec also uncovered and fixed a real engine bug: `ZoneCardRestrictionMatcher` /
+  `LeaderTargetRestrictionMatcher` ignored `MatchMode: Any`, so N-019's "`[Sasuke Uchiha]` **or** `[The Taka]`"
+  never matched through its second predicate (see `03-targeting-contract.md`).
+- **`EffectTiming.OnSummon` has no engine runner** — the timing exists only as an enum/condition keyword, so an
+  `[On Summon]` effect (N-013's reveal, N-005's summon, …) is never executed after a normal summon. Running those
+  effects (mirroring `ExecuteAutomaticWhenAttackingEffects`) is the next feature step; it is also what would let the
+  N-013 reveal be tested.
 - **Optional regression test** for N-009 (Kakashi, Support-Activated “reduce your life by 2”):
   its `reduce-self-life` effect declares a target entry with `exactSelectedTargetCount: 0` while
   `targetRules.exactTargetCount` is 1 — harmless today, but pin the behaviour before touching it.

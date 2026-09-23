@@ -203,8 +203,16 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   (`useRevealPresentationAckEffect`).
 - Covered by `GameSequentialEffectExecutorTests.Execute_RevealFirst*` and
   `InMemoryGameInstanceRegistryWhenAttackingTests` (when-attacking reveal → attack still completes → ack → summon, or
-  flip back when the post-condition fails). No e2e yet: a reveal needs N-013/N-019/N-022 to be *played*, and the specs
-  only use N-019 as a summon/tribute material.
+  flip back when the post-condition fails), plus the end-to-end
+  `e2e/gameview.multiplayer.reveal-presentation.spec.ts`. That spec plays N-019 for real: it summons Jugo, stacks the
+  deck top with the leader's own `draw-n-place-card` ability (N-012), attacks, and then asserts the flip, the pause,
+  the auto-ack, the summoned card's deck→field flight and (in the second test) the un-reveal of a card the
+  post-condition refuses. Two presentation facts are only observable in that window, so the spec observes instead of
+  polling: `installDeckRevealObserver` (deck slot attributes) and `installBattlefieldEntryAnimationRecorder`
+  (character-field entry animations, with page-clock timestamps to prove the summon happened *after* the flip).
+- Not covered yet: **`EffectTiming.OnSummon` still has no engine runner** (it exists only as an enum/condition
+  keyword), so N-013's on-summon reveal cannot be played by any test — the presentation is currently only reachable
+  through a `When Attacking` reveal (N-019) and the summon-requirement chains (N-022).
 
 ## Card-property predicate values (`Type` normalization)
 
@@ -215,6 +223,12 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   makes `Type Equals "EX Character"` unmatchable and `Type Not Equals "EX Character"` unconditionally
   true (that bug let N-018's "non-EX" K.O. and N-019/N-022's reveal filters accept EX cards). All other
   properties keep the plain comparison (honouring `IgnoreCase`).
+- **`ZoneRestrictionMatchMode` is honoured per group**: `All` requires every predicate, `Any` requires
+  one. Both matchers used to fold *every* restriction through `All(...)` (the `MatchMode` switch returned
+  the same value twice), so an inline group such as N-019's "`[Sasuke Uchiha]` **or** a `[The Taka]` card"
+  could never match through its second predicate — the reveal-summon silently took the failure branch and
+  the card the player had just been shown was never summoned (`Execute_RevealFirst_MatchesPostCondition_WhenAnyPredicateOfAGroupMatches`
+  pins it).
 
 ## Backend guidance
 

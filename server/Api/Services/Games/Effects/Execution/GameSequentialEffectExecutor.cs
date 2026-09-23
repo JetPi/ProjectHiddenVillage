@@ -83,7 +83,17 @@ public sealed class GameSequentialEffectExecutor(
 
         // Carrying the presentation forward means the resumed chain turns the presented reveals back down when
         // it finishes - the other end of the suspension below.
-        return RunNodes(context, nodes, continuation.ResumeNodeId, continuation.RevealPresentation);
+        var runResult = RunNodes(context, nodes, continuation.ResumeNodeId, continuation.RevealPresentation);
+
+        // A resumed chain can still fail (an unsupported branch node, a step that cannot execute). The reveal it
+        // presented has already been seen, so it must be turned back down either way - a presented card the chain
+        // never returns to would stay face up for the rest of the game.
+        if (runResult.IsError)
+        {
+            ClearPresentedReveals(game, continuation.RevealPresentation);
+        }
+
+        return runResult;
     }
 
     private static CardInstance? ResolveResumedSourceCardInstance(GameInstance game, PendingEffectContinuation continuation)

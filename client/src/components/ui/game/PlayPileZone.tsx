@@ -78,9 +78,14 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                     : undefined
               }
               className={isDeckLabel(label) ? deckPileCardClassName : labeledPileCardClassName}
-              data-testid={isTrashLabel(label) ? 'trash-pile-card' : undefined}
+              data-testid={isTrashLabel(label) ? 'trash-pile-card' : isDeckLabel(label) ? 'deck-pile-card' : undefined}
+              data-revealed={isDeckLabel(label) && revealedDeckInstance !== null ? 'true' : undefined}
               data-card-definition-id={
-                isTrashLabel(label) && latestTrashCard ? latestTrashCard.id : undefined
+                isTrashLabel(label) && latestTrashCard
+                  ? latestTrashCard.id
+                  : isDeckLabel(label) && revealedDeckCard
+                    ? revealedDeckCard.id
+                    : undefined
               }
             >
               <CardOverlayBadge

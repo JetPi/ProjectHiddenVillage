@@ -939,6 +939,157 @@ public sealed class GameSequentialEffectExecutorTests
     }
 
     [TestMethod]
+    public void Execute_RevealFirst_MatchesPostCondition_WhenAnyPredicateOfAGroupMatches()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new DeckTopRevealEffect(observedSpecIds),
+            new RecordingEffect(FreezeCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        // N-019's real post-condition: "[Sasuke Uchiha] **or** a [The Taka] type card, other than an EX
+        // Character". The revealed deck card is only a [The Taka] card, so the group has to match through its
+        // second predicate - a group is not a list of `All` predicates just because it is rendered inline.
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                RevealTimingMode = RevealTimingMode.RevealFirst,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                RevealPostConditionRuleSet = new ZoneCardRestrictionRuleSet
+                {
+                    Operator = RequirementGroupOperator.All,
+                    Restrictions =
+                    [
+                        new ZoneCardRestriction
+                        {
+                            MatchMode = ZoneRestrictionMatchMode.Any,
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Name,
+                                    Operator = ZoneCardPredicateOperator.Equals,
+                                    Value = "Sasuke Uchiha",
+                                    IgnoreCase = true,
+                                },
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Trait,
+                                    Operator = ZoneCardPredicateOperator.Equals,
+                                    Value = "The Taka",
+                                    IgnoreCase = true,
+                                },
+                            ],
+                        },
+                        new ZoneCardRestriction
+                        {
+                            MatchMode = ZoneRestrictionMatchMode.All,
+                            Predicates =
+                            [
+                                new ZoneCardPropertyPredicate
+                                {
+                                    Property = ZoneCardProperty.Type,
+                                    Operator = ZoneCardPredicateOperator.NotEquals,
+                                    Value = "EX Character",
+                                    IgnoreCase = true,
+                                },
+                            ],
+                        },
+                    ],
+                },
+                OnSuccessEffectId = "freeze-step",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "freeze-step",
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+        AddDeckCard(context, "deck-1", "deck-def", "Karin", ["Special", "The Taka"]);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        // The reveal is still presented first, and the success branch it picked is the freeze step.
+        var prompt = context.Game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual(EffectSelectionPromptKind.RevealPresentation, prompt.SelectionPromptKind);
+        Assert.AreEqual("freeze-step", prompt.EffectContinuation!.ResumeNodeId);
+
+        var resumeResult = executor.Resume(context.Game, prompt.EffectContinuation, []);
+
+        Assert.IsFalse(resumeResult.IsError);
+        CollectionAssert.AreEqual(new[] { "reveal-step", "freeze-step" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_RevealFirstDeckTopReveal_FlipsTheCardBack_WhenTheResumedBranchFails()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new DeckTopRevealEffect(observedSpecIds),
+        ]));
+
+        // "broken-step" resolves to a runtime effect whose handler is not registered, so resuming into it fails.
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                RevealTimingMode = RevealTimingMode.RevealFirst,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                OnSuccessEffectId = "broken-step",
+                ContextRules = []
+            },
+            new EffectSpec
+            {
+                Id = "broken-step",
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                TargetRange = EffectTargetRange.Any,
+                ContextRules = []
+            });
+
+        var context = CreateContext(sourceDefinition);
+        AddDeckCard(context, "deck-1", "deck-def");
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "reveal-step" }, observedSpecIds.ToArray());
+
+        var deckCard = context.Game.State.Players[0].Deck.Single();
+        Assert.IsTrue(deckCard.IsRevealedToBothPlayers);
+
+        var prompt = context.Game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual(EffectSelectionPromptKind.RevealPresentation, prompt.SelectionPromptKind);
+
+        var resumeResult = executor.Resume(context.Game, prompt.EffectContinuation!, []);
+
+        // The branch cannot run, so the chain fails - but the card the player just saw still goes back face
+        // down instead of staying revealed for the rest of the game.
+        Assert.IsTrue(resumeResult.IsError);
+        Assert.IsFalse(deckCard.IsRevealedToBothPlayers);
+        Assert.IsNull(deckCard.RevealedInZone);
+    }
+
+    [TestMethod]
     public void Execute_RevealLast_BranchesOnFailureWithoutExecuting_WhenConditionDoesNotMatch()
     {
         var observedSpecIds = new List<string>();
@@ -1857,7 +2008,12 @@ public sealed class GameSequentialEffectExecutorTests
         };
     }
 
-    private static void AddDeckCard(GameCardEffectContext context, string instanceId, string definitionId)
+    private static void AddDeckCard(
+        GameCardEffectContext context,
+        string instanceId,
+        string definitionId,
+        string displayName = "Deck Card",
+        string[]? traits = null)
     {
         var player = context.Game.State.Players.First(entry => entry.PlayerId == "p1");
         player.Deck.Add(new CardInstance
@@ -1871,11 +2027,11 @@ public sealed class GameSequentialEffectExecutorTests
         context.Game.State.CardDefinitions[definitionId] = new CharacterCard
         {
             Id = definitionId,
-            DisplayName = "Deck Card",
-            Name = ["Deck Card"],
+            DisplayName = displayName,
+            Name = [displayName],
             Type = CardType.Character,
             Color = CardColor.Red,
-            Traits = [],
+            Traits = traits is null ? [] : [.. traits],
             Damage = 1,
             Power = 1,
             Health = 2,

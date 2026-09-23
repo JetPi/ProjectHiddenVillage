@@ -145,6 +145,11 @@ paths:
 
 ## Revealed cards on the board (`isRevealed`)
 
+- The deck slot carries the reveal hooks: `data-testid="deck-pile-card"` plus `data-revealed="true"` and
+  `data-card-definition-id` (the revealed card's definition id, like the trash pile) while a reveal shows
+  that card's face. `e2e/gameview.multiplayer.reveal-presentation.spec.ts` records those attributes with a
+  page-side `MutationObserver` (`installDeckRevealObserver` in `e2e/helpers/multiplayer/flow.ts`) because a
+  presentation only lasts `REVEAL_PRESENTATION_MS` (2 s) — polling after the action was submitted misses it.
 - `PlayPileZone` renders the deck slot as a `FlippableCard` (`isFlipped` once that side's deck list carries a card with
   `isRevealed === true`), so a `Reveal First` effect flips the card over in place and it flips back when the server
   clears the flag (contract in `03-targeting-contract.md`). Both sides use the same lookup: the owner receives every

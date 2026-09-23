@@ -113,6 +113,26 @@ export async function tryCompleteEndStepViaHub(gameCode: string, player: PlayerA
   return await invokeGameHubMethod(player, 'CompleteEndStep', [gameCode.toUpperCase()])
 }
 
+export async function executeCardActionViaHub(
+  gameCode: string,
+  player: PlayerAuth,
+  actionId: string,
+  sourceCardInstanceId: string,
+  selectedTargets: Array<{ playerId: string; zone: string; cardInstanceId: string }> = [],
+): Promise<void> {
+  const result = await invokeGameHubMethod(player, 'ExecuteCardAction', [
+    gameCode.toUpperCase(),
+    {
+      playerId: player.normalizedUserId,
+      actionId,
+      sourceCardInstanceId,
+      selectedTargets,
+    },
+  ])
+
+  expect(result.succeeded, describeHubFailure('Hub.ExecuteCardAction', result)).toBeTruthy()
+}
+
 export async function declarePassInActionStepViaHub(gameCode: string, player: PlayerAuth): Promise<void> {
   const result = await invokeGameHubMethod(player, 'DeclarePassInActionStep', [
     gameCode.toUpperCase(),
