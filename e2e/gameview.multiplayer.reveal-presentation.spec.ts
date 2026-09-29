@@ -34,18 +34,22 @@ import {
 //  - N-012 Sasuke (leader): free "[Activate: Main] [Once Per Turn] Draw 1 card and place 1 card from your hand
 //                    on top of your deck" - which is what makes the reveal's outcome deterministic instead of
 //                    riding the shuffle.
-// (N-013 Itachi's reveal is an [On Summon] one, and `EffectTiming.OnSummon` still has no engine runner - it only
-// exists as an enum/condition keyword - so the presentation can only be played through N-019 today.)
+// (N-013 Itachi's reveal is an [On Summon] one, so it is driven by the summon itself - see
+//  ON_SUMMON_REVEAL_CARD_DEFINITION_ID below - instead of by an attack.)
 const REVEAL_ON_ATTACK_CARD_DEFINITION_ID = 'N-019'
 const DECK_TOP_ABILITY_EFFECT_KEY = 'draw-n-place-card'
 // A card N-019's reveal refuses to summon: [Uchiha Clan]/[Akatsuki], i.e. neither [Sasuke Uchiha] nor [The Taka].
 const REVEAL_NON_MATCH_DEFINITION_ID = 'N-013'
+// The only [On Summon] effect a normal summon can reach (N-003/N-005/N-014 are EX Characters and the on-summon
+// runner fires mandatory effects only). The same card doubles as the non-match above, so both scenarios pin
+// opposite ends of it.
+const ON_SUMMON_REVEAL_CARD_DEFINITION_ID = 'N-013'
 
 // Cards N-019's reveal summons: a non-EX [Sasuke Uchiha] (N-015) or any [The Taka] card (Karin, Suigetsu or
 // another Jugo). N-014 is [The Taka] too but an EX Character, so the reveal must never summon it.
 const REVEAL_SUMMON_MATCH_DEFINITION_IDS = ['N-010', 'N-015', 'N-019', 'N-021']
 
-// Both scenarios need a specific card in an opening/drawn hand (three copies in a 33-card deck), so - like the
+// Every scenario needs a specific card in an opening/drawn hand (three copies in a 33-card deck), so - like the
 // range-support spec - each attempt plays a fresh game instead of riding a single shuffle.
 const ATTEMPT_COUNT = 3
 
@@ -83,6 +87,26 @@ test.describe('GameView multiplayer reveal presentation', () => {
 
       try {
         await playRevealFlipBackScenario(request, setup, pages)
+        return
+      } catch (error) {
+        lastFailure = error
+      } finally {
+        await closeMultiplayerPages(pages)
+      }
+    }
+
+    throw lastFailure
+  })
+
+  test('an [On Summon] reveal presents the deck card as the summon resolves', async ({ browser, request }) => {
+    let lastFailure: unknown = null
+
+    for (let attempt = 0; attempt < ATTEMPT_COUNT; attempt += 1) {
+      const setup = await setupMultiplayerGame(request)
+      const pages = await openMultiplayerPages(browser, setup)
+
+      try {
+        await playOnSummonRevealScenario(request, setup, pages)
         return
       } catch (error) {
         lastFailure = error
@@ -353,6 +377,87 @@ async function playRevealFlipBackScenario(
     revealedDeckCards: 0,
     cardIsBackInTheDeck: true,
     cardIsOnTheField: false,
+  })
+}
+
+/**
+ * Summons N-013 Itachi - the only card in the seed whose [On Summon] reveal a normal summon can reach. There is
+ * no attack to set up: the summon itself fires the reveal, so the chain suspends on the presentation as the
+ * summon resolves, the client acknowledges it on its own, and the card it showed is turned back face down in the
+ * deck (the effect's own freeze step collects a target no player was asked for, so nothing else happens).
+ */
+async function playOnSummonRevealScenario(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+): Promise<void> {
+  const actor = setup.playerTwo
+  const actorPage = pages.playerTwoPage
+
+  await playOpening(request, setup)
+
+  const itachiSummon = await resolveActorMainPhaseWindow(request, setup, actor, (actorState) => {
+    const itachi = findHandCardWithAction(actorState, ON_SUMMON_REVEAL_CARD_DEFINITION_ID, 'summon')
+    return itachi ? { instanceId: itachi.instanceId, actionId: itachi.actionId } : null
+  })
+
+  // The presentation lasts only REVEAL_PRESENTATION_MS (2 s), so the pause is caught by a poll that starts BEFORE
+  // the summon is submitted and the flip by the page-side deck observer.
+  await installDeckRevealObserver(actorPage)
+
+  const presentationSeen = expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, actor.session.accessToken)
+    return state.pendingPrompt?.selectionPromptKind ?? 'none'
+  }, {
+    timeout: 20_000,
+  }).toBe('RevealPresentation')
+
+  await executeCardActionViaHub(setup.gameCode, actor, itachiSummon.actionId, itachiSummon.instanceId)
+  await presentationSeen
+
+  // Suspended on the presentation: the summon already resolved (the reveal is an [On Summon] effect), the deck's
+  // top card is face up, and the only thing outstanding is the acknowledgement no player has to click.
+  const pausedState = await fetchGameState(request, setup.gameCode, actor.session.accessToken)
+  const pausedActorState = resolvePlayerState(pausedState, actor)
+  const revealedDeckCard = (pausedActorState.deck ?? []).find((card) => card.isRevealed === true)
+
+  expect(pausedState.pendingPrompt?.isAwaitingRequestingPlayer).toBe(true)
+  expect(
+    pausedActorState.characterField.some((card) => card.instanceId === itachiSummon.instanceId),
+    'the summon must have resolved before its [On Summon] reveal is presented',
+  ).toBe(true)
+  expect(revealedDeckCard, 'the [On Summon] reveal must turn the deck top face up').toBeTruthy()
+
+  // The acknowledgement resumes the chain and the reveal is transient: the card it presented goes back face down,
+  // still in the deck where the reveal found it (a plain reveal never moves the card).
+  await expect.poll(async () => {
+    const observations = await getDeckRevealObservations(actorPage)
+    const presentedIndex = observations.findIndex((entry) => {
+      return entry.revealed && entry.definitionId === revealedDeckCard?.cardDefinitionId
+    })
+
+    return presentedIndex >= 0 && observations.slice(presentedIndex + 1).some((entry) => !entry.revealed)
+  }, {
+    timeout: 20_000,
+  }).toBe(true)
+
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, actor.session.accessToken)
+    const actorState = resolvePlayerState(state, actor)
+
+    return {
+      pendingPromptKind: state.pendingPrompt?.selectionPromptKind ?? 'none',
+      revealedDeckCards: (actorState.deck ?? []).filter((card) => card.isRevealed === true).length,
+      revealedCardIsBackInTheDeck: (actorState.deck ?? []).some((card) => card.instanceId === revealedDeckCard?.instanceId),
+      revealedCardIsOnTheField: actorState.characterField.some((card) => card.instanceId === revealedDeckCard?.instanceId),
+    }
+  }, {
+    timeout: 15_000,
+  }).toEqual({
+    pendingPromptKind: 'none',
+    revealedDeckCards: 0,
+    revealedCardIsBackInTheDeck: true,
+    revealedCardIsOnTheField: false,
   })
 }
 

@@ -221,9 +221,11 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   *printed max + 2 - the attacker's DMG*, i.e. **above** `totalLife`, and the `leader-life-badge` has to render that
   value (the server used to clamp it - `GameStateResponseMapperLeaderLifeTests`).
 - Not yet covered by e2e although the cards are seeded: the remaining Quick support cut-ins as the *responder*
-  (N-021; N-010 carries no `[Quick]` - its cut-in activation is the bullet above), When-Attacking reveal-summon
-  (N-013/N-019/N-022), conditional Rush (N-007/N-011), leader Recovery (N-001/N-012), on-summon chains
-  (N-003/N-005/N-013/N-014/N-022). N-016's negate works again (its chakra lock is its own runtime effect,
+  (N-021; N-010 carries no `[Quick]` - its cut-in activation is the bullet above), the remaining When-Attacking
+  reveal-summons (N-013/N-022; N-019's reveal-summon is covered by the reveal-presentation spec), conditional Rush
+  (N-007/N-011), leader Recovery (N-001/N-012), and the on-summon chains that need a selection
+  (N-003/N-005/N-014 - see the `[On Summon]` runner bullet in the reveal-presentation section). N-016's negate works
+  again (its chakra lock is its own runtime effect,
   see `05-server-models-serialization.md`) and is covered by
   `SupportActivationResolutionTests.ActivateSupport_WithChakraLock_…` plus
   `LockChakraRecoveryEffectTests`; an e2e for it is still open.
@@ -262,9 +264,20 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   post-condition refuses. Two presentation facts are only observable in that window, so the spec observes instead of
   polling: `installDeckRevealObserver` (deck slot attributes) and `installBattlefieldEntryAnimationRecorder`
   (character-field entry animations, with page-clock timestamps to prove the summon happened *after* the flip).
-- Not covered yet: **`EffectTiming.OnSummon` still has no engine runner** (it exists only as an enum/condition
-  keyword), so N-013's on-summon reveal cannot be played by any test — the presentation is currently only reachable
-  through a `When Attacking` reveal (N-019) and the summon-requirement chains (N-022).
+- **`[On Summon]` has a runner**: `GameTriggeredEffectRunner.ExecuteAutomaticTimedEffects` is called by the
+  registry's normal/tribute summon and by `SummonCardEffect`/`TributeSummonCardEffect`, dispatches mandatory effects
+  only, caps nested dispatches (`MaxTriggerDepth`) and logs a failure as `on_summon_effect_skipped` instead of
+  throwing (`InMemoryGameInstanceRegistryOnSummonTests`). N-013's reveal is the third scenario in
+  `e2e/gameview.multiplayer.reveal-presentation.spec.ts`: the summon itself suspends the chain on the presentation
+  (the card is already on the field) and the presented deck card goes back face down afterwards.
+- **What an auto-triggered node still cannot do** is collect a selection. N-013's own `freeze-target` is `Upfront`
+  with an authored `exactTargetCount: 1` (the only `selectionTiming: Prompted` in the whole seed is N-012's leader
+  ability), so as a trigger step it resolves no targets, fails `CanExecute` and takes its empty failure branch - a
+  silent no-op. Same shape in N-003/N-005/N-014's on-summon `Summon Card` / `Destroy Card` chains. Fixing it means
+  (a) `selectionTiming: Prompted` on the node in `test-data/seed-profiles.json` **and**
+  `server/Api/rawCardCatalogDump.txt`, and (b) client support for a board-answerable prompt whose `CandidateZone` is
+  `Leader` - `BOARD_PROMPT_SELECTION_ZONES` (`state/gameUIStore.ts`) and `toPromptPresentation` only accept
+  Hand/CharacterField/SupportZone, so a N-013 freeze prompt would have no clickable candidate today.
 
 ## Card-property predicate values (`Type` normalization)
 

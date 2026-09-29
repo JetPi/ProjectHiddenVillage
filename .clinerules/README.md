@@ -44,7 +44,8 @@ task touches that area).
   — N-008 now always resolves from the manifest (the assertion still passes).
 - **Add specs for the newly seeded real cards** (all listed in
   `03-targeting-contract.md`): the remaining Quick support cut-ins as the *responder* (N-021),
-  When-Attacking reveal-summon, conditional Rush, leader Recovery, on-summon chains.
+  the remaining When-Attacking reveal-summons (N-013/N-022), conditional Rush, leader Recovery, and the
+  on-summon chains that need a selection (N-003/N-005/N-014).
   The hand-support resolution, the N-006/N-017 range cut-in + multi-pick flows, the N-020 bounce, the N-008
   attack interruption, the N-010 life gain above the printed maximum (the `leader-life-badge` unclamped
   regression guard) and the N-009 negate (plus the support-row highlight geometry) live in
@@ -60,17 +61,24 @@ task touches that area).
   `e2e/gameview.multiplayer.reveal-presentation.spec.ts` plays N-019 for real — summon Jugo → stack the deck top with
   the leader's own `draw-n-place-card` ability (N-012) → attack → the reveal is presented (deck slot flips with the
   stacked card's definition id) → the client acks after `REVEAL_PRESENTATION_MS` → the revealed card **flies** out of
-  the deck slot onto the field (asserted via the recorded entry animation + timestamp ordering), and the second test
-  covers the un-reveal of a card the post-condition refuses. The DOM hooks it needs are in place
+  the deck slot onto the field (asserted via the recorded entry animation + timestamp ordering), the second test
+  covers the un-reveal of a card the post-condition refuses, and the **third** plays N-013's `[On Summon]` reveal —
+  the summon itself suspends the chain on the presentation and the card goes back face down in the deck. The DOM
+  hooks it needs are in place
   (`data-testid="deck-pile-card"` / `data-revealed` / `data-card-definition-id` in `PlayPileZone`, see
-  `02-board-ui-hud.md`), and both specs observe instead of polling because the presentation only lasts 2 s.
+  `02-board-ui-hud.md`), and the scenarios observe instead of polling because the presentation only lasts 2 s.
   Fixing that spec also uncovered and fixed a real engine bug: `ZoneCardRestrictionMatcher` /
   `LeaderTargetRestrictionMatcher` ignored `MatchMode: Any`, so N-019's "`[Sasuke Uchiha]` **or** `[The Taka]`"
   never matched through its second predicate (see `03-targeting-contract.md`).
-- **`EffectTiming.OnSummon` has no engine runner** — the timing exists only as an enum/condition keyword, so an
-  `[On Summon]` effect (N-013's reveal, N-005's summon, …) is never executed after a normal summon. Running those
-  effects (mirroring `ExecuteAutomaticWhenAttackingEffects`) is the next feature step; it is also what would let the
-  N-013 reveal be tested.
+- **`EffectTiming.OnSummon` runner: shipped** (commit `d9afad2` —
+  `GameTriggeredEffectRunner.ExecuteAutomaticTimedEffects`, wired into the registry's summons and the summon effects).
+  N-013's on-summon reveal is now covered end-to-end by the **third** scenario in
+  `e2e/gameview.multiplayer.reveal-presentation.spec.ts` (the summon itself suspends the chain on the presentation,
+  then the card goes back face down), so an `[On Summon]` effect runs after a normal summon.
+  **Still open:** a target-demanding auto-triggered node collects no selection, so N-013's `freeze-target` and
+  N-003/N-005/N-014's summon/destroy chains silently no-op (`Upfront` + `exactTargetCount: 1`). That needs
+  `selectionTiming: Prompted` on those nodes (seed **and** `rawCardCatalogDump.txt`) plus client support for a
+  `CandidateZone: Leader` board prompt — see `03-targeting-contract.md`.
 - **Optional regression test** for N-009 (Kakashi, Support-Activated “reduce your life by 2”):
   its `reduce-self-life` effect declares a target entry with `exactSelectedTargetCount: 0` while
   `targetRules.exactTargetCount` is 1 — harmless today, but pin the behaviour before touching it.
