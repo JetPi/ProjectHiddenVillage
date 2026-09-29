@@ -83,6 +83,15 @@ targets exist.
 - `LeaderCardInstanceState : CardInstance`, so anything that resolves an attacker/defender must
   consider battlefield **or** leader — the registry helpers `FindOwnedCardInstance` /
   `FindCardInstanceWithOwner` do exactly that.
+- **Attack interruption** (`InterruptAttackEffect`, N-008's "[During Your Opponent's Attack] Summon this card and
+  interrupt that attack."): answered from the support area during the attack's support cut-in window
+  (`IsInterruptWindow` = `ActionStep` **or** `AttackResolution`, defender + priority, pending attack), and it
+  collects **no** target at all — the published plan is enabled with an empty candidate list, so the client
+  auto-submits without a picker. It clears every `PendingAttack*` field and sets `Phase = BattleEndStep`; queued
+  supports resolve after the double pass but *before* damage, so interrupting really does prevent the damage. It
+  never writes restedness (see `04-state-phase-effects.md` → rest/stand). Covered by
+  `SupportActivationResolutionTests.ActivateSupport_InterruptAttack_*` and the N-008 scenario in
+  `e2e/gameview.multiplayer.support.spec.ts`.
 
 ## Server `GetCardActionTargets`
 
@@ -100,6 +109,23 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
 - A MainPhase support activation is **paid + consumed immediately** but only *resolves* when the window
   closes (`ResolvePendingActivations` replays the queue LIFO). Queueing hands priority to the opponent, so
   they may answer with a `[Support Activated]` card (or a negate) first.
+- The window is a **support cut-in response window**, so a `[Quick]` support (N-002) may answer the queued
+  activation from the support area as well: `SupportTimingRules.IsOpponentTurnQuickWindow` accepts both the
+  attack's support cut-in step *and* this reaction window (opponent's turn, holding priority, support area only).
+  Before that, N-002's chip read "Support timing is not available right now." exactly while the window was
+  waiting for this player.
+- Support availability is evaluated on the **normalised** entry node
+  (`GameStateResponseMapper.ResolveActivationEntryEffect` → `SupportActivationNormalizer.NormalizeEffect`) because
+  that is the shape the engine executes. "Summon this card" (N-002/N-008/N-010/N-021) is authored as a
+  summon-candidate rule pointing at the *hand*, so activating the same card from the support area resolved zero
+  valid targets and the published chip read "No valid targets available." even though a submit would execute.
+- "Requires a player selection" has one home: `EffectTargetRequirementAnalyzer.RequiresPlayerSelection`, which
+  both the availability gate (`GameStateResponseMapper.RequiresTargets`) and the engine's target-count bounds
+  (`GameEffectCanExecuteEvaluator.TryResolveTargetCountBounds`) call. Authored counts on a self-resolving node
+  (N-008's `Interrupt Attack` carries a leftover `exactTargetCount`) and a bare default `Selected Targets` source
+  nobody authored a rule for (N-012's `recovery`) are **not** a request for a selection — treating them as one made
+  those abilities read "No valid targets available." and unplayable. `EvaluateEffectAvailability` only asks the
+  evaluator to resolve candidates when the node actually collects a selection (`RequestsResolvedTargets`).
 - **One decline closes the window**: `DeclarePassInSupportWindow` resolves on the passing player's first
   pass. The activator is therefore only ever asked for a response after the opponent actually reacted
   (their activation flipped priority back) — a decline by the asked player has nothing left to answer, so
@@ -168,13 +194,60 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   (set face down → the opponent's `During Your Main` K.O. support activated from the support area → the negate
   targeting the queued activation, i.e. a card in the *opponent's* support row → K.O. never happens) and pins
   the support-row geometry across the highlight (see `02-board-ui-hud.md`).
-- Not yet covered by e2e although the cards are seeded: quick support cut-in
-  (N-002/N-008/N-010/N-021), When-Attacking reveal-summon (N-013/N-019/N-022),
+- `e2e/gameview.multiplayer.quick-support.spec.ts` covers the MainPhase support cut-in for a `[Quick]` support:
+  the opener activates N-021 from the support area during their MainPhase, the answerer's own **N-002** (in *their*
+  support area) must publish an **enabled** `activate-support:` chip for that window, and activating it (single-pick
+  doubling target) runs the chain - the summoned card lands on the field. This is the regression guard for the two
+  bullets above.
+- `e2e/gameview.multiplayer.support.spec.ts` also covers **N-008's attack interruption**: player two attacks,
+  player one's `InterruptAttack` support (set face down beforehand) must publish an **enabled** chip with no target
+  pick, and the resolution cancels the attack (no leader damage, phase → `BattleEndStep`, attacker still rested)
+  while summoning the support card itself onto the defender's field.
+- Not yet covered by e2e although the cards are seeded: quick support cut-in for the other Quick cards
+  (N-010/N-021 as the *responder*), When-Attacking reveal-summon (N-013/N-019/N-022),
   conditional Rush (N-007/N-011), leader Recovery (N-001/N-012), on-summon chains
   (N-003/N-005/N-013/N-014/N-022). N-016's negate works again (its chakra lock is its own runtime effect,
   see `05-server-models-serialization.md`) and is covered by
   `SupportActivationResolutionTests.ActivateSupport_WithChakraLock_…` plus
   `LockChakraRecoveryEffectTests`; an e2e for it is still open.
+
+## Reveal presentation (a `Reveal First` reveal)
+
+- A `RevealTimingMode.RevealFirst` reveal is *presented*, not silently applied: the step runs, the success/failure
+  branch is picked, and then `GameSequentialEffectExecutor` suspends the chain on a `GamePromptType.Effect` prompt with
+  `SelectionPromptKind = RevealPresentation` (single option `ReactiveEffectExecutionConstants.RevealPresentedOption`) so
+  the client can show the card before the rest of the chain (summon / freeze) runs. Both the per-step path and the
+  atomic-chain path suspend — N-019's reveal is an atomic chain, N-013/N-022 are per-step.
+- Only reveals the acting player could not already see are presented (`FilterPresentableReveals`): a deck card, or an
+  opponent's hand / face-down support card. Revealing an already-visible card keeps the chain moving. A reveal whose
+  picked branch target does not exist (`CanResumeAt`) never suspends either: the chain has to fail inside the caller
+  that records the skip, not later from the prompt resolver.
+- The acknowledgement is not a selection: `Resume` reuses `continuation.SelectedTargets` whenever
+  `PendingEffectContinuation.RevealPresentation` is set, so a resumed "summon the revealed card" node still summons the
+  card the reveal published (through the `revealedTargetIds` argument).
+- Reveals made by a `Reveal First` step are **transient**: when the chain that made them finishes — including the
+  resumed one — `ClearPresentedReveals` turns the cards back down, unless a card left the zone it was revealed in (that
+  cleared the reveal on its own). `RevealTimingMode.RevealLast` keeps the old "stays revealed until it changes zone"
+  semantics, so an information reveal opts out simply by not using `Reveal First` (all three real `Reveal First` cards —
+  N-013/N-019/N-022 — are transient deck-top reveals).
+- `CardInstanceResponse.IsRevealed` publishes the reveal (set in the deck, concealed-support and enriched branches of
+  `GameStateResponseMapper.Zones`) so the board can flip the card face up (see `02-board-ui-hud.md`). `IsFaceUp` cannot
+  stand in for it: a deck card is data-wise face up, so the reveal would be invisible in the payload.
+- The client never renders a picker for a presentation prompt (`toPromptPresentation` keeps it out of the overlay and
+  `resolveBoardPromptCandidateInstanceIds` ignores it) — it acks on its own after `REVEAL_PRESENTATION_MS`
+  (`useRevealPresentationAckEffect`).
+- Covered by `GameSequentialEffectExecutorTests.Execute_RevealFirst*` and
+  `InMemoryGameInstanceRegistryWhenAttackingTests` (when-attacking reveal → attack still completes → ack → summon, or
+  flip back when the post-condition fails), plus the end-to-end
+  `e2e/gameview.multiplayer.reveal-presentation.spec.ts`. That spec plays N-019 for real: it summons Jugo, stacks the
+  deck top with the leader's own `draw-n-place-card` ability (N-012), attacks, and then asserts the flip, the pause,
+  the auto-ack, the summoned card's deck→field flight and (in the second test) the un-reveal of a card the
+  post-condition refuses. Two presentation facts are only observable in that window, so the spec observes instead of
+  polling: `installDeckRevealObserver` (deck slot attributes) and `installBattlefieldEntryAnimationRecorder`
+  (character-field entry animations, with page-clock timestamps to prove the summon happened *after* the flip).
+- Not covered yet: **`EffectTiming.OnSummon` still has no engine runner** (it exists only as an enum/condition
+  keyword), so N-013's on-summon reveal cannot be played by any test — the presentation is currently only reachable
+  through a `When Attacking` reveal (N-019) and the summon-requirement chains (N-022).
 
 ## Card-property predicate values (`Type` normalization)
 
@@ -185,6 +258,12 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   makes `Type Equals "EX Character"` unmatchable and `Type Not Equals "EX Character"` unconditionally
   true (that bug let N-018's "non-EX" K.O. and N-019/N-022's reveal filters accept EX cards). All other
   properties keep the plain comparison (honouring `IgnoreCase`).
+- **`ZoneRestrictionMatchMode` is honoured per group**: `All` requires every predicate, `Any` requires
+  one. Both matchers used to fold *every* restriction through `All(...)` (the `MatchMode` switch returned
+  the same value twice), so an inline group such as N-019's "`[Sasuke Uchiha]` **or** a `[The Taka]` card"
+  could never match through its second predicate — the reveal-summon silently took the failure branch and
+  the card the player had just been shown was never summoned (`Execute_RevealFirst_MatchesPostCondition_WhenAnyPredicateOfAGroupMatches`
+  pins it).
 
 ## Backend guidance
 

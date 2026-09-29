@@ -411,7 +411,11 @@ public sealed class CardMappingService : ICardMappingService
                     ContextRules: effect.ContextRules
                         .Select(ToContextRuleResponse)
                         .ToList(),
-                    TargetRules: ToTargetRuleSetResponse(effect.TargetRules)))
+                    TargetRules: ToTargetRuleSetResponse(effect.TargetRules),
+                    SelectionTiming: effect.SelectionTiming.ToString(),
+                    SelectionPromptKind: effect.SelectionPromptKind.ToString(),
+                    SearchRevealSelection: effect.SearchRevealSelection,
+                    SearchShuffleAfter: effect.SearchShuffleAfter))
 ,
             Life: entry.Life,
             Health: entry.Health,

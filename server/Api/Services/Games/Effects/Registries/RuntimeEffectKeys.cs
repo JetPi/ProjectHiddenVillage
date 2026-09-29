@@ -23,6 +23,7 @@ internal static class RuntimeEffectKeys
             RuntimeEffects.MoveCard => MoveCardEffect.EffectKey,
             RuntimeEffects.RevealCard => RevealCardEffect.EffectKey,
             RuntimeEffects.LockChakraRecovery => LockChakraRecoveryEffect.EffectKey,
+            RuntimeEffects.SearchCard => SearchCardEffect.EffectKey,
             _ => string.Empty,
         };
 

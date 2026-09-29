@@ -1082,6 +1082,113 @@ public sealed class UpdateCardEffectsRequestValidatorWildcardTypeTests
     }
 
     [TestMethod]
+    public void Validate_ReturnsError_WhenExactTargetCountIsCombinedWithMinimumCount()
+    {
+        // The combination rule lives in the authoring validator, not in the runtime evaluator: the evaluator
+        // only ever resolves bounds (exact wins), while a save has to reject the contradictory shape.
+        var request = new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "effect-contradictory-counts",
+                    RuntimeEffectType = RuntimeEffects.DestroyCard,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.Quick,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        ExactTargetCount = 1,
+                        MinimumTargetCount = 1,
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+
+        var result = new UpdateCardEffectsRequestValidator().Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error =>
+            error.ErrorMessage.Contains("cannot be combined", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [TestMethod]
+    public void Validate_AllowsInterruptAttack_WithoutAnyTargetSelection()
+    {
+        var request = BuildInterruptAttackRequest(
+            executionTargetSource: EffectExecutionTargetSource.None,
+            exactTargetCount: null);
+
+        var result = new UpdateCardEffectsRequestValidator().Validate(request);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenInterruptAttackDeclaresATargetCount()
+    {
+        // N-008's shape: the node resolves the pending attack itself, so the leftover exactTargetCount was
+        // dead authoring noise the availability gate read as "needs a target" (the card could not be played).
+        var request = BuildInterruptAttackRequest(
+            executionTargetSource: EffectExecutionTargetSource.None,
+            exactTargetCount: 1);
+
+        var result = new UpdateCardEffectsRequestValidator().Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error =>
+            error.ErrorMessage.Contains("collects no target selection", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void Validate_ReturnsError_WhenInterruptAttackAsksForSelectedTargets()
+    {
+        var request = BuildInterruptAttackRequest(
+            executionTargetSource: EffectExecutionTargetSource.SelectedTargets,
+            exactTargetCount: null);
+
+        var result = new UpdateCardEffectsRequestValidator().Validate(request);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error =>
+            error.ErrorMessage.Contains("needs no selected targets", StringComparison.Ordinal)));
+    }
+
+    private static UpdateCardEffectsRequest BuildInterruptAttackRequest(
+        EffectExecutionTargetSource executionTargetSource,
+        int? exactTargetCount)
+    {
+        return new UpdateCardEffectsRequest(
+            Conditions: null,
+            Effects:
+            [
+                new EffectSpec
+                {
+                    Id = "interrupt-attack",
+                    RuntimeEffectType = RuntimeEffects.InterruptAttack,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.DuringOpponentAttack,
+                    DurationMode = EffectDurationMode.Instant,
+                    TargetRange = EffectTargetRange.Opponent,
+                    ChakraCost = 1,
+                    ExecutionTargetSource = executionTargetSource,
+                    ContextRules = [],
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        ExactTargetCount = exactTargetCount,
+                        Rules = []
+                    }
+                }
+            ],
+            Description: null,
+            SupportEffect: null,
+            CannotBeNormalSummoned: null);
+    }
+
+    [TestMethod]
     public void Validate_ReturnsError_WhenFaceStateLocksUseInstantDuration()
     {
         var validator = new UpdateCardEffectsRequestValidator();

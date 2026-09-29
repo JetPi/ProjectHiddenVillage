@@ -1,5 +1,40 @@
 namespace ProjectHiddenVillage.Server;
 
+/// <summary>
+/// When the player picks an effect's targets. <see cref="Upfront"/> is the default: the selection is sent
+/// together with the activation. <see cref="Prompted"/> defers the choice to execution time, so an earlier
+/// step of the same chain (for example "draw 1 card") can change the candidate pool first - the engine then
+/// asks with a <see cref="GamePromptType.Effect"/> prompt and resumes the chain with the answer.
+/// </summary>
+public enum EffectSelectionTiming
+{
+    Upfront,
+    Prompted,
+}
+
+/// <summary>
+/// Presentation bucket for a <see cref="EffectSelectionTiming.Prompted"/> selection. The server publishes
+/// only this stable value; the client maps it to the prompt's title/subtitle, so wording changes never need
+/// a server change.
+/// </summary>
+public enum EffectSelectionPromptKind
+{
+    Generic,
+    PlaceOnDeckTop,
+    PlaceOnDeckBottom,
+    DiscardFromHand,
+    ReturnToHand,
+    SearchDeck,
+
+    /// <summary>
+    /// Not a selection: a <see cref="RevealTimingMode.RevealFirst"/> step turned a card face up that the acting
+    /// player could not see before (the top card of a deck, an opponent's hand / face-down support card), and the
+    /// chain waits for them to acknowledge the presentation before it carries on. The prompt's single option is
+    /// the acknowledgement, so the client never renders a picker for it.
+    /// </summary>
+    RevealPresentation,
+}
+
 public class CanExecuteResult
 {
     public bool CanExecute { get; set; } = false;
@@ -217,6 +252,22 @@ public sealed class EffectSpec
     public EffectExecutionTargetSource ExecutionTargetSource { get; set; } = EffectExecutionTargetSource.SelectedTargets;
 
     public EffectExecutionFlowMode ExecutionFlowMode { get; set; } = EffectExecutionFlowMode.PerStep;
+
+    /// <summary>
+    /// <see cref="EffectSelectionTiming.Upfront"/> (default) resolves targets before the effect runs;
+    /// <see cref="EffectSelectionTiming.Prompted"/> asks the player with a prompt once this node executes,
+    /// which is what lets an earlier chain step change the candidate pool first.
+    /// </summary>
+    public EffectSelectionTiming SelectionTiming { get; set; } = EffectSelectionTiming.Upfront;
+
+    /// <summary>Copy bucket for a prompted selection; the client owns the actual wording.</summary>
+    public EffectSelectionPromptKind SelectionPromptKind { get; set; } = EffectSelectionPromptKind.Generic;
+
+    /// <summary>Search Card: reveal the chosen card(s) while they leave the searched zone.</summary>
+    public bool SearchRevealSelection { get; set; } = true;
+
+    /// <summary>Search Card: shuffle the searched deck once the chosen card(s) have left it.</summary>
+    public bool SearchShuffleAfter { get; set; } = true;
 
     public EffectExecutionConditionSpec? ExecutionCondition { get; set; }
 

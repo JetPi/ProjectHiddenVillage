@@ -35,6 +35,7 @@ import {
   CardAdminMoveCardActionsPanel,
   CardAdminPassiveSettingsPanel,
   CardAdminRevealCardPanel,
+  CardAdminSearchCardPanel,
   CardAdminSummonSettingsPanel,
   CardAdminTargetRulesPanel,
 } from '@/views/admin/components/detailPanels'
@@ -359,12 +360,13 @@ export function CardAdminEffectsSection({
                           return {
                             ...current,
                             runtimeEffectType: nextRuntimeEffectType,
-                            // "Lock Chakra Recovery" locks the players in Target Range, so it never asks for
-                            // a selected target - the server rejects the combination outright.
+                            // "Lock Chakra Recovery" locks the players in Target Range and "Interrupt Attack"
+                            // resolves the pending attack itself, so neither ever asks for a selected target -
+                            // the server rejects the combination outright.
                             executionTargetSource:
                               nextRuntimeEffectType === 'Reveal Card'
                                 ? 'Selected Targets'
-                                : nextRuntimeEffectType === 'Lock Chakra Recovery'
+                                : nextRuntimeEffectType === 'Lock Chakra Recovery' || hidesTargetCount
                                   ? 'None'
                                   : current.executionTargetSource,
                             suppressSummonedTargetsEffectsWhileOnField:
@@ -404,7 +406,7 @@ export function CardAdminEffectsSection({
                                 ? current.faceStateLocks
                                 : [],
                             moveCardActions:
-                              nextRuntimeEffectType === 'Move Card'
+                              nextRuntimeEffectType === 'Move Card' || nextRuntimeEffectType === 'Search Card'
                                 ? current.moveCardActions
                                 : [],
                             targetRules: {
@@ -595,7 +597,15 @@ export function CardAdminEffectsSection({
                   />
                 ) : null}
 
-                {effect.runtimeEffectType === 'Move Card' ? (
+                {effect.runtimeEffectType === 'Search Card' ? (
+                  <CardAdminSearchCardPanel
+                    effect={effect}
+                    effectIndex={effectIndex}
+                    updateEffectAt={updateEffectAt}
+                  />
+                ) : null}
+
+                {effect.runtimeEffectType === 'Move Card' || effect.runtimeEffectType === 'Search Card' ? (
                   <CardAdminMoveCardActionsPanel
                     effect={effect}
                     effectIndex={effectIndex}

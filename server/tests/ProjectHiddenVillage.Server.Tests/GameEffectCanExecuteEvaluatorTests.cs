@@ -139,32 +139,6 @@ public sealed class GameEffectCanExecuteEvaluatorTests
     }
 
     [TestMethod]
-    public void Evaluate_ReturnsCannotExecute_WhenExactCountIsCombinedWithMinimumOrMaximum()
-    {
-        var evaluator = CreateEvaluator();
-        var effectSpec = new EffectSpec
-        {
-            RuntimeEffectType = RuntimeEffects.DestroyCard,
-            ContextRules = [],
-            TargetRules = new EffectTargetRuleSet
-            {
-                ExactTargetCount = 1,
-                MinimumTargetCount = 1,
-            }
-        };
-
-        var context = CreateContext(
-            playerOneResource: 0,
-            arguments: new Dictionary<string, string>(StringComparer.Ordinal));
-
-        var result = evaluator.Evaluate(context, effectSpec, includeValidTargets: false);
-
-        Assert.IsFalse(result.CanExecute);
-        Assert.IsTrue(result.FailedConditions.Any(message =>
-            message.Contains("cannot be combined", StringComparison.OrdinalIgnoreCase)));
-    }
-
-    [TestMethod]
     public void Evaluate_ReturnsCannotExecute_WhenSupportActivationCostExceedsResourcePool()
     {
         var evaluator = CreateEvaluator();

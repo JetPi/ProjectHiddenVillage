@@ -67,7 +67,7 @@ public static partial class GameStateResponseMapper
             arguments: arguments,
             selectedTargets: []);
 
-        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: effectSpec.ExecutionTargetSource is EffectExecutionTargetSource.SelectedTargets or EffectExecutionTargetSource.SourceCard);
+        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: RequestsResolvedTargets(effectSpec));
         var requiresTargets = RequiresTargets(effectSpec);
 
         if (!canExecuteResult.CanExecute)
@@ -84,12 +84,27 @@ public static partial class GameStateResponseMapper
             return (false, canExecuteResult.FailedConditions.FirstOrDefault());
         }
 
-        if (requiresTargets && canExecuteResult.ValidTargets.Count == 0)
+        // ValidTargets is only populated when the evaluator was asked for them, so the check has to use the
+        // same discriminator: a node that never collects a selection (Execution Target Source: None) is not
+        // target-less just because it was not asked to resolve any.
+        if (requiresTargets
+            && RequestsResolvedTargets(effectSpec)
+            && canExecuteResult.ValidTargets.Count == 0)
         {
             return (false, "No valid targets available.");
         }
 
         return (true, null);
+    }
+
+    /// <summary>
+    /// Whether availability evaluation asks the evaluator to resolve the node's candidates (the same toggle
+    /// the executor uses to decide whether a node collects a selection).
+    /// </summary>
+    private static bool RequestsResolvedTargets(EffectSpec effectSpec)
+    {
+        return effectSpec.ExecutionTargetSource is EffectExecutionTargetSource.SelectedTargets
+            or EffectExecutionTargetSource.SourceCard;
     }
 
     private static bool HasFaceDownChakra(GameState state, string playerId)
@@ -104,19 +119,11 @@ public static partial class GameStateResponseMapper
 
     private static bool RequiresTargets(EffectSpec effectSpec)
     {
-        var targetRules = effectSpec.TargetRules;
-        var hasExplicitTargetRules = targetRules.Rules.Count > 0
-            || targetRules.ExactTargetCount.HasValue
-            || targetRules.MinimumTargetCount.HasValue
-            || targetRules.MaximumTargetCount.HasValue;
-
-        if (hasExplicitTargetRules)
-        {
-            return true;
-        }
-
-        return effectSpec.AttributeModifications.Any(modification =>
-            modification.TargetType == AttributeModificationTargetType.SelectedTargets);
+        // The same question the engine asks (GameEffectCanExecuteEvaluator.TryResolveTargetCountBounds):
+        // authored counts alone do not make a node demand a selection - N-008's "Interrupt Attack" carries a
+        // leftover exactTargetCount while resolving the pending attack itself, so treating it as a target
+        // requirement disabled the whole activation with "No valid targets available.".
+        return EffectTargetRequirementAnalyzer.RequiresPlayerSelection(effectSpec);
     }
 
     private static bool HasNoCardsInRequiredTargetZones(GameState state, string actingPlayerId, EffectSpec effectSpec)

@@ -132,31 +132,6 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
-    public void ToGameStateResponse_DoesNotMapBattleAction_ForCardSummonedThisTurnWithoutRush()
-    {
-        var requesterId = Guid.NewGuid().ToString("N");
-        var opponentId = Guid.NewGuid().ToString("N");
-
-        var summonedCard = CreateCardInstance("battle-1", "card-battle", requesterId);
-        summonedCard.EnteredFieldTurnNumber = 3;
-
-        var state = BuildState(
-            requesterId,
-            opponentId,
-            battlefieldCards: [summonedCard]);
-        state.TurnNumber = 3;
-        state.Phase = GamePhase.MainPhase;
-        state.ActivePlayerId = requesterId;
-        state.Phase = GamePhase.MainPhase;
-        state.ActivePlayerId = requesterId;
-
-        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
-        var requester = response.Players.Single(player => player.PlayerId == requesterId);
-
-        Assert.AreEqual(0, requester.CharacterField[0].AvailableActions.Count);
-    }
-
-    [TestMethod]
     public void ToGameStateResponse_MapsBattleAction_ForCardSummonedThisTurnWithRuntimeRush()
     {
         var requesterId = Guid.NewGuid().ToString("N");
@@ -182,28 +157,7 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
-    public void ToGameStateResponse_DoesNotMapBattleAction_ForRestedCard()
-    {
-        var requesterId = Guid.NewGuid().ToString("N");
-        var opponentId = Guid.NewGuid().ToString("N");
-
-        var restedCard = CreateCardInstance("battle-1", "card-battle", requesterId);
-        restedCard.IsRested = true;
-        restedCard.EnteredFieldTurnNumber = null;
-
-        var state = BuildState(
-            requesterId,
-            opponentId,
-            battlefieldCards: [restedCard]);
-
-        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
-        var requester = response.Players.Single(player => player.PlayerId == requesterId);
-
-        Assert.AreEqual(0, requester.CharacterField[0].AvailableActions.Count);
-    }
-
-    [TestMethod]
-    public void ToGameStateResponse_DoesNotMapBattleAction_ForCardWithCannotAttackKeyword()
+    public void ToGameStateResponse_DisablesBattleAction_WithCannotAttackReason_ForFrozenCard()
     {
         var requesterId = Guid.NewGuid().ToString("N");
         var opponentId = Guid.NewGuid().ToString("N");
@@ -216,11 +170,20 @@ public sealed class GameStateResponseMapperCardActionsTests
             requesterId,
             opponentId,
             battlefieldCards: [frozenCard]);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
 
         var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
         var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = requester.CharacterField[0].AvailableActions.Single();
 
-        Assert.AreEqual(0, requester.CharacterField[0].AvailableActions.Count);
+        Assert.AreEqual("battle-action:battle-1", battleAction.ActionId);
+        Assert.IsFalse(battleAction.IsEnabled);
+        Assert.AreEqual(
+            "Cannot declare battle action because the card is under an effect that restricts it.",
+            battleAction.DisabledReason);
     }
 
     [TestMethod]
@@ -543,6 +506,94 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
+    public void ToGameStateResponse_EnablesSummonSelfSupport_FromSupportZone_InOwnMainPhase()
+    {
+        // N-002 (Choji, Expansion Jutsu) activated from the support area: the authored "summon this card"
+        // rule points at the hand, so the raw shape resolved no valid target and the published chip read
+        // "No valid targets available." even though the engine (SupportActivationNormalizer) executes it.
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var requesterSupportCard = CreateCardInstance("support-1", "card-support", requesterId);
+        var state = BuildState(requesterId, opponentId, supportCards: [requesterSupportCard]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).ResourcePool = 5;
+
+        UseSummonSelfSupportEffects(state);
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var action = requester.SupportZone[0].AvailableActions.Single();
+
+        Assert.AreEqual("activate-support:support-1", action.ActionId);
+        Assert.IsTrue(action.IsEnabled, action.DisabledReason ?? string.Empty);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_EnablesOpponentQuickSummonSelfSupport_InMainPhaseReactionWindow()
+    {
+        // The same card on the opponent's turn, answering a queued MainPhase activation: a support cut-in
+        // response window (SupportTimingRules), from the support area only, and with the same
+        // normalised "summon this card" shape the engine executes.
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var requesterSupportCard = CreateCardInstance("support-1", "card-support", requesterId);
+        var state = BuildState(requesterId, opponentId, supportCards: [requesterSupportCard]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = opponentId;
+        state.PriorityPlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).ResourcePool = 5;
+        state.EffectResolutionStack.Add(new EffectResolutionStackEntry
+        {
+            SourcePlayerId = opponentId,
+            SourceZone = PlayerZone.SupportZone,
+            SourceCardInstanceId = "opponent-pending-support",
+            EffectTypeKey = "ChangeValues",
+            ActivatedEffectId = "opponent-support-effect",
+        });
+
+        UseSummonSelfSupportEffects(state);
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var action = requester.SupportZone[0].AvailableActions.Single();
+
+        Assert.AreEqual("activate-support:support-1", action.ActionId);
+        Assert.IsTrue(action.IsEnabled, action.DisabledReason ?? string.Empty);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_EnablesInterruptAttackSupport_InOpponentAttackCutInWindow()
+    {
+        // N-008 (Shikamaru, Shadow Possession Jutsu) is the defender's "[During Your Opponent's Attack] Summon
+        // this card and interrupt that attack." support. Its entry resolves the pending attack itself
+        // (Execution Target Source: None) while carrying a leftover exactTargetCount, and treating that count
+        // as a target requirement disabled the whole activation with "No valid targets available.".
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var defenderSupportCard = CreateCardInstance("support-1", "card-support", opponentId);
+        var state = BuildState(requesterId, opponentId, opponentSupportCards: [defenderSupportCard]);
+        state.Phase = GamePhase.ActionStep;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = opponentId;
+        state.HasPendingAttack = true;
+        state.Players.Single(player => player.PlayerId == opponentId).ResourcePool = 5;
+
+        UseInterruptAttackSupportEffects(state);
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, opponentId);
+        var defender = response.Players.Single(player => player.PlayerId == opponentId);
+        var action = defender.SupportZone[0].AvailableActions.Single();
+
+        Assert.AreEqual("activate-support:support-1", action.ActionId);
+        Assert.IsTrue(action.IsEnabled, action.DisabledReason ?? string.Empty);
+    }
+
+    [TestMethod]
     public void ToGameStateResponse_DoesNotMapManualWhenAttackingLeaderEffectAction()
     {
         var requesterId = Guid.NewGuid().ToString("N");
@@ -698,7 +749,8 @@ public sealed class GameStateResponseMapperCardActionsTests
         state.PriorityPlayerId = opponentId;
         state.TurnNumber = 2;
         state.Players[0].TurnCount = 2;
-        state.Player1CurrentChakras = [true, true, true, true, true, true];
+        // ResourcePool is the map's chakra face-state: five face-up chakra means nothing left to recover.
+        state.Players[0].ResourcePool = 5;
 
         var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
         leaderCard.Effects =
@@ -718,6 +770,54 @@ public sealed class GameStateResponseMapperCardActionsTests
         Assert.AreEqual(1, GetLeaderEffectActions(requester.Leader).Count);
         Assert.IsFalse(GetLeaderEffectActions(requester.Leader)[0].IsEnabled);
         Assert.AreEqual("All chakra cards are already face up.", GetLeaderEffectActions(requester.Leader)[0].DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_EnablesRecoveryLeaderEffect_ForTheAuthoredRecoverNode()
+    {
+        // N-012's recovery node is authored as "Selected Targets" with no target rules ("recover 5 chakra",
+        // whose audience is its Target Range), which used to make Recovery unplayable with
+        // "No valid targets available." while face-down chakra was waiting to be turned up.
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(requesterId, opponentId);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = requesterId;
+        state.TurnNumber = 3;
+        state.Players[0].TurnCount = 3;
+        // Two face-up chakra: there is something to recover.
+        state.Players[0].ResourcePool = 2;
+
+        var leaderCard = (LeaderCard)state.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "recovery",
+                EffectType = EffectKind.Recovery,
+                Timing = EffectTiming.ActivateMain,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ChakraAdjustments =
+                [
+                    new ChakraAdjustmentSpec
+                    {
+                        TargetRange = EffectTargetRange.Self,
+                        Operation = ChakraAdjustmentOperation.Recover,
+                        Amount = 5,
+                    }
+                ],
+            }
+        ];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var recoveryAction = GetLeaderEffectActions(requester.Leader).Single();
+
+        Assert.AreEqual("Recovery", recoveryAction.Label);
+        Assert.IsTrue(recoveryAction.IsEnabled, recoveryAction.DisabledReason ?? string.Empty);
     }
 
     [TestMethod]
@@ -1365,6 +1465,139 @@ public sealed class GameStateResponseMapperCardActionsTests
         var card = CreateCharacterDefinition(id, displayName);
         card.SupportEffect = "Deal 1";
         return card;
+    }
+
+    /// <summary>
+    /// Gives <c>card-support</c> N-002's real shape: a "summon this card" SummonCard entry whose summon
+    /// candidate rule points at the hand, branching into a power-doubling subordinate.
+    /// </summary>
+    private static void UseSummonSelfSupportEffects(GameState state)
+    {
+        var supportDefinition = (CharacterCard)state.CardDefinitions["card-support"];
+        supportDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "summon-self",
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                ChakraCost = 1,
+                TargetRange = EffectTargetRange.Self,
+                ExecutionTargetSource = EffectExecutionTargetSource.SourceCard,
+                OnSuccessEffectId = "double-target-character-power",
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    ExactTargetCount = 1,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Self,
+                            InZone = PlayerZone.Hand,
+                            TributeRole = TributeTargetRole.SummonCandidate,
+                            ExactSelectedTargetCount = 1,
+                            Restriction = new ZoneCardRestriction
+                            {
+                                Predicates =
+                                [
+                                    new ZoneCardPropertyPredicate
+                                    {
+                                        Property = ZoneCardProperty.Self,
+                                        Operator = ZoneCardPredicateOperator.Equals,
+                                        Value = string.Empty,
+                                        IgnoreCase = true,
+                                    }
+                                ],
+                                MatchMode = ZoneRestrictionMatchMode.Any,
+                            }
+                        }
+                    ]
+                }
+            },
+            new EffectSpec
+            {
+                Id = "double-target-character-power",
+                IsSubordinate = true,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+            }
+        ];
+    }
+
+    /// <summary>
+    /// Gives <c>card-support</c> N-008's shape: an "Interrupt Attack" entry that resolves the pending attack
+    /// itself (no selection, but a leftover declared count) branching into a source-card summon from the
+    /// support area.
+    /// </summary>
+    private static void UseInterruptAttackSupportEffects(GameState state)
+    {
+        var supportDefinition = (CharacterCard)state.CardDefinitions["card-support"];
+        supportDefinition.SupportEffect = "Shadow Possession Jutsu";
+        supportDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "interrupt-attack",
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.DuringOpponentAttack,
+                RuntimeEffectType = RuntimeEffects.InterruptAttack,
+                TargetRange = EffectTargetRange.Opponent,
+                ChakraCost = 1,
+                ExecutionTargetSource = EffectExecutionTargetSource.None,
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                OnSuccessEffectId = "summon-self",
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    ExactTargetCount = 1,
+                }
+            },
+            new EffectSpec
+            {
+                Id = "summon-self",
+                IsSubordinate = true,
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.DuringOpponentAttack,
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                TargetRange = EffectTargetRange.Self,
+                ChakraCost = 1,
+                ExecutionTargetSource = EffectExecutionTargetSource.SourceCard,
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    ExactTargetCount = 1,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Self,
+                            InZone = PlayerZone.SupportZone,
+                            TributeRole = TributeTargetRole.SummonCandidate,
+                            ExactSelectedTargetCount = 1,
+                            Restriction = new ZoneCardRestriction
+                            {
+                                Predicates =
+                                [
+                                    new ZoneCardPropertyPredicate
+                                    {
+                                        Property = ZoneCardProperty.Self,
+                                        Operator = ZoneCardPredicateOperator.Equals,
+                                        Value = string.Empty,
+                                        IgnoreCase = true,
+                                    }
+                                ],
+                                MatchMode = ZoneRestrictionMatchMode.Any,
+                            }
+                        }
+                    ]
+                }
+            }
+        ];
     }
 
     private static EffectSpec CreateTributeRequirementEffectSpec(string effectId)

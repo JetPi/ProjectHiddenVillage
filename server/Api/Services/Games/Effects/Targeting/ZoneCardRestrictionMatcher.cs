@@ -22,13 +22,9 @@ internal static class ZoneCardRestrictionMatcher
             return true;
         }
 
-        var predicateMatches = restriction.Predicates!.All(predicate =>
-            PredicateMatches(gameState, cardDefinition, cardInstance, sourceCardInstance, predicate));
-
-        if (restriction.MatchMode == ZoneRestrictionMatchMode.All)
-        {
-            return predicateMatches;
-        }
+        var predicateMatches = restriction.MatchMode == ZoneRestrictionMatchMode.All
+            ? restriction.Predicates!.All(predicate => PredicateMatches(gameState, cardDefinition, cardInstance, sourceCardInstance, predicate))
+            : restriction.Predicates!.Any(predicate => PredicateMatches(gameState, cardDefinition, cardInstance, sourceCardInstance, predicate));
 
         return predicateMatches;
     }

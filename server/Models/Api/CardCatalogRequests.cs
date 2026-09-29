@@ -55,7 +55,13 @@ public sealed record CardCatalogEffectResponse(
     IReadOnlyList<CardCatalogFaceStateLockResponse> FaceStateLocks,
     IReadOnlyList<CardCatalogMoveCardActionResponse> MoveCardActions,
     IReadOnlyList<CardCatalogEffectContextRuleSetResponse> ContextRules,
-    CardCatalogEffectTargetRuleSetResponse TargetRules);
+    CardCatalogEffectTargetRuleSetResponse TargetRules,
+    // "When does the player pick the targets": Upfront (with the activation) or Prompted (a mid-resolution
+    // prompt, so an earlier chain step can change the candidate pool first).
+    string? SelectionTiming = null,
+    string? SelectionPromptKind = null,
+    bool SearchRevealSelection = true,
+    bool SearchShuffleAfter = true);
 
 public sealed record CardCatalogPassiveReevaluationResponse(
     IReadOnlyList<string> TriggerKinds,

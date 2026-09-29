@@ -1,6 +1,7 @@
 export * from './GamePhaseActionRow'
 export * from './GamePhaseIndicator'
 export * from './GamePromptOverlay'
+export * from './PromptSelectionBanner'
 export * from './GameHandRow'
 export * from './GameZones'
 export * from './ZoneCardSlots'

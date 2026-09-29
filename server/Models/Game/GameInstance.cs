@@ -12,7 +12,14 @@ public sealed class GameInstance
             [GamePromptType.Mulligan] = new(
                 RequiresOptions: true,
                 ResolveMulliganPrompt,
-                ValidateMulliganPrompt)
+                ValidateMulliganPrompt),
+            // Raised mid-resolution when an effect defers its target choice (EffectSelectionTiming.Prompted).
+            // Resolving only records the answer: the engine resumes the suspended chain from
+            // GamePrompt.EffectContinuation.
+            [GamePromptType.Effect] = new(
+                RequiresOptions: true,
+                ResolveEffectSelectionPrompt,
+                ValidateEffectSelectionPrompt)
         };
 
     public GameInstance(GameState state, IEnumerable<GamePrompt>? pendingPrompts = null, DateTimeOffset? createdAtUtc = null)
@@ -433,6 +440,54 @@ public sealed class GameInstance
         }
     }
 
+    /// <summary>
+    /// An effect suspended mid-resolution to ask the player which card(s) to act on. The selection itself
+    /// was validated against <see cref="GamePrompt.Options"/> before this ran, so resolving only needs to
+    /// record the answer and drop the prompt - the registry then resumes the suspended chain through
+    /// <see cref="GamePrompt.EffectContinuation"/>.
+    /// </summary>
+    private static void ResolveEffectSelectionPrompt(GameInstance instance, string requestedPlayerId, string selectedOption)
+    {
+        instance.PendingPrompts.Dequeue();
+
+        LogAction(
+            instance,
+            actionType: "prompt_resolved",
+            playerId: requestedPlayerId,
+            promptType: GamePromptType.Effect,
+            selectedOption: selectedOption);
+
+        instance.ValidateInvariants();
+    }
+
+    private static void ValidateEffectSelectionPrompt(GameInstance _, GamePrompt prompt, HashSet<string> __)
+    {
+        if (prompt.Options.Count == 0)
+        {
+            throw new InvalidOperationException("Effect selection prompt requires at least one option.");
+        }
+
+        if (string.IsNullOrWhiteSpace(prompt.CandidatePlayerId))
+        {
+            throw new InvalidOperationException("Effect selection prompt requires a candidate owner.");
+        }
+
+        if (prompt.MinimumSelection < 1 || prompt.MaximumSelection < prompt.MinimumSelection)
+        {
+            throw new InvalidOperationException("Effect selection prompt has an invalid selection range.");
+        }
+
+        if (prompt.EffectContinuation is null)
+        {
+            throw new InvalidOperationException("Effect selection prompt requires a pending effect continuation.");
+        }
+
+        if (!string.Equals(prompt.EffectContinuation.PromptId, prompt.PromptId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Effect selection prompt continuation does not belong to the prompt.");
+        }
+    }
+
     private sealed record PromptTemplate(
         bool RequiresOptions,
         Action<GameInstance, string, string> Resolve,
@@ -484,6 +539,8 @@ public sealed class GameInstance
                 $"{requestedPlayerId} selected {selectedOption} and {selectedPlayerId ?? throw new InvalidOperationException("Selected player id is required.")} will start.",
             GamePromptType.Mulligan =>
                 $"{requestedPlayerId} selected {selectedOption} for mulligan.",
+            GamePromptType.Effect =>
+                $"{requestedPlayerId} selected {selectedOption} for {promptType}.",
             _ => throw new InvalidOperationException($"Unsupported prompt type '{promptType}'.")
         };
     }
@@ -505,6 +562,13 @@ public sealed class GameInstance
         {
             return CreateMetadata(
                 ("promptType", nameof(GamePromptType.Mulligan)),
+                ("selectedOption", selectedOption));
+        }
+
+        if (promptType == GamePromptType.Effect)
+        {
+            return CreateMetadata(
+                ("promptType", nameof(GamePromptType.Effect)),
                 ("selectedOption", selectedOption));
         }
 

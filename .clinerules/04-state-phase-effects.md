@@ -77,11 +77,14 @@ paths:
     so a player whose only play is an unused support in the support zone can still be
     auto-ended. Closing it means lifting the mapper's support-timing evaluation into shared
     code.
-- Rest/stand: the attacker rests on declaration (`EnsurePendingAttackAttackerRemainsRested`
-  re-asserts it after when-attacking effects), and `OnEnterRefreshPhase` re-readies the active
-  player's battlefield cards **and their leader**. Because that happens immediately before the
-  MainPhase, “my leader already attacked” is never expressible as a rested leader at MainPhase
-  entry — use a cannot-attack effect if a test needs “this card cannot attack”.
+- Rest/stand: the attacker rests **once**, at declaration
+  (`InMemoryGameInstanceRegistry` pays it as the attack's cost). Nothing downstream re-rests it — not the
+  when-attacking chains, not the support cut-in, not `InterruptAttackEffect` (which used to, via the removed
+  `EnsurePendingAttackAttackerRemainsRested`) — so an effect that stands the attacker back up keeps it
+  standing, and an interrupted attack leaves it rested purely because the declaration rested it.
+  `OnEnterRefreshPhase` re-readies the active player's battlefield cards **and their leader**. Because that
+  happens immediately before the MainPhase, “my leader already attacked” is never expressible as a rested
+  leader at MainPhase entry — use a cannot-attack effect if a test needs “this card cannot attack”.
 - Damage resets: `CompleteEndStep` → `ResetTemporaryCharacterDamage` clears battlefield
   `CurrentHealth` at the turn boundary (character health = effective max health − damage taken
   this turn). **Leader life is never reset** — only damage and card effects change
@@ -108,3 +111,31 @@ paths:
   test come from the previous snapshot — the state push that moved the card already re-rendered the board, so
   the real element is gone (or already sitting in its new zone) by the time the effect runs. Tribute summons
   claim their ids in `animController.suppressedExitGhostInstanceIds`, so a card is never animated twice.
+
+## Deferred (prompted) target selection — engine suspension
+
+- `EffectSpec.SelectionTiming` = `Prompted` defers a node's target choice to *execution* time, so an earlier
+  step of the same chain can change the candidate pool first ("draw 1 card, then place 1 card from your hand
+  on top of your deck"). `Upfront` (default) is the old behaviour — nothing changes unless a node opts in.
+- `GameSequentialEffectExecutor.RunNodes` checks it **before** `ResolveStepTargets`/`CanExecute`: it resolves
+  the node's candidates from the rules (freezing them into `GamePrompt.Options`), enqueues a
+  `GamePromptType.Effect` prompt, records a `PendingEffectContinuation` **on the prompt**, and returns — the
+  chain suspends and the game is locked (existing pending-prompt guards already block actions/advance).
+- `registry.ResolvePrompt(..., sequentialEffectExecutor)` captures the prompt *before* resolving (the
+  continuation lives on it), then calls `IGameSequentialEffectExecutor.Resume`, which rebuilds the context
+  with the answer as `SelectedTargets` and re-enters at `ResumeNodeId`. The resumed node executes through its
+  normal path, so move/stat invariants and mutation emission are not duplicated anywhere.
+- Prompted nodes must not be in an `AtomicChain` (atomic chains pre-plan and cannot suspend).
+- Cable/UI: the prompt carries `SelectionPromptKind` (client-owned copy, `EFFECT_SELECTION_PROMPT_COPY`),
+  `CandidateZone`/`CandidatePlayerId` (which collection to render) and min/max counts. Nothing is published
+  up front for a prompted node (`ResolveValidTargetsForResponse` returns `[]`), so the client keeps
+  auto-submitting and the engine prompts — otherwise the player would pick *before* the draw.
+- `GameSequentialEffectExecutor.ResolveEntryNodeId` now honours `__leaderEffectKey`
+  (`ReactiveEffectExecutionConstants.LeaderEffectKeyArgument`): a leader with several abilities starts at the
+  *requested* ability's node. Previously it always walked the first non-subordinate node, so a leader's second
+  ability executed the first ability's chain (N-012's `draw-n-place-card` never ran).
+- `MoveCardEffect` no longer auto-consumes a card it just drew (the old `selfSuppliedTargets` fallback):
+  authoring "draw then place" is two chained nodes, the second `Prompted`.
+- `RuntimeEffects.SearchCard` is implemented (`SearchCardEffect`, prompted selection from the deck) —
+  configured with the same `MoveCardActionSpec` payload plus `SearchRevealSelection` / `SearchShuffleAfter`.
+

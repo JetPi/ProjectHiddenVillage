@@ -13,15 +13,15 @@ import {
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IAttackTargetingState, IEffectTargetingState, IGameLoaderData, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
-import { BottomHandReorderRow, GameHandRow, GamePromptOverlay, GameZones, SupportChainBubble } from '@/views/game/components'
+import { BottomHandReorderRow, GameHandRow, GamePromptOverlay, GameZones, PromptSelectionBanner, SupportChainBubble } from '@/views/game/components'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
   LEADER_CARD_FRAME_CLASS,
 } from '@/views/game/utils/contants'
-import { handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitEffectTargetSelection as submitEffectTargetAction, submitMappedAction as submitMappedGameAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
-import { CardBack } from '@/components/ui/cards'
-import { useGameUIStore } from '@/state/gameUIStore'
+import { buildPromptCandidateCards, handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitEffectTargetSelection as submitEffectTargetAction, submitMappedAction as submitMappedGameAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
+import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
+import { resolveBoardPromptCandidateInstanceIds, useGameUIStore } from '@/state/gameUIStore'
 import { useGameHubStore } from '@/state/gameHubStore'
 import {
   useDerivedGameViewState,
@@ -88,6 +88,9 @@ export function GameView() {
   usePersistedBattlefieldDisplayOrderEffect(battlefieldDisplayOrderStorageKey, topBattlefieldDisplayOrder, bottomBattlefieldDisplayOrder)
 
   const players = gameState.players
+  // A prompt's candidates are resolved against the requesting player's own zones - the deck matters for
+  // search prompts, where the player picks a card out of their deck.
+  const requestingPlayerDeckCards = players.find((player) => player.playerId === authUserId)?.deck ?? []
   useGameCardsBackfill({ players, liveGameCards, gameCardsQuery })
 
   const derivedGameState = useDerivedGameViewState(liveGameCards, players, authUserId)
@@ -106,10 +109,18 @@ export function GameView() {
   const bottomLeaderCardFrameClassName = buildLeaderCardFrameClass(LEADER_CARD_FRAME_CLASS, Boolean(bottomLeaderCard))
 
   const isEffectActionTargeting = pendingCardTargeting?.kind === 'effect'
-  const validEffectTargetsByCardId = useMemo(
-    () => (isEffectActionTargeting ? extractTargetIds(pendingCardTargeting?.validTargets) : new Set<string>()),
-    [isEffectActionTargeting, pendingCardTargeting],
-  )
+  const validEffectTargetsByCardId = useMemo(() => {
+    const targets = isEffectActionTargeting ? extractTargetIds(pendingCardTargeting?.validTargets) : new Set<string>()
+
+    // A board-answerable effect selection prompt (hand/field/support) adds its own candidates, so the hand
+    // cards offer the same Select button the field rows do, and nothing outside the effect's declared set can
+    // be picked.
+    for (const instanceId of resolveBoardPromptCandidateInstanceIds(gameState.pendingPrompt)) {
+      targets.add(instanceId.trim().toLowerCase())
+    }
+
+    return targets
+  }, [isEffectActionTargeting, pendingCardTargeting, gameState.pendingPrompt])
 
   const promptPresentation = toPromptPresentation(gameState.pendingPrompt)
 
@@ -117,7 +128,10 @@ export function GameView() {
     promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
   const canResolvePrompt = gameState.pendingPrompt?.isAwaitingRequestingPlayer ?? false
 
-  const mappedAvailableActions = shouldShowPromptOverlay
+  // A pending prompt is answered by its own UI - the prompt overlay for a deck pick, the cards' Select buttons
+  // for a board pick - so its options must never also render as middle-row action chips.
+  const isPromptAwaitingAnswer = gameState.pendingPrompt?.isAwaitingRequestingPlayer === true
+  const mappedAvailableActions = isPromptAwaitingAnswer
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:'))
     : gameState.availableActions
 
@@ -247,15 +261,40 @@ export function GameView() {
               rowRef={viewRefs.setTopHandRowRefs}
               rowTestId="top-hand-row"
               rowClassName="h-[230%] -translate-y-[62%]"
-              renderCard={(card) => (
-                <div
-                  key={`top-hand-${card.instanceId}`}
-                  data-hand-instance-id={card.instanceId}
-                  className="h-full aspect-[200/277] shrink-0"
-                >
-                  <CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
-                </div>
-              )}
+              renderCard={(card) => {
+                // A revealed card in the opponent's hand is sent with its real identity and `isRevealed`, so the
+                // row can turn that one card face up (and back down when the reveal clears) instead of always
+                // drawing a back.
+                const revealedCard = card.isRevealed === true
+                  ? (derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null)
+                  : null
+
+                return (
+                  <div
+                    key={`top-hand-${card.instanceId}`}
+                    data-hand-instance-id={card.instanceId}
+                    className="h-full aspect-[200/277] shrink-0"
+                  >
+                    <FlippableCard
+                      isFlipped={revealedCard !== null}
+                      durationMs={340}
+                      back={<CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />}
+                      front={
+                        revealedCard ? (
+                          <CardImage
+                            card={revealedCard}
+                            variant="board"
+                            alt={revealedCard.displayName}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full rounded-md object-cover"
+                          />
+                        ) : null
+                      }
+                    />
+                  </div>
+                )
+              }}
             />
 
             <GameZones
@@ -303,11 +342,23 @@ export function GameView() {
         <GamePromptOverlay
           isOpen={shouldShowPromptOverlay}
           prompt={promptPresentation}
+          candidateCards={buildPromptCandidateCards({
+            prompt: promptPresentation,
+            handCards: bottomHandCards,
+            deckCards: requestingPlayerDeckCards,
+            catalogCards: liveGameCards,
+          })}
           isConnected={isConnected}
           isActionPending={isActionPending || isMulliganAnimationPending}
           onResolve={(selectedOption) => {
             void handlePromptResolve(selectedOption)
           }}
+        />
+
+        <PromptSelectionBanner
+          key={promptPresentation?.promptType === 'Effect' ? gameState.pendingPrompt?.promptId ?? 'none' : 'none'}
+          promptKey={promptPresentation?.promptType === 'Effect' ? gameState.pendingPrompt?.promptId ?? null : null}
+          title={promptPresentation?.promptType === 'Effect' ? promptPresentation.title : null}
         />
 
         <SupportChainBubble gameInstance={gameState} authUserId={authUserId} />

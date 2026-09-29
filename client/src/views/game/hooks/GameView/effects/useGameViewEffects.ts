@@ -14,6 +14,7 @@ import type {
   IUseAutoAdvancePhaseEffectArgs,
   IUseCardMoveGhostAnimationEffectArgs,
   IUseHandZoneAnimationEffectsArgs,
+  IUseRevealedCardSummonFlightEffectArgs,
 } from '@/views/game/types'
 import {
   runCardImageGhostToElementAnimation,
@@ -34,6 +35,8 @@ const DECK_TO_HAND_FLY_DURATION_MS = 420
 const DRAW_ANIMATION_COMPLETE_PADDING_MS = 140
 const CARD_TO_TRASH_FLY_DURATION_MS = 340
 const CARD_TO_TRASH_STAGGER_MS = 90
+// A revealed card summoned straight out of the deck travels the same route a hand→field summon does.
+const REVEAL_SUMMON_FLIGHT_DURATION_MS = 360
 const AUTO_ADVANCE_RECHECK_MS = 80
 const AUTO_ADVANCE_RETRY_DELAY_MS = 2_500
 const AUTO_ADVANCE_MAX_RETRIES = 3
@@ -633,6 +636,89 @@ function useCardMoveGhostAnimationEffect({
   ])
 }
 
+/**
+ * Flies the card a reveal turned face up out of the deck slot and onto its owner's character field: a
+ * "Reveal First" chain that summons the revealed card (N-019 / N-022) moves it deck→battlefield without any
+ * client submission, and the revealed card is drawn by the deck pile rather than as a card face - so the
+ * generic move-ghost effect has no snapshot to fly from. The flight is driven by the reveal itself: the card
+ * that was the revealed deck card last render and now has a character-field card element lands from the deck
+ * slot.
+ */
+function useRevealedCardSummonFlightEffect({
+  currentPlayer,
+  opponentPlayer,
+  topDeckCardRef,
+  bottomDeckCardRef,
+  boardZoneRef,
+}: IUseRevealedCardSummonFlightEffectArgs): void {
+  const revealedDeckCardRef = useRef<IRevealedDeckCardLocation | null>(null)
+
+  useEffect(() => {
+    const revealedDeckCard = resolveRevealedDeckCardLocation(currentPlayer, opponentPlayer)
+    const previousRevealedDeckCard = revealedDeckCardRef.current
+    revealedDeckCardRef.current = revealedDeckCard
+
+    // Still the same reveal (or no reveal was ever presented): nothing left the deck yet.
+    if (!previousRevealedDeckCard || previousRevealedDeckCard.instanceId === revealedDeckCard?.instanceId) {
+      return
+    }
+
+    const deckSlotElement = previousRevealedDeckCard.side === 'top'
+      ? topDeckCardRef.current
+      : bottomDeckCardRef.current
+    const destinationElement = resolveBattlefieldCardElement(boardZoneRef.current, previousRevealedDeckCard)
+
+    // The reveal ended without a summon (the post-condition failed) or left play: nothing to fly.
+    if (!deckSlotElement || !destinationElement) {
+      return
+    }
+
+    // The destination element is animated in place (scale 0.92 → 1 from the deck slot), exactly like an
+    // explicit hand→field summon: only the real card is drawn, so no copy is left behind in the slot.
+    void runRectToDynamicElementAnimation({
+      sourceRect: deckSlotElement.getBoundingClientRect(),
+      durationMs: REVEAL_SUMMON_FLIGHT_DURATION_MS,
+      resolveDestinationElement: () => resolveBattlefieldCardElement(boardZoneRef.current, previousRevealedDeckCard),
+    })
+  }, [
+    boardZoneRef,
+    bottomDeckCardRef,
+    currentPlayer,
+    opponentPlayer,
+    topDeckCardRef,
+  ])
+}
+
+/** The deck card a reveal turned face up, and whose deck slot the flight starts from. */
+type IRevealedDeckCardLocation = {
+  instanceId: string
+  side: 'top' | 'bottom'
+}
+
+function resolveRevealedDeckCardLocation(
+  currentPlayer: IGamePlayerStateResponse | null,
+  opponentPlayer: IGamePlayerStateResponse | null,
+): IRevealedDeckCardLocation | null {
+  const ownRevealedCard = currentPlayer?.deck.find((card) => card.isRevealed === true)
+  if (ownRevealedCard) {
+    return { instanceId: ownRevealedCard.instanceId, side: 'bottom' }
+  }
+
+  // The opponent only receives the deck cards a reveal has turned over.
+  const opponentRevealedCard = opponentPlayer?.deck.find((card) => card.isRevealed === true)
+  return opponentRevealedCard ? { instanceId: opponentRevealedCard.instanceId, side: 'top' } : null
+}
+
+function resolveBattlefieldCardElement(
+  boardElement: HTMLElement | null,
+  location: IRevealedDeckCardLocation,
+): HTMLElement | null {
+  return boardElement?.querySelector<HTMLElement>(
+    `[data-zone="character-field-card"][data-slot-side="${location.side}"]`
+    + `[data-card-instance-id="${location.instanceId}"]`,
+  ) ?? null
+}
+
 function useAutoAdvancePhaseEffect({
   isConnected,
   isActionPendingFlag,
@@ -772,5 +858,6 @@ export {
   useCardCatalogPreload,
   useHandZoneAnimationEffects,
   useCardMoveGhostAnimationEffect,
+  useRevealedCardSummonFlightEffect,
   useAutoAdvancePhaseEffect,
 }

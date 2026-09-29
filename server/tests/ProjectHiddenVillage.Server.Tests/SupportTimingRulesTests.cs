@@ -143,6 +143,39 @@ public sealed class SupportTimingRulesTests
         Assert.IsFalse(SupportTimingRules.IsTimingAvailable(EffectTiming.Unspecified, state, "p1", isFromSupportZone: true));
     }
 
+    [TestMethod]
+    public void IsTimingAvailable_AllowsQuickFromSupportZone_ReactingToAPendingActivationsMainPhase()
+    {
+        // "[Quick] can be played at any valid Support Cut-in response window", and the reaction window a
+        // MainPhase support activation opens is one: N-002's Expansion Jutsu answers the opponent's
+        // activation from the support area instead of being refused with "Support timing is not available".
+        var state = BuildState(activePlayerId: "p2", priorityPlayerId: "p1", phase: GamePhase.MainPhase);
+        AddPendingActivation(state, activatorPlayerId: "p2");
+
+        Assert.IsTrue(SupportTimingRules.IsTimingAvailable(EffectTiming.Quick, state, "p1", isFromSupportZone: true));
+        // Hand-origin Quick responses are still illegal on the opponent's turn.
+        Assert.IsFalse(SupportTimingRules.IsTimingAvailable(EffectTiming.Quick, state, "p1", isFromSupportZone: false));
+        // Only the player being asked to respond holds the window.
+        state.PriorityPlayerId = "p2";
+        Assert.IsFalse(SupportTimingRules.IsTimingAvailable(EffectTiming.Quick, state, "p1", isFromSupportZone: true));
+    }
+
+    [TestMethod]
+    public void IsTimingAvailable_RejectsQuickForTheActivePlayer_OutsideTheirOwnTurnWindow()
+    {
+        // The active player's Quick support is its own turn's business: in the MainPhase it is always
+        // legal (hand included), but an ActionStep window still needs the priority.
+        var mainPhase = BuildState(activePlayerId: "p1", priorityPlayerId: "p2", phase: GamePhase.MainPhase);
+        Assert.IsTrue(SupportTimingRules.IsTimingAvailable(EffectTiming.Quick, mainPhase, "p1", isFromSupportZone: false));
+
+        var actionStep = BuildState(
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            phase: GamePhase.ActionStep,
+            hasPendingAttack: true);
+        Assert.IsFalse(SupportTimingRules.IsTimingAvailable(EffectTiming.Quick, actionStep, "p1", isFromSupportZone: true));
+    }
+
     private static void AddPendingActivation(GameState state, string activatorPlayerId)
     {
         state.EffectResolutionStack.Add(new EffectResolutionStackEntry

@@ -93,19 +93,9 @@ public sealed class InterruptAttackEffect(
                 description: "InterruptAttack requires an active pending attack.");
         }
 
-        var pendingAttackerInstanceId = context.Game.State.PendingAttackAttackerInstanceId;
-        if (!string.IsNullOrWhiteSpace(pendingAttackerInstanceId))
-        {
-            var attacker = context.Game.State.Players
-                .SelectMany(ResolveActableCards)
-                .FirstOrDefault(card => string.Equals(card.InstanceId, pendingAttackerInstanceId, StringComparison.Ordinal));
-
-            if (attacker is not null)
-            {
-                attacker.IsRested = true;
-            }
-        }
-
+        // An interrupted attack leaves the attacker rested because *declaring* the attack rested it
+        // (InMemoryGameInstanceRegistry pays that cost once): this effect must not write restedness, or an
+        // effect that stood the card back up would be silently undone.
         context.Game.State.HasPendingAttack = false;
         context.Game.State.PendingAttackDeclarationId = string.Empty;
         context.Game.State.PendingAttackAttackerInstanceId = string.Empty;
@@ -141,20 +131,6 @@ public sealed class InterruptAttackEffect(
     {
         return state.HasPendingAttack
             && state.Phase is GamePhase.ActionStep or GamePhase.AttackResolution;
-    }
-
-    // Attackers can be battlefield cards or the leader, so interrupt resolution checks both.
-    private static IEnumerable<CardInstance> ResolveActableCards(PlayerState player)
-    {
-        foreach (var card in player.Battlefield)
-        {
-            yield return card;
-        }
-
-        if (player.LeaderCardInstance is not null)
-        {
-            yield return player.LeaderCardInstance;
-        }
     }
 
     private static EffectSpec CreateImplicitAttackTargetSpec(EffectSpec effectSpec)

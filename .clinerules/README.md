@@ -43,15 +43,33 @@ task touches that area).
   `DevelopmentDeckSeederTests.SeedAsync_CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing`
   — N-008 now always resolves from the manifest (the assertion still passes).
 - **Add specs for the newly seeded real cards** (all listed in
-  `03-targeting-contract.md`): quick support cut-in (N-002/N-008/N-010/N-021),
-  When-Attacking reveal-summon, conditional Rush, leader Recovery, on-summon chains.
-  The hand-support resolution, the N-006/N-017 range cut-in + multi-pick flows, the N-020 bounce and the
-  N-009 negate (plus the support-row highlight geometry) live in
+  `03-targeting-contract.md`): quick support cut-in for the remaining Quick cards (N-010/N-021 as the
+  *responder*), When-Attacking reveal-summon, conditional Rush, leader Recovery, on-summon chains.
+  The hand-support resolution, the N-006/N-017 range cut-in + multi-pick flows, the N-020 bounce, the N-008
+  attack interruption and the N-009 negate (plus the support-row highlight geometry) live in
   `e2e/gameview.multiplayer.support.spec.ts` and
-  `e2e/gameview.multiplayer.support-target-visuals.spec.ts`.
+  `e2e/gameview.multiplayer.support-target-visuals.spec.ts`; **N-002's MainPhase cut-in is covered** by
+  `e2e/gameview.multiplayer.quick-support.spec.ts` (a `[Quick]` support answers a queued activation from the
+  support area — the support-timing + normalised-availability regression guard, see
+  `03-targeting-contract.md`).
   **N-016's negate is fixed** (its chakra lock is now its own `Lock Chakra Recovery` runtime effect instead of
   a target-demanding `Alter Resources` node — see `05-server-models-serialization.md`) and covered by server
   tests; it still has no e2e.
+- **Reveal presentation: shipped and covered end-to-end.**
+  `e2e/gameview.multiplayer.reveal-presentation.spec.ts` plays N-019 for real — summon Jugo → stack the deck top with
+  the leader's own `draw-n-place-card` ability (N-012) → attack → the reveal is presented (deck slot flips with the
+  stacked card's definition id) → the client acks after `REVEAL_PRESENTATION_MS` → the revealed card **flies** out of
+  the deck slot onto the field (asserted via the recorded entry animation + timestamp ordering), and the second test
+  covers the un-reveal of a card the post-condition refuses. The DOM hooks it needs are in place
+  (`data-testid="deck-pile-card"` / `data-revealed` / `data-card-definition-id` in `PlayPileZone`, see
+  `02-board-ui-hud.md`), and both specs observe instead of polling because the presentation only lasts 2 s.
+  Fixing that spec also uncovered and fixed a real engine bug: `ZoneCardRestrictionMatcher` /
+  `LeaderTargetRestrictionMatcher` ignored `MatchMode: Any`, so N-019's "`[Sasuke Uchiha]` **or** `[The Taka]`"
+  never matched through its second predicate (see `03-targeting-contract.md`).
+- **`EffectTiming.OnSummon` has no engine runner** — the timing exists only as an enum/condition keyword, so an
+  `[On Summon]` effect (N-013's reveal, N-005's summon, …) is never executed after a normal summon. Running those
+  effects (mirroring `ExecuteAutomaticWhenAttackingEffects`) is the next feature step; it is also what would let the
+  N-013 reveal be tested.
 - **Optional regression test** for N-009 (Kakashi, Support-Activated “reduce your life by 2”):
   its `reduce-self-life` effect declares a target entry with `exactSelectedTargetCount: 0` while
   `targetRules.exactTargetCount` is 1 — harmless today, but pin the behaviour before touching it.
@@ -73,5 +91,5 @@ task touches that area).
 | `02-board-ui-hud.md` | board/card UI + `index.css` + battle-visuals e2e | overlays, stat badges, rested-vs-exhausted visuals, targeting highlight CSS |
 | `03-targeting-contract.md` | game client, server game engine/API, e2e | targeting flows, action formats, battle-action rules (DMG/POW, leaders, target legality), tribute-material requirements, `Type` predicate normalization, submit decisions |
 | `04-state-phase-effects.md` | stores, game hooks/effects, phase engine | Zustand, prune, auto-advance, main-phase auto-end, rest/stand + damage resets, draw/mulligan gating |
-| `05-server-models-serialization.md` | `server/**`, `client/src/services/api/**` | response DTOs, STJ serialization gotcha, stat pipelines (leader life vs character health), exhaustion = exile, seed fixtures/real catalogue, known pre-existing test failures |
+| `05-server-models-serialization.md` | `server/**`, `client/src/services/api/**` | response DTOs, STJ serialization gotcha, stat pipelines (leader life vs character health), exhaustion = exile, seed fixtures/real catalogue, server test gates |
 | `99-workflow-tooling.md` | always | environment/tooling/edit gotchas (keep short) |

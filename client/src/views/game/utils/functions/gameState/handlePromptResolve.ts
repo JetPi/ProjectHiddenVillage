@@ -20,6 +20,35 @@ async function handlePromptResolve({
 }: IHandlePromptResolveArgs): Promise<void> {
   const isMulliganResolve = promptPresentation?.promptType === 'Mulligan' && selectedOption === 'mulligan'
 
+  // "Choose a card from your hand to place on top of your deck": fly the picked card from the hand to the
+  // deck before the server moves it, so the player sees their choice land (same idiom as the mulligan below).
+  const isHandCardSelectionResolve =
+    promptPresentation?.promptType === 'Effect'
+    && promptPresentation.candidateZone === 'Hand'
+    && promptPresentation.options.some((option) => option.value === selectedOption)
+
+  if (isHandCardSelectionResolve) {
+    void runHandToPileAnimation({
+      side: 'bottom',
+      destination: 'deck',
+      cardInstanceId: selectedOption,
+      topDeckCardRef,
+      bottomDeckCardRef,
+      topTrashCardRef,
+      bottomTrashCardRef,
+      topHandRowRef,
+      bottomHandRowRef,
+    })
+
+    await waitMillis(HAND_TO_PILE_DURATION_MS)
+
+    await submitHubIntent({
+      intent: 'resolve-prompt',
+      selectedOption,
+    })
+    return
+  }
+
   if (!isMulliganResolve) {
     await submitHubIntent({
       intent: 'resolve-prompt',

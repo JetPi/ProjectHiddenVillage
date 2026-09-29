@@ -354,7 +354,7 @@ function computeCardDisplayFlags(
     targetFlags,
     shouldDimRestedCard: isRested && !shouldDelayRestedDimming,
     isOwnConcealedSupport: zone === 'support' && isCurrentPlayerZone && card.isConcealedFromOpponent === true,
-    isConcealedSupport: zone === 'support' && !isCurrentPlayerZone && !card.isFaceUp,
+    isConcealedSupport: zone === 'support' && !isCurrentPlayerZone && !card.isFaceUp && !card.isRevealed,
   };
 };
 

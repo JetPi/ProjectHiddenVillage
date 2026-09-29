@@ -57,7 +57,13 @@ function NonLeaderCardOverlay({
       <div
         className={twMerge(
           'card-overlay-controls absolute inset-0 z-20 rounded-md p-1 text-[9px] text-[var(--text-primary)] transition-opacity duration-200 ease-out',
-          disableInteractions ? 'pointer-events-none opacity-0' : OVERLAY_VISIBILITY_CLASSNAME,
+          disableInteractions
+            ? 'pointer-events-none opacity-0'
+            // A targeting action (Choose / Tribute / Select) is the only thing the card can do right now, so it
+            // is shown without waiting for a hover - the player must not have to hunt for it.
+            : isChoosingTarget || isTributeTargetCandidate || isEffectTargetCandidate
+              ? 'pointer-events-auto opacity-100'
+              : OVERLAY_VISIBILITY_CLASSNAME,
         )}
       >
         {!showPreviewButton ? null : (

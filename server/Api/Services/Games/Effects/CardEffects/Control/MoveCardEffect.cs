@@ -127,23 +127,16 @@ public sealed class MoveCardEffect(
             return actionValidation.Errors;
         }
 
-        // Cards drawn earlier in this effect can satisfy a later move action when the player had nothing
-        // to select up front ("draw 1 card, then place 1 card from your hand on top of your deck").
-        var selfSuppliedTargets = new List<GameEffectTargetReference>();
-
+        // Each move action consumes the targets the caller selected. A card that needs the player to choose
+        // *after* an earlier step (for example "draw 1 card, then place 1 card from your hand on top of your
+        // deck") splits those steps into separate effect nodes, the second one with
+        // EffectSelectionTiming.Prompted - so a draw never silently consumes the card it just produced.
         foreach (var action in effectSpec.MoveCardActions)
         {
-            IReadOnlyList<GameEffectTargetReference> effectiveTargets =
-                action.Operation == MoveCardOperationType.Move
-                && selectedTargets.Count == 0
-                && selfSuppliedTargets.Count > 0
-                    ? selfSuppliedTargets
-                    : selectedTargets;
-
             var result = action.Operation switch
             {
-                MoveCardOperationType.Draw => ExecuteDrawMode(context, action, selfSuppliedTargets),
-                MoveCardOperationType.Move => ExecuteMoveMode(context, effectiveTargets, action),
+                MoveCardOperationType.Draw => ExecuteDrawMode(context, action),
+                MoveCardOperationType.Move => ExecuteMoveMode(context, selectedTargets, action),
                 _ => Error.Validation(
                     code: "Game.Effect.MoveCard.InvalidOperation",
                     description: $"Unsupported move-card operation '{action.Operation}'."),
@@ -160,8 +153,7 @@ public sealed class MoveCardEffect(
 
     private ErrorOr<Success> ExecuteDrawMode(
         GameCardEffectContext context,
-        MoveCardActionSpec action,
-        ICollection<GameEffectTargetReference> drawnTargets)
+        MoveCardActionSpec action)
     {
         var drawCount = action.DrawCount ?? 1;
         var affectedCardIds = new List<string>();
@@ -175,10 +167,6 @@ public sealed class MoveCardEffect(
             }
 
             affectedCardIds.Add(drawn.InstanceId);
-            drawnTargets.Add(new GameEffectTargetReference(
-                PlayerId: context.ActingPlayer.Id,
-                Zone: PlayerZone.Hand,
-                CardInstanceId: drawn.InstanceId));
         }
 
         if (affectedCardIds.Count == 0)

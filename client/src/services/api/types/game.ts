@@ -39,6 +39,10 @@ export type IGameCardInstanceResponse = {
   availableActions?: IGameActionOptionResponse[]
   isRested: boolean
   supportSlotIndex?: number | null
+  // True while a reveal shows this card's face to both players. Distinct from isFaceUp: a deck card is data-wise
+  // face up yet hidden from the opponent (and, for the owner, indistinguishable from any other deck card) until
+  // a reveal turns it over.
+  isRevealed?: boolean
   // Live (enriched) instance stats — present on battlefield/hand cards.
   displayName?: string
   type?: string
@@ -89,6 +93,11 @@ export type IPendingPromptResponse = {
   type: string
   isAwaitingRequestingPlayer: boolean
   options: string[]
+  // Effect selection prompts (type 'Effect'): copy bucket + where the candidate cards live.
+  selectionPromptKind?: string | null
+  candidateZone?: string | null
+  minimumSelection?: number | null
+  maximumSelection?: number | null
 }
 
 export type IPendingAttackVisualStateResponse = {

@@ -114,7 +114,15 @@ public static partial class GameStateResponseMapper
             PromptId: pendingPrompt.PromptId,
             Type: pendingPrompt.Type.ToString(),
             IsAwaitingRequestingPlayer: isAwaitingRequestingPlayer,
-            Options: options);
+            Options: options,
+            SelectionPromptKind: isAwaitingRequestingPlayer && pendingPrompt.Type == GamePromptType.Effect
+                ? pendingPrompt.SelectionPromptKind.ToString()
+                : null,
+            CandidateZone: isAwaitingRequestingPlayer && pendingPrompt.Type == GamePromptType.Effect
+                ? pendingPrompt.CandidateZone?.ToString()
+                : null,
+            MinimumSelection: pendingPrompt.Type == GamePromptType.Effect ? pendingPrompt.MinimumSelection : null,
+            MaximumSelection: pendingPrompt.Type == GamePromptType.Effect ? pendingPrompt.MaximumSelection : null);
     }
 
 }

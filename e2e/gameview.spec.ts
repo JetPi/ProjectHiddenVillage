@@ -178,6 +178,16 @@ test.describe('GameView', () => {
       const detailsDialog = page.getByRole('dialog')
       await expect(detailsDialog).toBeVisible()
 
+      // The details panel scrolls with the shared themed scrollbar - the same `.themed-scrollbar`
+      // the admin panes use - so the game view never falls back to the chunky OS default scrollbar.
+      const detailsScrollContainer = detailsDialog.locator('.themed-scrollbar')
+      await expect(detailsScrollContainer).toHaveCount(1)
+      expect(
+        await detailsScrollContainer.evaluate(
+          (node) => window.getComputedStyle(node).getPropertyValue('scrollbar-width'),
+        ),
+      ).toBe('thin')
+
       // Click a spot on the dimmed details-overlay backdrop that sits over the
       // bottom hand row. This is how the player "clicks back in" after reading a
       // card; it must only dismiss the overlay and never start a hand-card drag.
