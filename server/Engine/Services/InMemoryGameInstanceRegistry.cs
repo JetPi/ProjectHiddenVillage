@@ -244,8 +244,9 @@ public sealed class InMemoryGameInstanceRegistry
         {
             var previousPhase = instance.State.Phase;
 
-            // MainPhase support reactions reuse the pass mechanism: the window stays open until both
-            // players pass, then the pending activations resolve and priority returns to the turn player.
+            // MainPhase support reactions reuse the pass mechanism: a single decline by the priority
+            // player closes the window, then the pending activations resolve and priority returns to the
+            // turn player.
             if (instance.State.Phase == GamePhase.MainPhase)
             {
                 var isWindowClosed = phaseService.DeclarePassInSupportWindow(instance, playerId);
@@ -260,12 +261,17 @@ public sealed class InMemoryGameInstanceRegistry
                 return instance;
             }
 
-            phaseService.DeclarePassInActionStep(instance, playerId);
-            // Both players passed (or the active player passed out of the window): replay any pending
-            // support activations, most recent first, *before* the damage step so interrupts and K.O.s
-            // take effect first.
-            ResolvePendingActivations(instance, sequentialEffectExecutor);
-            ApplyPendingAttackResolutionIfNeeded(instance, previousPhase);
+            var isCutInWindowClosed = phaseService.DeclarePassInActionStep(instance, playerId);
+            if (isCutInWindowClosed)
+            {
+                // Both players passed, so the cut-in window is closed: replay any pending support
+                // activations, most recent first, *before* the damage step so interrupts and K.O.s take
+                // effect first. The queue must not resolve on the first pass - that applied the chain
+                // while the window was still open, leaving the attack waiting for one more, pointless
+                // pass *after* the effects had already resolved.
+                ResolvePendingActivations(instance, sequentialEffectExecutor);
+                ApplyPendingAttackResolutionIfNeeded(instance, previousPhase);
+            }
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
             instance.ValidateInvariants();
@@ -1641,36 +1647,50 @@ public sealed class InMemoryGameInstanceRegistry
             return;
         }
 
-        // The card can declare several unlinked roots (N-016: the chakra lock *and* the negate) and the
-        // sequential executor walks one chain per call, so the activation is replayed group by group. Each
-        // group is rebuilt from the card's data with its source-supplied nodes normalised, so the replay
-        // executes exactly the activation the player paid for.
-        foreach (var activationGroup in SupportActivationPlanner.PlanActivationGroups(sourceCardDefinition))
+        // The replay is the activator's own action: the activation was validated and paid when it was queued,
+        // but the gate that validated it may still ask for priority (N-008's interrupt is only legal for the
+        // priority holder). The pass that closed the window cleared priority, so the replay hands it back to
+        // the activator for the duration and restores what was there afterwards - otherwise the interrupt
+        // would silently take its failure branch and the attack would resolve as if it had never answered.
+        var priorityBeforeReplay = instance.State.PriorityPlayerId;
+        instance.State.PriorityPlayerId = entry.SourcePlayerId;
+        try
         {
-            var context = new GameCardEffectContext(
-                game: instance,
-                actingPlayer: new Player { Id = entry.SourcePlayerId },
-                sourceCardDefinition: SupportActivationNormalizer.NormalizeForActivation(
-                    instance.State,
-                    sourceCardDefinition,
-                    sourceCardInstance,
-                    activationGroup),
-                sourceCardInstance: sourceCardInstance,
-                arguments: new Dictionary<string, string>(entry.Arguments, StringComparer.Ordinal)
-                {
-                    [ReactiveEffectExecutionConstants.ActivationCostPaidArgument] = bool.TrueString,
-                },
-                selectedTargets: [.. entry.SelectedTargets]);
-
-            var executeResult = sequentialEffectExecutor.Execute(context);
-            if (executeResult.IsError)
+            // The card can declare several unlinked roots (N-016: the chakra lock *and* the negate) and the
+            // sequential executor walks one chain per call, so the activation is replayed group by group. Each
+            // group is rebuilt from the card's data with its source-supplied nodes normalised, so the replay
+            // executes exactly the activation the player paid for.
+            foreach (var activationGroup in SupportActivationPlanner.PlanActivationGroups(sourceCardDefinition))
             {
-                // A single unresolvable activation must not strand both players: log it and continue.
-                instance.AddActionLogEntry(
-                    actionType: "support_activation_failed",
-                    message: $"Support activation '{entry.EntryId}' failed: {executeResult.FirstError.Description}",
-                    playerId: entry.SourcePlayerId);
+                var context = new GameCardEffectContext(
+                    game: instance,
+                    actingPlayer: new Player { Id = entry.SourcePlayerId },
+                    sourceCardDefinition: SupportActivationNormalizer.NormalizeForActivation(
+                        instance.State,
+                        sourceCardDefinition,
+                        sourceCardInstance,
+                        activationGroup),
+                    sourceCardInstance: sourceCardInstance,
+                    arguments: new Dictionary<string, string>(entry.Arguments, StringComparer.Ordinal)
+                    {
+                        [ReactiveEffectExecutionConstants.ActivationCostPaidArgument] = bool.TrueString,
+                    },
+                    selectedTargets: [.. entry.SelectedTargets]);
+
+                var executeResult = sequentialEffectExecutor.Execute(context);
+                if (executeResult.IsError)
+                {
+                    // A single unresolvable activation must not strand both players: log it and continue.
+                    instance.AddActionLogEntry(
+                        actionType: "support_activation_failed",
+                        message: $"Support activation '{entry.EntryId}' failed: {executeResult.FirstError.Description}",
+                        playerId: entry.SourcePlayerId);
+                }
             }
+        }
+        finally
+        {
+            instance.State.PriorityPlayerId = priorityBeforeReplay;
         }
     }
 

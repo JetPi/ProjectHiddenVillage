@@ -92,6 +92,10 @@ targets exist.
   never writes restedness (see `04-state-phase-effects.md` → rest/stand). Covered by
   `SupportActivationResolutionTests.ActivateSupport_InterruptAttack_*` and the N-008 scenario in
   `e2e/gameview.multiplayer.support.spec.ts`.
+  - The queued replay runs **as the activator's action**: `ExecutePendingActivation` hands priority back to the
+    activating player for the duration and restores what the closing pass left behind. Its own gate demands
+    priority (the closing pass cleared it), so without the hand-back the interrupt silently took its failure
+    branch and the attack resolved as if it had never answered.
 
 ## Server `GetCardActionTargets`
 
@@ -130,6 +134,13 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   pass. The activator is therefore only ever asked for a response after the opponent actually reacted
   (their activation flipped priority back) — a decline by the asked player has nothing left to answer, so
   the activation resolves and priority returns to the turn player, who can play the next support.
+- The **attack cut-in window (`ActionStep`) is the exception**: it closes on the *second* pass
+  (`GamePhaseStateService.DeclarePassInActionStep` returns `true` only then), and the registry gates
+  `ResolvePendingActivations` **and** `ApplyPendingAttackResolutionIfNeeded` on that returned value — so the
+  closing pass resolves the queue *and* takes the damage step in one submit. Ignoring the return (the old
+  behaviour) applied the effects while the window was still open and left the attack waiting for one pointless
+  extra pass after they had already resolved; `ActivateSupport_DuringCutIn_WaitsForDoublePass_ThenResolvesMostRecentFirst`
+  and `ActivateSupport_ResolvesTheChainAndTheDamageStepTogether_OnTheClosingPass` pin it.
 - The server publishes `GameStateResponse.IsSupportResponseWindowOpen` (`true` only in the MainPhase with a
   pending activation); the phase row renders `Support Activated · Your Response` /
   `Support Activated · Opponent Response` from it (see `getSupportResponseWindowPhaseValue` in
@@ -203,9 +214,15 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   player one's `InterruptAttack` support (set face down beforehand) must publish an **enabled** chip with no target
   pick, and the resolution cancels the attack (no leader damage, phase → `BattleEndStep`, attacker still rested)
   while summoning the support card itself onto the defender's field.
-- Not yet covered by e2e although the cards are seeded: quick support cut-in for the other Quick cards
-  (N-010/N-021 as the *responder*), When-Attacking reveal-summon (N-013/N-019/N-022),
-  conditional Rush (N-007/N-011), leader Recovery (N-001/N-012), on-summon chains
+- `e2e/gameview.multiplayer.support.spec.ts` also covers **N-010's life gain** in that window (deck two, so player one
+  attacks): the own-leader `Change Values` node is normalised selection-free
+  (`SupportActivationNormalizer.IsOwnLeaderOnlyModification`), so the plan must publish an **empty** candidate list
+  and the chip submits straight from the support area; the defending leader then ends the turn at
+  *printed max + 2 - the attacker's DMG*, i.e. **above** `totalLife`, and the `leader-life-badge` has to render that
+  value (the server used to clamp it - `GameStateResponseMapperLeaderLifeTests`).
+- Not yet covered by e2e although the cards are seeded: the remaining Quick support cut-ins as the *responder*
+  (N-021; N-010 carries no `[Quick]` - its cut-in activation is the bullet above), When-Attacking reveal-summon
+  (N-013/N-019/N-022), conditional Rush (N-007/N-011), leader Recovery (N-001/N-012), on-summon chains
   (N-003/N-005/N-013/N-014/N-022). N-016's negate works again (its chakra lock is its own runtime effect,
   see `05-server-models-serialization.md`) and is covered by
   `SupportActivationResolutionTests.ActivateSupport_WithChakraLock_…` plus

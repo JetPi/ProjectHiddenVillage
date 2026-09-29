@@ -14,10 +14,11 @@ const SIZE_CLASSES = {
   lg: 'h-7 w-7 text-xs',
 } as const;
 
-export function CardOverlayBadge({ size = "md", position = 'bottom-right', className, children }: ICardOverlayBadgeProps) {
+export function CardOverlayBadge({ size = "md", position = 'bottom-right', className, testId, children }: ICardOverlayBadgeProps) {
   return (
     <div
       aria-label={`Card overlay value`}
+      data-testid={testId}
       className={twMerge(
         'card-overlay-badge pointer-events-none absolute z-10 flex items-center justify-center bg-slate-700/92 text-center font-extrabold leading-none',
         SIZE_CLASSES[size],

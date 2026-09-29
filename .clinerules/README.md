@@ -43,10 +43,11 @@ task touches that area).
   `DevelopmentDeckSeederTests.SeedAsync_CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing`
   — N-008 now always resolves from the manifest (the assertion still passes).
 - **Add specs for the newly seeded real cards** (all listed in
-  `03-targeting-contract.md`): quick support cut-in for the remaining Quick cards (N-010/N-021 as the
-  *responder*), When-Attacking reveal-summon, conditional Rush, leader Recovery, on-summon chains.
+  `03-targeting-contract.md`): the remaining Quick support cut-ins as the *responder* (N-021),
+  When-Attacking reveal-summon, conditional Rush, leader Recovery, on-summon chains.
   The hand-support resolution, the N-006/N-017 range cut-in + multi-pick flows, the N-020 bounce, the N-008
-  attack interruption and the N-009 negate (plus the support-row highlight geometry) live in
+  attack interruption, the N-010 life gain above the printed maximum (the `leader-life-badge` unclamped
+  regression guard) and the N-009 negate (plus the support-row highlight geometry) live in
   `e2e/gameview.multiplayer.support.spec.ts` and
   `e2e/gameview.multiplayer.support-target-visuals.spec.ts`; **N-002's MainPhase cut-in is covered** by
   `e2e/gameview.multiplayer.quick-support.spec.ts` (a `[Quick]` support answers a queued activation from the

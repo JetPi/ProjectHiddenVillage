@@ -16,11 +16,27 @@ import {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+// The attack submit and the state read can race: the declaration must be visible as the ActionStep
+// cut-in window before this helper may conclude that nobody can pass. Without the wait the helper
+// used to return while the game was still on the pre-declaration snapshot, and the attack then sat in
+// ActionStep until the MainPhase poll timed out 25s later.
+async function waitForActionStep(
+  request: import('@playwright/test').APIRequestContext,
+  setup: Awaited<ReturnType<typeof setupMultiplayerGame>>,
+): Promise<void> {
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)
+    return state.phase
+  }, { timeout: 10_000 }).toBe('ActionStep')
+}
+
 async function passThroughActionStep(
   request: import('@playwright/test').APIRequestContext,
   setup: Awaited<ReturnType<typeof setupMultiplayerGame>>,
 ): Promise<void> {
-  for (let step = 0; step < 8; step += 1) {
+  await waitForActionStep(request, setup)
+
+  for (let step = 0; step < 12; step += 1) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -37,10 +53,11 @@ async function passThroughActionStep(
       await declarePassInActionStepViaHub(setup.gameCode, setup.playerOne)
     } else if (playerTwoCanPass) {
       await declarePassInActionStepViaHub(setup.gameCode, setup.playerTwo)
-    } else {
-      return
     }
 
+    // When neither snapshot offered a pass (priority can swap between the read and the ack, and a
+    // prompt can stall the window) this waits and re-reads instead of abandoning the window on one
+    // unlucky sample.
     await wait(300)
   }
 }

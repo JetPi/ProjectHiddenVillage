@@ -65,6 +65,10 @@ type GameCardInstanceStateResponse = {
   isFaceUp?: boolean
   // True while a reveal shows this card's face to both players (the owner's deck cards carry it too).
   isRevealed?: boolean
+  // Enriched fields (battlefield cards): the resolved DMG/POW/health the board is showing.
+  damage?: number
+  power?: number
+  health?: number
   availableActions?: GameActionOptionResponse[]
 }
 
@@ -74,8 +78,12 @@ export type GamePlayerStateResponse = {
     instanceId?: string
     displayName: string
     isRested?: boolean
-    // Leader life: only chipped by an attacker's DMG and never reset at the turn boundary.
+    // Leader life: only chipped by an attacker's DMG and never reset at the turn boundary. `currentLife`
+    // may sit *above* `totalLife` (the printed maximum) after a life-gain effect.
     currentLife?: number
+    totalLife?: number
+    // Resolved leader DMG, i.e. the value the leader chips off an opposing leader's life with.
+    damage?: number
     // Leader effects (`leader-effect:{instanceId}:{effectKey}`) are published on the leader card
     // only - they never appear in the global `availableActions` list.
     availableActions?: GameActionOptionResponse[]

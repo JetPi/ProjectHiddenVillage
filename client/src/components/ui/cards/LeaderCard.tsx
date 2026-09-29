@@ -84,7 +84,9 @@ export function LeaderCard({
           <span className="text-red-300">{leaderCard.currentPower}</span>
         </CardOverlayBadge>
 
-        {shouldRenderBadge ? <CardOverlayBadge className='text-green-300'>{badgeValue}</CardOverlayBadge> : null}
+        {shouldRenderBadge ? (
+          <CardOverlayBadge className='text-green-300' testId='leader-life-badge'>{badgeValue}</CardOverlayBadge>
+        ) : null}
 
         {previewCard && showPreviewButton && showOverlayControls ? (
           <div className="card-overlay-float pointer-events-none absolute right-2 top-2 z-30 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">

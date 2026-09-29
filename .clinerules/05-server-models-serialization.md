@@ -55,7 +55,11 @@ paths:
   - Leader life is chipped only by an attacker's **DMG** via `ResolveEffectiveLeader*` and
     never resets (only card effects restore it). Healing may push `CurrentLife` **above** the
     printed maximum (`TotalLife`) — `ValidateInvariants` only rejects negative life, deliberately
-    leaving an upper cap as an open rule question (`GameInstanceLeaderLifeInvariantTests`).
+    leaving an upper cap as an open rule question (`GameInstanceLeaderLifeInvariantTests`), and
+    `CardRuntimeEffectStateService.ResolveEffectiveLeaderCurrentLife` publishes that value as-is:
+    the old `Math.Min(value, TotalLife)` clamp made a full-life gain read exactly like the pre-gain
+    life on the board (`GameStateResponseMapperLeaderLifeTests`, plus the N-010 life-gain scenario in
+    `e2e/gameview.multiplayer.support.spec.ts`).
 - Attack stats resolve exactly like the numbers the client is shown: leader attacker →
   `ResolveEffectiveLeaderPower/Damage`; character attacker →
   `ResolveEffectivePower/Damage` (registry `ResolveAttackPower`/`ResolveAttackDamage`).

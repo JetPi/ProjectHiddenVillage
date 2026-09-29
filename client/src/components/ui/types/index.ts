@@ -18,6 +18,8 @@ export type ICardOverlayBadgeProps = {
   className?: string
   children?: ReactNode
   size?: 'sm' | 'md' | 'lg'
+  /** Stable hook for tests that have to read one specific badge (e.g. the leader's life). */
+  testId?: string
 }
 
 export type ICardImageProps = Omit<
