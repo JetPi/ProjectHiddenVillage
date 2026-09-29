@@ -187,7 +187,32 @@ public sealed class TributeSummonCardEffect(
             return mutationResult.Errors;
         }
 
+        // The tribute-summoned card is on the field now, so its mandatory "[On Summon]" effects run. The
+        // depth carried by the summoning chain bounds nested triggering summons, and a failing trigger chain
+        // is logged rather than returned: the summon already happened.
+        RunOnSummonEffects(context, [summonedCard]);
+
         return Result.Success;
+    }
+
+    private void RunOnSummonEffects(GameCardEffectContext context, IReadOnlyList<CardInstance> summonedCards)
+    {
+        var sequentialEffectExecutor = serviceProvider?.GetService<IGameSequentialEffectExecutor>();
+        if (sequentialEffectExecutor is null)
+        {
+            return;
+        }
+
+        var triggerDepth = GameTriggeredEffectRunner.ResolveTriggerDepth(context.Arguments);
+        foreach (var summonedCard in summonedCards)
+        {
+            GameTriggeredEffectRunner.ExecuteAutomaticOnSummonEffects(
+                context.Game,
+                context.ActingPlayer.Id,
+                summonedCard,
+                sequentialEffectExecutor,
+                triggerDepth);
+        }
     }
 
     private ErrorOr<Success> EmitMutation(

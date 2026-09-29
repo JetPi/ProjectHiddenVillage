@@ -112,6 +112,7 @@ public sealed class SummonCardEffect(
 		var summoningPlayer = context.Game.State.Players.First(player => player.PlayerId == context.ActingPlayer.Id);
 		var summoningPlayerField = PlayerZoneCardAccessor.GetCards(PlayerZone.CharacterField, summoningPlayer);
 		var affectedCardInstanceIds = new HashSet<string>(StringComparer.Ordinal);
+		var summonedCards = new List<CardInstance>();
 		var affectedPlayerIds = new HashSet<string>(StringComparer.Ordinal)
 		{
 			summoningPlayer.PlayerId,
@@ -134,6 +135,7 @@ public sealed class SummonCardEffect(
 			cardInstance.EffectsSuppressedWhileOnField = suppressSummonedTargetsEffectsWhileOnField;
 			summoningPlayerField.Add(cardInstance);
 
+			summonedCards.Add(cardInstance);
 			affectedCardInstanceIds.Add(cardInstance.InstanceId);
 			affectedPlayerIds.Add(sourcePlayer.PlayerId);
 		}
@@ -149,7 +151,32 @@ public sealed class SummonCardEffect(
 			return mutationResult.Errors;
 		}
 
+		// The summoned cards are on the field now, so their mandatory "[On Summon]" effects run. The depth
+		// carried by the summoning chain bounds nested triggering summons. A failing trigger chain is logged
+		// (never returned as an error): the summon already happened.
+		RunOnSummonEffects(context, summonedCards);
+
 		return Result.Success;
+	}
+
+	private void RunOnSummonEffects(GameCardEffectContext context, IReadOnlyList<CardInstance> summonedCards)
+	{
+		var sequentialEffectExecutor = serviceProvider?.GetService<IGameSequentialEffectExecutor>();
+		if (sequentialEffectExecutor is null)
+		{
+			return;
+		}
+
+		var triggerDepth = GameTriggeredEffectRunner.ResolveTriggerDepth(context.Arguments);
+		foreach (var summonedCard in summonedCards)
+		{
+			GameTriggeredEffectRunner.ExecuteAutomaticOnSummonEffects(
+				context.Game,
+				context.ActingPlayer.Id,
+				summonedCard,
+				sequentialEffectExecutor,
+				triggerDepth);
+		}
 	}
 
 	private ErrorOr<Success> EmitMutation(

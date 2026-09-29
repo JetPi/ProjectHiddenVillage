@@ -347,7 +347,7 @@ public sealed class InMemoryGameInstanceRegistry
                     ExecuteActivateSupportAction(instance, request.PlayerId, request, sequentialEffectExecutor, actingPlayer, arguments);
                     break;
                 case SummonToFieldActionPrefix:
-                    ExecuteSummonToFieldAction(instance, request.PlayerId, request, actingPlayer);
+                    ExecuteSummonToFieldAction(instance, request.PlayerId, request, actingPlayer, sequentialEffectExecutor);
                     break;
                 case SetSupportActionPrefix:
                     ExecuteSetSupportAction(instance, request.PlayerId, request.SourceCardInstanceId, actingPlayer, arguments);
@@ -1913,7 +1913,7 @@ public sealed class InMemoryGameInstanceRegistry
                             : effectWithIndex.Effect.Id,
                     };
 
-                    var singleEffectDefinition = CloneCardDefinitionWithEffectChain(sourceCardDefinition, effectWithIndex.Effect);
+                    var singleEffectDefinition = GameTriggeredEffectRunner.CloneCardDefinitionWithEffectChain(sourceCardDefinition, effectWithIndex.Effect);
 
                     var context = new GameCardEffectContext(
                         game: instance,
@@ -1986,45 +1986,13 @@ public sealed class InMemoryGameInstanceRegistry
         CardInstance? sourceCardInstance,
         IGameSequentialEffectExecutor sequentialEffectExecutor)
     {
-        var failures = new List<string>();
-
-        foreach (var effectSpec in sourceCardDefinition.Effects)
-        {
-            if (effectSpec.Timing != EffectTiming.WhenAttacking || effectSpec.IsOptional)
-            {
-                continue;
-            }
-
-            var arguments = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                [ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument] = string.IsNullOrWhiteSpace(effectSpec.Id)
-                    ? effectSpec.RuntimeEffectType.ToString()
-                    : effectSpec.Id,
-            };
-
-            // The sequential executor walks the supplied definition, so keep the effect's own chain
-            // reachable (on-success / on-failure branch targets) while still making this effect the
-            // entry node. Cloning down to the single effect made the executor fail with
-            // "Could not resolve branch target effect id '...'" for chained effects.
-            var singleEffectDefinition = CloneCardDefinitionWithEffectChain(sourceCardDefinition, effectSpec);
-
-            var context = new GameCardEffectContext(
-                game: instance,
-                actingPlayer: new Player { Id = actingPlayerId },
-                sourceCardDefinition: singleEffectDefinition,
-                sourceCardInstance: sourceCardInstance,
-                arguments: arguments,
-                selectedTargets: []);
-
-            var executeResult = sequentialEffectExecutor.Execute(context);
-            if (executeResult.IsError)
-            {
-                var firstError = executeResult.FirstError;
-                failures.Add($"{effectSpec.Id}: {firstError.Code} - {firstError.Description}");
-            }
-        }
-
-        return failures;
+        return GameTriggeredEffectRunner.ExecuteAutomaticTimedEffects(
+            instance,
+            actingPlayerId,
+            sourceCardDefinition,
+            sourceCardInstance,
+            EffectTiming.WhenAttacking,
+            sequentialEffectExecutor);
     }
 
     /// <summary>
@@ -2038,77 +2006,12 @@ public sealed class InMemoryGameInstanceRegistry
         CardInstance? attacker,
         string failure)
     {
-        var attackerInstanceId = attacker?.InstanceId ?? "unknown";
-        var message = $"Skipped 'When Attacking' effect on card '{attackerInstanceId}': {failure}";
-
-        instance.AddActionLogEntry(
-            actionType: "when_attacking_effect_skipped",
-            message: message,
-            playerId: playerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["attackerCardInstanceId"] = attackerInstanceId,
-            });
-    }
-
-    /// <summary>
-    /// Clones a card definition down to a single triggering effect plus every effect reachable from it
-    /// through its on-success / on-failure branches, so chained (subordinate) effects still resolve
-    /// while unrelated effects on the same card stay dormant.
-    /// </summary>
-    private static Card CloneCardDefinitionWithEffectChain(Card sourceCardDefinition, EffectSpec triggerEffectSpec)
-    {
-        var includedEffectIds = new HashSet<string>(StringComparer.Ordinal);
-        var effectsToVisit = new Queue<string>();
-        var effectById = sourceCardDefinition.Effects
-            .Where(effect => !string.IsNullOrWhiteSpace(effect.Id))
-            .ToDictionary(effect => effect.Id.Trim(), effect => effect, StringComparer.Ordinal);
-
-        void TrackBranch(string? branchEffectId)
-        {
-            if (string.IsNullOrWhiteSpace(branchEffectId))
-            {
-                return;
-            }
-
-            var normalizedBranchId = branchEffectId.Trim();
-            if (includedEffectIds.Add(normalizedBranchId))
-            {
-                effectsToVisit.Enqueue(normalizedBranchId);
-            }
-        }
-
-        TrackBranch(triggerEffectSpec.Id);
-        TrackBranch(triggerEffectSpec.OnSuccessEffectId);
-        TrackBranch(triggerEffectSpec.OnFailureEffectId);
-
-        while (effectsToVisit.Count > 0)
-        {
-            var effectId = effectsToVisit.Dequeue();
-            if (!effectById.TryGetValue(effectId, out var chainedEffect))
-            {
-                continue;
-            }
-
-            TrackBranch(chainedEffect.OnSuccessEffectId);
-            TrackBranch(chainedEffect.OnFailureEffectId);
-        }
-
-        var chainedEffects = new List<EffectSpec>
-        {
-            triggerEffectSpec,
-        };
-
-        chainedEffects.AddRange(sourceCardDefinition.Effects
-            .Where(effect => !ReferenceEquals(effect, triggerEffectSpec))
-            .Where(effect => !string.IsNullOrWhiteSpace(effect.Id) && includedEffectIds.Contains(effect.Id.Trim())));
-
-        return CloneCardDefinitionWithEffects(sourceCardDefinition, chainedEffects);
-    }
-
-    private static Card CloneCardDefinitionWithEffects(Card sourceCardDefinition, IReadOnlyList<EffectSpec> effects)
-    {
-        return CardDefinitionCloner.CloneWithEffects(sourceCardDefinition, effects);
+        GameTriggeredEffectRunner.RecordSkippedTriggeredEffect(
+            instance,
+            playerId,
+            attacker,
+            EffectTiming.WhenAttacking,
+            failure);
     }
 
     // Attackers always fight with their current (effect-modified) stats so battle damage matches the
@@ -2373,7 +2276,8 @@ public sealed class InMemoryGameInstanceRegistry
         GameInstance instance,
         string playerId,
         GameCardActionExecutionRequest request,
-        PlayerState actingPlayer)
+        PlayerState actingPlayer,
+        IGameSequentialEffectExecutor? sequentialEffectExecutor = null)
     {
         var sourceCardInstanceId = request.SourceCardInstanceId;
         var sourceCardInstance = actingPlayer.Hand.FirstOrDefault(card =>
@@ -2404,7 +2308,14 @@ public sealed class InMemoryGameInstanceRegistry
 
         if (sourceCardDefinition.CannotBeNormalSummoned)
         {
-            ExecuteSummonRequirementAction(instance, playerId, request, actingPlayer, sourceCardInstance, sourceCardDefinition);
+            ExecuteSummonRequirementAction(
+                instance,
+                playerId,
+                request,
+                actingPlayer,
+                sourceCardInstance,
+                sourceCardDefinition,
+                sequentialEffectExecutor);
             return;
         }
 
@@ -2422,6 +2333,10 @@ public sealed class InMemoryGameInstanceRegistry
         {
             instance.State.SetSummonCardReady(playerId, false);
         }
+
+        // The card is on the field now, so its mandatory "[On Summon]" effects run. Failures are logged,
+        // never thrown: the summon already happened and both clients have to keep moving.
+        GameTriggeredEffectRunner.ExecuteAutomaticOnSummonEffects(instance, playerId, movedCard, sequentialEffectExecutor);
     }
 
     private void ExecuteSummonRequirementAction(
@@ -2430,7 +2345,8 @@ public sealed class InMemoryGameInstanceRegistry
         GameCardActionExecutionRequest request,
         PlayerState actingPlayer,
         CardInstance sourceCardInstance,
-        Card sourceCardDefinition)
+        Card sourceCardDefinition,
+        IGameSequentialEffectExecutor? sequentialEffectExecutor = null)
     {
         var selectedTargets = request.SelectedTargets ?? [];
         if (selectedTargets.Count == 0)
@@ -2494,6 +2410,10 @@ public sealed class InMemoryGameInstanceRegistry
 
         movedCard.IsRested = false;
         movedCard.EnteredFieldTurnNumber = instance.State.TurnNumber;
+
+        // A requirement (tribute) summon is a normal summon too: the card's mandatory "[On Summon]" effects
+        // run as soon as it lands on the field.
+        GameTriggeredEffectRunner.ExecuteAutomaticOnSummonEffects(instance, playerId, movedCard, sequentialEffectExecutor);
     }
 
     private void ExecuteSetSupportAction(
