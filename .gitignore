@@ -26,3 +26,9 @@ pnpm-debug.log*
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# Stray tool-output dumps (ImageMagick PostScript written by an accidental
+# shell redirect); anchored to the repo root so nothing else with these
+# names is ever ignored.
+/json
+/re
