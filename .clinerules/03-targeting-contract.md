@@ -220,15 +220,25 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   and the chip submits straight from the support area; the defending leader then ends the turn at
   *printed max + 2 - the attacker's DMG*, i.e. **above** `totalLife`, and the `leader-life-badge` has to render that
   value (the server used to clamp it - `GameStateResponseMapperLeaderLifeTests`).
-- Not yet covered by e2e although the cards are seeded: the remaining Quick support cut-ins as the *responder*
-  (N-021; N-010 carries no `[Quick]` - its cut-in activation is the bullet above), the remaining When-Attacking
-  reveal-summons (N-013/N-022; N-019's reveal-summon is covered by the reveal-presentation spec), conditional Rush
-  (N-007/N-011), leader Recovery (N-001/N-012), and the on-summon chains that need a selection
-  (N-003/N-005/N-014 - see the `[On Summon]` runner bullet in the reveal-presentation section). N-016's negate works
-  again (its chakra lock is its own runtime effect,
+- Not yet covered by e2e although the cards are seeded: the remaining on-summon chains that need a selection
+  (N-003/N-005/N-014 - see the `[On Summon]` runner bullet in the reveal-presentation section) and N-022's EX
+  tribute-summon reveal (`tribute-requirement` → `reveal-top` → `on-summon`; the reveal mechanic itself is pinned
+  by the reveal-presentation spec). N-016's negate works again (its chakra lock is its own runtime effect,
   see `05-server-models-serialization.md`) and is covered by
-  `SupportActivationResolutionTests.ActivateSupport_WithChakraLock_…` plus
-  `LockChakraRecoveryEffectTests`; an e2e for it is still open.
+  `SupportActivationResolutionTests.ActivateSupport_WithChakraLock_…`, `LockChakraRecoveryEffectTests` **and**
+  `e2e/gameview.multiplayer.negate-chakra-lock.spec.ts` (the negate answers the queued K.O., the K.O. never
+  resolves, and the activator's own Recovery chip is then refused with the chakra-lock reason). Newly covered
+  too: **N-021 as the responder** (mirror scenario in
+  `e2e/gameview.multiplayer.quick-support.spec.ts` - the granted immunity saves the shielded character from the
+  queued K.O.) and **N-007's conditional Rush**
+  (`e2e/gameview.multiplayer.conditional-rush.spec.ts` - `BattleAction.SummonedThisTurn` flips to enabled on the
+  summon turn once the leader's +3 power crosses the passive's 10-power threshold).
+  **Two gaps are documented instead of covered** (see the README's pending list):
+  - *N-001/N-012 leader Recovery*: its `isSecondTurnOrLater` execution condition is never supplied as an argument,
+    so the activation is a silent no-op even though the mapper's availability gate reports the chip as enabled.
+  - *N-011 Ino Yamanaka*: `[Activate: Main]` on a battlefield character has no published action at all
+    (`GameStateResponseMapper.CardActions.BuildCardAvailableActions` maps `PlayerZone.CharacterField` to battle
+    actions only), so the ability is unreachable from the UI.
 
 ## Reveal presentation (a `Reveal First` reveal)
 

@@ -44,6 +44,24 @@ const OPENER_SUPPORT_CARD_DEFINITION_ID = 'N-021'
 // is excluded because the role search keeps that copy for the support slot.
 const ANSWERER_PLAIN_SUMMON_CARD_DEFINITION_IDS = ['N-004', 'N-006', 'N-007', 'N-008', 'N-011', 'N-018'] as const
 
+// The mirrored scenario: deck "two" (player two) holds the [Quick] support (N-021, Suigetsu) and answers a
+// queued activation that deck "one" (player one) opened. The responder's own character is what N-021
+// protects, so the opener's "[During Your Main] K.O. all Characters" (N-004) must still resolve - their
+// character dies - while the immune one survives. N-004 is excluded from the summon candidates because the
+// role search keeps that copy for the opening activation, exactly like N-002 above.
+const RESPONDER_QUICK_SUPPORT_CARD_DEFINITION_ID = 'N-021'
+const OPENER_KO_SUPPORT_CARD_DEFINITION_ID = 'N-004'
+const OPENER_PLAIN_SUMMON_CARD_DEFINITION_IDS = ['N-002', 'N-006', 'N-007', 'N-008', 'N-011', 'N-018'] as const
+const RESPONDER_PLAIN_SUMMON_CARD_DEFINITION_IDS = [
+  'N-010',
+  'N-013',
+  'N-015',
+  'N-016',
+  'N-017',
+  'N-019',
+  'N-020',
+] as const
+
 // Neither player is guaranteed to hold their half (three copies in a 30+ card deck), and a game whose draw
 // never cooperates decks out before the scenario can play. Every attempt plays a fresh game.
 const SCENARIO_ATTEMPT_COUNT = 3
@@ -61,6 +79,26 @@ test.describe('GameView multiplayer quick support cut-in', () => {
 
       try {
         await playQuickSupportCutInScenario(request, setup, pages)
+        return
+      } catch (error) {
+        lastFailure = error
+      } finally {
+        await closeMultiplayerPages(pages)
+      }
+    }
+
+    throw lastFailure
+  })
+
+  test('a [Quick] support answered from the support area shields its target from the queued effect', async ({ browser, request }) => {
+    let lastFailure: unknown = null
+
+    for (let attempt = 0; attempt < SCENARIO_ATTEMPT_COUNT; attempt += 1) {
+      const setup = await setupMultiplayerGame(request)
+      const pages = await openMultiplayerPages(browser, setup)
+
+      try {
+        await playQuickSupportResponseScenario(request, setup, pages)
         return
       } catch (error) {
         lastFailure = error
@@ -380,4 +418,224 @@ async function passUntilQuickSupportResolves(
 
   throw new Error('The Quick-support chain did not resolve within the search window.')
 }
+
+/**
+ * The mirrored cut-in: player one opens a MainPhase activation that would K.O. every character, player two
+ * answers it with N-021 from *their* support area, and the immunity N-021 grants is what keeps their
+ * character alive when the opener's effect finally resolves.
+ *
+ * The engine pieces this pins: the support cut-in window accepting a `[Quick]` support from the support
+ * area for the player who is *not* the turn player (`SupportTimingRules.IsOpponentTurnQuickWindow`), the
+ * availability of that activation being evaluated on the normalised entry node (otherwise the chip reads
+ * "No valid targets available."), and `FilterSupportEffectImmuneTargets` dropping the shielded card out of
+ * a support effect that auto-selects every character.
+ */
+async function playQuickSupportResponseScenario(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+): Promise<void> {
+  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+
+  await advanceToMulliganPromptIfNeeded(request, setup)
+  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+  const opener = setup.playerOne
+  const responder = setup.playerTwo
+  const responderPage = pages.playerTwoPage
+
+  // 1. The responder's half: a character for N-021 to shield, and N-021 face down in the support area (a
+  //    support played on the opponent's turn must come from the support area).
+  await waitForMainPhase(request, setup, responder)
+  const responderCharacterInstanceId = await summonFirstAvailableCharacter(
+    request,
+    setup,
+    pages,
+    responder,
+    RESPONDER_PLAIN_SUMMON_CARD_DEFINITION_IDS,
+  )
+  const quickSupportInstanceId = await setSupportFromHand(
+    request,
+    setup,
+    pages,
+    responder,
+    RESPONDER_QUICK_SUPPORT_CARD_DEFINITION_ID,
+  )
+
+  // 2. The opener's half: a character of their own (the K.O. has to visibly resolve) and the K.O. support
+  //    activated from the hand during their own MainPhase, which queues it and hands priority over.
+  await waitForMainPhase(request, setup, opener)
+  const openerCharacterInstanceId = await summonFirstAvailableCharacter(
+    request,
+    setup,
+    pages,
+    opener,
+    OPENER_PLAIN_SUMMON_CARD_DEFINITION_IDS,
+  )
+  const koSupportInstanceId = await activateHandSupport(
+    request,
+    setup,
+    pages,
+    opener,
+    OPENER_KO_SUPPORT_CARD_DEFINITION_ID,
+  )
+
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, responder.session.accessToken)
+    return state.isSupportResponseWindowOpen === true
+  }, {
+    timeout: 15_000,
+  }).toBe(true)
+
+  // 3. The regression this scenario exists for: the responder's N-021 must publish an *enabled* support
+  //    chip while the window waits for them, even though it is the opener's turn and the card sits in the
+  //    support area. It used to read "Support timing is not available right now." / "No valid targets
+  //    available." for exactly this window.
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, responder.session.accessToken)
+    const supportCard = resolvePlayerState(state, responder).supportZone
+      .find((card) => card.instanceId === quickSupportInstanceId)
+    return (supportCard?.availableActions ?? [])
+      .find((action) => action.actionId.startsWith('activate-support:'))?.isEnabled === true
+  }, {
+    timeout: 15_000,
+  }).toBe(true)
+
+  const quickSupportCard = responderPage.locator(
+    `[data-zone="support"][data-slot-side="bottom"][data-card-instance-id="${quickSupportInstanceId}"]`,
+  )
+  await expect(quickSupportCard).toBeVisible()
+  await quickSupportCard.hover()
+  await quickSupportCard.getByRole('button', { name: /^support$/i }).click()
+
+  // Water Transformation Jutsu asks for exactly one character; the responder shields their own.
+  await chooseTarget(responderPage.locator(
+    `[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${responderCharacterInstanceId}"]`,
+  ))
+
+  // A card whose own activation is queued publishes no support action at all - the chip is gone, not
+  // disabled - which is the proof the responder's activation reached the chain.
+  await expectSupportChipRemoved(responderPage, quickSupportInstanceId)
+
+  // 4. The opener declines: one decline closes the window and the chain resolves LIFO, so the immunity
+  //    lands before the K.O. The shielded character survives while the opener's own one does not.
+  await passUntilChainCloses(request, setup, opener)
+
+  const finalOpenerState = await fetchGameState(request, setup.gameCode, opener.session.accessToken)
+  const finalOpener = resolvePlayerState(finalOpenerState, opener)
+  expect(finalOpener.characterField.some((card) => card.instanceId === openerCharacterInstanceId)).toBe(false)
+  expect(finalOpener.trash.some((card) => card.instanceId === openerCharacterInstanceId)).toBe(true)
+  // A hand activation is consumed as it is queued, so the opener no longer holds the K.O. support.
+  expect(finalOpener.hand.some((card) => card.instanceId === koSupportInstanceId)).toBe(false)
+
+  const finalResponderState = await fetchGameState(request, setup.gameCode, responder.session.accessToken)
+  const finalResponder = resolvePlayerState(finalResponderState, responder)
+  expect(finalResponder.characterField.some((card) => card.instanceId === responderCharacterInstanceId)).toBe(true)
+  expect(finalResponder.supportZone.some((card) => card.instanceId === quickSupportInstanceId)).toBe(false)
+  expect(finalResponderState.isSupportResponseWindowOpen).not.toBe(true)
+}
+/**
+ * Summons the first hand card from the whitelist that offers an enabled "Summon" chip, advancing decision
+ * windows while it looks (a fresh game's opening hand may hold none of the candidates).
+ */
+async function summonFirstAvailableCharacter(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+  actor: PlayerAuth,
+  candidateDefinitionIds: readonly string[],
+): Promise<string> {
+  for (let cycle = 0; cycle < ROLE_SEARCH_CYCLE_COUNT; cycle += 1) {
+    const [playerOneState, playerTwoState] = await Promise.all([
+      fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+      fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+    ])
+
+    const actorState = actor.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+    const isActorMainPhase = actorState.phase === 'MainPhase'
+      && actorState.pendingPrompt === null
+      && normalizeUserId(actorState.activePlayerId) === actor.normalizedUserId
+
+    if (isActorMainPhase) {
+      const candidate = resolvePlayerState(actorState, actor).hand.find((card) =>
+        candidateDefinitionIds.includes((card.cardDefinitionId ?? '').trim().toUpperCase())
+        && (card.availableActions ?? [])
+          .some((action) => action.isEnabled && action.label.trim().toLowerCase() === 'summon'))
+
+      if (candidate) {
+        const actorPage = actor.userId === setup.playerOne.userId ? pages.playerOnePage : pages.playerTwoPage
+        const handCard = actorPage.locator(`[data-testid="bottom-hand-card-${candidate.instanceId}"]`)
+        await handCard.hover()
+        await handCard.getByRole('button', { name: /^summon$/i }).click()
+
+        await expect.poll(async () => {
+          const state = await fetchGameState(request, setup.gameCode, actor.session.accessToken)
+          return resolvePlayerState(state, actor).characterField
+            .some((card) => card.instanceId === candidate.instanceId)
+        }, { timeout: 15_000 }).toBe(true)
+
+        return candidate.instanceId
+      }
+    }
+
+    await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
+  }
+
+  throw new Error('None of the whitelisted characters could be summoned within the search window.')
+}
+
+/** Activates a support from the hand through its hover chip (label "Support"). */
+async function activateHandSupport(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+  actor: PlayerAuth,
+  cardDefinitionId: string,
+): Promise<string> {
+  const supportActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Support', {
+    actorUserId: actor.userId,
+    cardDefinitionId,
+  })
+
+  const handCard = supportActor.actorPage.locator(`[data-testid="bottom-hand-card-${supportActor.cardInstanceId}"]`)
+  await handCard.hover()
+  await handCard.getByRole('button', { name: /^support$/i }).click()
+
+  return supportActor.cardInstanceId
+}
+
+/**
+ * Declines the open support window until it closes. Unlike `passUntilQuickSupportResolves` this cannot wait
+ * for the summoned support card to stay on the field: the mirror scenario's N-021 lands right into the
+ * opener's K.O., so only the window closing is a reliable signal.
+ */
+async function passUntilChainCloses(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  passer: PlayerAuth,
+): Promise<void> {
+  for (let step = 0; step < 20; step += 1) {
+    const state = await fetchGameState(request, setup.gameCode, passer.session.accessToken)
+
+    if (state.isSupportResponseWindowOpen !== true) {
+      return
+    }
+
+    const canPass = state.availableActions
+      .some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+
+    if (canPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, passer)
+    }
+
+    await wait(400)
+  }
+
+  throw new Error('The support window did not close within the search window.')
+}
+
+
+
 

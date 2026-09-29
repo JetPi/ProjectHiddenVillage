@@ -696,3 +696,49 @@ export async function resolveBattleActionForSpecificCard(
 
   throw new Error(`No enabled Battle action was found for card '${cardInstanceId}' within retry limit.`)
 }
+
+/**
+ * Waits for the actor's `turnIndex`-th MainPhase *entry* since the call started, driving the game forward
+ * with `progressToNextDecisionWindow` while it waits. A window the actor is already inside counts as entry
+ * 1, so `turnIndex: 2` means "the actor's next MainPhase after this one" and `turnIndex: 1` means "the
+ * actor's next MainPhase, which may be the one they are already in".
+ *
+ * Turn-scoped rules read the active player's `TurnCount`, which the client payload does not expose:
+ * "neither player can attack on their first turn" (`BattleAction.FirstTurn`) hides a Rush keyword until
+ * the owner's *second* turn, so a spec that asserts "this card may attack the turn it was summoned" has
+ * to know how many of the actor's own turns have already passed.
+ */
+export async function waitForActorMainPhaseNumber(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  actor: PlayerAuth,
+  turnIndex: number,
+): Promise<void> {
+  let observedEntryCount = 0
+  let isInsideMainPhase = false
+
+  for (let cycle = 0; cycle < 240; cycle += 1) {
+    const [playerOneState, playerTwoState] = await Promise.all([
+      fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+      fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+    ])
+
+    const actorState = actor.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+    const isActorMainPhase = actorState.phase === 'MainPhase'
+      && actorState.pendingPrompt === null
+      && normalizeUserId(actorState.activePlayerId) === actor.normalizedUserId
+
+    if (isActorMainPhase && !isInsideMainPhase) {
+      observedEntryCount += 1
+      if (observedEntryCount >= turnIndex) {
+        return
+      }
+    }
+
+    isInsideMainPhase = isActorMainPhase
+
+    await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
+  }
+
+  throw new Error(`The actor never reached main phase entry ${turnIndex} within the search window.`)
+}

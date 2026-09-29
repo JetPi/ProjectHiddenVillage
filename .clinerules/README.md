@@ -36,6 +36,37 @@ task touches that area).
 
 ## Pending follow-ups (pick up here)
 
+- **Leader Recovery is a silent no-op (engine gap; the spec pins the availability contract only).**
+  `e2e/gameview.multiplayer.leader-recovery.spec.ts` covers the rules that do work (first-turn refusal with its
+  reason, "no passive chakra recovery", and the chip becoming enabled from the second turn while chakra is face
+  down) and stops there. Activating `leader-effect:*:recovery` is accepted by the hub but changes nothing:
+  the node's `isSecondTurnOrLater` execution condition is matched against the execution **arguments**
+  (`GameSequentialEffectExecutor.ConditionMatches` → `condition.Negate`, i.e. false, when the key is absent) and
+  nothing in `server/Api`/`server/Engine` ever supplies that argument, so the step is skipped with no failure
+  branch while the mapper's own availability gate (`GameStateResponseMapper.EffectAvailability` →
+  `player.TurnCount < 2`) reports the chip as enabled. Two further gaps sit behind it: `AlterResourcesEffect`'s
+  `Recover` **adds** the amount (`ApplyChakraAdjustment`: `pool + amount`), so N-001/N-012's `Recover 5` would
+  push a 5-card pool to 9 from any non-empty pool, and neither recovery node authors a
+  `SummonCardFlips`/`FaceStateLocks` entry, so the chakra cards themselves never turn face-up on the board.
+  Fix sketch: (a) populate the `isSecondTurnOrLater` argument for the acting player when the action's context
+  is built, (b) clamp `Recover` to the player's chakra-card count, (c) author the FaceUp/ChakraCard flip on both
+  seeds (`test-data/seed-profiles.json` **and** `server/Api/rawCardCatalogDump.txt`).
+- **A battlefield character's `[Activate: Main]` ability has no published action (UI gap).**
+  `GameStateResponseMapper.CardActions.BuildCardAvailableActions` returns battle actions only for
+  `PlayerZone.CharacterField`, and the client's submit map only knows `play-card:`, `set-support:`,
+  `summon-to-field:`, `activate-support:`, `battle-action:` and `leader-effect:`. N-011 Ino Yamanaka's
+  "[Activate: Main] … your Ino/Shikamaru/Choji gain Rush and +5 power/+1 damage" is therefore unreachable in
+  play even though the engine models it (target rules + `contextRules` for the Shikamaru/Choji requirement are
+  authored and correct). Covering it needs a new per-card action prefix for character-field abilities
+  (mapper + `mapActionToHubIntent` + registry dispatch) before an e2e can exist.
+- **N-022 Manda's EX tribute-summon reveal is still uncovered.** The reveal *mechanic* is pinned by
+  `e2e/gameview.multiplayer.reveal-presentation.spec.ts` (N-019 for an attack, N-013 for an `[On Summon]`
+  summon), but Manda's own chain — `tribute-requirement` (Atomic Chain, 1 field material + the hand candidate)
+  → `reveal-top` (`Reveal First`, post-condition `Type Not Equals EX Character`) → `on-summon` (`Summon Card`,
+  `exactTargetCount: 1` with a Self/Deck rule) — is untested. It should resolve the same way N-019's does
+  (the reveal supplies the target through `ResolveRevealedTargets`, so no prompt is created); a spec can stack
+  the deck top with the leader's free `draw-n-place-card` ability, tribute a spare character through the hand
+  chip's Tribute/Confirm flow, and reuse the deck-reveal observer + entry-animation recorder.
 - **Commit the catalogue regeneration script** — `catalogEntries` is generated from
   `server/Api/rawCardCatalogDump.txt`; the working one-off script only lives in `/tmp`
   (details in `05-server-models-serialization.md`).
@@ -43,9 +74,9 @@ task touches that area).
   `DevelopmentDeckSeederTests.SeedAsync_CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing`
   — N-008 now always resolves from the manifest (the assertion still passes).
 - **Add specs for the newly seeded real cards** (all listed in
-  `03-targeting-contract.md`): the remaining Quick support cut-ins as the *responder* (N-021),
-  the remaining When-Attacking reveal-summons (N-013/N-022), conditional Rush, leader Recovery, and the
-  on-summon chains that need a selection (N-003/N-005/N-014).
+  `03-targeting-contract.md`): what is still open is the on-summon chains that need a selection
+  (N-003/N-005/N-014, N-022's EX tribute-summon reveal) — the leader Recovery activation is blocked by the
+  engine gap above, and N-011 by the UI gap above.
   The hand-support resolution, the N-006/N-017 range cut-in + multi-pick flows, the N-020 bounce, the N-008
   attack interruption, the N-010 life gain above the printed maximum (the `leader-life-badge` unclamped
   regression guard) and the N-009 negate (plus the support-row highlight geometry) live in
@@ -53,10 +84,19 @@ task touches that area).
   `e2e/gameview.multiplayer.support-target-visuals.spec.ts`; **N-002's MainPhase cut-in is covered** by
   `e2e/gameview.multiplayer.quick-support.spec.ts` (a `[Quick]` support answers a queued activation from the
   support area — the support-timing + normalised-availability regression guard, see
-  `03-targeting-contract.md`).
+  `03-targeting-contract.md`), and that spec's **second scenario** now covers the mirror case: **N-021 as the
+  responder** (deck two answers deck one's K.O., the immunity it grants saves the shielded character while the
+  opener's own one dies).
   **N-016's negate is fixed** (its chakra lock is now its own `Lock Chakra Recovery` runtime effect instead of
-  a target-demanding `Alter Resources` node — see `05-server-models-serialization.md`) and covered by server
-  tests; it still has no e2e.
+  a target-demanding `Alter Resources` node — see `05-server-models-serialization.md`) and covered by
+  `e2e/gameview.multiplayer.negate-chakra-lock.spec.ts`: the negate is answered from the support area while the
+  window waits, the queued K.O. never resolves, and the *activator's* Recovery chip is then refused with
+  "Your chakra is locked and cannot be turned face-up." while the opener's stays enabled.
+  **N-007's conditional Rush is covered** by `e2e/gameview.multiplayer.conditional-rush.spec.ts`: the chip of a
+  freshly summoned Minato reads the summon-turn reason, the leader's +3 power crosses the 10-power threshold and
+  the continuous passive flips the very same chip to enabled, and the attack lands its DMG on the opposing leader
+  in that same MainPhase. **N-011's conditional Rush cannot be covered yet** — its `[Activate: Main]` ability has
+  no published action (see the UI gap above).
 - **Reveal presentation: shipped and covered end-to-end.**
   `e2e/gameview.multiplayer.reveal-presentation.spec.ts` plays N-019 for real — summon Jugo → stack the deck top with
   the leader's own `draw-n-place-card` ability (N-012) → attack → the reveal is presented (deck slot flips with the

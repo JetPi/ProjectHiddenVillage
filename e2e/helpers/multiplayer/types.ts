@@ -55,6 +55,10 @@ type GameActionOptionResponse = {
   actionId: string
   label: string
   isEnabled: boolean
+  // Why the action is disabled, straight from the mapper (e.g. "Recovery can only be activated starting
+  // from your second turn."). The board renders it as the chip's title, so a spec can tell a rule-driven
+  // disabled chip apart from one that only looks disabled.
+  disabledReason?: string | null
 }
 
 type GameCardInstanceStateResponse = {
