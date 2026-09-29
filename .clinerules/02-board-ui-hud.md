@@ -174,10 +174,12 @@ paths:
 ## Support chain bubble (`SupportChainBubble`)
 
 - Pops up in the top-right corner of the game view (`fixed right-2 top-2 z-40`, `pointer-events-none`, next to
-  the action-error banner) when a **support chain** exists: a support was activated *inside* a support
-  reaction window. A lone activation that merely opened the window does not pop it
-  (`shouldShowSupportChainBubble` = at least two queued activations), and it disappears when the chain
-  resolves, because the entries leave `GameStateResponse.SupportChain`.
+  the action-error banner) from the **first** queued support activation
+  (`shouldShowSupportChainBubble` = at least one entry), so a lone activation that only opened the reaction
+  window is already spelled out while it waits for an answer. It disappears when the chain empties, because
+  the entries leave `GameStateResponse.SupportChain`.
+- The count chip pluralises (`1 activation` / `n activations`) and the `Resolves last in, first out` footer
+  only renders for a real chain (≥2 entries).
 - One row per activation in activation order (`#1` …), each with an actor chip (`You` / `Opponent`), the
   activating card's name, a `Next` chip on the newest entry (the stack resolves last in, first out),
   `⚡ Negates #n <card>` for a negate target, `→ Targets <card> (yours|theirs)` for board targets, and a rose
@@ -185,7 +187,8 @@ paths:
 - The view model and every label are pure (`buildSupportChainView` in
   `views/game/utils/functions/helpers/index.ts`); the server is the only writer of the chain. Testids:
   `support-chain-bubble`, `support-chain-entry` (+ `data-entry-sequence`), `support-chain-negate-link`,
-  `support-chain-count`.
+  `support-chain-count`. `e2e/gameview.multiplayer.support-target-visuals.spec.ts` pins both ends of the
+  contract: the lone-entry pop while the window waits (`1 activation`) and the two-entry negate chain.
 - `.support-chain-bubble-enter` (`index.css`) is a transient entrance animation only — no persistent
   transform, so the text inside stays crisp.
 

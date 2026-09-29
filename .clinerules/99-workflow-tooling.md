@@ -60,6 +60,17 @@
   “Bad IL range / Bad class token” validation block) when a player pressed Pass on a freshly patched
   `InMemoryGameInstanceRegistry`. Recovery: restart the dev stack (Ctrl+C → `npm run dev`), or
   `rm -rf server/bin server/obj` first if it recurs; in-memory games do not survive that restart.
+- **Do not try to dodge that collision by redirecting the e2e server build** to its own output path
+  (verified dead end): `dotnet run … -p:BaseOutputPath=/tmp/x/bin/ -p:BaseIntermediateOutputPath=/tmp/x/obj/`
+  fails with nine `CS0579: Duplicate 'System.Reflection.Assembly*Attribute'` errors, because the SDK only
+  excludes the *current* `BaseIntermediateOutputPath` from the compile glob — the stale
+  `server/obj/Debug/net10.0/*.AssemblyInfo.cs` + `.NETCoreApp,Version=*.AssemblyAttributes.cs` are then
+  compiled a second time. (`DefaultItemExcludes` cannot patch this from the command line: a global property
+  referencing `$(DefaultItemExcludes)` self-references, and a literal list would drop the SDK's own
+  excludes.) The symptom misleads badly: `dotnet ef database update` dies under `set -e`, `concurrently`
+  keeps vite up, Playwright's webServer URL (4173) still resolves, so **every** test runs and fails at
+  ~20 s against an unreachable API. It looks like a code regression and is not one. Either stop the dev
+  stack's dotnet side first, or run the e2e and restart the dev stack afterwards.
 
 ## Advance-phase read-then-act race (handled — do not “fix” it again)
 
