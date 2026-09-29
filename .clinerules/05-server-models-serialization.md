@@ -125,6 +125,10 @@ paths:
   instead of overwriting blind. **`T-120` is the only non-real fixture** (Character, power 10, no
   effects) because Gamabunta's `Power >= 10` rule needs a normally-summonable ≥10-power character and
   the real catalogue has none (N-003/N-005/N-014 are EX + `cannotBeNormalSummoned`).
+- The dump and the manifest are edited together when a node's authored shape is wrong: N-008's
+  `interrupt-attack` carried a leftover `exactTargetCount: 1` on a node that resolves the pending attack itself,
+  which the availability gate read as "needs a target" (the card could not be played). It is cleared in both
+  files, and `UpdateCardEffectsRequestValidator` now rejects the shape for new saves.
 - `DevelopmentDeckSeeder` **upserts** those definitions for referenced ids (the manifest wins over
   existing rows) and only fabricates placeholders for ids that are still missing —
   `SeedPlaceholderCatalogEntriesAsync` skips ids already present, so real imported rows are never
@@ -206,13 +210,13 @@ paths:
 
 - `dotnet build server/…` and targeted tests (`GameStateResponseMapper*`,
   `CardRuntimeEffectDuration*`, `EffectTargetResolverTests`) are the quick server gates.
-- **7 pre-existing failures** are expected in the full suite; they fail identically with your change
-  reverted (stash only your own edits and park new untracked files to confirm). Verified baseline:
-  `Failed: 7, Passed: 384, Total: 391`, and the seven are:
-  `GameEffectCanExecuteEvaluatorTests.Evaluate_ReturnsCannotExecute_WhenExactCountIsCombinedWithMinimumOrMaximum`,
-  `GameStateResponseMapperCardActionsTests.ToGameStateResponse_DoesNotMapBattleAction_ForCardSummonedThisTurnWithoutRush`,
-  `…_ForRestedCard`, `…_ForCardWithCannotAttackKeyword`,
-  `…_EnablesOpponentQuickSupport_InActionStepCutInWindow`,
-  `…_DisablesRecoveryLeaderEffect_WhenAllChakraCardsAreFaceUp`, and
-  `InMemoryGameInstanceRegistryTests.GetCardActionTargets_LeaderEffect_ReturnsPrecomputedTargets`.
-  Totals drift as tests are added — compare *names*, not counts.
+- **The full server suite is green** (no known failures as of the N-008/N-012 pass). It used to carry a
+  documented set of 7 failures; five of them were the same root cause — the availability gate demanding a target
+  from a node that never collects one (see `03-targeting-contract.md` → the `RequiresPlayerSelection` bullet) —
+  and the last two were stale test fixtures:
+  `…_DoesNotMapBattleAction_For*` duplicated the newer `DisablesBattleAction_With…Reason_*` tests (and lacked the
+  player `TurnCount`, so they hit the first-turn rule), and
+  `Evaluate_ReturnsCannotExecute_WhenExactCountIsCombinedWithMinimumOrMaximum` asserted an authoring rule on the
+  runtime evaluator — the combination is rejected by `UpdateCardEffectsRequestValidator` instead
+  (`Validate_ReturnsError_WhenExactTargetCountIsCombinedWithMinimumCount`). If a failure does appear, treat it as
+  a real regression.

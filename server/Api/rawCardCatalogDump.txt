@@ -1278,7 +1278,7 @@
                     "contextRules": [],
                     "targetRules": {
                         "operator": "Any",
-                        "exactTargetCount": 1,
+                        "exactTargetCount": null,
                         "minimumTargetCount": null,
                         "maximumTargetCount": null,
                         "autoSelectAllValidTargets": false,

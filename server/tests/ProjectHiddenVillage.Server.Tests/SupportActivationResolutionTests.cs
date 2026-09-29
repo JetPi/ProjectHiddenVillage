@@ -199,6 +199,75 @@ public sealed class SupportActivationResolutionTests
     }
 
     [TestMethod]
+    public void ActivateSupport_InterruptAttack_DuringCutIn_CancelsThePendingAttack_AndSummonsTheSourceCard()
+    {
+        var game = CreateGame();
+        EnterCutInWindow(game, priorityPlayerId: "p2");
+        AddBattlefieldCard(game, playerIndex: 0, instanceId: "attacker-1", definitionId: "filler");
+        var attacker = game.State.Players[0].Battlefield.Single(card => card.InstanceId == "attacker-1");
+        // Declaring the attack rested the attacker; the interrupt must not depend on re-asserting that.
+        attacker.IsRested = true;
+        game.State.PendingAttackAttackerInstanceId = "attacker-1";
+        game.State.PendingAttackDefenderPlayerId = "p2";
+        AddSupportZoneCard(game, playerIndex: 1, instanceId: "interrupt-1", definitionId: "interrupt-support");
+        game.State.Players[1].ResourcePool = 5;
+
+        var executor = CreateSequentialExecutor();
+
+        // N-008 is answered from the support area and collects no target: the interrupt resolves the attack
+        // itself, so the published chip must be enabled with an empty candidate list.
+        var targets = GetSupportTargets(game, playerId: "p2", instanceId: "interrupt-1");
+        Assert.IsTrue(targets.IsEnabled, targets.DisabledReason ?? string.Empty);
+        Assert.AreEqual(0, targets.ValidTargets.Count);
+
+        ExecuteSupport(game, playerId: "p2", instanceId: "interrupt-1", executor);
+        Assert.AreEqual(1, game.State.EffectResolutionStack.Count, "the activation waits for the window to close");
+        Assert.AreEqual(4, game.State.Players[1].ResourcePool);
+
+        // The attacker declines: the window closes and the queued interrupt cancels the attack before damage.
+        PassInActionStep(game, "p1", executor);
+
+        Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
+        Assert.IsFalse(game.State.HasPendingAttack);
+        Assert.AreEqual(string.Empty, game.State.PendingAttackAttackerInstanceId);
+        Assert.AreEqual(string.Empty, game.State.PendingAttackDefenderPlayerId);
+        Assert.AreEqual(GamePhase.BattleEndStep, game.State.Phase);
+        Assert.IsTrue(attacker.IsRested, "interrupting an attack does not stand the attacker up");
+        Assert.IsFalse(
+            game.State.Players[1].SupportZone.Any(card => card.InstanceId == "interrupt-1"),
+            "the used support left the support area");
+        Assert.IsTrue(
+            game.State.Players[1].Battlefield.Any(card => card.InstanceId == "interrupt-1"),
+            "the interrupt chain summoned the source card");
+        Assert.AreEqual(10, game.State.Players[1].LeaderCardInstance!.CurrentLife, "the attack never dealt damage");
+    }
+
+    [TestMethod]
+    public void ActivateSupport_InterruptAttack_LeavesAnAttackerThatAnEffectStoodUp_Standing()
+    {
+        // "Whatever else happens does not change the fact that the card got rested" cuts both ways: the rest is
+        // only ever paid by the declaration, so an effect that stands the attacker back up wins, and the
+        // interrupt must not quietly re-rest it.
+        var game = CreateGame();
+        EnterCutInWindow(game, priorityPlayerId: "p2");
+        AddBattlefieldCard(game, playerIndex: 0, instanceId: "attacker-1", definitionId: "filler");
+        var attacker = game.State.Players[0].Battlefield.Single(card => card.InstanceId == "attacker-1");
+        attacker.IsRested = false;
+        game.State.PendingAttackAttackerInstanceId = "attacker-1";
+        game.State.PendingAttackDefenderPlayerId = "p2";
+        AddSupportZoneCard(game, playerIndex: 1, instanceId: "interrupt-1", definitionId: "interrupt-support");
+        game.State.Players[1].ResourcePool = 5;
+
+        var executor = CreateSequentialExecutor();
+        ExecuteSupport(game, playerId: "p2", instanceId: "interrupt-1", executor);
+        PassInActionStep(game, "p1", executor);
+
+        Assert.IsFalse(game.State.HasPendingAttack);
+        Assert.AreEqual(GamePhase.BattleEndStep, game.State.Phase);
+        Assert.IsFalse(attacker.IsRested, "the interrupt must not re-rest an attacker an effect stood up");
+    }
+
+    [TestMethod]
     public void ActivateSupport_InsideTheSameChain_RejectsASecondActivationOfTheSameCard()
     {
         var game = CreateGame();
@@ -279,6 +348,8 @@ public sealed class SupportActivationResolutionTests
             new NegateCardEffect(effectSpecResolver, CanExecuteEvaluator, new GameValidTargetResultFactory()),
             new ModifyAttributeEffect(effectSpecResolver, CanExecuteEvaluator, targetResolver),
             new LockChakraRecoveryEffect(effectSpecResolver, CanExecuteEvaluator),
+            new InterruptAttackEffect(effectSpecResolver, CanExecuteEvaluator),
+            new SummonCardEffect(effectSpecResolver, CanExecuteEvaluator, targetResolver),
         ];
     }
 
@@ -593,6 +664,81 @@ public sealed class SupportActivationResolutionTests
             ["negate-support"] = BuildNegateSupport(),
             ["negate-with-chakra-lock"] = BuildNegateWithChakraLockSupport(),
             ["destroy-two-support"] = BuildDestroyTwoSupport(),
+            ["interrupt-support"] = BuildInterruptSupport(),
+        };
+    }
+
+    /// <summary>N-008 shape: "[During Your Opponent's Attack] Summon this card and interrupt that attack."</summary>
+    private static CharacterCard BuildInterruptSupport()
+    {
+        return new CharacterCard
+        {
+            Id = "interrupt-support",
+            DisplayName = "Shadow Possession Jutsu",
+            Name = ["Shadow Possession Jutsu"],
+            Type = CardType.Character,
+            Color = CardColor.Red,
+            Traits = [],
+            Description = string.Empty,
+            Damage = 1,
+            Power = 4,
+            Health = 4,
+            SupportName = "Shadow Possession Jutsu",
+            SupportEffect = "[During Your Opponent's Attack] Summon this card and interrupt that attack.",
+            Effects =
+            [
+                new EffectSpec
+                {
+                    Id = "interrupt-attack",
+                    RuntimeEffectType = RuntimeEffects.InterruptAttack,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.DuringOpponentAttack,
+                    TargetRange = EffectTargetRange.Opponent,
+                    ChakraCost = 1,
+                    ExecutionTargetSource = EffectExecutionTargetSource.None,
+                    ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                    OnSuccessEffectId = "summon-self",
+                },
+                new EffectSpec
+                {
+                    Id = "summon-self",
+                    IsSubordinate = true,
+                    RuntimeEffectType = RuntimeEffects.SummonCard,
+                    EffectType = EffectKind.Support,
+                    Timing = EffectTiming.DuringOpponentAttack,
+                    TargetRange = EffectTargetRange.Self,
+                    ExecutionTargetSource = EffectExecutionTargetSource.SourceCard,
+                    ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                    TargetRules = new EffectTargetRuleSet
+                    {
+                        ExactTargetCount = 1,
+                        Rules =
+                        [
+                            new EffectTargetRule
+                            {
+                                Scope = EffectTargetRange.Self,
+                                InZone = PlayerZone.SupportZone,
+                                TributeRole = TributeTargetRole.SummonCandidate,
+                                ExactSelectedTargetCount = 1,
+                                Restriction = new ZoneCardRestriction
+                                {
+                                    Predicates =
+                                    [
+                                        new ZoneCardPropertyPredicate
+                                        {
+                                            Property = ZoneCardProperty.Self,
+                                            Operator = ZoneCardPredicateOperator.Equals,
+                                            Value = string.Empty,
+                                            IgnoreCase = true,
+                                        },
+                                    ],
+                                    MatchMode = ZoneRestrictionMatchMode.Any,
+                                },
+                            },
+                        ],
+                    },
+                },
+            ],
         };
     }
 

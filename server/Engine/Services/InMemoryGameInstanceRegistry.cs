@@ -1774,6 +1774,10 @@ public sealed class InMemoryGameInstanceRegistry
             throw new InvalidOperationException("Battle target must be a leader or a character in play.");
         }
 
+        // The rest is the attack's declaration cost, paid exactly once here: the rest of the attack sequence
+        // (when-attacking effects, the support cut-in, the interrupt, the damage step) never writes restedness
+        // again, so an effect that stands this card back up keeps it standing until the refresh phase re-readies
+        // it as usual.
         attacker.IsRested = true;
         instance.State.HasPendingAttack = true;
         instance.State.PendingAttackDeclarationId = Guid.NewGuid().ToString("N");
@@ -1785,7 +1789,6 @@ public sealed class InMemoryGameInstanceRegistry
         ExecuteAutomaticWhenAttackingEffects(instance, playerId, attacker, sequentialEffectExecutor)
             .ToList()
             .ForEach(failure => RecordSkippedWhenAttackingEffect(instance, playerId, attacker, failure));
-        EnsurePendingAttackAttackerRemainsRested(instance.State);
 
         if (TryPrepareOptionalWhenAttackingChoice(instance, playerId, attacker))
         {
@@ -1914,26 +1917,9 @@ public sealed class InMemoryGameInstanceRegistry
             }
         }
 
-        EnsurePendingAttackAttackerRemainsRested(instance.State);
-
         var defenderPlayerId = instance.State.PendingAttackDefenderPlayerId;
         ClearPendingOptionalAttackEffectState(instance.State);
         EnterSupportCutInWindow(instance.State, defenderPlayerId);
-    }
-
-    private static void EnsurePendingAttackAttackerRemainsRested(GameState state)
-    {
-        if (!state.HasPendingAttack || string.IsNullOrWhiteSpace(state.PendingAttackAttackerInstanceId))
-        {
-            return;
-        }
-
-        var attacker = FindCardInstanceWithOwner(state, state.PendingAttackAttackerInstanceId)?.Card;
-
-        if (attacker is not null)
-        {
-            attacker.IsRested = true;
-        }
     }
 
     private static bool TryParseResolveOptionalAttackEffectActionId(string actionId, out string sourceCardInstanceId, out string decision)

@@ -895,8 +895,10 @@ public sealed class InMemoryGameInstanceRegistryTests
     }
 
     [TestMethod]
-    public void ExecuteCardAction_BattleAction_StaysRested_WhenAttackingEffectAttemptsToReadyAttacker()
+    public void ExecuteCardAction_BattleAction_KeepsTheRestPaidByTheDeclaration_WhenAWhenAttackingEffectReadiesTheAttacker()
     {
+        // The rest is the declaration cost, so it is paid once and never re-asserted: an effect that stands the
+        // attacker back up afterwards keeps it standing (the refresh phase re-readies it as usual).
         var game = registry.Create(
             players:
             [
@@ -946,7 +948,9 @@ public sealed class InMemoryGameInstanceRegistryTests
                 ]),
             new AttackerUnrestingSequentialExecutor());
 
-        Assert.IsTrue(game.State.Players[0].Battlefield[0].IsRested);
+        Assert.IsFalse(
+            game.State.Players[0].Battlefield[0].IsRested,
+            "the when-attacking effect stood the attacker up, and nothing re-rests it");
         Assert.IsTrue(game.State.HasPendingAttack);
         Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
     }
@@ -1151,6 +1155,65 @@ public sealed class InMemoryGameInstanceRegistryTests
 
         registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor());
 
+        Assert.AreEqual("p1", game.State.PriorityPlayerId);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_ActivateSupport_QuickInMainPhaseReactionWindow_AllowsOpponentCutIn()
+    {
+        // "[Quick] can be played at any valid Support Cut-in response window": a MainPhase activation opens
+        // one, so the opponent answers N-002-style from the support area - and priority flips back to the
+        // activator. Before this the timing gate only accepted the attack cut-in step.
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["card-1"] },
+                new Player { Id = "p2", Deck = ["card-1"] }
+            ],
+            cardDefinitions: BuildSupportCapableDefinitions("card-1"),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p1";
+        game.State.PriorityPlayerId = "p2";
+        game.State.HasPendingAttack = false;
+        game.State.EffectResolutionStack.Add(new EffectResolutionStackEntry
+        {
+            SourcePlayerId = "p1",
+            SourceZone = PlayerZone.SupportZone,
+            SourceCardInstanceId = "p1-pending-support",
+            EffectTypeKey = "ChangeValues",
+            ActivatedEffectId = "support-effect",
+        });
+        game.State.Players[1].SupportZone.Add(new CardInstance
+        {
+            InstanceId = "support-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        var quickDefinition = (CharacterCard)game.State.CardDefinitions["card-1"];
+        quickDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "support-quick",
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+            }
+        ];
+
+        var request = new GameCardActionExecutionRequest(
+            PlayerId: "p2",
+            ActionId: "activate-support:support-1",
+            SourceCardInstanceId: "support-1");
+
+        registry.ExecuteCardAction(game.Id, request, new RecordingSequentialExecutor());
+
+        Assert.AreEqual(2, game.State.EffectResolutionStack.Count);
         Assert.AreEqual("p1", game.State.PriorityPlayerId);
     }
 

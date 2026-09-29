@@ -512,6 +512,22 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                             && value.KeywordModifications.Count == 0))
                     .WithMessage("Lock Chakra Recovery carries no other effect payload: use a separate node for each behaviour.");
 
+                // "Interrupt that attack": the effect cancels the pending attack itself (InterruptAttackEffect),
+                // so it must not ask for a selection either. The stale exactTargetCount N-008 carried on a
+                // None-sourced node made the whole activation read "No valid targets available.".
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType != RuntimeEffects.InterruptAttack
+                        || value.ExecutionTargetSource == EffectExecutionTargetSource.None)
+                    .WithMessage("Interrupt Attack resolves the pending attack itself, so it needs no selected targets: set Execution Target Source to None.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType != RuntimeEffects.InterruptAttack
+                        || (value.TargetRules.Rules.Count == 0
+                            && value.TargetRules.ExactTargetCount is null
+                            && value.TargetRules.MinimumTargetCount is null
+                            && value.TargetRules.MaximumTargetCount is null))
+                    .WithMessage("Interrupt Attack collects no target selection: remove its target rules and counts.");
+
                 effect.RuleForEach(value => value.SummonCardFlips)
                     .ChildRules(flipSpec =>
                     {

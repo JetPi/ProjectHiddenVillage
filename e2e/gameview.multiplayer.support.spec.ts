@@ -42,6 +42,12 @@ const PLAIN_SUMMON_DEFINITION_ID_BY_DECK = {
 // owner's hand." Lives in deck two only.
 const RETURN_TO_HAND_SUPPORT_CARD_DEFINITION_ID = 'N-020'
 
+// N-008 (Shikamaru Nara): "[During Your Opponent's Attack] Summon this card and interrupt that attack."
+// Deck "one" only, so player one defends with it while player two attacks. Its entry resolves the pending
+// attack itself - it collects no target at all - and its success branch summons the very card that was
+// activated.
+const INTERRUPT_ATTACK_SUPPORT_CARD_DEFINITION_ID = 'N-008'
+
 // Neither opening hand is guaranteed to hold a range support (three copies in a 31-card deck), and a game
 // where nobody draws one ends in a deck-out before the scenario can play out. Each attempt plays a fresh
 // game, so the spec stays reliable instead of riding a single shuffle.
@@ -216,7 +222,197 @@ test.describe('GameView multiplayer support activation', () => {
 
     throw lastFailure
   })
+
+  test('an interrupting N-008 cancels the attack and summons itself', async ({ browser, request }) => {
+    let lastFailure: unknown = null
+
+    for (let attempt = 0; attempt < RANGE_SUPPORT_ATTEMPT_COUNT; attempt += 1) {
+      const setup = await setupMultiplayerGame(request)
+      const pages = await openMultiplayerPages(browser, setup)
+
+      try {
+        await playInterruptAttackScenario(request, setup, pages)
+        return
+      } catch (error) {
+        lastFailure = error
+      } finally {
+        await closeMultiplayerPages(pages)
+      }
+    }
+
+    throw lastFailure
+  })
 })
+
+/**
+ * N-008 (Shikamaru Nara) is the "[During Your Opponent's Attack] Summon this card and interrupt that attack"
+ * support of deck one, so player two attacks and player one answers from their support area. The interrupt
+ * collects no target (its activation auto-submits), cancels the pending attack before any damage and its
+ * success branch summons the support card itself onto the defender's field.
+ */
+async function playInterruptAttackScenario(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+): Promise<void> {
+  const attacker = setup.playerTwo
+  const defender = setup.playerOne
+
+  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+
+  await advanceToMulliganPromptIfNeeded(request, setup)
+  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+  // 1. The attacker summons a plain character: the attack it declares is what N-008 interrupts.
+  const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
+    actorUserId: attacker.userId,
+    cardDefinitionId: PLAIN_SUMMON_DEFINITION_ID_BY_DECK.playerTwo,
+  })
+  const attackerPage = summonActor.actorPage
+  const attackerCardInstanceId = summonActor.cardInstanceId
+  const attackerHandCard = attackerPage.locator(`[data-testid="bottom-hand-card-${attackerCardInstanceId}"]`)
+  await attackerHandCard.hover()
+  await attackerHandCard.getByRole('button', { name: /^summon$/i }).click()
+
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, attacker.session.accessToken)
+    return resolvePlayerState(state, attacker).characterField
+      .some((card) => card.instanceId === attackerCardInstanceId)
+  }, {
+    timeout: 12_000,
+  }).toBe(true)
+
+  // 2. The defender sets N-008 face down: it is answered from the support area, so it waits there.
+  const setSupportActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Set Support', {
+    actorUserId: defender.userId,
+    cardDefinitionId: INTERRUPT_ATTACK_SUPPORT_CARD_DEFINITION_ID,
+  })
+  const defenderPage = setSupportActor.actorPage
+  const interruptInstanceId = setSupportActor.cardInstanceId
+  const supportHandCard = defenderPage.locator(`[data-testid="bottom-hand-card-${interruptInstanceId}"]`)
+  await supportHandCard.hover()
+  await supportHandCard.getByRole('button', { name: /^set support$/i }).click()
+
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, defender.session.accessToken)
+    return resolvePlayerState(state, defender).supportZone
+      .some((card) => card.instanceId === interruptInstanceId)
+  }, {
+    timeout: 12_000,
+  }).toBe(true)
+
+  const leaderLifeBefore = await resolveLeaderLife(request, setup, defender)
+  expect(leaderLifeBefore).toBeGreaterThan(0)
+
+  // 3. The attack opens the cut-in window the interrupt answers.
+  const attack = await resolveActorWithBottomBattleAction(request, setup, pages)
+  expect(attack.cardInstanceId).toBe(attackerCardInstanceId)
+  await executeBattleActionViaHub(setup.gameCode, attack.actor, attack.actionId, attack.cardInstanceId)
+
+  // 4. N-008 is enabled in the window and asks for no target: the activation submits straight from the
+  //    support chip, without the "Choose" step N-020/N-006 need.
+  const supportZoneCard = defenderPage.locator(
+    `[data-zone="support"][data-slot-side="bottom"][data-card-instance-id="${interruptInstanceId}"]`,
+  )
+  await expect(supportZoneCard).toBeVisible()
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, defender.session.accessToken)
+    const supportCard = resolvePlayerState(state, defender).supportZone
+      .find((card) => card.instanceId === interruptInstanceId)
+    return (supportCard?.availableActions ?? [])
+      .find((action) => action.actionId.startsWith('activate-support:'))?.isEnabled === true
+  }, {
+    timeout: 15_000,
+  }).toBe(true)
+
+  await supportZoneCard.hover()
+  await supportZoneCard.getByRole('button', { name: /^support$/i }).click()
+
+  // 5. The attacker declines: the window closes, the interrupt cancels the attack before the damage step and
+  //    the chain summons the support card onto the defender's field.
+  await passUntilAttackIsInterrupted(request, setup, attacker, defender, interruptInstanceId)
+
+  const finalState = await fetchGameState(request, setup.gameCode, defender.session.accessToken)
+  const finalDefender = resolvePlayerState(finalState, defender)
+  expect(finalDefender.characterField.some((card) => card.instanceId === interruptInstanceId)).toBe(true)
+  expect(finalDefender.supportZone.some((card) => card.instanceId === interruptInstanceId)).toBe(false)
+  expect(await resolveLeaderLife(request, setup, defender)).toBe(leaderLifeBefore)
+
+  // The attacker is still rested: the rest was paid by the declaration, not by the interrupt.
+  const attackerState = await fetchGameState(request, setup.gameCode, attacker.session.accessToken)
+  const restedAttacker = resolvePlayerState(attackerState, attacker).characterField
+    .find((card) => card.instanceId === attackerCardInstanceId)
+  expect(restedAttacker?.isRested).toBe(true)
+}
+
+async function resolveLeaderLife(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  player: MultiplayerSetup['playerOne'],
+): Promise<number> {
+  const state = await fetchGameState(request, setup.gameCode, player.session.accessToken)
+  const leaderLife = resolvePlayerState(state, player).leader.currentLife
+  if (leaderLife === undefined) {
+    throw new Error('The game state did not publish the leader life.')
+  }
+
+  return leaderLife
+}
+
+/**
+ * The attacker declines the queued interrupt - one decline closes the window - until the pending attack is
+ * cancelled and the summon resolved onto the defender's field.
+ */
+async function passUntilAttackIsInterrupted(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  passer: MultiplayerSetup['playerOne'],
+  owner: MultiplayerSetup['playerOne'],
+  supportInstanceId: string,
+): Promise<void> {
+  // The chip click submits asynchronously: wait until the activation reached the chain (a card whose own
+  // activation is queued publishes no support action at all) before anyone declines - declining first would
+  // close the attack's own window instead of the interrupt's chain.
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, owner.session.accessToken)
+    const supportCard = resolvePlayerState(state, owner).supportZone
+      .find((card) => card.instanceId === supportInstanceId)
+    return (supportCard?.availableActions ?? [])
+      .some((action) => action.actionId.startsWith('activate-support:'))
+  }, {
+    timeout: 10_000,
+  }).toBe(false)
+
+  for (let step = 0; step < 20; step += 1) {
+    const ownerState = await fetchGameState(request, setup.gameCode, owner.session.accessToken)
+    const resolvedOwner = resolvePlayerState(ownerState, owner)
+    const attackCancelled = ownerState.isAttackSequencePending !== true
+    const isOnField = resolvedOwner.characterField.some((card) => card.instanceId === supportInstanceId)
+    const leftSupportZone = !resolvedOwner.supportZone.some((card) => card.instanceId === supportInstanceId)
+
+    if (attackCancelled && isOnField && leftSupportZone) {
+      return
+    }
+
+    const passerState = await fetchGameState(request, setup.gameCode, passer.session.accessToken)
+    const passerCanPass = passerState.availableActions
+      .some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    const ownerCanPass = ownerState.availableActions
+      .some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+
+    if (passerCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, passer)
+    } else if (ownerCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, owner)
+    }
+
+    await wait(400)
+  }
+
+  throw new Error('The interrupt never cancelled the attack within the search window.')
+}
 
 /**
  * N-020 (Sakura Haruno) is the "[During Your Opponent's Attack] Choose 1 Character: Return the chosen card

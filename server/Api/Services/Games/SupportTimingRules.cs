@@ -9,8 +9,11 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 /// - On your own turn a support effect can be activated from hand or from the support area, but the
 ///   effect's own timing still has to be legal. <see cref="EffectTiming.Quick"/> is the exception that
 ///   is legal at any point on your turn ("You can activate this card from your hand at ANY TIME").
-/// - On the opponent's turn supports must be played from the support area and only inside the attack
-///   support cut-in window (Quick / Support Activated / During Opponent's Attack).
+/// - On the opponent's turn supports must be played from the support area, and only inside a support
+///   cut-in response window - the attack's support cut-in step, or the reaction window an activated
+///   support opens. That is where <see cref="EffectTiming.Quick"/> is playable too ("[Quick] can be
+///   played at any valid Support Cut-in response window"), so a Quick support may answer a queued
+///   activation exactly like a <see cref="EffectTiming.SupportActivated"/> one.
 /// - <see cref="EffectTiming.SupportActivated"/> is a reaction to a support being activated, whichever
 ///   window that happened in: the attack cut-in window *and* a MainPhase activation both open a
 ///   reaction window. The supporter reacting must do so from their support area, and only its opponent
@@ -107,7 +110,7 @@ public static class SupportTimingRules
                 isActivePlayer,
             EffectTiming.Quick => isActivePlayer
                 ? IsYourTurnQuickWindow(state, isPriorityPlayer)
-                : state.HasPendingAttack && state.Phase == GamePhase.ActionStep && isPriorityPlayer,
+                : IsOpponentTurnQuickWindow(state, isPriorityPlayer),
             EffectTiming.SupportActivated =>
                 isPriorityPlayer
                 && IsSupportReactionWindowOpen(state)
@@ -124,6 +127,31 @@ public static class SupportTimingRules
         // priority holder is the one allowed to act.
         return state.Phase == GamePhase.MainPhase
             || (state.Phase == GamePhase.ActionStep && isPriorityPlayer);
+    }
+
+    /// <summary>
+    /// On the opponent's turn a support may only be played from the support area (see
+    /// <see cref="IsZoneAllowed"/>) and only while the player is the one being asked to respond. Two
+    /// windows qualify, and both are support cut-in response windows:
+    /// <list type="bullet">
+    /// <item>the attack's support cut-in step - a pending attack whose ActionStep priority has passed to
+    /// the defender (Quick responses to an attack);</item>
+    /// <item>the reaction window an activated support opens (MainPhase or ActionStep) - the "multiple
+    /// supports chain" resolves LIFO, so any support may answer a queued activation.</item>
+    /// </list>
+    /// Without the second window a <c>[Quick]</c> support (N-002) was labelled "Support timing is not
+    /// available right now." while the opponent's activation was waiting for a response, exactly the
+    /// window the card is meant to be played in.
+    /// </summary>
+    private static bool IsOpponentTurnQuickWindow(GameState state, bool isPriorityPlayer)
+    {
+        if (!isPriorityPlayer)
+        {
+            return false;
+        }
+
+        return (state.HasPendingAttack && state.Phase == GamePhase.ActionStep)
+            || IsSupportReactionWindowOpen(state);
     }
 
     private static bool IsSupportReactionWindowOpen(GameState state)

@@ -20,7 +20,7 @@ public static partial class GameStateResponseMapper
             return [];
         }
 
-        var primaryEffect = cardDefinition.Effects.FirstOrDefault();
+        var primaryEffect = ResolveActivationEntryEffect(state, cardDefinition, card);
         if (primaryEffect is null)
         {
             return
@@ -69,6 +69,27 @@ public static partial class GameStateResponseMapper
                 IsEnabled: isEnabled,
                 DisabledReason: disabledReason)
         ];
+    }
+
+    /// <summary>
+    /// The entry effect of a support activation in the shape the engine actually executes it.
+    ///
+    /// An activation replays the card's planned nodes through <see cref="SupportActivationNormalizer"/>,
+    /// which turns "summon this card" (N-002/N-008/N-010/N-021: a summon-candidate rule pointing at the
+    /// zone the card is activated from) into a selection-free source-card node before the engine runs it.
+    /// Availability has to be evaluated on that same shape: the raw rule looks for the source card in
+    /// the *hand*, so activating the very same card from the support area resolved zero valid targets
+    /// and the published chip read "No valid targets available." although a submit would have executed.
+    /// </summary>
+    private static EffectSpec? ResolveActivationEntryEffect(GameState state, Card cardDefinition, CardInstance card)
+    {
+        var entryEffect = SupportActivationPlanner.ResolveEntry(cardDefinition);
+        if (entryEffect is null)
+        {
+            return null;
+        }
+
+        return SupportActivationNormalizer.NormalizeEffect(state, cardDefinition, card, entryEffect);
     }
 
 }

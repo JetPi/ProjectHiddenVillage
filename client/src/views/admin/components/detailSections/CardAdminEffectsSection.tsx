@@ -360,12 +360,13 @@ export function CardAdminEffectsSection({
                           return {
                             ...current,
                             runtimeEffectType: nextRuntimeEffectType,
-                            // "Lock Chakra Recovery" locks the players in Target Range, so it never asks for
-                            // a selected target - the server rejects the combination outright.
+                            // "Lock Chakra Recovery" locks the players in Target Range and "Interrupt Attack"
+                            // resolves the pending attack itself, so neither ever asks for a selected target -
+                            // the server rejects the combination outright.
                             executionTargetSource:
                               nextRuntimeEffectType === 'Reveal Card'
                                 ? 'Selected Targets'
-                                : nextRuntimeEffectType === 'Lock Chakra Recovery'
+                                : nextRuntimeEffectType === 'Lock Chakra Recovery' || hidesTargetCount
                                   ? 'None'
                                   : current.executionTargetSource,
                             suppressSummonedTargetsEffectsWhileOnField:

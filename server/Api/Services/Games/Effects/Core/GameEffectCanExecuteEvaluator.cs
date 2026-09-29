@@ -123,37 +123,9 @@ public sealed class GameEffectCanExecuteEvaluator(
         // ("choose 1 character"). Nodes that supply their own targets - source-supplied summons,
         // own-leader modifications, `None`/`SourceCard` execution sources - must never demand a
         // selection, because there is nothing for the player to pick.
-        return RequiresPlayerSelection(effectSpec)
+        return EffectTargetRequirementAnalyzer.RequiresPlayerSelection(effectSpec)
             ? new TargetCountBounds(1)
             : new TargetCountBounds(0, int.MaxValue);
-    }
-
-    private static bool RequiresPlayerSelection(EffectSpec effectSpec)
-    {
-        if (effectSpec.TargetRules.Rules.Count > 0)
-        {
-            return true;
-        }
-
-        if (effectSpec.AttributeModifications.Any(modification =>
-            modification.TargetType == AttributeModificationTargetType.SelectedTargets))
-        {
-            return true;
-        }
-
-        if (effectSpec.KeywordModifications.Any(modification =>
-            modification.TargetType == KeywordModificationTargetType.SelectedTargets))
-        {
-            return true;
-        }
-
-        if (effectSpec.MoveCardActions.Any(action =>
-            action.Operation == MoveCardOperationType.Move && action.SourceZone is not null))
-        {
-            return true;
-        }
-
-        return effectSpec.ExecutionTargetSource == EffectExecutionTargetSource.SelectedTargets;
     }
 
     private static bool ShouldEnforceSelectedTargetCount(EffectTargetRuleSet targetRules, IReadOnlyDictionary<string, string> arguments)

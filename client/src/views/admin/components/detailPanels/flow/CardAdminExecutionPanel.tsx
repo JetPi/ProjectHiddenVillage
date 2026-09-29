@@ -25,9 +25,17 @@ export function CardAdminExecutionPanel({
     || effect.targetRules.minimumTargetCount !== null
     || effect.targetRules.maximumTargetCount !== null
   const isPlayerScopedChakraLock = effect.runtimeEffectType === 'Lock Chakra Recovery'
+  const isAttackNegation = effect.runtimeEffectType === 'Interrupt Attack'
   // The shape that made N-016 unplayable: asking for a pick while declaring nothing to pick from.
   const asksForSelectionWithoutTargetRules =
     effect.executionTargetSource === 'Selected Targets' && !declaresSelectableTargets
+  // N-008's shape: the effect resolves its own target ("Interrupt Attack" cancels the pending attack), so the
+  // declared count is never collected - the availability gate reads it as "needs a target" and refuses the
+  // whole activation with "No valid targets available.".
+  const declaresCountWithoutCollection =
+    effect.executionTargetSource === 'None'
+    && declaresSelectableTargets
+    && effect.targetRules.rules.length === 0
   const isPromptedSelection = effect.selectionTiming === 'Prompted'
   // A prompted node with nothing to draw candidates from never asks - the engine skips the prompt when the
   // candidate pool is empty - so the step would silently do nothing.
@@ -63,6 +71,14 @@ export function CardAdminExecutionPanel({
           </p>
         ) : null}
 
+        {isAttackNegation ? (
+          <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
+            Cancels the pending attack (the attacker stays rested) and then runs this effect&apos;s other nodes -
+            &ldquo;summon this card&rdquo; is the usual branch. It resolves the attack itself, so keep Execution Target
+            Source at None and leave the target counts empty.
+          </p>
+        ) : null}
+
         {asksForSelectionWithoutTargetRules ? (
           <div className="space-y-1 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2">
             <p className="text-[11px] leading-snug text-amber-700">
@@ -75,6 +91,30 @@ export function CardAdminExecutionPanel({
               onClick={() => updateEffectAt(effectIndex, (current) => ({ ...current, executionTargetSource: 'None' }))}
             >
               Set Execution Target Source to None
+            </AppButton>
+          </div>
+        ) : null}
+
+        {declaresCountWithoutCollection ? (
+          <div className="space-y-1 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2">
+            <p className="text-[11px] leading-snug text-amber-700">
+              This effect resolves its own target (Execution Target Source: None) but still declares a target count.
+              Nothing is ever collected, and the count only makes the effect read &ldquo;No valid targets available.&rdquo;.
+            </p>
+            <AppButton
+              type="button"
+              variant="ghost"
+              onClick={() => updateEffectAt(effectIndex, (current) => ({
+                ...current,
+                targetRules: {
+                  ...current.targetRules,
+                  exactTargetCount: null,
+                  minimumTargetCount: null,
+                  maximumTargetCount: null,
+                },
+              }))}
+            >
+              Clear target count
             </AppButton>
           </div>
         ) : null}

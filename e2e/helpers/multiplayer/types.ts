@@ -74,6 +74,8 @@ export type GamePlayerStateResponse = {
     instanceId?: string
     displayName: string
     isRested?: boolean
+    // Leader life: only chipped by an attacker's DMG and never reset at the turn boundary.
+    currentLife?: number
     // Leader effects (`leader-effect:{instanceId}:{effectKey}`) are published on the leader card
     // only - they never appear in the global `availableActions` list.
     availableActions?: GameActionOptionResponse[]
@@ -81,6 +83,8 @@ export type GamePlayerStateResponse = {
   // Only the requesting player receives their whole deck, in draw order (top card first), so the
   // client/tests can read which card a "reveal the top card of your deck" effect is about to turn over.
   deck?: GameCardInstanceStateResponse[]
+  // Face-up chakra count: spending chakra flips a card face-down, and Recovery is how it comes back.
+  resourcePool: number
   hand: GameCardInstanceStateResponse[]
   characterField: GameCardInstanceStateResponse[]
   supportZone: GameCardInstanceStateResponse[]
@@ -92,6 +96,9 @@ export type GameStateResponse = {
   activePlayerId: string
   priorityPlayerId?: string
   phase: string
+  // True while an attack waits for its cut-in window to close: the client draws the attack-link arrow
+  // from it, and an interrupted attack clears it.
+  isAttackSequencePending?: boolean
   isSupportResponseWindowOpen?: boolean
   pendingPrompt: PromptResponse | null
   availableActions: GameActionOptionResponse[]

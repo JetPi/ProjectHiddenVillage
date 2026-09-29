@@ -77,11 +77,14 @@ paths:
     so a player whose only play is an unused support in the support zone can still be
     auto-ended. Closing it means lifting the mapper's support-timing evaluation into shared
     code.
-- Rest/stand: the attacker rests on declaration (`EnsurePendingAttackAttackerRemainsRested`
-  re-asserts it after when-attacking effects), and `OnEnterRefreshPhase` re-readies the active
-  player's battlefield cards **and their leader**. Because that happens immediately before the
-  MainPhase, “my leader already attacked” is never expressible as a rested leader at MainPhase
-  entry — use a cannot-attack effect if a test needs “this card cannot attack”.
+- Rest/stand: the attacker rests **once**, at declaration
+  (`InMemoryGameInstanceRegistry` pays it as the attack's cost). Nothing downstream re-rests it — not the
+  when-attacking chains, not the support cut-in, not `InterruptAttackEffect` (which used to, via the removed
+  `EnsurePendingAttackAttackerRemainsRested`) — so an effect that stands the attacker back up keeps it
+  standing, and an interrupted attack leaves it rested purely because the declaration rested it.
+  `OnEnterRefreshPhase` re-readies the active player's battlefield cards **and their leader**. Because that
+  happens immediately before the MainPhase, “my leader already attacked” is never expressible as a rested
+  leader at MainPhase entry — use a cannot-attack effect if a test needs “this card cannot attack”.
 - Damage resets: `CompleteEndStep` → `ResetTemporaryCharacterDamage` clears battlefield
   `CurrentHealth` at the turn boundary (character health = effective max health − damage taken
   this turn). **Leader life is never reset** — only damage and card effects change

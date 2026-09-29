@@ -43,12 +43,15 @@ task touches that area).
   `DevelopmentDeckSeederTests.SeedAsync_CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing`
   — N-008 now always resolves from the manifest (the assertion still passes).
 - **Add specs for the newly seeded real cards** (all listed in
-  `03-targeting-contract.md`): quick support cut-in (N-002/N-008/N-010/N-021),
-  When-Attacking reveal-summon, conditional Rush, leader Recovery, on-summon chains.
-  The hand-support resolution, the N-006/N-017 range cut-in + multi-pick flows, the N-020 bounce and the
-  N-009 negate (plus the support-row highlight geometry) live in
+  `03-targeting-contract.md`): quick support cut-in for the remaining Quick cards (N-010/N-021 as the
+  *responder*), When-Attacking reveal-summon, conditional Rush, leader Recovery, on-summon chains.
+  The hand-support resolution, the N-006/N-017 range cut-in + multi-pick flows, the N-020 bounce, the N-008
+  attack interruption and the N-009 negate (plus the support-row highlight geometry) live in
   `e2e/gameview.multiplayer.support.spec.ts` and
-  `e2e/gameview.multiplayer.support-target-visuals.spec.ts`.
+  `e2e/gameview.multiplayer.support-target-visuals.spec.ts`; **N-002's MainPhase cut-in is covered** by
+  `e2e/gameview.multiplayer.quick-support.spec.ts` (a `[Quick]` support answers a queued activation from the
+  support area — the support-timing + normalised-availability regression guard, see
+  `03-targeting-contract.md`).
   **N-016's negate is fixed** (its chakra lock is now its own `Lock Chakra Recovery` runtime effect instead of
   a target-demanding `Alter Resources` node — see `05-server-models-serialization.md`) and covered by server
   tests; it still has no e2e.
@@ -88,5 +91,5 @@ task touches that area).
 | `02-board-ui-hud.md` | board/card UI + `index.css` + battle-visuals e2e | overlays, stat badges, rested-vs-exhausted visuals, targeting highlight CSS |
 | `03-targeting-contract.md` | game client, server game engine/API, e2e | targeting flows, action formats, battle-action rules (DMG/POW, leaders, target legality), tribute-material requirements, `Type` predicate normalization, submit decisions |
 | `04-state-phase-effects.md` | stores, game hooks/effects, phase engine | Zustand, prune, auto-advance, main-phase auto-end, rest/stand + damage resets, draw/mulligan gating |
-| `05-server-models-serialization.md` | `server/**`, `client/src/services/api/**` | response DTOs, STJ serialization gotcha, stat pipelines (leader life vs character health), exhaustion = exile, seed fixtures/real catalogue, known pre-existing test failures |
+| `05-server-models-serialization.md` | `server/**`, `client/src/services/api/**` | response DTOs, STJ serialization gotcha, stat pipelines (leader life vs character health), exhaustion = exile, seed fixtures/real catalogue, server test gates |
 | `99-workflow-tooling.md` | always | environment/tooling/edit gotchas (keep short) |
