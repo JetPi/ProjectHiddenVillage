@@ -220,10 +220,13 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   and the chip submits straight from the support area; the defending leader then ends the turn at
   *printed max + 2 - the attacker's DMG*, i.e. **above** `totalLife`, and the `leader-life-badge` has to render that
   value (the server used to clamp it - `GameStateResponseMapperLeaderLifeTests`).
-- Not yet covered by e2e although the cards are seeded: the remaining on-summon chains that need a selection
-  (N-003/N-005/N-014 - see the `[On Summon]` runner bullet in the reveal-presentation section) and N-022's EX
+- Not yet covered by e2e although the cards are seeded: N-003's cross-zone `SummonFromZone` pick (its candidates
+  come from the trash **or** the deck, which the client resolves into one pool — see the `[On Summon]` runner
+  bullet; the authored shape and the pool logic are pinned by `SeedManifestAuthoringTests` and the
+  `buildPromptCandidateCards` path only) and N-022's EX
   tribute-summon reveal (`tribute-requirement` → `reveal-top` → `on-summon`; the reveal mechanic itself is pinned
-  by the reveal-presentation spec). N-016's negate works again (its chakra lock is its own runtime effect,
+  by the reveal-presentation spec, and N-005's trash recall + N-014's field destroy are covered in
+  `e2e/gameview.multiplayer.actions.spec.ts`). N-016's negate works again (its chakra lock is its own runtime effect,
   see `05-server-models-serialization.md`) and is covered by
   `SupportActivationResolutionTests.ActivateSupport_WithChakraLock_…`, `LockChakraRecoveryEffectTests` **and**
   `e2e/gameview.multiplayer.negate-chakra-lock.spec.ts` (the negate answers the queued K.O., the K.O. never
@@ -280,14 +283,46 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   throwing (`InMemoryGameInstanceRegistryOnSummonTests`). N-013's reveal is the third scenario in
   `e2e/gameview.multiplayer.reveal-presentation.spec.ts`: the summon itself suspends the chain on the presentation
   (the card is already on the field) and the presented deck card goes back face down afterwards.
-- **What an auto-triggered node still cannot do** is collect a selection. N-013's own `freeze-target` is `Upfront`
-  with an authored `exactTargetCount: 1` (the only `selectionTiming: Prompted` in the whole seed is N-012's leader
-  ability), so as a trigger step it resolves no targets, fails `CanExecute` and takes its empty failure branch - a
-  silent no-op. Same shape in N-003/N-005/N-014's on-summon `Summon Card` / `Destroy Card` chains. Fixing it means
-  (a) `selectionTiming: Prompted` on the node in `test-data/seed-profiles.json` **and**
-  `server/Api/rawCardCatalogDump.txt`, and (b) client support for a board-answerable prompt whose `CandidateZone` is
-  `Leader` - `BOARD_PROMPT_SELECTION_ZONES` (`state/gameUIStore.ts`) and `toPromptPresentation` only accept
-  Hand/CharacterField/SupportZone, so a N-013 freeze prompt would have no clickable candidate today.
+- **An auto-triggered node can collect a selection** — through the prompted zone selection. `[On Summon]` /
+  `[When Attacking]` chains run through `GameTriggeredEffectRunner` with zero targets, so a node that needs a pick
+  must opt in: `selectionTiming: Prompted` **plus** `executionFlowMode: Per Step` (an `Atomic Chain` pre-plans and
+  cannot suspend, so `UpdateCardEffectsRequestValidator` rejects the combination). The executor then resolves the
+  node's candidates when the step runs and enqueues a `GamePromptType.Effect` prompt; `ResolvePrompt` resumes the
+  chain with the answer as that node's targets. The prompt carries `CandidateZone` **and** `CandidatePlayerId`
+  (`PendingPromptResponse.CandidatePlayerId`), so the client can pick out of any player's collection —
+  `Hand`/`Deck`/`Trash`/`ExileZone` (see `02-board-ui-hud.md`).
+  `EffectSelectionPromptKind.SummonFromZone` is the "summon 1 [named] Character from your trash" bucket and
+  `EffectSelectionPromptKind.DestroyFromZone` its destroy counterpart (N-014); the zone
+  itself travels in `CandidateZone`, so the same bucket also covers a deck/exile summon. N-005 Gamabunta is the
+  worked example (its `on-summon` node is `Per Step` + `Prompted` + `SummonFromZone`, authored in
+  `test-data/seed-profiles.json` **and** `server/Api/rawCardCatalogDump.txt`), covered end-to-end by
+  `e2e/gameview.multiplayer.actions.spec.ts` with the `on-summon-trash-recall` profile. A `Per Step` node also
+  rides along a surrounding `Atomic Chain`: the atomic plan stops *before* it and hands control back to the
+  per-step walk, which is what makes a tribute-summon chain ask **after** the material landed in the trash.
+- **`CandidateZone` is a hint, not the whole pool**: a prompted node's rules can resolve candidates out of
+  several collections at once ("summon 1 [Naruto Uzumaki] from your trash **or** your deck" unions its Trash and
+  Deck rules — `EffectTargetResolver.ResolveTargets` unions on `Operator: Any`), while the prompt can only name
+  `candidates[0]`'s zone. `buildPromptCandidateCards` therefore resolves every id in `prompt.options` against the
+  named zone first and the candidate player's remaining collections after it, so no offered card is silently
+  dropped (the option list is the authoritative pick set). Authored: N-003 (`SummonFromZone`, Trash + Deck).
+- **A prompted selection with no candidates is not silent**: `TryCreateSelectionPrompt` records an
+  `EffectNoticeActionTypes.NoValidTargets` action-log entry (`effect_no_valid_targets`, with source card / effect
+  id / prompt kind metadata) and still returns `false`, so the node keeps its existing (skipping) failure path.
+  `GameStateResponse.EffectNotices` republishes the tail of that log for the **acting** player only, and the board
+  shows the newest unseen one as a transient toast (see `02-board-ui-hud.md`) — an auto-triggered effect has no
+  action chip whose disabled reason could explain the no-op.
+- **Authored prompted chains (all three fire now)**: N-003's `on-summon-effect` (`SummonFromZone`),
+  N-005's `on-summon` (`SummonFromZone`) and N-014's `on-summon` (`DestroyFromZone`) are `Per Step` + `Prompted`
+  in `test-data/seed-profiles.json` **and** `server/Api/rawCardCatalogDump.txt`; the seed manifest is guarded
+  against drift by `SeedManifestAuthoringTests` (every authored card passes `UpdateCardEffectsRequestValidator`,
+  every prompted node keeps its flow/timing/kind in the dump). N-014's destroy is covered by the
+  `summon-requirements-multi` scenario in `e2e/gameview.multiplayer.actions.spec.ts` — the mixed tribute pays
+  N-011 + N-019, the summon then shows `Select a Character to destroy` and the card's own **Select** button
+  answers the prompt (the first board-zone prompt covered end-to-end).
+- **Still open**: N-013's `freeze-target` (`Upfront`, `exactTargetCount: 1`) still no-ops silently — it needs
+  the same `Prompted` + `Per Step` shape **and** a `CandidateZone: Leader` prompt the board can answer
+  (`BOARD_PROMPT_SELECTION_ZONES` in `state/gameUIStore.ts` and `toPromptPresentation` only accept
+  Hand/CharacterField/SupportZone today, and the leader card is not wired as a prompt candidate).
 
 ## Card-property predicate values (`Type` normalization)
 

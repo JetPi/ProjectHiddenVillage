@@ -12,8 +12,10 @@ namespace ProjectHiddenVillage.Server.Tests;
 [TestClass]
 public sealed class DevelopmentDeckSeederTests
 {
+    // N-008/N-015 always resolve from the seed manifest now, so this asserts the seeded support metadata rather
+    // than the placeholder fallback the old test name referred to.
     [TestMethod]
-    public async Task SeedAsync_CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing()
+    public async Task SeedAsync_SeedsSupportMetadata_ForN008AndN015_FromTheManifest()
     {
         await using var dbContext = CreateDbContext();
 

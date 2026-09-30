@@ -118,6 +118,30 @@
           ]
         }
       }
+    },
+    {
+      "name": "on-summon-trash-recall",
+      "decks": {
+        "one": {
+          "deckId": "10000000-0000-0000-0000-000000000401",
+          "cards": [
+            { "cardId": "N-001", "quantity": 1 },
+            { "cardId": "T-121", "quantity": 3 },
+            { "cardId": "N-005", "quantity": 3 },
+            { "cardId": "N-021", "quantity": 2 }
+          ]
+        },
+        "two": {
+          "deckId": "10000000-0000-0000-0000-000000000402",
+          "cards": [
+            { "cardId": "N-012", "quantity": 1 },
+            { "cardId": "N-013", "quantity": 3 },
+            { "cardId": "N-015", "quantity": 3 },
+            { "cardId": "N-016", "quantity": 3 },
+            { "cardId": "N-017", "quantity": 3 }
+          ]
+        }
+      }
     }
   ],
   "catalogEntries": [
@@ -479,7 +503,9 @@
           "chakraCost": null,
           "globalRestrictions": "None",
           "executionTargetSource": "Selected Targets",
-          "executionFlowMode": "Atomic Chain",
+          "executionFlowMode": "Per Step",
+          "selectionTiming": "Prompted",
+          "selectionPromptKind": "SummonFromZone",
           "suppressSummonedTargetsEffectsWhileOnField": true,
           "revealTimingMode": "Reveal Last",
           "revealPostConditionRuleSet": null,
@@ -803,7 +829,9 @@
           "chakraCost": null,
           "globalRestrictions": "None",
           "executionTargetSource": "Selected Targets",
-          "executionFlowMode": "Atomic Chain",
+          "executionFlowMode": "Per Step",
+          "selectionTiming": "Prompted",
+          "selectionPromptKind": "SummonFromZone",
           "suppressSummonedTargetsEffectsWhileOnField": false,
           "revealTimingMode": "Reveal Last",
           "revealPostConditionRuleSet": null,
@@ -1430,7 +1458,7 @@
       "effects": [
         {
           "id": "reduce-self-life",
-          "isSubordinate": false,
+          "isSubordinate": true,
           "onSuccessEffectId": null,
           "onFailureEffectId": null,
           "runtimeEffectType": "Change Values",
@@ -2538,7 +2566,9 @@
           "chakraCost": null,
           "globalRestrictions": "None",
           "executionTargetSource": "Selected Targets",
-          "executionFlowMode": "Atomic Chain",
+          "executionFlowMode": "Per Step",
+          "selectionTiming": "Prompted",
+          "selectionPromptKind": "DestroyFromZone",
           "suppressSummonedTargetsEffectsWhileOnField": false,
           "revealTimingMode": "Reveal Last",
           "revealPostConditionRuleSet": null,
@@ -3694,6 +3724,31 @@
       "description": "Development high-power tribute material for summon requirement suites.",
       "name": [
         "Veteran Adept"
+      ],
+      "traits": [
+        "Shinobi"
+      ],
+      "conditions": [],
+      "effects": [],
+      "damage": 2,
+      "power": 10,
+      "life": null,
+      "health": 4,
+      "supportName": "",
+      "supportEffect": "",
+      "mainAlternate": false,
+      "cannotBeNormalSummoned": false
+    },
+    {
+      "cardId": "T-121",
+      "originalId": "T-121",
+      "displayName": "Naruto Uzumaki",
+      "image": "https://example.com/cards/T-121.webp",
+      "type": "Character",
+      "color": "Red",
+      "description": "Development fixture: a normally summonable [Naruto Uzumaki] with 10 or more power, so it can serve as a Gamabunta tribute material and as a valid [On Summon] trash recall target.",
+      "name": [
+        "Naruto Uzumaki"
       ],
       "traits": [
         "Shinobi"

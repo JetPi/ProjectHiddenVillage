@@ -13,7 +13,7 @@ import {
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IAttackTargetingState, IEffectTargetingState, IGameLoaderData, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
-import { BottomHandReorderRow, GameHandRow, GamePromptOverlay, GameZones, PromptSelectionBanner, SupportChainBubble } from '@/views/game/components'
+import { BottomHandReorderRow, EffectNoticeBanner, GameHandRow, GamePromptOverlay, GameZones, PromptSelectionBanner, SupportChainBubble } from '@/views/game/components'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
@@ -88,9 +88,6 @@ export function GameView() {
   usePersistedBattlefieldDisplayOrderEffect(battlefieldDisplayOrderStorageKey, topBattlefieldDisplayOrder, bottomBattlefieldDisplayOrder)
 
   const players = gameState.players
-  // A prompt's candidates are resolved against the requesting player's own zones - the deck matters for
-  // search prompts, where the player picks a card out of their deck.
-  const requestingPlayerDeckCards = players.find((player) => player.playerId === authUserId)?.deck ?? []
   useGameCardsBackfill({ players, liveGameCards, gameCardsQuery })
 
   const derivedGameState = useDerivedGameViewState(liveGameCards, players, authUserId)
@@ -344,8 +341,8 @@ export function GameView() {
           prompt={promptPresentation}
           candidateCards={buildPromptCandidateCards({
             prompt: promptPresentation,
-            handCards: bottomHandCards,
-            deckCards: requestingPlayerDeckCards,
+            players,
+            requestingPlayerId: authUserId,
             catalogCards: liveGameCards,
           })}
           isConnected={isConnected}
@@ -362,6 +359,8 @@ export function GameView() {
         />
 
         <SupportChainBubble gameInstance={gameState} authUserId={authUserId} />
+
+        <EffectNoticeBanner notices={gameState.effectNotices} />
 
         {actionError ? (
           <div

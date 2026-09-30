@@ -88,8 +88,12 @@ paths:
 - Testids: `trash-pile-viewer-button`, `card-list-overlay` (+ `-items`, `-close-button`,
   `-empty-message`), `card-list-item-{instanceId}` carrying `data-card-definition-id` (the deterministic
   way to identify a pile card — never assert art URLs, see the art section above).
+  The subtitle is **count-only** (`1 card` / `n cards`); the newest-first ordering hint was deliberately
+  dropped from the copy, so never assert a `· most recent first` suffix (the pile order itself is still
+  newest-first, see the pile bullet above).
   `e2e/gameview.multiplayer.actions.spec.ts` covers it on the tribute-summon flow (one card in the trash
-  → open → `1 card · most recent first` + one `T-120` tile → Escape closes).
+  → open → `1 card` + one `T-120` tile → Escape closes; the spec also pins the absence of the dropped
+  ordering suffix).
 
 ## Card art vs pointer interception (real art in tests)
 
@@ -216,6 +220,34 @@ paths:
   contract: the lone-entry pop while the window waits (`1 activation`) and the two-entry negate chain.
 - `.support-chain-bubble-enter` (`index.css`) is a transient entrance animation only — no persistent
   transform, so the text inside stays crisp.
+
+## Effect selection picker (`GamePromptOverlay`) + effect notice toast
+
+- An effect selection prompt carries the cards' ids only; `buildPromptCandidateCards`
+  (`views/game/utils/functions/prompts/index.ts`) resolves them from the prompt's `candidateZone` **and**
+  `candidatePlayerId`: `Hand`/`Deck`/`Trash`/`ExileZone` are read straight off the matching player payload, so a
+  "summon 1 Character from your trash" prompt renders real card faces (`GameView` passes `players`, not just the
+  requesting player's hand/deck). The named zone is only a **hint**: the pool is that collection first, then the
+  candidate player's remaining collections, because a node's rules can resolve candidates out of several zones at
+  once (N-003's "trash **or** deck") while `CandidateZone` can name only one — each id in `prompt.options` is
+  matched against the pool in the prompt's own order, so no offered card is dropped. Zones the board draws as
+  selectable cards (`Hand`/`CharacterField`/`SupportZone`)
+  keep the hover-Select flow instead (N-014's field destroy is answered by the card's own **Select** button);
+  a trash/deck/exile pool opens this overlay.
+- The picker is presentation-agnostic: tiles are `prompt-card-option-{instanceId}`, the option copy comes from
+  `EFFECT_SELECTION_PROMPT_COPY` (keyed by the server's `selectionPromptKind` — `SummonFromZone` = "Choose a
+  Character to Summon", `DestroyFromZone` = "Choose a Character to Destroy"), and the middle phase banner shows
+  the matching `PhaseValues['select-prompt-*']` entry
+  (`getPromptSelectionPhaseValue`). Adding a kind = one entry in each of those maps + the server enum member and
+  `SELECTION_PROMPT_KIND_OPTIONS` (admin authoring). No server round-trip for wording.
+- **`EffectNoticeBanner`** (rendered next to `SupportChainBubble`) is the non-blocking "the effect resolved but
+  had nothing to act on" toast: `effect-notice-banner` / `effect-notice-message`, `role="status"`,
+  `pointer-events-none`, top-left so it never fights the support-chain bubble (top-right) or the action-error
+  banner (top-centre), auto-fading after ~4.2 s (`.effect-notice-enter` is a transient entrance animation only).
+  It shows the newest `GameStateResponse.EffectNotices` entry that was **not** already in the payload when the
+  board mounted, which is what keeps a mid-game reload from replaying old notices; the server republishes the same
+  tail on every push, so the list is de-duplicated by `noticeId` (= the action-log entry id) rather than by
+  clearing state. Never make it clickable or modal: it can arrive in the same push as a card animation.
 
 ## Targeting-highlight CSS gotcha (`client/src/index.css`)
 

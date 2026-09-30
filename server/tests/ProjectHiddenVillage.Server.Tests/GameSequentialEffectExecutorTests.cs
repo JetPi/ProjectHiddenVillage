@@ -1939,6 +1939,77 @@ public sealed class GameSequentialEffectExecutorTests
         CollectionAssert.AreEqual(new[] { "draw-step", "choose-step" }, observedSpecIds.ToArray());
     }
 
+    [TestMethod]
+    public void Execute_PromptedTrashSummon_SuspendsAndOffersTheTrashCandidates()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        // "[On Summon] Summon 1 [Naruto Uzumaki] Character from your trash": the pool only exists once this
+        // step runs, so the chain must stop and ask with the trash candidates of the acting player.
+        var sourceDefinition = CreateSourceDefinition(CreateTrashRecallEffect("recall-step"));
+
+        var context = CreateContext(sourceDefinition);
+        AddTrashCard(context, "trash-1", "trash-def");
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        // Nothing executed yet: the chain suspended on the question.
+        Assert.AreEqual(0, observedSpecIds.Count);
+
+        var prompt = context.Game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual(GamePromptType.Effect, prompt.Type);
+        Assert.AreEqual("recall-step", prompt.EffectContinuation!.ResumeNodeId);
+        Assert.AreEqual(EffectSelectionPromptKind.SummonFromZone, prompt.SelectionPromptKind);
+        Assert.AreEqual(PlayerZone.Trash, prompt.CandidateZone);
+        Assert.AreEqual("p1", prompt.CandidatePlayerId);
+        CollectionAssert.AreEqual(new[] { "trash-1" }, prompt.Options.ToArray());
+
+        var resumeResult = executor.Resume(
+            context.Game,
+            prompt.EffectContinuation,
+            [new GameEffectTargetReference("p1", PlayerZone.Trash, "trash-1")]);
+
+        Assert.IsFalse(resumeResult.IsError);
+        CollectionAssert.AreEqual(new[] { "recall-step" }, observedSpecIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_PromptedSelectionWithoutCandidates_RecordsANoticeAndSkipsTheStep()
+    {
+        var observedSpecIds = new List<string>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingEffect(SummonCardEffect.EffectKey, observedSpecIds),
+        ]));
+
+        // Same node with an empty trash: there is nothing to ask about, so the chain must not park on an empty
+        // prompt. An auto-triggered chain ([On Summon]) has no action chip that could explain the no-op, so the
+        // engine records a notice the client can surface.
+        var sourceDefinition = CreateSourceDefinition(CreateTrashRecallEffect("recall-step"));
+
+        var context = CreateContext(sourceDefinition);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError);
+        Assert.IsNull(context.Game.GetPendingPrompt());
+
+        var notice = context.Game.ActionLog.Single();
+        Assert.AreEqual(EffectNoticeActionTypes.NoValidTargets, notice.ActionType);
+        Assert.AreEqual("p1", notice.PlayerId);
+        StringAssert.Contains(notice.Message, "Source");
+        Assert.AreEqual("source-1", notice.Metadata["sourceCardInstanceId"]);
+        Assert.AreEqual("Source", notice.Metadata["sourceCardDisplayName"]);
+        Assert.AreEqual("recall-step", notice.Metadata["effectId"]);
+        Assert.AreEqual(nameof(EffectSelectionPromptKind.SummonFromZone), notice.Metadata["selectionPromptKind"]);
+    }
+
 
     [TestMethod]
     public void Execute_LeaderEffectKey_StartsAtTheRequestedAbility_NotTheFirstOne()
@@ -2005,6 +2076,69 @@ public sealed class GameSequentialEffectExecutorTests
             Traits = [],
             Damage = 1,
             Power = 1,
+        };
+    }
+
+    /// <summary>
+    /// Mirrors the authored N-005 shape: a "Summon Card" node whose pool is the acting player's trash and whose
+    /// pick is deferred to execution time.
+    /// </summary>
+    private static EffectSpec CreateTrashRecallEffect(string effectId)
+    {
+        return new EffectSpec
+        {
+            Id = effectId,
+            RuntimeEffectType = RuntimeEffects.SummonCard,
+            EffectType = EffectKind.Activated,
+            Timing = EffectTiming.OnSummon,
+            TargetRange = EffectTargetRange.Self,
+            ContextRules = [],
+            ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+            ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+            SelectionTiming = EffectSelectionTiming.Prompted,
+            SelectionPromptKind = EffectSelectionPromptKind.SummonFromZone,
+            TargetRules = new EffectTargetRuleSet
+            {
+                ExactTargetCount = 1,
+                AutoSelectAllValidTargets = false,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.Trash,
+                        LocationSelector = new EffectTargetLocationSelector
+                        {
+                            Kind = EffectTargetLocationSelectorKind.Any,
+                        },
+                    },
+                ],
+            },
+        };
+    }
+
+    private static void AddTrashCard(GameCardEffectContext context, string instanceId, string definitionId)
+    {
+        var player = context.Game.State.Players.First(entry => entry.PlayerId == "p1");
+        player.DiscardPile.Add(new CardInstance
+        {
+            InstanceId = instanceId,
+            CardDefinitionId = definitionId,
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        });
+
+        context.Game.State.CardDefinitions[definitionId] = new CharacterCard
+        {
+            Id = definitionId,
+            DisplayName = "Trash Card",
+            Name = ["Trash Card"],
+            Type = CardType.Character,
+            Color = CardColor.Red,
+            Traits = [],
+            Damage = 1,
+            Power = 1,
+            Health = 2,
         };
     }
 

@@ -27,6 +27,22 @@ public enum EffectSelectionPromptKind
     SearchDeck,
 
     /// <summary>
+    /// "Summon 1 [named] Character from your trash": the pool is not one of the player's visible zones, so the
+    /// candidates only exist once the chain reaches the step (an earlier step may have put them there). The zone
+    /// itself travels in <see cref="GamePrompt.CandidateZone"/>, so the same bucket also covers a deck/exile
+    /// summon.
+    /// </summary>
+    SummonFromZone,
+
+    /// <summary>
+    /// "Destroy 1 Character": same prompted-selection shape as <see cref="SummonFromZone"/>, but the picked
+    /// card is the one the destroy effect removes. The zone travels in <see cref="GamePrompt.CandidateZone"/>,
+    /// so a field pick (which the board answers with the card's own Select button) and a zone pick (the
+    /// card-list overlay) share this bucket.
+    /// </summary>
+    DestroyFromZone,
+
+    /// <summary>
     /// Not a selection: a <see cref="RevealTimingMode.RevealFirst"/> step turned a card face up that the acting
     /// player could not see before (the top card of a deck, an opponent's hand / face-down support card), and the
     /// chain waits for them to acknowledge the presentation before it carries on. The prompt's single option is

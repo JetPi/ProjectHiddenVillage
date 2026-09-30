@@ -20,6 +20,7 @@ export type MultiplayerSeedProfileName =
   | 'summon-requirements'
   | 'summon-requirements-strict'
   | 'summon-requirements-multi'
+  | 'on-summon-trash-recall'
 
 export type MultiplayerSeedPlayerProfile = {
   id: string
@@ -46,9 +47,11 @@ type PromptResponse = {
   type: string
   isAwaitingRequestingPlayer: boolean
   options: string[]
-  // Effect prompts name the presentation bucket (e.g. 'RevealPresentation', 'PlaceOnDeckTop').
+  // Effect prompts name the presentation bucket (e.g. 'RevealPresentation', 'PlaceOnDeckTop') and where the
+  // candidates live ('Hand', 'Deck', 'Trash', ...) plus which player owns that zone.
   selectionPromptKind?: string | null
   candidateZone?: string | null
+  candidatePlayerId?: string | null
 }
 
 type GameActionOptionResponse = {

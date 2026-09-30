@@ -984,6 +984,10 @@ public sealed class GameSequentialEffectExecutor(
 
         if (options.Count == 0)
         {
+            // There is nothing to ask about, so this node falls through to its normal (failing) execution path.
+            // An auto-triggered chain ([On Summon], [When Attacking]) has no action chip that could explain the
+            // no-op, so record it as a notice the client can surface instead of leaving the player guessing.
+            RecordNoValidTargetsNotice(stepContext, effectSpec, nodeId);
             return false;
         }
 
@@ -1016,6 +1020,53 @@ public sealed class GameSequentialEffectExecutor(
 
         prompt.EffectContinuation.PromptId = prompt.PromptId;
         return true;
+    }
+
+    /// <summary>
+    /// Records that a prompted selection ran out of candidates. The engine keeps its existing failure path (the
+    /// node falls through and skips, exactly as before) - this only makes that skip visible to the player through
+    /// <see cref="GameStateResponse.EffectNotices"/>, which matters for effects no action chip announces.
+    /// </summary>
+    private static void RecordNoValidTargetsNotice(
+        GameCardEffectContext context,
+        EffectSpec effectSpec,
+        string nodeId)
+    {
+        var sourceCardDisplayName = string.IsNullOrWhiteSpace(context.SourceCardDefinition.DisplayName)
+            ? context.SourceCardDefinition.Id
+            : context.SourceCardDefinition.DisplayName;
+        var effectLabel = string.IsNullOrWhiteSpace(effectSpec.Id) ? nodeId : effectSpec.Id.Trim();
+
+        context.Game.AddActionLogEntry(
+            actionType: EffectNoticeActionTypes.NoValidTargets,
+            message: $"{sourceCardDisplayName}'s effect had no valid targets.",
+            playerId: ResolveNoticePlayerId(context),
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["sourceCardInstanceId"] = context.SourceCardInstance?.InstanceId ?? string.Empty,
+                ["sourceCardDisplayName"] = sourceCardDisplayName,
+                ["effectId"] = effectLabel,
+                ["selectionPromptKind"] = effectSpec.SelectionPromptKind.ToString(),
+            });
+    }
+
+    /// <summary>
+    /// The acting player's id, or null when the context carries a player that is not part of the game's player
+    /// list (a unit-test context). Logging must never throw from inside an effect.
+    /// </summary>
+    private static string? ResolveNoticePlayerId(GameCardEffectContext context)
+    {
+        var actingPlayerId = context.ActingPlayer.Id;
+
+        if (string.IsNullOrWhiteSpace(actingPlayerId))
+        {
+            return null;
+        }
+
+        return context.Game.State.Players.Any(player =>
+            string.Equals(player.PlayerId, actingPlayerId, StringComparison.Ordinal))
+            ? actingPlayerId
+            : null;
     }
 
     private static (int Minimum, int Maximum) ResolvePromptSelectionBounds(EffectSpec effectSpec)

@@ -1,3 +1,4 @@
+using ErrorOr;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
@@ -18,6 +19,9 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
     private const string SummonedInstanceId = "summoned-1";
     private const string TriggerEffectId = "onsummon-life";
     private const string TributeMaterialInstanceId = "tribute-material-1";
+    private const string TrashRecallInstanceId = "trash-recall-1";
+    private const string TrashRecallDefinitionId = "trash-recall-def";
+    private const string TrashRecallEffectId = "onsummon-trash-recall";
 
     private readonly InMemoryGameInstanceRegistry registry = new(
         new GameInstanceFactory(),
@@ -149,6 +153,41 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
         Assert.IsNull(game.GetPendingPrompt());
     }
 
+    [TestMethod]
+    public void ExecuteCardAction_NormalSummon_PromptedOnSummonTrashRecall_AsksWithTheTrashAndResumesWithTheAnswer()
+    {
+        var recallEffect = new RecordingSummonEffect();
+        var game = CreateGame(definitionId: "onsummon-def-trash-recall");
+        AddTrashCard(game, TrashRecallInstanceId, TrashRecallDefinitionId);
+
+        registry.ExecuteCardAction(game.Id, CreateSummonRequest(), CreateSequentialExecutor(recallEffect));
+
+        // The summon itself already happened; the "[On Summon]" chain suspended to ask which trash card to summon.
+        Assert.AreEqual(SummonedInstanceId, game.State.Players[0].Battlefield.Single().InstanceId);
+        Assert.AreEqual(0, recallEffect.SelectedTargetInstanceIds.Count);
+
+        var prompt = game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual(GamePromptType.Effect, prompt.Type);
+        Assert.AreEqual("p1", prompt.RequestedPlayerId);
+        Assert.AreEqual(EffectSelectionPromptKind.SummonFromZone, prompt.SelectionPromptKind);
+        Assert.AreEqual(PlayerZone.Trash, prompt.CandidateZone);
+        Assert.AreEqual("p1", prompt.CandidatePlayerId);
+        CollectionAssert.AreEqual(new[] { TrashRecallInstanceId }, prompt.Options.ToArray());
+        Assert.IsNotNull(prompt.EffectContinuation);
+
+        registry.ResolvePrompt(
+            game.Id,
+            requestedPlayerId: "p1",
+            selectedOption: TrashRecallInstanceId,
+            reactiveEffectOrchestrator: null,
+            sequentialEffectExecutor: CreateSequentialExecutor(recallEffect));
+
+        // The answer travelled through the continuation into the resumed node as its selection.
+        Assert.IsNull(game.GetPendingPrompt());
+        CollectionAssert.AreEqual(new[] { TrashRecallInstanceId }, recallEffect.SelectedTargetInstanceIds.ToArray());
+    }
+
     private static int CountSkippedOnSummonEntries(GameInstance game)
     {
         return game.ActionLog.Count(entry =>
@@ -238,7 +277,7 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
             ]);
     }
 
-    private static IGameSequentialEffectExecutor CreateSequentialExecutor()
+    private static IGameSequentialEffectExecutor CreateSequentialExecutor(IGameCardEffect? extraEffect = null)
     {
         var canExecuteEvaluator = new GameEffectCanExecuteEvaluator(
             new EffectContextConditionEvaluator(),
@@ -248,10 +287,17 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
         var targetResolver = new EffectTargetResolver();
         var effectSpecResolver = new GameRuntimeEffectSpecResolver();
 
-        return new GameSequentialEffectExecutor(new GameCardEffectRegistry(
-        [
+        var effects = new List<IGameCardEffect>
+        {
             new ModifyAttributeEffect(effectSpecResolver, canExecuteEvaluator, targetResolver),
-        ]));
+        };
+
+        if (extraEffect is not null)
+        {
+            effects.Add(extraEffect);
+        }
+
+        return new GameSequentialEffectExecutor(new GameCardEffectRegistry(effects));
     }
 
     private static Dictionary<string, Card> BuildDefinitions()
@@ -292,6 +338,10 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
                 "onsummon-def-unsatisfiable",
                 "On Summon Unsatisfiable",
                 [CreateTargetedOpponentEffect()]),
+            ["onsummon-def-trash-recall"] = CreateCharacterDefinition(
+                "onsummon-def-trash-recall",
+                "On Summon Trash Recall",
+                [CreateTrashRecallEffect()]),
             ["tribute-summon-def"] = CreateTributeSummonDefinition(),
         };
     }
@@ -354,6 +404,100 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
                 }
             ],
         };
+    }
+
+    /// <summary>
+    /// Mirrors the authored N-005 shape: an "[On Summon]" summon whose candidate pool is the acting player's
+    /// trash and whose pick is deferred to execution time (so the chain suspends and asks).
+    /// </summary>
+    private static EffectSpec CreateTrashRecallEffect()
+    {
+        return new EffectSpec
+        {
+            Id = TrashRecallEffectId,
+            RuntimeEffectType = RuntimeEffects.SummonCard,
+            EffectType = EffectKind.Activated,
+            Timing = EffectTiming.OnSummon,
+            DurationMode = EffectDurationMode.Instant,
+            IsOptional = false,
+            ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+            ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+            SelectionTiming = EffectSelectionTiming.Prompted,
+            SelectionPromptKind = EffectSelectionPromptKind.SummonFromZone,
+            TargetRules = new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                ExactTargetCount = 1,
+                AutoSelectAllValidTargets = false,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.Trash,
+                        LocationSelector = new EffectTargetLocationSelector
+                        {
+                            Kind = EffectTargetLocationSelectorKind.Any,
+                        },
+                    }
+                ],
+            },
+        };
+    }
+
+    private static void AddTrashCard(GameInstance game, string instanceId, string definitionId)
+    {
+        game.State.Players[0].DiscardPile.Add(new CardInstance
+        {
+            InstanceId = instanceId,
+            CardDefinitionId = definitionId,
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        });
+
+        game.State.CardDefinitions[definitionId] = new CharacterCard
+        {
+            Id = definitionId,
+            DisplayName = "Trash Recall Card",
+            Name = ["Naruto Uzumaki"],
+            Type = CardType.Character,
+            Color = CardColor.Blue,
+            Traits = ["Ninja"],
+            Description = string.Empty,
+            Damage = 1,
+            Power = 1,
+            Health = 5,
+        };
+    }
+
+    /// <summary>
+    /// Stands in for <see cref="SummonCardEffect"/> in the resumed chain: it records the selection the node was
+    /// handed, which is what proves the prompt answer reached the effect (the real summon behaviour itself is
+    /// covered by SummonCardEffectTests).
+    /// </summary>
+    private sealed class RecordingSummonEffect : IGameCardEffect
+    {
+        public List<string> SelectedTargetInstanceIds { get; } = [];
+
+        public string EffectTypeKey => SummonCardEffect.EffectKey;
+
+        public CanExecuteResult CanExecute(GameCardEffectContext context)
+        {
+            return new CanExecuteResult { CanExecute = context.SelectedTargets.Count > 0 };
+        }
+
+        public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
+        {
+            return [];
+        }
+
+        public ErrorOr<Success> Execute(
+            GameCardEffectContext context,
+            IReadOnlyList<GameEffectTargetReference> selectedTargets)
+        {
+            SelectedTargetInstanceIds.AddRange(selectedTargets.Select(target => target.CardInstanceId));
+            return Result.Success;
+        }
     }
 
     /// <summary>

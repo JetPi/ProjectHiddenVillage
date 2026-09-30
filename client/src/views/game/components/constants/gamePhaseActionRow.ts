@@ -34,6 +34,8 @@ const PhaseValues = {
   'select-prompt-discard-from-hand': 'Select a card to discard',
   'select-prompt-return-to-hand': 'Select a card to return to hand',
   'select-prompt-search-deck': 'Select a card from your deck',
+  'select-prompt-summon-from-zone': 'Select a Character to summon',
+  'select-prompt-destroy-from-zone': 'Select a Character to destroy',
   'select-prompt-generic': 'Select a card',
 }
 

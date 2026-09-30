@@ -70,12 +70,13 @@ task touches that area).
 - **Commit the catalogue regeneration script** — `catalogEntries` is generated from
   `server/Api/rawCardCatalogDump.txt`; the working one-off script only lives in `/tmp`
   (details in `05-server-models-serialization.md`).
-- **Rename the stale seeder test**
-  `DevelopmentDeckSeederTests.SeedAsync_CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing`
-  — N-008 now always resolves from the manifest (the assertion still passes).
+- **Rename the stale seeder test** — done:
+  `DevelopmentDeckSeederTests.SeedAsync_SeedsSupportMetadata_ForN008AndN015_FromTheManifest`, because N-008/N-015
+  always resolve from the manifest now.
 - **Add specs for the newly seeded real cards** (all listed in
-  `03-targeting-contract.md`): what is still open is the on-summon chains that need a selection
-  (N-003/N-005/N-014, N-022's EX tribute-summon reveal) — the leader Recovery activation is blocked by the
+  `03-targeting-contract.md`): what is still open is N-022's EX tribute-summon reveal — N-005's own trash recall
+  and **N-014's prompted destroy** are now covered (see the
+  `[On Summon]` runner bullet above), the leader Recovery activation is blocked by the
   engine gap above, and N-011 by the UI gap above.
   The hand-support resolution, the N-006/N-017 range cut-in + multi-pick flows, the N-020 bounce, the N-008
   attack interruption, the N-010 life gain above the printed maximum (the `leader-life-badge` unclamped
@@ -115,13 +116,50 @@ task touches that area).
   N-013's on-summon reveal is now covered end-to-end by the **third** scenario in
   `e2e/gameview.multiplayer.reveal-presentation.spec.ts` (the summon itself suspends the chain on the presentation,
   then the card goes back face down), so an `[On Summon]` effect runs after a normal summon.
-  **Still open:** a target-demanding auto-triggered node collects no selection, so N-013's `freeze-target` and
-  N-003/N-005/N-014's summon/destroy chains silently no-op (`Upfront` + `exactTargetCount: 1`). That needs
-  `selectionTiming: Prompted` on those nodes (seed **and** `rawCardCatalogDump.txt`) plus client support for a
-  `CandidateZone: Leader` board prompt — see `03-targeting-contract.md`.
-- **Optional regression test** for N-009 (Kakashi, Support-Activated “reduce your life by 2”):
+  **N-005's prompted trash recall is shipped** (the first auto-triggered node that collects a selection): its
+  `on-summon` node is now `Per Step` + `selectionTiming: Prompted` + `selectionPromptKind: SummonFromZone`, so
+  the `[On Summon]` chain suspends and asks for the trash card instead of silently summoning nothing. Covered by
+  `GameSequentialEffectExecutorTests` (suspend with `CandidateZone: Trash` + resume; a zero-candidate prompt
+  records a notice), `InMemoryGameInstanceRegistryOnSummonTests` (summon → prompt → `ResolvePrompt` → the answer
+  reaches the resumed effect), `GameStateResponseMapperEffectNoticesTests` and — end-to-end —
+  `e2e/gameview.multiplayer.actions.spec.ts` with the new `on-summon-trash-recall` profile (its `T-121`
+  manifest fixture is a normally summonable [Naruto Uzumaki] with 10 power, so it is both a legal tribute
+  material and a legal recall target: summon it, tribute it, answer the picker, watch it land again). The same
+  spec's second scenario covers the **no-candidate** half: with only T-120 in the trash the board shows the
+  transient `effect-notice-banner` ("Gamabunta's effect had no valid targets.") and stays fully playable.
+  **Still open:** N-013's `freeze-target` is `Upfront` with `exactTargetCount: 1`, so it still no-ops silently
+  (it needs `selectionTiming: Prompted` + `Per Step`, plus a `CandidateZone: Leader` prompt the board can answer —
+  see `03-targeting-contract.md`). **N-003's and N-014's chains are fixed**: both are authored `Per Step` +
+  `Prompted` in the seed **and** `rawCardCatalogDump.txt` (`SummonFromZone` / `DestroyFromZone`), and
+  `SeedManifestAuthoringTests` now runs every authored card through `UpdateCardEffectsRequestValidator` and
+  compares each node's flow/timing/kind against the dump, so the drift cannot come back unnoticed. N-014's
+  destroy is covered end-to-end by the `summon-requirements-multi` scenario in
+  `e2e/gameview.multiplayer.actions.spec.ts` (the mixed tribute pays N-011 + N-019, then the card's own
+  **Select** button answers the `Select a Character to destroy` prompt — the first board-zone prompt covered).
+- **The N-012 dump drift is fixed** (and guarded): `server/Api/rawCardCatalogDump.txt` used to keep the *raw*
+  imported `draw-n-place-card` node (one node with a Draw + a Move action, no `selectionTiming`) while
+  `test-data/seed-profiles.json` splits it into `draw-n-place-card` + a `Prompted` `place-one-on-deck`. Both
+  sources now carry the split, and `SeedManifestAuthoringTests.AuthoredNodesInTheManifest_KeepTheirShapeInTheRawDump`
+  fails if any node's `ExecutionFlowMode`/`SelectionTiming`/`SelectionPromptKind` ever disagrees again. (The dump
+  is still only read for docs/regeneration, but regenerating `catalogEntries` from it would otherwise silently
+  lose authored shapes — patch both whenever a node's authored shape matters.)
+- **N-009's flagged branch target is fixed**: `reduce-self-life` (the "reduce your life by 2" follow-up of the
+  negate) was left `isSubordinate: false` by the ingestion even though `negate-effect` branches to it.
+  `SupportActivationPlanner.IsRoot` tolerates that (a branch target is never a root whatever the flag says), but
+  the admin authoring contract rejects it — so both authored sources now mark it subordinate and the manifest
+  passes the validator clean. Nothing changes at runtime: the planner already planned the negate as the root and
+  the follow-up as its chain step.
+- **Manifest authoring is test-guarded now**: `SeedManifestAuthoringTests` loads the real
+  `test-data/seed-profiles.json`, runs every card's effects through `UpdateCardEffectsRequestValidator` (the same
+  contract the admin editor enforces — this is what caught N-009's unflagged branch target), pins the authored
+  prompted `[On Summon]` nodes (N-003/N-005/N-014 → `Per Step` + `Prompted`) and fails when the raw dump
+  disagrees with the manifest on any node's `ExecutionFlowMode`/`SelectionTiming`/`SelectionPromptKind`. Keep both
+  files in sync; run `dotnet test --filter FullyQualifiedName~SeedManifestAuthoringTests` after touching either.
+- **Optional regression test** for N-009 (Kakashi, Support-Activated "reduce your life by 2"):
   its `reduce-self-life` effect declares a target entry with `exactSelectedTargetCount: 0` while
-  `targetRules.exactTargetCount` is 1 — harmless today, but pin the behaviour before touching it.
+  `targetRules.exactTargetCount` is 1 — harmless today, but pin the behaviour before touching it. (Its
+  `isSubordinate` flag was fixed to `true` in both authored sources, which only satisfies the authoring contract:
+  `SupportActivationPlanner.IsRoot` already refused to treat a branch target as a root.)
 
 ## Commands (quick)
 

@@ -118,6 +118,10 @@ function getPromptSelectionPhaseValue(gameInstance: IGameStateResponse): string 
       return PhaseValues['select-prompt-return-to-hand']
     case 'SearchDeck':
       return PhaseValues['select-prompt-search-deck']
+    case 'SummonFromZone':
+      return PhaseValues['select-prompt-summon-from-zone']
+    case 'DestroyFromZone':
+      return PhaseValues['select-prompt-destroy-from-zone']
     default:
       return PhaseValues['select-prompt-generic']
   }
