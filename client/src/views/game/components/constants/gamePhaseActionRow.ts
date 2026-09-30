@@ -36,6 +36,7 @@ const PhaseValues = {
   'select-prompt-search-deck': 'Select a card from your deck',
   'select-prompt-summon-from-zone': 'Select a Character to summon',
   'select-prompt-destroy-from-zone': 'Select a Character to destroy',
+  'select-prompt-freeze-from-zone': 'Select a Leader or Character to freeze',
   'select-prompt-generic': 'Select a card',
 }
 

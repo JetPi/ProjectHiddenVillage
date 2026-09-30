@@ -139,6 +139,9 @@ export type ILeaderCardProps = {
   isActionPending?: boolean
   isTargetCandidate?: boolean
   onChooseTarget?: () => void
+  /** True while this card is one of an effect selection prompt's candidates (the "Select" button). */
+  isEffectTargetCandidate?: boolean
+  onToggleEffectTarget?: () => void
   onSelectActionOption?: (actionId: string) => void
   leaderCard: {
     id: string

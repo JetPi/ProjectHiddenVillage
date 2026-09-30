@@ -2103,6 +2103,94 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.IsTrue(response.IsEnabled);
     }
 
+    [TestMethod]
+    public void ExecuteCardAction_LeaderRecovery_TurnsChakraFaceUp_AndRestsTheLeader()
+    {
+        // N-001/N-012's authored Recovery ("[Recovery] If it is the second turn or later, rest this card and
+        // flip all of your CHAKRA face-up"): an AlterResources `Recover 5` step behind the
+        // `isSecondTurnOrLater` execution condition. Both the argument the condition reads and the rest the
+        // ability pays are supplied by the registry, so the real sequential executor has to turn the pool
+        // back up in one submit.
+        var game = CreateLeaderRecoveryGame(playerTurnCount: 3, resourcePool: 3);
+        var leaderInstance = game.State.Players[1].LeaderCardInstance!;
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: $"leader-effect:{leaderInstance.InstanceId}:recovery",
+                SourceCardInstanceId: leaderInstance.InstanceId),
+            CreateAlterResourcesExecutor());
+
+        Assert.AreEqual(PlayerState.ChakraCardCount, game.State.Players[1].ResourcePool);
+        Assert.IsTrue(leaderInstance.IsRested, "Recovery rests the leader as part of its cost");
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_LeaderRecovery_RefusesTheFirstTurn_AndChangesNothing()
+    {
+        var game = CreateLeaderRecoveryGame(playerTurnCount: 1, resourcePool: 0);
+        var leaderInstance = game.State.Players[1].LeaderCardInstance!;
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(
+                game.Id,
+                new GameCardActionExecutionRequest(
+                    PlayerId: "p2",
+                    ActionId: $"leader-effect:{leaderInstance.InstanceId}:recovery",
+                    SourceCardInstanceId: leaderInstance.InstanceId),
+                CreateAlterResourcesExecutor()));
+
+        Assert.AreEqual("Recovery can only be activated starting from your second turn.", ex.Message);
+        Assert.AreEqual(0, game.State.Players[1].ResourcePool);
+        Assert.IsFalse(leaderInstance.IsRested);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_SuppliesTheIsSecondTurnOrLaterArgument_FromTheActingPlayersTurnCount()
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
+        game.State.PriorityPlayerId = "p1";
+
+        var leaderInstanceId = game.State.Players[1].LeaderCardInstance!.InstanceId;
+        var argumentKey = EffectExecutionConditionArgumentKey.IsSecondTurnOrLater.ToWireValue();
+
+        var firstTurnExecutor = new RecordingSequentialExecutor();
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: $"leader-effect:{leaderInstanceId}:leader-main",
+                SourceCardInstanceId: leaderInstanceId),
+            firstTurnExecutor);
+
+        Assert.AreEqual(bool.FalseString, firstTurnExecutor.Contexts[0].Arguments[argumentKey]);
+
+        game.State.Players[1].TurnCount = 2;
+
+        var laterTurnExecutor = new RecordingSequentialExecutor();
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: $"leader-effect:{leaderInstanceId}:leader-main",
+                SourceCardInstanceId: leaderInstanceId),
+            laterTurnExecutor);
+
+        Assert.AreEqual(bool.TrueString, laterTurnExecutor.Contexts[0].Arguments[argumentKey]);
+    }
+
     private static Dictionary<string, Card> BuildDefinitions(params string[] ids)
     {
         return ids.ToDictionary(
@@ -2189,6 +2277,290 @@ public sealed class InMemoryGameInstanceRegistryTests
         var afterUse = registry.GetCardActionTargets(game.Id, request, evaluator);
         Assert.IsFalse(afterUse.IsEnabled);
         Assert.AreEqual(EffectRestrictionMessages.OncePerTurn, afterUse.DisabledReason);
+    }
+
+    /// <summary>
+    /// A leader whose only effect is the authored Recovery shape ("[Recovery] If it is the second turn or
+    /// later, rest this card and flip all of your CHAKRA face-up"): an AlterResources `Recover 5` step behind
+    /// the `isSecondTurnOrLater` execution condition. p2 is the acting player.
+    /// </summary>
+    private GameInstance CreateLeaderRecoveryGame(int playerTurnCount, int resourcePool)
+    {
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: BuildDefinitionsWithLeaderEffects(),
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
+        game.State.PriorityPlayerId = "p1";
+        game.State.TurnNumber = 3;
+        game.State.Players[1].TurnCount = playerTurnCount;
+        game.State.Players[1].ResourcePool = resourcePool;
+
+        var leaderCard = (LeaderCard)game.State.CardDefinitions["leader-def"];
+        leaderCard.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "recovery",
+                EffectType = EffectKind.Recovery,
+                Timing = EffectTiming.ActivateMain,
+                RuntimeEffectType = RuntimeEffects.AlterResources,
+                ExecutionCondition = new EffectExecutionConditionSpec
+                {
+                    ArgumentKey = EffectExecutionConditionArgumentKey.IsSecondTurnOrLater,
+                    ExpectedValue = bool.TrueString,
+                },
+                ChakraAdjustments =
+                [
+                    new ChakraAdjustmentSpec
+                    {
+                        TargetRange = EffectTargetRange.Self,
+                        Operation = ChakraAdjustmentOperation.Recover,
+                        Amount = PlayerState.ChakraCardCount,
+                    }
+                ],
+            }
+        ];
+
+        return game;
+    }
+
+    /// <summary>The real sequential executor carrying the single runtime effect the authored recovery uses.</summary>
+    private static IGameSequentialEffectExecutor CreateAlterResourcesExecutor()
+    {
+        var canExecuteEvaluator = new GameEffectCanExecuteEvaluator(
+            new EffectContextConditionEvaluator(),
+            new EffectTargetResolver(),
+            new GameValidTargetResultFactory(),
+            new GameEffectConditionDiagnostics());
+
+        return new GameSequentialEffectExecutor(
+            new GameCardEffectRegistry(
+            [
+                new AlterResourcesEffect(new GameRuntimeEffectSpecResolver(), canExecuteEvaluator)
+            ]));
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_CharacterAbility_ExecutesTheSourceCardsAbility_AndSpendsItsOncePerTurn()
+    {
+        // N-011's shape: the ability belongs to a battlefield character, not the leader, and it is published
+        // as `character-ability:{instanceId}:{effectKey}`. A second ability card keeps the MainPhase open after
+        // the first activation, so the retry reaches the once-per-turn guard instead of the phase guard.
+        var game = CreateCharacterAbilityGame(abilityInstanceIds: ["ino-1", "shikamaru-1"]);
+        var executor = new RecordingSequentialExecutor();
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: "character-ability:ino-1:team-10-boost",
+                SourceCardInstanceId: "ino-1"),
+            executor);
+
+        Assert.AreEqual(1, executor.Contexts.Count);
+        Assert.AreEqual("p2", executor.Contexts[0].ActingPlayer.Id);
+        Assert.AreEqual(
+            "team-10-boost",
+            executor.Contexts[0].Arguments[ReactiveEffectExecutionConstants.AbilityKeyArgument]);
+        Assert.AreEqual("ino-1", executor.Contexts[0].SourceCardInstance?.InstanceId);
+
+        // "[Once Per Turn]" is spent by the activation: the same ability cannot be activated again.
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(
+                game.Id,
+                new GameCardActionExecutionRequest(
+                    PlayerId: "p2",
+                    ActionId: "character-ability:ino-1:team-10-boost",
+                    SourceCardInstanceId: "ino-1"),
+                new RecordingSequentialExecutor()));
+        Assert.AreEqual(EffectRestrictionMessages.OncePerTurn, ex.Message);
+    }
+
+    [TestMethod]
+    public void GetCardActionTargets_CharacterAbility_ReturnsTheCardsAbilityTargets()
+    {
+        var game = CreateCharacterAbilityGame(abilityInstanceIds: ["ino-1"]);
+
+        var response = registry.GetCardActionTargets(
+            game.Id,
+            new GameCardActionTargetsRequest(
+                PlayerId: "p2",
+                ActionId: "character-ability:ino-1:team-10-boost",
+                SourceCardInstanceId: "ino-1"),
+            new GameEffectCanExecuteEvaluator(
+                new EffectContextConditionEvaluator(),
+                new EffectTargetResolver(),
+                new GameValidTargetResultFactory(),
+                new GameEffectConditionDiagnostics()));
+
+        Assert.AreEqual("character-ability:ino-1:team-10-boost", response.ActionId);
+        Assert.IsTrue(response.IsEnabled, response.DisabledReason ?? string.Empty);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_CharacterAbility_ThrowsOutsideTheOwnersMainPhase()
+    {
+        var game = CreateCharacterAbilityGame(abilityInstanceIds: ["ino-1"]);
+        game.State.Phase = GamePhase.ActionStep;
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(
+                game.Id,
+                new GameCardActionExecutionRequest(
+                    PlayerId: "p2",
+                    ActionId: "character-ability:ino-1:team-10-boost",
+                    SourceCardInstanceId: "ino-1"),
+                new RecordingSequentialExecutor()));
+
+        Assert.AreEqual("Card abilities can only be activated during MainPhase.", ex.Message);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_CharacterAbility_ThrowsForTheNonActivePlayer()
+    {
+        var game = CreateCharacterAbilityGame(abilityInstanceIds: ["ino-1"]);
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(
+                game.Id,
+                new GameCardActionExecutionRequest(
+                    PlayerId: "p1",
+                    ActionId: "character-ability:ino-1:team-10-boost",
+                    SourceCardInstanceId: "ino-1"),
+                new RecordingSequentialExecutor()));
+
+        // p1 is not the active player, so the window guard fires before the source lookup can fail.
+        Assert.AreEqual("Only the active player can activate card abilities.", ex.Message);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_CharacterAbility_KeepsTheMainPhaseOpen_WhileAnotherAbilityIsStillLegal()
+    {
+        // The auto-end probe: activating one battlefield ability must not end the MainPhase while a second
+        // character still publishes an activatable ability (without the probe the phase would auto-advance).
+        var game = CreateCharacterAbilityGame(abilityInstanceIds: ["ino-1", "shikamaru-1"]);
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: "character-ability:ino-1:team-10-boost",
+                SourceCardInstanceId: "ino-1"),
+            new RecordingSequentialExecutor());
+
+        Assert.AreEqual(GamePhase.MainPhase, game.State.Phase);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_CharacterAbility_AutoEndsTheMainPhase_WhenNoOtherActionIsLegal()
+    {
+        // Same game with a single ability card: once it is spent (and every character is rested, so no battle
+        // can be declared) the MainPhase has no legal action left and must not strand the player on it.
+        var game = CreateCharacterAbilityGame(abilityInstanceIds: ["ino-1"]);
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: "character-ability:ino-1:team-10-boost",
+                SourceCardInstanceId: "ino-1"),
+            new RecordingSequentialExecutor());
+
+        Assert.AreNotEqual(GamePhase.MainPhase, game.State.Phase);
+    }
+
+    private static Dictionary<string, Card> BuildDefinitionsWithCharacterAbilities(params string[] ids)
+    {
+        return ids.ToDictionary(
+            keySelector: id => id,
+            elementSelector: id => (Card)new CharacterCard
+            {
+                Id = id,
+                DisplayName = id,
+                Name = [id],
+                Type = CardType.Character,
+                Traits = [],
+                Color = CardColor.Red,
+                Description = string.Empty,
+                Conditions = [],
+                Effects =
+                [
+                    new EffectSpec
+                    {
+                        Id = "team-10-boost",
+                        EffectType = EffectKind.Activated,
+                        Timing = EffectTiming.ActivateMain,
+                        RuntimeEffectType = RuntimeEffects.GainEffect,
+                        GlobalRestrictions = EffectRestrictions.OncePerTurn,
+                        ExecutionTargetSource = EffectExecutionTargetSource.None,
+                        KeywordModifications =
+                        [
+                            new KeywordModificationSpec
+                            {
+                                TargetType = KeywordModificationTargetType.SourceCard,
+                                Operation = KeywordModificationOperation.Add,
+                                Keyword = EffectConditionKeywords.Rush
+                            }
+                        ],
+                    }
+                ],
+            },
+            comparer: StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// p2's MainPhase with the given battlefield characters and nothing else legal: no hand, no support area,
+    /// every character rested and the leader rested, so an enabled ability is the only action in the phase.
+    /// </summary>
+    private GameInstance CreateCharacterAbilityGame(IReadOnlyList<string> abilityInstanceIds)
+    {
+        var definitions = BuildDefinitionsWithLeaderEffects();
+        foreach (var entry in BuildDefinitionsWithCharacterAbilities([.. abilityInstanceIds]))
+        {
+            definitions[entry.Key] = entry.Value;
+        }
+
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: definitions,
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
+        game.State.PriorityPlayerId = "p2";
+        game.State.TurnNumber = 3;
+        game.State.Players[1].TurnCount = 3;
+        game.State.Players[1].Hand.Clear();
+        game.State.Players[1].SupportZone.Clear();
+
+        foreach (var instanceId in abilityInstanceIds)
+        {
+            game.State.Players[1].Battlefield.Add(new CardInstance
+            {
+                InstanceId = instanceId,
+                CardDefinitionId = instanceId,
+                OwnerPlayerId = "p2",
+                ControllerPlayerId = "p2",
+                IsRested = true,
+            });
+        }
+
+        game.State.Players[1].LeaderCardInstance!.IsRested = true;
+
+        return game;
     }
 
     private GameInstance CreateOncePerTurnLeaderGame()

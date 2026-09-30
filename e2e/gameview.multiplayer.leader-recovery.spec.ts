@@ -19,10 +19,13 @@ import type { MultiplayerPages, MultiplayerSetup } from './helpers/gameviewMulti
 //   "[Recovery] If it is the second turn or later, rest this card and flip all of your CHAKRA face-up."
 // authored as an `AlterResources` node with `operation: Recover, amount: 5`, the
 // `isSecondTurnOrLater` execution condition and `executionTargetSource: None`. The mapper publishes it on
-// the leader as `leader-effect:{instanceId}:recovery` with the label "Recovery".
+// the leader as `leader-effect:{instanceId}:recovery` with the label "Recovery"; the registry supplies the
+// `isSecondTurnOrLater` argument the condition reads and pays the ability's rest (ChakraRecoveryRules).
+// The test name is the original one: it also pins "chakra never comes back on its own".
 const LEADER_RECOVERY_EFFECT_SUFFIX = ':recovery'
 const LEADER_RECOVERY_BUTTON_NAME = 'Activate leader recovery'
 const FIRST_TURN_RECOVERY_REASON = 'Recovery can only be activated starting from your second turn.'
+const ALL_CHAKRA_FACE_UP_REASON = 'All chakra cards are already face up.'
 
 // The chakra pool is 5 face-up cards; nothing flips them back automatically ("Chakra DOES NOT
 // automatically flip face-up at the start of your turn" / "There is no passive chakra recovery"), so the
@@ -105,12 +108,36 @@ async function playLeaderRecoveryScenario(
   await leaderCard.hover()
   await expect(recoveryButton).toBeEnabled({ timeout: 10_000 })
 
-  // The spec deliberately stops at this availability contract: *activating* the chip is currently a silent
-  // no-op in the engine. The node's `isSecondTurnOrLater` execution condition is matched against the
-  // execution *arguments* (`GameSequentialEffectExecutor.ConditionMatches`) and nothing ever supplies that
-  // argument, so the step is skipped without an error while this availability gate (its own
-  // `player.TurnCount < 2` check) reports the chip as enabled. See the pending follow-up list in
-  // `.clinerules/README.md` for the full diagnosis.
+  // 4. Activating the chip now really recovers: the authored node's `isSecondTurnOrLater` execution
+  //    condition is matched against an argument the server derives from the acting player's turn count
+  //    (`ExecuteCardAction`), and "Recover 5" is clamped to the five chakra cards a player owns, so a pool
+  //    one short tops back up to full. "[Recovery] ... rest this card" is paid as part of the ability.
+  await recoveryButton.click()
+
+  await expect.poll(async () => {
+    return await readChakraPool(request, setup, setup.playerOne)
+  }, { timeout: 15_000 }).toBe(FULL_CHAKRA_POOL)
+
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)
+    return resolvePlayerState(state, setup.playerOne).leader.isRested
+  }, { timeout: 10_000 }).toBe(true)
+
+  // The board draws the rest, not just the payload: the leader has its own, gentler rested tilt
+  // (`LEADER_RESTED_ROTATION_CLASS` = `rotate-[5deg]`; the battlefield cards use `rotate-[14deg]`).
+  await expect.poll(async () => {
+    return await leaderCard.getAttribute('class')
+  }, { timeout: 10_000 }).toContain('rotate-[5deg]')
+
+  // 5. With every chakra card face up the same chip publishes disabled again, which is the recovered pool's
+  //    own proof: the number on the board came back, and the ability cannot overshoot the five cards.
+  await expect.poll(async () => {
+    const recovery = await readRecoveryAction(request, setup)
+    return recovery.disabledReason
+  }, { timeout: 15_000 }).toBe(ALL_CHAKRA_FACE_UP_REASON)
+
+  await leaderCard.hover()
+  await expect(recoveryButton).toBeDisabled({ timeout: 10_000 })
 }
 async function readChakraPool(
   request: APIRequestContext,

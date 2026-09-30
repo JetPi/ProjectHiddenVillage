@@ -2046,7 +2046,7 @@ public sealed class GameSequentialEffectExecutorTests
             sourceDefinition,
             arguments: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [ReactiveEffectExecutionConstants.LeaderEffectKeyArgument] = "draw-n-place-card",
+                [ReactiveEffectExecutionConstants.AbilityKeyArgument] = "draw-n-place-card",
             });
 
         var result = executor.Execute(context);

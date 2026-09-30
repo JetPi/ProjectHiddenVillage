@@ -92,7 +92,10 @@ paths:
   shared id comparison lives in `GameStatePlayerResolver`, and battle-action legality
   lives in `BattleActionRules` (shared with the engine — see
   `03-targeting-contract.md`). Key entry points:
-  `BuildLeaderAvailableActions`, `BuildEffectOptionLabel`; target responses:
+  `BuildLeaderAvailableActions`, `BuildEffectOptionLabel`; the same
+  `BuildCardAbilityOptions` builder publishes a battlefield character's own ability
+  (see `03-targeting-contract.md`); target responses:
   `InMemoryGameInstanceRegistry.GetCardActionTargets` + `Build*CardActionTargets`
   (see `03-targeting-contract.md`). Leader “Recovery” = `EffectKind.Recovery`
-  surfaced with label `"Recovery"`.
+  surfaced with label `"Recovery"`, gated by `ChakraRecoveryRules` (which the registry
+  also uses to refuse a direct submit — see `03-targeting-contract.md`).

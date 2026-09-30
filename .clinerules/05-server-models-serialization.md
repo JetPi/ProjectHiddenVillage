@@ -133,9 +133,9 @@ paths:
   `interrupt-attack` carried a leftover `exactTargetCount: 1` on a node that resolves the pending attack itself,
   which the availability gate read as "needs a target" (the card could not be played). It is cleared in both
   files, and `UpdateCardEffectsRequestValidator` now rejects the shape for new saves. Same for the authored
-  prompted nodes (N-003/N-005/N-014) and N-012's split `draw-n-place-card` + `Prompted` `place-one-on-deck`, and
-  for N-009's `reduce-self-life` (a branch target that must carry `isSubordinate: true`) — `SeedManifestAuthoringTests`
-  now fails when the two sources disagree.
+  prompted nodes (N-003/N-005/N-014 and N-013's `freeze-target`) and N-012's split `draw-n-place-card` +
+  `Prompted` `place-one-on-deck`, and for N-009's `reduce-self-life` (a branch target that must carry
+  `isSubordinate: true`) — `SeedManifestAuthoringTests` now fails when the two sources disagree.
 - `DevelopmentDeckSeeder` **upserts** those definitions for referenced ids (the manifest wins over
   existing rows) and only fabricates placeholders for ids that are still missing —
   `SeedPlaceholderCatalogEntriesAsync` skips ids already present, so real imported rows are never

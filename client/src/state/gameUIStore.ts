@@ -12,10 +12,12 @@ function resolveUpdate<T>(value: SetStateAction<T>, previous: T): T {
 
 /**
  * Zones whose cards are drawn on the board, so a prompt asking for a card there is answered by clicking the
- * card's own Select button instead of the card-list overlay. Kept next to the store because the store decides
- * whether a click picks a prompt candidate or toggles an effect-target selection.
+ * card's own Select button instead of the card-list overlay. The leader counts: it is a board card the player
+ * clicks like any other (N-013's freeze offers a Leader or a Character), so it publishes the same Select
+ * affordance. Kept next to the store because the store decides whether a click picks a prompt candidate or
+ * toggles an effect-target selection.
  */
-const BOARD_PROMPT_SELECTION_ZONES = new Set<string>(['Hand', 'CharacterField', 'SupportZone'])
+const BOARD_PROMPT_SELECTION_ZONES = new Set<string>(['Hand', 'CharacterField', 'SupportZone', 'Leader'])
 
 /**
  * The instance ids a board-answerable effect selection prompt offers. The server resolves them from the

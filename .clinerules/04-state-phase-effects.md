@@ -81,7 +81,9 @@ paths:
   (`InMemoryGameInstanceRegistry` pays it as the attack's cost). Nothing downstream re-rests it — not the
   when-attacking chains, not the support cut-in, not `InterruptAttackEffect` (which used to, via the removed
   `EnsurePendingAttackAttackerRemainsRested`) — so an effect that stands the attacker back up keeps it
-  standing, and an interrupted attack leaves it rested purely because the declaration rested it.
+  standing, and an interrupted attack leaves it rested purely because the declaration rested it. The one other
+  place that rests a card is `ExecuteLeaderEffectAction`: a leader's `Recovery` rests the leader once the
+  ability's effect executed (see `03-targeting-contract.md`).
   `OnEnterRefreshPhase` re-readies the active player's battlefield cards **and their leader**. Because that
   happens immediately before the MainPhase, “my leader already attacked” is never expressible as a rested
   leader at MainPhase entry — use a cannot-attack effect if a test needs “this card cannot attack”.
@@ -130,10 +132,12 @@ paths:
   `CandidateZone`/`CandidatePlayerId` (which collection to render) and min/max counts. Nothing is published
   up front for a prompted node (`ResolveValidTargetsForResponse` returns `[]`), so the client keeps
   auto-submitting and the engine prompts — otherwise the player would pick *before* the draw.
-- `GameSequentialEffectExecutor.ResolveEntryNodeId` now honours `__leaderEffectKey`
-  (`ReactiveEffectExecutionConstants.LeaderEffectKeyArgument`): a leader with several abilities starts at the
-  *requested* ability's node. Previously it always walked the first non-subordinate node, so a leader's second
-  ability executed the first ability's chain (N-012's `draw-n-place-card` never ran).
+- `GameSequentialEffectExecutor.ResolveEntryNodeId` now honours `__abilityKey`
+  (`ReactiveEffectExecutionConstants.AbilityKeyArgument`): a card with several abilities starts at the
+  *requested* ability's node. The action that started the execution names it —
+  `leader-effect:{instanceId}:{effectKey}` for a leader, `character-ability:{instanceId}:{effectKey}` for a
+  battlefield card. Previously it always walked the first non-subordinate node, so a card's second ability
+  executed the first ability's chain (N-012's `draw-n-place-card` never ran).
 - `MoveCardEffect` no longer auto-consumes a card it just drew (the old `selfSuppliedTargets` fallback):
   authoring "draw then place" is two chained nodes, the second `Prompted`.
 - `RuntimeEffects.SearchCard` is implemented (`SearchCardEffect`, prompted selection from the deck) —

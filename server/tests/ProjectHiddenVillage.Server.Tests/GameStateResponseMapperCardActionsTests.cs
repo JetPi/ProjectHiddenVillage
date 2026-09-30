@@ -1331,6 +1331,87 @@ public sealed class GameStateResponseMapperCardActionsTests
         Assert.IsTrue(freeCard.AvailableActions.Any(action => action.ActionId == "activate-support:support-2"));
     }
 
+    [TestMethod]
+    public void ToGameStateResponse_PublishesCharacterAbilityActions_ForBattlefieldCards()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        // N-011's shape: a battlefield character with an "[Activate: Main]" ability of its own.
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [CreateCardInstance("ability-1", "card-ability", requesterId)]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = requesterId;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battlefieldCard = requester.CharacterField.Single();
+
+        var abilityActions = battlefieldCard.AvailableActions
+            .Where(action => action.ActionId.StartsWith("character-ability:", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.AreEqual(1, abilityActions.Count);
+        Assert.AreEqual("character-ability:ability-1:team-10-boost", abilityActions[0].ActionId);
+        Assert.AreEqual("Activate Main", abilityActions[0].Label);
+        Assert.IsTrue(abilityActions[0].IsEnabled, abilityActions[0].DisabledReason ?? string.Empty);
+        // The Battle action stays published next to the ability (it is always offered, enabled or not).
+        Assert.AreEqual(1, battlefieldCard.AvailableActions.Count(action =>
+            action.ActionId.StartsWith("battle-action:", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_HidesCharacterAbilityActions_OutsideTheOwnersMainPhase()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [CreateCardInstance("ability-1", "card-ability", requesterId)]);
+        // BuildState's default: ActionStep, requester holds priority but is not the active player.
+        state.ActivePlayerId = opponentId;
+        state.PriorityPlayerId = requesterId;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battlefieldCard = requester.CharacterField.Single();
+
+        Assert.AreEqual(0, battlefieldCard.AvailableActions.Count(action =>
+            action.ActionId.StartsWith("character-ability:", StringComparison.Ordinal)));
+        // Battle is still published (disabled with its own reason) - the ability gate only removes the ability.
+        Assert.AreEqual(1, battlefieldCard.AvailableActions.Count(action =>
+            action.ActionId.StartsWith("battle-action:", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesCharacterAbilityActions_WhenOncePerTurnWasSpent()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [CreateCardInstance("ability-1", "card-ability", requesterId)]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = requesterId;
+        state.MarkEffectUsedThisTurn(requesterId, "ability-1", "team-10-boost");
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var abilityAction = requester.CharacterField.Single().AvailableActions
+            .Single(action => action.ActionId.StartsWith("character-ability:", StringComparison.Ordinal));
+
+        Assert.IsFalse(abilityAction.IsEnabled);
+        Assert.AreEqual(EffectRestrictionMessages.OncePerTurn, abilityAction.DisabledReason);
+    }
+
     private static GameState BuildState(
         string requesterId,
         string opponentId,
@@ -1373,7 +1454,8 @@ public sealed class GameStateResponseMapperCardActionsTests
                 ["card-tribute-hand"] = CreateCharacterDefinition("card-tribute-hand", "Tribute Hand Card"),
                 ["card-support"] = CreateCharacterDefinition("card-support", "Support Card"),
                 ["card-support-capable"] = CreateSupportCapableCharacterDefinition("card-support-capable", "Support Capable Card"),
-                ["card-battle"] = CreateCharacterDefinition("card-battle", "Battle Card")
+                ["card-battle"] = CreateCharacterDefinition("card-battle", "Battle Card"),
+                ["card-ability"] = CreateCharacterDefinitionWithAbility("card-ability", "Ability Card")
             },
             Players =
             [
@@ -1394,6 +1476,38 @@ public sealed class GameStateResponseMapperCardActionsTests
                 }
             ]
         };
+    }
+
+    private static CharacterCard CreateCharacterDefinitionWithAbility(string id, string displayName)
+    {
+        var card = CreateCharacterDefinition(id, displayName);
+
+        // N-011's shape: an "[Activate: Main] [Once Per Turn]" ability. The unit-test payload targets the
+        // source card itself so the ability is untargeted (N-011's "your Ino/Shikamaru/Choji gain Rush" target
+        // selection is covered end-to-end by the character-ability spec).
+        card.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "team-10-boost",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                RuntimeEffectType = RuntimeEffects.GainEffect,
+                GlobalRestrictions = EffectRestrictions.OncePerTurn,
+                ExecutionTargetSource = EffectExecutionTargetSource.None,
+                KeywordModifications =
+                [
+                    new KeywordModificationSpec
+                    {
+                        TargetType = KeywordModificationTargetType.SourceCard,
+                        Operation = KeywordModificationOperation.Add,
+                        Keyword = EffectConditionKeywords.Rush
+                    }
+                ],
+            }
+        ];
+
+        return card;
     }
 
     private static CardInstance CreateCardInstance(string instanceId, string definitionId, string playerId)

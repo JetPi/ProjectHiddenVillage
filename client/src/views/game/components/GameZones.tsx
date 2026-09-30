@@ -9,7 +9,7 @@ import {
   buildLeaderCardProps,
   extractTargetIds,
   getCardsAndOptions,
-  isCardInstanceBattleTarget,
+  isCardInstanceInTargetSet,
   isCardRestedState,
   toAnchorId,
 } from '@/views/game/utils/functions'
@@ -182,13 +182,25 @@ function GameZones(props: IGameZonesProps) {
   }, [pendingSummonTargeting])
 
   const isTopLeaderBattleTarget = useMemo(
-    () => isCardInstanceBattleTarget(topLeaderCard, validBattleTargetsByCardId),
+    () => isCardInstanceInTargetSet(topLeaderCard, validBattleTargetsByCardId),
     [topLeaderCard, validBattleTargetsByCardId]
   );
 
   const isBottomLeaderBattleTarget = useMemo(
-    () => isCardInstanceBattleTarget(bottomLeaderCard, validBattleTargetsByCardId),
+    () => isCardInstanceInTargetSet(bottomLeaderCard, validBattleTargetsByCardId),
     [bottomLeaderCard, validBattleTargetsByCardId]
+  );
+
+  // A leader is a valid candidate of an effect selection prompt too (N-013's freeze offers a Leader or a
+  // Character), so it publishes the same Select chip the battlefield/hand/support cards do.
+  const isTopLeaderEffectTargetCandidate = useMemo(
+    () => isCardInstanceInTargetSet(topLeaderCard, validEffectTargetsByCardId),
+    [topLeaderCard, validEffectTargetsByCardId]
+  );
+
+  const isBottomLeaderEffectTargetCandidate = useMemo(
+    () => isCardInstanceInTargetSet(bottomLeaderCard, validEffectTargetsByCardId),
+    [bottomLeaderCard, validEffectTargetsByCardId]
   );
 
   const resolveLeaderRestedState = (instanceId: string | undefined) =>
@@ -203,6 +215,10 @@ function GameZones(props: IGameZonesProps) {
     hidePreviewWhenBattleTarget: isBattleActionTargeting,
     showBadgeWhenLifeMissing: true,
     isRested: resolveLeaderRestedState(cardOptions.topLeaderCard?.instanceId),
+    isEffectTargetCandidate: isTopLeaderEffectTargetCandidate,
+    onToggleEffectTarget: isTopLeaderEffectTargetCandidate && cardOptions.topLeaderCard
+      ? () => useGameUIStore.getState().toggleEffectTarget(cardOptions.topLeaderCard!.instanceId)
+      : undefined,
   })
 
   const bottomLeaderCardProps = buildLeaderCardProps(props, {
@@ -213,6 +229,10 @@ function GameZones(props: IGameZonesProps) {
     activeAttackLink: renderedAttackLink,
     hidePreviewWhenBattleTarget: isBattleActionTargeting,
     isRested: resolveLeaderRestedState(cardOptions.bottomLeaderCard?.instanceId),
+    isEffectTargetCandidate: isBottomLeaderEffectTargetCandidate,
+    onToggleEffectTarget: isBottomLeaderEffectTargetCandidate && cardOptions.bottomLeaderCard
+      ? () => useGameUIStore.getState().toggleEffectTarget(cardOptions.bottomLeaderCard!.instanceId)
+      : undefined,
   })
 
   const battlefieldRowProps = {

@@ -2368,6 +2368,8 @@
           "globalRestrictions": "None",
           "executionTargetSource": "Selected Targets",
           "executionFlowMode": "Per Step",
+          "selectionTiming": "Prompted",
+          "selectionPromptKind": "FreezeFromZone",
           "suppressSummonedTargetsEffectsWhileOnField": false,
           "revealTimingMode": "Reveal Last",
           "revealPostConditionRuleSet": null,

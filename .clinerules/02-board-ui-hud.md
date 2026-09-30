@@ -158,6 +158,12 @@ paths:
   chip (h-5/w-5, `bg-black/65 text-white`, border `white/35`), shown only on hover
   bottom-left, with distinct enabled (orange accent) vs disabled (`opacity-90`)
   classes via `ENABLED_RECOVERY_CLASSNAME`/`DISABLED_RECOVERY_CLASSNAME`.
+- The leader also answers an effect selection prompt (N-013's freeze, which offers a Leader or a Character):
+  while it is a candidate, `LeaderCard` shows the same **Select** chip the other board cards use
+  (`data-testid="leader-effect-target-toggle"`, wired from `GameZones` → `buildLeaderCardProps` →
+  `isEffectTargetCandidate`/`onToggleEffectTarget`), and the ability list + Recovery chip step aside
+  (`isSoleAction`) so the pick is the only affordance. The `Choose` chip keeps precedence during an
+  attack/effect targeting mode.
 - `disableInteractions` (targeting) suppresses preview + action overlays.
 
 ## Rested vs exhausted on the board

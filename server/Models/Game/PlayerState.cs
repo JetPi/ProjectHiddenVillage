@@ -2,6 +2,13 @@ namespace ProjectHiddenVillage.Server;
 
 public sealed class PlayerState
 {
+    /// <summary>
+    /// Chakra cards a player starts the game with ("Each player starts the game with 5 chakra cards").
+    /// <see cref="ResourcePool"/> holds how many of them are currently face up, so this is also the
+    /// ceiling a chakra recovery can bring the pool back to.
+    /// </summary>
+    public const int ChakraCardCount = 5;
+
     public string PlayerId { get; set; } = string.Empty;
 
     public int DeckShuffleSeed { get; set; }

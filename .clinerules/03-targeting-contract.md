@@ -14,10 +14,21 @@ paths:
 - Global actions live in `GameStateResponse.AvailableActions`; per-card actions in
   `CardInstanceResponse.AvailableActions`.
 - Hand card `play-card:{instanceId}` · support `activate-support:{instanceId}` ·
-  battlefield `battle-action:{instanceId}` · leader
-  `leader-effect:{leaderInstanceId}:{effectKey}` (effectKey = effect `Id` or
-  `index-{i}`). Phase-level: `advance-phase`, `turn-end`/`endPhase`
-  (`declare-end-step`), `complete-end-step`, `pass-turn`, `resolve-prompt:*`.
+  battlefield `battle-action:{instanceId}` · a card's own ability
+  `leader-effect:{instanceId}:{effectKey}` (leader) or
+  `character-ability:{instanceId}:{effectKey}` (battlefield character, effectKey = effect `Id` or
+  `index-{i}`) · optional attacker choice `resolve-optional-attack-effect:*`. Phase-level: `advance-phase`,
+  `turn-end`/`endPhase` (`declare-end-step`), `complete-end-step`, `pass-turn`, `resolve-prompt:*`.
+- **A card's abilities are published on the card, never in the global list**, and leaders and battlefield
+  cards share the whole path: `GameStateResponseMapper.BuildCardAbilityOptions` builds the options (subordinate
+  nodes skipped, *passives* skipped — a `PassiveMode != None` effect is engine-driven and has no activation
+  window of its own, timing filtered by `CardAbilityTimingRules`, once-per-turn honoured),
+  `InMemoryGameInstanceRegistry.ExecuteCardAbilityAction` executes them, and the client's
+  `mapActionToHubIntent` / `submitMappedAction` route both prefixes through `trySubmitTargetedCardEffect`. A
+  battlefield ability is legality-checked like a hand/battle action (own MainPhase, active player) and is
+  blocked while a support activation waits for responses; the engine's MainPhase auto-end probe
+  (`CanActivateCardAbilityNow`) asks the same timing/once-per-turn/context-rule questions so an ability-only
+  MainPhase is not auto-skipped.
 
 ## Targeting state (client)
 
@@ -73,6 +84,14 @@ targets exist.
   `04-state-phase-effects.md`). Never re-implement these rules on either side.
 - Leaders follow battlefield rules with one difference: the summon-turn rule does not apply
   (leaders are always on the field), so Rush is irrelevant for them.
+- **Leader Recovery legality has one home**: `server/Api/Services/Games/ChakraRecoveryRules.cs`
+  (`CanActivateLeaderRecovery` / `HasFaceDownChakra` / `ClampRecoveryAmount`). The mapper publishes its verdict as
+  the leader option's availability (`GameStateResponseMapper.EffectAvailability`) and
+  `ExecuteLeaderEffectAction` refuses a direct submit with the same reason, so the chip and the engine cannot
+  disagree. The registry also supplies the ability's `isSecondTurnOrLater` execution argument (the condition
+  N-001/N-012 are authored with — `EffectExecutionConditionArgumentKey.ToWireValue()`, injected for every card
+  action) and rests the leader after a successful activation. `PlayerState.ChakraCardCount = 5` is the pool
+  ceiling used by the rules, by `ApplyChakraAdjustment`'s `Recover` clamp and by `GameInstanceFactory`.
 - Targeting for `battle-action`: the opposing **leader is always a valid target** (leaders are
   attackable in Active Mode) plus the opponent's **rested** characters only. There is **no
   power gate** — any active attacker may declare, and the attacker rests on declaration.
@@ -236,12 +255,16 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   queued K.O.) and **N-007's conditional Rush**
   (`e2e/gameview.multiplayer.conditional-rush.spec.ts` - `BattleAction.SummonedThisTurn` flips to enabled on the
   summon turn once the leader's +3 power crosses the passive's 10-power threshold).
-  **Two gaps are documented instead of covered** (see the README's pending list):
-  - *N-001/N-012 leader Recovery*: its `isSecondTurnOrLater` execution condition is never supplied as an argument,
-    so the activation is a silent no-op even though the mapper's availability gate reports the chip as enabled.
-  - *N-011 Ino Yamanaka*: `[Activate: Main]` on a battlefield character has no published action at all
-    (`GameStateResponseMapper.CardActions.BuildCardAvailableActions` maps `PlayerZone.CharacterField` to battle
-    actions only), so the ability is unreachable from the UI.
+  **Both former gaps are now covered**:
+  - *N-001/N-012 leader Recovery* — shipped and pinned by
+    `e2e/gameview.multiplayer.leader-recovery.spec.ts` (see `ChakraRecoveryRules` above).
+  - *N-011 Ino Yamanaka* — her `[Activate: Main]` is published as `character-ability:{instanceId}:add-rush` and
+    covered by `e2e/gameview.multiplayer.character-ability.spec.ts`: the scenario summons
+    [Shikamaru Nara] + [Choji Akimichi] + Ino (one normal summon a turn, the helpers drive the draws), asserts
+    Ino's summon-turn `Battle` chip is refused for entering the field, clicks her own ability chip, then reads
+    +5 power/+1 damage on all three named cards, the `Battle` chip flipping to enabled (**Rush**) and the
+    opposing leader losing exactly the boosted DMG - and finally the `[Once Per Turn]` chip publishing disabled
+    with its reason.
 
 ## Reveal presentation (a `Reveal First` reveal)
 
@@ -311,18 +334,26 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   `GameStateResponse.EffectNotices` republishes the tail of that log for the **acting** player only, and the board
   shows the newest unseen one as a transient toast (see `02-board-ui-hud.md`) — an auto-triggered effect has no
   action chip whose disabled reason could explain the no-op.
-- **Authored prompted chains (all three fire now)**: N-003's `on-summon-effect` (`SummonFromZone`),
-  N-005's `on-summon` (`SummonFromZone`) and N-014's `on-summon` (`DestroyFromZone`) are `Per Step` + `Prompted`
-  in `test-data/seed-profiles.json` **and** `server/Api/rawCardCatalogDump.txt`; the seed manifest is guarded
-  against drift by `SeedManifestAuthoringTests` (every authored card passes `UpdateCardEffectsRequestValidator`,
-  every prompted node keeps its flow/timing/kind in the dump). N-014's destroy is covered by the
+- **Authored prompted chains (four fire now)**: N-003's `on-summon-effect` (`SummonFromZone`),
+  N-005's `on-summon` (`SummonFromZone`), N-014's `on-summon` (`DestroyFromZone`) and N-013's `freeze-target`
+  (`FreezeFromZone`) are `Per Step` + `Prompted` in `test-data/seed-profiles.json` **and**
+  `server/Api/rawCardCatalogDump.txt`; the seed manifest is guarded against drift by
+  `SeedManifestAuthoringTests` (every authored card passes `UpdateCardEffectsRequestValidator`, every prompted
+  node keeps its flow/timing/kind in the dump). N-014's destroy is covered by the
   `summon-requirements-multi` scenario in `e2e/gameview.multiplayer.actions.spec.ts` — the mixed tribute pays
   N-011 + N-019, the summon then shows `Select a Character to destroy` and the card's own **Select** button
   answers the prompt (the first board-zone prompt covered end-to-end).
-- **Still open**: N-013's `freeze-target` (`Upfront`, `exactTargetCount: 1`) still no-ops silently — it needs
-  the same `Prompted` + `Per Step` shape **and** a `CandidateZone: Leader` prompt the board can answer
-  (`BOARD_PROMPT_SELECTION_ZONES` in `state/gameUIStore.ts` and `toPromptPresentation` only accept
-  Hand/CharacterField/SupportZone today, and the leader card is not wired as a prompt candidate).
+- **A prompt may draw its candidates from several zones at once** — N-013's `freeze-target` asks for "1 Leader
+  **or** Character". `GamePrompt.CandidateZone` can only name one (the first candidate's), so both sides treat
+  it as a hint: `InMemoryGameInstanceRegistry.ResolvePromptOptionZone` resolves the answered option against the
+  named zone first and then the candidate player's other collections (Leader/CharacterField/Hand/SupportZone/
+  Trash/Deck/Exile), and the client's `resolvePromptCandidatePool` does the same with its own zone order. The
+  leader counts as a board card there: `Leader` is in `BOARD_PROMPT_SELECTION_ZONES` (store) **and**
+  `BOARD_SELECTION_ZONES` (`prompts/index.ts`), `LeaderCard` renders the same **Select** chip
+  (`data-testid="leader-effect-target-toggle"`, wired through `GameZones` → `buildLeaderCardProps`), and
+  `FreezeCardEffect` writes the keyword onto the *stored* `LeaderCardInstanceState` via
+  `PlayerZoneCardAccessor.ResolveLiveCard` (the leader is the one zone `GetCards` projects into a copy, so the
+  old code skipped leader targets entirely rather than mutating a throwaway object).
 
 ## Card-property predicate values (`Type` normalization)
 

@@ -19,11 +19,13 @@ public static class ReactiveEffectExecutionConstants
     public const string EnforceTargetCountArgument = "__enforceTargetCount";
 
     /// <summary>
-    /// Names the leader ability an execution belongs to (<c>leader-effect:{instanceId}:{effectKey}</c>).
-    /// A leader card can hold several independent abilities, so the sequential executor must start at the
-    /// requested effect's node instead of always walking the first non-subordinate one.
+    /// Names the ability an execution belongs to - the <c>{effectKey}</c> of
+    /// <c>leader-effect:{instanceId}:{effectKey}</c> or <c>character-ability:{instanceId}:{effectKey}</c>.
+    /// A card can hold several independent abilities, so the sequential executor must start at the requested
+    /// effect's node instead of always walking the first non-subordinate one.
     /// </summary>
-    public const string LeaderEffectKeyArgument = "__leaderEffectKey";
+    public const string AbilityKeyArgument = "__abilityKey";
+
 
     public const string RevealedTargetIdsArgument = "revealedTargetIds";
 

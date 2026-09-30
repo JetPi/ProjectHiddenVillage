@@ -55,18 +55,55 @@ public static partial class GameStateResponseMapper
             return [];
         }
 
+        var actions = BuildCardAbilityOptions(
+            state,
+            player,
+            leaderDefinition,
+            sourceCardInstance: null,
+            sourceCardInstanceId: leader.InstanceId,
+            actionPrefix: LeaderEffectActionPrefix);
+
+        // Leaders declare battle exactly like battlefield cards do: the Battle action is always
+        // published for the requesting player's leader (enabled or disabled with a reason).
+        actions.AddRange(BuildBattleActionOptions(leader, state, isLeader: true));
+
+        return actions;
+    }
+
+    /// <summary>
+    /// The independently activatable abilities of one card, published as
+    /// <c>{actionPrefix}{instanceId}:{effectKey}</c>. Leaders (<c>leader-effect:</c>) and battlefield
+    /// characters (<c>character-ability:</c>) share this: the abilities are authored the same way and the same
+    /// timing / once-per-turn / availability rules decide their chips.
+    /// </summary>
+    private static List<GameActionOptionResponse> BuildCardAbilityOptions(
+        GameState state,
+        PlayerState player,
+        Card sourceCardDefinition,
+        CardInstance? sourceCardInstance,
+        string sourceCardInstanceId,
+        string actionPrefix)
+    {
         var candidateEffects = new List<(EffectSpec Effect, int Index, string EffectKey, string BaseLabel)>();
-        foreach (var entry in leaderDefinition.Effects.Select((effect, index) => new { Effect = effect, Index = index }))
+        foreach (var entry in sourceCardDefinition.Effects.Select((effect, index) => new { Effect = effect, Index = index }))
         {
             // A subordinate node is a step of another ability's chain ("draw 1 card, then place 1 card from
             // your hand on top of your deck"), not an independently activatable ability, so it never gets its
-            // own `leader-effect:` action - the chain reaches it through its parent's success branch.
+            // own action - the chain reaches it through its parent's success branch.
             if (entry.Effect.IsSubordinate)
             {
                 continue;
             }
 
-            if (!IsLeaderEffectTimingAvailable(entry.Effect.Timing, state, player.PlayerId))
+            // A passive (N-007's conditional Rush) is resolved by the engine whenever a mutation triggers it.
+            // It has no activation window of its own, so publishing a chip for it would offer the player an
+            // ability that is not theirs to activate.
+            if (entry.Effect.PassiveMode != PassiveMode.None)
+            {
+                continue;
+            }
+
+            if (!CardAbilityTimingRules.IsAbilityTimingAvailable(entry.Effect.Timing, state, player.PlayerId))
             {
                 continue;
             }
@@ -89,7 +126,7 @@ public static partial class GameStateResponseMapper
         }
 
         var labelOrdinals = new Dictionary<string, int>(StringComparer.Ordinal);
-        var actions = new List<GameActionOptionResponse>(capacity: candidateEffects.Count + 1);
+        var actions = new List<GameActionOptionResponse>(capacity: candidateEffects.Count);
         GameInstance? evaluationGame = null;
         foreach (var candidate in candidateEffects)
         {
@@ -102,15 +139,15 @@ public static partial class GameStateResponseMapper
                 label = $"{label} ({nextOrdinal})";
             }
 
-            var actionId = $"{LeaderEffectActionPrefix}{leader.InstanceId}:{candidate.EffectKey}";
+            var actionId = $"{actionPrefix}{sourceCardInstanceId}:{candidate.EffectKey}";
             var (isEnabled, disabledReason) = candidate.Effect.GlobalRestrictions == EffectRestrictions.OncePerTurn
-                && state.IsEffectUsedThisTurn(player.PlayerId, leader.InstanceId, candidate.EffectKey)
+                && state.IsEffectUsedThisTurn(player.PlayerId, sourceCardInstanceId, candidate.EffectKey)
                     ? (false, EffectRestrictionMessages.OncePerTurn)
                     : EvaluateEffectAvailability(
                         state,
                         player,
-                        leaderDefinition,
-                        sourceCardInstance: null,
+                        sourceCardDefinition,
+                        sourceCardInstance,
                         candidate.Effect,
                         ref evaluationGame);
 
@@ -121,31 +158,7 @@ public static partial class GameStateResponseMapper
                 DisabledReason: disabledReason));
         }
 
-        // Leaders declare battle exactly like battlefield cards do: the Battle action is always
-        // published for the requesting player's leader (enabled or disabled with a reason).
-        actions.AddRange(BuildBattleActionOptions(leader, state, isLeader: true));
-
         return actions;
-    }
-
-    private static bool IsLeaderEffectTimingAvailable(EffectTiming timing, GameState state, string actingPlayerId)
-    {
-        var isActivePlayer = IsSamePlayerId(state.ActivePlayerId, actingPlayerId);
-        var isPriorityPlayer = IsSamePlayerId(state.PriorityPlayerId, actingPlayerId);
-
-        return timing switch
-        {
-            EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
-                state.Phase == GamePhase.MainPhase && isActivePlayer,
-            EffectTiming.WhenAttacking =>
-                state.IsAttackDeclarationWindow() && isActivePlayer,
-            EffectTiming.YourTurn => isActivePlayer,
-            EffectTiming.Quick or EffectTiming.SupportActivated =>
-                state.Phase == GamePhase.ActionStep && isPriorityPlayer,
-            EffectTiming.DuringOpponentAttack =>
-                state.HasPendingAttack && state.Phase == GamePhase.ActionStep && !isActivePlayer,
-            _ => false,
-        };
     }
 
     private static string ResolveEffectKey(EffectSpec effectSpec, int effectIndex)

@@ -61,7 +61,7 @@ function submitMappedAction({
     return
   }
 
-  if (action.actionId.startsWith('leader-effect:')) {
+  if (action.actionId.startsWith('leader-effect:') || action.actionId.startsWith('character-ability:')) {
     void trySubmitTargetedCardEffect({
       action,
       canResolvePrompt,

@@ -122,6 +122,8 @@ function getPromptSelectionPhaseValue(gameInstance: IGameStateResponse): string 
       return PhaseValues['select-prompt-summon-from-zone']
     case 'DestroyFromZone':
       return PhaseValues['select-prompt-destroy-from-zone']
+    case 'FreezeFromZone':
+      return PhaseValues['select-prompt-freeze-from-zone']
     default:
       return PhaseValues['select-prompt-generic']
   }

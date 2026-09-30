@@ -172,7 +172,7 @@ public static partial class GameStateResponseMapper
         // selection against the effect-level target counts. For tribute compositions the summon
         // candidate is the hand card being summoned and never appears in the material selection, so
         // availability is determined by the tribute composition's distinct-material solver below.
-        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, tributeEffectSpec, includeValidTargets: false);
+        var canExecuteResult = EffectCanExecuteEvaluator.Evaluate(context, tributeEffectSpec, includeValidTargets: false);
         if (!canExecuteResult.CanExecute)
         {
             return (false, canExecuteResult.FailedConditions.FirstOrDefault() ?? "Summon requirements are not currently satisfiable.");

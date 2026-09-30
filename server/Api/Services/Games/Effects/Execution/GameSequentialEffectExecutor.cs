@@ -928,14 +928,14 @@ public sealed class GameSequentialEffectExecutor(
     private static string ResolveEntryNodeId(IReadOnlyList<ExecutionNode> nodes, GameCardEffectContext context)
     {
         // A card can hold several independent abilities, and the action that started this execution names the
-        // one it belongs to (`leader-effect:{instanceId}:{effectKey}`). Start at that ability's node so its own
-        // on-success chain runs: always picking the first non-subordinate node made a leader's second ability
-        // execute the first ability's chain.
-        if (context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.LeaderEffectKeyArgument, out var leaderEffectKey)
-            && !string.IsNullOrWhiteSpace(leaderEffectKey))
+        // one it belongs to (`leader-effect:{instanceId}:{effectKey}` / `character-ability:{instanceId}:{effectKey}`).
+        // Start at that ability's node so its own on-success chain runs: always picking the first
+        // non-subordinate node made a card's second ability execute the first ability's chain.
+        if (context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.AbilityKeyArgument, out var abilityKey)
+            && !string.IsNullOrWhiteSpace(abilityKey))
         {
             var requestedNode = nodes.FirstOrDefault(node =>
-                string.Equals(node.NodeId, leaderEffectKey.Trim(), StringComparison.Ordinal));
+                string.Equals(node.NodeId, abilityKey.Trim(), StringComparison.Ordinal));
 
             if (requestedNode is not null)
             {

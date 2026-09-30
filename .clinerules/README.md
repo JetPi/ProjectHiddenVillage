@@ -36,32 +36,37 @@ task touches that area).
 
 ## Pending follow-ups (pick up here)
 
-- **Leader Recovery is a silent no-op (engine gap; the spec pins the availability contract only).**
-  `e2e/gameview.multiplayer.leader-recovery.spec.ts` covers the rules that do work (first-turn refusal with its
-  reason, "no passive chakra recovery", and the chip becoming enabled from the second turn while chakra is face
-  down) and stops there. Activating `leader-effect:*:recovery` is accepted by the hub but changes nothing:
-  the node's `isSecondTurnOrLater` execution condition is matched against the execution **arguments**
-  (`GameSequentialEffectExecutor.ConditionMatches` → `condition.Negate`, i.e. false, when the key is absent) and
-  nothing in `server/Api`/`server/Engine` ever supplies that argument, so the step is skipped with no failure
-  branch while the mapper's own availability gate (`GameStateResponseMapper.EffectAvailability` →
-  `player.TurnCount < 2`) reports the chip as enabled. Two further gaps sit behind it: `AlterResourcesEffect`'s
-  `Recover` **adds** the amount (`ApplyChakraAdjustment`: `pool + amount`), so N-001/N-012's `Recover 5` would
-  push a 5-card pool to 9 from any non-empty pool, and neither recovery node authors a
-  `SummonCardFlips`/`FaceStateLocks` entry, so the chakra cards themselves never turn face-up on the board.
-  Fix sketch: (a) populate the `isSecondTurnOrLater` argument for the acting player when the action's context
-  is built, (b) clamp `Recover` to the player's chakra-card count, (c) author the FaceUp/ChakraCard flip on both
-  seeds (`test-data/seed-profiles.json` **and** `server/Api/rawCardCatalogDump.txt`).
-- **A battlefield character's `[Activate: Main]` ability has no published action (UI gap).**
-  `GameStateResponseMapper.CardActions.BuildCardAvailableActions` returns battle actions only for
-  `PlayerZone.CharacterField`, and the client's submit map only knows `play-card:`, `set-support:`,
-  `summon-to-field:`, `activate-support:`, `battle-action:` and `leader-effect:`. N-011 Ino Yamanaka's
-  "[Activate: Main] … your Ino/Shikamaru/Choji gain Rush and +5 power/+1 damage" is therefore unreachable in
-  play even though the engine models it (target rules + `contextRules` for the Shikamaru/Choji requirement are
-  authored and correct). Covering it needs a new per-card action prefix for character-field abilities
-  (mapper + `mapActionToHubIntent` + registry dispatch) before an e2e can exist.
+- **Leader Recovery works end-to-end (shipped).** `e2e/gameview.multiplayer.leader-recovery.spec.ts` now plays it
+  through: first-turn refusal with its reason, "no passive chakra recovery", the chip becoming enabled from the
+  second turn, and then the activation itself — the pool tops back up to five, the leader is rested in the payload
+  **and** on the board (`rotate-[14deg]`), and the chip flips back to disabled with "All chakra cards are already
+  face up." Three fixes made that possible: `ExecuteCardAction` supplies the `isSecondTurnOrLater` argument (via
+  `EffectExecutionConditionArgumentKey.ToWireValue()`, so the key cannot drift from the enum the condition is
+  matched by) for **every** card action, the new `ChakraRecoveryRules` (the single home shared by the mapper's
+  availability gate and the registry) clamps a recovery to `PlayerState.ChakraCardCount = 5`, and the registry rests
+  the leader when it executes a `Recovery` effect ("rest this card" is part of the ability and no authored payload
+  carries it). Chakra *card* face state needs no authoring: the board renders the pool from `ResourcePool`
+  (`GameZones` → `currentChakra`), so the clamp **is** the visual contract and `Player1CurrentChakras` /
+  `Player2CurrentChakras` stay the vestigial per-card bookkeeping that support flips use.
+- **A battlefield character's `[Activate: Main]` ability is reachable (shipped).** N-011 Ino Yamanaka's
+  "[Activate: Main] … your Ino/Shikamaru/Choji gain Rush and +5 power/+1 damage" is now published on the card as
+  `character-ability:{instanceId}:{effectKey}`, executed by the shared card-ability path
+  (`GameStateResponseMapper.BuildCardAbilityOptions` / `ExecuteCardAbilityAction`) and routed by the client like
+  a leader effect. Two shared pieces came out of it: `CardAbilityTimingRules` (the timing switch the mapper and
+  the registry used to duplicate, the one home for leader *and* character abilities — `SupportTimingRules` stays
+  separate because a support also depends on its zone and the reaction window it opens) and the renamed
+  `ReactiveEffectExecutionConstants.AbilityKeyArgument` (`__abilityKey`, was `__leaderEffectKey`). The engine's
+  MainPhase auto-end probe counts an enabled battlefield ability as a legal action, and
+  `e2e/gameview.multiplayer.character-ability.spec.ts` covers the whole line end-to-end (summon Shikamaru +
+  Choji + Ino → the summon-turn `Battle` chip is refused → activate the ability → +5 power/+1 damage on all
+  three, the `Battle` chip flips to enabled as **Rush**, the opposing leader loses the boosted DMG, and the
+  `[Once Per Turn]` chip reads its reason afterwards). Deliberately *not* covered: the support-zone MainPhase
+  auto-end gap below, and N-022's EX tribute-summon reveal.
 - **N-022 Manda's EX tribute-summon reveal is still uncovered.** The reveal *mechanic* is pinned by
   `e2e/gameview.multiplayer.reveal-presentation.spec.ts` (N-019 for an attack, N-013 for an `[On Summon]`
-  summon), but Manda's own chain — `tribute-requirement` (Atomic Chain, 1 field material + the hand candidate)
+  summon — and N-013's scenario now plays the whole chain: the presented reveal, the `FreezeFromZone` pick it
+  defers, the leader's own **Select** chip, and the flip-back once the chain finishes), but Manda's own chain —
+  `tribute-requirement` (Atomic Chain, 1 field material + the hand candidate)
   → `reveal-top` (`Reveal First`, post-condition `Type Not Equals EX Character`) → `on-summon` (`Summon Card`,
   `exactTargetCount: 1` with a Self/Deck rule) — is untested. It should resolve the same way N-019's does
   (the reveal supplies the target through `ResolveRevealedTargets`, so no prompt is created); a spec can stack
@@ -127,9 +132,13 @@ task touches that area).
   material and a legal recall target: summon it, tribute it, answer the picker, watch it land again). The same
   spec's second scenario covers the **no-candidate** half: with only T-120 in the trash the board shows the
   transient `effect-notice-banner` ("Gamabunta's effect had no valid targets.") and stays fully playable.
-  **Still open:** N-013's `freeze-target` is `Upfront` with `exactTargetCount: 1`, so it still no-ops silently
-  (it needs `selectionTiming: Prompted` + `Per Step`, plus a `CandidateZone: Leader` prompt the board can answer —
-  see `03-targeting-contract.md`). **N-003's and N-014's chains are fixed**: both are authored `Per Step` +
+  **N-013's freeze is fixed**: its `freeze-target` node is authored `Per Step` + `Prompted` with
+  `selectionPromptKind: FreezeFromZone` in the seed **and** `rawCardCatalogDump.txt`, the freeze can target a
+  leader (`FreezeCardEffect` writes through `PlayerZoneCardAccessor.ResolveLiveCard`), and the leader card now
+  answers the pick with its own **Select** chip. The third scenario of
+  `e2e/gameview.multiplayer.reveal-presentation.spec.ts` covers it end-to-end (the reveal is acknowledged, the
+  `FreezeFromZone` prompt follows, both leaders are candidates, and the picked leader's `Battle` chip then reads
+  the cannot-attack reason). **N-003's and N-014's chains are fixed**: both are authored `Per Step` +
   `Prompted` in the seed **and** `rawCardCatalogDump.txt` (`SummonFromZone` / `DestroyFromZone`), and
   `SeedManifestAuthoringTests` now runs every authored card through `UpdateCardEffectsRequestValidator` and
   compares each node's flow/timing/kind against the dump, so the drift cannot come back unnoticed. N-014's

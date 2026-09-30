@@ -7,7 +7,7 @@ namespace ProjectHiddenVillage.Server.Api.Services.Games;
 public static partial class GameStateResponseMapper
 {
     private static readonly IGamePhaseStateService PhaseStateService = new GamePhaseStateService();
-    private static readonly GameEffectCanExecuteEvaluator LeaderEffectCanExecuteEvaluator = new(
+    private static readonly GameEffectCanExecuteEvaluator EffectCanExecuteEvaluator = new(
         new EffectContextConditionEvaluator(),
         new EffectTargetResolver(),
         new GameValidTargetResultFactory(),
@@ -18,6 +18,13 @@ public static partial class GameStateResponseMapper
     private const string SummonToFieldActionPrefix = "summon-to-field:";
     private const string SetSupportActionPrefix = "set-support:";
     private const string LeaderEffectActionPrefix = "leader-effect:";
+
+    /// <summary>
+    /// A battlefield character's own ability (N-011's "[Activate: Main]"). Same payload shape as
+    /// <see cref="LeaderEffectActionPrefix"/>; leaders and battlefield cards share the whole path.
+    /// </summary>
+    private const string CharacterAbilityActionPrefix = "character-ability:";
+
     private const string ResolveOptionalAttackEffectActionPrefix = "resolve-optional-attack-effect:";
 
     // Canonical id comparison lives in GameStatePlayerResolver; keep one shared entry point here.

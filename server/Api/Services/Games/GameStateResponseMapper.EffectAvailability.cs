@@ -22,21 +22,11 @@ public static partial class GameStateResponseMapper
 
         if (effectSpec.EffectType == EffectKind.Recovery)
         {
-            if (player.TurnCount < 2)
+            // The registry refuses a direct submit with the same reasons (ChakraRecoveryRules), so the chip and
+            // the engine cannot disagree.
+            if (!ChakraRecoveryRules.CanActivateLeaderRecovery(state, player, out var recoveryDisabledReason))
             {
-                return (false, "Recovery can only be activated starting from your second turn.");
-            }
-
-            // A chakra recovery lock (N-016) means "you cannot turn your CHAKRA face-up": while it lasts
-            // there is nothing Recovery could do, so the option is disabled instead of failing on submit.
-            if (CardRuntimeEffectStateService.IsChakraRecoveryBlocked(state, player.PlayerId))
-            {
-                return (false, "Your chakra is locked and cannot be turned face-up.");
-            }
-
-            if (!HasFaceDownChakra(state, player.PlayerId))
-            {
-                return (false, "All chakra cards are already face up.");
+                return (false, recoveryDisabledReason);
             }
         }
 
@@ -67,7 +57,7 @@ public static partial class GameStateResponseMapper
             arguments: arguments,
             selectedTargets: []);
 
-        var canExecuteResult = LeaderEffectCanExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: RequestsResolvedTargets(effectSpec));
+        var canExecuteResult = EffectCanExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: RequestsResolvedTargets(effectSpec));
         var requiresTargets = RequiresTargets(effectSpec);
 
         if (!canExecuteResult.CanExecute)
@@ -105,16 +95,6 @@ public static partial class GameStateResponseMapper
     {
         return effectSpec.ExecutionTargetSource is EffectExecutionTargetSource.SelectedTargets
             or EffectExecutionTargetSource.SourceCard;
-    }
-
-    private static bool HasFaceDownChakra(GameState state, string playerId)
-    {
-        var playerIndex = state.Players.FindIndex(player =>
-            string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
-
-        var chakraStates = state.Players[playerIndex].ResourcePool;
-
-        return chakraStates < 5;
     }
 
     private static bool RequiresTargets(EffectSpec effectSpec)

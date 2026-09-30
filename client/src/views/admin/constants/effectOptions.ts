@@ -64,4 +64,5 @@ export const SELECTION_PROMPT_KIND_OPTIONS = [
   'SearchDeck',
   'SummonFromZone',
   'DestroyFromZone',
+  'FreezeFromZone',
 ] as const

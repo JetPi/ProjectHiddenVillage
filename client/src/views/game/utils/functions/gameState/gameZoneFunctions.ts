@@ -240,6 +240,9 @@ function buildLeaderCardProps(
     hidePreviewWhenBattleTarget?: boolean
     showBadgeWhenLifeMissing?: boolean
     isRested?: boolean
+    /** True while this leader is one of an effect selection prompt's candidates (N-013's freeze). */
+    isEffectTargetCandidate?: boolean
+    onToggleEffectTarget?: () => void
   }
 ): ILeaderCardProps {
   const {
@@ -251,6 +254,8 @@ function buildLeaderCardProps(
     hidePreviewWhenBattleTarget = false,
     showBadgeWhenLifeMissing = false,
     isRested = false,
+    isEffectTargetCandidate = false,
+    onToggleEffectTarget,
   } = config
   const normalizedInstanceId = card?.instanceId.trim().toLowerCase()
   const normalizedAttackLinkSourceCardId = activeAttackLink?.sourceCardInstanceId.trim().toLowerCase() ?? ''
@@ -285,6 +290,8 @@ function buildLeaderCardProps(
     hidePreviewButton: hidePreviewWhenBattleTarget && isBattleTarget,
     isTargetCandidate: isBattleTarget,
     onChooseTarget: card ? () => props.onSelectAttackTarget(card.instanceId) : undefined,
+    isEffectTargetCandidate,
+    onToggleEffectTarget,
     leaderCard: card,
     previewCard: card ? (props.derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null) : null,
     showBadgeWhenLifeMissing,
@@ -318,7 +325,11 @@ function extractTargetIds(targets?: Array<{ cardInstanceId: string }> | null): S
   return targetIds;
 };
 
-function isCardInstanceBattleTarget(card: ILeaderCardViewModel | null, validTargets: Set<string>): boolean {
+/**
+ * Whether the card's instance id is in a normalized target-id set. Shared by the leader's battle-target and
+ * effect-target/prompt-candidate flags, so the two highlights can never drift apart.
+ */
+function isCardInstanceInTargetSet(card: ILeaderCardViewModel | null, validTargets: Set<string>): boolean {
   if (!card) return false;
   return validTargets.has(card.instanceId.trim().toLowerCase());
 };
@@ -496,7 +507,7 @@ export {
   buildFallbackAttackLinkGeometry,
   computeCardDisplayFlags,
   extractTargetIds,
-  isCardInstanceBattleTarget,
+  isCardInstanceInTargetSet,
   toAnchorId,
   getElementCenter,
   getBattleTargetHighlightClass,

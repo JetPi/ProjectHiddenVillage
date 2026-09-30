@@ -43,6 +43,14 @@ public enum EffectSelectionPromptKind
     DestroyFromZone,
 
     /// <summary>
+    /// "Freeze 1 Leader or Character" (N-013): the picked card gains the "Cannot Attack" keyword. Same
+    /// prompted-selection shape as <see cref="DestroyFromZone"/>; the node's rules can collect candidates out
+    /// of two zones at once, so <see cref="GamePrompt.CandidateZone"/> is only the first candidate's hint and
+    /// the board answers the pick (the leader card and every battlefield card offer the same Select button).
+    /// </summary>
+    FreezeFromZone,
+
+    /// <summary>
     /// Not a selection: a <see cref="RevealTimingMode.RevealFirst"/> step turned a card face up that the acting
     /// player could not see before (the top card of a deck, an opponent's hand / face-down support card), and the
     /// chain waits for them to acknowledge the presentation before it carries on. The prompt's single option is
