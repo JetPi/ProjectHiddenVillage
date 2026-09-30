@@ -1,6 +1,26 @@
 import type { IGameActionOptionResponse, IGameCardInstanceResponse, IGamePlayerStateResponse } from "@/services/api/types/game"
+import type { ICardListOverlayEntry } from '@/components/ui/types'
 import type { IGameLoaderData, IGameCard, ILeaderCardViewModel, INonLeaderCardViewModel } from "@/views/game/types"
 import { CARD_ART_WIDTHS, resolveCardArtUrl } from '@/services/api/cardArt'
+
+function buildCardListEntries(
+  cards: IGameCardInstanceResponse[],
+  cardById: ReadonlyMap<string, IGameCard>,
+): ICardListOverlayEntry[] {
+  const entries: ICardListOverlayEntry[] = []
+
+  for (const card of cards) {
+    const catalogCard = cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null
+
+    entries.push({
+      instanceId: card.instanceId,
+      displayName: catalogCard?.displayName ?? card.cardDefinitionId,
+      card: catalogCard,
+    })
+  }
+
+  return entries
+}
 
 function resolveLeaderCardId(
   player: IGamePlayerStateResponse | null,
@@ -176,6 +196,7 @@ export {
   resolveLeaderCard,
   buildCardById,
   buildCardTypeById,
+  buildCardListEntries,
   resolveNonLeaderCards,
   resolveCardActionOptionsForInstanceId,
 }

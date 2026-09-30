@@ -249,6 +249,25 @@ test.describe('GameView multiplayer actions', () => {
       }, {
         timeout: 6_000,
       }).toBeGreaterThan(initialAnimationCount)
+
+      // The trash slot's hover "eye" opens the pile reader: it lists every card of that pile (here the one
+      // tribute that just left the field), and the count line spells out the newest-first ordering.
+      await bottomTrashPile.hover()
+      await bottomTrashPile.getByTestId('trash-pile-viewer-button').click()
+
+      const trashOverlay = ownerPage.getByTestId('card-list-overlay')
+      await expect(trashOverlay).toBeVisible({ timeout: 5_000 })
+      await expect(trashOverlay).toContainText('Your trash pile')
+      await expect(trashOverlay).toContainText('1 card · most recent first')
+
+      const trashPileEntries = trashOverlay.getByTestId(/^card-list-item-/)
+      await expect(trashPileEntries).toHaveCount(1)
+      await expect(trashPileEntries.first()).toHaveAttribute('data-card-definition-id', POWER_MATERIAL_CARD_DEFINITION_ID)
+
+      // Closing it is client-only (the viewer submits nothing to the hub) and Escape works like it does on
+      // the card-details modal.
+      await ownerPage.keyboard.press('Escape')
+      await expect(trashOverlay).toBeHidden()
     } finally {
       await closeMultiplayerPages(pages)
     }

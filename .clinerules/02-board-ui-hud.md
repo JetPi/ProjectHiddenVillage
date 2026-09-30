@@ -44,11 +44,12 @@ paths:
   opacity-0`) — used for hand reorder dragging.
 - `hidePreviewButton=true` suppresses only the eye.
 - The card-details side panel (`CardPreviewCard`, used by `NonLeaderCardOverlay` and
-  `LeaderCard`) is the game view's only scroll container: the panel that scrolls the
+  `LeaderCard`) is a game-view scroll container: the panel that scrolls the
   header/art/stats/description carries the shared **`themed-scrollbar`** class
   (`index.css`) — the same idiom as the admin panes — so the game view never falls
   back to the chunky OS scrollbar. `e2e/gameview.spec.ts` pins `scrollbar-width:
-  thin` on it.
+  thin` on it. The trash viewer (`CardListOverlay`, below) uses the same class on
+  its card grid.
 - **Targeting mode**: when a card is a valid target during battle/effect targeting,
   rows pass `isTargetCandidate` + `onChooseTarget`. Then hover reveals the eye AND
   a single **“Choose”** button (instead of the action list); clicking Choose calls
@@ -65,6 +66,30 @@ paths:
 - The overlay’s “reveal on hover” lives on the `card-overlay-controls` container
   (`group-hover:*` + transition), so any absolute children it contains inherit the
   reveal. Eye/buttons are hover-only by design.
+
+## Trash pile viewer (`CardListOverlay`)
+
+- The trash slot is the one pile you can read back without hovering card by card: hovering it reveals
+  an **eye** (`data-testid="trash-pile-viewer-button"`, same `card-overlay-controls` hover container /
+  `bg-black/65`-`white/35` chip language as the preview and Recovery chips) that opens
+  `CardListOverlay` (`components/ui/cards/`, re-exported from the barrel) listing that pile **newest
+  first** — the server keeps `trash` in the order cards entered it, and the tile order is the pile
+  order, so index 0 is the card the slot shows.
+- `PlayPileZone` owns the hook: it renders the eye only for the trash label (`isTrashLabel`) and only
+  when `onOpenTrashPile` is passed, so the deck slot and any read-only pile stay unclickable. `GameZones`
+  keeps the open side in local state (`'top' | 'bottom'`) and feeds the overlay from
+  `buildCardListEntries(player.trash, derivedGameState.cardById)` (helper in
+  `utils/functions/cards/index.ts`) — the component itself carries no game state and submits nothing to
+  the hub (backdrop click, the X chip and Escape all just close it).
+- The modal is presentation only: `role="dialog"` inside a full-screen backdrop, portalled to
+  `document.body` (the board forces `position: relative`/`overflow: visible` on its children, so an
+  in-flow overlay would be clipped), reusing `Panel` + the prompt overlay's tile language. Clicking a
+  tile opens the shared `CardPreviewCard` for that card, `themed-scrollbar` on the grid.
+- Testids: `trash-pile-viewer-button`, `card-list-overlay` (+ `-items`, `-close-button`,
+  `-empty-message`), `card-list-item-{instanceId}` carrying `data-card-definition-id` (the deterministic
+  way to identify a pile card — never assert art URLs, see the art section above).
+  `e2e/gameview.multiplayer.actions.spec.ts` covers it on the tribute-summon flow (one card in the trash
+  → open → `1 card · most recent first` + one `T-120` tile → Escape closes).
 
 ## Card art vs pointer interception (real art in tests)
 

@@ -103,6 +103,8 @@ export type IPlayPileZoneProps = {
   gameState?: IDerivedGameViewState | null
   deckCardRef?: RefCallback<HTMLDivElement>
   trashCardRef?: RefCallback<HTMLDivElement>
+  /** Adds the hover "eye" on the trash slot; omit it to keep the pile read-only. */
+  onOpenTrashPile?: () => void
 }
 
 export type IPlayCardProps = {
@@ -158,6 +160,24 @@ export type ICardPreviewCardProps = {
   card: ICardCatalogItemResponse
   isOpen: boolean
   onClose: () => void
+}
+
+export type ICardListOverlayEntry = {
+  instanceId: string
+  /** Label for the tile; falls back to the definition id when the catalog has no entry. */
+  displayName: string
+  /** Catalog card used for the art + the card-details modal. `null` keeps the tile unclickable. */
+  card: ICardCatalogItemResponse | null
+}
+
+export type ICardListOverlayProps = {
+  isOpen: boolean
+  title: string
+  subtitle?: string
+  entries: ICardListOverlayEntry[]
+  emptyMessage?: string
+  onClose: () => void
+  testId?: string
 }
 
 export type IAppButtonProps = PropsWithChildren<{

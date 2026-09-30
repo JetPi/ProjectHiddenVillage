@@ -1,10 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { twMerge } from 'tailwind-merge'
-import { LeaderCard } from '@/components/ui/cards'
+import { CardListOverlay, LeaderCard } from '@/components/ui/cards'
 import { PlayBottomResourceZone, PlayPileZone, PlayTopResourceZone } from '@/components/ui/game'
 import { GamePhaseActionRow } from './GamePhaseActionRow'
 import type { IAttackLinkRenderConfig, IGameZonesProps  } from '@/views/game/types'
 import {
+  buildCardListEntries,
   buildLeaderCardProps,
   extractTargetIds,
   getCardsAndOptions,
@@ -30,8 +31,12 @@ const ATTACK_VERTICAL_TARGET_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX + 2
 const ATTACK_HEAD_OFFSET_DEFAULT = 0.25
 const ATTACK_SWEEP_SIDE_BEND_PX = 110
 
+/** Which side's trash pile the reader overlay currently lists ('top' = the opponent's rail). */
+type OpenTrashPileSide = 'top' | 'bottom'
+
 function GameZones(props: IGameZonesProps) {
   const { topLeaderCard, bottomLeaderCard } = props.derivedGameState
+  const [openTrashPile, setOpenTrashPile] = useState<OpenTrashPileSide | null>(null)
   const pendingCardTargeting = useGameUIStore((state) => state.pendingCardTargeting)
   const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
   const pendingEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting)
@@ -53,6 +58,27 @@ function GameZones(props: IGameZonesProps) {
     bottomTrashCardRef,
   } = props
   const cardOptions = getCardsAndOptions(props, renderedAttackLink)
+
+  // The trash viewer is fed straight from the owning player's pile (newest first) plus the catalog, so the
+  // modal stays a dumb list of `ICardListOverlayEntry` and never reaches into the game state itself.
+  const trashListEntries = useMemo(
+    () => {
+      if (openTrashPile === null) {
+        return []
+      }
+
+      const trashOwner =
+        openTrashPile === 'top' ? props.derivedGameState.opponentPlayer : props.derivedGameState.currentPlayer
+
+      return buildCardListEntries(trashOwner?.trash ?? [], props.derivedGameState.cardById)
+    },
+    [openTrashPile, props.derivedGameState],
+  )
+  
+  const trashListSubtitle =
+    trashListEntries.length > 0
+      ? `${trashListEntries.length} ${trashListEntries.length === 1 ? 'card' : 'cards'}`
+      : ''
 
   const cardRestedStateByInstanceId = useMemo(() => {
     const restedById = new Map<string, boolean>();
@@ -216,8 +242,6 @@ function GameZones(props: IGameZonesProps) {
     props,
   }
 
-  console.log(props.gameState)
-
   return (
     <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-0.5">
       <div
@@ -238,6 +262,9 @@ function GameZones(props: IGameZonesProps) {
               gameState={props.derivedGameState}
               deckCardRef={topDeckCardRef}
               trashCardRef={topTrashCardRef}
+              onOpenTrashPile={() => {
+                setOpenTrashPile('top')
+              }}
             />
             <PlayTopResourceZone
             currentChakra={props.derivedGameState.opponentPlayer?.resourcePool ?? 0}
@@ -317,12 +344,26 @@ function GameZones(props: IGameZonesProps) {
               gameState={props.derivedGameState}
               deckCardRef={bottomDeckCardRef}
               trashCardRef={bottomTrashCardRef}
+              onOpenTrashPile={() => {
+                setOpenTrashPile('bottom')
+              }}
             />
           </div>
         </div>
       </div>
 
       <SideBarButtons {...props} />
+
+      <CardListOverlay
+        isOpen={openTrashPile !== null}
+        title={openTrashPile === 'top' ? 'Opponent trash pile' : 'Your trash pile'}
+        subtitle={trashListSubtitle}
+        entries={trashListEntries}
+        emptyMessage="The trash pile is empty."
+        onClose={() => {
+          setOpenTrashPile(null)
+        }}
+      />
     </div>
   )
 }
