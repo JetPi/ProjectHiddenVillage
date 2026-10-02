@@ -44,11 +44,12 @@ paths:
   opacity-0`) — used for hand reorder dragging.
 - `hidePreviewButton=true` suppresses only the eye.
 - The card-details side panel (`CardPreviewCard`, used by `NonLeaderCardOverlay` and
-  `LeaderCard`) is the game view's only scroll container: the panel that scrolls the
+  `LeaderCard`) is a game-view scroll container: the panel that scrolls the
   header/art/stats/description carries the shared **`themed-scrollbar`** class
   (`index.css`) — the same idiom as the admin panes — so the game view never falls
   back to the chunky OS scrollbar. `e2e/gameview.spec.ts` pins `scrollbar-width:
-  thin` on it.
+  thin` on it. The trash viewer (`CardListOverlay`, below) uses the same class on
+  its card grid.
 - **Targeting mode**: when a card is a valid target during battle/effect targeting,
   rows pass `isTargetCandidate` + `onChooseTarget`. Then hover reveals the eye AND
   a single **“Choose”** button (instead of the action list); clicking Choose calls
@@ -65,6 +66,34 @@ paths:
 - The overlay’s “reveal on hover” lives on the `card-overlay-controls` container
   (`group-hover:*` + transition), so any absolute children it contains inherit the
   reveal. Eye/buttons are hover-only by design.
+
+## Trash pile viewer (`CardListOverlay`)
+
+- The trash slot is the one pile you can read back without hovering card by card: hovering it reveals
+  an **eye** (`data-testid="trash-pile-viewer-button"`, same `card-overlay-controls` hover container /
+  `bg-black/65`-`white/35` chip language as the preview and Recovery chips) that opens
+  `CardListOverlay` (`components/ui/cards/`, re-exported from the barrel) listing that pile **newest
+  first** — the server keeps `trash` in the order cards entered it, and the tile order is the pile
+  order, so index 0 is the card the slot shows.
+- `PlayPileZone` owns the hook: it renders the eye only for the trash label (`isTrashLabel`) and only
+  when `onOpenTrashPile` is passed, so the deck slot and any read-only pile stay unclickable. `GameZones`
+  keeps the open side in local state (`'top' | 'bottom'`) and feeds the overlay from
+  `buildCardListEntries(player.trash, derivedGameState.cardById)` (helper in
+  `utils/functions/cards/index.ts`) — the component itself carries no game state and submits nothing to
+  the hub (backdrop click, the X chip and Escape all just close it).
+- The modal is presentation only: `role="dialog"` inside a full-screen backdrop, portalled to
+  `document.body` (the board forces `position: relative`/`overflow: visible` on its children, so an
+  in-flow overlay would be clipped), reusing `Panel` + the prompt overlay's tile language. Clicking a
+  tile opens the shared `CardPreviewCard` for that card, `themed-scrollbar` on the grid.
+- Testids: `trash-pile-viewer-button`, `card-list-overlay` (+ `-items`, `-close-button`,
+  `-empty-message`), `card-list-item-{instanceId}` carrying `data-card-definition-id` (the deterministic
+  way to identify a pile card — never assert art URLs, see the art section above).
+  The subtitle is **count-only** (`1 card` / `n cards`); the newest-first ordering hint was deliberately
+  dropped from the copy, so never assert a `· most recent first` suffix (the pile order itself is still
+  newest-first, see the pile bullet above).
+  `e2e/gameview.multiplayer.actions.spec.ts` covers it on the tribute-summon flow (one card in the trash
+  → open → `1 card` + one `T-120` tile → Escape closes; the spec also pins the absence of the dropped
+  ordering suffix).
 
 ## Card art vs pointer interception (real art in tests)
 
@@ -129,6 +158,12 @@ paths:
   chip (h-5/w-5, `bg-black/65 text-white`, border `white/35`), shown only on hover
   bottom-left, with distinct enabled (orange accent) vs disabled (`opacity-90`)
   classes via `ENABLED_RECOVERY_CLASSNAME`/`DISABLED_RECOVERY_CLASSNAME`.
+- The leader also answers an effect selection prompt (N-013's freeze, which offers a Leader or a Character):
+  while it is a candidate, `LeaderCard` shows the same **Select** chip the other board cards use
+  (`data-testid="leader-effect-target-toggle"`, wired from `GameZones` → `buildLeaderCardProps` →
+  `isEffectTargetCandidate`/`onToggleEffectTarget`), and the ability list + Recovery chip step aside
+  (`isSoleAction`) so the pick is the only affordance. The `Choose` chip keeps precedence during an
+  attack/effect targeting mode.
 - `disableInteractions` (targeting) suppresses preview + action overlays.
 
 ## Rested vs exhausted on the board
@@ -174,10 +209,12 @@ paths:
 ## Support chain bubble (`SupportChainBubble`)
 
 - Pops up in the top-right corner of the game view (`fixed right-2 top-2 z-40`, `pointer-events-none`, next to
-  the action-error banner) when a **support chain** exists: a support was activated *inside* a support
-  reaction window. A lone activation that merely opened the window does not pop it
-  (`shouldShowSupportChainBubble` = at least two queued activations), and it disappears when the chain
-  resolves, because the entries leave `GameStateResponse.SupportChain`.
+  the action-error banner) from the **first** queued support activation
+  (`shouldShowSupportChainBubble` = at least one entry), so a lone activation that only opened the reaction
+  window is already spelled out while it waits for an answer. It disappears when the chain empties, because
+  the entries leave `GameStateResponse.SupportChain`.
+- The count chip pluralises (`1 activation` / `n activations`) and the `Resolves last in, first out` footer
+  only renders for a real chain (≥2 entries).
 - One row per activation in activation order (`#1` …), each with an actor chip (`You` / `Opponent`), the
   activating card's name, a `Next` chip on the newest entry (the stack resolves last in, first out),
   `⚡ Negates #n <card>` for a negate target, `→ Targets <card> (yours|theirs)` for board targets, and a rose
@@ -185,9 +222,38 @@ paths:
 - The view model and every label are pure (`buildSupportChainView` in
   `views/game/utils/functions/helpers/index.ts`); the server is the only writer of the chain. Testids:
   `support-chain-bubble`, `support-chain-entry` (+ `data-entry-sequence`), `support-chain-negate-link`,
-  `support-chain-count`.
+  `support-chain-count`. `e2e/gameview.multiplayer.support-target-visuals.spec.ts` pins both ends of the
+  contract: the lone-entry pop while the window waits (`1 activation`) and the two-entry negate chain.
 - `.support-chain-bubble-enter` (`index.css`) is a transient entrance animation only — no persistent
   transform, so the text inside stays crisp.
+
+## Effect selection picker (`GamePromptOverlay`) + effect notice toast
+
+- An effect selection prompt carries the cards' ids only; `buildPromptCandidateCards`
+  (`views/game/utils/functions/prompts/index.ts`) resolves them from the prompt's `candidateZone` **and**
+  `candidatePlayerId`: `Hand`/`Deck`/`Trash`/`ExileZone` are read straight off the matching player payload, so a
+  "summon 1 Character from your trash" prompt renders real card faces (`GameView` passes `players`, not just the
+  requesting player's hand/deck). The named zone is only a **hint**: the pool is that collection first, then the
+  candidate player's remaining collections, because a node's rules can resolve candidates out of several zones at
+  once (N-003's "trash **or** deck") while `CandidateZone` can name only one — each id in `prompt.options` is
+  matched against the pool in the prompt's own order, so no offered card is dropped. Zones the board draws as
+  selectable cards (`Hand`/`CharacterField`/`SupportZone`)
+  keep the hover-Select flow instead (N-014's field destroy is answered by the card's own **Select** button);
+  a trash/deck/exile pool opens this overlay.
+- The picker is presentation-agnostic: tiles are `prompt-card-option-{instanceId}`, the option copy comes from
+  `EFFECT_SELECTION_PROMPT_COPY` (keyed by the server's `selectionPromptKind` — `SummonFromZone` = "Choose a
+  Character to Summon", `DestroyFromZone` = "Choose a Character to Destroy"), and the middle phase banner shows
+  the matching `PhaseValues['select-prompt-*']` entry
+  (`getPromptSelectionPhaseValue`). Adding a kind = one entry in each of those maps + the server enum member and
+  `SELECTION_PROMPT_KIND_OPTIONS` (admin authoring). No server round-trip for wording.
+- **`EffectNoticeBanner`** (rendered next to `SupportChainBubble`) is the non-blocking "the effect resolved but
+  had nothing to act on" toast: `effect-notice-banner` / `effect-notice-message`, `role="status"`,
+  `pointer-events-none`, top-left so it never fights the support-chain bubble (top-right) or the action-error
+  banner (top-centre), auto-fading after ~4.2 s (`.effect-notice-enter` is a transient entrance animation only).
+  It shows the newest `GameStateResponse.EffectNotices` entry that was **not** already in the payload when the
+  board mounted, which is what keeps a mid-game reload from replaying old notices; the server republishes the same
+  tail on every push, so the list is de-duplicated by `noticeId` (= the action-log entry id) rather than by
+  clearing state. Never make it clickable or modal: it can arrive in the same push as a card animation.
 
 ## Targeting-highlight CSS gotcha (`client/src/index.css`)
 

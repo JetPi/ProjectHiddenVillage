@@ -34,22 +34,31 @@ import {
 //  - N-012 Sasuke (leader): free "[Activate: Main] [Once Per Turn] Draw 1 card and place 1 card from your hand
 //                    on top of your deck" - which is what makes the reveal's outcome deterministic instead of
 //                    riding the shuffle.
-// (N-013 Itachi's reveal is an [On Summon] one, and `EffectTiming.OnSummon` still has no engine runner - it only
-// exists as an enum/condition keyword - so the presentation can only be played through N-019 today.)
+// (N-013 Itachi's reveal is an [On Summon] one, so it is driven by the summon itself - see
+//  ON_SUMMON_REVEAL_CARD_DEFINITION_ID below - instead of by an attack.)
 const REVEAL_ON_ATTACK_CARD_DEFINITION_ID = 'N-019'
 const DECK_TOP_ABILITY_EFFECT_KEY = 'draw-n-place-card'
 // A card N-019's reveal refuses to summon: [Uchiha Clan]/[Akatsuki], i.e. neither [Sasuke Uchiha] nor [The Taka].
 const REVEAL_NON_MATCH_DEFINITION_ID = 'N-013'
+// The only [On Summon] effect a normal summon can reach (N-003/N-005/N-014 are EX Characters and the on-summon
+// runner fires mandatory effects only). The same card doubles as the non-match above, so both scenarios pin
+// opposite ends of it.
+const ON_SUMMON_REVEAL_CARD_DEFINITION_ID = 'N-013'
 
 // Cards N-019's reveal summons: a non-EX [Sasuke Uchiha] (N-015) or any [The Taka] card (Karin, Suigetsu or
 // another Jugo). N-014 is [The Taka] too but an EX Character, so the reveal must never summon it.
 const REVEAL_SUMMON_MATCH_DEFINITION_IDS = ['N-010', 'N-015', 'N-019', 'N-021']
 
-// Both scenarios need a specific card in an opening/drawn hand (three copies in a 33-card deck), so - like the
+// Every scenario needs a specific card in an opening/drawn hand (three copies in a 33-card deck), so - like the
 // range-support spec - each attempt plays a fresh game instead of riding a single shuffle.
 const ATTEMPT_COUNT = 3
 
 const OWN_DECK_PILE_SELECTOR = '[data-side="bottom"] [data-testid="deck-pile-card"]'
+
+// N-013's prompted `freeze-target` step ("choose 1 Leader or Character: it cannot attack") resolves through
+// `FreezeCardEffect`, and both the mapper's chip and the board read that restriction through
+// `BattleActionRules`/`BattleActionRules.DescribeRestriction`.
+const CANNOT_ATTACK_REASON = 'Cannot declare battle action because the card is under an effect that restricts it.'
 
 test.describe('GameView multiplayer reveal presentation', () => {
   test.describe.configure({ timeout: 240_000 })
@@ -83,6 +92,26 @@ test.describe('GameView multiplayer reveal presentation', () => {
 
       try {
         await playRevealFlipBackScenario(request, setup, pages)
+        return
+      } catch (error) {
+        lastFailure = error
+      } finally {
+        await closeMultiplayerPages(pages)
+      }
+    }
+
+    throw lastFailure
+  })
+
+  test('an [On Summon] reveal presents the deck card, then asks for the freeze target', async ({ browser, request }) => {
+    let lastFailure: unknown = null
+
+    for (let attempt = 0; attempt < ATTEMPT_COUNT; attempt += 1) {
+      const setup = await setupMultiplayerGame(request)
+      const pages = await openMultiplayerPages(browser, setup)
+
+      try {
+        await playOnSummonRevealScenario(request, setup, pages)
         return
       } catch (error) {
         lastFailure = error
@@ -355,6 +384,148 @@ async function playRevealFlipBackScenario(
     cardIsOnTheField: false,
   })
 }
+
+/**
+ * Summons N-013 Itachi - the only card in the seed whose [On Summon] reveal a normal summon can reach. There is
+ * no attack to set up: the summon itself fires the reveal, so the chain suspends on the presentation as the
+ * summon resolves, the client acknowledges it on its own, and the chain then asks for the authored
+ * `freeze-target` pick ("choose 1 Leader or Character: it cannot attack during your opponent's next turn"),
+ * which this scenario answers on a *leader* - the one target that had no board affordance before.
+ */
+async function playOnSummonRevealScenario(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+): Promise<void> {
+  const actor = setup.playerTwo
+  const actorPage = pages.playerTwoPage
+
+  await playOpening(request, setup)
+
+  const itachiSummon = await resolveActorMainPhaseWindow(request, setup, actor, (actorState) => {
+    const itachi = findHandCardWithAction(actorState, ON_SUMMON_REVEAL_CARD_DEFINITION_ID, 'summon')
+    // The freeze assertion below reads the actor's own leader Battle chip, and the first-turn rule outranks the
+    // freeze: wait until the actor is past their first turn, where that chip is enabled - which is also the
+    // "before" half of the freeze proof.
+    const leaderBattleAction = (actorState.leader.availableActions ?? [])
+      .find((action) => action.actionId.startsWith('battle-action:'))
+
+    if (!itachi || leaderBattleAction?.isEnabled !== true) {
+      return null
+    }
+
+    return { instanceId: itachi.instanceId, actionId: itachi.actionId }
+  })
+
+  // The presentation lasts only REVEAL_PRESENTATION_MS (2 s), so "was it presented" is read two ways: the
+  // page-side deck observer records the flip (which outlives the window), and the payload is checked for the
+  // presentation prompt while it is still there. The chain does not end at the acknowledgement any more, so
+  // the revealed card stays face up until the freeze pick below - the observer is what makes the check safe.
+  await installDeckRevealObserver(actorPage)
+
+  const presentationSeen = expect.poll(async () => {
+    const observations = await getDeckRevealObservations(actorPage)
+    if (observations.some((entry) => entry.revealed)) {
+      return true
+    }
+
+    const state = await fetchGameState(request, setup.gameCode, actor.session.accessToken)
+    return (state.pendingPrompt?.selectionPromptKind ?? 'none') === 'RevealPresentation'
+  }, {
+    timeout: 20_000,
+  }).toBe(true)
+
+  await executeCardActionViaHub(setup.gameCode, actor, itachiSummon.actionId, itachiSummon.instanceId)
+  await presentationSeen
+
+  // Suspended on the presentation: the summon already resolved (the reveal is an [On Summon] effect), the deck's
+  // top card is face up, and the only thing outstanding is the acknowledgement no player has to click.
+  const pausedState = await fetchGameState(request, setup.gameCode, actor.session.accessToken)
+  const pausedActorState = resolvePlayerState(pausedState, actor)
+  const revealedDeckCard = (pausedActorState.deck ?? []).find((card) => card.isRevealed === true)
+
+  expect(pausedState.pendingPrompt?.isAwaitingRequestingPlayer).toBe(true)
+  expect(
+    pausedActorState.characterField.some((card) => card.instanceId === itachiSummon.instanceId),
+    'the summon must have resolved before its [On Summon] reveal is presented',
+  ).toBe(true)
+  expect(revealedDeckCard, 'the [On Summon] reveal must turn the deck top face up').toBeTruthy()
+
+  // The chain does not end at the presentation: N-013's `freeze-target` step is authored as a *prompted*
+  // selection ("choose 1 Leader or Character: it cannot attack during your opponent's next turn"), so once the
+  // presentation is acknowledged the board asks for the pick instead of silently resolving nothing. A leader is
+  // one of the legal candidates, so the prompt names the Leader zone and both leaders publish the same hover
+  // "Select" chip the battlefield cards use - which is also what keeps the pick reachable for the opponent's
+  // leader (it owns no other board affordance).
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, actor.session.accessToken)
+    return state.pendingPrompt?.selectionPromptKind ?? 'none'
+  }, { timeout: 20_000 }).toBe('FreezeFromZone')
+
+  const freezePromptState = await fetchGameState(request, setup.gameCode, actor.session.accessToken)
+  const freezePrompt = freezePromptState.pendingPrompt
+  const actorLeaderInstanceId = resolvePlayerState(freezePromptState, actor).leader.instanceId ?? ''
+
+  // The rule order puts the Leader rule first, so the prompt's zone hint is Leader; both players' leaders are
+  // offered, and the actor's own is the one picked below (its chip is the one the active player can read).
+  expect(freezePrompt?.candidateZone).toBe('Leader')
+  expect(freezePrompt?.options).toContain(actorLeaderInstanceId)
+  expect(
+    freezePrompt?.options ?? [],
+    'the freeze must offer the opposing leader too ("choose 1 Leader or Character")',
+  ).toContain(resolvePlayerState(freezePromptState, setup.playerOne).leader.instanceId)
+
+  const actorLeaderCard = actorPage.locator('[data-zone="leader-card"][data-slot-side="bottom"]')
+  await expect(actorLeaderCard).toBeVisible({ timeout: 10_000 })
+  await actorLeaderCard.hover()
+
+  const leaderSelectChip = actorLeaderCard.getByTestId('leader-effect-target-toggle')
+  await expect(leaderSelectChip).toBeVisible({ timeout: 10_000 })
+  await leaderSelectChip.click()
+
+  // The freeze landed on the leader: its own published Battle chip now reports the restriction.
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, actor.session.accessToken)
+    const leaderBattleAction = (resolvePlayerState(state, actor).leader.availableActions ?? [])
+      .find((action) => action.actionId.startsWith('battle-action:'))
+
+    return leaderBattleAction?.disabledReason ?? null
+  }, { timeout: 15_000 }).toBe(CANNOT_ATTACK_REASON)
+
+  // The chain is done once the freeze is picked, so this is when the transient reveal goes back face down — the
+  // card is still in the deck where the reveal found it (a plain reveal never moves it).
+  await expect.poll(async () => {
+    const observations = await getDeckRevealObservations(actorPage)
+    const presentedIndex = observations.findIndex((entry) => {
+      return entry.revealed && entry.definitionId === revealedDeckCard?.cardDefinitionId
+    })
+
+    return presentedIndex >= 0 && observations.slice(presentedIndex + 1).some((entry) => !entry.revealed)
+  }, {
+    timeout: 20_000,
+  }).toBe(true)
+
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, actor.session.accessToken)
+    const actorState = resolvePlayerState(state, actor)
+
+    return {
+      pendingPromptKind: state.pendingPrompt?.selectionPromptKind ?? 'none',
+      revealedDeckCards: (actorState.deck ?? []).filter((card) => card.isRevealed === true).length,
+      revealedCardIsBackInTheDeck: (actorState.deck ?? []).some((card) => card.instanceId === revealedDeckCard?.instanceId),
+      revealedCardIsOnTheField: actorState.characterField.some((card) => card.instanceId === revealedDeckCard?.instanceId),
+    }
+  }, {
+    timeout: 15_000,
+  }).toEqual({
+    pendingPromptKind: 'none',
+    revealedDeckCards: 0,
+    revealedCardIsBackInTheDeck: true,
+    revealedCardIsOnTheField: false,
+  })
+}
+
+
 
 /**
  * Advances turns until the requested actor is in their own MainPhase with no prompt pending and the caller's

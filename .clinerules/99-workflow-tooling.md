@@ -49,6 +49,28 @@
 - Never run `dotnet build` while a Playwright run is starting its own server (`e2e:start`
   runs `dotnet run`): the build reports a lone "1 Error" with no compiler message purely
   because the server holds the output DLL. Re-run the build on its own to confirm.
+- The reverse collision bites harder: **do not run `dotnet build` / `dotnet test` / `npm run test:e2e`
+  while the dev stack is live** (`npm run dev` → `concurrently` vite + `dotnet watch run … --urls
+  http://127.0.0.1:3001`). Every one of them builds `server/ProjectHiddenVillage.Server.csproj` into the
+  same `server/bin/Debug/net10.0` the watch process launched from, and watch holds pending hot-reload
+  patches (`DOTNET_MODIFIABLE_ASSEMBLIES=debug` + `Microsoft.Extensions.DotNetDeltaApplier`). Replacing
+  that DLL underneath it leaves the delta baseline stale, so the next call on a patched path dies inside
+  CoreCLR with a metadata-validation error — observed as
+  `Signature is not IMAGE_CEE_CS_CALLCONV_LOCAL_SIG.` (the string sits in `libcoreclr.so`, in the
+  “Bad IL range / Bad class token” validation block) when a player pressed Pass on a freshly patched
+  `InMemoryGameInstanceRegistry`. Recovery: restart the dev stack (Ctrl+C → `npm run dev`), or
+  `rm -rf server/bin server/obj` first if it recurs; in-memory games do not survive that restart.
+- **Do not try to dodge that collision by redirecting the e2e server build** to its own output path
+  (verified dead end): `dotnet run … -p:BaseOutputPath=/tmp/x/bin/ -p:BaseIntermediateOutputPath=/tmp/x/obj/`
+  fails with nine `CS0579: Duplicate 'System.Reflection.Assembly*Attribute'` errors, because the SDK only
+  excludes the *current* `BaseIntermediateOutputPath` from the compile glob — the stale
+  `server/obj/Debug/net10.0/*.AssemblyInfo.cs` + `.NETCoreApp,Version=*.AssemblyAttributes.cs` are then
+  compiled a second time. (`DefaultItemExcludes` cannot patch this from the command line: a global property
+  referencing `$(DefaultItemExcludes)` self-references, and a literal list would drop the SDK's own
+  excludes.) The symptom misleads badly: `dotnet ef database update` dies under `set -e`, `concurrently`
+  keeps vite up, Playwright's webServer URL (4173) still resolves, so **every** test runs and fails at
+  ~20 s against an unreachable API. It looks like a code regression and is not one. Either stop the dev
+  stack's dotnet side first, or run the e2e and restart the dev stack afterwards.
 
 ## Advance-phase read-then-act race (handled — do not “fix” it again)
 
@@ -68,3 +90,9 @@
   `Game.CompleteEndStep.InvalidState` (`DECLARE_END_STEP_INVALID_STATE_ERROR_CODE` /
   `COMPLETE_END_STEP_INVALID_STATE_ERROR_CODE`) as "waiting" instead of failing, because the
   phase can auto-complete between the state read and the call.
+- Driving the attack cut-in window has the same hazard from the other side: `passThroughActionStep` in
+  `gameview.multiplayer.attack-sequence.spec.ts` must wait for the declaration to *appear* as
+  `ActionStep` (`waitForActionStep`) before it may conclude that nobody can pass, and it re-reads when
+  a snapshot offers no pass. Its old early `return` fired on the pre-declaration snapshot, so the
+  attack then sat in `ActionStep` until the 25 s `MainPhase` poll failed — a one-off suite flake, not a
+  pass-count bug (the window always needed the double pass, and the support specs already send two).

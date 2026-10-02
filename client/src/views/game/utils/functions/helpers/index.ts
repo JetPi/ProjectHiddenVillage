@@ -118,6 +118,12 @@ function getPromptSelectionPhaseValue(gameInstance: IGameStateResponse): string 
       return PhaseValues['select-prompt-return-to-hand']
     case 'SearchDeck':
       return PhaseValues['select-prompt-search-deck']
+    case 'SummonFromZone':
+      return PhaseValues['select-prompt-summon-from-zone']
+    case 'DestroyFromZone':
+      return PhaseValues['select-prompt-destroy-from-zone']
+    case 'FreezeFromZone':
+      return PhaseValues['select-prompt-freeze-from-zone']
     default:
       return PhaseValues['select-prompt-generic']
   }
@@ -465,11 +471,13 @@ function buildSupportChainView(
 }
 
 /**
- * A single support activation opens a reaction window; the bubble is for what follows - a chain where
- * someone actually answered (a support activated inside that window), so a lone activation never pops it.
+ * The bubble is how the board shows what is waiting to resolve, so it pops from the very first queued
+ * activation - a lone activation that merely opened the reaction window included - and stays up for as long
+ * as the stack has anything on it. It disappears when the chain empties, i.e. when the entries leave
+ * `GameStateResponse.SupportChain`.
  */
 function shouldShowSupportChainBubble(entries: ISupportChainViewEntry[]): boolean {
-  return entries.length >= 2
+  return entries.length > 0
 }
 
 export {

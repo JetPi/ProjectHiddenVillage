@@ -139,10 +139,66 @@ public sealed class SupportActivationResolutionTests
 
         // Both players pass: most recently activated resolves first, and both bounced a character.
         PassInActionStep(game, "p1", executor);
+        // The first pass only hands priority back: the window is still open, so resolving here would apply
+        // the chain too early - and leave the attack waiting for one more pass *after* the effects resolved.
+        Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
+        Assert.AreEqual(2, game.State.EffectResolutionStack.Count);
+        Assert.AreEqual(2, game.State.Players[0].Battlefield.Count, "the first pass resolves nothing");
         PassInActionStep(game, "p2", executor);
 
         Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
         Assert.AreEqual(0, game.State.Players[0].Battlefield.Count);
+    }
+
+    /// <summary>
+    /// The chain has to resolve with the pass that closes the cut-in window and take the damage step with it:
+    /// resolving on the first pass applied the effects while the window was still open, which left the attack
+    /// waiting for one more pass *after* the effects had already resolved.
+    /// </summary>
+    [TestMethod]
+    public void ActivateSupport_ResolvesTheChainAndTheDamageStepTogether_OnTheClosingPass()
+    {
+        var game = CreateGame();
+        EnterCutInWindow(game, priorityPlayerId: "p2");
+        AddBattlefieldCard(game, playerIndex: 0, instanceId: "attacker-1", definitionId: "filler");
+        AddBattlefieldCard(game, playerIndex: 0, instanceId: "enemy-1", definitionId: "filler");
+        // A real leader attack: the attacker's DMG is what the damage step applies to the defending leader.
+        game.State.PendingAttackAttackerInstanceId = "attacker-1";
+        game.State.PendingAttackDefenderPlayerId = "p2";
+        game.State.PendingAttackDefenderZone = PlayerZone.Leader;
+        game.State.PendingAttackDefenderInstanceId = game.State.Players[1].LeaderCardInstance!.InstanceId;
+        AddSupportZoneCard(game, playerIndex: 1, instanceId: "support-1", definitionId: "destroy-support-attack");
+        game.State.Players[1].ResourcePool = 5;
+
+        var executor = CreateSequentialExecutor();
+        ExecuteSupport(
+            game,
+            playerId: "p2",
+            instanceId: "support-1",
+            executor,
+            selectedTargets: [CharacterTarget("p1", "enemy-1")]);
+
+        var startingLife = game.State.Players[1].LeaderCardInstance!.CurrentLife;
+
+        // The attacker's decline only hands priority back: the window is still open, so nothing has resolved.
+        PassInActionStep(game, "p1", executor);
+        Assert.AreEqual(GamePhase.ActionStep, game.State.Phase);
+        Assert.AreEqual(1, game.State.EffectResolutionStack.Count);
+        Assert.AreEqual(2, game.State.Players[0].Battlefield.Count);
+        Assert.AreEqual(startingLife, game.State.Players[1].LeaderCardInstance!.CurrentLife);
+
+        // The defender's pass closes the window: the queued K.O. and the damage step land in this one submit.
+        PassInActionStep(game, "p2", executor);
+
+        Assert.AreEqual(GamePhase.AttackResolution, game.State.Phase);
+        Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
+        Assert.AreEqual(1, game.State.Players[0].Battlefield.Count, "the queued support resolved");
+        Assert.IsTrue(game.State.Players[1].DiscardPile.Any(card => card.InstanceId == "support-1"));
+        Assert.IsFalse(game.State.HasPendingAttack);
+        Assert.AreEqual(
+            startingLife - 1,
+            game.State.Players[1].LeaderCardInstance!.CurrentLife,
+            "the damage step lands with the closing pass, so no further pass is needed");
     }
 
     [TestMethod]
@@ -224,8 +280,10 @@ public sealed class SupportActivationResolutionTests
         Assert.AreEqual(1, game.State.EffectResolutionStack.Count, "the activation waits for the window to close");
         Assert.AreEqual(4, game.State.Players[1].ResourcePool);
 
-        // The attacker declines: the window closes and the queued interrupt cancels the attack before damage.
+        // Both players decline: only the closing pass resolves the queued interrupt, and it cancels the
+        // attack before the damage step of that very same submit.
         PassInActionStep(game, "p1", executor);
+        PassInActionStep(game, "p2", executor);
 
         Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
         Assert.IsFalse(game.State.HasPendingAttack);
@@ -240,6 +298,12 @@ public sealed class SupportActivationResolutionTests
             game.State.Players[1].Battlefield.Any(card => card.InstanceId == "interrupt-1"),
             "the interrupt chain summoned the source card");
         Assert.AreEqual(10, game.State.Players[1].LeaderCardInstance!.CurrentLife, "the attack never dealt damage");
+        // The interrupt only executes because the replay runs as its activator's action: its own gate asks for
+        // priority, which the closing pass cleared. That hand-back has to be restored afterwards, not leaked.
+        Assert.AreEqual(
+            string.Empty,
+            game.State.PriorityPlayerId,
+            "the replay must restore the priority the closing pass left behind");
     }
 
     [TestMethod]
@@ -261,6 +325,7 @@ public sealed class SupportActivationResolutionTests
         var executor = CreateSequentialExecutor();
         ExecuteSupport(game, playerId: "p2", instanceId: "interrupt-1", executor);
         PassInActionStep(game, "p1", executor);
+        PassInActionStep(game, "p2", executor);
 
         Assert.IsFalse(game.State.HasPendingAttack);
         Assert.AreEqual(GamePhase.BattleEndStep, game.State.Phase);
@@ -306,6 +371,7 @@ public sealed class SupportActivationResolutionTests
 
         // Once the window closes the card is gone from the stack, so nothing lingers.
         PassInActionStep(game, "p2", executor);
+        PassInActionStep(game, "p1", executor);
         Assert.AreEqual(0, game.State.EffectResolutionStack.Count);
         Assert.IsFalse(SupportTimingRules.IsCardPendingOnResolutionStack(game.State, "support-1"));
     }
@@ -465,6 +531,7 @@ public sealed class SupportActivationResolutionTests
         Assert.IsTrue(game.State.Players[1].SupportZone[0].IsRevealedToBothPlayers);
 
         PassInActionStep(game, "p1", executor);
+        PassInActionStep(game, "p2", executor);
 
         // The support is spent: it resolves and the card leaves the support area for the trash.
         Assert.AreEqual(0, game.State.Players[0].Battlefield.Count);

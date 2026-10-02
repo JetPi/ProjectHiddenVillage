@@ -11,12 +11,14 @@ import { createGameForUserViaHub, joinGameAsPlayerViaHub } from '@/services/api/
 
 export type {
   ICreateGameForUserRequest,
+  IEffectNoticeResponse,
   IGameCardInstanceResponse,
   IGameInstanceDetailResponse,
   IGameInstanceResponse,
   IGamePlayerStateResponse,
   IGameStateResponse,
   IJoinGameAsPlayerRequest,
+  IPendingPromptResponse,
   ISupportChainEntryResponse,
   ISupportChainTargetResponse,
 } from '@/services/api/types/game'

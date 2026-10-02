@@ -44,6 +44,26 @@ const EFFECT_SELECTION_PROMPT_COPY: Record<string, { title: string; subtitle: st
     title: 'Search Your Deck',
     subtitle: 'Choose a card from your deck.',
   },
+  // "Summon 1 [Naruto Uzumaki] Character from your trash" (an [On Summon] chain): the pool only exists once the
+  // chain reaches this step, so the server asks for the pick instead of taking it up front.
+  SummonFromZone: {
+    title: 'Choose a Character to Summon',
+    subtitle: 'Choose one of the highlighted cards to summon onto your field.',
+  },
+  // "Destroy 1 Character" (an [On Summon] chain): the picked card is the one the effect removes. A field
+  // pick is answered by the card's own Select button, so this bucket only titles the picker if the effect
+  // ever offers a zone the board does not draw as cards.
+  DestroyFromZone: {
+    title: 'Choose a Character to Destroy',
+    subtitle: 'Choose one of the highlighted cards to destroy.',
+  },
+  // "Freeze 1 Leader or Character" (N-013): the picked card cannot attack during the opponent's next turn.
+  // Both zones are drawn on the board, so the pick is answered with the card's own Select button - the leader
+  // card included (it is listed in the board-answerable zones).
+  FreezeFromZone: {
+    title: 'Choose a Card to Freeze',
+    subtitle: 'Choose a Leader or Character; the chosen card cannot attack.',
+  },
   // A "Reveal First" chain suspends so the player can see the card it turned over; the client acknowledges it
   // on its own, so the copy is only shown if the presentation ever needs a caption.
   RevealPresentation: {
@@ -76,10 +96,11 @@ function toReadableOptionLabel(optionValue: string): string {
 
 /**
  * Zones whose cards are rendered on the board, so an effect selection there is answered by clicking the card
- * itself (the hover options become a "Select" button) rather than by the card-list overlay. Zones that are not
- * drawn as selectable cards (a search's deck) keep the overlay.
+ * itself (the hover options become a "Select" button) rather than by the card-list overlay. The leader is one
+ * of them (N-013's freeze may pick it); zones that are not drawn as selectable cards (a search's deck) keep
+ * the overlay.
  */
-const BOARD_SELECTION_ZONES = new Set<string>(['Hand', 'CharacterField', 'SupportZone'])
+const BOARD_SELECTION_ZONES = new Set<string>(['Hand', 'CharacterField', 'SupportZone', 'Leader'])
 
 /**
  * Presentation prompts are not questions: a "Reveal First" chain suspends so the player can look at the card it
@@ -134,6 +155,7 @@ function toPromptPresentation(pendingPrompt: IPromptPresentationSource): IPrompt
     options: pendingPrompt.options.map((option) => toPromptOption(option, pendingPrompt.type)),
     selectionPromptKind: pendingPrompt.selectionPromptKind ?? null,
     candidateZone: pendingPrompt.candidateZone ?? null,
+    candidatePlayerId: pendingPrompt.candidatePlayerId ?? null,
   }
 }
 
@@ -151,50 +173,141 @@ type IPromptCandidateInstanceCard = {
 }
 
 /**
- * Resolves the cards an effect selection prompt offers, from whichever collection the server named in
- * `CandidateZone`: the player's hand for "place 1 card from your hand on top of your deck", their deck for a
- * search. The prompt only carries card instance ids, so names and art come from the catalog.
+ * The zones a prompt can draw candidates from, in the order they are searched when several rules feed the same
+ * prompt. Callers pass the raw player collections; the zone the server named in `CandidateZone` is moved to the
+ * front (it is the server's own hint), the rest stay in this order as the fallback pool.
+ */
+type IPromptCandidatePlayer = {
+  playerId: string
+  /** The leader is a single board card rather than a collection; the pool flattens it like one. */
+  leader?: IPromptCandidateInstanceCard | null
+  hand: readonly IPromptCandidateInstanceCard[]
+  deck: readonly IPromptCandidateInstanceCard[]
+  trash: readonly IPromptCandidateInstanceCard[]
+  exileZone: readonly IPromptCandidateInstanceCard[]
+}
+
+/** The candidate collections of one player, in the order they are searched as the fallback pool. */
+function resolvePromptCandidateCollections(
+  player: IPromptCandidatePlayer,
+): readonly (readonly IPromptCandidateInstanceCard[])[] {
+  return [
+    player.leader ? [player.leader] : [],
+    player.hand,
+    player.deck,
+    player.trash,
+    player.exileZone,
+  ]
+}
+
+const PROMPT_CANDIDATE_ZONE_INDEX: Record<string, number> = {
+  Leader: 0,
+  Hand: 1,
+  Deck: 2,
+  Trash: 3,
+  ExileZone: 4,
+}
+
+/**
+ * The candidate pool a prompt draws from, as one list: the collection the server named in `CandidateZone` first,
+ * then that player's remaining collections. Zones the board does not render as a pickable set (deck, trash,
+ * exile) are read straight from the player payload, so a "summon 1 Character from your trash" prompt has real
+ * card faces to click.
+ *
+ * The fallback is what keeps a multi-rule prompt honest: "summon 1 [Naruto Uzumaki] from your trash **or** your
+ * deck" resolves candidates out of both zones at once while `CandidateZone` can only name one of them, and the
+ * prompt's own `options` are the authoritative pick list (see `buildPromptCandidateCards`).
+ */
+function resolvePromptCandidatePool({
+  prompt,
+  players,
+  fallbackPlayerId,
+}: {
+  prompt: IPromptPresentation
+  players: readonly IPromptCandidatePlayer[]
+  fallbackPlayerId: string | null
+}): readonly IPromptCandidateInstanceCard[] {
+  const ownerPlayerId = prompt.candidatePlayerId ?? fallbackPlayerId
+  const player = players.find((candidate) => candidate.playerId === ownerPlayerId)
+
+  if (!player) {
+    return []
+  }
+
+  const collections = [...resolvePromptCandidateCollections(player)]
+  const namedIndex = prompt.candidateZone ? PROMPT_CANDIDATE_ZONE_INDEX[prompt.candidateZone] : undefined
+
+  if (namedIndex === undefined) {
+    return collections.flat()
+  }
+
+  // The collection the server named in `CandidateZone` first, then that player's remaining collections.
+  const [namedCollection] = collections.splice(namedIndex, 1)
+
+  return [namedCollection, ...collections].flat()
+}
+
+/**
+ * Resolves the cards an effect selection prompt offers: the prompt carries card instance ids only, so each one is
+ * looked up in the candidate pool and its name/art come from the catalog. The tiles follow the prompt's own
+ * option order, which is the server's candidate order.
  */
 function buildPromptCandidateCards({
   prompt,
-  handCards,
-  deckCards,
+  players,
+  requestingPlayerId,
   catalogCards,
 }: {
   prompt: IPromptPresentation | null
-  handCards: readonly IPromptCandidateInstanceCard[]
-  deckCards: readonly IPromptCandidateInstanceCard[]
+  players: readonly IPromptCandidatePlayer[]
+  requestingPlayerId?: string | null
   catalogCards: readonly IPromptCandidateCatalogCard[]
 }): IGamePromptCandidateCard[] {
   if (!prompt || prompt.promptType !== 'Effect') {
     return []
   }
 
-  const sourceCards =
-    prompt.candidateZone === 'Hand'
-      ? handCards
-      : prompt.candidateZone === 'Deck'
-        ? deckCards
-        : []
+  const candidatePool = resolvePromptCandidatePool({
+    prompt,
+    players,
+    fallbackPlayerId: requestingPlayerId ?? null,
+  })
 
-  if (sourceCards.length === 0) {
+  if (candidatePool.length === 0) {
     return []
   }
 
-  const optionInstanceIds = new Set(prompt.options.map((option) => option.value))
+  const cardByInstanceId = new Map(
+    candidatePool.map((card) => [card.instanceId.trim().toLowerCase(), card]),
+  )
   const catalogById = new Map(catalogCards.map((card) => [card.id, card]))
+  const seenInstanceIds = new Set<string>()
+  const resolvedCards: IGamePromptCandidateCard[] = []
 
-  return sourceCards
-    .filter((card) => optionInstanceIds.has(card.instanceId))
-    .map((card) => {
-      const catalogCard = catalogById.get(card.cardDefinitionId) ?? null
+  for (const option of prompt.options) {
+    const normalizedInstanceId = option.value.trim().toLowerCase()
 
-      return {
-        instanceId: card.instanceId,
-        displayName: card.displayName ?? catalogCard?.displayName ?? card.cardDefinitionId,
-        card: catalogCard,
-      }
+    if (!normalizedInstanceId || seenInstanceIds.has(normalizedInstanceId)) {
+      continue
+    }
+
+    const card = cardByInstanceId.get(normalizedInstanceId)
+
+    if (!card) {
+      continue
+    }
+
+    seenInstanceIds.add(normalizedInstanceId)
+    const catalogCard = catalogById.get(card.cardDefinitionId) ?? null
+
+    resolvedCards.push({
+      instanceId: card.instanceId,
+      displayName: card.displayName ?? catalogCard?.displayName ?? card.cardDefinitionId,
+      card: catalogCard,
     })
+  }
+
+  return resolvedCards
 }
 
 export {

@@ -28,4 +28,30 @@ public static class PlayerZoneCardAccessor
             _ => throw new ArgumentOutOfRangeException(nameof(zone), zone, null)
         };
     }
+
+    /// <summary>
+    /// The live instance behind a target reference. Every list zone already returns the state's own objects,
+    /// but the leader is stored as <see cref="LeaderCardInstanceState"/> (itself a <see cref="CardInstance"/>)
+    /// and <see cref="GetCards"/> projects it into a *copy* - an effect that mutates a selected target (N-013's
+    /// freeze, which adds a runtime keyword) must resolve the stored instance or the change is lost.
+    /// </summary>
+    public static CardInstance? ResolveLiveCard(PlayerZone zone, PlayerState playerState, string? cardInstanceId)
+    {
+        if (string.IsNullOrWhiteSpace(cardInstanceId))
+        {
+            return null;
+        }
+
+        if (zone == PlayerZone.Leader)
+        {
+            var leader = playerState.LeaderCardInstance;
+            return leader is not null
+                && string.Equals(leader.InstanceId, cardInstanceId, StringComparison.Ordinal)
+                    ? leader
+                    : null;
+        }
+
+        return GetCards(zone, playerState).FirstOrDefault(card =>
+            string.Equals(card.InstanceId, cardInstanceId, StringComparison.Ordinal));
+    }
 }

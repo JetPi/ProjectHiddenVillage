@@ -36,7 +36,7 @@ function SupportChainBubble({ gameInstance, authUserId }: ISupportChainBubblePro
           data-testid="support-chain-count"
           className="rounded-full border border-white/20 bg-white/10 px-1.5 py-px text-[9px] font-semibold text-white/85"
         >
-          {entries.length} activations
+          {entries.length === 1 ? '1 activation' : `${entries.length} activations`}
         </span>
       </div>
 
@@ -46,7 +46,9 @@ function SupportChainBubble({ gameInstance, authUserId }: ISupportChainBubblePro
         ))}
       </ol>
 
-      <p className="text-[9px] leading-snug text-white/55">Resolves last in, first out.</p>
+      {entries.length > 1 ? (
+        <p className="text-[9px] leading-snug text-white/55">Resolves last in, first out.</p>
+      ) : null}
     </div>
   )
 }

@@ -48,6 +48,8 @@ export function LeaderCard({
   isActionPending = false,
   isTargetCandidate = false,
   onChooseTarget,
+  isEffectTargetCandidate = false,
+  onToggleEffectTarget,
   onSelectActionOption,
 }: ILeaderCardProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
@@ -66,6 +68,9 @@ export function LeaderCard({
   const { actionOptions: leaderActionOptions, recoveryAction } = splitRecoveryAction(actionOptions)
   const isDisabled = !isConnected || isActionPending
   const isChoosingTarget = isTargetCandidate === true
+  // A targeting action (Choose / Select) is the only thing the card can do right now, so the ability list and
+  // the Recovery chip step aside while the pick is open.
+  const isSoleAction = isChoosingTarget || (isEffectTargetCandidate && Boolean(onToggleEffectTarget))
   const showPreviewButton = isChoosingTarget || !hidePreviewButton
   const showOverlayControls = !disableInteractions
 
@@ -84,7 +89,9 @@ export function LeaderCard({
           <span className="text-red-300">{leaderCard.currentPower}</span>
         </CardOverlayBadge>
 
-        {shouldRenderBadge ? <CardOverlayBadge className='text-green-300'>{badgeValue}</CardOverlayBadge> : null}
+        {shouldRenderBadge ? (
+          <CardOverlayBadge className='text-green-300' testId='leader-life-badge'>{badgeValue}</CardOverlayBadge>
+        ) : null}
 
         {previewCard && showPreviewButton && showOverlayControls ? (
           <div className="card-overlay-float pointer-events-none absolute right-2 top-2 z-30 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
@@ -114,7 +121,25 @@ export function LeaderCard({
           </div>
         ) : null}
 
-        {showOverlayControls && !isChoosingTarget && leaderActionOptions.length > 0 ? (
+        {/* N-013's freeze offers a Leader as a candidate: the pick is answered with the same "Select" chip the
+            battlefield/hand cards use (the store routes it to the pending effect selection prompt). */}
+        {showOverlayControls && !isChoosingTarget && isEffectTargetCandidate && onToggleEffectTarget ? (
+          <div className={LEADER_OVERLAY_CONTAINER_CLASSNAME}>
+            <button
+              type="button"
+              data-testid="leader-effect-target-toggle"
+              onClick={() => {
+                onToggleEffectTarget()
+              }}
+              disabled={isDisabled}
+              className={LEADER_ACTION_BUTTON_CLASSNAME}
+            >
+              Select
+            </button>
+          </div>
+        ) : null}
+
+        {showOverlayControls && !isSoleAction && leaderActionOptions.length > 0 ? (
           <div className={LEADER_OVERLAY_CONTAINER_CLASSNAME}>
               {leaderActionOptions.map((action) => (
                 <button
@@ -135,7 +160,7 @@ export function LeaderCard({
         ) : null}
         
         {
-        showOverlayControls && !isChoosingTarget && recoveryAction ? (
+        showOverlayControls && !isSoleAction && recoveryAction ? (
           <div className="card-overlay-float pointer-events-none absolute bottom-0 left-0 z-30 mb-1 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
             <button
               type="button"

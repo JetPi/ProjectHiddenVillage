@@ -35,11 +35,13 @@ public static partial class GameStateResponseMapper
                     ? BuildSupportAvailableActions(card, state)
                     : [],
 
-            // Evaluated lazily: only cards already on the character field can declare battle
-            // actions, and CanDeclareBattleAction relies on field-entry state.
+            // Evaluated lazily: only cards already on the character field can declare battle actions, and
+            // CanDeclareBattleAction relies on field-entry state. A battlefield character also publishes its
+            // own abilities (N-011's "[Activate: Main]"), exactly like a leader does; both are suppressed
+            // while a support activation waits for responses, which is what the engine's window guard does.
             PlayerZone.CharacterField => SupportTimingRules.HasPendingSupportActivation(state)
                 ? []
-                : BuildBattleActionOptions(card, state),
+                : BuildCharacterFieldAvailableActions(card, state),
 
             _ => []
         };
@@ -79,5 +81,35 @@ public static partial class GameStateResponseMapper
     {
         return state.Phase == GamePhase.MainPhase
             && IsSamePlayerId(state.ActivePlayerId, card.ControllerPlayerId);
+    }
+
+    /// <summary>
+    /// A battlefield card's published options: its own abilities (the same builder the leader uses, with the
+    /// card as the source instance) followed by the always-published Battle action. Ability options are only
+    /// produced when their timing window is open, so a card without an activatable ability simply shows Battle.
+    /// </summary>
+    private static IReadOnlyList<GameActionOptionResponse> BuildCharacterFieldAvailableActions(
+        CardInstance card,
+        GameState state)
+    {
+        var actions = new List<GameActionOptionResponse>();
+        var controller = state.Players.FirstOrDefault(player =>
+            IsSamePlayerId(player.PlayerId, card.ControllerPlayerId));
+
+        if (controller is not null
+            && state.CardDefinitions.TryGetValue(card.CardDefinitionId, out var definition))
+        {
+            actions.AddRange(BuildCardAbilityOptions(
+                state,
+                controller,
+                definition,
+                sourceCardInstance: card,
+                sourceCardInstanceId: card.InstanceId,
+                actionPrefix: CharacterAbilityActionPrefix));
+        }
+
+        actions.AddRange(BuildBattleActionOptions(card, state));
+
+        return actions;
     }
 }

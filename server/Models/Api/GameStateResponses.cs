@@ -18,7 +18,25 @@ public sealed record GameStateResponse(
     bool IsSupportResponseWindowOpen = false,
     // Support activations still waiting on the resolution stack, oldest first. The client renders the
     // support-chain bubble from this list (see SupportChainEntryResponse).
-    IReadOnlyList<SupportChainEntryResponse>? SupportChain = null);
+    IReadOnlyList<SupportChainEntryResponse>? SupportChain = null,
+    // Out-of-band notices for the requesting player, oldest first: things that happened during resolution but
+    // left no board change to look at, such as a prompted selection that ran out of candidates. The client shows
+    // the newest unseen one as a transient toast (see EffectNoticeResponse).
+    IReadOnlyList<EffectNoticeResponse>? EffectNotices = null);
+
+/// <summary>
+/// One "the effect resolved, but it had nothing to act on" notice, projected from the game's action log so the
+/// log stays the single source of truth. <see cref="NoticeId"/> is the log entry id: the client de-duplicates on
+/// it, because the server republishes the same list on every push.
+/// </summary>
+public sealed record EffectNoticeResponse(
+    string NoticeId,
+    string ActionType,
+    string Message,
+    string? PlayerId,
+    string? SourceCardInstanceId,
+    string? SourceCardDisplayName,
+    string? SelectionPromptKind);
 
 /// <summary>
 /// One queued support activation of the current reaction chain. <see cref="Sequence"/> is the activation
@@ -71,7 +89,10 @@ public sealed record PendingPromptResponse(
     string? SelectionPromptKind = null,
     string? CandidateZone = null,
     int? MinimumSelection = null,
-    int? MaximumSelection = null);
+    int? MaximumSelection = null,
+    // Owner of the candidate cards (the player being asked). The client resolves the collection to render from
+    // CandidateZone within this player, so an effect may offer an opponent's zone as well as its own.
+    string? CandidatePlayerId = null);
 
 public sealed record GameActionOptionResponse(
     string ActionId,

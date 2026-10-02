@@ -8,6 +8,7 @@ import {
   executeBattleActionViaHub,
   fetchGameState,
   getBottomSupportCardsBySlot,
+  getCardActionTargetsViaHub,
   getCardGhostAnimationCount,
   installCardGhostAnimationCounter,
   openMultiplayerPages,
@@ -47,6 +48,20 @@ const RETURN_TO_HAND_SUPPORT_CARD_DEFINITION_ID = 'N-020'
 // attack itself - it collects no target at all - and its success branch summons the very card that was
 // activated.
 const INTERRUPT_ATTACK_SUPPORT_CARD_DEFINITION_ID = 'N-008'
+
+// N-010 (Karin): "[During Your Opponent's Attack] Summon this card and you gain 2 Life." Deck "two" only, so
+// player two defends with it while player one attacks. It is the catalogue's only life *gain*, i.e. the only
+// card that can push a leader above the life it printed.
+const GAIN_LIFE_SUPPORT_CARD_DEFINITION_ID = 'N-010'
+const GAIN_LIFE_AMOUNT = 2
+
+// The attacker has to deal exactly 1 damage: the gain has to leave the defending leader *above* its printed
+// maximum (15 + 2 - 1), because landing back on the maximum would be indistinguishable from the clamp this
+// spec regresses. N-018 is a plain normal-summonable 1-damage Character of deck one whose only effect is a
+// support-zone activation.
+const GAIN_LIFE_ATTACKER_DEFINITION_ID_BY_DECK = {
+  playerOne: 'N-018',
+} as const
 
 // Neither opening hand is guaranteed to hold a range support (three copies in a 31-card deck), and a game
 // where nobody draws one ends in a deck-out before the scenario can play out. Each attempt plays a fresh
@@ -242,7 +257,163 @@ test.describe('GameView multiplayer support activation', () => {
 
     throw lastFailure
   })
+
+  test('a life gain above the printed maximum renders on the leader badge', async ({ browser, request }) => {
+    let lastFailure: unknown = null
+
+    for (let attempt = 0; attempt < RANGE_SUPPORT_ATTEMPT_COUNT; attempt += 1) {
+      const setup = await setupMultiplayerGame(request)
+      const pages = await openMultiplayerPages(browser, setup)
+
+      try {
+        await playGainLifeAboveMaximumScenario(request, setup, pages)
+        return
+      } catch (error) {
+        lastFailure = error
+      } finally {
+        await closeMultiplayerPages(pages)
+      }
+    }
+
+    throw lastFailure
+  })
 })
+
+/**
+ * N-010 (Karin) is the "[During Your Opponent's Attack] ... you gain 2 Life" support of deck two, so player one
+ * attacks and player two answers from their support area. The 1-damage attacker makes the defending leader end
+ * the turn above the life it printed (15 + 2 - 1), and the badge has to render that value: the server used to
+ * clamp the gain at the printed maximum, which read exactly like the pre-gain life on the board.
+ *
+ * Only the *final* life is asserted - it is the number the badge has to show - because the pre-damage life is a
+ * transient the damage step immediately overwrites.
+ */
+async function playGainLifeAboveMaximumScenario(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: MultiplayerPages,
+): Promise<void> {
+  const attacker = setup.playerOne
+  const defender = setup.playerTwo
+
+  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+
+  await advanceToMulliganPromptIfNeeded(request, setup)
+  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+  // 1. The attacker summons the 1-damage character outside any attack window, so it is ready to attack later.
+  const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
+    actorUserId: attacker.userId,
+    cardDefinitionId: GAIN_LIFE_ATTACKER_DEFINITION_ID_BY_DECK.playerOne,
+  })
+  const attackerPage = summonActor.actorPage
+  const attackerCardInstanceId = summonActor.cardInstanceId
+  const attackerHandCard = attackerPage.locator(`[data-testid="bottom-hand-card-${attackerCardInstanceId}"]`)
+  await attackerHandCard.hover()
+  await attackerHandCard.getByRole('button', { name: /^summon$/i }).click()
+
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, attacker.session.accessToken)
+    return resolvePlayerState(state, attacker).characterField
+      .some((card) => card.instanceId === attackerCardInstanceId)
+  }, {
+    timeout: 12_000,
+  }).toBe(true)
+
+  // 2. The defender sets N-010 face down in the support area, ready to be activated during the attack.
+  const setActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Set Support', {
+    actorUserId: defender.userId,
+    cardDefinitionId: GAIN_LIFE_SUPPORT_CARD_DEFINITION_ID,
+  })
+  const defenderPage = setActor.actorPage
+  const supportInstanceId = setActor.cardInstanceId
+  const supportHandCard = defenderPage.locator(`[data-testid="bottom-hand-card-${supportInstanceId}"]`)
+  await supportHandCard.hover()
+  await supportHandCard.getByRole('button', { name: /^set support$/i }).click()
+
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, defender.session.accessToken)
+    return resolvePlayerState(state, defender).supportZone
+      .some((card) => card.instanceId === supportInstanceId)
+  }, {
+    timeout: 12_000,
+  }).toBe(true)
+
+  // 3. The attack on the defending leader (always attackable, even in Active Mode) opens the cut-in window.
+  //    The hub submit targets the leader on its own: it is the defender's only legal target.
+  const attack = await resolveActorWithBottomBattleAction(request, setup, pages)
+  expect(attack.cardInstanceId).toBe(attackerCardInstanceId)
+  expect(attack.actor.userId).toBe(attacker.userId)
+  await executeBattleActionViaHub(setup.gameCode, attack.actor, attack.actionId, attack.cardInstanceId)
+
+  const leaderBefore = await readLeaderInstanceState(request, setup, defender)
+  expect(leaderBefore.currentLife).toBe(leaderBefore.totalLife)
+  const attackerDamage = await readBattlefieldCardDamage(request, setup, attacker, attackerCardInstanceId)
+  // The 1-damage attacker is what keeps the end-of-turn life *above* the printed maximum: a 2-damage attacker
+  // would land exactly back on it, which reads the same as the clamp this spec regresses.
+  const expectedLife = leaderBefore.totalLife + GAIN_LIFE_AMOUNT - attackerDamage
+  expect(expectedLife).toBeGreaterThan(leaderBefore.totalLife)
+
+  // 4. N-010 is enabled in the window. Its gain is authored as a self-leader `Change Values` node, which
+  //    `SupportActivationNormalizer` turns into a selection-free effect (`IsOwnLeaderOnlyModification`), so
+  //    the activation asks for no target at all - like N-008's interrupt, and unlike the "Choose" step
+  //    N-020/N-006 need. The published plan therefore has to be enabled with an empty candidate list.
+  const supportZoneCard = defenderPage.locator(
+    `[data-zone="support"][data-slot-side="bottom"][data-card-instance-id="${supportInstanceId}"]`,
+  )
+  await expect(supportZoneCard).toBeVisible()
+  await expect.poll(async () => {
+    const state = await fetchGameState(request, setup.gameCode, defender.session.accessToken)
+    const supportCard = resolvePlayerState(state, defender).supportZone
+      .find((card) => card.instanceId === supportInstanceId)
+    return (supportCard?.availableActions ?? [])
+      .find((action) => action.actionId.startsWith('activate-support:'))?.isEnabled === true
+  }, {
+    timeout: 15_000,
+  }).toBe(true)
+
+  const publishedTargets = await getCardActionTargetsViaHub(
+    setup.gameCode,
+    defender,
+    `activate-support:${supportInstanceId}`,
+    supportInstanceId,
+  )
+  // The gain resolves by target range, so the plan publishes no candidate: a picker here would dead-end on
+  // the board, because the leader card only shows its "Choose" button for battle targets.
+  expect(publishedTargets).toHaveLength(0)
+
+  const supportChip = supportZoneCard.getByRole('button', { name: /^support$/i })
+  await supportZoneCard.hover()
+  await expect(supportChip).toBeEnabled()
+  await supportChip.click()
+
+  await waitUntilSupportActivationIsQueued(request, setup, defender, supportInstanceId)
+
+  // 5. The attacker declines, the queued gain resolves before the damage step, and the leader keeps a life
+  //    above the number it printed - the value the badge has to render.
+  await passUntilLeaderLifeReaches(request, setup, defender, expectedLife)
+
+  const leaderAfter = await readLeaderInstanceState(request, setup, defender)
+  expect(leaderAfter.currentLife).toBe(expectedLife)
+  // Both leader cards render the badge, so the assertion is scoped to the defending player's own card.
+  const lifeBadge = defenderPage.locator(
+    `[data-zone="leader-card"][data-slot-side="bottom"][data-card-instance-id="${leaderAfter.instanceId}"]`
+    + ' [data-testid="leader-life-badge"]',
+  )
+  await expect(lifeBadge).toBeVisible()
+  await expect(lifeBadge).toHaveText(String(expectedLife))
+
+  // The card's summon rides the gain node's success branch, so the card *landing on the field* (and leaving the
+  // support area) is what proves the chain ran past the gain instead of pausing on it.
+  const defenderAfter = resolvePlayerState(
+    await fetchGameState(request, setup.gameCode, defender.session.accessToken),
+    defender,
+  )
+  expect(defenderAfter.characterField.some((card) => card.instanceId === supportInstanceId)).toBe(true)
+  expect(defenderAfter.supportZone.some((card) => card.instanceId === supportInstanceId)).toBe(false)
+}
 
 /**
  * N-008 (Shikamaru Nara) is the "[During Your Opponent's Attack] Summon this card and interrupt that attack"
@@ -347,34 +518,74 @@ async function playInterruptAttackScenario(
   expect(restedAttacker?.isRested).toBe(true)
 }
 
+type LeaderInstanceState = {
+  instanceId: string
+  currentLife: number
+  totalLife: number
+}
+
+/**
+ * Reads the leader's life numbers straight off the wire: `totalLife` is the printed maximum (it never changes)
+ * while `currentLife` is the resolved value the badge renders, so a gain that pushes the leader above its
+ * maximum has to be visible here before it can be visible on the board.
+ */
+async function readLeaderInstanceState(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  player: MultiplayerSetup['playerOne'],
+): Promise<LeaderInstanceState> {
+  const state = await fetchGameState(request, setup.gameCode, player.session.accessToken)
+  const leader = resolvePlayerState(state, player).leader
+  if (leader.instanceId === undefined || leader.currentLife === undefined || leader.totalLife === undefined) {
+    throw new Error('The game state did not publish the leader instance id and life.')
+  }
+
+  return {
+    instanceId: leader.instanceId,
+    currentLife: leader.currentLife,
+    totalLife: leader.totalLife,
+  }
+}
+
+/**
+ * The resolved DMG of a battlefield card: the value the board shows and the value an attack of that card chips
+ * off a defending leader's life with.
+ */
+async function readBattlefieldCardDamage(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  owner: MultiplayerSetup['playerOne'],
+  cardInstanceId: string,
+): Promise<number> {
+  const state = await fetchGameState(request, setup.gameCode, owner.session.accessToken)
+  const cardDamage = resolvePlayerState(state, owner).characterField
+    .find((card) => card.instanceId === cardInstanceId)?.damage
+  if (cardDamage === undefined) {
+    throw new Error('The game state did not publish the attacking card damage.')
+  }
+
+  return cardDamage
+}
+
 async function resolveLeaderLife(
   request: APIRequestContext,
   setup: MultiplayerSetup,
   player: MultiplayerSetup['playerOne'],
 ): Promise<number> {
-  const state = await fetchGameState(request, setup.gameCode, player.session.accessToken)
-  const leaderLife = resolvePlayerState(state, player).leader.currentLife
-  if (leaderLife === undefined) {
-    throw new Error('The game state did not publish the leader life.')
-  }
-
-  return leaderLife
+  return (await readLeaderInstanceState(request, setup, player)).currentLife
 }
 
 /**
- * The attacker declines the queued interrupt - one decline closes the window - until the pending attack is
- * cancelled and the summon resolved onto the defender's field.
+ * The support-chip click submits asynchronously: waits until the activation actually reached the chain. A card
+ * whose own activation is queued publishes no support action at all - the signal the chain took it - so a
+ * premature response would answer the attack's own window instead of the queued card's.
  */
-async function passUntilAttackIsInterrupted(
+async function waitUntilSupportActivationIsQueued(
   request: APIRequestContext,
   setup: MultiplayerSetup,
-  passer: MultiplayerSetup['playerOne'],
   owner: MultiplayerSetup['playerOne'],
   supportInstanceId: string,
 ): Promise<void> {
-  // The chip click submits asynchronously: wait until the activation reached the chain (a card whose own
-  // activation is queued publishes no support action at all) before anyone declines - declining first would
-  // close the attack's own window instead of the interrupt's chain.
   await expect.poll(async () => {
     const state = await fetchGameState(request, setup.gameCode, owner.session.accessToken)
     const supportCard = resolvePlayerState(state, owner).supportZone
@@ -384,6 +595,62 @@ async function passUntilAttackIsInterrupted(
   }, {
     timeout: 10_000,
   }).toBe(false)
+}
+
+/**
+ * Declines (with whichever side holds priority) until the defending leader settles on the expected life. The
+ * budget is wide because the attack sequence runs several steps after the activation is queued: the cut-in
+ * window's double pass, the resolution of the chain, the damage step and the battle-end step.
+ */
+async function passUntilLeaderLifeReaches(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  defender: MultiplayerSetup['playerOne'],
+  expectedLife: number,
+): Promise<void> {
+  for (let step = 0; step < 25; step += 1) {
+    const [playerOneState, playerTwoState] = await Promise.all([
+      fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+      fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+    ])
+
+    const defenderState = defender.userId === setup.playerOne.userId ? playerOneState : playerTwoState
+    if (resolvePlayerState(defenderState, defender).leader.currentLife === expectedLife) {
+      return
+    }
+
+    const playerOneCanPass = playerOneState.availableActions
+      .some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+    const playerTwoCanPass = playerTwoState.availableActions
+      .some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+
+    if (playerOneCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerOne)
+    } else if (playerTwoCanPass) {
+      await declarePassInActionStepViaHub(setup.gameCode, setup.playerTwo)
+    }
+
+    await wait(400)
+  }
+
+  throw new Error(`The defending leader never settled on ${expectedLife} life.`)
+}
+
+/**
+ * Declines until the pending attack is cancelled and the summon resolved onto the defender's field. Both
+ * players pass out of the cut-in window: the closing pass resolves the queued interrupt *and* takes the
+ * attack's damage step with it, so no extra decline is needed once the chain has resolved.
+ */
+async function passUntilAttackIsInterrupted(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  passer: MultiplayerSetup['playerOne'],
+  owner: MultiplayerSetup['playerOne'],
+  supportInstanceId: string,
+): Promise<void> {
+  // The chip click submits asynchronously, so wait for the chain to take the card before anyone declines:
+  // declining first would close the attack's own window instead of the interrupt's chain.
+  await waitUntilSupportActivationIsQueued(request, setup, owner, supportInstanceId)
 
   for (let step = 0; step < 20; step += 1) {
     const ownerState = await fetchGameState(request, setup.gameCode, owner.session.accessToken)

@@ -11,4 +11,5 @@ export * from './NonLeaderCardOverlay'
 export * from './SidebarButtons'
 export * from './AttackLinkArrow'
 export * from './SupportChainBubble'
+export * from './EffectNoticeBanner'
 

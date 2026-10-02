@@ -81,6 +81,34 @@ public sealed class AlterResourcesEffectTests
     }
 
     [TestMethod]
+    public void Execute_ClampsChakraRecovery_ToTheChakraCardsThePlayerOwns()
+    {
+        // "Recover 5" is the authored leader Recovery amount; on a partly spent pool it must top the pool up
+        // to the five chakra cards a player owns instead of overshooting to 3 + 5.
+        var effectSpec = new EffectSpec
+        {
+            RuntimeEffectType = RuntimeEffects.AlterResources,
+            ChakraAdjustments =
+            [
+                new ChakraAdjustmentSpec
+                {
+                    TargetRange = EffectTargetRange.Self,
+                    Operation = ChakraAdjustmentOperation.Recover,
+                    Amount = 5,
+                }
+            ]
+        };
+
+        var context = CreateContext(effectSpec, playerOneResource: 3, playerTwoResource: 0);
+        var effect = CreateEffect(effectSpec);
+
+        var result = effect.Execute(context, []);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(PlayerState.ChakraCardCount, context.Game.State.Players[0].ResourcePool);
+    }
+
+    [TestMethod]
     public void CanExecute_Fails_WhenPayAmountExceedsAvailableChakra()
     {
         var effectSpec = new EffectSpec

@@ -296,7 +296,9 @@ public sealed class AlterResourcesEffect(
 		player.ResourcePool = adjustment.Operation switch
 		{
 			ChakraAdjustmentOperation.Pay => player.ResourcePool - adjustment.Amount,
-			ChakraAdjustmentOperation.Recover => player.ResourcePool + adjustment.Amount,
+			// A recovery cannot push the pool past the chakra cards the player owns (ChakraRecoveryRules),
+			// otherwise "Recover 5" would send a partly spent pool above the five-card ceiling.
+			ChakraAdjustmentOperation.Recover => player.ResourcePool + ChakraRecoveryRules.ClampRecoveryAmount(player, adjustment.Amount),
 			_ => player.ResourcePool,
 		};
 

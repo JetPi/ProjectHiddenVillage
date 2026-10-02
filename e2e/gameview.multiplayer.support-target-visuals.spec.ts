@@ -132,9 +132,12 @@ async function playSupportNegateTargetingScenario(
     timeout: 12_000,
   }).toBe(true)
 
-  // A lone activation opens the window but is not a chain yet: the bubble stays out of the way until
-  // someone actually answers inside the window.
-  await expect(negatorPage.getByTestId('support-chain-bubble')).toHaveCount(0)
+  // The queued activation is visible straight away: the bubble pops from the very first entry, so the
+  // window is never silent while it waits for an answer.
+  const chainBubble = negatorPage.getByTestId('support-chain-bubble')
+  await expect(chainBubble).toBeVisible({ timeout: 12_000 })
+  await expect(negatorPage.getByTestId('support-chain-entry')).toHaveCount(1)
+  await expect(negatorPage.getByTestId('support-chain-count')).toHaveText('1 activation')
 
   // 5. The support row is measured on the negator's screen: the opponent's (top) row holds the card the
   //    negate has to target.
@@ -165,12 +168,10 @@ async function playSupportNegateTargetingScenario(
   await targetCard.hover()
   await targetCard.getByRole('button', { name: /^choose$/i }).click()
 
-  // 8. The negate queues: the chain now has two activations, so the bubble pops up over the board and
-  //    spells out who is answering whom.
-  const chainBubble = negatorPage.getByTestId('support-chain-bubble')
-  await expect(chainBubble).toBeVisible({ timeout: 12_000 })
+  // 8. The negate queues: the bubble's lone entry now has company, and it spells out who answers whom.
+  await expect(chainBubble).toBeVisible()
   await expect(negatorPage.getByTestId('support-chain-entry')).toHaveCount(2)
-  await expect(chainBubble).toContainText('2 activations')
+  await expect(negatorPage.getByTestId('support-chain-count')).toHaveText('2 activations')
 
   const firstChainEntry = negatorPage.locator('[data-testid="support-chain-entry"][data-entry-sequence="1"]')
   await expect(firstChainEntry).toContainText('Sasuke Uchiha')

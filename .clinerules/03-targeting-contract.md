@@ -14,10 +14,21 @@ paths:
 - Global actions live in `GameStateResponse.AvailableActions`; per-card actions in
   `CardInstanceResponse.AvailableActions`.
 - Hand card `play-card:{instanceId}` · support `activate-support:{instanceId}` ·
-  battlefield `battle-action:{instanceId}` · leader
-  `leader-effect:{leaderInstanceId}:{effectKey}` (effectKey = effect `Id` or
-  `index-{i}`). Phase-level: `advance-phase`, `turn-end`/`endPhase`
-  (`declare-end-step`), `complete-end-step`, `pass-turn`, `resolve-prompt:*`.
+  battlefield `battle-action:{instanceId}` · a card's own ability
+  `leader-effect:{instanceId}:{effectKey}` (leader) or
+  `character-ability:{instanceId}:{effectKey}` (battlefield character, effectKey = effect `Id` or
+  `index-{i}`) · optional attacker choice `resolve-optional-attack-effect:*`. Phase-level: `advance-phase`,
+  `turn-end`/`endPhase` (`declare-end-step`), `complete-end-step`, `pass-turn`, `resolve-prompt:*`.
+- **A card's abilities are published on the card, never in the global list**, and leaders and battlefield
+  cards share the whole path: `GameStateResponseMapper.BuildCardAbilityOptions` builds the options (subordinate
+  nodes skipped, *passives* skipped — a `PassiveMode != None` effect is engine-driven and has no activation
+  window of its own, timing filtered by `CardAbilityTimingRules`, once-per-turn honoured),
+  `InMemoryGameInstanceRegistry.ExecuteCardAbilityAction` executes them, and the client's
+  `mapActionToHubIntent` / `submitMappedAction` route both prefixes through `trySubmitTargetedCardEffect`. A
+  battlefield ability is legality-checked like a hand/battle action (own MainPhase, active player) and is
+  blocked while a support activation waits for responses; the engine's MainPhase auto-end probe
+  (`CanActivateCardAbilityNow`) asks the same timing/once-per-turn/context-rule questions so an ability-only
+  MainPhase is not auto-skipped.
 
 ## Targeting state (client)
 
@@ -73,6 +84,14 @@ targets exist.
   `04-state-phase-effects.md`). Never re-implement these rules on either side.
 - Leaders follow battlefield rules with one difference: the summon-turn rule does not apply
   (leaders are always on the field), so Rush is irrelevant for them.
+- **Leader Recovery legality has one home**: `server/Api/Services/Games/ChakraRecoveryRules.cs`
+  (`CanActivateLeaderRecovery` / `HasFaceDownChakra` / `ClampRecoveryAmount`). The mapper publishes its verdict as
+  the leader option's availability (`GameStateResponseMapper.EffectAvailability`) and
+  `ExecuteLeaderEffectAction` refuses a direct submit with the same reason, so the chip and the engine cannot
+  disagree. The registry also supplies the ability's `isSecondTurnOrLater` execution argument (the condition
+  N-001/N-012 are authored with — `EffectExecutionConditionArgumentKey.ToWireValue()`, injected for every card
+  action) and rests the leader after a successful activation. `PlayerState.ChakraCardCount = 5` is the pool
+  ceiling used by the rules, by `ApplyChakraAdjustment`'s `Recover` clamp and by `GameInstanceFactory`.
 - Targeting for `battle-action`: the opposing **leader is always a valid target** (leaders are
   attackable in Active Mode) plus the opponent's **rested** characters only. There is **no
   power gate** — any active attacker may declare, and the attacker rests on declaration.
@@ -92,6 +111,10 @@ targets exist.
   never writes restedness (see `04-state-phase-effects.md` → rest/stand). Covered by
   `SupportActivationResolutionTests.ActivateSupport_InterruptAttack_*` and the N-008 scenario in
   `e2e/gameview.multiplayer.support.spec.ts`.
+  - The queued replay runs **as the activator's action**: `ExecutePendingActivation` hands priority back to the
+    activating player for the duration and restores what the closing pass left behind. Its own gate demands
+    priority (the closing pass cleared it), so without the hand-back the interrupt silently took its failure
+    branch and the attack resolved as if it had never answered.
 
 ## Server `GetCardActionTargets`
 
@@ -130,6 +153,13 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   pass. The activator is therefore only ever asked for a response after the opponent actually reacted
   (their activation flipped priority back) — a decline by the asked player has nothing left to answer, so
   the activation resolves and priority returns to the turn player, who can play the next support.
+- The **attack cut-in window (`ActionStep`) is the exception**: it closes on the *second* pass
+  (`GamePhaseStateService.DeclarePassInActionStep` returns `true` only then), and the registry gates
+  `ResolvePendingActivations` **and** `ApplyPendingAttackResolutionIfNeeded` on that returned value — so the
+  closing pass resolves the queue *and* takes the damage step in one submit. Ignoring the return (the old
+  behaviour) applied the effects while the window was still open and left the attack waiting for one pointless
+  extra pass after they had already resolved; `ActivateSupport_DuringCutIn_WaitsForDoublePass_ThenResolvesMostRecentFirst`
+  and `ActivateSupport_ResolvesTheChainAndTheDamageStepTogether_OnTheClosingPass` pin it.
 - The server publishes `GameStateResponse.IsSupportResponseWindowOpen` (`true` only in the MainPhase with a
   pending activation); the phase row renders `Support Activated · Your Response` /
   `Support Activated · Opponent Response` from it (see `getSupportResponseWindowPhaseValue` in
@@ -203,13 +233,38 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   player one's `InterruptAttack` support (set face down beforehand) must publish an **enabled** chip with no target
   pick, and the resolution cancels the attack (no leader damage, phase → `BattleEndStep`, attacker still rested)
   while summoning the support card itself onto the defender's field.
-- Not yet covered by e2e although the cards are seeded: quick support cut-in for the other Quick cards
-  (N-010/N-021 as the *responder*), When-Attacking reveal-summon (N-013/N-019/N-022),
-  conditional Rush (N-007/N-011), leader Recovery (N-001/N-012), on-summon chains
-  (N-003/N-005/N-013/N-014/N-022). N-016's negate works again (its chakra lock is its own runtime effect,
+- `e2e/gameview.multiplayer.support.spec.ts` also covers **N-010's life gain** in that window (deck two, so player one
+  attacks): the own-leader `Change Values` node is normalised selection-free
+  (`SupportActivationNormalizer.IsOwnLeaderOnlyModification`), so the plan must publish an **empty** candidate list
+  and the chip submits straight from the support area; the defending leader then ends the turn at
+  *printed max + 2 - the attacker's DMG*, i.e. **above** `totalLife`, and the `leader-life-badge` has to render that
+  value (the server used to clamp it - `GameStateResponseMapperLeaderLifeTests`).
+- Not yet covered by e2e although the cards are seeded: N-003's cross-zone `SummonFromZone` pick (its candidates
+  come from the trash **or** the deck, which the client resolves into one pool — see the `[On Summon]` runner
+  bullet; the authored shape and the pool logic are pinned by `SeedManifestAuthoringTests` and the
+  `buildPromptCandidateCards` path only) and N-022's EX
+  tribute-summon reveal (`tribute-requirement` → `reveal-top` → `on-summon`; the reveal mechanic itself is pinned
+  by the reveal-presentation spec, and N-005's trash recall + N-014's field destroy are covered in
+  `e2e/gameview.multiplayer.actions.spec.ts`). N-016's negate works again (its chakra lock is its own runtime effect,
   see `05-server-models-serialization.md`) and is covered by
-  `SupportActivationResolutionTests.ActivateSupport_WithChakraLock_…` plus
-  `LockChakraRecoveryEffectTests`; an e2e for it is still open.
+  `SupportActivationResolutionTests.ActivateSupport_WithChakraLock_…`, `LockChakraRecoveryEffectTests` **and**
+  `e2e/gameview.multiplayer.negate-chakra-lock.spec.ts` (the negate answers the queued K.O., the K.O. never
+  resolves, and the activator's own Recovery chip is then refused with the chakra-lock reason). Newly covered
+  too: **N-021 as the responder** (mirror scenario in
+  `e2e/gameview.multiplayer.quick-support.spec.ts` - the granted immunity saves the shielded character from the
+  queued K.O.) and **N-007's conditional Rush**
+  (`e2e/gameview.multiplayer.conditional-rush.spec.ts` - `BattleAction.SummonedThisTurn` flips to enabled on the
+  summon turn once the leader's +3 power crosses the passive's 10-power threshold).
+  **Both former gaps are now covered**:
+  - *N-001/N-012 leader Recovery* — shipped and pinned by
+    `e2e/gameview.multiplayer.leader-recovery.spec.ts` (see `ChakraRecoveryRules` above).
+  - *N-011 Ino Yamanaka* — her `[Activate: Main]` is published as `character-ability:{instanceId}:add-rush` and
+    covered by `e2e/gameview.multiplayer.character-ability.spec.ts`: the scenario summons
+    [Shikamaru Nara] + [Choji Akimichi] + Ino (one normal summon a turn, the helpers drive the draws), asserts
+    Ino's summon-turn `Battle` chip is refused for entering the field, clicks her own ability chip, then reads
+    +5 power/+1 damage on all three named cards, the `Battle` chip flipping to enabled (**Rush**) and the
+    opposing leader losing exactly the boosted DMG - and finally the `[Once Per Turn]` chip publishing disabled
+    with its reason.
 
 ## Reveal presentation (a `Reveal First` reveal)
 
@@ -245,9 +300,60 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   post-condition refuses. Two presentation facts are only observable in that window, so the spec observes instead of
   polling: `installDeckRevealObserver` (deck slot attributes) and `installBattlefieldEntryAnimationRecorder`
   (character-field entry animations, with page-clock timestamps to prove the summon happened *after* the flip).
-- Not covered yet: **`EffectTiming.OnSummon` still has no engine runner** (it exists only as an enum/condition
-  keyword), so N-013's on-summon reveal cannot be played by any test — the presentation is currently only reachable
-  through a `When Attacking` reveal (N-019) and the summon-requirement chains (N-022).
+- **`[On Summon]` has a runner**: `GameTriggeredEffectRunner.ExecuteAutomaticTimedEffects` is called by the
+  registry's normal/tribute summon and by `SummonCardEffect`/`TributeSummonCardEffect`, dispatches mandatory effects
+  only, caps nested dispatches (`MaxTriggerDepth`) and logs a failure as `on_summon_effect_skipped` instead of
+  throwing (`InMemoryGameInstanceRegistryOnSummonTests`). N-013's reveal is the third scenario in
+  `e2e/gameview.multiplayer.reveal-presentation.spec.ts`: the summon itself suspends the chain on the presentation
+  (the card is already on the field) and the presented deck card goes back face down afterwards.
+- **An auto-triggered node can collect a selection** — through the prompted zone selection. `[On Summon]` /
+  `[When Attacking]` chains run through `GameTriggeredEffectRunner` with zero targets, so a node that needs a pick
+  must opt in: `selectionTiming: Prompted` **plus** `executionFlowMode: Per Step` (an `Atomic Chain` pre-plans and
+  cannot suspend, so `UpdateCardEffectsRequestValidator` rejects the combination). The executor then resolves the
+  node's candidates when the step runs and enqueues a `GamePromptType.Effect` prompt; `ResolvePrompt` resumes the
+  chain with the answer as that node's targets. The prompt carries `CandidateZone` **and** `CandidatePlayerId`
+  (`PendingPromptResponse.CandidatePlayerId`), so the client can pick out of any player's collection —
+  `Hand`/`Deck`/`Trash`/`ExileZone` (see `02-board-ui-hud.md`).
+  `EffectSelectionPromptKind.SummonFromZone` is the "summon 1 [named] Character from your trash" bucket and
+  `EffectSelectionPromptKind.DestroyFromZone` its destroy counterpart (N-014); the zone
+  itself travels in `CandidateZone`, so the same bucket also covers a deck/exile summon. N-005 Gamabunta is the
+  worked example (its `on-summon` node is `Per Step` + `Prompted` + `SummonFromZone`, authored in
+  `test-data/seed-profiles.json` **and** `server/Api/rawCardCatalogDump.txt`), covered end-to-end by
+  `e2e/gameview.multiplayer.actions.spec.ts` with the `on-summon-trash-recall` profile. A `Per Step` node also
+  rides along a surrounding `Atomic Chain`: the atomic plan stops *before* it and hands control back to the
+  per-step walk, which is what makes a tribute-summon chain ask **after** the material landed in the trash.
+- **`CandidateZone` is a hint, not the whole pool**: a prompted node's rules can resolve candidates out of
+  several collections at once ("summon 1 [Naruto Uzumaki] from your trash **or** your deck" unions its Trash and
+  Deck rules — `EffectTargetResolver.ResolveTargets` unions on `Operator: Any`), while the prompt can only name
+  `candidates[0]`'s zone. `buildPromptCandidateCards` therefore resolves every id in `prompt.options` against the
+  named zone first and the candidate player's remaining collections after it, so no offered card is silently
+  dropped (the option list is the authoritative pick set). Authored: N-003 (`SummonFromZone`, Trash + Deck).
+- **A prompted selection with no candidates is not silent**: `TryCreateSelectionPrompt` records an
+  `EffectNoticeActionTypes.NoValidTargets` action-log entry (`effect_no_valid_targets`, with source card / effect
+  id / prompt kind metadata) and still returns `false`, so the node keeps its existing (skipping) failure path.
+  `GameStateResponse.EffectNotices` republishes the tail of that log for the **acting** player only, and the board
+  shows the newest unseen one as a transient toast (see `02-board-ui-hud.md`) — an auto-triggered effect has no
+  action chip whose disabled reason could explain the no-op.
+- **Authored prompted chains (four fire now)**: N-003's `on-summon-effect` (`SummonFromZone`),
+  N-005's `on-summon` (`SummonFromZone`), N-014's `on-summon` (`DestroyFromZone`) and N-013's `freeze-target`
+  (`FreezeFromZone`) are `Per Step` + `Prompted` in `test-data/seed-profiles.json` **and**
+  `server/Api/rawCardCatalogDump.txt`; the seed manifest is guarded against drift by
+  `SeedManifestAuthoringTests` (every authored card passes `UpdateCardEffectsRequestValidator`, every prompted
+  node keeps its flow/timing/kind in the dump). N-014's destroy is covered by the
+  `summon-requirements-multi` scenario in `e2e/gameview.multiplayer.actions.spec.ts` — the mixed tribute pays
+  N-011 + N-019, the summon then shows `Select a Character to destroy` and the card's own **Select** button
+  answers the prompt (the first board-zone prompt covered end-to-end).
+- **A prompt may draw its candidates from several zones at once** — N-013's `freeze-target` asks for "1 Leader
+  **or** Character". `GamePrompt.CandidateZone` can only name one (the first candidate's), so both sides treat
+  it as a hint: `InMemoryGameInstanceRegistry.ResolvePromptOptionZone` resolves the answered option against the
+  named zone first and then the candidate player's other collections (Leader/CharacterField/Hand/SupportZone/
+  Trash/Deck/Exile), and the client's `resolvePromptCandidatePool` does the same with its own zone order. The
+  leader counts as a board card there: `Leader` is in `BOARD_PROMPT_SELECTION_ZONES` (store) **and**
+  `BOARD_SELECTION_ZONES` (`prompts/index.ts`), `LeaderCard` renders the same **Select** chip
+  (`data-testid="leader-effect-target-toggle"`, wired through `GameZones` → `buildLeaderCardProps`), and
+  `FreezeCardEffect` writes the keyword onto the *stored* `LeaderCardInstanceState` via
+  `PlayerZoneCardAccessor.ResolveLiveCard` (the leader is the one zone `GetCards` projects into a copy, so the
+  old code skipped leader targets entirely rather than mutating a throwaway object).
 
 ## Card-property predicate values (`Type` normalization)
 

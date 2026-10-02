@@ -16,6 +16,14 @@ public sealed class InMemoryGameInstanceRegistry
     private const string SetSupportActionPrefix = "set-support:";
     private const string BattleActionPrefix = "battle-action:";
     private const string LeaderEffectActionPrefix = "leader-effect:";
+
+    /// <summary>
+    /// A battlefield character's own ability (N-011's "[Activate: Main]"). Same payload shape as
+    /// <see cref="LeaderEffectActionPrefix"/> because the abilities are authored the same way: a leader just
+    /// lives outside the character field.
+    /// </summary>
+    private const string CharacterAbilityActionPrefix = "character-ability:";
+
     private const string ResolveOptionalAttackEffectActionPrefix = "resolve-optional-attack-effect:";
     private const string SupportSlotIndexArgumentKey = "supportSlotIndex";
     private const string SummonTargetIdArgumentKey = "summonTargetId";
@@ -23,6 +31,14 @@ public sealed class InMemoryGameInstanceRegistry
     private static readonly Regex GameCodePattern = new("^[A-Za-z0-9]{5}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly IGameRuntimeEffectSpecResolver RuntimeEffectSpecResolver = new GameRuntimeEffectSpecResolver();
     private static readonly IGameEffectTargetResolver EffectTargetResolver = new EffectTargetResolver();
+
+    // The evaluator the MainPhase auto-end probe uses. Same composition the response mapper publishes
+    // availability with, so "there is still a legal ability" cannot disagree with the chips on the board.
+    private static readonly IGameEffectCanExecuteEvaluator EffectCanExecuteEvaluator = new GameEffectCanExecuteEvaluator(
+        new EffectContextConditionEvaluator(),
+        new EffectTargetResolver(),
+        new GameValidTargetResultFactory(),
+        new GameEffectConditionDiagnostics());
 
     // Used when a caller does not supply the DI-configured effect registry (unit-test composition):
     // support target planning then falls back to the rule-based candidate pool only.
@@ -176,8 +192,7 @@ public sealed class InMemoryGameInstanceRegistry
             return;
         }
 
-        var candidateZone = resolvedPrompt.CandidateZone ?? PlayerZone.Hand;
-        var candidatePlayerId = resolvedPrompt.CandidatePlayerId ?? resolvedPrompt.RequestedPlayerId;
+        var (candidatePlayerId, candidateZone) = ResolvePromptOptionTarget(instance, resolvedPrompt, selectedOption);
 
         IReadOnlyList<GameEffectTargetReference> selection =
         [
@@ -190,6 +205,58 @@ public sealed class InMemoryGameInstanceRegistry
             var error = resumeResult.Errors.First();
             throw new InvalidOperationException($"{error.Code}: {error.Description}");
         }
+    }
+
+    /// <summary>
+    /// Where the answered option actually lives - its owner *and* its zone. A prompt names only one pair (its
+    /// first candidate's), but a node's rules may collect candidates from several places at once: N-013's freeze
+    /// offers "1 Leader or Character" across **both players'** leaders and battlefields, so the prompt's
+    /// `CandidatePlayerId`/`CandidateZone` cannot be the answer's identity. The named pair is tried first (it is
+    /// the server's own hint and the common case), then every other player's collections.
+    /// </summary>
+    private static (string PlayerId, PlayerZone Zone) ResolvePromptOptionTarget(
+        GameInstance instance,
+        GamePrompt prompt,
+        string selectedOption)
+    {
+        var namedPlayerId = prompt.CandidatePlayerId ?? prompt.RequestedPlayerId;
+        var namedZone = prompt.CandidateZone ?? PlayerZone.Hand;
+
+        // The named player's collections are searched first (the prompt's hint), then the other player's. Card
+        // instance ids are unique across the game, so the first collection that holds the id IS its zone.
+        var playersInOrder = instance.State.Players
+            .OrderBy(player => IsSamePlayerId(player.PlayerId, namedPlayerId) ? 0 : 1)
+            .ToList();
+
+        foreach (var player in playersInOrder)
+        {
+            foreach (var zone in PromptOptionZoneSearchOrder)
+            {
+                if (PromptOptionZoneContainsCard(player, zone, selectedOption))
+                {
+                    return (player.PlayerId, zone);
+                }
+            }
+        }
+
+        return (namedPlayerId, namedZone);
+    }
+
+    private static readonly PlayerZone[] PromptOptionZoneSearchOrder =
+    [
+        PlayerZone.Leader,
+        PlayerZone.CharacterField,
+        PlayerZone.Hand,
+        PlayerZone.SupportZone,
+        PlayerZone.Trash,
+        PlayerZone.Deck,
+        PlayerZone.ExileZone,
+    ];
+
+    private static bool PromptOptionZoneContainsCard(PlayerState player, PlayerZone zone, string cardInstanceId)
+    {
+        return PlayerZoneCardAccessor.GetCards(zone, player).Any(card =>
+            string.Equals(card.InstanceId, cardInstanceId, StringComparison.Ordinal));
     }
 
     private static bool ShouldAdvanceAfterPromptResolution(GamePhase phaseBeforeResolve, GamePrompt? nextPendingPrompt)
@@ -244,8 +311,9 @@ public sealed class InMemoryGameInstanceRegistry
         {
             var previousPhase = instance.State.Phase;
 
-            // MainPhase support reactions reuse the pass mechanism: the window stays open until both
-            // players pass, then the pending activations resolve and priority returns to the turn player.
+            // MainPhase support reactions reuse the pass mechanism: a single decline by the priority
+            // player closes the window, then the pending activations resolve and priority returns to the
+            // turn player.
             if (instance.State.Phase == GamePhase.MainPhase)
             {
                 var isWindowClosed = phaseService.DeclarePassInSupportWindow(instance, playerId);
@@ -260,12 +328,17 @@ public sealed class InMemoryGameInstanceRegistry
                 return instance;
             }
 
-            phaseService.DeclarePassInActionStep(instance, playerId);
-            // Both players passed (or the active player passed out of the window): replay any pending
-            // support activations, most recent first, *before* the damage step so interrupts and K.O.s
-            // take effect first.
-            ResolvePendingActivations(instance, sequentialEffectExecutor);
-            ApplyPendingAttackResolutionIfNeeded(instance, previousPhase);
+            var isCutInWindowClosed = phaseService.DeclarePassInActionStep(instance, playerId);
+            if (isCutInWindowClosed)
+            {
+                // Both players passed, so the cut-in window is closed: replay any pending support
+                // activations, most recent first, *before* the damage step so interrupts and K.O.s take
+                // effect first. The queue must not resolve on the first pass - that applied the chain
+                // while the window was still open, leaving the attack waiting for one more, pointless
+                // pass *after* the effects had already resolved.
+                ResolvePendingActivations(instance, sequentialEffectExecutor);
+                ApplyPendingAttackResolutionIfNeeded(instance, previousPhase);
+            }
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
             instance.ValidateInvariants();
@@ -333,6 +406,15 @@ public sealed class InMemoryGameInstanceRegistry
             var arguments = request.Arguments is null
                 ? new Dictionary<string, string>(StringComparer.Ordinal)
                 : new Dictionary<string, string>(request.Arguments, StringComparer.Ordinal);
+
+            // `isSecondTurnOrLater` is authored on the leader Recovery nodes (N-001/N-012) and is matched
+            // against the execution arguments (GameSequentialEffectExecutor.ConditionMatches), which nothing
+            // else supplies: without it the condition never matched and the step was skipped with no failure
+            // branch, so Recovery looked enabled but changed nothing. Server-authoritative: a value the client
+            // sent is overwritten.
+            arguments[EffectExecutionConditionArgumentKey.IsSecondTurnOrLater.ToWireValue()] =
+                actingPlayer.TurnCount >= 2 ? bool.TrueString : bool.FalseString;
+
             var phaseBeforeActionExecution = instance.State.Phase;
 
             switch (actionPrefix)
@@ -341,7 +423,7 @@ public sealed class InMemoryGameInstanceRegistry
                     ExecuteActivateSupportAction(instance, request.PlayerId, request, sequentialEffectExecutor, actingPlayer, arguments);
                     break;
                 case SummonToFieldActionPrefix:
-                    ExecuteSummonToFieldAction(instance, request.PlayerId, request, actingPlayer);
+                    ExecuteSummonToFieldAction(instance, request.PlayerId, request, actingPlayer, sequentialEffectExecutor);
                     break;
                 case SetSupportActionPrefix:
                     ExecuteSetSupportAction(instance, request.PlayerId, request.SourceCardInstanceId, actingPlayer, arguments);
@@ -351,6 +433,9 @@ public sealed class InMemoryGameInstanceRegistry
                     break;
                 case LeaderEffectActionPrefix:
                     ExecuteLeaderEffectAction(instance, request.PlayerId, request, sequentialEffectExecutor, actingPlayer, arguments);
+                    break;
+                case CharacterAbilityActionPrefix:
+                    ExecuteCharacterAbilityAction(instance, request.PlayerId, request, sequentialEffectExecutor, actingPlayer, arguments);
                     break;
                 case ResolveOptionalAttackEffectActionPrefix:
                     ExecuteResolveOptionalAttackEffectAction(instance, request.PlayerId, request, sequentialEffectExecutor);
@@ -446,14 +531,26 @@ public sealed class InMemoryGameInstanceRegistry
                     request.SourceCardInstanceId,
                     request.PlayerId,
                     actingPlayer),
-                LeaderEffectActionPrefix => BuildLeaderCardActionTargets(
+                LeaderEffectActionPrefix => BuildCardAbilityActionTargets(
                     instance,
                     request.ActionId,
                     request.SourceCardInstanceId,
                     request.PlayerId,
                     actingPlayer,
                     arguments,
-                    canExecuteEvaluator),
+                    canExecuteEvaluator,
+                    actionPrefix,
+                    isLeader: true),
+                CharacterAbilityActionPrefix => BuildCardAbilityActionTargets(
+                    instance,
+                    request.ActionId,
+                    request.SourceCardInstanceId,
+                    request.PlayerId,
+                    actingPlayer,
+                    arguments,
+                    canExecuteEvaluator,
+                    actionPrefix,
+                    isLeader: false),
                 _ => new GameCardActionTargetsResponse(
                     ActionId: request.ActionId,
                     SourceCardInstanceId: request.SourceCardInstanceId,
@@ -699,6 +796,11 @@ public sealed class InMemoryGameInstanceRegistry
             return LeaderEffectActionPrefix;
         }
 
+        if (actionId.StartsWith(CharacterAbilityActionPrefix, StringComparison.Ordinal))
+        {
+            return CharacterAbilityActionPrefix;
+        }
+
         if (actionId.StartsWith(ActivateSupportActionPrefix, StringComparison.Ordinal))
         {
             return ActivateSupportActionPrefix;
@@ -764,6 +866,24 @@ public sealed class InMemoryGameInstanceRegistry
             if (!IsSamePlayerId(instance.State.ActivePlayerId, playerId))
             {
                 throw new InvalidOperationException("Only the active player can execute battle actions.");
+            }
+
+            return;
+        }
+
+        if (actionPrefix == CharacterAbilityActionPrefix)
+        {
+            // "[Activate: Main]" on a battlefield character: the card's own ability, activatable by its
+            // controller during their own MainPhase (a rested character keeps its ability - only the
+            // leader's Recovery rests the card it belongs to).
+            if (instance.State.Phase != GamePhase.MainPhase)
+            {
+                throw new InvalidOperationException("Card abilities can only be activated during MainPhase.");
+            }
+
+            if (!IsSamePlayerId(instance.State.ActivePlayerId, playerId))
+            {
+                throw new InvalidOperationException("Only the active player can activate card abilities.");
             }
 
             return;
@@ -901,14 +1021,14 @@ public sealed class InMemoryGameInstanceRegistry
 
     private static string ResolveActionSourceCardInstanceId(string actionId, string actionPrefix)
     {
-        if (actionPrefix == LeaderEffectActionPrefix)
+        if (actionPrefix is LeaderEffectActionPrefix or CharacterAbilityActionPrefix)
         {
-            if (!TryParseLeaderEffectActionId(actionId, out var parsedLeaderInstanceId, out _))
+            if (!TryParseAbilityActionId(actionId, actionPrefix, out var parsedSourceCardInstanceId, out _))
             {
                 throw new InvalidOperationException($"Card action '{actionId}' is invalid.");
             }
 
-            return parsedLeaderInstanceId;
+            return parsedSourceCardInstanceId;
         }
 
         if (actionPrefix == BattleActionPrefix)
@@ -931,49 +1051,30 @@ public sealed class InMemoryGameInstanceRegistry
         return actionId[actionPrefix.Length..].Trim();
     }
 
-    private static bool TryParseLeaderEffectActionId(string actionId, out string leaderInstanceId, out string effectKey)
+    private static bool TryParseAbilityActionId(
+        string actionId,
+        string actionPrefix,
+        out string sourceCardInstanceId,
+        out string effectKey)
     {
-        leaderInstanceId = string.Empty;
+        sourceCardInstanceId = string.Empty;
         effectKey = string.Empty;
 
-        if (!actionId.StartsWith(LeaderEffectActionPrefix, StringComparison.Ordinal))
+        if (!actionId.StartsWith(actionPrefix, StringComparison.Ordinal))
         {
             return false;
         }
 
-        var payload = actionId[LeaderEffectActionPrefix.Length..];
+        var payload = actionId[actionPrefix.Length..];
         var delimiterIndex = payload.IndexOf(':');
         if (delimiterIndex <= 0 || delimiterIndex >= payload.Length - 1)
         {
             return false;
         }
 
-        leaderInstanceId = payload[..delimiterIndex].Trim();
+        sourceCardInstanceId = payload[..delimiterIndex].Trim();
         effectKey = payload[(delimiterIndex + 1)..].Trim();
-        return !string.IsNullOrWhiteSpace(leaderInstanceId) && !string.IsNullOrWhiteSpace(effectKey);
-    }
-
-    private static bool IsLeaderEffectTimingAvailable(EffectTiming timing, GameState state, string actingPlayerId)
-    {
-        var isActivePlayer = IsSamePlayerId(state.ActivePlayerId, actingPlayerId);
-        var isPriorityPlayer = IsSamePlayerId(state.PriorityPlayerId, actingPlayerId);
-
-        return timing switch
-        {
-            EffectTiming.ActivateMain or EffectTiming.DuringYourMain =>
-                state.Phase == GamePhase.MainPhase && isActivePlayer,
-            EffectTiming.WhenAttacking =>
-                state.IsAttackDeclarationWindow() && isActivePlayer,
-            EffectTiming.YourTurn =>
-                isActivePlayer,
-            EffectTiming.Quick =>
-                state.Phase == GamePhase.ActionStep && isPriorityPlayer,
-            EffectTiming.SupportActivated =>
-                state.Phase == GamePhase.ActionStep && isPriorityPlayer,
-            EffectTiming.DuringOpponentAttack =>
-                state.HasPendingAttack && state.Phase == GamePhase.ActionStep && !isActivePlayer,
-            _ => false,
-        };
+        return !string.IsNullOrWhiteSpace(sourceCardInstanceId) && !string.IsNullOrWhiteSpace(effectKey);
     }
 
     private static string ResolveEffectKey(EffectSpec effectSpec, int effectIndex)
@@ -1186,29 +1287,49 @@ public sealed class InMemoryGameInstanceRegistry
             ValidTargets: validTargets);
     }
 
-    private GameCardActionTargetsResponse BuildLeaderCardActionTargets(
+    /// <summary>
+    /// Publishes the targets of one card ability: the leader's <c>leader-effect:</c> options and a battlefield
+    /// character's <c>character-ability:</c> options share this, because the abilities are authored the same
+    /// way. Only the source instance differs (the leader lives outside the character field), which is also
+    /// what the effect context receives.
+    /// </summary>
+    private GameCardActionTargetsResponse BuildCardAbilityActionTargets(
         GameInstance instance,
         string actionId,
         string sourceCardInstanceId,
         string playerId,
         PlayerState actingPlayer,
         IReadOnlyDictionary<string, string> arguments,
-        IGameEffectCanExecuteEvaluator canExecuteEvaluator)
+        IGameEffectCanExecuteEvaluator canExecuteEvaluator,
+        string actionPrefix,
+        bool isLeader)
     {
-        var leaderInstance = actingPlayer.LeaderCardInstance;
-        if (leaderInstance is null
-            || !string.Equals(leaderInstance.InstanceId, sourceCardInstanceId, StringComparison.Ordinal))
+        CardInstance? sourceCardInstance;
+        if (isLeader)
+        {
+            sourceCardInstance = actingPlayer.LeaderCardInstance;
+        }
+        else
+        {
+            sourceCardInstance = actingPlayer.Battlefield.FirstOrDefault(card =>
+                string.Equals(card.InstanceId, sourceCardInstanceId, StringComparison.Ordinal));
+        }
+
+        if (sourceCardInstance is null
+            || !string.Equals(sourceCardInstance.InstanceId, sourceCardInstanceId, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
-                $"Leader card instance '{sourceCardInstanceId}' was not found for player '{playerId}'.");
+                isLeader
+                    ? $"Leader card instance '{sourceCardInstanceId}' was not found for player '{playerId}'."
+                    : $"Battlefield card instance '{sourceCardInstanceId}' was not found for player '{playerId}'.");
         }
 
-        if (!instance.State.CardDefinitions.TryGetValue(leaderInstance.CardDefinitionId, out var sourceCardDefinition))
+        if (!instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
         {
-            throw new InvalidOperationException($"Card definition '{leaderInstance.CardDefinitionId}' was not found.");
+            throw new InvalidOperationException($"Card definition '{sourceCardInstance.CardDefinitionId}' was not found.");
         }
 
-        if (!TryParseLeaderEffectActionId(actionId, out _, out var effectKey))
+        if (!TryParseAbilityActionId(actionId, actionPrefix, out _, out var effectKey))
         {
             throw new InvalidOperationException($"Card action '{actionId}' is invalid.");
         }
@@ -1219,7 +1340,8 @@ public sealed class InMemoryGameInstanceRegistry
 
         if (effectWithIndex is null)
         {
-            throw new InvalidOperationException($"Leader effect '{effectKey}' was not found on '{sourceCardDefinition.Id}'.");
+            throw new InvalidOperationException(
+                $"Card ability '{effectKey}' was not found on '{sourceCardDefinition.Id}'.");
         }
 
         var effectSpec = effectWithIndex.Effect;
@@ -1232,14 +1354,14 @@ public sealed class InMemoryGameInstanceRegistry
             return BuildOncePerTurnDisabledResponse(actionId, sourceCardInstanceId, effectSpec);
         }
 
-        var timingAvailable = IsLeaderEffectTimingAvailable(effectSpec.Timing, instance.State, playerId);
+        var timingAvailable = CardAbilityTimingRules.IsAbilityTimingAvailable(effectSpec.Timing, instance.State, playerId);
         if (!timingAvailable)
         {
             return new GameCardActionTargetsResponse(
                 ActionId: actionId,
                 SourceCardInstanceId: sourceCardInstanceId,
                 IsEnabled: false,
-                DisabledReason: $"Leader effect '{effectSpec.Timing}' timing is not available right now.",
+                DisabledReason: $"Card ability '{effectSpec.Timing}' timing is not available right now.",
                 MinimumTargetCount: effectSpec.TargetRules.MinimumTargetCount,
                 MaximumTargetCount: effectSpec.TargetRules.MaximumTargetCount,
                 ExactTargetCount: effectSpec.TargetRules.ExactTargetCount,
@@ -1247,12 +1369,21 @@ public sealed class InMemoryGameInstanceRegistry
                 ValidTargets: []);
         }
 
+        var effectArguments = new Dictionary<string, string>(arguments, StringComparer.Ordinal);
+        if (effectSpec.ChakraCost is > 0)
+        {
+            // The same argument the mapper's availability gate supplies, so this response checks the cost
+            // like the published chip does (the executor charges `effectSpec.ChakraCost` on submit).
+            effectArguments[ReactiveEffectExecutionConstants.SupportActivationChakraCostArgument] =
+                effectSpec.ChakraCost.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         var context = new GameCardEffectContext(
             game: instance,
             actingPlayer: new Player { Id = playerId },
             sourceCardDefinition: sourceCardDefinition,
-            sourceCardInstance: null,
-            arguments: arguments,
+            sourceCardInstance: isLeader ? null : sourceCardInstance,
+            arguments: effectArguments,
             selectedTargets: []);
 
         var canExecuteResult = canExecuteEvaluator.Evaluate(context, effectSpec, includeValidTargets: true);
@@ -1333,20 +1464,72 @@ public sealed class InMemoryGameInstanceRegistry
         PlayerState actingPlayer,
         Dictionary<string, string> arguments)
     {
-        var leaderInstance = actingPlayer.LeaderCardInstance;
-        if (leaderInstance is null
-            || !string.Equals(leaderInstance.InstanceId, request.SourceCardInstanceId, StringComparison.Ordinal))
+        ExecuteCardAbilityAction(
+            instance,
+            playerId,
+            request,
+            sequentialEffectExecutor,
+            actingPlayer,
+            arguments,
+            LeaderEffectActionPrefix,
+            isLeader: true);
+    }
+
+    private void ExecuteCharacterAbilityAction(
+        GameInstance instance,
+        string playerId,
+        GameCardActionExecutionRequest request,
+        IGameSequentialEffectExecutor sequentialEffectExecutor,
+        PlayerState actingPlayer,
+        Dictionary<string, string> arguments)
+    {
+        ExecuteCardAbilityAction(
+            instance,
+            playerId,
+            request,
+            sequentialEffectExecutor,
+            actingPlayer,
+            arguments,
+            CharacterAbilityActionPrefix,
+            isLeader: false);
+    }
+
+    /// <summary>
+    /// Executes one card ability: the leader's <c>leader-effect:</c> options and a battlefield character's
+    /// <c>character-ability:</c> options (N-011's "[Activate: Main]") share the whole path, because abilities
+    /// are authored the same way. Only the source instance differs - the effect context receives it for a
+    /// battlefield card, so source-scoped nodes resolve like they do anywhere else.
+    /// </summary>
+    private void ExecuteCardAbilityAction(
+        GameInstance instance,
+        string playerId,
+        GameCardActionExecutionRequest request,
+        IGameSequentialEffectExecutor sequentialEffectExecutor,
+        PlayerState actingPlayer,
+        Dictionary<string, string> arguments,
+        string actionPrefix,
+        bool isLeader)
+    {
+        var sourceCardInstance = isLeader
+            ? actingPlayer.LeaderCardInstance
+            : actingPlayer.Battlefield.FirstOrDefault(card =>
+                string.Equals(card.InstanceId, request.SourceCardInstanceId, StringComparison.Ordinal));
+
+        if (sourceCardInstance is null
+            || !string.Equals(sourceCardInstance.InstanceId, request.SourceCardInstanceId, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
-                $"Leader card instance '{request.SourceCardInstanceId}' was not found for player '{playerId}'.");
+                isLeader
+                    ? $"Leader card instance '{request.SourceCardInstanceId}' was not found for player '{playerId}'."
+                    : $"Battlefield card instance '{request.SourceCardInstanceId}' was not found for player '{playerId}'.");
         }
 
-        if (!instance.State.CardDefinitions.TryGetValue(leaderInstance.CardDefinitionId, out var sourceCardDefinition))
+        if (!instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
         {
-            throw new InvalidOperationException($"Card definition '{leaderInstance.CardDefinitionId}' was not found.");
+            throw new InvalidOperationException($"Card definition '{sourceCardInstance.CardDefinitionId}' was not found.");
         }
 
-        if (!TryParseLeaderEffectActionId(request.ActionId, out _, out var effectKey))
+        if (!TryParseAbilityActionId(request.ActionId, actionPrefix, out _, out var effectKey))
         {
             throw new InvalidOperationException($"Card action '{request.ActionId}' is invalid.");
         }
@@ -1357,7 +1540,8 @@ public sealed class InMemoryGameInstanceRegistry
 
         if (effectWithIndex is null)
         {
-            throw new InvalidOperationException($"Leader effect '{effectKey}' was not found on '{sourceCardDefinition.Id}'.");
+            throw new InvalidOperationException(
+                $"Card ability '{effectKey}' was not found on '{sourceCardDefinition.Id}'.");
         }
 
         var effectSpec = effectWithIndex.Effect;
@@ -1367,22 +1551,31 @@ public sealed class InMemoryGameInstanceRegistry
             throw new InvalidOperationException(EffectRestrictionMessages.OncePerTurn);
         }
 
-        if (!IsLeaderEffectTimingAvailable(effectSpec.Timing, instance.State, playerId))
+        if (!CardAbilityTimingRules.IsAbilityTimingAvailable(effectSpec.Timing, instance.State, playerId))
         {
-            throw new InvalidOperationException($"Leader effect '{effectSpec.Timing}' timing is not available right now.");
+            throw new InvalidOperationException(
+                $"Card ability '{effectSpec.Timing}' timing is not available right now.");
+        }
+
+        // The mapper's availability gate uses the same rules, so a direct submit of a chip the board shows as
+        // disabled fails loudly instead of silently changing nothing.
+        if (effectSpec.EffectType == EffectKind.Recovery
+            && !ChakraRecoveryRules.CanActivateLeaderRecovery(instance.State, actingPlayer, out var recoveryDisabledReason))
+        {
+            throw new InvalidOperationException(recoveryDisabledReason);
         }
 
         arguments[ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument] = string.IsNullOrWhiteSpace(effectSpec.Id)
             ? effectSpec.RuntimeEffectType.ToString()
             : effectSpec.Id;
-        arguments[ReactiveEffectExecutionConstants.LeaderEffectKeyArgument] = effectKey;
+        arguments[ReactiveEffectExecutionConstants.AbilityKeyArgument] = effectKey;
 
         var selectedTargets = request.SelectedTargets ?? [];
         var context = new GameCardEffectContext(
             game: instance,
             actingPlayer: new Player { Id = playerId },
             sourceCardDefinition: sourceCardDefinition,
-            sourceCardInstance: null,
+            sourceCardInstance: isLeader ? null : sourceCardInstance,
             arguments: arguments,
             selectedTargets: selectedTargets);
 
@@ -1390,6 +1583,14 @@ public sealed class InMemoryGameInstanceRegistry
         if (executeResult.IsError)
         {
             throw new InvalidOperationException(executeResult.FirstError.Description);
+        }
+
+        // "[Recovery] ... rest this card and flip all of your CHAKRA face-up": the rest is part of the
+        // ability's cost and no authored payload carries it, so the registry pays it here (the attack
+        // declaration rests its attacker the same way). OnEnterRefreshPhase readies the card again.
+        if (effectSpec.EffectType == EffectKind.Recovery)
+        {
+            sourceCardInstance.IsRested = true;
         }
 
         if (effectSpec.GlobalRestrictions == EffectRestrictions.OncePerTurn)
@@ -1641,36 +1842,50 @@ public sealed class InMemoryGameInstanceRegistry
             return;
         }
 
-        // The card can declare several unlinked roots (N-016: the chakra lock *and* the negate) and the
-        // sequential executor walks one chain per call, so the activation is replayed group by group. Each
-        // group is rebuilt from the card's data with its source-supplied nodes normalised, so the replay
-        // executes exactly the activation the player paid for.
-        foreach (var activationGroup in SupportActivationPlanner.PlanActivationGroups(sourceCardDefinition))
+        // The replay is the activator's own action: the activation was validated and paid when it was queued,
+        // but the gate that validated it may still ask for priority (N-008's interrupt is only legal for the
+        // priority holder). The pass that closed the window cleared priority, so the replay hands it back to
+        // the activator for the duration and restores what was there afterwards - otherwise the interrupt
+        // would silently take its failure branch and the attack would resolve as if it had never answered.
+        var priorityBeforeReplay = instance.State.PriorityPlayerId;
+        instance.State.PriorityPlayerId = entry.SourcePlayerId;
+        try
         {
-            var context = new GameCardEffectContext(
-                game: instance,
-                actingPlayer: new Player { Id = entry.SourcePlayerId },
-                sourceCardDefinition: SupportActivationNormalizer.NormalizeForActivation(
-                    instance.State,
-                    sourceCardDefinition,
-                    sourceCardInstance,
-                    activationGroup),
-                sourceCardInstance: sourceCardInstance,
-                arguments: new Dictionary<string, string>(entry.Arguments, StringComparer.Ordinal)
-                {
-                    [ReactiveEffectExecutionConstants.ActivationCostPaidArgument] = bool.TrueString,
-                },
-                selectedTargets: [.. entry.SelectedTargets]);
-
-            var executeResult = sequentialEffectExecutor.Execute(context);
-            if (executeResult.IsError)
+            // The card can declare several unlinked roots (N-016: the chakra lock *and* the negate) and the
+            // sequential executor walks one chain per call, so the activation is replayed group by group. Each
+            // group is rebuilt from the card's data with its source-supplied nodes normalised, so the replay
+            // executes exactly the activation the player paid for.
+            foreach (var activationGroup in SupportActivationPlanner.PlanActivationGroups(sourceCardDefinition))
             {
-                // A single unresolvable activation must not strand both players: log it and continue.
-                instance.AddActionLogEntry(
-                    actionType: "support_activation_failed",
-                    message: $"Support activation '{entry.EntryId}' failed: {executeResult.FirstError.Description}",
-                    playerId: entry.SourcePlayerId);
+                var context = new GameCardEffectContext(
+                    game: instance,
+                    actingPlayer: new Player { Id = entry.SourcePlayerId },
+                    sourceCardDefinition: SupportActivationNormalizer.NormalizeForActivation(
+                        instance.State,
+                        sourceCardDefinition,
+                        sourceCardInstance,
+                        activationGroup),
+                    sourceCardInstance: sourceCardInstance,
+                    arguments: new Dictionary<string, string>(entry.Arguments, StringComparer.Ordinal)
+                    {
+                        [ReactiveEffectExecutionConstants.ActivationCostPaidArgument] = bool.TrueString,
+                    },
+                    selectedTargets: [.. entry.SelectedTargets]);
+
+                var executeResult = sequentialEffectExecutor.Execute(context);
+                if (executeResult.IsError)
+                {
+                    // A single unresolvable activation must not strand both players: log it and continue.
+                    instance.AddActionLogEntry(
+                        actionType: "support_activation_failed",
+                        message: $"Support activation '{entry.EntryId}' failed: {executeResult.FirstError.Description}",
+                        playerId: entry.SourcePlayerId);
+                }
             }
+        }
+        finally
+        {
+            instance.State.PriorityPlayerId = priorityBeforeReplay;
         }
     }
 
@@ -1893,7 +2108,7 @@ public sealed class InMemoryGameInstanceRegistry
                             : effectWithIndex.Effect.Id,
                     };
 
-                    var singleEffectDefinition = CloneCardDefinitionWithEffectChain(sourceCardDefinition, effectWithIndex.Effect);
+                    var singleEffectDefinition = GameTriggeredEffectRunner.CloneCardDefinitionWithEffectChain(sourceCardDefinition, effectWithIndex.Effect);
 
                     var context = new GameCardEffectContext(
                         game: instance,
@@ -1966,45 +2181,13 @@ public sealed class InMemoryGameInstanceRegistry
         CardInstance? sourceCardInstance,
         IGameSequentialEffectExecutor sequentialEffectExecutor)
     {
-        var failures = new List<string>();
-
-        foreach (var effectSpec in sourceCardDefinition.Effects)
-        {
-            if (effectSpec.Timing != EffectTiming.WhenAttacking || effectSpec.IsOptional)
-            {
-                continue;
-            }
-
-            var arguments = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                [ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument] = string.IsNullOrWhiteSpace(effectSpec.Id)
-                    ? effectSpec.RuntimeEffectType.ToString()
-                    : effectSpec.Id,
-            };
-
-            // The sequential executor walks the supplied definition, so keep the effect's own chain
-            // reachable (on-success / on-failure branch targets) while still making this effect the
-            // entry node. Cloning down to the single effect made the executor fail with
-            // "Could not resolve branch target effect id '...'" for chained effects.
-            var singleEffectDefinition = CloneCardDefinitionWithEffectChain(sourceCardDefinition, effectSpec);
-
-            var context = new GameCardEffectContext(
-                game: instance,
-                actingPlayer: new Player { Id = actingPlayerId },
-                sourceCardDefinition: singleEffectDefinition,
-                sourceCardInstance: sourceCardInstance,
-                arguments: arguments,
-                selectedTargets: []);
-
-            var executeResult = sequentialEffectExecutor.Execute(context);
-            if (executeResult.IsError)
-            {
-                var firstError = executeResult.FirstError;
-                failures.Add($"{effectSpec.Id}: {firstError.Code} - {firstError.Description}");
-            }
-        }
-
-        return failures;
+        return GameTriggeredEffectRunner.ExecuteAutomaticTimedEffects(
+            instance,
+            actingPlayerId,
+            sourceCardDefinition,
+            sourceCardInstance,
+            EffectTiming.WhenAttacking,
+            sequentialEffectExecutor);
     }
 
     /// <summary>
@@ -2018,77 +2201,12 @@ public sealed class InMemoryGameInstanceRegistry
         CardInstance? attacker,
         string failure)
     {
-        var attackerInstanceId = attacker?.InstanceId ?? "unknown";
-        var message = $"Skipped 'When Attacking' effect on card '{attackerInstanceId}': {failure}";
-
-        instance.AddActionLogEntry(
-            actionType: "when_attacking_effect_skipped",
-            message: message,
-            playerId: playerId,
-            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["attackerCardInstanceId"] = attackerInstanceId,
-            });
-    }
-
-    /// <summary>
-    /// Clones a card definition down to a single triggering effect plus every effect reachable from it
-    /// through its on-success / on-failure branches, so chained (subordinate) effects still resolve
-    /// while unrelated effects on the same card stay dormant.
-    /// </summary>
-    private static Card CloneCardDefinitionWithEffectChain(Card sourceCardDefinition, EffectSpec triggerEffectSpec)
-    {
-        var includedEffectIds = new HashSet<string>(StringComparer.Ordinal);
-        var effectsToVisit = new Queue<string>();
-        var effectById = sourceCardDefinition.Effects
-            .Where(effect => !string.IsNullOrWhiteSpace(effect.Id))
-            .ToDictionary(effect => effect.Id.Trim(), effect => effect, StringComparer.Ordinal);
-
-        void TrackBranch(string? branchEffectId)
-        {
-            if (string.IsNullOrWhiteSpace(branchEffectId))
-            {
-                return;
-            }
-
-            var normalizedBranchId = branchEffectId.Trim();
-            if (includedEffectIds.Add(normalizedBranchId))
-            {
-                effectsToVisit.Enqueue(normalizedBranchId);
-            }
-        }
-
-        TrackBranch(triggerEffectSpec.Id);
-        TrackBranch(triggerEffectSpec.OnSuccessEffectId);
-        TrackBranch(triggerEffectSpec.OnFailureEffectId);
-
-        while (effectsToVisit.Count > 0)
-        {
-            var effectId = effectsToVisit.Dequeue();
-            if (!effectById.TryGetValue(effectId, out var chainedEffect))
-            {
-                continue;
-            }
-
-            TrackBranch(chainedEffect.OnSuccessEffectId);
-            TrackBranch(chainedEffect.OnFailureEffectId);
-        }
-
-        var chainedEffects = new List<EffectSpec>
-        {
-            triggerEffectSpec,
-        };
-
-        chainedEffects.AddRange(sourceCardDefinition.Effects
-            .Where(effect => !ReferenceEquals(effect, triggerEffectSpec))
-            .Where(effect => !string.IsNullOrWhiteSpace(effect.Id) && includedEffectIds.Contains(effect.Id.Trim())));
-
-        return CloneCardDefinitionWithEffects(sourceCardDefinition, chainedEffects);
-    }
-
-    private static Card CloneCardDefinitionWithEffects(Card sourceCardDefinition, IReadOnlyList<EffectSpec> effects)
-    {
-        return CardDefinitionCloner.CloneWithEffects(sourceCardDefinition, effects);
+        GameTriggeredEffectRunner.RecordSkippedTriggeredEffect(
+            instance,
+            playerId,
+            attacker,
+            EffectTiming.WhenAttacking,
+            failure);
     }
 
     // Attackers always fight with their current (effect-modified) stats so battle damage matches the
@@ -2208,6 +2326,14 @@ public sealed class InMemoryGameInstanceRegistry
             return true;
         }
 
+        // A battlefield character's own "[Activate: Main]" ability (N-011) is a legal MainPhase action too.
+        // Without this a player whose only play is that ability would be auto-ended out of their MainPhase
+        // while the card publishes an enabled `character-ability:` chip.
+        if (activePlayer.Battlefield.Any(card => CanActivateCardAbilityNow(instance, activePlayer.PlayerId, card)))
+        {
+            return true;
+        }
+
         // A card only counts as a legal action when it can actually declare battle: active, able to
         // attack, and past summon sickness unless it has Rush. Leaders rest but never exhaust
         // (exhaustion marks a card that left play) and are always on the field.
@@ -2255,6 +2381,53 @@ public sealed class InMemoryGameInstanceRegistry
         var activationCost = SupportActivationPlanner.ResolveActivationCost(entryEffect);
         var actingPlayer = instance.State.Players.FirstOrDefault(player => IsSamePlayerId(player.PlayerId, playerId));
         return activationCost <= 0 || (actingPlayer is not null && actingPlayer.ResourcePool >= activationCost);
+    }
+
+    /// <summary>
+    /// Cheap legality probe for the MainPhase auto-end check: the card publishes at least one non-subordinate
+    /// ability whose timing window is open, whose once-per-turn restriction is unspent and whose context rules
+    /// (N-011's "if you have [Shikamaru Nara] and [Choji Akimichi] on the field") can execute. Target
+    /// availability is checked by the submit path and by the mapper's chip; this probe exists so a battlefield
+    /// ability is not silently skipped as "no legal action".
+    /// </summary>
+    private static bool CanActivateCardAbilityNow(GameInstance instance, string playerId, CardInstance card)
+    {
+        if (!instance.State.CardDefinitions.TryGetValue(card.CardDefinitionId, out var definition))
+        {
+            return false;
+        }
+
+        foreach (var entry in definition.Effects.Select((effect, index) => new { Effect = effect, Index = index }))
+        {
+            if (entry.Effect.IsSubordinate
+                || entry.Effect.PassiveMode != PassiveMode.None
+                || !CardAbilityTimingRules.IsAbilityTimingAvailable(entry.Effect.Timing, instance.State, playerId))
+            {
+                continue;
+            }
+
+            var effectKey = ResolveEffectKey(entry.Effect, entry.Index);
+            if (entry.Effect.GlobalRestrictions == EffectRestrictions.OncePerTurn
+                && instance.State.IsEffectUsedThisTurn(playerId, card.InstanceId, effectKey))
+            {
+                continue;
+            }
+
+            var context = new GameCardEffectContext(
+                game: instance,
+                actingPlayer: new Player { Id = playerId },
+                sourceCardDefinition: definition,
+                sourceCardInstance: card,
+                arguments: new Dictionary<string, string>(StringComparer.Ordinal),
+                selectedTargets: []);
+
+            if (EffectCanExecuteEvaluator.Evaluate(context, entry.Effect, includeValidTargets: false).CanExecute)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void ApplyPendingAttackResolutionIfNeeded(GameInstance instance, GamePhase previousPhase)
@@ -2353,7 +2526,8 @@ public sealed class InMemoryGameInstanceRegistry
         GameInstance instance,
         string playerId,
         GameCardActionExecutionRequest request,
-        PlayerState actingPlayer)
+        PlayerState actingPlayer,
+        IGameSequentialEffectExecutor? sequentialEffectExecutor = null)
     {
         var sourceCardInstanceId = request.SourceCardInstanceId;
         var sourceCardInstance = actingPlayer.Hand.FirstOrDefault(card =>
@@ -2384,7 +2558,14 @@ public sealed class InMemoryGameInstanceRegistry
 
         if (sourceCardDefinition.CannotBeNormalSummoned)
         {
-            ExecuteSummonRequirementAction(instance, playerId, request, actingPlayer, sourceCardInstance, sourceCardDefinition);
+            ExecuteSummonRequirementAction(
+                instance,
+                playerId,
+                request,
+                actingPlayer,
+                sourceCardInstance,
+                sourceCardDefinition,
+                sequentialEffectExecutor);
             return;
         }
 
@@ -2402,6 +2583,10 @@ public sealed class InMemoryGameInstanceRegistry
         {
             instance.State.SetSummonCardReady(playerId, false);
         }
+
+        // The card is on the field now, so its mandatory "[On Summon]" effects run. Failures are logged,
+        // never thrown: the summon already happened and both clients have to keep moving.
+        GameTriggeredEffectRunner.ExecuteAutomaticOnSummonEffects(instance, playerId, movedCard, sequentialEffectExecutor);
     }
 
     private void ExecuteSummonRequirementAction(
@@ -2410,7 +2595,8 @@ public sealed class InMemoryGameInstanceRegistry
         GameCardActionExecutionRequest request,
         PlayerState actingPlayer,
         CardInstance sourceCardInstance,
-        Card sourceCardDefinition)
+        Card sourceCardDefinition,
+        IGameSequentialEffectExecutor? sequentialEffectExecutor = null)
     {
         var selectedTargets = request.SelectedTargets ?? [];
         if (selectedTargets.Count == 0)
@@ -2474,6 +2660,10 @@ public sealed class InMemoryGameInstanceRegistry
 
         movedCard.IsRested = false;
         movedCard.EnteredFieldTurnNumber = instance.State.TurnNumber;
+
+        // A requirement (tribute) summon is a normal summon too: the card's mandatory "[On Summon]" effects
+        // run as soon as it lands on the field.
+        GameTriggeredEffectRunner.ExecuteAutomaticOnSummonEffects(instance, playerId, movedCard, sequentialEffectExecutor);
     }
 
     private void ExecuteSetSupportAction(

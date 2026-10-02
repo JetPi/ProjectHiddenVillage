@@ -65,8 +65,9 @@ function resolveSourceCardInstanceId(actionId: string): string | null {
     return sourceCardInstanceId.length > 0 ? sourceCardInstanceId : null
   }
 
-  if (actionId.startsWith('leader-effect:')) {
-    const payload = actionId.slice('leader-effect:'.length)
+  if (actionId.startsWith('leader-effect:') || actionId.startsWith('character-ability:')) {
+    const prefix = actionId.startsWith('leader-effect:') ? 'leader-effect:' : 'character-ability:'
+    const payload = actionId.slice(prefix.length)
     const delimiterIndex = payload.indexOf(':')
     if (delimiterIndex <= 0) {
       return null
@@ -127,6 +128,7 @@ export function mapActionToHubIntent(
     || action.actionId.startsWith('summon-to-field:')
     || isBattleActionOption(action)
     || action.actionId.startsWith('leader-effect:')
+    || action.actionId.startsWith('character-ability:')
     || action.actionId.startsWith('resolve-optional-attack-effect:')) {
     const sourceCardInstanceId = resolveSourceCardInstanceId(action.actionId)
     if (!sourceCardInstanceId) {

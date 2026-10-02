@@ -93,9 +93,11 @@ export type IPendingPromptResponse = {
   type: string
   isAwaitingRequestingPlayer: boolean
   options: string[]
-  // Effect selection prompts (type 'Effect'): copy bucket + where the candidate cards live.
+  // Effect selection prompts (type 'Effect'): copy bucket + where the candidate cards live, and which player
+  // owns that zone (an effect may offer the opponent's trash, not just the acting player's own zones).
   selectionPromptKind?: string | null
   candidateZone?: string | null
+  candidatePlayerId?: string | null
   minimumSelection?: number | null
   maximumSelection?: number | null
 }
@@ -127,6 +129,17 @@ export type ISupportChainEntryResponse = {
   targets: ISupportChainTargetResponse[]
 }
 
+export type IEffectNoticeResponse = {
+  /** Action-log entry id: the server republishes the notice list on every push, so the client de-dupes on it. */
+  noticeId: string
+  actionType: string
+  message: string
+  playerId: string | null
+  sourceCardInstanceId: string | null
+  sourceCardDisplayName: string | null
+  selectionPromptKind: string | null
+}
+
 export type IGameStateResponse = {
   gameId: string
   turnNumber: number
@@ -139,6 +152,9 @@ export type IGameStateResponse = {
   isSupportResponseWindowOpen?: boolean
   // Support activations still waiting on the resolution stack, oldest first.
   supportChain?: ISupportChainEntryResponse[] | null
+  // Notices for the requesting player, oldest first (an effect that resolved with nothing to act on). The board
+  // shows the newest unnoticed one as a transient toast.
+  effectNotices?: IEffectNoticeResponse[] | null
   pendingAttackVisualState: IPendingAttackVisualStateResponse | null
   pendingPrompt: IPendingPromptResponse | null
   availableActions: IGameActionOptionResponse[]

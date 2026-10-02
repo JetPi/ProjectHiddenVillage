@@ -77,11 +77,6 @@ public sealed class FreezeCardEffect(
 
         foreach (var target in selectedTargets.Where(target => !target.IsEffectResolutionStackTarget))
         {
-            if (target.Zone == PlayerZone.Leader)
-            {
-                continue;
-            }
-
             var targetPlayer = context.Game.State.Players.FirstOrDefault(player =>
                 string.Equals(player.PlayerId, target.PlayerId, StringComparison.Ordinal));
 
@@ -92,9 +87,10 @@ public sealed class FreezeCardEffect(
                     description: $"Target player '{target.PlayerId}' was not found.");
             }
 
-            var sourceZone = PlayerZoneCardAccessor.GetCards(target.Zone, targetPlayer);
-            var targetCard = sourceZone.FirstOrDefault(card =>
-                string.Equals(card.InstanceId, target.CardInstanceId, StringComparison.Ordinal));
+            // N-013 freezes "1 Leader or Character", so a leader target is as valid as a battlefield one -
+            // and it has to be resolved as the stored instance, because the leader is the only zone the
+            // accessor projects into a copy (see PlayerZoneCardAccessor.ResolveLiveCard).
+            var targetCard = PlayerZoneCardAccessor.ResolveLiveCard(target.Zone, targetPlayer, target.CardInstanceId);
 
             if (targetCard is null)
             {

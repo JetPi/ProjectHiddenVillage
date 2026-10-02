@@ -20,6 +20,7 @@ export type MultiplayerSeedProfileName =
   | 'summon-requirements'
   | 'summon-requirements-strict'
   | 'summon-requirements-multi'
+  | 'on-summon-trash-recall'
 
 export type MultiplayerSeedPlayerProfile = {
   id: string
@@ -46,15 +47,21 @@ type PromptResponse = {
   type: string
   isAwaitingRequestingPlayer: boolean
   options: string[]
-  // Effect prompts name the presentation bucket (e.g. 'RevealPresentation', 'PlaceOnDeckTop').
+  // Effect prompts name the presentation bucket (e.g. 'RevealPresentation', 'PlaceOnDeckTop') and where the
+  // candidates live ('Hand', 'Deck', 'Trash', ...) plus which player owns that zone.
   selectionPromptKind?: string | null
   candidateZone?: string | null
+  candidatePlayerId?: string | null
 }
 
 type GameActionOptionResponse = {
   actionId: string
   label: string
   isEnabled: boolean
+  // Why the action is disabled, straight from the mapper (e.g. "Recovery can only be activated starting
+  // from your second turn."). The board renders it as the chip's title, so a spec can tell a rule-driven
+  // disabled chip apart from one that only looks disabled.
+  disabledReason?: string | null
 }
 
 type GameCardInstanceStateResponse = {
@@ -65,6 +72,10 @@ type GameCardInstanceStateResponse = {
   isFaceUp?: boolean
   // True while a reveal shows this card's face to both players (the owner's deck cards carry it too).
   isRevealed?: boolean
+  // Enriched fields (battlefield cards): the resolved DMG/POW/health the board is showing.
+  damage?: number
+  power?: number
+  health?: number
   availableActions?: GameActionOptionResponse[]
 }
 
@@ -74,8 +85,12 @@ export type GamePlayerStateResponse = {
     instanceId?: string
     displayName: string
     isRested?: boolean
-    // Leader life: only chipped by an attacker's DMG and never reset at the turn boundary.
+    // Leader life: only chipped by an attacker's DMG and never reset at the turn boundary. `currentLife`
+    // may sit *above* `totalLife` (the printed maximum) after a life-gain effect.
     currentLife?: number
+    totalLife?: number
+    // Resolved leader DMG, i.e. the value the leader chips off an opposing leader's life with.
+    damage?: number
     // Leader effects (`leader-effect:{instanceId}:{effectKey}`) are published on the leader card
     // only - they never appear in the global `availableActions` list.
     availableActions?: GameActionOptionResponse[]

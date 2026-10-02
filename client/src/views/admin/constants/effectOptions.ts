@@ -62,4 +62,7 @@ export const SELECTION_PROMPT_KIND_OPTIONS = [
   'DiscardFromHand',
   'ReturnToHand',
   'SearchDeck',
+  'SummonFromZone',
+  'DestroyFromZone',
+  'FreezeFromZone',
 ] as const

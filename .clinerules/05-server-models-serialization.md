@@ -55,7 +55,11 @@ paths:
   - Leader life is chipped only by an attacker's **DMG** via `ResolveEffectiveLeader*` and
     never resets (only card effects restore it). Healing may push `CurrentLife` **above** the
     printed maximum (`TotalLife`) — `ValidateInvariants` only rejects negative life, deliberately
-    leaving an upper cap as an open rule question (`GameInstanceLeaderLifeInvariantTests`).
+    leaving an upper cap as an open rule question (`GameInstanceLeaderLifeInvariantTests`), and
+    `CardRuntimeEffectStateService.ResolveEffectiveLeaderCurrentLife` publishes that value as-is:
+    the old `Math.Min(value, TotalLife)` clamp made a full-life gain read exactly like the pre-gain
+    life on the board (`GameStateResponseMapperLeaderLifeTests`, plus the N-010 life-gain scenario in
+    `e2e/gameview.multiplayer.support.spec.ts`).
 - Attack stats resolve exactly like the numbers the client is shown: leader attacker →
   `ResolveEffectiveLeaderPower/Damage`; character attacker →
   `ResolveEffectivePower/Damage` (registry `ResolveAttackPower`/`ResolveAttackDamage`).
@@ -128,14 +132,18 @@ paths:
 - The dump and the manifest are edited together when a node's authored shape is wrong: N-008's
   `interrupt-attack` carried a leftover `exactTargetCount: 1` on a node that resolves the pending attack itself,
   which the availability gate read as "needs a target" (the card could not be played). It is cleared in both
-  files, and `UpdateCardEffectsRequestValidator` now rejects the shape for new saves.
+  files, and `UpdateCardEffectsRequestValidator` now rejects the shape for new saves. Same for the authored
+  prompted nodes (N-003/N-005/N-014 and N-013's `freeze-target`) and N-012's split `draw-n-place-card` +
+  `Prompted` `place-one-on-deck`, and for N-009's `reduce-self-life` (a branch target that must carry
+  `isSubordinate: true`) — `SeedManifestAuthoringTests` now fails when the two sources disagree.
 - `DevelopmentDeckSeeder` **upserts** those definitions for referenced ids (the manifest wins over
   existing rows) and only fabricates placeholders for ids that are still missing —
   `SeedPlaceholderCatalogEntriesAsync` skips ids already present, so real imported rows are never
   overwritten. `PlaceholderLeaderCardIds`/`PlaceholderSupportCapableCardIds` are that fallback only and
-  are dormant now, so
-  `DevelopmentDeckSeederTests.SeedAsync_CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing`
-  has a stale name (N-008 always resolves from the manifest; its assertions still pass).
+  are dormant now:
+  `DevelopmentDeckSeederTests.SeedAsync_SeedsSupportMetadata_ForN008AndN015_FromTheManifest`
+  (renamed from the stale `…CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing`) asserts the
+  manifest-seeded support metadata for both ids.
 - e2e/CI must not depend on the external art host: `scripts/e2e-start-server.sh` exports
   `CardArt__SourceHostAllowlist__0="e2e.invalid"`, which makes `/api/card-art` refuse the real host
   **without any network call** (verified: 404 in ~0.1 s) so `CardImage` falls back deterministically.

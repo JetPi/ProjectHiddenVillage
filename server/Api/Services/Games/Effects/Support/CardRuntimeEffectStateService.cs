@@ -63,10 +63,15 @@ internal static class CardRuntimeEffectStateService
         return ApplyActiveLeaderAttributeEffects(state, leader, leader.Damage, EffectAttributeType.LeaderDamage);
     }
 
+    /// <summary>
+    /// Publishes the leader's *actual* life: card effects may heal a leader above its printed maximum
+    /// (<see cref="LeaderCardInstanceState.TotalLife"/> - "you gain 2 Life" while at full life), and life is
+    /// only ever bounded from below (never negative). Clamping to <c>TotalLife</c> here made every such gain
+    /// invisible on the board, because the badge renders this resolved value.
+    /// </summary>
     public static int ResolveEffectiveLeaderCurrentLife(GameState state, LeaderCardInstanceState leader)
     {
-        var value = ApplyActiveLeaderAttributeEffects(state, leader, leader.CurrentLife, EffectAttributeType.LeaderCurrentLife);
-        return Math.Min(value, leader.TotalLife);
+        return ApplyActiveLeaderAttributeEffects(state, leader, leader.CurrentLife, EffectAttributeType.LeaderCurrentLife);
     }
 
     public static IReadOnlyList<TemporaryEffectProjection> BuildTemporaryEffectProjections(GameState state)
