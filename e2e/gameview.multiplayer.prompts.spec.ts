@@ -78,6 +78,25 @@ test.describe('GameView multiplayer prompts', () => {
       await expect(mulliganOwnerPage.getByTestId('prompt-option-noMulligan')).toBeEnabled()
       await expect(nonOwnerPage.getByTestId('prompt-overlay')).toHaveCount(0)
 
+      // The opening hand is dealt before the mulligan decision, so the prompt must leave the board
+      // inspectable: the player can hover a hand card, reveal its eye and read the details before answering.
+      const mulliganHandCards = mulliganOwnerPage.locator('[data-testid="bottom-hand-row"] [data-hand-instance-id]')
+      await expect(mulliganHandCards.first()).toBeVisible()
+      await mulliganHandCards.first().hover()
+
+      const openDetailsButton = mulliganHandCards.first().getByRole('button', { name: 'Open card details' })
+      await expect(openDetailsButton).toBeVisible()
+      await openDetailsButton.click()
+
+      const detailsDialog = mulliganOwnerPage.getByRole('dialog')
+      await expect(detailsDialog).toBeVisible()
+      await mulliganOwnerPage.keyboard.press('Escape')
+      await expect(detailsDialog).toHaveCount(0)
+
+      // Reading a card must not answer the prompt: the overlay is still there until the player picks.
+      await expect(mulliganOwnerPage.getByTestId('prompt-overlay')).toBeVisible()
+      await expect(mulliganOwnerPage.getByTestId('prompt-option-noMulligan')).toBeEnabled()
+
       await resolvePromptViaHub(setup.gameCode, mulliganOwner, 'noMulligan')
 
       await expect.poll(async () => {

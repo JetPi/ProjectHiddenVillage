@@ -87,18 +87,11 @@ public static partial class GameStateResponseMapper
         var candidateEffects = new List<(EffectSpec Effect, int Index, string EffectKey, string BaseLabel)>();
         foreach (var entry in sourceCardDefinition.Effects.Select((effect, index) => new { Effect = effect, Index = index }))
         {
-            // A subordinate node is a step of another ability's chain ("draw 1 card, then place 1 card from
-            // your hand on top of your deck"), not an independently activatable ability, so it never gets its
-            // own action - the chain reaches it through its parent's success branch.
-            if (entry.Effect.IsSubordinate)
-            {
-                continue;
-            }
-
-            // A passive (N-007's conditional Rush) is resolved by the engine whenever a mutation triggers it.
-            // It has no activation window of its own, so publishing a chip for it would offer the player an
-            // ability that is not theirs to activate.
-            if (entry.Effect.PassiveMode != PassiveMode.None)
+            // Only an independently activatable ability gets a chip: a subordinate node belongs to another
+            // ability's chain, a passive is resolved by the engine when a mutation triggers it, and the card's
+            // summon requirement is paid by the summon action's own flow. That shape question has one home
+            // (CardAbilityTimingRules), shared with the engine's submit guard and auto-end probe.
+            if (!CardAbilityTimingRules.IsIndependentlyActivatableAbility(entry.Effect))
             {
                 continue;
             }

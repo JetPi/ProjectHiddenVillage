@@ -1346,6 +1346,22 @@ public sealed class InMemoryGameInstanceRegistry
 
         var effectSpec = effectWithIndex.Effect;
 
+        // The same shape gate the executor and the chip builder use: a chain step, a passive or the card's
+        // summon requirement is not an ability this player can activate, so it never offers candidates.
+        if (!CardAbilityTimingRules.IsIndependentlyActivatableAbility(effectSpec))
+        {
+            return new GameCardActionTargetsResponse(
+                ActionId: actionId,
+                SourceCardInstanceId: sourceCardInstanceId,
+                IsEnabled: false,
+                DisabledReason: EffectRestrictionMessages.NotAnActivatedAbility,
+                MinimumTargetCount: effectSpec.TargetRules.MinimumTargetCount,
+                MaximumTargetCount: effectSpec.TargetRules.MaximumTargetCount,
+                ExactTargetCount: effectSpec.TargetRules.ExactTargetCount,
+                AutoSelectAllValidTargets: effectSpec.TargetRules.AutoSelectAllValidTargets,
+                ValidTargets: []);
+        }
+
         // A once-per-turn effect already used this turn reports the restriction even when its timing
         // window has since closed, so the player gets the actionable reason instead of a phase message.
         if (effectSpec.GlobalRestrictions == EffectRestrictions.OncePerTurn
@@ -1545,6 +1561,17 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         var effectSpec = effectWithIndex.Effect;
+
+        // A node that is not an independently activatable ability cannot be reached through the ability path,
+        // however the request was crafted: a chain step (a subordinate node), a passive, or the card's summon
+        // requirement. The mapper never publishes a chip for those, so refusing here keeps a direct submit from
+        // re-running a chain the board never offered (N-022's Tribute node executed the whole reveal+summon
+        // chain this way).
+        if (!CardAbilityTimingRules.IsIndependentlyActivatableAbility(effectSpec))
+        {
+            throw new InvalidOperationException(EffectRestrictionMessages.NotAnActivatedAbility);
+        }
+
         if (effectSpec.GlobalRestrictions == EffectRestrictions.OncePerTurn
             && instance.State.IsEffectUsedThisTurn(playerId, request.SourceCardInstanceId, effectKey))
         {
@@ -2384,11 +2411,12 @@ public sealed class InMemoryGameInstanceRegistry
     }
 
     /// <summary>
-    /// Cheap legality probe for the MainPhase auto-end check: the card publishes at least one non-subordinate
-    /// ability whose timing window is open, whose once-per-turn restriction is unspent and whose context rules
-    /// (N-011's "if you have [Shikamaru Nara] and [Choji Akimichi] on the field") can execute. Target
-    /// availability is checked by the submit path and by the mapper's chip; this probe exists so a battlefield
-    /// ability is not silently skipped as "no legal action".
+    /// Cheap legality probe for the MainPhase auto-end check: the card publishes at least one independently
+    /// activatable ability (the same shape gate the chip builder and the executor use) whose timing window is
+    /// open, whose once-per-turn restriction is unspent and whose context rules (N-011's "if you have
+    /// [Shikamaru Nara] and [Choji Akimichi] on the field") can execute. Target availability is checked by the
+    /// submit path and by the mapper's chip; this probe exists so a battlefield ability is not silently skipped
+    /// as "no legal action".
     /// </summary>
     private static bool CanActivateCardAbilityNow(GameInstance instance, string playerId, CardInstance card)
     {
@@ -2399,8 +2427,7 @@ public sealed class InMemoryGameInstanceRegistry
 
         foreach (var entry in definition.Effects.Select((effect, index) => new { Effect = effect, Index = index }))
         {
-            if (entry.Effect.IsSubordinate
-                || entry.Effect.PassiveMode != PassiveMode.None
+            if (!CardAbilityTimingRules.IsIndependentlyActivatableAbility(entry.Effect)
                 || !CardAbilityTimingRules.IsAbilityTimingAvailable(entry.Effect.Timing, instance.State, playerId))
             {
                 continue;

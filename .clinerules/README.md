@@ -62,6 +62,51 @@ task touches that area).
   three, the `Battle` chip flips to enabled as **Rush**, the opposing leader loses the boosted DMG, and the
   `[Once Per Turn]` chip reads its reason afterwards). Deliberately *not* covered: the support-zone MainPhase
   auto-end gap below, and N-022's EX tribute-summon reveal.
+- **A support effect is no longer published as an ability on the character field (fixed).** Support effects are
+  activated from the hand or the support area (`SupportTimingRules` owns when), so a support-capable card that is
+  normal-summoned onto the character field must not expose its support node as an ability. It did: the shape gate
+  only rejected subordinate/passive/summon-requirement nodes, so a battlefield N-015 published a **Support** chip
+  ("[During Your Main] K.O. all Characters") next to Battle, a crafted `character-ability:` submit ran the K.O.
+  from the field, and the MainPhase auto-end probe counted it as a legal action (N-002/N-008/N-021 would have
+  exposed their Quick / attack-interruption supports the same way). The fourth shape is now in the same one home
+  (`CardAbilityTimingRules.IsIndependentlyActivatableAbility` rejects `EffectType == EffectKind.Support`), so all
+  three consumers agree; the support path itself is untouched (the hand chip still publishes, and the dump/seed
+  needed no card-data change). Pinned by `CardAbilityTimingRulesTests
+  .IsIndependentlyActivatableAbility_RejectsASupportEffect`, `GameStateResponseMapperCardActionsTests
+  .ToGameStateResponse_HidesTheSupportEffectNode_FromTheCharacterAbilityActions` (+ the hand-side counterpart,
+  `.ToGameStateResponse_KeepsPublishingTheSupportActivation_ForTheSupportEffectHandCard`) and three
+  `InMemoryGameInstanceRegistryTests` cases (submit refused, targets disabled, MainPhase auto-ends). No e2e yet —
+  the chip is server-published and the client renders `AvailableActions` verbatim, so a spec would only duplicate
+  the mapper test; the N-015 support scenario in `e2e/gameview.multiplayer.support.spec.ts` (deck two) is where a
+  field-summon assertion would belong if one is wanted.
+- **A card's summon requirement is no longer published as an activatable ability (fixed).** The `Tribute` node
+  behind "[Summon Requirements] Place 1 of your Characters in your trash" (N-003/N-005/N-014/N-022) is authored as
+  a non-subordinate root with `timing: During Your Main`, so as soon as the card reached the battlefield the
+  ability builder published it as a `character-ability:` chip — reading "During Your Main" (N-003's reads
+  "Support", its node being authored with a Support effect type) — and a direct submit of it re-ran the whole
+  reveal + summon chain, because only the chip builder filtered subordinate/passive nodes and the executor
+  checked nothing but timing + once-per-turn. The shape question now has one home
+  (`CardAbilityTimingRules.IsIndependentlyActivatableAbility`) used by the chip builder, the executor (which
+  throws `EffectRestrictionMessages.NotAnActivatedAbility`) and the MainPhase auto-end probe;
+  `CardAbilityTimingRulesTests`, `GameStateResponseMapperCardActionsTests
+  .ToGameStateResponse_HidesTheSummonRequirementNode_FromTheCharacterAbilityActions` and three
+  `InMemoryGameInstanceRegistryTests` cases pin it. No card data had to change: the authored `timing`/`effectType`
+  on those nodes is inert metadata (the summon path resolves the node by `RuntimeEffects.Tribute`), N-003's
+  `effectType: "Support"` is the only inconsistent spelling and it is harmless.
+- **"No Normal Summon" no longer blocks a special summon (fixed).** `CannotBeNormalSummoned` gates the *normal*
+  summon only — the one performed by resting the summon card — yet `SummonCardEffect` filtered its candidates and
+  refused the placement on that flag, and `TributeSummonCardEffect` refused the same way. That made N-003's
+  "[On Summon] Summon up to 1 [Naruto Uzumaki] from your deck or trash" unable to summon a copy of itself (the
+  copies carry the flag — N-003 is an EX Character) and would have refused the very cards the
+  `[Summon Requirements]` flow exists to summon. Both effects now use one shared rule,
+  `SummonPlacementRules.IsPlaceableOnCharacterField` (Chakra/Summon types only); the flag is consulted nowhere in
+  the summon-placement path, and a pool that must exclude special-summon-only cards is authored with a
+  `CannotBeNormalSummoned` target predicate. Pinned by `SummonCardEffectTests` (a flagged candidate stays valid and
+  is summoned, and a Chakra card *with* the flag is still refused as `UnsupportedCardType`),
+  `TributeSummonCardEffectTests.Execute_SummonsTargetThatCannotBeNormalSummoned` and the real-effect
+  `InMemoryGameInstanceRegistryOnSummonTests
+  .ExecuteCardAction_NormalSummon_ResumedTrashRecall_SummonsCardThatCannotBeNormalSummoned`. N-003's own e2e
+  scenario is still missing — its cross-zone `SummonFromZone` pick is only unit-covered.
 - **N-022 Manda's EX tribute-summon reveal is still uncovered.** The reveal *mechanic* is pinned by
   `e2e/gameview.multiplayer.reveal-presentation.spec.ts` (N-019 for an attack, N-013 for an `[On Summon]`
   summon — and N-013's scenario now plays the whole chain: the presented reveal, the `FreezeFromZone` pick it

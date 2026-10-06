@@ -2477,6 +2477,164 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.AreNotEqual(GamePhase.MainPhase, game.State.Phase);
     }
 
+    [TestMethod]
+    public void ExecuteCardAction_CharacterAbility_Throws_ForTheSummonRequirementNode()
+    {
+        // N-022's `tribute-requirement` node is a non-subordinate root carrying a MainPhase timing, so the
+        // ability path used to accept a direct submit of it and re-ran the whole reveal + summon chain - an
+        // ability the board never offers. It is the summon requirement, paid by the summon action's own flow.
+        var game = CreateCharacterAbilityGame(abilityInstanceIds: [], summonRequirementInstanceIds: ["manda-1"]);
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(
+                game.Id,
+                new GameCardActionExecutionRequest(
+                    PlayerId: "p2",
+                    ActionId: "character-ability:manda-1:tribute-requirement",
+                    SourceCardInstanceId: "manda-1"),
+                new RecordingSequentialExecutor()));
+
+        Assert.AreEqual(EffectRestrictionMessages.NotAnActivatedAbility, ex.Message);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_CharacterAbility_Throws_ForAChainStep()
+    {
+        // `on-summon` is a subordinate step of the summon chain ("[On Summon] Reveal the top card..."), reached
+        // through its parent's success branch, so it has no activation window of its own - even though the
+        // ingestion gave it a MainPhase timing.
+        var game = CreateCharacterAbilityGame(abilityInstanceIds: [], summonRequirementInstanceIds: ["manda-1"]);
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(
+                game.Id,
+                new GameCardActionExecutionRequest(
+                    PlayerId: "p2",
+                    ActionId: "character-ability:manda-1:on-summon",
+                    SourceCardInstanceId: "manda-1"),
+                new RecordingSequentialExecutor()));
+
+        Assert.AreEqual(EffectRestrictionMessages.NotAnActivatedAbility, ex.Message);
+    }
+
+    [TestMethod]
+    public void GetCardActionTargets_CharacterAbility_DisablesTheSummonRequirementNode()
+    {
+        var game = CreateCharacterAbilityGame(abilityInstanceIds: [], summonRequirementInstanceIds: ["manda-1"]);
+
+        var response = registry.GetCardActionTargets(
+            game.Id,
+            new GameCardActionTargetsRequest(
+                PlayerId: "p2",
+                ActionId: "character-ability:manda-1:tribute-requirement",
+                SourceCardInstanceId: "manda-1"),
+            new GameEffectCanExecuteEvaluator(
+                new EffectContextConditionEvaluator(),
+                new EffectTargetResolver(),
+                new GameValidTargetResultFactory(),
+                new GameEffectConditionDiagnostics()));
+
+        Assert.IsFalse(response.IsEnabled);
+        Assert.AreEqual(EffectRestrictionMessages.NotAnActivatedAbility, response.DisabledReason);
+        Assert.AreEqual(0, response.ValidTargets.Count);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_CharacterAbility_Throws_ForASupportEffect()
+    {
+        // N-015's support effect is a non-subordinate `effectType: Support` root carrying a MainPhase timing, so
+        // the timing window alone cannot tell it apart from an ability. A support is activated through the
+        // support path (from the hand or the support area), never as `character-ability:`, so a crafted submit
+        // is refused instead of running the K.O. from the character field.
+        var game = CreateCharacterAbilityGame(abilityInstanceIds: [], supportEffectInstanceIds: ["sasuke-1"]);
+
+        var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            registry.ExecuteCardAction(
+                game.Id,
+                new GameCardActionExecutionRequest(
+                    PlayerId: "p2",
+                    ActionId: "character-ability:sasuke-1:KO-all-targets",
+                    SourceCardInstanceId: "sasuke-1"),
+                new RecordingSequentialExecutor()));
+
+        Assert.AreEqual(EffectRestrictionMessages.NotAnActivatedAbility, ex.Message);
+    }
+
+    [TestMethod]
+    public void GetCardActionTargets_CharacterAbility_DisablesTheSupportEffectNode()
+    {
+        var game = CreateCharacterAbilityGame(abilityInstanceIds: [], supportEffectInstanceIds: ["sasuke-1"]);
+
+        var response = registry.GetCardActionTargets(
+            game.Id,
+            new GameCardActionTargetsRequest(
+                PlayerId: "p2",
+                ActionId: "character-ability:sasuke-1:KO-all-targets",
+                SourceCardInstanceId: "sasuke-1"),
+            new GameEffectCanExecuteEvaluator(
+                new EffectContextConditionEvaluator(),
+                new EffectTargetResolver(),
+                new GameValidTargetResultFactory(),
+                new GameEffectConditionDiagnostics()));
+
+        Assert.IsFalse(response.IsEnabled);
+        Assert.AreEqual(EffectRestrictionMessages.NotAnActivatedAbility, response.DisabledReason);
+        Assert.AreEqual(0, response.ValidTargets.Count);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_CharacterAbility_AutoEndsTheMainPhase_WhenOnlyASupportEffectRemains()
+    {
+        // The auto-end probe applies the same shape gate as the chip builder *before* the can-execute
+        // evaluator: a support node would otherwise evaluate as executable and keep the MainPhase open with
+        // nothing the player can actually activate (the card has no ability on the field).
+        var game = CreateCharacterAbilityGame(
+            abilityInstanceIds: ["ino-1"],
+            supportEffectInstanceIds: ["sasuke-1"]);
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: "character-ability:ino-1:team-10-boost",
+                SourceCardInstanceId: "ino-1"),
+            new RecordingSequentialExecutor());
+
+        Assert.AreNotEqual(GamePhase.MainPhase, game.State.Phase);
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_CharacterAbility_AutoEndsTheMainPhase_WhenOnlyTheSummonRequirementRemains()
+    {
+        // The auto-end probe applies the same shape gate as the chip builder *before* the can-execute evaluator:
+        // a summon-requirement node that carries no selection of its own would otherwise evaluate as executable
+        // and keep the MainPhase open with nothing the player can actually activate.
+        var game = CreateCharacterAbilityGame(abilityInstanceIds: ["ino-1"], summonRequirementInstanceIds: ["manda-1"]);
+        var requirementDefinition = (CharacterCard)game.State.CardDefinitions["manda-1"];
+        requirementDefinition.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "tribute-requirement",
+                EffectType = EffectKind.SummonRequirement,
+                Timing = EffectTiming.DuringYourMain,
+                RuntimeEffectType = RuntimeEffects.Tribute,
+                ExecutionTargetSource = EffectExecutionTargetSource.None,
+                TargetRules = new EffectTargetRuleSet(),
+            }
+        ];
+
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: "character-ability:ino-1:team-10-boost",
+                SourceCardInstanceId: "ino-1"),
+            new RecordingSequentialExecutor());
+
+        Assert.AreNotEqual(GamePhase.MainPhase, game.State.Phase);
+    }
+
     private static Dictionary<string, Card> BuildDefinitionsWithCharacterAbilities(params string[] ids)
     {
         return ids.ToDictionary(
@@ -2517,13 +2675,104 @@ public sealed class InMemoryGameInstanceRegistryTests
     }
 
     /// <summary>
+    /// The summon-requirement shape of a special-summon card (N-022/N-014/N-005/N-003): the requirement is a
+    /// non-subordinate <c>Tribute</c> root node carrying a MainPhase timing, followed by its subordinate
+    /// `[On Summon]` chain steps.
+    /// </summary>
+    private static Dictionary<string, Card> BuildDefinitionsWithSummonRequirements(params string[] ids)
+    {
+        return ids.ToDictionary(
+            keySelector: id => id,
+            elementSelector: id => (Card)new CharacterCard
+            {
+                Id = id,
+                DisplayName = id,
+                Name = [id],
+                Type = CardType.Character,
+                Traits = [],
+                Color = CardColor.Blue,
+                Description = string.Empty,
+                Conditions = [EffectConditionKeywords.SummonRequirements],
+                CannotBeNormalSummoned = true,
+                Effects =
+                [
+                    new EffectSpec
+                    {
+                        Id = "tribute-requirement",
+                        EffectType = EffectKind.SummonRequirement,
+                        Timing = EffectTiming.DuringYourMain,
+                        RuntimeEffectType = RuntimeEffects.Tribute,
+                        OnSuccessEffectId = "on-summon",
+                        TargetRules = new EffectTargetRuleSet
+                        {
+                            ExactTargetCount = 2,
+                            Rules =
+                            [
+                                new EffectTargetRule
+                                {
+                                    Scope = EffectTargetRange.Self,
+                                    InZone = PlayerZone.CharacterField,
+                                    TributeRole = TributeTargetRole.TributeMaterial,
+                                    ExactSelectedTargetCount = 1,
+                                    Restriction = new ZoneCardRestriction(),
+                                },
+                                new EffectTargetRule
+                                {
+                                    Scope = EffectTargetRange.Self,
+                                    InZone = PlayerZone.Hand,
+                                    TributeRole = TributeTargetRole.SummonCandidate,
+                                    ExactSelectedTargetCount = 1,
+                                    Restriction = new ZoneCardRestriction(),
+                                },
+                            ],
+                            TributeComposition = new TributeTargetComposition
+                            {
+                                ExactTributeCount = 1,
+                                RequireSingleSummonTarget = true,
+                                RequireDistinctSummonAndTributes = true,
+                            },
+                        },
+                    },
+                    new EffectSpec
+                    {
+                        Id = "on-summon",
+                        EffectType = EffectKind.Activated,
+                        Timing = EffectTiming.DuringYourMain,
+                        RuntimeEffectType = RuntimeEffects.SummonCard,
+                        IsSubordinate = true,
+                    },
+                ],
+            },
+            comparer: StringComparer.Ordinal);
+    }
+
+    /// <summary>
     /// p2's MainPhase with the given battlefield characters and nothing else legal: no hand, no support area,
     /// every character rested and the leader rested, so an enabled ability is the only action in the phase.
+    /// <paramref name="summonRequirementInstanceIds"/> puts a special-summon card next to them, so a test can
+    /// check that its summon-requirement node is not treated as an ability;
+    /// <paramref name="supportEffectInstanceIds"/> puts a support-capable character there, so a test can check
+    /// that its `effectType: Support` node is not treated as one either.
     /// </summary>
-    private GameInstance CreateCharacterAbilityGame(IReadOnlyList<string> abilityInstanceIds)
+    private GameInstance CreateCharacterAbilityGame(
+        IReadOnlyList<string> abilityInstanceIds,
+        IReadOnlyList<string>? summonRequirementInstanceIds = null,
+        IReadOnlyList<string>? supportEffectInstanceIds = null)
     {
+        var summonRequirementIds = summonRequirementInstanceIds ?? [];
+        var supportEffectIds = supportEffectInstanceIds ?? [];
         var definitions = BuildDefinitionsWithLeaderEffects();
         foreach (var entry in BuildDefinitionsWithCharacterAbilities([.. abilityInstanceIds]))
+        {
+            definitions[entry.Key] = entry.Value;
+        }
+
+        foreach (var entry in BuildDefinitionsWithSummonRequirements([.. summonRequirementIds]))
+        {
+            definitions[entry.Key] = entry.Value;
+        }
+
+        foreach (var entry in BuildDefinitionsWithSupportEffects([.. supportEffectIds]))
         {
             definitions[entry.Key] = entry.Value;
         }
@@ -2546,7 +2795,7 @@ public sealed class InMemoryGameInstanceRegistryTests
         game.State.Players[1].Hand.Clear();
         game.State.Players[1].SupportZone.Clear();
 
-        foreach (var instanceId in abilityInstanceIds)
+        foreach (var instanceId in abilityInstanceIds.Concat(summonRequirementIds).Concat(supportEffectIds))
         {
             game.State.Players[1].Battlefield.Add(new CardInstance
             {
@@ -2561,6 +2810,45 @@ public sealed class InMemoryGameInstanceRegistryTests
         game.State.Players[1].LeaderCardInstance!.IsRested = true;
 
         return game;
+    }
+
+    /// <summary>
+    /// The support-effect shape (N-015): a normally summonable support-capable character whose support effect
+    /// is a non-subordinate `effectType: Support` root node carrying a MainPhase timing ("[During Your Main]
+    /// K.O. all Characters"). Support effects are activated from the hand or the support area, so this node is
+    /// never an ability of a card sitting on the character field.
+    /// </summary>
+    private static Dictionary<string, Card> BuildDefinitionsWithSupportEffects(params string[] ids)
+    {
+        return ids.ToDictionary(
+            keySelector: id => id,
+            elementSelector: id => (Card)new CharacterCard
+            {
+                Id = id,
+                DisplayName = id,
+                Name = [id],
+                Type = CardType.Character,
+                Traits = [],
+                Color = CardColor.Blue,
+                Description = string.Empty,
+                Conditions = [],
+                SupportName = "Chidori: One Thousand Birds",
+                SupportEffect = "[During Your Main] K.O. all Characters.",
+                Effects =
+                [
+                    new EffectSpec
+                    {
+                        Id = "KO-all-targets",
+                        EffectType = EffectKind.Support,
+                        Timing = EffectTiming.DuringYourMain,
+                        RuntimeEffectType = RuntimeEffects.DestroyCard,
+                        TargetRange = EffectTargetRange.Any,
+                        ChakraCost = 2,
+                        ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                    }
+                ],
+            },
+            comparer: StringComparer.Ordinal);
     }
 
     private GameInstance CreateOncePerTurnLeaderGame()

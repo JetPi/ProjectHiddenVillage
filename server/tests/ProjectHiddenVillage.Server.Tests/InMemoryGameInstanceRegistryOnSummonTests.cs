@@ -188,6 +188,48 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
         CollectionAssert.AreEqual(new[] { TrashRecallInstanceId }, recallEffect.SelectedTargetInstanceIds.ToArray());
     }
 
+    [TestMethod]
+    public void ExecuteCardAction_NormalSummon_ResumedTrashRecall_SummonsCardThatCannotBeNormalSummoned()
+    {
+        var recallEffect = CreateSummonCardEffect();
+        var game = CreateGame(definitionId: "onsummon-def-trash-recall");
+        AddTrashCard(game, TrashRecallInstanceId, TrashRecallDefinitionId);
+        // N-003 prints "No Normal Summon" and still summons a copy of itself from the trash/deck: an effect
+        // summon is a special summon, so the flag must neither filter the candidate pool nor refuse the
+        // placement (this is the real SummonCardEffect, not the recording double).
+        game.State.CardDefinitions[TrashRecallDefinitionId].CannotBeNormalSummoned = true;
+
+        registry.ExecuteCardAction(game.Id, CreateSummonRequest(), CreateSequentialExecutor(recallEffect));
+
+        var prompt = game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        CollectionAssert.AreEqual(new[] { TrashRecallInstanceId }, prompt.Options.ToArray());
+
+        registry.ResolvePrompt(
+            game.Id,
+            requestedPlayerId: "p1",
+            selectedOption: TrashRecallInstanceId,
+            reactiveEffectOrchestrator: null,
+            sequentialEffectExecutor: CreateSequentialExecutor(recallEffect));
+
+        // The resumed "Summon Card" node placed the flagged card on the field and took it out of the trash.
+        Assert.IsTrue(game.State.Players[0].Battlefield.Any(card => card.InstanceId == TrashRecallInstanceId));
+        Assert.AreEqual(0, game.State.Players[0].DiscardPile.Count);
+        Assert.IsNull(game.GetPendingPrompt());
+    }
+
+    private static SummonCardEffect CreateSummonCardEffect()
+    {
+        return new SummonCardEffect(
+            effectSpecResolver: new GameRuntimeEffectSpecResolver(),
+            canExecuteEvaluator: new GameEffectCanExecuteEvaluator(
+                new EffectContextConditionEvaluator(),
+                new EffectTargetResolver(),
+                new GameValidTargetResultFactory(),
+                new GameEffectConditionDiagnostics()),
+            targetResolver: new EffectTargetResolver());
+    }
+
     private static int CountSkippedOnSummonEntries(GameInstance game)
     {
         return game.ActionLog.Count(entry =>

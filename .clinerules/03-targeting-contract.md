@@ -20,15 +20,33 @@ paths:
   `index-{i}`) · optional attacker choice `resolve-optional-attack-effect:*`. Phase-level: `advance-phase`,
   `turn-end`/`endPhase` (`declare-end-step`), `complete-end-step`, `pass-turn`, `resolve-prompt:*`.
 - **A card's abilities are published on the card, never in the global list**, and leaders and battlefield
-  cards share the whole path: `GameStateResponseMapper.BuildCardAbilityOptions` builds the options (subordinate
-  nodes skipped, *passives* skipped — a `PassiveMode != None` effect is engine-driven and has no activation
-  window of its own, timing filtered by `CardAbilityTimingRules`, once-per-turn honoured),
+  cards share the whole path: `GameStateResponseMapper.BuildCardAbilityOptions` builds the options,
   `InMemoryGameInstanceRegistry.ExecuteCardAbilityAction` executes them, and the client's
   `mapActionToHubIntent` / `submitMappedAction` route both prefixes through `trySubmitTargetedCardEffect`. A
   battlefield ability is legality-checked like a hand/battle action (own MainPhase, active player) and is
   blocked while a support activation waits for responses; the engine's MainPhase auto-end probe
   (`CanActivateCardAbilityNow`) asks the same timing/once-per-turn/context-rule questions so an ability-only
-  MainPhase is not auto-skipped.
+  MainPhase is not auto-skipped. **Which nodes count as an ability at all has one home**:
+  `CardAbilityTimingRules.IsIndependentlyActivatableAbility` rejects a subordinate chain step, a passive
+  (`PassiveMode != None` — engine-driven, no activation window of its own), the card's **summon requirement**
+  (the `Tribute` node behind "[Summon Requirements] Place 1 of your Characters in your trash"; it is authored as
+  a root with a MainPhase timing but is paid by `summon-to-field`'s own flow) and the card's **support effect**
+  (`EffectType == EffectKind.Support`). All three consumers use it — the
+  chip builder, the executor (which throws `EffectRestrictionMessages.NotAnActivatedAbility` on a direct submit)
+  and the auto-end probe — because only the chip builder used to filter, so a summoned N-022/N-014/N-005/N-003
+  displayed a "During Your Main" summon-requirement chip (N-003's reads "Support", its node being authored as a
+  Support effect type) and a direct submit re-ran the whole reveal + summon chain; timing is filtered by
+  `CardAbilityTimingRules.IsAbilityTimingAvailable` and once-per-turn is honoured on top. The support shape is
+  the same story for the *other* activation path: **a support effect is never an ability** — it is activated
+  from the hand (your own turn) or from the support area, which `SupportTimingRules` owns, and neither the
+  character field nor a leader has a support area to activate it from. Without the rejection, normal-summoning
+  N-015 to the character field published a **Support** chip ("[During Your Main] K.O. all Characters") on the
+  board — N-002/N-008/N-021 would have exposed their Quick / attack-interruption supports the same way — a
+  crafted `character-ability:` submit ran it from the field and the auto-end probe counted it as a legal action
+  (`ToGameStateResponse_HidesTheSupportEffectNode_FromTheCharacterAbilityActions`,
+  `ExecuteCardAction_CharacterAbility_Throws_ForASupportEffect`,
+  `GetCardActionTargets_CharacterAbility_DisablesTheSupportEffectNode`,
+  `ExecuteCardAction_CharacterAbility_AutoEndsTheMainPhase_WhenOnlyASupportEffectRemains`).
 
 ## Targeting state (client)
 
@@ -116,6 +134,27 @@ targets exist.
     priority (the closing pass cleared it), so without the hand-back the interrupt silently took its failure
     branch and the attack resolved as if it had never answered.
 
+## Normal summon vs special summon (`CannotBeNormalSummoned`)
+
+- Only the **normal** summon — resting the summon card — is gated by `Card.CannotBeNormalSummoned` ("No Normal
+  Summon"). Everything else that puts a card on a Character Field is a **special** summon and must be allowed for a
+  flagged card: the hand `summon-to-field` action of a card that prints a [Summon Requirements] node (the registry
+  pays its materials and never rests the summon card), a `Summon Card` effect placing a card, and the `Tribute`
+  runtime effect behind a requirement when that node is walked as a chain.
+- That is why N-003's "[On Summon] Summon up to 1 [Naruto Uzumaki] from your deck or trash" may summon a copy of
+  itself: `SummonCardEffect` used to filter its candidates (and refuse the placement) on `CannotBeNormalSummoned`,
+  and `TributeSummonCardEffect` refused the same way. Both were wrong and both refused the very cards the
+  requirement flow exists to summon (N-003/N-005/N-014/N-022 are EX Characters carrying the flag).
+- One home now: `SummonPlacementRules.IsPlaceableOnCharacterField` (the type guard — Chakra/Summon cards only).
+  Neither effect consults the flag. A candidate pool that must exclude special-summon-only cards is authored with a
+  `CannotBeNormalSummoned` target predicate (`ZoneCardProperty.CannotBeNormalSummoned`) instead.
+- Pinned by `SummonCardEffectTests` (a flagged candidate stays a valid target and is summoned, while a Chakra card
+  *with* the flag set is still refused as `Game.Effect.SummonCard.UnsupportedCardType`),
+  `TributeSummonCardEffectTests.Execute_SummonsTargetThatCannotBeNormalSummoned` and the real-effect
+  `InMemoryGameInstanceRegistryOnSummonTests
+  .ExecuteCardAction_NormalSummon_ResumedTrashRecall_SummonsCardThatCannotBeNormalSummoned` (summon → prompted
+  trash recall → answer → the flagged card lands on the field).
+
 ## Server `GetCardActionTargets`
 
 Returns `GameCardActionTargetsResponse` (`IsEnabled`, `DisabledReason`,
@@ -129,6 +168,11 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
 
 ## Support activation window (MainPhase)
 
+- **A support effect is published only by the support path**: `activate-support:{instanceId}` from the hand
+  (your own turn) or from the support area. A support-capable card sitting on the **character field** publishes
+  no support chip *and* no ability chip — the card-ability shape gate rejects `EffectType == EffectKind.Support`
+  (see the "abilities" bullet above), which is what keeps N-015's "[During Your Main] K.O. all Characters" off the
+  board once the card is normal-summoned.
 - A MainPhase support activation is **paid + consumed immediately** but only *resolves* when the window
   closes (`ResolvePendingActivations` replays the queue LIFO). Queueing hands priority to the opponent, so
   they may answer with a `[Support Activated]` card (or a negate) first.
@@ -242,7 +286,10 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
 - Not yet covered by e2e although the cards are seeded: N-003's cross-zone `SummonFromZone` pick (its candidates
   come from the trash **or** the deck, which the client resolves into one pool — see the `[On Summon]` runner
   bullet; the authored shape and the pool logic are pinned by `SeedManifestAuthoringTests` and the
-  `buildPromptCandidateCards` path only) and N-022's EX
+  `buildPromptCandidateCards` path only — and the *placement* itself is no longer blocked by the card's
+  "No Normal Summon" flag, see the normal/special-summon section; the engine half is pinned by
+  `InMemoryGameInstanceRegistryOnSummonTests
+  .ExecuteCardAction_NormalSummon_ResumedTrashRecall_SummonsCardThatCannotBeNormalSummoned`) and N-022's EX
   tribute-summon reveal (`tribute-requirement` → `reveal-top` → `on-summon`; the reveal mechanic itself is pinned
   by the reveal-presentation spec, and N-005's trash recall + N-014's field destroy are covered in
   `e2e/gameview.multiplayer.actions.spec.ts`). N-016's negate works again (its chakra lock is its own runtime effect,
