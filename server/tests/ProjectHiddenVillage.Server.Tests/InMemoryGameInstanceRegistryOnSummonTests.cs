@@ -22,6 +22,7 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
     private const string TrashRecallInstanceId = "trash-recall-1";
     private const string TrashRecallDefinitionId = "trash-recall-def";
     private const string TrashRecallEffectId = "onsummon-trash-recall";
+    private const string RevealDeckInstanceId = "reveal-deck-1";
 
     private readonly InMemoryGameInstanceRegistry registry = new(
         new GameInstanceFactory(),
@@ -154,6 +155,83 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
     }
 
     [TestMethod]
+    public void ExecuteCardAction_RequirementSummon_WithOnSummonReveal_SuspendsForPresentationThenSummonsTheRevealedCard()
+    {
+        // Mirrors N-022 (Manda): only a summon-requirement (tribute) summon can place it, and its
+        // "[On Summon]" chain reveals the top card of the deck before it is summoned.
+        var game = CreateGame(definitionId: "tribute-summon-reveal-def");
+        AddBattlefieldCard(game, TributeMaterialInstanceId, "card-1");
+        AddDeckCard(game, RevealDeckInstanceId, "card-1");
+
+        registry.ExecuteCardAction(game.Id, CreateRequirementSummonRequest(), CreateRevealChainExecutor());
+
+        // The tribute was paid and the EX card landed, then its mandatory "[On Summon]" reveal ran.
+        Assert.IsTrue(game.State.Players[0].Battlefield.Any(card => card.InstanceId == SummonedInstanceId));
+        Assert.IsTrue(game.State.Players[0].DiscardPile.Any(card => card.InstanceId == TributeMaterialInstanceId));
+
+        // The reveal is presented before the summon resolves: the top card is face up in the deck and stays
+        // there until the player acknowledges the presentation.
+        var revealedCard = game.State.Players[0].Deck.Single(card => card.InstanceId == RevealDeckInstanceId);
+        Assert.IsTrue(revealedCard.IsRevealedToBothPlayers);
+        Assert.AreEqual(PlayerZone.Deck, revealedCard.RevealedInZone);
+
+        var prompt = game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual(GamePromptType.Effect, prompt.Type);
+        Assert.AreEqual(EffectSelectionPromptKind.RevealPresentation, prompt.SelectionPromptKind);
+        Assert.AreEqual("p1", prompt.RequestedPlayerId);
+        Assert.AreEqual(PlayerZone.Deck, prompt.CandidateZone);
+        Assert.AreEqual("p1", prompt.CandidatePlayerId);
+
+        registry.ResolvePrompt(
+            game.Id,
+            requestedPlayerId: "p1",
+            selectedOption: ReactiveEffectExecutionConstants.RevealPresentedOption,
+            reactiveEffectOrchestrator: null,
+            sequentialEffectExecutor: CreateRevealChainExecutor());
+
+        // The resumed chain handed the revealed card to the summon step, so it lands on the field.
+        Assert.IsNull(game.GetPendingPrompt());
+        Assert.IsTrue(game.State.Players[0].Battlefield.Any(card => card.InstanceId == RevealDeckInstanceId));
+        Assert.IsFalse(game.State.Players[0].Deck.Any(card => card.InstanceId == RevealDeckInstanceId));
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_RequirementSummon_WithOnSummonReveal_PresentsTheRevealEvenWhenThePostConditionFails()
+    {
+        // The reveal must be presented whether or not the top card is a legal summon target: if the revealed card
+        // is an EX Character the "non-EX Character" post-condition refuses it, the chain ends, and the card turns
+        // back over - the reveal itself still happened.
+        var game = CreateGame(definitionId: "tribute-summon-reveal-def");
+        AddBattlefieldCard(game, TributeMaterialInstanceId, "card-1");
+        AddDeckCard(game, RevealDeckInstanceId, "reveal-ex-card");
+
+        registry.ExecuteCardAction(game.Id, CreateRequirementSummonRequest(), CreateRevealChainExecutor());
+
+        var revealedCard = game.State.Players[0].Deck.Single(card => card.InstanceId == RevealDeckInstanceId);
+        Assert.IsTrue(revealedCard.IsRevealedToBothPlayers);
+        Assert.AreEqual(PlayerZone.Deck, revealedCard.RevealedInZone);
+
+        var prompt = game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual(EffectSelectionPromptKind.RevealPresentation, prompt.SelectionPromptKind);
+        Assert.AreEqual(PlayerZone.Deck, prompt.CandidateZone);
+
+        registry.ResolvePrompt(
+            game.Id,
+            requestedPlayerId: "p1",
+            selectedOption: ReactiveEffectExecutionConstants.RevealPresentedOption,
+            reactiveEffectOrchestrator: null,
+            sequentialEffectExecutor: CreateRevealChainExecutor());
+
+        // The refused card stays in the deck and goes back face down; summoning it never happens.
+        Assert.IsNull(game.GetPendingPrompt());
+        Assert.IsFalse(revealedCard.IsRevealedToBothPlayers);
+        Assert.IsTrue(game.State.Players[0].Deck.Any(card => card.InstanceId == RevealDeckInstanceId));
+        Assert.IsFalse(game.State.Players[0].Battlefield.Any(card => card.InstanceId == RevealDeckInstanceId));
+    }
+
+    [TestMethod]
     public void ExecuteCardAction_NormalSummon_PromptedOnSummonTrashRecall_AsksWithTheTrashAndResumesWithTheAnswer()
     {
         var recallEffect = new RecordingSummonEffect();
@@ -194,6 +272,9 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
         var recallEffect = CreateSummonCardEffect();
         var game = CreateGame(definitionId: "onsummon-def-trash-recall");
         AddTrashCard(game, TrashRecallInstanceId, TrashRecallDefinitionId);
+        // The recalled card rested before it left play (Gamabunta tributes a character that already attacked):
+        // the trash keeps the flag, so the re-summon has to place it standing.
+        game.State.Players[0].DiscardPile.Single(card => card.InstanceId == TrashRecallInstanceId).IsRested = true;
         // N-003 prints "No Normal Summon" and still summons a copy of itself from the trash/deck: an effect
         // summon is a special summon, so the flag must neither filter the candidate pool nor refuse the
         // placement (this is the real SummonCardEffect, not the recording double).
@@ -214,6 +295,9 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
 
         // The resumed "Summon Card" node placed the flagged card on the field and took it out of the trash.
         Assert.IsTrue(game.State.Players[0].Battlefield.Any(card => card.InstanceId == TrashRecallInstanceId));
+        // Entering the field is an unrested placement: the rested flag the card carried in the trash is cleared.
+        Assert.IsFalse(
+            game.State.Players[0].Battlefield.Single(card => card.InstanceId == TrashRecallInstanceId).IsRested);
         Assert.AreEqual(0, game.State.Players[0].DiscardPile.Count);
         Assert.IsNull(game.GetPendingPrompt());
     }
@@ -360,6 +444,7 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
                 Life = 5,
             },
             ["card-1"] = CreateCharacterDefinition("card-1", "Filler", []),
+            ["reveal-ex-card"] = CreateExCharacterDefinition("reveal-ex-card"),
             ["onsummon-def"] = CreateCharacterDefinition(
                 "onsummon-def",
                 "On Summon",
@@ -385,6 +470,7 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
                 "On Summon Trash Recall",
                 [CreateTrashRecallEffect()]),
             ["tribute-summon-def"] = CreateTributeSummonDefinition(),
+            ["tribute-summon-reveal-def"] = CreateTributeSummonRevealDefinition(),
         };
     }
 
@@ -415,6 +501,13 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
         }
 
         definition.Effects.AddRange(effects);
+        return definition;
+    }
+
+    private static CharacterCard CreateExCharacterDefinition(string definitionId)
+    {
+        var definition = CreateCharacterDefinition(definitionId, "EX Filler", []);
+        definition.Type = CardType.ExCharacter;
         return definition;
     }
 
@@ -513,6 +606,45 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
     }
 
     /// <summary>
+    /// Replaces the acting player's deck with a single known card so the reveal's "Deck Top" selector resolves
+    /// deterministically (the freshly created game deals an initial hand, so the deck contents cannot be assumed).
+    /// </summary>
+    private static string AddDeckCard(GameInstance game, string instanceId, string definitionId)
+    {
+        game.State.Players[0].Deck.Clear();
+        game.State.Players[0].Deck.Add(new CardInstance
+        {
+            InstanceId = instanceId,
+            CardDefinitionId = definitionId,
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+        });
+
+        return instanceId;
+    }
+
+    /// <summary>
+    /// The real <see cref="RevealCardEffect"/> + <see cref="SummonCardEffect"/> composition the "[On Summon]"
+    /// reveal chain needs ("reveal the top card of your deck, then summon it").
+    /// </summary>
+    private static IGameSequentialEffectExecutor CreateRevealChainExecutor()
+    {
+        var canExecuteEvaluator = new GameEffectCanExecuteEvaluator(
+            new EffectContextConditionEvaluator(),
+            new EffectTargetResolver(),
+            new GameValidTargetResultFactory(),
+            new GameEffectConditionDiagnostics());
+        var targetResolver = new EffectTargetResolver();
+        var effectSpecResolver = new GameRuntimeEffectSpecResolver();
+
+        return new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RevealCardEffect(effectSpecResolver, canExecuteEvaluator, targetResolver),
+            new SummonCardEffect(effectSpecResolver, canExecuteEvaluator, targetResolver),
+        ]));
+    }
+
+    /// <summary>
     /// Stands in for <see cref="SummonCardEffect"/> in the resumed chain: it records the selection the node was
     /// handed, which is what proves the prompt answer reached the effect (the real summon behaviour itself is
     /// covered by SummonCardEffectTests).
@@ -583,6 +715,127 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
                     Value = 1,
                 }
             ],
+        };
+    }
+
+    /// <summary>
+    /// Mirrors the authored N-022 (Manda) shape: a summon-requirement (<c>Tribute</c>) root whose success chain
+    /// reveals the top card of the deck ("Reveal First", non-EX Character post-condition) and then summons it.
+    /// The reveal node is authored <c>On Summon</c> because that is the timing the trigger runner dispatches -
+    /// N-022's was authored <c>Quick</c>, so the top card was never revealed on summon.
+    /// </summary>
+    private static CharacterCard CreateTributeSummonRevealDefinition()
+    {
+        var definition = CreateCharacterDefinition(
+            "tribute-summon-reveal-def",
+            "Tribute Summon Reveal Card",
+            [CreateOnSummonRevealEffect(), CreateRevealedSummonEffect()],
+            cannotBeNormalSummoned: true);
+        definition.Color = CardColor.Red;
+
+        definition.Effects.Add(new EffectSpec
+        {
+            Id = "tribute-requirement",
+            RuntimeEffectType = RuntimeEffects.Tribute,
+            EffectType = EffectKind.SummonRequirement,
+            Timing = EffectTiming.DuringYourMain,
+            ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+            OnSuccessEffectId = "reveal-top",
+            ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+            TargetRules = new EffectTargetRuleSet
+            {
+                TributeComposition = new TributeTargetComposition
+                {
+                    ExactTributeCount = 1,
+                    RequireSingleSummonTarget = true,
+                    RequireDistinctSummonAndTributes = true,
+                },
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.CharacterField,
+                        TributeRole = TributeTargetRole.TributeMaterial,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction(),
+                    }
+                ],
+            },
+        });
+
+        return definition;
+    }
+
+    /// <summary>The mandatory "[On Summon]" reveal: turn over the top card of the deck so it can be presented.</summary>
+    private static EffectSpec CreateOnSummonRevealEffect()
+    {
+        return new EffectSpec
+        {
+            Id = "reveal-top",
+            IsSubordinate = true,
+            RuntimeEffectType = RuntimeEffects.RevealCard,
+            EffectType = EffectKind.Activated,
+            Timing = EffectTiming.OnSummon,
+            DurationMode = EffectDurationMode.Instant,
+            RevealTimingMode = RevealTimingMode.RevealFirst,
+            RevealPostConditionRestriction = new ZoneCardRestriction
+            {
+                MatchMode = ZoneRestrictionMatchMode.All,
+                Predicates =
+                [
+                    new ZoneCardPropertyPredicate
+                    {
+                        Property = ZoneCardProperty.Type,
+                        Operator = ZoneCardPredicateOperator.NotEquals,
+                        Value = "EX Character",
+                        IgnoreCase = true,
+                    }
+                ],
+            },
+            OnSuccessEffectId = "summon-revealed-card",
+            ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+            ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+            TargetRules = new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                AutoSelectAllValidTargets = true,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.Deck,
+                        LocationSelector = new EffectTargetLocationSelector
+                        {
+                            Kind = EffectTargetLocationSelectorKind.DeckTop,
+                        },
+                    }
+                ],
+            },
+        };
+    }
+
+    /// <summary>The reveal's success branch: summon the card the previous step turned over.</summary>
+    private static EffectSpec CreateRevealedSummonEffect()
+    {
+        return new EffectSpec
+        {
+            Id = "summon-revealed-card",
+            IsSubordinate = true,
+            RuntimeEffectType = RuntimeEffects.SummonCard,
+            EffectType = EffectKind.Activated,
+            Timing = EffectTiming.DuringYourMain,
+            DurationMode = EffectDurationMode.Instant,
+            ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+            ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+            TargetRules = new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                ExactTargetCount = 1,
+                AutoSelectAllValidTargets = false,
+                Rules = [],
+            },
         };
     }
 

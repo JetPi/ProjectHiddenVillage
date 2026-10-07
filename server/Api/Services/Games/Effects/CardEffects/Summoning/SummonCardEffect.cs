@@ -130,7 +130,11 @@ public sealed class SummonCardEffect(
 				cardInstance.RevealedInZone = null;
 			}
 			cardInstance.ControllerPlayerId = summoningPlayer.PlayerId;
-			cardInstance.EnteredFieldTurnNumber = context.Game.State.TurnNumber;
+			// Entering the character field is a fresh placement: CharacterFieldStateRules clears any runtime
+			// value the instance kept from a previous stint (stat overrides, damage, granted keywords,
+			// suppression) and dispels temporary effects aimed at it, then re-states the summon-turn marker and
+			// the standing pose - so a card summoned out of the trash lands clean instead of buffed.
+			CharacterFieldStateRules.ApplyOnFieldEntry(context.Game.State, cardInstance, context.Game.State.TurnNumber);
 			cardInstance.EffectsSuppressedWhileOnField = suppressSummonedTargetsEffectsWhileOnField;
 			summoningPlayerField.Add(cardInstance);
 

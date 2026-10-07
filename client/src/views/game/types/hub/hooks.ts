@@ -86,6 +86,20 @@ export type IUseRevealedCardSummonFlightEffectArgs = {
   boardZoneRef: RefObject<HTMLDivElement | null>
 }
 
+/**
+ * Flies a card summoned out of the trash (Gamabunta's "[On Summon] summon 1 [named] card from your trash")
+ * from the trash slot onto its owner's character field. A truthy trash→field move is invisible to the generic
+ * move-ghost effect - the trash card is drawn as a pile tile, not a card face - so the flight is driven by the
+ * trash list itself, exactly as the reveal flight is driven by the deck list.
+ */
+export type IUseTrashRecallSummonFlightEffectArgs = {
+  currentPlayer: IGamePlayerStateResponse | null
+  opponentPlayer: IGamePlayerStateResponse | null
+  topTrashCardRef: RefObject<HTMLDivElement | null>
+  bottomTrashCardRef: RefObject<HTMLDivElement | null>
+  boardZoneRef: RefObject<HTMLDivElement | null>
+}
+
 export type IUseAutoAdvancePhaseEffectArgs = {
   isConnected: boolean
   isActionPendingFlag: boolean

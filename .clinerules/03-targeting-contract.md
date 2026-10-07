@@ -290,9 +290,14 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   "No Normal Summon" flag, see the normal/special-summon section; the engine half is pinned by
   `InMemoryGameInstanceRegistryOnSummonTests
   .ExecuteCardAction_NormalSummon_ResumedTrashRecall_SummonsCardThatCannotBeNormalSummoned`) and N-022's EX
-  tribute-summon reveal (`tribute-requirement` → `reveal-top` → `on-summon`; the reveal mechanic itself is pinned
-  by the reveal-presentation spec, and N-005's trash recall + N-014's field destroy are covered in
-  `e2e/gameview.multiplayer.actions.spec.ts`). N-016's negate works again (its chakra lock is its own runtime effect,
+  tribute-summon reveal is **fixed and server-covered** (`tribute-requirement` → `reveal-top` → `on-summon`): its
+  reveal node was mis-authored as `Quick`, so the `[On Summon]` runner — which dispatches purely on
+  `EffectSpec.Timing` — never ran it and the top card was never revealed; it is now `timing: On Summon` and pinned
+  by `InMemoryGameInstanceRegistryOnSummonTests
+  .ExecuteCardAction_RequirementSummon_WithOnSummonReveal_SuspendsForPresentationThenSummonsTheRevealedCard` and
+  `SeedManifestAuthoringTests.CardsWithAnOnSummonCondition_HaveAMandatoryOnSummonTimedNode` (the reveal mechanic
+  itself is pinned by the reveal-presentation spec, N-005's trash recall + N-014's field destroy are covered in
+  `e2e/gameview.multiplayer.actions.spec.ts`, and an N-022 **e2e** is still open). N-016's negate works again (its chakra lock is its own runtime effect,
   see `05-server-models-serialization.md`) and is covered by
   `SupportActivationResolutionTests.ActivateSupport_WithChakraLock_…`, `LockChakraRecoveryEffectTests` **and**
   `e2e/gameview.multiplayer.negate-chakra-lock.spec.ts` (the negate answers the queued K.O., the K.O. never

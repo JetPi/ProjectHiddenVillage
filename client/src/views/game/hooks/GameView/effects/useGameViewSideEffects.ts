@@ -16,7 +16,7 @@ import type { useGameRefs } from '@/views/game/hooks/GameView/memos/useGameRefs'
 import type { IGameUIStoreState, IPendingPromptSelectionState } from '@/state/types/gameUIStore'
 import { useBattlefieldCardReorderEffect } from './useBattleFieldCards'
 import { useGetMainPhaseActions } from './useGetMainPhaseActions'
-import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useCardMoveGhostAnimationEffect, useHandZoneAnimationEffects, useRevealedCardSummonFlightEffect } from './useGameViewEffects'
+import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useCardMoveGhostAnimationEffect, useHandZoneAnimationEffects, useRevealedCardSummonFlightEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
 
 function useGameViewSideEffects({
   authUserId,
@@ -109,6 +109,14 @@ function useGameViewSideEffects({
     opponentPlayer,
     topDeckCardRef: viewRefs.topDeckCardRef,
     bottomDeckCardRef: viewRefs.bottomDeckCardRef,
+    boardZoneRef: viewRefs.boardZoneRef,
+  })
+
+  useTrashRecallSummonFlightEffect({
+    currentPlayer,
+    opponentPlayer,
+    topTrashCardRef: viewRefs.topTrashCardRef,
+    bottomTrashCardRef: viewRefs.bottomTrashCardRef,
     boardZoneRef: viewRefs.boardZoneRef,
   })
 

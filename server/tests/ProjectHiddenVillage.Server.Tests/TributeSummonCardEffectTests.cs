@@ -44,6 +44,8 @@ public sealed class TributeSummonCardEffectTests
             CardDefinitionId = "ninja-a-def",
             OwnerPlayerId = "p1",
             ControllerPlayerId = "p1",
+            // The card rested before it left play; the tribute summon places a fresh card, so it must land standing.
+            IsRested = true,
         });
 
         var effect = new TributeSummonCardEffect(
@@ -63,6 +65,7 @@ public sealed class TributeSummonCardEffectTests
         var summonedCard = context.Game.State.Players[0].Battlefield
             .Single(card => card.InstanceId == "ninja-hand-inst");
         Assert.AreEqual(3, summonedCard.EnteredFieldTurnNumber);
+        Assert.IsFalse(summonedCard.IsRested);
         Assert.AreEqual(0, context.Game.State.Players[0].Hand.Count);
     }
 

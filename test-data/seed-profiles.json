@@ -3556,7 +3556,7 @@
           "onFailureEffectId": null,
           "runtimeEffectType": "Reveal Card",
           "effectType": "Support",
-          "timing": "Quick",
+          "timing": "On Summon",
           "durationMode": "Instant",
           "passiveMode": "None",
           "passiveReevaluation": null,

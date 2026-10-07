@@ -75,6 +75,13 @@ public sealed class DestroyCardEffect(
 
             sourcePlayerZone.Remove(cardInstance);
 
+            if (sourceZone == PlayerZone.CharacterField)
+            {
+                // Destroying a character is a field exit: clear the runtime values it accumulated and dispel the
+                // temporary effects aimed at it so the trashed copy is a clean instance.
+                CharacterFieldStateRules.ApplyOnFieldExit(context.Game.State, cardInstance);
+            }
+
             if (cardInstance.IsRevealedToBothPlayers)
             {
                 cardInstance.IsRevealedToBothPlayers = false;

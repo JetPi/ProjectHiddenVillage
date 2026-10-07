@@ -74,6 +74,32 @@ public sealed class SummonCardEffectTests
     }
 
     [TestMethod]
+    public void Execute_LandsTheSummonedCardUnrested_EvenWhenItLeftPlayRested()
+    {
+        var effectSpec = CreateSummonEffectSpec();
+        var blockedTarget = new GameEffectTargetReference("p1", PlayerZone.Hand, "blocked-instance");
+
+        var context = CreateContext(effectSpec);
+        // A card keeps its rested flag through the trash (it attacked, was tributed, or was K.O.'d while rested).
+        // Re-summoning it places a fresh card, so entering the character field has to clear the flag - exactly
+        // like GameRuntimeDeckService.MoveCardToZone does for a plain zone move.
+        context.Game.State.Players[0].Hand.Single(card => card.InstanceId == "blocked-instance").IsRested = true;
+
+        var effect = new SummonCardEffect(
+            effectSpecResolver: new StubEffectSpecResolver(effectSpec),
+            canExecuteEvaluator: new StubCanExecuteEvaluator([]),
+            targetResolver: new StubTargetResolver([]));
+
+        var result = effect.Execute(context, [blockedTarget]);
+
+        Assert.IsFalse(result.IsError);
+
+        var summonedCard = context.Game.State.Players[0].Battlefield
+            .Single(card => card.InstanceId == "blocked-instance");
+        Assert.IsFalse(summonedCard.IsRested);
+    }
+
+    [TestMethod]
     public void Execute_SetsSuppressionFlagOnSummonedTargets_WhenConfigured()
     {
         var effectSpec = CreateSummonEffectSpec();

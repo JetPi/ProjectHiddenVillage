@@ -137,6 +137,13 @@ public sealed class TributeSummonCardEffect(
 
             tributeSourceZone.Remove(tributeCard);
 
+            if (tributeTarget.Zone == PlayerZone.CharacterField)
+            {
+                // A tribute material leaving the field is reset like any other exit: the trashed copy must not
+                // keep buffed stats or temporary effects that would leak if the same instance is summoned back.
+                CharacterFieldStateRules.ApplyOnFieldExit(context.Game.State, tributeCard);
+            }
+
             if (tributeCard.IsRevealedToBothPlayers)
             {
                 tributeCard.IsRevealedToBothPlayers = false;
@@ -168,8 +175,11 @@ public sealed class TributeSummonCardEffect(
         }
 
         var summoningPlayerField = PlayerZoneCardAccessor.GetCards(PlayerZone.CharacterField, summoningPlayer);
+        // Entering the character field is a fresh placement (see CharacterFieldStateRules): the summoned card
+        // cannot keep stat overrides, damage, granted keywords or temporary effects from a previous stint, and it
+        // lands in the standing pose with a fresh summon-turn marker.
+        CharacterFieldStateRules.ApplyOnFieldEntry(context.Game.State, summonedCard, context.Game.State.TurnNumber);
         summonedCard.ControllerPlayerId = summoningPlayer.PlayerId;
-        summonedCard.EnteredFieldTurnNumber = context.Game.State.TurnNumber;
         summoningPlayerField.Add(summonedCard);
 
         affectedCardInstanceIds.Add(summonedCard.InstanceId);

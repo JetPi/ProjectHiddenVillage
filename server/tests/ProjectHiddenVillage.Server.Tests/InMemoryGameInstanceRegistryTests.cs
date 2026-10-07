@@ -2069,6 +2069,53 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.AreEqual("p2", recordingExecutor.Contexts[0].ActingPlayer.Id);
     }
 
+    /// <summary>
+    /// N-001's authored ability: "[Activate: Main] Flip 1 of your CHAKRA face-down and choose 1 Character: the
+    /// chosen card gets +3 power during this turn." The leader path used to hand the effect context a null source
+    /// instance, so <c>ModifyAttributeEffect</c> skipped its duration-scoped branch and stamped the target's
+    /// <c>PowerOverride</c> instead - a permanent +3 that survived every later turn. It must register a
+    /// <c>DuringThisTurn</c> applied effect, which <c>CompleteEndStep</c> clears.
+    /// </summary>
+    [TestMethod]
+    public void ExecuteCardAction_LeaderChangeValues_DuringThisTurn_AppliesTemporaryEffectClearedAtEndStep()
+    {
+        var game = BuildLeaderChangeValuesGame();
+        var target = game.State.Players[1].Battlefield.Single(card => card.InstanceId == "target-1");
+
+        Assert.IsNull(target.PowerOverride);
+
+        var leaderInstanceId = game.State.Players[1].LeaderCardInstance!.InstanceId;
+        registry.ExecuteCardAction(
+            game.Id,
+            new GameCardActionExecutionRequest(
+                PlayerId: "p2",
+                ActionId: $"leader-effect:{leaderInstanceId}:power-up-card",
+                SourceCardInstanceId: leaderInstanceId,
+                SelectedTargets:
+                [
+                    new GameEffectTargetReference("p2", PlayerZone.CharacterField, target.InstanceId)
+                ]),
+            CreateChangeValuesExecutor());
+
+        // The buff is a duration-scoped applied effect, not a permanent stat override.
+        Assert.IsNull(target.PowerOverride, "a during-this-turn buff must not be written as a permanent override");
+        var applied = game.State.AppliedCardEffects.Single(effect =>
+            string.Equals(effect.TargetCardInstanceId, target.InstanceId, StringComparison.Ordinal));
+        Assert.AreEqual(AppliedCardModifierKind.Attribute, applied.ModifierKind);
+        Assert.AreEqual(EffectDurationMode.DuringThisTurn, applied.DurationMode);
+        Assert.AreEqual(EffectAttributeType.CardPower, applied.AttributeType);
+        Assert.AreEqual(AttributeModificationOperation.Add, applied.AttributeOperation);
+        Assert.AreEqual(3, applied.AttributeValue);
+        Assert.AreEqual(leaderInstanceId, applied.SourceCardInstanceId);
+
+        // End of turn dispels it: the effect is removed and no permanent override was ever written.
+        game.State.Phase = GamePhase.EndStep;
+        new GamePhaseStateService().CompleteEndStep(game.State);
+
+        Assert.AreEqual(0, game.State.AppliedCardEffects.Count);
+        Assert.IsNull(target.PowerOverride);
+    }
+
     [TestMethod]
     public void GetCardActionTargets_LeaderEffect_ReturnsPrecomputedTargets()
     {
@@ -2346,6 +2393,115 @@ public sealed class InMemoryGameInstanceRegistryTests
             [
                 new AlterResourcesEffect(new GameRuntimeEffectSpecResolver(), canExecuteEvaluator)
             ]));
+    }
+
+    /// <summary>The real sequential executor carrying the single runtime effect N-001's power-up ability uses.</summary>
+    private static IGameSequentialEffectExecutor CreateChangeValuesExecutor()
+    {
+        var canExecuteEvaluator = new GameEffectCanExecuteEvaluator(
+            new EffectContextConditionEvaluator(),
+            new EffectTargetResolver(),
+            new GameValidTargetResultFactory(),
+            new GameEffectConditionDiagnostics());
+
+        return new GameSequentialEffectExecutor(
+            new GameCardEffectRegistry(
+            [
+                new ModifyAttributeEffect(
+                    new GameRuntimeEffectSpecResolver(),
+                    canExecuteEvaluator,
+                    new EffectTargetResolver())
+            ]));
+    }
+
+    /// <summary>
+    /// p2's MainPhase with a leader whose ability is N-001's "[Activate: Main] Flip 1 of your CHAKRA face-down
+    /// and choose 1 Character: the chosen card gets +3 power during this turn" - a duration-scoped
+    /// <c>ChangeValues</c> targeting one Character Field card - plus a lone character on p2's field as the
+    /// chosen card.
+    /// </summary>
+    private GameInstance BuildLeaderChangeValuesGame()
+    {
+        var definitions = BuildDefinitionsWithLeaderEffects();
+        ((LeaderCard)definitions["leader-def"]).Effects =
+        [
+            new EffectSpec
+            {
+                Id = "power-up-card",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.ActivateMain,
+                RuntimeEffectType = RuntimeEffects.ChangeValues,
+                DurationMode = EffectDurationMode.DuringThisTurn,
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                AttributeModifications =
+                [
+                    new AttributeModificationSpec
+                    {
+                        TargetType = AttributeModificationTargetType.SelectedTargets,
+                        TargetRange = EffectTargetRange.Self,
+                        Attribute = EffectAttributeType.CardPower,
+                        Operation = AttributeModificationOperation.Add,
+                        Value = 3,
+                    }
+                ],
+                TargetRules = new EffectTargetRuleSet
+                {
+                    ExactTargetCount = 1,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Any,
+                            InZone = PlayerZone.CharacterField,
+                            ExactSelectedTargetCount = 1,
+                            Restriction = new ZoneCardRestriction(),
+                        }
+                    ],
+                },
+            }
+        ];
+
+        definitions["target-card"] = new CharacterCard
+        {
+            Id = "target-card",
+            DisplayName = "Target Character",
+            Name = ["Target Character"],
+            Type = CardType.Character,
+            Traits = [],
+            Color = CardColor.Red,
+            Description = string.Empty,
+            Conditions = [],
+            Damage = 1,
+            Power = 4,
+            Health = 4,
+            Effects = [],
+        };
+
+        var game = registry.Create(
+            players:
+            [
+                new Player { Id = "p1", Deck = ["leader-def", "card-1"] },
+                new Player { Id = "p2", Deck = ["leader-def", "card-1"] }
+            ],
+            cardDefinitions: definitions,
+            random: new FixedIndexRandom(0));
+
+        game.PendingPrompts.Clear();
+        game.State.Phase = GamePhase.MainPhase;
+        game.State.ActivePlayerId = "p2";
+        game.State.PriorityPlayerId = "p2";
+        game.State.TurnNumber = 4;
+        game.State.Players[1].TurnCount = 4;
+
+        game.State.Players[1].Battlefield.Add(new CardInstance
+        {
+            InstanceId = "target-1",
+            CardDefinitionId = "target-card",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2",
+        });
+
+        return game;
     }
 
     [TestMethod]

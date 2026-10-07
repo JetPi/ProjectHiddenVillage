@@ -39,7 +39,15 @@ function GamePromptOverlay({
         isBoardInspectable ? 'pointer-events-none bg-black/25' : 'bg-black/40',
       )}
     >
-      <Panel className={twMerge('w-full max-w-sm p-5', isBoardInspectable && 'pointer-events-auto')}>
+      <Panel
+        className={twMerge(
+          'w-full p-5',
+          // A card-face selection reads like the trash viewer's card list (same 5-column grid), so it gets the
+          // same wider panel; a plain option-label prompt stays narrow.
+          visibleCandidates.length > 0 ? 'max-w-2xl' : 'max-w-sm',
+          isBoardInspectable && 'pointer-events-auto',
+        )}
+      >
         <div className="mb-2 text-center">
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">{prompt.title}</h2>
         </div>
@@ -47,8 +55,7 @@ function GamePromptOverlay({
         {visibleCandidates.length > 0 ? (
           <div
             data-testid="prompt-card-options"
-            className="mt-4 grid max-h-[24rem] gap-2 overflow-y-auto themed-scrollbar"
-            style={{ gridTemplateColumns: `repeat(${Math.min(Math.max(visibleCandidates.length, 1), 3)}, minmax(0, 1fr))` }}
+            className="mt-4 grid max-h-[24rem] grid-cols-5 gap-2 overflow-y-auto themed-scrollbar"
           >
             {visibleCandidates.map((card) => (
               <button

@@ -60,6 +60,27 @@ public sealed class SeedManifestAuthoringTests
         Assert.AreEqual(selectionPromptKind, node.SelectionPromptKind.ToString(), $"{cardId}/{nodeId} selection bucket");
     }
 
+    // A card that prints "[On Summon]" must actually carry an On Summon-timed node: the trigger runner
+    // (GameTriggeredEffectRunner.ExecuteAutomaticTimedEffects) dispatches purely on `Timing`, so a
+    // `[On Summon]` chain authored with any other timing never fires when the card lands. N-022 (Manda) was
+    // authored that way - its reveal node carried `Quick`, so the top card was never revealed on summon.
+    [TestMethod]
+    public void CardsWithAnOnSummonCondition_HaveAMandatoryOnSummonTimedNode()
+    {
+        var offenders = LoadManifest().CatalogEntries
+            .Where(card => card.Conditions is not null
+                && card.Conditions.Contains(EffectConditionKeywords.OnSummon, StringComparer.Ordinal))
+            .Where(card => !card.Effects.Any(effect =>
+                effect.Timing == EffectTiming.OnSummon && !effect.IsOptional))
+            .Select(card => card.CardId)
+            .ToList();
+
+        Assert.AreEqual(
+            0,
+            offenders.Count,
+            $"Cards printing '[On Summon]' without a mandatory On Summon-timed effect: {string.Join(", ", offenders)}");
+    }
+
     [TestMethod]
     public void AuthoredNodesInTheManifest_KeepTheirShapeInTheRawDump()
     {
@@ -143,7 +164,10 @@ public sealed class SeedManifestAuthoringTests
 
     private sealed record SeedManifestDefinition(IReadOnlyList<SeedCatalogEntryDefinition> CatalogEntries);
 
-    private sealed record SeedCatalogEntryDefinition(string CardId, IReadOnlyList<EffectSpec> Effects);
+    private sealed record SeedCatalogEntryDefinition(
+        string CardId,
+        IReadOnlyList<string>? Conditions,
+        IReadOnlyList<EffectSpec> Effects);
 
     private sealed record RawCatalogDumpEntry(string Id, IReadOnlyList<EffectSpec> Effects);
 }

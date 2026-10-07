@@ -1398,7 +1398,7 @@ public sealed class InMemoryGameInstanceRegistry
             game: instance,
             actingPlayer: new Player { Id = playerId },
             sourceCardDefinition: sourceCardDefinition,
-            sourceCardInstance: isLeader ? null : sourceCardInstance,
+            sourceCardInstance: sourceCardInstance,
             arguments: effectArguments,
             selectedTargets: []);
 
@@ -1513,8 +1513,10 @@ public sealed class InMemoryGameInstanceRegistry
     /// <summary>
     /// Executes one card ability: the leader's <c>leader-effect:</c> options and a battlefield character's
     /// <c>character-ability:</c> options (N-011's "[Activate: Main]") share the whole path, because abilities
-    /// are authored the same way. Only the source instance differs - the effect context receives it for a
-    /// battlefield card, so source-scoped nodes resolve like they do anywhere else.
+    /// are authored the same way. The effect context receives the acting card's source instance either way
+    /// (leader or battlefield card), so source-scoped and duration-scoped nodes resolve like they do anywhere
+    /// else - without it a "[During This Turn] +3 power" became a permanent <c>PowerOverride</c> instead of a
+    /// duration-scoped applied effect that <c>CompleteEndStep</c> clears.
     /// </summary>
     private void ExecuteCardAbilityAction(
         GameInstance instance,
@@ -1602,7 +1604,7 @@ public sealed class InMemoryGameInstanceRegistry
             game: instance,
             actingPlayer: new Player { Id = playerId },
             sourceCardDefinition: sourceCardDefinition,
-            sourceCardInstance: isLeader ? null : sourceCardInstance,
+            sourceCardInstance: sourceCardInstance,
             arguments: arguments,
             selectedTargets: selectedTargets);
 
@@ -2604,7 +2606,8 @@ public sealed class InMemoryGameInstanceRegistry
             PlayerZone.CharacterField,
             destinationIndex: null);
 
-        movedCard.IsRested = false;
+        // MoveCardToZone already reset the card's runtime state on field entry (see CharacterFieldStateRules),
+        // so it lands standing - no per-call IsRested bookkeeping is needed here.
 
         if (requiresReadySummonCard)
         {
@@ -2685,8 +2688,8 @@ public sealed class InMemoryGameInstanceRegistry
             PlayerZone.CharacterField,
             destinationIndex: null);
 
-        movedCard.IsRested = false;
-        movedCard.EnteredFieldTurnNumber = instance.State.TurnNumber;
+        // MoveCardToZone already reset the card's runtime state (see CharacterFieldStateRules): it lands standing
+        // with a fresh summon-turn marker, so no extra bookkeeping is needed here.
 
         // A requirement (tribute) summon is a normal summon too: the card's mandatory "[On Summon]" effects
         // run as soon as it lands on the field.
