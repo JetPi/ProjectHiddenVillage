@@ -157,6 +157,73 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
+    public void ToGameStateResponse_MapsBattleAction_ForCardSummonedThisTurnWithPrintedRush()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var summonedCard = CreateCardInstance("battle-1", "card-battle", requesterId);
+        summonedCard.EnteredFieldTurnNumber = 3;
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [summonedCard]);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+
+        // Printed Rush lives on the definition's `Conditions`, not on RuntimeKeywords (which is the
+        // path exercised by ToGameStateResponse_MapsBattleAction_ForCardSummonedThisTurnWithRuntimeRush).
+        var battleCard = (CharacterCard)state.CardDefinitions["card-battle"];
+        battleCard.Conditions = [EffectConditionKeywords.Rush];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = requester.CharacterField[0].AvailableActions.Single();
+
+        Assert.AreEqual("battle-action:battle-1", battleAction.ActionId);
+        Assert.IsTrue(battleAction.IsEnabled);
+        Assert.IsNull(battleAction.DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesBattleAction_WithSummonedThisTurnReason_WhenPrintedRushIsSuppressed()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var summonedCard = CreateCardInstance("battle-1", "card-battle", requesterId);
+        summonedCard.EnteredFieldTurnNumber = 3;
+        // N-003's shape: the summon declares SuppressSummonedTargetsEffectsWhileOnField, so the summoned
+        // copy's own effects (including its printed Rush) are negated while it stays on the field.
+        summonedCard.EffectsSuppressedWhileOnField = true;
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [summonedCard]);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+
+        var battleCard = (CharacterCard)state.CardDefinitions["card-battle"];
+        battleCard.Conditions = [EffectConditionKeywords.Rush];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = requester.CharacterField[0].AvailableActions.Single();
+
+        Assert.AreEqual("battle-action:battle-1", battleAction.ActionId);
+        Assert.IsFalse(battleAction.IsEnabled);
+        Assert.AreEqual(
+            "Cannot declare battle action the turn that the card entered the field.",
+            battleAction.DisabledReason);
+    }
+
+    [TestMethod]
     public void ToGameStateResponse_DisablesBattleAction_WithCannotAttackReason_ForFrozenCard()
     {
         var requesterId = Guid.NewGuid().ToString("N");

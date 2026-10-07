@@ -90,6 +90,15 @@ internal static class BattleActionRules
             return true;
         }
 
+        // A card whose effects are negated while it stays on the field (a summon that declares
+        // SuppressSummonedTargetsEffectsWhileOnField, e.g. N-003) loses the keywords printed on its own
+        // definition too, so a printed "Rush" must not be honoured. Keyword grants that arrive from *other*
+        // cards are not this card's effects and still apply (they were already collected above).
+        if (SourceCardEffectSuppression.IsSuppressedWhileOnField(state, card))
+        {
+            return false;
+        }
+
         if (!state.CardDefinitions.TryGetValue(card.CardDefinitionId, out var definition))
         {
             return false;

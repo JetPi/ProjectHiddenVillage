@@ -516,6 +516,67 @@ export async function getDeckRevealObservations(page: Page): Promise<DeckRevealO
 }
 
 /**
+ * Samples the acting player's trash pile slot every animation frame. The pile slots are lane-sized
+ * (`h-full` + `aspect-[200/277]`), but a destination-side flight animation un-clips their ancestors for its
+ * length, which used to blow the whole pile grid out to the card art's min-content box (~78×108 -> ~100×274) -
+ * a "massive card" flash that lasts only as long as the flight, so polling after the action settled misses it.
+ */
+export async function installPileSlotGeometryObserver(page: Page, side: 'top' | 'bottom' = 'bottom'): Promise<void> {
+  await page.evaluate((observedSide) => {
+    const marker = '__phvPileSlotObserverInstalled'
+    const state = window as unknown as {
+      [key: string]: unknown
+      __phvPileSlotSamples?: Array<{ width: number; height: number; at: number }>
+    }
+
+    if (state[marker] === true) {
+      return
+    }
+
+    const samples: Array<{ width: number; height: number; at: number }> = []
+    state.__phvPileSlotSamples = samples
+    let frames = 0
+
+    const tick = () => {
+      const slot = document.querySelector(`[data-side="${observedSide}"] [data-testid="trash-pile-card"]`)
+      if (slot) {
+        const rect = slot.getBoundingClientRect()
+        samples.push({
+          width: Number(rect.width.toFixed(1)),
+          height: Number(rect.height.toFixed(1)),
+          at: Math.round(performance.now()),
+        })
+      }
+
+      frames += 1
+      // Bounded: the loop covers the action under test (~15 s) without running for the rest of the page's life.
+      if (frames < 900) {
+        window.requestAnimationFrame(tick)
+      }
+    }
+
+    state[marker] = true
+    tick()
+  }, side)
+}
+
+export async function getPileSlotGeometrySamples(page: Page): Promise<PileSlotGeometrySample[]> {
+  return await page.evaluate(() => {
+    const state = window as unknown as {
+      __phvPileSlotSamples?: Array<{ width: number; height: number; at: number }>
+    }
+    return state.__phvPileSlotSamples ?? []
+  })
+}
+
+export type PileSlotGeometrySample = {
+  width: number
+  height: number
+  /** Page-clock timestamp (`performance.now()`). */
+  at: number
+}
+
+/**
  * Records the entry animations of character-field cards. `runRectToDynamicElementAnimation` animates the real
  * destination element from its source rectangle, so a recorded frame whose start transform is offset proves the
  * card FLEW into its slot (a reveal-summon out of the deck, a hand summon) instead of simply appearing there.

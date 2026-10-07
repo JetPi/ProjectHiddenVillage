@@ -280,6 +280,19 @@ paths:
   `e2e/gameview.multiplayer.support-target-visuals.spec.ts` measures all five
   slot rects before/after a negate target highlights and fails by ~40×53px per slot
   without the guard.
+- The same hazard hits the **pile slots** from the other direction. Each pile zone is a grid item of
+  its rail column (`grid-rows-[1fr_1fr]`, whose `1fr` rows carry an `auto` minimum), so once its clip
+  is gone the freshly rendered deck/trash art blows the whole pile grid out to its min-content box —
+  both slots grew from ~78×108 to ~100×274 on a 1080p board. `PlayPileZone`'s root therefore carries
+  `min-w-0 min-h-0`. It is what stops the destination-side flight animations from flashing a giant
+  card: `runRectToElementAnimation` calls `resolveOverflowAncestors`, which strips `overflow` from
+  every clipping ancestor for the length of the animation (and leaves it stripped if the animated
+  element is unmounted mid-flight, which made the inflated pile stick until the next layout).
+  Measure it by un-clipping the zone with an injected `overflow: visible` — that alone reproduces the
+  blowout, and re-adding `min-w-0 min-h-0` keeps both slots at their lane size. This is what made a
+  **tribute summon flash a giant card**: the spurious inferred hand→trash flight (see
+  `04-state-phase-effects.md`) animated the trash slot in place, which un-clipped the pile for the
+  length of the animation.
 
 ## Attack-link arrow: anchors + arrowhead (measured live, never predicted)
 

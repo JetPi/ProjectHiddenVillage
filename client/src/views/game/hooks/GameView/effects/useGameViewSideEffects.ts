@@ -78,6 +78,8 @@ function useGameViewSideEffects({
     bottomDeckCount,
     topTrashCount,
     bottomTrashCount,
+    topTrashInstanceIds: topPlayerCardInstanceIds.trash,
+    bottomTrashInstanceIds: bottomPlayerCardInstanceIds.trash,
     drawToHandStaggerMs: DRAW_TO_HAND_STAGGER_MS,
     drawToHandRevealDelayMs: DRAW_TO_HAND_REVEAL_DELAY_MS,
     handToPileStaggerMs: HAND_TO_PILE_STAGGER_MS,

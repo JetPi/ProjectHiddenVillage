@@ -57,6 +57,14 @@ paths:
   draw). Dispatch is re-armed until it actually fires — `lastAutoSignalKey` is
   committed only at dispatch time, so a phase never strands the player on a manual
   “Advance Phase” button.
+- The same effect owns the **inferred** hand→trash flight (the safety net around the prompt-driven
+  discard, which animates the real hand element itself in `usePromptSelectionSubmitEffect`): a card
+  that left the hand is flown into the trash only when its instance id is **in the trash** in the new
+  payload. Matching on the trash's contents is what keeps a summon from being mis-attributed — a
+  tribute summon removes the *played* card from the hand and grows the trash from the **tribute
+  material** leaving the field, and the old hand-removal-vs-trash-count delta paired those two, so
+  every tribute flew the trash slot in from the hand (which also flashed the pile's giant-card layout
+  blowout described in `02-board-ui-hud.md`).
 - Tunables in that file: `DECK_TO_HAND_FLY_DURATION_MS`, `DRAW_ANIMATION_COMPLETE_PADDING_MS`,
   `AUTO_ADVANCE_RECHECK_MS`.
 - `handlePromptResolve` (mulligan) animates hand→deck, waits for any in-flight

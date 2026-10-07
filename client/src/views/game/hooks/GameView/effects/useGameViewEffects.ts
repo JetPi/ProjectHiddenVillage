@@ -343,6 +343,8 @@ function useHandZoneAnimationEffects({
   bottomDeckCount,
   topTrashCount,
   bottomTrashCount,
+  topTrashInstanceIds,
+  bottomTrashInstanceIds,
   drawToHandStaggerMs,
   drawToHandRevealDelayMs,
   handToPileStaggerMs,
@@ -360,6 +362,8 @@ function useHandZoneAnimationEffects({
     const previousSnapshot = animController.previousHandZoneSnapshot
     const nextTopHandInstanceIdSet = new Set(topHandInstanceIds)
     const nextBottomHandInstanceIdSet = new Set(bottomHandInstanceIds)
+    const nextTopTrashInstanceIdSet = new Set(topTrashInstanceIds)
+    const nextBottomTrashInstanceIdSet = new Set(bottomTrashInstanceIds)
 
     if (previousSnapshot.isInitialized) {
       const newTopHandCards = topHandInstanceIds.filter((instanceId) => !previousSnapshot.topHandInstanceIds.has(instanceId))
@@ -374,8 +378,15 @@ function useHandZoneAnimationEffects({
       const bottomDeckToHandCards = animController.pendingMulliganDrawReplay
         ? bottomHandInstanceIds
         : newBottomHandCards.slice(0, bottomDeckDecrease)
-      const topHandToTrashCards = removedTopHandCards.slice(0, topTrashIncrease)
-      const bottomHandToTrashCards = removedBottomHandCards.slice(0, bottomTrashIncrease)
+      // A removed hand card is only on its way to the trash when it is *in* the trash now. The count delta alone
+      // mis-attributes a summon's hand exit to whatever else grew the trash in the same push (a tribute material
+      // coming off the field), which then flew the trash slot in from the hand on every tribute summon.
+      const topHandToTrashCards = removedTopHandCards
+        .filter((instanceId) => nextTopTrashInstanceIdSet.has(instanceId))
+        .slice(0, topTrashIncrease)
+      const bottomHandToTrashCards = removedBottomHandCards
+        .filter((instanceId) => nextBottomTrashInstanceIdSet.has(instanceId))
+        .slice(0, bottomTrashIncrease)
 
       if (animController.pendingMulliganDrawReplay) {
         animController.pendingMulliganDrawReplay = false
@@ -524,12 +535,14 @@ function useHandZoneAnimationEffects({
     bottomDeckCount,
     bottomHandInstanceIds,
     bottomTrashCount,
+    bottomTrashInstanceIds,
     drawToHandRevealDelayMs,
     drawToHandStaggerMs,
     handToPileStaggerMs,
     topDeckCount,
     topHandInstanceIds,
     topTrashCount,
+    topTrashInstanceIds,
     animControllerRef,
     setBottomHandFaceUpByInstanceId,
     topDeckCardRef,

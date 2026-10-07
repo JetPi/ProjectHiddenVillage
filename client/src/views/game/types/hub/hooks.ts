@@ -38,6 +38,10 @@ export type IUseHandZoneAnimationEffectsArgs = {
   bottomDeckCount: number
   topTrashCount: number
   bottomTrashCount: number
+  // Which card each side's trash now holds: a card that left the hand is only flown into the trash when it is
+  // actually there (see `useHandZoneAnimationEffects`).
+  topTrashInstanceIds: string[]
+  bottomTrashInstanceIds: string[]
   drawToHandStaggerMs: number
   drawToHandRevealDelayMs: number
   handToPileStaggerMs: number
