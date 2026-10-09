@@ -22,7 +22,20 @@ public sealed record GameStateResponse(
     // Out-of-band notices for the requesting player, oldest first: things that happened during resolution but
     // left no board change to look at, such as a prompted selection that ran out of candidates. The client shows
     // the newest unseen one as a transient toast (see EffectNoticeResponse).
-    IReadOnlyList<EffectNoticeResponse>? EffectNotices = null);
+    IReadOnlyList<EffectNoticeResponse>? EffectNotices = null,
+    // The terminal result of the game, or null while it is still running. Set exactly once by the engine;
+    // when it is present no actions are published and the clients only offer "return to main page".
+    GameOutcomeResponse? GameOutcome = null);
+
+/// <summary>
+/// The result of a finished game. <see cref="WinnerPlayerId"/> is null for a draw, which only happens when
+/// both players met a losing condition at the same instant and every tiebreak metric was tied.
+/// </summary>
+public sealed record GameOutcomeResponse(
+    string? WinnerPlayerId,
+    IReadOnlyList<string> LoserPlayerIds,
+    string Reason,
+    int TurnNumber);
 
 /// <summary>
 /// One "the effect resolved, but it had nothing to act on" notice, projected from the game's action log so the

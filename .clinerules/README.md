@@ -36,6 +36,21 @@ task touches that area).
 
 ## Pending follow-ups (pick up here)
 
+- **The game ends and both players see the result (shipped).** A write-once `GameState.Outcome`
+  (`GameEndReason.LeaderLifeDepleted | DeckOut`) is resolved by the new `GameEndRules` (the single home, like
+  `BattleActionRules`/`ChakraRecoveryRules`): every registry mutation now starts with
+  `GameEndRules.ThrowIfGameOver` and ends by evaluating the leader condition, the draw paths resolve a
+  deck-out (`GamePhaseStateService.DrawCardsForActivePlayerTurn`,
+  `GameRuntimeDeckService.DrawCardFromDeck`), and the mapper publishes `GameOutcome` with **no** actions,
+  prompt, support window or support chain (per-card actions included). The client renders a blocking
+  `GameOverOverlay` (Victory/Defeat/Draw + reason + "Return to main page" → `/`) and
+  `gameUIStore.pruneStaleGameUIState` drops every picker once the outcome arrives. Pinned by
+  `GameEndRulesTests`, `InMemoryGameInstanceRegistryGameOverTests`,
+  `GameStateResponseMapperGameOutcomeTests` and the new `deck-out` seed profile +
+  `e2e/gameview.multiplayer.game-over.spec.ts`. Deliberately **no timeout/`TimeExpired`** reason: the rules'
+  tiebreak (life → hand+support+battlefield → deck → draw) is only used when every player loses at once.
+  Still open if wanted: a leader-defeat *battle* e2e (the engine half is unit-covered) and showing the
+  opponents' names instead of ids in the overlay copy.
 - **A leader's duration-scoped ability no longer stamps a permanent stat override (fixed).** The shared
   card-ability path handed the leader's `GameCardEffectContext` a null `SourceCardInstance`
   (`isLeader ? null : sourceCardInstance`), so every duration-scoped attribute/keyword/face-lock effect skipped its
@@ -249,7 +264,7 @@ task touches that area).
 | --- | --- | --- |
 | `01-architecture.md` | `client/src/**`, `server/**` | structure, barrels, refs patterns, anchors |
 | `02-board-ui-hud.md` | board/card UI + `index.css` + battle-visuals e2e | overlays, stat badges, rested-vs-exhausted visuals, targeting highlight CSS |
-| `03-targeting-contract.md` | game client, server game engine/API, e2e | targeting flows, action formats, battle-action rules (DMG/POW, leaders, target legality), tribute-material requirements, `Type` predicate normalization, submit decisions |
+| `03-targeting-contract.md` | game client, server game engine/API, e2e | targeting flows, action formats, battle-action rules (DMG/POW, leaders, target legality), tribute-material requirements, game end/outcome + result overlay, `Type` predicate normalization, submit decisions |
 | `04-state-phase-effects.md` | stores, game hooks/effects, phase engine | Zustand, prune, auto-advance, main-phase auto-end, rest/stand + damage resets, draw/mulligan gating |
 | `05-server-models-serialization.md` | `server/**`, `client/src/services/api/**` | response DTOs, STJ serialization gotcha, stat pipelines (leader life vs character health), exhaustion = exile, seed fixtures/real catalogue, server test gates |
 | `99-workflow-tooling.md` | always | environment/tooling/edit gotchas (keep short) |

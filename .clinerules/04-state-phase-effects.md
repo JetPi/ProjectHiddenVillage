@@ -29,6 +29,14 @@ paths:
   clears stale targeting, reconciles optimistic resting, rolls back on
   `actionError`, clears `activeAttackLink` when `isAttackSequencePending` drops.
 - Do **not** recreate per-render “clear stale pending state” effects.
+- When the game is over (`gameState.gameOutcome`), the pruner clears every pending
+  selection (battle/effect targeting, summon tributes, multi-target picks and the picked
+  prompt candidate), the attack link and the optimistic rest, then
+  returns — no action is published afterwards, so nothing else would ever drop them.
+  **Guard every one of those writes** (`if (ui.x) { ui.setX(null) }`): the store
+  subscribes to itself, and an unconditional `set` re-schedules the pruner forever —
+  a microtask loop that starves the renderer (the page stops responding to anything,
+  so a Playwright assertion on it just times out).
 - Zustand v5: `set()` notifies even when unchanged — guard writes in pruners
   (`recordsEqual`). Batch bursts via `queueMicrotask`. Use
   `useGameUIStore.getState().action()` in handlers, `useGameUIStore(selector)` for

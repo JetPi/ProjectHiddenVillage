@@ -129,6 +129,14 @@ paths:
   instead of overwriting blind. **`T-120` is the only non-real fixture** (Character, power 10, no
   effects) because Gamabunta's `Power >= 10` rule needs a normally-summonable ≥10-power character and
   the real catalogue has none (N-003/N-005/N-014 are EX + `cannotBeNormalSummoned`).
+- **The test-only decks are deliberately padded (six copies of their own cards, ~18-24 cards).** They are
+  far smaller than a legal deck, and the e2e helpers advance whole turns while searching a hand for a
+  specific card — which is exactly the window in which a small deck now runs dry. Since a player who has to
+  draw with an empty deck *loses* (see the game-end rules in `03-targeting-contract.md`), an unpadded deck
+  turned a card search into a finished game (the helper then spun its whole cycle budget against a board
+  with no actions). Padding with the deck's own cards keeps the targets plentiful while giving the search
+  several turns of headroom; `resolveActorWithBottomHandAction` also fails fast when a payload already
+  carries `gameOutcome`, so a lost attempt reports the reason instead of walking phases for a minute.
 - The dump and the manifest are edited together when a node's authored shape is wrong: N-008's
   `interrupt-attack` carried a leftover `exactTargetCount: 1` on a node that resolves the pending attack itself,
   which the availability gate read as "needs a target" (the card could not be played). It is cleared in both

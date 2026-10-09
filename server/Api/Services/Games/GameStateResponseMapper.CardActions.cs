@@ -23,6 +23,12 @@ public static partial class GameStateResponseMapper
             return [];
         }
 
+        // A finished game has no card actions left, wherever the card sits.
+        if (GameEndRules.IsGameOver(state))
+        {
+            return [];
+        }
+
         return playerZone switch
         {
             PlayerZone.Hand =>

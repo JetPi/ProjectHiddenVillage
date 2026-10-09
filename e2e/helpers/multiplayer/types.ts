@@ -21,6 +21,7 @@ export type MultiplayerSeedProfileName =
   | 'summon-requirements-strict'
   | 'summon-requirements-multi'
   | 'on-summon-trash-recall'
+  | 'deck-out'
 
 export type MultiplayerSeedPlayerProfile = {
   id: string
@@ -115,9 +116,21 @@ export type GameStateResponse = {
   // from it, and an interrupted attack clears it.
   isAttackSequencePending?: boolean
   isSupportResponseWindowOpen?: boolean
+  // The result of a finished game: written once by the engine, and the only thing the board offers once it
+  // is present (no actions, no prompt). Absent/null while the game is still running.
+  gameOutcome?: GameOutcomeResponse | null
   pendingPrompt: PromptResponse | null
   availableActions: GameActionOptionResponse[]
   players: GamePlayerStateResponse[]
+}
+
+export type GameOutcomeResponse = {
+  /** Null for a draw (both players lost at the same instant and every tiebreak metric was tied). */
+  winnerPlayerId: string | null
+  loserPlayerIds: string[]
+  /** `LeaderLifeDepleted` or `DeckOut`. */
+  reason: string
+  turnNumber: number
 }
 
 export type LoginResponse = {
