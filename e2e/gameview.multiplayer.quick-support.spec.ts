@@ -20,6 +20,7 @@ import {
   resolvePromptViaHub,
   resolveStartingPromptOwner,
   setupMultiplayerGame,
+  waitForActorMainPhaseNumber,
 } from './helpers/gameviewMultiplayerHelpers'
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -33,6 +34,13 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 // summon-candidate rule pointing at the hand, so the activation has to be evaluated in the shape the engine
 // executes (SupportActivationNormalizer) instead of the raw rule - otherwise the same chip reads
 // "No valid targets available.".
+//
+// The doubling also pins a duration bug this spec now guards: N-002 prints "during this turn", so the
+// modifier has to be dispelled by `CompleteEndStep`. It was authored with `Instant`, which took the permanent
+// branch and stamped the target's `PowerOverride` - the doubled power survived every later turn. The scenario
+// therefore reads the target's power before the activation (printed), right after the chain resolves
+// (doubled) and again in the answerer's next MainPhase (printed again), so a regression cannot hide.
+// (`SeedManifestAuthoringTests.CardsThatPrintATurnScopedBuff_UseADispellableDuration` guards the authoring.)
 const ANSWERER_QUICK_SUPPORT_CARD_DEFINITION_ID = 'N-002'
 // Deck "two" (player two) opens the window: N-021 (Suigetsu, Water Transformation Jutsu) is a "[Quick]"
 // support that can be activated from the support area on its own turn, which is what queues it and hands
@@ -140,6 +148,15 @@ async function playQuickSupportCutInScenario(
     answerer,
     summonCardDefinitionId,
   )
+  // The doubling target's printed power, read before anything modifies it: N-002's step doubles "the chosen
+  // card's power during this turn", so the assertion further down can pin both the doubling and its expiry.
+  const answererCharacterBasePower = await readCharacterPower(
+    request,
+    setup,
+    answerer,
+    answererCharacterInstanceId,
+  )
+  expect(answererCharacterBasePower).toBeGreaterThan(0)
   const quickSupportInstanceId = await setSupportFromHand(
     request,
     setup,
@@ -208,6 +225,19 @@ async function playQuickSupportCutInScenario(
   const finalAnswerer = resolvePlayerState(finalState, answerer)
   expect(finalAnswerer.characterField.some((card) => card.instanceId === quickSupportInstanceId)).toBe(true)
   expect(finalAnswerer.supportZone.some((card) => card.instanceId === quickSupportInstanceId)).toBe(false)
+
+  // The doubling really applied: the chosen card reads twice its printed power while the turn lasts.
+  const doubledPower = finalAnswerer.characterField
+    .find((card) => card.instanceId === answererCharacterInstanceId)?.power ?? 0
+  expect(doubledPower).toBe(answererCharacterBasePower * 2)
+
+  // 6. ...and it really expires. N-002 prints "during this turn", so the modifier is a duration-scoped
+  //    `AppliedCardEffectState` that `CompleteEndStep` dispels - the regression was an authored `Instant`
+  //    duration, which took the permanent branch and stamped a `PowerOverride` that survived every later
+  //    turn. The opener's turn ends between here and the answerer's next MainPhase.
+  await waitForActorMainPhaseNumber(request, setup, answerer, 1)
+  const powerOnNextTurn = await readCharacterPower(request, setup, answerer, answererCharacterInstanceId)
+  expect(powerOnNextTurn).toBe(answererCharacterBasePower)
 }
 
 /** Completes a single-pick support selection: the chosen target's hover overlay offers exactly one "Choose". */
@@ -634,6 +664,23 @@ async function passUntilChainCloses(
   }
 
   throw new Error('The support window did not close within the search window.')
+}
+
+/**
+ * Reads a character's live power from its owner's view of the state. The server resolves temporary modifiers
+ * into this value (see the stat pipeline), which is what makes it the right probe for "is the turn-scoped
+ * doubling still applied?".
+ */
+async function readCharacterPower(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  owner: PlayerAuth,
+  cardInstanceId: string,
+): Promise<number> {
+  const state = await fetchGameState(request, setup.gameCode, owner.session.accessToken)
+  const card = resolvePlayerState(state, owner).characterField
+    .find((entry) => entry.instanceId === cardInstanceId)
+  return card?.power ?? 0
 }
 
 

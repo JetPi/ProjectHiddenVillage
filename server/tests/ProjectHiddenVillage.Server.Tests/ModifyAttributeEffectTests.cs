@@ -51,6 +51,77 @@ public sealed class ModifyAttributeEffectTests
         Assert.AreEqual(10, targetCard.PowerOverride);
     }
 
+    /// <summary>
+    /// N-002's authored support: "the chosen card's power is doubled during this turn". Authored as
+    /// <c>Instant</c> the modification fell through to the permanent branch and stamped the target's
+    /// <c>PowerOverride</c>, so the doubled power survived every later turn; a printed turn scope has to register
+    /// a <c>DuringThisTurn</c> applied effect (dispelled by <c>CompleteEndStep</c>) instead. This is the character
+    /// counterpart of <see cref="Execute_SelectedTargetLeaderCurrentLife_WithTurnDuration_AddsTemporaryLeaderModifier"/>:
+    /// the same payload without a duration keeps writing the override
+    /// (<see cref="Execute_SelectedTargetCardPower_AddThenMultiply_UpdatesPowerOverride"/>), so the duration plus a
+    /// real source instance are the only difference.
+    /// </summary>
+    [TestMethod]
+    public void Execute_SelectedTargetCardPower_WithTurnDuration_RegistersTemporaryModifier()
+    {
+        var effectSpec = new EffectSpec
+        {
+            Id = "double-target-character-power",
+            RuntimeEffectType = RuntimeEffects.ChangeValues,
+            DurationMode = EffectDurationMode.DuringThisTurn,
+            AttributeModifications =
+            [
+                new AttributeModificationSpec
+                {
+                    TargetType = AttributeModificationTargetType.SelectedTargets,
+                    Attribute = EffectAttributeType.CardPower,
+                    Operation = AttributeModificationOperation.Multiply,
+                    Value = 2
+                }
+            ]
+        };
+
+        var targetCard = new CardInstance
+        {
+            InstanceId = "card-instance-1",
+            CardDefinitionId = "char-1",
+            OwnerPlayerId = "p2",
+            ControllerPlayerId = "p2"
+        };
+
+        var sourceCardInstance = new CardInstance
+        {
+            InstanceId = "source-instance",
+            CardDefinitionId = "source-1",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1"
+        };
+
+        var context = CreateContext(
+            effectSpec,
+            targetCard,
+            playerTwoCurrentLife: 6,
+            playerTwoTotalLife: 6,
+            sourceCardInstance);
+        var effect = CreateEffect(effectSpec);
+
+        var result = effect.Execute(
+            context,
+            [new GameEffectTargetReference("p2", PlayerZone.CharacterField, targetCard.InstanceId)]);
+
+        Assert.IsFalse(result.IsError);
+        Assert.IsNull(targetCard.PowerOverride, "a during-this-turn buff must not be written as a permanent override");
+
+        var applied = context.Game.State.AppliedCardEffects.Single();
+        Assert.AreEqual(targetCard.InstanceId, applied.TargetCardInstanceId);
+        Assert.AreEqual(sourceCardInstance.InstanceId, applied.SourceCardInstanceId);
+        Assert.AreEqual(AppliedCardModifierKind.Attribute, applied.ModifierKind);
+        Assert.AreEqual(EffectDurationMode.DuringThisTurn, applied.DurationMode);
+        Assert.AreEqual(EffectAttributeType.CardPower, applied.AttributeType);
+        Assert.AreEqual(AttributeModificationOperation.Multiply, applied.AttributeOperation);
+        Assert.AreEqual(2, applied.AttributeValue);
+    }
+
     [TestMethod]
     public void Execute_OpponentLeaderCurrentLife_Subtract_UpdatesLeaderLife()
     {

@@ -81,6 +81,37 @@ public sealed class SeedManifestAuthoringTests
             $"Cards printing '[On Summon]' without a mandatory On Summon-timed effect: {string.Join(", ", offenders)}");
     }
 
+    // A card that prints "during this turn" scopes its buff to the turn boundary, and the engine only honours a
+    // turn boundary through a dispellable duration: ModifyAttributeEffect / GainKeywordEffect / FreezeCardEffect /
+    // LockChakraRecoveryEffect write their *permanent* form (`PowerOverride`, `RuntimeKeywords`, ...) whenever
+    // `CardRuntimeEffectStateService.IsDurationSupportedForAttributes` says no, which is only ever `Instant`, and
+    // `CompleteEndStep` dispels registered temporary effects only. N-002 (Choji) was authored that way, so its
+    // "the chosen card's power is doubled during this turn" wrote `PowerOverride` and survived every later turn.
+    // `Instant` stays right for a node with no printed turn scope (a permanent buff, a one-shot life/chakra
+    // change), and a passive node is engine-driven and carries no duration of its own - both are out of scope.
+    [TestMethod]
+    public void CardsThatPrintATurnScopedBuff_UseADispellableDuration()
+    {
+        var offenders = LoadManifest().CatalogEntries
+            .Where(card => card.Description?.Contains("during this turn", StringComparison.OrdinalIgnoreCase) == true)
+            .SelectMany(card => card.Effects
+                .Where(node => node.PassiveMode == PassiveMode.None
+                    && node.DurationMode == EffectDurationMode.Instant
+                    && node.RuntimeEffectType is RuntimeEffects.ChangeValues
+                        or RuntimeEffects.GainEffect
+                        or RuntimeEffects.FreezeCard
+                        or RuntimeEffects.LockChakraRecovery)
+                .Select(node => $"{card.CardId}/{node.Id} ({node.RuntimeEffectType})"))
+            .ToList();
+
+        Assert.AreEqual(
+            0,
+            offenders.Count,
+            "A node that prints a turn scope must not be Instant:"
+                + Environment.NewLine
+                + string.Join(Environment.NewLine, offenders));
+    }
+
     [TestMethod]
     public void AuthoredNodesInTheManifest_KeepTheirShapeInTheRawDump()
     {
@@ -109,12 +140,14 @@ public sealed class SeedManifestAuthoringTests
 
                 if (node.ExecutionFlowMode != dumpNode.ExecutionFlowMode
                     || node.SelectionTiming != dumpNode.SelectionTiming
-                    || node.SelectionPromptKind != dumpNode.SelectionPromptKind)
+                    || node.SelectionPromptKind != dumpNode.SelectionPromptKind
+                    || node.DurationMode != dumpNode.DurationMode)
                 {
                     mismatches.Add(
                         $"{card.CardId}/{node.Id}: manifest flow={node.ExecutionFlowMode} timing={node.SelectionTiming} "
-                        + $"kind={node.SelectionPromptKind} vs dump flow={dumpNode.ExecutionFlowMode} "
-                        + $"timing={dumpNode.SelectionTiming} kind={dumpNode.SelectionPromptKind}");
+                        + $"kind={node.SelectionPromptKind} duration={node.DurationMode} vs dump "
+                        + $"flow={dumpNode.ExecutionFlowMode} timing={dumpNode.SelectionTiming} "
+                        + $"kind={dumpNode.SelectionPromptKind} duration={dumpNode.DurationMode}");
                 }
             }
         }
@@ -167,7 +200,8 @@ public sealed class SeedManifestAuthoringTests
     private sealed record SeedCatalogEntryDefinition(
         string CardId,
         IReadOnlyList<string>? Conditions,
-        IReadOnlyList<EffectSpec> Effects);
+        IReadOnlyList<EffectSpec> Effects,
+        string? Description);
 
     private sealed record RawCatalogDumpEntry(string Id, IReadOnlyList<EffectSpec> Effects);
 }
