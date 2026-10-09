@@ -7,7 +7,9 @@ import {
   getAnimationCount,
   getBottomBattlefieldInstanceOrder,
   getBottomSupportCardsBySlot,
+  getPileSlotGeometrySamples,
   installAnimationCounter,
+  installPileSlotGeometryObserver,
   openMultiplayerPages,
   resolveActorWithBottomHandAction,
   resolveAllMulliganPrompts,
@@ -208,6 +210,14 @@ test.describe('GameView multiplayer actions', () => {
       await installAnimationCounter(ownerPage)
       const initialAnimationCount = await getAnimationCount(ownerPage)
 
+      // The tribute material flies field->trash while the played card leaves the hand: the trash slot must keep
+      // its lane size throughout (a spurious "the freed hand card landed in the trash" flight animated that slot
+      // in place and flashed a ~2.5x-tall card while its ancestors were un-clipped).
+      const bottomTrashSlot = ownerPage.locator('[data-side="bottom"] [data-testid="trash-pile-card"]')
+      const stableTrashSlotBox = await bottomTrashSlot.boundingBox()
+      expect(stableTrashSlotBox).not.toBeNull()
+      await installPileSlotGeometryObserver(ownerPage, 'bottom')
+
       const summonCard = ownerPage.locator(`[data-testid="bottom-hand-card-${summonCardInstanceId}"]`)
       await summonCard.hover()
       await summonCard.getByRole('button', { name: /^summon$/i }).click()
@@ -270,6 +280,14 @@ test.describe('GameView multiplayer actions', () => {
       // the card-details modal.
       await ownerPage.keyboard.press('Escape')
       await expect(trashOverlay).toBeHidden()
+
+      // Every frame of the tribute flight is in by now: the trash slot never grew past its lane size.
+      const trashSlotSamples = await getPileSlotGeometrySamples(ownerPage)
+      expect(trashSlotSamples.length).toBeGreaterThan(0)
+      const oversizedSamples = trashSlotSamples.filter((sample) => {
+        return sample.width > stableTrashSlotBox!.width * 1.1 || sample.height > stableTrashSlotBox!.height * 1.1
+      })
+      expect(oversizedSamples).toEqual([])
     } finally {
       await closeMultiplayerPages(pages)
     }

@@ -108,18 +108,17 @@ public sealed class TributeSummonCardEffect(
         var summonTargetCard = TryGetCardDefinition(context, summonTarget.CardInstanceId);
         if (summonTargetCard is not null)
         {
-            if (summonTargetCard.Type is CardType.Chakra or CardType.Summon)
+            // CannotBeNormalSummoned is deliberately not consulted: the flag gates the normal summon (the one
+            // performed by resting the summon card) only, and a [Summon Requirements] tribute summon is a
+            // special summon. It is in fact the only way the EX cards (N-003/N-005/N-014/N-022) ever reach the
+            // field, so refusing it here would make this effect refuse the very cards it exists to summon.
+            // SummonPlacementRules owns the placement rule; a pool that must exclude special-summon-only cards
+            // is authored with a CannotBeNormalSummoned target predicate instead.
+            if (!SummonPlacementRules.IsPlaceableOnCharacterField(summonTargetCard))
             {
                 return Error.Validation(
                     code: "Game.Effect.TributeSummon.UnsupportedCardType",
-                    description: $"Card '{summonTarget.CardInstanceId}' cannot be tribute summoned because its type is '{summonTargetCard.Type}'.");
-            }
-
-            if (summonTargetCard.CannotBeNormalSummoned)
-            {
-                return Error.Validation(
-                    code: "Game.Effect.TributeSummon.CannotBeNormalSummoned",
-                    description: $"Card '{summonTarget.CardInstanceId}' cannot be tribute summoned normally.");
+                    description: $"Card '{summonTarget.CardInstanceId}' cannot be summoned to the character field because its type is '{summonTargetCard.Type}'.");
             }
         }
 
@@ -137,6 +136,13 @@ public sealed class TributeSummonCardEffect(
             var tributeCard = tributeSourceZone.First(card => card.InstanceId == tributeTarget.CardInstanceId);
 
             tributeSourceZone.Remove(tributeCard);
+
+            if (tributeTarget.Zone == PlayerZone.CharacterField)
+            {
+                // A tribute material leaving the field is reset like any other exit: the trashed copy must not
+                // keep buffed stats or temporary effects that would leak if the same instance is summoned back.
+                CharacterFieldStateRules.ApplyOnFieldExit(context.Game.State, tributeCard);
+            }
 
             if (tributeCard.IsRevealedToBothPlayers)
             {
@@ -169,8 +175,11 @@ public sealed class TributeSummonCardEffect(
         }
 
         var summoningPlayerField = PlayerZoneCardAccessor.GetCards(PlayerZone.CharacterField, summoningPlayer);
+        // Entering the character field is a fresh placement (see CharacterFieldStateRules): the summoned card
+        // cannot keep stat overrides, damage, granted keywords or temporary effects from a previous stint, and it
+        // lands in the standing pose with a fresh summon-turn marker.
+        CharacterFieldStateRules.ApplyOnFieldEntry(context.Game.State, summonedCard, context.Game.State.TurnNumber);
         summonedCard.ControllerPlayerId = summoningPlayer.PlayerId;
-        summonedCard.EnteredFieldTurnNumber = context.Game.State.TurnNumber;
         summoningPlayerField.Add(summonedCard);
 
         affectedCardInstanceIds.Add(summonedCard.InstanceId);

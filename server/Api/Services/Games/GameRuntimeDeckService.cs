@@ -217,6 +217,14 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 			movedCard.RevealedInZone = null;
 		}
 
+		// Leaving the field drops every runtime value the card accumulated while it was there (stat overrides,
+		// damage, granted keywords, suppression) and dispels temporary effects aimed at it, so it cannot carry
+		// stale buffs into the trash and back. Kept before the SupportZone fast-path so no field exit is missed.
+		if (sourceZone == PlayerZone.CharacterField)
+		{
+			CharacterFieldStateRules.ApplyOnFieldExit(gameInstance.State, movedCard);
+		}
+
 		var insertIndex = destinationIndex ?? topDeck;
 		if (ReferenceEquals(sourceList, destinationList) && destinationIndex.HasValue && destinationIndex.Value > sourceIndex)
 		{
@@ -250,10 +258,12 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 			movedCard.ControllerPlayerId = resolvedDestinationPlayerId;
 		}
 
+		// Entering the field is a fresh placement: CharacterFieldStateRules clears any runtime value and dispels
+		// any temporary effect the instance kept from a previous stint, then stamps the summon-turn marker and
+		// stands it up. (The exit half already ran above, before the SupportZone fast-path.)
 		if (destinationZone == PlayerZone.CharacterField)
 		{
-			movedCard.EnteredFieldTurnNumber = gameInstance.State.TurnNumber;
-			movedCard.IsRested = false;
+			CharacterFieldStateRules.ApplyOnFieldEntry(gameInstance.State, movedCard, gameInstance.State.TurnNumber);
 		}
 
 		destinationList.Insert(insertIndex, movedCard);

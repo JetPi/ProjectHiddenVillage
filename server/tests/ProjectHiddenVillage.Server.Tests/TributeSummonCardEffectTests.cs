@@ -29,6 +29,46 @@ public sealed class TributeSummonCardEffectTests
         Assert.AreEqual("Game.Effect.TributeSummon.InvalidTargetComposition", result.FirstError.Code);
     }
 
+    [TestMethod]
+    public void Execute_SummonsTargetThatCannotBeNormalSummoned()
+    {
+        var effectSpec = CreateEffectSpec();
+        effectSpec.TargetRules.TributeComposition = null;
+
+        var context = CreateContext(effectSpec);
+        context.Game.State.TurnNumber = 3;
+        context.Game.State.CardDefinitions["ninja-a-def"].CannotBeNormalSummoned = true;
+        context.Game.State.Players[0].Hand.Add(new CardInstance
+        {
+            InstanceId = "ninja-hand-inst",
+            CardDefinitionId = "ninja-a-def",
+            OwnerPlayerId = "p1",
+            ControllerPlayerId = "p1",
+            // The card rested before it left play; the tribute summon places a fresh card, so it must land standing.
+            IsRested = true,
+        });
+
+        var effect = new TributeSummonCardEffect(
+            effectSpecResolver: new StubEffectSpecResolver(effectSpec),
+            canExecuteEvaluator: new StubCanExecuteEvaluator(),
+            targetResolver: new StubTargetResolver());
+
+        var result = effect.Execute(
+            context,
+            [new GameEffectTargetReference("p1", PlayerZone.Hand, "ninja-hand-inst")]);
+
+        // A [Summon Requirements] tribute summon is a special summon, so the "No Normal Summon" flag of the
+        // card being placed must not refuse it: the flag gates the normal summon (resting the summon card)
+        // only, and it is exactly what N-003/N-005/N-014/N-022 carry.
+        Assert.IsFalse(result.IsError);
+
+        var summonedCard = context.Game.State.Players[0].Battlefield
+            .Single(card => card.InstanceId == "ninja-hand-inst");
+        Assert.AreEqual(3, summonedCard.EnteredFieldTurnNumber);
+        Assert.IsFalse(summonedCard.IsRested);
+        Assert.AreEqual(0, context.Game.State.Players[0].Hand.Count);
+    }
+
     private static EffectSpec CreateEffectSpec()
     {
         return new EffectSpec

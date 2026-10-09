@@ -56,8 +56,14 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
   return (
     <div
       data-side={side}
+      // `min-w-0 min-h-0` is load-bearing: the pile slots size themselves from the rail lane (`h-full` +
+      // `aspect-[200/277]`), but a destination-side flight animation temporarily strips `overflow` from the
+      // clipping ancestors (`resolveOverflowAncestors` in the animation helpers). Without the guard the freshly
+      // rendered card art then inflates the whole pile grid to its min-content box - the slots grow to ~2.5x
+      // their height for the length of the animation (the "massive card" flash). Same idiom as the support-slot
+      // guard in `ZoneCardSlots`.
       className={twMerge(
-        'h-full w-full max-w-[var(--resource-rail-max-width)] justify-self-center overflow-hidden px-1',
+        'h-full min-h-0 w-full min-w-0 max-w-[var(--resource-rail-max-width)] justify-self-center overflow-hidden px-1',
         side === 'top' ? 'play-pile-zone-top' : 'play-pile-zone-bottom',
         className,
       )}

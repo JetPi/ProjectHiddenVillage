@@ -157,6 +157,73 @@ public sealed class GameStateResponseMapperCardActionsTests
     }
 
     [TestMethod]
+    public void ToGameStateResponse_MapsBattleAction_ForCardSummonedThisTurnWithPrintedRush()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var summonedCard = CreateCardInstance("battle-1", "card-battle", requesterId);
+        summonedCard.EnteredFieldTurnNumber = 3;
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [summonedCard]);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+
+        // Printed Rush lives on the definition's `Conditions`, not on RuntimeKeywords (which is the
+        // path exercised by ToGameStateResponse_MapsBattleAction_ForCardSummonedThisTurnWithRuntimeRush).
+        var battleCard = (CharacterCard)state.CardDefinitions["card-battle"];
+        battleCard.Conditions = [EffectConditionKeywords.Rush];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = requester.CharacterField[0].AvailableActions.Single();
+
+        Assert.AreEqual("battle-action:battle-1", battleAction.ActionId);
+        Assert.IsTrue(battleAction.IsEnabled);
+        Assert.IsNull(battleAction.DisabledReason);
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_DisablesBattleAction_WithSummonedThisTurnReason_WhenPrintedRushIsSuppressed()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        var summonedCard = CreateCardInstance("battle-1", "card-battle", requesterId);
+        summonedCard.EnteredFieldTurnNumber = 3;
+        // N-003's shape: the summon declares SuppressSummonedTargetsEffectsWhileOnField, so the summoned
+        // copy's own effects (including its printed Rush) are negated while it stays on the field.
+        summonedCard.EffectsSuppressedWhileOnField = true;
+
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [summonedCard]);
+        state.TurnNumber = 3;
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).TurnCount = 3;
+
+        var battleCard = (CharacterCard)state.CardDefinitions["card-battle"];
+        battleCard.Conditions = [EffectConditionKeywords.Rush];
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battleAction = requester.CharacterField[0].AvailableActions.Single();
+
+        Assert.AreEqual("battle-action:battle-1", battleAction.ActionId);
+        Assert.IsFalse(battleAction.IsEnabled);
+        Assert.AreEqual(
+            "Cannot declare battle action the turn that the card entered the field.",
+            battleAction.DisabledReason);
+    }
+
+    [TestMethod]
     public void ToGameStateResponse_DisablesBattleAction_WithCannotAttackReason_ForFrozenCard()
     {
         var requesterId = Guid.NewGuid().ToString("N");
@@ -1412,6 +1479,95 @@ public sealed class GameStateResponseMapperCardActionsTests
         Assert.AreEqual(EffectRestrictionMessages.OncePerTurn, abilityAction.DisabledReason);
     }
 
+    [TestMethod]
+    public void ToGameStateResponse_HidesTheSummonRequirementNode_FromTheCharacterAbilityActions()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        // N-022's shape: a special-summon card whose `tribute-requirement` node is a non-subordinate root with
+        // `timing: During Your Main`. The ability builder used to publish it as a `character-ability:` chip —
+        // labelled "During Your Main", or "Support" for N-003, whose node is authored as a Support effect type —
+        // on the card once it reached the battlefield. It is the summon requirement, paid by the summon action,
+        // so only the card's real ability may be published next to Battle.
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [CreateCardInstance("manda-1", "card-summon-requirement", requesterId)]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = requesterId;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battlefieldCard = requester.CharacterField.Single();
+
+        var abilityActions = battlefieldCard.AvailableActions
+            .Where(action => action.ActionId.StartsWith("character-ability:", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.AreEqual(1, abilityActions.Count);
+        Assert.AreEqual("character-ability:manda-1:team-10-boost", abilityActions[0].ActionId);
+        Assert.AreEqual(1, battlefieldCard.AvailableActions.Count(action =>
+            action.ActionId.StartsWith("battle-action:", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_HidesTheSupportEffectNode_FromTheCharacterAbilityActions()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        // N-015's shape: a support-capable character (a legal normal summon) whose support effect is an
+        // authored `effectType: Support` node ("[During Your Main] K.O. all Characters"). Support effects are
+        // activated from the hand or the support area, so the ability builder must not publish it as a
+        // `character-ability:` chip once the card sits on the character field - it used to show a "Support"
+        // chip there.
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            battlefieldCards: [CreateCardInstance("sasuke-1", "card-support-effect", requesterId)]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = requesterId;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+        var battlefieldCard = requester.CharacterField.Single();
+
+        Assert.AreEqual(0, battlefieldCard.AvailableActions.Count(action =>
+            action.ActionId.StartsWith("character-ability:", StringComparison.Ordinal)));
+        Assert.IsFalse(battlefieldCard.AvailableActions.Any(action => action.Label == nameof(EffectKind.Support)));
+        // Battle stays published: the card is on the field, it just has no activatable ability.
+        Assert.AreEqual(1, battlefieldCard.AvailableActions.Count(action =>
+            action.ActionId.StartsWith("battle-action:", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void ToGameStateResponse_KeepsPublishingTheSupportActivation_ForTheSupportEffectHandCard()
+    {
+        var requesterId = Guid.NewGuid().ToString("N");
+        var opponentId = Guid.NewGuid().ToString("N");
+
+        // The same card in hand is exactly where the support path belongs: the `activate-support:` chip stays
+        // available (the character-field filter must not touch it).
+        var state = BuildState(
+            requesterId,
+            opponentId,
+            handCards: [CreateCardInstance("sasuke-hand-1", "card-support-effect", requesterId)]);
+        state.Phase = GamePhase.MainPhase;
+        state.ActivePlayerId = requesterId;
+        state.PriorityPlayerId = requesterId;
+        state.Players.Single(player => player.PlayerId == requesterId).ResourcePool = 2;
+
+        var response = GameStateResponseMapper.ToGameStateResponse(state, requesterId);
+        var requester = response.Players.Single(player => player.PlayerId == requesterId);
+
+        var supportAction = requester.Hand[0].AvailableActions
+            .Single(action => action.ActionId == "activate-support:sasuke-hand-1");
+        Assert.IsTrue(supportAction.IsEnabled, supportAction.DisabledReason ?? string.Empty);
+    }
+
     private static GameState BuildState(
         string requesterId,
         string opponentId,
@@ -1455,7 +1611,9 @@ public sealed class GameStateResponseMapperCardActionsTests
                 ["card-support"] = CreateCharacterDefinition("card-support", "Support Card"),
                 ["card-support-capable"] = CreateSupportCapableCharacterDefinition("card-support-capable", "Support Capable Card"),
                 ["card-battle"] = CreateCharacterDefinition("card-battle", "Battle Card"),
-                ["card-ability"] = CreateCharacterDefinitionWithAbility("card-ability", "Ability Card")
+                ["card-ability"] = CreateCharacterDefinitionWithAbility("card-ability", "Ability Card"),
+                ["card-support-effect"] = CreateSupportEffectCharacterDefinition("card-support-effect", "Support Effect Card"),
+                ["card-summon-requirement"] = CreateCharacterDefinitionWithSummonRequirement("card-summon-requirement", "Summon Requirement Card")
             },
             Players =
             [
@@ -1505,6 +1663,108 @@ public sealed class GameStateResponseMapperCardActionsTests
                     }
                 ],
             }
+        ];
+
+        return card;
+    }
+
+    /// <summary>
+    /// N-015's shape: a support-capable character (a legal normal summon, unlike the EX characters) whose
+    /// support effect is an authored `effectType: Support` node rather than a separate card type - a
+    /// non-subordinate root with a MainPhase timing ("[During Your Main] K.O. all Characters"). It is the
+    /// support path (`activate-support:`) that may run it, never a battlefield card's ability.
+    /// </summary>
+    private static CharacterCard CreateSupportEffectCharacterDefinition(string id, string displayName)
+    {
+        var card = CreateCharacterDefinition(id, displayName);
+        card.SupportName = "Chidori: One Thousand Birds";
+        card.SupportEffect = "[During Your Main] K.O. all Characters.";
+        card.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "KO-all-targets",
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.DuringYourMain,
+                RuntimeEffectType = RuntimeEffects.DestroyCard,
+                TargetRange = EffectTargetRange.Any,
+                ChakraCost = 2,
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+            }
+        ];
+
+        return card;
+    }
+
+    /// <summary>
+    /// N-022's shape: a special-summon card whose summon requirement is a <c>Tribute</c> root node ("[Summon
+    /// Requirements] Place 1 of your Characters in your trash") followed by its `[On Summon]` chain steps - plus
+    /// the card's own "[Activate: Main]" ability, so a test can tell the requirement node apart from a real one.
+    /// The requirement node is a non-subordinate root carrying a MainPhase timing, which is exactly what used to
+    /// make it look like an activatable ability.
+    /// </summary>
+    private static CharacterCard CreateCharacterDefinitionWithSummonRequirement(string id, string displayName)
+    {
+        var card = CreateCharacterDefinitionWithAbility(id, displayName);
+        card.CannotBeNormalSummoned = true;
+
+        card.Effects =
+        [
+            new EffectSpec
+            {
+                Id = "tribute-requirement",
+                EffectType = EffectKind.SummonRequirement,
+                Timing = EffectTiming.DuringYourMain,
+                RuntimeEffectType = RuntimeEffects.Tribute,
+                OnSuccessEffectId = "reveal-top",
+                TargetRules = new EffectTargetRuleSet
+                {
+                    ExactTargetCount = 2,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Self,
+                            InZone = PlayerZone.CharacterField,
+                            TributeRole = TributeTargetRole.TributeMaterial,
+                            ExactSelectedTargetCount = 1,
+                            Restriction = new ZoneCardRestriction(),
+                        },
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Self,
+                            InZone = PlayerZone.Hand,
+                            TributeRole = TributeTargetRole.SummonCandidate,
+                            ExactSelectedTargetCount = 1,
+                            Restriction = new ZoneCardRestriction(),
+                        },
+                    ],
+                    TributeComposition = new TributeTargetComposition
+                    {
+                        ExactTributeCount = 1,
+                        RequireSingleSummonTarget = true,
+                        RequireDistinctSummonAndTributes = true,
+                    },
+                },
+            },
+            new EffectSpec
+            {
+                Id = "reveal-top",
+                EffectType = EffectKind.Support,
+                Timing = EffectTiming.Quick,
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                IsSubordinate = true,
+                OnSuccessEffectId = "on-summon",
+            },
+            new EffectSpec
+            {
+                Id = "on-summon",
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.DuringYourMain,
+                RuntimeEffectType = RuntimeEffects.SummonCard,
+                IsSubordinate = true,
+            },
+            .. card.Effects,
         ];
 
         return card;

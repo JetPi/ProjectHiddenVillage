@@ -36,6 +36,18 @@ task touches that area).
 
 ## Pending follow-ups (pick up here)
 
+- **A leader's duration-scoped ability no longer stamps a permanent stat override (fixed).** The shared
+  card-ability path handed the leader's `GameCardEffectContext` a null `SourceCardInstance`
+  (`isLeader ? null : sourceCardInstance`), so every duration-scoped attribute/keyword/face-lock effect skipped its
+  temporary branch and wrote the "permanent" one. N-001's "[Activate: Main] … the chosen card gets **+3 power
+  during this turn**" (`ChangeValues`, `DuringThisTurn`) wrote the target's `PowerOverride`, which `CompleteEndStep`
+  never clears — the +3 survived every later turn. The context now receives the acting card's source instance for a
+  leader too (both call sites in `InMemoryGameInstanceRegistry`: `ExecuteCardAbilityAction` and
+  `BuildCardAbilityActionTargets`), so `ModifyAttributeEffect`/`FreezeCardEffect`/`GainKeywordEffect` register a
+  duration-scoped `AppliedCardEffectState` that `CompleteEndStep` dispels (the field-transition reset in
+  `CharacterFieldStateRules` is the other half). Pinned by `InMemoryGameInstanceRegistryTests
+  .ExecuteCardAction_LeaderChangeValues_DuringThisTurn_AppliesTemporaryEffectClearedAtEndStep`; the full Release
+  suite is green (535 tests).
 - **Leader Recovery works end-to-end (shipped).** `e2e/gameview.multiplayer.leader-recovery.spec.ts` now plays it
   through: first-turn refusal with its reason, "no passive chakra recovery", the chip becoming enabled from the
   second turn, and then the activation itself — the pool tops back up to five, the leader is rested in the payload
@@ -62,16 +74,67 @@ task touches that area).
   three, the `Battle` chip flips to enabled as **Rush**, the opposing leader loses the boosted DMG, and the
   `[Once Per Turn]` chip reads its reason afterwards). Deliberately *not* covered: the support-zone MainPhase
   auto-end gap below, and N-022's EX tribute-summon reveal.
-- **N-022 Manda's EX tribute-summon reveal is still uncovered.** The reveal *mechanic* is pinned by
-  `e2e/gameview.multiplayer.reveal-presentation.spec.ts` (N-019 for an attack, N-013 for an `[On Summon]`
-  summon — and N-013's scenario now plays the whole chain: the presented reveal, the `FreezeFromZone` pick it
-  defers, the leader's own **Select** chip, and the flip-back once the chain finishes), but Manda's own chain —
-  `tribute-requirement` (Atomic Chain, 1 field material + the hand candidate)
-  → `reveal-top` (`Reveal First`, post-condition `Type Not Equals EX Character`) → `on-summon` (`Summon Card`,
-  `exactTargetCount: 1` with a Self/Deck rule) — is untested. It should resolve the same way N-019's does
-  (the reveal supplies the target through `ResolveRevealedTargets`, so no prompt is created); a spec can stack
-  the deck top with the leader's free `draw-n-place-card` ability, tribute a spare character through the hand
-  chip's Tribute/Confirm flow, and reuse the deck-reveal observer + entry-animation recorder.
+- **A support effect is no longer published as an ability on the character field (fixed).** Support effects are
+  activated from the hand or the support area (`SupportTimingRules` owns when), so a support-capable card that is
+  normal-summoned onto the character field must not expose its support node as an ability. It did: the shape gate
+  only rejected subordinate/passive/summon-requirement nodes, so a battlefield N-015 published a **Support** chip
+  ("[During Your Main] K.O. all Characters") next to Battle, a crafted `character-ability:` submit ran the K.O.
+  from the field, and the MainPhase auto-end probe counted it as a legal action (N-002/N-008/N-021 would have
+  exposed their Quick / attack-interruption supports the same way). The fourth shape is now in the same one home
+  (`CardAbilityTimingRules.IsIndependentlyActivatableAbility` rejects `EffectType == EffectKind.Support`), so all
+  three consumers agree; the support path itself is untouched (the hand chip still publishes, and the dump/seed
+  needed no card-data change). Pinned by `CardAbilityTimingRulesTests
+  .IsIndependentlyActivatableAbility_RejectsASupportEffect`, `GameStateResponseMapperCardActionsTests
+  .ToGameStateResponse_HidesTheSupportEffectNode_FromTheCharacterAbilityActions` (+ the hand-side counterpart,
+  `.ToGameStateResponse_KeepsPublishingTheSupportActivation_ForTheSupportEffectHandCard`) and three
+  `InMemoryGameInstanceRegistryTests` cases (submit refused, targets disabled, MainPhase auto-ends). No e2e yet —
+  the chip is server-published and the client renders `AvailableActions` verbatim, so a spec would only duplicate
+  the mapper test; the N-015 support scenario in `e2e/gameview.multiplayer.support.spec.ts` (deck two) is where a
+  field-summon assertion would belong if one is wanted.
+- **A card's summon requirement is no longer published as an activatable ability (fixed).** The `Tribute` node
+  behind "[Summon Requirements] Place 1 of your Characters in your trash" (N-003/N-005/N-014/N-022) is authored as
+  a non-subordinate root with `timing: During Your Main`, so as soon as the card reached the battlefield the
+  ability builder published it as a `character-ability:` chip — reading "During Your Main" (N-003's reads
+  "Support", its node being authored with a Support effect type) — and a direct submit of it re-ran the whole
+  reveal + summon chain, because only the chip builder filtered subordinate/passive nodes and the executor
+  checked nothing but timing + once-per-turn. The shape question now has one home
+  (`CardAbilityTimingRules.IsIndependentlyActivatableAbility`) used by the chip builder, the executor (which
+  throws `EffectRestrictionMessages.NotAnActivatedAbility`) and the MainPhase auto-end probe;
+  `CardAbilityTimingRulesTests`, `GameStateResponseMapperCardActionsTests
+  .ToGameStateResponse_HidesTheSummonRequirementNode_FromTheCharacterAbilityActions` and three
+  `InMemoryGameInstanceRegistryTests` cases pin it. No card data had to change: the authored `timing`/`effectType`
+  on those nodes is inert metadata (the summon path resolves the node by `RuntimeEffects.Tribute`), N-003's
+  `effectType: "Support"` is the only inconsistent spelling and it is harmless.
+- **"No Normal Summon" no longer blocks a special summon (fixed).** `CannotBeNormalSummoned` gates the *normal*
+  summon only — the one performed by resting the summon card — yet `SummonCardEffect` filtered its candidates and
+  refused the placement on that flag, and `TributeSummonCardEffect` refused the same way. That made N-003's
+  "[On Summon] Summon up to 1 [Naruto Uzumaki] from your deck or trash" unable to summon a copy of itself (the
+  copies carry the flag — N-003 is an EX Character) and would have refused the very cards the
+  `[Summon Requirements]` flow exists to summon. Both effects now use one shared rule,
+  `SummonPlacementRules.IsPlaceableOnCharacterField` (Chakra/Summon types only); the flag is consulted nowhere in
+  the summon-placement path, and a pool that must exclude special-summon-only cards is authored with a
+  `CannotBeNormalSummoned` target predicate. Pinned by `SummonCardEffectTests` (a flagged candidate stays valid and
+  is summoned, and a Chakra card *with* the flag is still refused as `UnsupportedCardType`),
+  `TributeSummonCardEffectTests.Execute_SummonsTargetThatCannotBeNormalSummoned` and the real-effect
+  `InMemoryGameInstanceRegistryOnSummonTests
+  .ExecuteCardAction_NormalSummon_ResumedTrashRecall_SummonsCardThatCannotBeNormalSummoned`. N-003's own e2e
+  scenario is still missing — its cross-zone `SummonFromZone` pick is only unit-covered.
+- **N-022 Manda's EX tribute-summon reveal now fires (fixed).** The `[On Summon]` chain was authored with the wrong
+  trigger timing: its nodes carried `Quick` (`reveal-top`) / `During Your Main` (`on-summon`) and **no** node was
+  `On Summon`-timed, so `GameTriggeredEffectRunner.ExecuteAutomaticTimedEffects` — which dispatches purely on
+  `EffectSpec.Timing` — never ran it and the top card was never revealed on summon. `reveal-top` is now
+  `timing: On Summon` in both `test-data/seed-profiles.json` and `server/Api/rawCardCatalogDump.txt`, so the
+  requirement summon (`ExecuteSummonRequirementAction` → `ExecuteAutomaticOnSummonEffects`) dispatches it and the
+  `Reveal First` step suspends on the presentation prompt: the top card is shown whether or not it is a legal
+  summon target, and on the ack the chain either summons it (a non-EX Character) or ends back in the MainPhase.
+  Pinned by `InMemoryGameInstanceRegistryOnSummonTests
+  .ExecuteCardAction_RequirementSummon_WithOnSummonReveal_SuspendsForPresentationThenSummonsTheRevealedCard` and,
+  at the data level, by the new `SeedManifestAuthoringTests
+  .CardsWithAnOnSummonCondition_HaveAMandatoryOnSummonTimedNode` (it would have failed for N-022 before this fix).
+  The reveal *mechanic* itself is pinned by `e2e/gameview.multiplayer.reveal-presentation.spec.ts` (N-019 for an
+  attack, N-013 for an `[On Summon]` summon). Still open: an N-022 **e2e** — stack the deck top with the leader's
+  free `draw-n-place-card` ability, tribute a spare character through the hand chip's Tribute/Confirm flow, and
+  reuse the deck-reveal observer + entry-animation recorder.
 - **Commit the catalogue regeneration script** — `catalogEntries` is generated from
   `server/Api/rawCardCatalogDump.txt`; the working one-off script only lives in `/tmp`
   (details in `05-server-models-serialization.md`).
@@ -79,7 +142,8 @@ task touches that area).
   `DevelopmentDeckSeederTests.SeedAsync_SeedsSupportMetadata_ForN008AndN015_FromTheManifest`, because N-008/N-015
   always resolve from the manifest now.
 - **Add specs for the newly seeded real cards** (all listed in
-  `03-targeting-contract.md`): what is still open is N-022's EX tribute-summon reveal — N-005's own trash recall
+  `03-targeting-contract.md`): what is still open is an **e2e** for N-022's EX tribute-summon reveal (its server
+  path is now covered — see the N-022 bullet above) — N-005's own trash recall
   and **N-014's prompted destroy** are now covered (see the
   `[On Summon]` runner bullet above), the leader Recovery activation is blocked by the
   engine gap above, and N-011 by the UI gap above.

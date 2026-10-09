@@ -8,7 +8,7 @@ namespace ProjectHiddenVillage.Server.Tests;
 public sealed class SummonCardEffectTests
 {
     [TestMethod]
-    public void CanExecute_FiltersOutCardsThatCannotBeNormalSummoned()
+    public void CanExecute_KeepsCardsThatCannotBeNormalSummoned_BecauseAnEffectSummonIsASpecialSummon()
     {
         var effectSpec = CreateSummonEffectSpec();
         var blockedTarget = new GameEffectTargetReference("p1", PlayerZone.Hand, "blocked-instance");
@@ -22,13 +22,17 @@ public sealed class SummonCardEffectTests
 
         var result = effect.CanExecute(context);
 
+        // "No Normal Summon" (CannotBeNormalSummoned) gates the normal summon only - the one performed by
+        // resting the summon card. A Summon Card effect places a card through a special summon instead, so
+        // the flag must not filter a candidate out: N-003 summons a copy of itself, which carries the flag.
         Assert.IsTrue(result.CanExecute);
-        Assert.AreEqual(1, result.ValidTargets.Count);
-        Assert.AreEqual("allowed-instance", result.ValidTargets[0].CardInstanceId);
+        CollectionAssert.AreEqual(
+            new[] { "blocked-instance", "allowed-instance" },
+            result.ValidTargets.Select(target => target.CardInstanceId).ToArray());
     }
 
     [TestMethod]
-    public void GetValidTargets_ExcludesCardsThatCannotBeNormalSummoned()
+    public void GetValidTargets_KeepsCardsThatCannotBeNormalSummoned()
     {
         var effectSpec = CreateSummonEffectSpec();
         var blockedTarget = new GameEffectTargetReference("p1", PlayerZone.Hand, "blocked-instance");
@@ -42,12 +46,13 @@ public sealed class SummonCardEffectTests
 
         var validTargets = effect.GetValidTargets(context);
 
-        Assert.AreEqual(1, validTargets.Count);
-        Assert.AreEqual("allowed-instance", validTargets[0].CardInstanceId);
+        CollectionAssert.AreEqual(
+            new[] { "blocked-instance", "allowed-instance" },
+            validTargets.Select(target => target.CardInstanceId).ToArray());
     }
 
     [TestMethod]
-    public void Execute_ReturnsValidationError_WhenCardCannotBeNormalSummoned()
+    public void Execute_SummonsCardThatCannotBeNormalSummoned()
     {
         var effectSpec = CreateSummonEffectSpec();
         var blockedTarget = new GameEffectTargetReference("p1", PlayerZone.Hand, "blocked-instance");
@@ -60,8 +65,38 @@ public sealed class SummonCardEffectTests
 
         var result = effect.Execute(context, [blockedTarget]);
 
-        Assert.IsTrue(result.IsError);
-        Assert.AreEqual("Game.Effect.SummonCard.CannotBeNormalSummoned", result.FirstError.Code);
+        Assert.IsFalse(result.IsError);
+
+        var summonedCard = context.Game.State.Players[0].Battlefield
+            .Single(card => card.InstanceId == "blocked-instance");
+        Assert.IsFalse(context.Game.State.Players[0].Hand.Any(card => card.InstanceId == "blocked-instance"));
+        Assert.IsFalse(summonedCard.EffectsSuppressedWhileOnField);
+    }
+
+    [TestMethod]
+    public void Execute_LandsTheSummonedCardUnrested_EvenWhenItLeftPlayRested()
+    {
+        var effectSpec = CreateSummonEffectSpec();
+        var blockedTarget = new GameEffectTargetReference("p1", PlayerZone.Hand, "blocked-instance");
+
+        var context = CreateContext(effectSpec);
+        // A card keeps its rested flag through the trash (it attacked, was tributed, or was K.O.'d while rested).
+        // Re-summoning it places a fresh card, so entering the character field has to clear the flag - exactly
+        // like GameRuntimeDeckService.MoveCardToZone does for a plain zone move.
+        context.Game.State.Players[0].Hand.Single(card => card.InstanceId == "blocked-instance").IsRested = true;
+
+        var effect = new SummonCardEffect(
+            effectSpecResolver: new StubEffectSpecResolver(effectSpec),
+            canExecuteEvaluator: new StubCanExecuteEvaluator([]),
+            targetResolver: new StubTargetResolver([]));
+
+        var result = effect.Execute(context, [blockedTarget]);
+
+        Assert.IsFalse(result.IsError);
+
+        var summonedCard = context.Game.State.Players[0].Battlefield
+            .Single(card => card.InstanceId == "blocked-instance");
+        Assert.IsFalse(summonedCard.IsRested);
     }
 
     [TestMethod]
@@ -94,8 +129,9 @@ public sealed class SummonCardEffectTests
         var blockedTarget = new GameEffectTargetReference("p1", PlayerZone.Hand, "blocked-instance");
 
         var context = CreateContext(effectSpec);
+        // The type alone has to be the reason the call is refused: the definition keeps its "No Normal
+        // Summon" flag, so this test cannot pass because the flag was cleared.
         context.Game.State.CardDefinitions["blocked-card"].Type = CardType.Chakra;
-        context.Game.State.CardDefinitions["blocked-card"].CannotBeNormalSummoned = false;
 
         var effect = new SummonCardEffect(
             effectSpecResolver: new StubEffectSpecResolver(effectSpec),

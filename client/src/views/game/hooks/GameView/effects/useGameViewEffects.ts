@@ -15,6 +15,7 @@ import type {
   IUseCardMoveGhostAnimationEffectArgs,
   IUseHandZoneAnimationEffectsArgs,
   IUseRevealedCardSummonFlightEffectArgs,
+  IUseTrashRecallSummonFlightEffectArgs,
 } from '@/views/game/types'
 import {
   runCardImageGhostToElementAnimation,
@@ -37,6 +38,8 @@ const CARD_TO_TRASH_FLY_DURATION_MS = 340
 const CARD_TO_TRASH_STAGGER_MS = 90
 // A revealed card summoned straight out of the deck travels the same route a hand→field summon does.
 const REVEAL_SUMMON_FLIGHT_DURATION_MS = 360
+// A card summoned out of the trash (Gamabunta's "[On Summon]") flies from the trash slot onto the field.
+const TRASH_RECALL_SUMMON_FLIGHT_DURATION_MS = 360
 const AUTO_ADVANCE_RECHECK_MS = 80
 const AUTO_ADVANCE_RETRY_DELAY_MS = 2_500
 const AUTO_ADVANCE_MAX_RETRIES = 3
@@ -343,6 +346,8 @@ function useHandZoneAnimationEffects({
   bottomDeckCount,
   topTrashCount,
   bottomTrashCount,
+  topTrashInstanceIds,
+  bottomTrashInstanceIds,
   drawToHandStaggerMs,
   drawToHandRevealDelayMs,
   handToPileStaggerMs,
@@ -360,6 +365,8 @@ function useHandZoneAnimationEffects({
     const previousSnapshot = animController.previousHandZoneSnapshot
     const nextTopHandInstanceIdSet = new Set(topHandInstanceIds)
     const nextBottomHandInstanceIdSet = new Set(bottomHandInstanceIds)
+    const nextTopTrashInstanceIdSet = new Set(topTrashInstanceIds)
+    const nextBottomTrashInstanceIdSet = new Set(bottomTrashInstanceIds)
 
     if (previousSnapshot.isInitialized) {
       const newTopHandCards = topHandInstanceIds.filter((instanceId) => !previousSnapshot.topHandInstanceIds.has(instanceId))
@@ -374,8 +381,15 @@ function useHandZoneAnimationEffects({
       const bottomDeckToHandCards = animController.pendingMulliganDrawReplay
         ? bottomHandInstanceIds
         : newBottomHandCards.slice(0, bottomDeckDecrease)
-      const topHandToTrashCards = removedTopHandCards.slice(0, topTrashIncrease)
-      const bottomHandToTrashCards = removedBottomHandCards.slice(0, bottomTrashIncrease)
+      // A removed hand card is only on its way to the trash when it is *in* the trash now. The count delta alone
+      // mis-attributes a summon's hand exit to whatever else grew the trash in the same push (a tribute material
+      // coming off the field), which then flew the trash slot in from the hand on every tribute summon.
+      const topHandToTrashCards = removedTopHandCards
+        .filter((instanceId) => nextTopTrashInstanceIdSet.has(instanceId))
+        .slice(0, topTrashIncrease)
+      const bottomHandToTrashCards = removedBottomHandCards
+        .filter((instanceId) => nextBottomTrashInstanceIdSet.has(instanceId))
+        .slice(0, bottomTrashIncrease)
 
       if (animController.pendingMulliganDrawReplay) {
         animController.pendingMulliganDrawReplay = false
@@ -524,12 +538,14 @@ function useHandZoneAnimationEffects({
     bottomDeckCount,
     bottomHandInstanceIds,
     bottomTrashCount,
+    bottomTrashInstanceIds,
     drawToHandRevealDelayMs,
     drawToHandStaggerMs,
     handToPileStaggerMs,
     topDeckCount,
     topHandInstanceIds,
     topTrashCount,
+    topTrashInstanceIds,
     animControllerRef,
     setBottomHandFaceUpByInstanceId,
     topDeckCardRef,
@@ -686,6 +702,73 @@ function useRevealedCardSummonFlightEffect({
     currentPlayer,
     opponentPlayer,
     topDeckCardRef,
+  ])
+}
+
+/**
+ * Flies a card summoned straight out of the trash (Gamabunta's "[On Summon] summon 1 ... from your trash") from
+ * the trash slot onto its owner's character field. The generic move-ghost effect cannot animate a trash→field
+ * move: a trash card is drawn as a pile tile rather than a card face (so there is no board/hand snapshot to fly
+ * from), and the summon only ever places the card on the character field. The flight is driven by the trash list
+ * itself: a card that was in the trash last render is now off it and has a character-field element.
+ */
+function useTrashRecallSummonFlightEffect({
+  currentPlayer,
+  opponentPlayer,
+  topTrashCardRef,
+  bottomTrashCardRef,
+  boardZoneRef,
+}: IUseTrashRecallSummonFlightEffectArgs): void {
+  const previousTrashInstanceIdsRef = useRef<{ top: Set<string>; bottom: Set<string> } | null>(null)
+
+  useEffect(() => {
+    const nextTrash = {
+      top: new Set((opponentPlayer?.trash ?? []).map((card) => card.instanceId)),
+      bottom: new Set((currentPlayer?.trash ?? []).map((card) => card.instanceId)),
+    }
+    const previousTrash = previousTrashInstanceIdsRef.current
+    previousTrashInstanceIdsRef.current = nextTrash
+
+    // The very first pass establishes the baseline: nothing has left the trash yet.
+    if (!previousTrash) {
+      return
+    }
+
+    const flyFromTrashSlot = (side: 'top' | 'bottom'): void => {
+      const trashSlotElement = side === 'top' ? topTrashCardRef.current : bottomTrashCardRef.current
+      if (!trashSlotElement) {
+        return
+      }
+
+      for (const instanceId of previousTrash[side]) {
+        // Still in the trash: this card did not leave it this render.
+        if (nextTrash[side].has(instanceId)) {
+          continue
+        }
+
+        const location: IRevealedDeckCardLocation = { instanceId, side }
+        if (!resolveBattlefieldCardElement(boardZoneRef.current, location)) {
+          continue
+        }
+
+        // The destination element is animated in place (scale 0.92 → 1 from the trash slot), matching the
+        // reveal/hand→field flights: only the real card is drawn, so no copy is left behind in the slot.
+        void runRectToDynamicElementAnimation({
+          sourceRect: trashSlotElement.getBoundingClientRect(),
+          durationMs: TRASH_RECALL_SUMMON_FLIGHT_DURATION_MS,
+          resolveDestinationElement: () => resolveBattlefieldCardElement(boardZoneRef.current, location),
+        })
+      }
+    }
+
+    flyFromTrashSlot('top')
+    flyFromTrashSlot('bottom')
+  }, [
+    boardZoneRef,
+    bottomTrashCardRef,
+    currentPlayer,
+    opponentPlayer,
+    topTrashCardRef,
   ])
 }
 
@@ -859,5 +942,6 @@ export {
   useHandZoneAnimationEffects,
   useCardMoveGhostAnimationEffect,
   useRevealedCardSummonFlightEffect,
+  useTrashRecallSummonFlightEffect,
   useAutoAdvancePhaseEffect,
 }

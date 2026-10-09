@@ -1,3 +1,4 @@
+import { twMerge } from 'tailwind-merge'
 import { AppButton, Panel } from '@/components/ui'
 import { CardImage } from '@/components/ui/cards'
 import type { IGamePromptOverlayProps } from '@/views/game/types'
@@ -24,19 +25,37 @@ function GamePromptOverlay({
 
   const columnCount = Math.min(Math.max(prompt.options.length, 1), 3)
 
+  // The mulligan decision is made while looking at the opening hand, so that prompt must not lock the board:
+  // the backdrop stays transparent to pointer events (only the panel itself is interactive), which lets the
+  // player hover a hand card, reveal its eye and open the details modal. Nothing else is submit-able during a
+  // pending prompt - the server publishes only `resolve-prompt:*` while it waits for this player's answer.
+  const isBoardInspectable = prompt.promptType === 'Mulligan'
+
   return (
-    <div data-testid="prompt-overlay" className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
-      <Panel className="w-full max-w-sm p-5">
-        <div className="mb-2">
+    <div
+      data-testid="prompt-overlay"
+      className={twMerge(
+        'fixed inset-0 z-40 flex items-center justify-center px-4',
+        isBoardInspectable ? 'pointer-events-none bg-black/25' : 'bg-black/40',
+      )}
+    >
+      <Panel
+        className={twMerge(
+          'w-full p-5',
+          // A card-face selection reads like the trash viewer's card list (same 5-column grid), so it gets the
+          // same wider panel; a plain option-label prompt stays narrow.
+          visibleCandidates.length > 0 ? 'max-w-2xl' : 'max-w-sm',
+          isBoardInspectable && 'pointer-events-auto',
+        )}
+      >
+        <div className="mb-2 text-center">
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">{prompt.title}</h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">{prompt.subtitle}</p>
         </div>
 
         {visibleCandidates.length > 0 ? (
           <div
             data-testid="prompt-card-options"
-            className="mt-4 grid max-h-[24rem] gap-2 overflow-y-auto themed-scrollbar"
-            style={{ gridTemplateColumns: `repeat(${Math.min(Math.max(visibleCandidates.length, 1), 3)}, minmax(0, 1fr))` }}
+            className="mt-4 grid max-h-[24rem] grid-cols-5 gap-2 overflow-y-auto themed-scrollbar"
           >
             {visibleCandidates.map((card) => (
               <button
@@ -59,9 +78,6 @@ function GamePromptOverlay({
                     className="h-full w-full object-cover"
                     fallbackLabel={card.displayName}
                   />
-                </span>
-                <span className="w-full truncate text-center text-[0.7rem] text-[var(--text-secondary)]">
-                  {card.displayName}
                 </span>
               </button>
             ))}

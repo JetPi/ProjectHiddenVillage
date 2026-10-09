@@ -45,6 +45,14 @@ public static class EffectRestrictionMessages
 {
     public const string OncePerTurn = "This effect can only be used once per turn.";
 
+    /// <summary>
+    /// A node that is not an independently activatable ability (see
+    /// <c>CardAbilityTimingRules.IsIndependentlyActivatableAbility</c>): a chain step of another ability, a
+    /// passive the engine resolves on its own, the card's summon requirement, or a support effect (which is
+    /// activated through the support path - from the hand or the support area - never as a card's ability).
+    /// </summary>
+    public const string NotAnActivatedAbility = "This effect is not an ability you can activate.";
+
     /// <summary>A support card cannot be activated twice inside the same reaction chain.</summary>
     public const string AlreadyActivatedInChain = "This support is already part of the current chain.";
 }

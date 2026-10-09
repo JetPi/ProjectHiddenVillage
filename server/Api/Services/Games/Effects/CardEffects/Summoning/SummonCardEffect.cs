@@ -63,7 +63,7 @@ public sealed class SummonCardEffect(
 		if (allowedCardInstanceIds.Count == 0)
 		{
 			result.CanExecute = false;
-			result.FailedConditions.Add("No valid summon targets. One or more cards cannot be summoned normally.");
+			result.FailedConditions.Add("No valid summon targets. One or more cards cannot be placed on the character field.");
 		}
 
 		return result;
@@ -103,10 +103,9 @@ public sealed class SummonCardEffect(
 		var blockedTarget = selectedTargets.FirstOrDefault(target => IsSummonBlocked(context, target.CardInstanceId));
 		if (blockedTarget is not null)
 		{
-			var blockCode = ResolveSummonBlockCode(context, blockedTarget.CardInstanceId);
 			return Error.Validation(
-				code: blockCode,
-				description: $"Card '{blockedTarget.CardInstanceId}' cannot be summoned normally.");
+				code: "Game.Effect.SummonCard.UnsupportedCardType",
+				description: $"Card '{blockedTarget.CardInstanceId}' cannot be placed on the character field.");
 		}
 
 		var summoningPlayer = context.Game.State.Players.First(player => player.PlayerId == context.ActingPlayer.Id);
@@ -131,7 +130,11 @@ public sealed class SummonCardEffect(
 				cardInstance.RevealedInZone = null;
 			}
 			cardInstance.ControllerPlayerId = summoningPlayer.PlayerId;
-			cardInstance.EnteredFieldTurnNumber = context.Game.State.TurnNumber;
+			// Entering the character field is a fresh placement: CharacterFieldStateRules clears any runtime
+			// value the instance kept from a previous stint (stat overrides, damage, granted keywords,
+			// suppression) and dispels temporary effects aimed at it, then re-states the summon-turn marker and
+			// the standing pose - so a card summoned out of the trash lands clean instead of buffed.
+			CharacterFieldStateRules.ApplyOnFieldEntry(context.Game.State, cardInstance, context.Game.State.TurnNumber);
 			cardInstance.EffectsSuppressedWhileOnField = suppressSummonedTargetsEffectsWhileOnField;
 			summoningPlayerField.Add(cardInstance);
 
@@ -234,37 +237,9 @@ public sealed class SummonCardEffect(
 			return false;
 		}
 
-		if (cardDefinition.Type is CardType.Chakra or CardType.Summon)
-		{
-			return true;
-		}
-
-		return cardDefinition.CannotBeNormalSummoned;
-	}
-
-	private static string ResolveSummonBlockCode(GameCardEffectContext context, string cardInstanceId)
-	{
-		var cardInstance = context.Game.State.Players
-			.SelectMany(player => player.Deck
-				.Concat(player.Hand)
-				.Concat(player.Battlefield)
-				.Concat(player.SupportZone)
-				.Concat(player.DiscardPile)
-				.Concat(player.ExileZone))
-			.FirstOrDefault(card => string.Equals(card.InstanceId, cardInstanceId, StringComparison.Ordinal));
-
-		if (cardInstance is null)
-		{
-			return "Game.Effect.SummonCard.CannotBeNormalSummoned";
-		}
-
-		if (!context.Game.State.CardDefinitions.TryGetValue(cardInstance.CardDefinitionId, out var cardDefinition))
-		{
-			return "Game.Effect.SummonCard.CannotBeNormalSummoned";
-		}
-
-		return cardDefinition.Type is CardType.Chakra or CardType.Summon
-			? "Game.Effect.SummonCard.UnsupportedCardType"
-			: "Game.Effect.SummonCard.CannotBeNormalSummoned";
+		// SummonPlacementRules owns this rule, including why CannotBeNormalSummoned is deliberately not
+		// consulted here: an effect summon is a special summon, and the card an [On Summon] effect is asked to
+		// place is usually the very card the flag is printed on (N-003 summons a copy of itself this way).
+		return !SummonPlacementRules.IsPlaceableOnCharacterField(cardDefinition);
 	}
 }

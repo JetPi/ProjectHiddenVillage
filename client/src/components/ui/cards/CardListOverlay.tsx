@@ -110,8 +110,6 @@ function CardListOverlay({
     return null
   }
 
-  const columnCount = Math.min(Math.max(entries.length, 1), 3)
-
   // Portalled to the body like the card-details modal: the game view's board subtree must not be able to
   // clip or re-anchor a full-screen overlay (the board forces `position: relative` on its children).
   return createPortal(
@@ -150,8 +148,7 @@ function CardListOverlay({
         {entries.length > 0 ? (
           <div
             data-testid={`${testId}-items`}
-            className="themed-scrollbar mt-3 grid max-h-[min(60vh,32rem)] gap-2 overflow-y-auto"
-            style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
+            className="themed-scrollbar mt-3 grid max-h-[min(60vh,32rem)] grid-cols-5 gap-2 overflow-y-auto"
           >
             {entries.map((entry) => (
               <CardListOverlayTile key={entry.instanceId} entry={entry} />

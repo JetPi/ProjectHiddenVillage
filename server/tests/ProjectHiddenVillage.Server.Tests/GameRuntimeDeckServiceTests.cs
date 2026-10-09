@@ -105,6 +105,147 @@ public sealed class GameRuntimeDeckServiceTests
     }
 
     [TestMethod]
+    public void MoveCardToZone_FromCharacterFieldToTrash_ClearsRuntimeValuesAndDispelsAppliedEffects()
+    {
+        var game = CreateGame();
+        var player = game.State.Players.Single();
+        game.State.TurnNumber = 3;
+
+        var fieldCard = CreateInstance("field-1", "card-1", "p1");
+        fieldCard.PowerOverride = 5;
+        fieldCard.DamageOverride = 3;
+        fieldCard.HealthOverride = 8;
+        fieldCard.CurrentHealth = 2;
+        fieldCard.RuntimeKeywords.Add("Rush");
+        fieldCard.EffectsSuppressedWhileOnField = true;
+        fieldCard.IsRested = true;
+        fieldCard.EnteredFieldTurnNumber = 3;
+        player.Battlefield.Add(fieldCard);
+
+        var untouchedCard = CreateInstance("trash-1", "card-2", "p1");
+        untouchedCard.PowerOverride = 9;
+        player.DiscardPile.Add(untouchedCard);
+
+        game.State.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            TargetCardInstanceId = fieldCard.InstanceId,
+            ModifierKind = AppliedCardModifierKind.Attribute
+        });
+        game.State.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            TargetCardInstanceId = untouchedCard.InstanceId,
+            ModifierKind = AppliedCardModifierKind.Attribute
+        });
+
+        var moved = service.MoveCardToZone(
+            game,
+            playerId: "p1",
+            sourceZone: PlayerZone.CharacterField,
+            destinationZone: PlayerZone.Trash,
+            cardInstanceId: fieldCard.InstanceId);
+
+        Assert.IsNull(moved.PowerOverride);
+        Assert.IsNull(moved.DamageOverride);
+        Assert.IsNull(moved.HealthOverride);
+        Assert.IsNull(moved.CurrentHealth);
+        Assert.AreEqual(0, moved.RuntimeKeywords.Count);
+        Assert.IsFalse(moved.EffectsSuppressedWhileOnField);
+        Assert.IsFalse(moved.IsRested);
+
+        Assert.AreEqual(1, game.State.AppliedCardEffects.Count);
+        Assert.AreEqual(untouchedCard.InstanceId, game.State.AppliedCardEffects[0].TargetCardInstanceId);
+        Assert.AreEqual(9, untouchedCard.PowerOverride);
+    }
+
+    [TestMethod]
+    public void MoveCardToZone_ToCharacterField_ClearsStaleRuntimeValuesFromPreviousStint()
+    {
+        var game = CreateGame();
+        var player = game.State.Players.Single();
+        game.State.TurnNumber = 6;
+
+        var handCard = CreateInstance("hand-1", "card-1", "p1");
+        handCard.PowerOverride = 7;
+        handCard.DamageOverride = 4;
+        handCard.HealthOverride = 9;
+        handCard.CurrentHealth = 1;
+        handCard.RuntimeKeywords.Add("Rush");
+        handCard.EffectsSuppressedWhileOnField = true;
+        handCard.IsRested = true;
+        handCard.IsFaceUp = false;
+        player.Hand.Add(handCard);
+
+        game.State.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            TargetCardInstanceId = handCard.InstanceId,
+            ModifierKind = AppliedCardModifierKind.Keyword
+        });
+
+        var moved = service.MoveCardToZone(
+            game,
+            playerId: "p1",
+            sourceZone: PlayerZone.Hand,
+            destinationZone: PlayerZone.CharacterField,
+            cardInstanceId: handCard.InstanceId);
+
+        Assert.IsNull(moved.PowerOverride);
+        Assert.IsNull(moved.DamageOverride);
+        Assert.IsNull(moved.HealthOverride);
+        Assert.IsNull(moved.CurrentHealth);
+        Assert.AreEqual(0, moved.RuntimeKeywords.Count);
+        Assert.IsFalse(moved.EffectsSuppressedWhileOnField);
+        Assert.IsFalse(moved.IsRested);
+        // The card was parked face down; entering the character field always stands it face up.
+        Assert.IsTrue(moved.IsFaceUp);
+        Assert.AreEqual(6, moved.EnteredFieldTurnNumber);
+        Assert.AreEqual(0, game.State.AppliedCardEffects.Count);
+    }
+
+    [TestMethod]
+    public void MoveCardToZone_RoundTripThroughTrash_ReentersTheFieldAsAFreshCard()
+    {
+        var game = CreateGame();
+        var player = game.State.Players.Single();
+        game.State.TurnNumber = 2;
+
+        var card = CreateInstance("roundtrip-1", "card-1", "p1");
+        card.PowerOverride = 5;
+        card.CurrentHealth = 3;
+        card.RuntimeKeywords.Add("Rush");
+        card.IsRested = true;
+        player.Battlefield.Add(card);
+
+        game.State.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            TargetCardInstanceId = card.InstanceId,
+            ModifierKind = AppliedCardModifierKind.Attribute
+        });
+
+        service.MoveCardToZone(
+            game,
+            playerId: "p1",
+            sourceZone: PlayerZone.CharacterField,
+            destinationZone: PlayerZone.Trash,
+            cardInstanceId: card.InstanceId);
+
+        game.State.TurnNumber = 5;
+
+        var reentered = service.MoveCardToZone(
+            game,
+            playerId: "p1",
+            sourceZone: PlayerZone.Trash,
+            destinationZone: PlayerZone.CharacterField,
+            cardInstanceId: card.InstanceId);
+
+        Assert.IsNull(reentered.PowerOverride);
+        Assert.IsNull(reentered.CurrentHealth);
+        Assert.AreEqual(0, reentered.RuntimeKeywords.Count);
+        Assert.IsFalse(reentered.IsRested);
+        Assert.AreEqual(5, reentered.EnteredFieldTurnNumber);
+        Assert.AreEqual(0, game.State.AppliedCardEffects.Count);
+    }
+
+    [TestMethod]
     public void DrawCardFromDeck_MovesTopCardToHand()
     {
         var game = CreateGame();
