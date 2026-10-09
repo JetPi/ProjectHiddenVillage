@@ -44,9 +44,9 @@
           "deckId": "10000000-0000-0000-0000-000000000101",
           "cards": [
             { "cardId": "N-001", "quantity": 1 },
-            { "cardId": "N-021", "quantity": 3 },
-            { "cardId": "T-120", "quantity": 3 },
-            { "cardId": "N-005", "quantity": 3 }
+            { "cardId": "N-021", "quantity": 6 },
+            { "cardId": "T-120", "quantity": 6 },
+            { "cardId": "N-005", "quantity": 6 }
           ]
         },
         "two": {
@@ -73,9 +73,9 @@
           "deckId": "10000000-0000-0000-0000-000000000201",
           "cards": [
             { "cardId": "N-001", "quantity": 1 },
-            { "cardId": "N-021", "quantity": 3 },
-            { "cardId": "T-120", "quantity": 3 },
-            { "cardId": "N-005", "quantity": 2 }
+            { "cardId": "N-021", "quantity": 6 },
+            { "cardId": "T-120", "quantity": 6 },
+            { "cardId": "N-005", "quantity": 6 }
           ]
         },
         "two": {
@@ -102,19 +102,19 @@
           "deckId": "10000000-0000-0000-0000-000000000301",
           "cards": [
             { "cardId": "N-001", "quantity": 1 },
-            { "cardId": "N-011", "quantity": 3 },
-            { "cardId": "N-019", "quantity": 3 },
-            { "cardId": "N-014", "quantity": 2 }
+            { "cardId": "N-011", "quantity": 6 },
+            { "cardId": "N-019", "quantity": 6 },
+            { "cardId": "N-014", "quantity": 6 }
           ]
         },
         "two": {
           "deckId": "10000000-0000-0000-0000-000000000302",
           "cards": [
             { "cardId": "N-012", "quantity": 1 },
-            { "cardId": "N-013", "quantity": 3 },
-            { "cardId": "N-015", "quantity": 3 },
-            { "cardId": "N-016", "quantity": 3 },
-            { "cardId": "N-017", "quantity": 3 }
+            { "cardId": "N-013", "quantity": 6 },
+            { "cardId": "N-015", "quantity": 6 },
+            { "cardId": "N-016", "quantity": 6 },
+            { "cardId": "N-017", "quantity": 6 }
           ]
         }
       }
@@ -126,19 +126,46 @@
           "deckId": "10000000-0000-0000-0000-000000000401",
           "cards": [
             { "cardId": "N-001", "quantity": 1 },
-            { "cardId": "T-121", "quantity": 3 },
-            { "cardId": "N-005", "quantity": 3 },
-            { "cardId": "N-021", "quantity": 2 }
+            { "cardId": "T-121", "quantity": 6 },
+            { "cardId": "N-005", "quantity": 6 },
+            { "cardId": "N-021", "quantity": 6 }
           ]
         },
         "two": {
           "deckId": "10000000-0000-0000-0000-000000000402",
           "cards": [
             { "cardId": "N-012", "quantity": 1 },
-            { "cardId": "N-013", "quantity": 3 },
-            { "cardId": "N-015", "quantity": 3 },
-            { "cardId": "N-016", "quantity": 3 },
-            { "cardId": "N-017", "quantity": 3 }
+            { "cardId": "N-013", "quantity": 6 },
+            { "cardId": "N-015", "quantity": 6 },
+            { "cardId": "N-016", "quantity": 6 },
+            { "cardId": "N-017", "quantity": 6 }
+          ]
+        }
+      }
+    },
+    {
+      "name": "deck-out",
+      "decks": {
+        "one": {
+          "deckId": "10000000-0000-0000-0000-000000000501",
+          "cards": [
+            { "cardId": "N-001", "quantity": 1 },
+            { "cardId": "N-004", "quantity": 1 },
+            { "cardId": "N-006", "quantity": 1 },
+            { "cardId": "N-009", "quantity": 1 },
+            { "cardId": "N-011", "quantity": 1 },
+            { "cardId": "N-018", "quantity": 1 }
+          ]
+        },
+        "two": {
+          "deckId": "10000000-0000-0000-0000-000000000502",
+          "cards": [
+            { "cardId": "N-001", "quantity": 1 },
+            { "cardId": "N-004", "quantity": 1 },
+            { "cardId": "N-006", "quantity": 1 },
+            { "cardId": "N-009", "quantity": 1 },
+            { "cardId": "N-011", "quantity": 1 },
+            { "cardId": "N-018", "quantity": 1 }
           ]
         }
       }

@@ -140,6 +140,18 @@ export type IEffectNoticeResponse = {
   selectionPromptKind: string | null
 }
 
+/**
+ * The terminal result of a game. The server writes it exactly once; while it is absent the game is running.
+ * `winnerPlayerId` is null for a draw (both players lost at the same instant and every tiebreak tied).
+ */
+export type IGameOutcomeResponse = {
+  winnerPlayerId: string | null
+  loserPlayerIds: string[]
+  /** `LeaderLifeDepleted` or `DeckOut`. */
+  reason: string
+  turnNumber: number
+}
+
 export type IGameStateResponse = {
   gameId: string
   turnNumber: number
@@ -155,6 +167,9 @@ export type IGameStateResponse = {
   // Notices for the requesting player, oldest first (an effect that resolved with nothing to act on). The board
   // shows the newest unnoticed one as a transient toast.
   effectNotices?: IEffectNoticeResponse[] | null
+  // The result of the game. When present the engine publishes no actions or prompt at all, and the board only
+  // offers the result overlay's "return to main page" button.
+  gameOutcome?: IGameOutcomeResponse | null
   pendingAttackVisualState: IPendingAttackVisualStateResponse | null
   pendingPrompt: IPendingPromptResponse | null
   availableActions: IGameActionOptionResponse[]

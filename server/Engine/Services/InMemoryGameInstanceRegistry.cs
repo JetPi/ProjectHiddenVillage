@@ -157,6 +157,8 @@ public sealed class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
+            GameEndRules.ThrowIfGameOver(instance.State);
+
             var phaseBeforeResolve = instance.State.Phase;
             // Captured before resolving: the continuation lives on the prompt, which the resolve dequeues.
             var resolvedPrompt = instance.GetPendingPrompt();
@@ -173,6 +175,7 @@ public sealed class InMemoryGameInstanceRegistry
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
 
             instance.ValidateInvariants();
+            EvaluateGameEnd(instance);
             return instance;
         }
     }
@@ -278,6 +281,8 @@ public sealed class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
+            GameEndRules.ThrowIfGameOver(instance.State);
+
             if (instance.GetPendingPrompt() is not null)
             {
                 throw new InvalidOperationException("Cannot advance phase while a prompt is pending.");
@@ -295,6 +300,7 @@ public sealed class InMemoryGameInstanceRegistry
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
             instance.ValidateInvariants();
+            EvaluateGameEnd(instance);
             return instance;
         }
     }
@@ -309,6 +315,8 @@ public sealed class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
+            GameEndRules.ThrowIfGameOver(instance.State);
+
             var previousPhase = instance.State.Phase;
 
             // MainPhase support reactions reuse the pass mechanism: a single decline by the priority
@@ -325,6 +333,7 @@ public sealed class InMemoryGameInstanceRegistry
 
                 AutoAdvanceMainPhaseIfNoLegalActions(instance);
                 instance.ValidateInvariants();
+                EvaluateGameEnd(instance);
                 return instance;
             }
 
@@ -342,6 +351,7 @@ public sealed class InMemoryGameInstanceRegistry
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
             instance.ValidateInvariants();
+            EvaluateGameEnd(instance);
             return instance;
         }
     }
@@ -352,9 +362,12 @@ public sealed class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
+            GameEndRules.ThrowIfGameOver(instance.State);
+
             phaseService.DeclareActionInActionStep(instance, playerId);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
             instance.ValidateInvariants();
+            EvaluateGameEnd(instance);
             return instance;
         }
     }
@@ -372,6 +385,8 @@ public sealed class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
+            GameEndRules.ThrowIfGameOver(instance.State);
+
             if (instance.GetPendingPrompt() is not null)
             {
                 throw new InvalidOperationException("Cannot execute card actions while a prompt is pending.");
@@ -454,6 +469,7 @@ public sealed class InMemoryGameInstanceRegistry
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
 
             instance.ValidateInvariants();
+            EvaluateGameEnd(instance);
             return instance;
         }
     }
@@ -471,6 +487,21 @@ public sealed class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
+            // A finished game publishes no card action at all: the client only ever sees the result overlay.
+            if (GameEndRules.IsGameOver(instance.State))
+            {
+                return new GameCardActionTargetsResponse(
+                    ActionId: request.ActionId,
+                    SourceCardInstanceId: request.SourceCardInstanceId,
+                    IsEnabled: false,
+                    DisabledReason: GameEndRules.GameOverMessage,
+                    MinimumTargetCount: null,
+                    MaximumTargetCount: null,
+                    ExactTargetCount: null,
+                    AutoSelectAllValidTargets: false,
+                    ValidTargets: []);
+            }
+
             if (instance.GetPendingPrompt() is not null)
             {
                 throw new InvalidOperationException("Cannot fetch card action targets while a prompt is pending.");
@@ -690,11 +721,14 @@ public sealed class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
+            GameEndRules.ThrowIfGameOver(instance.State);
+
             // Leaving the MainPhase closes any open support reaction window.
             ResolvePendingActivations(instance, sequentialEffectExecutor);
             phaseService.DeclareEndStep(instance);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
             instance.ValidateInvariants();
+            EvaluateGameEnd(instance);
             return instance;
         }
     }
@@ -708,11 +742,14 @@ public sealed class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
+            GameEndRules.ThrowIfGameOver(instance.State);
+
             // A turn can never end with an activation still waiting to resolve.
             ResolvePendingActivations(instance, sequentialEffectExecutor);
             phaseService.CompleteEndStep(instance);
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             instance.ValidateInvariants();
+            EvaluateGameEnd(instance);
             return instance;
         }
     }
@@ -729,6 +766,13 @@ public sealed class InMemoryGameInstanceRegistry
         GameInstance instance,
         IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator)
     {
+        // A phase entry can end the game (a deck-out resolves inside the draw), and a finished game has no
+        // board left to re-evaluate.
+        if (GameEndRules.IsGameOver(instance.State))
+        {
+            return;
+        }
+
         if (reactiveEffectOrchestrator is null)
         {
             return;
@@ -2310,6 +2354,12 @@ public sealed class InMemoryGameInstanceRegistry
 
     private static bool HasAnyMainPhaseLegalAction(GameInstance instance)
     {
+        // A finished game has no legal MainPhase action, whatever is left on the board.
+        if (GameEndRules.IsGameOver(instance.State))
+        {
+            return false;
+        }
+
         if (instance.State.Phase != GamePhase.MainPhase)
         {
             return true;
@@ -2532,6 +2582,12 @@ public sealed class InMemoryGameInstanceRegistry
 
     private void AutoAdvanceMainPhaseIfNoLegalActions(GameInstance instance)
     {
+        // A finished game has no phase left to auto-advance into.
+        if (GameEndRules.IsGameOver(instance.State))
+        {
+            return;
+        }
+
         if (instance.GetPendingPrompt() is not null)
         {
             return;
@@ -2549,6 +2605,18 @@ public sealed class InMemoryGameInstanceRegistry
             phaseService.DeclareEndStep(instance);
             phaseService.AdvancePhase(instance);
         }
+    }
+
+    /// <summary>
+    /// Evaluates the game-end conditions at a mutation boundary, after the whole action (or effect chain)
+    /// has been applied - a leader whose life reached 0 mid-chain must not leave the engine half-way
+    /// through it. The outcome is written once; <see cref="GameEndRules.EnsureGameEndLogged"/> records it
+    /// in the action log the first time it is observed.
+    /// </summary>
+    private static void EvaluateGameEnd(GameInstance instance)
+    {
+        GameEndRules.TryResolveLeaderDefeat(instance.State);
+        GameEndRules.EnsureGameEndLogged(instance);
     }
 
     private void ExecuteSummonToFieldAction(

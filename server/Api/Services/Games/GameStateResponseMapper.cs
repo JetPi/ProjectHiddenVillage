@@ -35,6 +35,7 @@ public static partial class GameStateResponseMapper
         IReadOnlyList<EffectNoticeResponse>? effectNotices)
     {
         var phaseData = PhaseStateService.GetPhaseData(state.Phase);
+        var hasOutcome = GameEndRules.IsGameOver(state);
 
         return new GameStateResponse(
             GameId: state.GameId,
@@ -45,8 +46,12 @@ public static partial class GameStateResponseMapper
             AttackSequenceStage: ResolveAttackSequenceStage(state),
             IsAttackSequencePending: state.HasPendingAttack,
             PendingAttackVisualState: ResolvePendingAttackVisualState(state),
-            PendingPrompt: ToPendingPromptResponse(pendingPrompt, requestingPlayerId),
-            AvailableActions: BuildAvailableActions(state, phaseData, requestingPlayerId, pendingPrompt),
+            // A finished game publishes no interaction at all: no prompt to answer, no action to take and no
+            // reaction window. The result travels in GameOutcome below, and the board is purely decorative.
+            PendingPrompt: hasOutcome ? null : ToPendingPromptResponse(pendingPrompt, requestingPlayerId),
+            AvailableActions: hasOutcome
+                ? []
+                : BuildAvailableActions(state, phaseData, requestingPlayerId, pendingPrompt),
             ActiveTemporaryEffects: CardRuntimeEffectStateService
                 .BuildTemporaryEffectProjections(state)
                 .Select(effect => new ActiveTemporaryEffectResponse(
@@ -65,10 +70,12 @@ public static partial class GameStateResponseMapper
                 .ToList(),
             Players: state.Players
                 .ConvertAll(player => ToPlayerZonesResponse(player, requestingPlayerId, state, pendingPrompt)),
-            IsSupportResponseWindowOpen: state.Phase == GamePhase.MainPhase
+            IsSupportResponseWindowOpen: !hasOutcome
+                && state.Phase == GamePhase.MainPhase
                 && SupportTimingRules.HasPendingSupportActivation(state),
-            SupportChain: BuildSupportChain(state),
-            EffectNotices: effectNotices);
+            SupportChain: hasOutcome ? [] : BuildSupportChain(state),
+            EffectNotices: effectNotices,
+            GameOutcome: ToGameOutcomeResponse(state.Outcome));
     }
 
     /// <summary>
