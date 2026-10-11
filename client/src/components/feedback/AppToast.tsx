@@ -1,4 +1,5 @@
 import { CheckCircle2, Info, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { IAppToastProps, IAppToastTone } from '@/components/feedback/types'
 
 function toneIcon(tone: IAppToastTone) {
@@ -10,6 +11,7 @@ function toneIcon(tone: IAppToastTone) {
 }
 
 export function AppToast({ tone, message, onClose }: IAppToastProps) {
+  const { t } = useTranslation()
   const badgeClassName =
     tone === 'success'
       ? 'bg-[var(--button-primary-bg)] text-[var(--button-primary-text)]'
@@ -25,7 +27,7 @@ export function AppToast({ tone, message, onClose }: IAppToastProps) {
         <button
           type="button"
           onClick={onClose}
-          aria-label="Dismiss notification"
+          aria-label={t('components.feedback.toast.dismiss')}
           className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-transparent text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
         >
           <X size={12} />

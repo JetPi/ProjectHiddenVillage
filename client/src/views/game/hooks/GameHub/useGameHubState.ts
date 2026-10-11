@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { HubConnection, HubConnectionState } from '@microsoft/signalr'
+import i18n from '@/i18n'
 import {
   connectGameHub,
   createGameHubConnection,
@@ -346,7 +347,7 @@ function useGameHubState(
         setActionError(null)
         return result.value as IGameCardActionTargetsResponse
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unable to fetch card action targets.'
+        const message = error instanceof Error ? error.message : i18n.t('game.errors.fetchCardActionTargets')
         setActionError(message)
         return null
       }

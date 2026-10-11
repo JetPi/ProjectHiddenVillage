@@ -1,8 +1,10 @@
+import { useTranslation } from 'react-i18next'
 import type { IGamePhaseIndicatorProps } from '@/views/game/types'
-import { PhaseValues } from './constants/gamePhaseActionRow'
+import { PhaseValues, translatePhaseValue } from './constants/gamePhaseActionRow'
 import { getPhaseValue } from '@/views/game/utils/functions/helpers'
 
 function GamePhaseIndicator({ gameInstance, authUserId }: IGamePhaseIndicatorProps) {
+  const { t } = useTranslation()
   const phaseValue = getPhaseValue(gameInstance, authUserId)
 
   const indicatorThemeClasses =
@@ -20,7 +22,7 @@ function GamePhaseIndicator({ gameInstance, authUserId }: IGamePhaseIndicatorPro
         }`}
       >
         <span key={phaseValue} className="phase-indicator-text-swap inline-block">
-          {phaseValue}
+          {translatePhaseValue(t, phaseValue)}
         </span>
       </div>
     </div>

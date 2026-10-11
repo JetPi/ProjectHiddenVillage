@@ -1,9 +1,10 @@
+import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui/AppButton'
 import { useGameUIStore } from '@/state/gameUIStore'
 import type { IGamePhaseActionRowProps } from '@/views/game/types'
 import { getPhaseValue, getPhaseThemeClasses, getTributeRequirementSummary } from '@/views/game/utils/functions/helpers'
 import { canConfirmEffectTargetSelection } from '@/views/game/utils/functions/gameState/canConfirmEffectTargetSelection'
-import { invertedPhaseThemeClassByPhaseTheme, phaseActionChipClassName } from './constants/gamePhaseActionRow'
+import { invertedPhaseThemeClassByPhaseTheme, phaseActionChipClassName, translatePhaseValue } from './constants/gamePhaseActionRow'
 
 function cancelActiveTargetingMode(): void {
   const state = useGameUIStore.getState()
@@ -27,6 +28,7 @@ function GamePhaseActionRow({
   onConfirmSummonTargetSelection,
   onConfirmEffectTargetSelection,
 }: IGamePhaseActionRowProps) {
+  const { t } = useTranslation()
   const pendingCardTargeting = useGameUIStore((state) => state.pendingCardTargeting)
   const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
   const pendingEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting)
@@ -76,12 +78,12 @@ function GamePhaseActionRow({
           <button
             type="button"
             data-testid="cancel-target-mode-button"
-            aria-label="Cancel target selection"
+            aria-label={t('game.actionRow.cancelAria')}
             onClick={cancelActiveTargetingMode}
-            title="Cancel current target selection"
+            title={t('game.actionRow.cancelTitle')}
             className={`${phaseActionChipClassName} ${phaseThemeClasses}`}
           >
-            Cancel
+            {t('game.actionRow.cancel')}
           </button>
 
           { tributeRequirement.isActive ?(
@@ -95,13 +97,13 @@ function GamePhaseActionRow({
             >
               <AppButton
                 type="button"
-                aria-label="Confirm tribute selection"
+                aria-label={t('game.actionRow.confirmTributeAria')}
                 title={tributeRequirement.title}
                 onClick={onConfirmSummonTargetSelection}
                 disabled={!isConnected || isActionPending || !tributeRequirement.isSatisfied}
                 className={`${phaseActionChipClassName} ${payButtonThemeClasses} hover:brightness-150`}
               >
-                Pay
+                {t('game.actionRow.pay')}
               </AppButton>
             </div>
           ): null}
@@ -110,12 +112,12 @@ function GamePhaseActionRow({
             <button
               type="button"
               data-testid="confirm-effect-target-selection-button"
-              aria-label="Confirm target selection"
+              aria-label={t('game.actionRow.confirmTargetAria')}
               onClick={onConfirmEffectTargetSelection}
               disabled={!isConnected || isActionPending || !canConfirmEffectTargetSelection(pendingEffectTargeting)}
               className={`${phaseActionChipClassName} ${payButtonThemeClasses} disabled:cursor-not-allowed disabled:opacity-50`}
             >
-              Confirm
+              {t('game.actionRow.confirm')}
             </button>
           ) : null}
           </>
@@ -126,7 +128,7 @@ function GamePhaseActionRow({
           className={`min-w-0 flex-1 rounded-md border border-[var(--border-subtle)] py-0.5 text-center transition-[max-width,transform,opacity] duration-300 ease-out ${phaseThemeClasses}`}
         >
           <span key={phaseValue} className="phase-indicator-text-swap inline-block text-[12px] font-extrabold leading-none">
-            {phaseValue}
+            {translatePhaseValue(t, phaseValue)}
           </span>
         </div>
       </div>

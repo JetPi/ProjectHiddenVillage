@@ -1,10 +1,17 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { translateKey } from '@/i18n'
 import { CardAdminSelect } from './CardAdminSelect'
 import {
+  optionLabel,
+  PREDICATE_CARD_COLOR_LABEL_KEYS,
   PREDICATE_CARD_COLOR_VALUE_OPTIONS,
+  PREDICATE_CARD_TYPE_LABEL_KEYS,
   PREDICATE_CARD_TYPE_VALUE_OPTIONS,
   PREDICATE_NUMERIC_PROPERTY_OPTIONS,
+  PREDICATE_OPERATOR_LABEL_KEYS,
   PREDICATE_OPERATOR_OPTIONS,
+  PREDICATE_PROPERTY_LABEL_KEYS,
   PREDICATE_PROPERTY_OPTIONS,
 } from '@/views/admin/constants'
 import type { ICardCatalogPredicateProperty } from '@/services/api/types/cardCatalog'
@@ -18,7 +25,12 @@ export function CardAdminPredicateControls({
   onOperatorChange,
   onAddValue,
 }: ICardAdminPredicateControlsProps) {
+  const { t } = useTranslation()
   const [pendingEnumValue, setPendingEnumValue] = useState('')
+
+  const enumLabelKeys = predicateProperty === 'Type'
+    ? PREDICATE_CARD_TYPE_LABEL_KEYS
+    : PREDICATE_CARD_COLOR_LABEL_KEYS
 
   const enumOptions = useMemo(() => {
     if (predicateProperty === 'Type') {
@@ -58,7 +70,7 @@ export function CardAdminPredicateControls({
         className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[11rem]"
       >
         {PREDICATE_PROPERTY_OPTIONS.map((option) => (
-          <option key={option} value={option}>{option}</option>
+          <option key={option} value={option}>{optionLabel(t, PREDICATE_PROPERTY_LABEL_KEYS, option)}</option>
         ))}
       </CardAdminSelect>
 
@@ -68,7 +80,7 @@ export function CardAdminPredicateControls({
         className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[10rem]"
       >
         {PREDICATE_OPERATOR_OPTIONS.map((option) => (
-          <option key={option} value={option}>{option}</option>
+          <option key={option} value={option}>{optionLabel(t, PREDICATE_OPERATOR_LABEL_KEYS, option)}</option>
         ))}
       </CardAdminSelect>
 
@@ -88,9 +100,9 @@ export function CardAdminPredicateControls({
             }}
             className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
-            <option value="">Select value</option>
+            <option value="">{t('admin.controls.predicate.selectValue')}</option>
             {enumOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>{optionLabel(t, enumLabelKeys, option.value)}</option>
             ))}
           </CardAdminSelect>
         </div>
@@ -101,10 +113,10 @@ export function CardAdminPredicateControls({
             inputMode={isNumericProperty ? 'decimal' : undefined}
             placeholder={
               predicateEntries.length > 0
-                ? `Add value (current: ${predicateEntries.join(', ')})`
+                ? translateKey(t, 'admin.controls.predicate.addValueCurrent', { current: predicateEntries.join(', ') })
                 : isNumericProperty
-                  ? 'Add number and press Enter'
-                  : 'Add value and press Enter'
+                  ? t('admin.controls.predicate.addNumber')
+                  : t('admin.controls.predicate.addValue')
             }
             onKeyDown={(event) => {
               if (event.key !== 'Enter') {

@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs } from 'react-router-dom'
 import { redirect } from 'react-router-dom'
+import i18n from '@/i18n'
 import { api } from '@/services/api/httpClient'
 import type { IAuthSession } from '@/state/authSession'
 import { persistAuthSession } from '@/state/authSession'
@@ -27,7 +28,7 @@ export async function signInAction({ request }: ActionFunctionArgs): Promise<ISi
     return {
       signUp: {
         ok: false,
-        error: 'Username, email, and password are required.',
+        error: i18n.t('auth.errors.signUpRequired'),
         values: {
           username,
           email,
@@ -68,7 +69,7 @@ export async function signInAction({ request }: ActionFunctionArgs): Promise<ISi
     return {
       signUp: {
         ok: false,
-        error: getApiErrorMessage(error, 'Sign up failed. Please try again.'),
+        error: getApiErrorMessage(error, i18n.t('auth.errors.signUpFailed')),
         values: {
           username,
           email,

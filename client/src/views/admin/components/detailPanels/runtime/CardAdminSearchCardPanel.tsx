@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { CardAdminChevronIcon, CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import type { ICardAdminSearchCardPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
 
@@ -13,17 +14,18 @@ export function CardAdminSearchCardPanel({
   effectIndex,
   updateEffectAt,
 }: ICardAdminSearchCardPanelProps) {
+  const { t } = useTranslation()
+
   return (
     <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-cyan-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        <span>Search Options</span>
+        <span>{t('admin.panels.searchCard.title')}</span>
         <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
       <div className="mt-3 grid grid-cols-1 gap-3">
         <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
-          The player picks the card with a prompt. Configure the move below with Source Zone = Deck - that zone
-          supplies the prompt&apos;s candidates - plus the destination the searched card should reach.
+          {t('admin.panels.searchCard.help')}
         </p>
 
         <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
@@ -31,9 +33,9 @@ export function CardAdminSearchCardPanel({
             checked={effect.searchRevealSelection ?? true}
             onChange={(checked) =>
               updateEffectAt(effectIndex, (current) => ({ ...current, searchRevealSelection: checked }))}
-            ariaLabel="Reveal Searched Card"
+            ariaLabel={t('admin.panels.searchCard.revealSelection')}
           />
-          Reveal the searched card
+          {t('admin.panels.searchCard.revealSelection')}
         </label>
 
         <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
@@ -41,9 +43,9 @@ export function CardAdminSearchCardPanel({
             checked={effect.searchShuffleAfter ?? true}
             onChange={(checked) =>
               updateEffectAt(effectIndex, (current) => ({ ...current, searchShuffleAfter: checked }))}
-            ariaLabel="Shuffle After Search"
+            ariaLabel={t('admin.panels.searchCard.shuffleAfter')}
           />
-          Shuffle the deck afterwards
+          {t('admin.panels.searchCard.shuffleAfter')}
         </label>
       </div>
     </details>

@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
 import { twMerge } from 'tailwind-merge'
+import i18n from '@/i18n'
 import {
   DESCRIPTION_BOLD_PHRASES,
   DESCRIPTION_KEYWORD_PILL_CLASS_BY_COLOR,
   DESCRIPTION_KEYWORDS_BY_COLOR,
+  KEYWORD_DESCRIPTION_KEYS,
   KEYWORD_DESCRIPTION_VARIANTS,
-  KEYWORD_DESCRIPTIONS,
   type DescriptionKeywordColor,
 } from '@/components/ui/cards/constants'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
@@ -118,7 +119,9 @@ function normalizeDescriptionKeyword(value: string): string {
 
 function resolveKeywordDescription(keyword: string): string | null {
   const normalizedKeyword = normalizeDescriptionKeyword(keyword)
-  return KEYWORD_DESCRIPTIONS[normalizedKeyword as keyof typeof KEYWORD_DESCRIPTIONS] ?? null
+  const descriptionKey =
+    KEYWORD_DESCRIPTION_KEYS[normalizedKeyword as keyof typeof KEYWORD_DESCRIPTION_KEYS] ?? null
+  return descriptionKey ? i18n.t(descriptionKey) : null
 }
 
 function resolveKeywordDescriptionVariants(keyword: string): string[] {

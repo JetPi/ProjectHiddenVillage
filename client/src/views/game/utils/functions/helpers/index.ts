@@ -1,3 +1,4 @@
+import i18n from '@/i18n'
 import { PhaseValues } from "@/views/game/components/constants/gamePhaseActionRow"
 import type { IGameOutcomeResponse, IGameStateResponse, ISupportChainEntryResponse } from "@/services/api/gameApi"
 import type {
@@ -289,8 +290,12 @@ function getTributeRequirementSummary(
     groups,
     isSatisfied,
     title: isSatisfied
-      ? `All tribute requirements fulfilled · ${selectedCount}/${requiredCount} selected`
-      : `Select tribute materials · ${selectedCount}/${requiredCount} selected · still needs ${materialSummary}`,
+      ? i18n.t('game.tribute.titleSatisfied', { selected: selectedCount, required: requiredCount })
+      : i18n.t('game.tribute.titlePending', {
+        selected: selectedCount,
+        required: requiredCount,
+        needs: materialSummary,
+      }),
   }
 }
 
@@ -311,7 +316,7 @@ function getTributeSelectionPhaseValue(
     return PhaseValues['fulfilled-tribute-requirements']
   }
 
-  return `${PhaseValues['selecting-tribute-materials']} (needs: (${summary.materialSummary}))`
+  return i18n.t('game.phase.tributeNeeds', { needs: summary.materialSummary })
 }
 
 /**
@@ -333,7 +338,7 @@ function getEffectTargetSelectionPhaseValue(
   const requiredCount = resolveEffectTargetRequiredCount(pendingEffectTargeting)
   const remainingCount = Math.max(0, requiredCount - pendingEffectTargeting.selectedTargets.length)
 
-  return `${PhaseValues['selecting-effect-targets']} (needs: ${remainingCount})`
+  return i18n.t('game.phase.effectTargetsNeeds', { needs: remainingCount })
 }
 
 /**
@@ -504,12 +509,18 @@ function buildGameOutcomePresentation(
 
   return {
     standing,
-    headline: standing === 'victory' ? 'Victory' : standing === 'defeat' ? 'Defeat' : 'Draw',
-    reason: outcome.reason === 'DeckOut'
-      ? 'A player ran out of cards to draw.'
-      : outcome.reason === 'LeaderLifeDepleted'
-        ? "A leader's life points reached 0."
-        : 'The game ended.',
+    headline:
+      standing === 'victory'
+        ? i18n.t('game.outcome.victory')
+        : standing === 'defeat'
+          ? i18n.t('game.outcome.defeat')
+          : i18n.t('game.outcome.draw'),
+    reason:
+      outcome.reason === 'DeckOut'
+        ? i18n.t('game.outcome.reasonDeckOut')
+        : outcome.reason === 'LeaderLifeDepleted'
+          ? i18n.t('game.outcome.reasonLeaderLifeDepleted')
+          : i18n.t('game.outcome.reasonDefault'),
   }
 }
 

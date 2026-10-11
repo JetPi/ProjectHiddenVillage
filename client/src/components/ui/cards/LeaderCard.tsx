@@ -1,5 +1,6 @@
 import { Eye, Flame } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { CardImage } from '@/components/ui/cards/CardImage'
 import { CardOverlayBadge } from '@/components/ui/cards/CardOverlayBadge'
@@ -40,7 +41,7 @@ export function LeaderCard({
   hidePreviewButton = false,
   disableInteractions = false,
   leaderCard,
-  placeholderLabel = 'Leader',
+  placeholderLabel,
   showBadgeWhenLifeMissing = false,
   previewCard = null,
   actionOptions = [],
@@ -52,13 +53,15 @@ export function LeaderCard({
   onToggleEffectTarget,
   onSelectActionOption,
 }: ILeaderCardProps) {
+  const { t } = useTranslation()
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const { className: surfaceClassName, ...surfaceRestProps } = surfaceProps ?? {}
+  const resolvedPlaceholderLabel = placeholderLabel ?? t('components.ui.leaderCard.placeholder')
 
   if (!leaderCard) {
     return (
       <PlayCard className={twMerge(className, surfaceClassName)} {...surfaceRestProps}>
-        <div className="flex h-full items-center justify-center text-center">{placeholderLabel}</div>
+        <div className="flex h-full items-center justify-center text-center">{resolvedPlaceholderLabel}</div>
       </PlayCard>
     )
   }
@@ -98,7 +101,7 @@ export function LeaderCard({
             <button
               type="button"
               onClick={() => setIsPreviewOpen(true)}
-              aria-label="Open leader card details"
+              aria-label={t('components.ui.leaderCard.openDetails')}
               className="inline-flex h-5 w-5 items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80"
             >
               <Eye size={10} />
@@ -116,7 +119,7 @@ export function LeaderCard({
               disabled={isDisabled}
               className={LEADER_ACTION_BUTTON_CLASSNAME}
             >
-              Choose
+              {t('components.ui.leaderCard.choose')}
             </button>
           </div>
         ) : null}
@@ -134,7 +137,7 @@ export function LeaderCard({
               disabled={isDisabled}
               className={LEADER_ACTION_BUTTON_CLASSNAME}
             >
-              Select
+              {t('components.ui.leaderCard.select')}
             </button>
           </div>
         ) : null}
@@ -165,7 +168,7 @@ export function LeaderCard({
             <button
               type="button"
               disabled={isDisabled || !recoveryAction.isEnabled}
-              aria-label="Activate leader recovery"
+              aria-label={t('components.ui.leaderCard.activateRecovery')}
               title={recoveryAction.disabledReason ?? recoveryAction.label}
               onClick={() => {
                 onSelectActionOption?.(recoveryAction.actionId)

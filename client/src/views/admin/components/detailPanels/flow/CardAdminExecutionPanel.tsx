@@ -1,11 +1,18 @@
+import { useTranslation } from 'react-i18next'
 import {
   CARD_CATALOG_EXECUTION_CONDITION_ARGUMENT_KEY_OPTIONS,
   type ICardCatalogEffectExecutionConditionArgumentKey,
 } from '@/types/cardCatalogExecutionCondition'
+import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog'
 import {
+  EXECUTION_FLOW_MODE_LABEL_KEYS,
   EXECUTION_FLOW_MODE_OPTIONS,
+  EXECUTION_TARGET_SOURCE_LABEL_KEYS,
   EXECUTION_TARGET_SOURCE_OPTIONS,
+  optionLabel,
+  SELECTION_PROMPT_KIND_LABEL_KEYS,
   SELECTION_PROMPT_KIND_OPTIONS,
+  SELECTION_TIMING_LABEL_KEYS,
   SELECTION_TIMING_OPTIONS,
 } from '@/views/admin/constants'
 import { AppButton } from '@/components/ui'
@@ -20,77 +27,58 @@ export function CardAdminExecutionPanel({
   updateEffectAt,
   effectBranchErrors,
 }: ICardAdminExecutionPanelProps) {
-  const declaresSelectableTargets = effect.targetRules.rules.length > 0
-    || effect.targetRules.exactTargetCount !== null
-    || effect.targetRules.minimumTargetCount !== null
-    || effect.targetRules.maximumTargetCount !== null
-  const isPlayerScopedChakraLock = effect.runtimeEffectType === 'Lock Chakra Recovery'
-  const isAttackNegation = effect.runtimeEffectType === 'Interrupt Attack'
-  // The shape that made N-016 unplayable: asking for a pick while declaring nothing to pick from.
-  const asksForSelectionWithoutTargetRules =
-    effect.executionTargetSource === 'Selected Targets' && !declaresSelectableTargets
-  // N-008's shape: the effect resolves its own target ("Interrupt Attack" cancels the pending attack), so the
-  // declared count is never collected - the availability gate reads it as "needs a target" and refuses the
-  // whole activation with "No valid targets available.".
-  const declaresCountWithoutCollection =
-    effect.executionTargetSource === 'None'
-    && declaresSelectableTargets
-    && effect.targetRules.rules.length === 0
-  const isPromptedSelection = effect.selectionTiming === 'Prompted'
-  // A prompted node with nothing to draw candidates from never asks - the engine skips the prompt when the
-  // candidate pool is empty - so the step would silently do nothing.
-  const promptedWithoutCandidateSource =
-    isPromptedSelection
-    && !declaresSelectableTargets
-    && !effect.moveCardActions.some((action) => action.sourceZone !== null)
+  const { t } = useTranslation()
+  const {
+    isPlayerScopedChakraLock,
+    isAttackNegation,
+    asksForSelectionWithoutTargetRules,
+    declaresCountWithoutCollection,
+    isPromptedSelection,
+    promptedWithoutCandidateSource,
+  } = getFlags(effect)
 
   return (
     <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-sky-500/55 pl-3 pt-3" open>
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        <span>Execution Target</span>
+        <span>{t('admin.panels.execution.title')}</span>
         <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
       <div className="space-y-1">
-        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Execution Target Source</label>
+        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.execution.targetSource')}</label>
         <CardAdminSelect
           value={effect.executionTargetSource}
           onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, executionTargetSource: value }))}
         >
           {EXECUTION_TARGET_SOURCE_OPTIONS.map((option) => (
-            <option key={option} value={option}>{option}</option>
+            <option key={option} value={option}>{optionLabel(t, EXECUTION_TARGET_SOURCE_LABEL_KEYS, option)}</option>
           ))}
         </CardAdminSelect>
 
         {isPlayerScopedChakraLock ? (
           <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
-            Locks the chakra of the players in Target Range (Self / Opponent / Any) for the effect&apos;s duration: while it
-            lasts they cannot turn chakra face-up, so Recovery is refused. Keep Execution Target Source at None - this
-            effect never picks a card.
+            {t('admin.panels.execution.chakraLockHelp')}
           </p>
         ) : null}
 
         {isAttackNegation ? (
           <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
-            Cancels the pending attack (the attacker stays rested) and then runs this effect&apos;s other nodes -
-            &ldquo;summon this card&rdquo; is the usual branch. It resolves the attack itself, so keep Execution Target
-            Source at None and leave the target counts empty.
+            {t('admin.panels.execution.attackNegationHelp')}
           </p>
         ) : null}
 
         {asksForSelectionWithoutTargetRules ? (
           <div className="space-y-1 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2">
             <p className="text-[11px] leading-snug text-amber-700">
-              This effect asks for a target selection but declares no selectable target rules, so activation is refused
-              with &ldquo;No valid targets available.&rdquo;. Set Execution Target Source to None, or add target rules below.
+              {t('admin.panels.execution.selectionWithoutRulesHelp')}
             </p>
             <AppButton
               type="button"
               variant="ghost"
               onClick={() => updateEffectAt(effectIndex, (current) => ({ ...current, executionTargetSource: 'None' }))}
             >
-              Set Execution Target Source to None
+              {t('admin.panels.execution.setTargetSourceNone')}
             </AppButton>
           </div>
         ) : null}
@@ -98,8 +86,7 @@ export function CardAdminExecutionPanel({
         {declaresCountWithoutCollection ? (
           <div className="space-y-1 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2">
             <p className="text-[11px] leading-snug text-amber-700">
-              This effect resolves its own target (Execution Target Source: None) but still declares a target count.
-              Nothing is ever collected, and the count only makes the effect read &ldquo;No valid targets available.&rdquo;.
+              {t('admin.panels.execution.countWithoutCollectionHelp')}
             </p>
             <AppButton
               type="button"
@@ -114,56 +101,52 @@ export function CardAdminExecutionPanel({
                 },
               }))}
             >
-              Clear target count
+              {t('admin.panels.execution.clearTargetCount')}
             </AppButton>
           </div>
         ) : null}
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Execution Flow Mode</label>
+        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.execution.flowMode')}</label>
         <CardAdminSelect
           value={effect.executionFlowMode}
           onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, executionFlowMode: value }))}
         >
           {EXECUTION_FLOW_MODE_OPTIONS.map((option) => (
-            <option key={option} value={option}>{option}</option>
+            <option key={option} value={option}>{optionLabel(t, EXECUTION_FLOW_MODE_LABEL_KEYS, option)}</option>
           ))}
         </CardAdminSelect>
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Selection Timing</label>
+        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.execution.selectionTiming')}</label>
         <CardAdminSelect
           value={effect.selectionTiming ?? 'Upfront'}
           onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, selectionTiming: value }))}
         >
           {SELECTION_TIMING_OPTIONS.map((option) => (
-            <option key={option} value={option}>{option}</option>
+            <option key={option} value={option}>{optionLabel(t, SELECTION_TIMING_LABEL_KEYS, option)}</option>
           ))}
         </CardAdminSelect>
         <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
-          Upfront asks for the targets together with the activation. Prompted asks with a pop-up once this
-          step runs, so an earlier step can change the candidate pool first (&ldquo;draw 1 card, then place 1
-          card from your hand on top of your deck&rdquo;) - author that as two chained effects, the second one
-          Prompted.
+          {t('admin.panels.execution.selectionTimingHelp')}
         </p>
       </div>
 
       {isPromptedSelection ? (
         <div className="space-y-1">
-          <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Selection Prompt Kind</label>
+          <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.execution.selectionPromptKind')}</label>
           <CardAdminSelect
             value={effect.selectionPromptKind ?? 'Generic'}
             onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, selectionPromptKind: value }))}
           >
             {SELECTION_PROMPT_KIND_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>{optionLabel(t, SELECTION_PROMPT_KIND_LABEL_KEYS, option)}</option>
             ))}
           </CardAdminSelect>
           <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
-            Which wording the prompt uses. The copy lives in the client, so a new kind here needs a matching
-            client entry.
+            {t('admin.panels.execution.selectionPromptKindHelp')}
           </p>
         </div>
       ) : null}
@@ -171,15 +154,14 @@ export function CardAdminExecutionPanel({
       {promptedWithoutCandidateSource ? (
         <div className="space-y-1 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2 sm:col-span-2">
           <p className="text-[11px] leading-snug text-amber-700">
-            A prompted selection needs something to pick from: add target rules, a target count, or a move-card
-            action with a source zone (that zone supplies the candidates). Without one the prompt is skipped.
+            {t('admin.panels.execution.promptedWithoutCandidateHelp')}
           </p>
           <AppButton
             type="button"
             variant="ghost"
             onClick={() => updateEffectAt(effectIndex, (current) => ({ ...current, selectionTiming: 'Upfront' }))}
           >
-            Set Selection Timing to Upfront
+            {t('admin.panels.execution.setSelectionTimingUpfront')}
           </AppButton>
         </div>
       ) : null}
@@ -199,15 +181,15 @@ export function CardAdminExecutionPanel({
                   }
                 : null,
             }))}
-          ariaLabel="Execution Condition Enabled"
+          ariaLabel={t('admin.panels.execution.conditionEnabled')}
         />
-        Execution Condition Enabled
+        {t('admin.panels.execution.conditionEnabled')}
       </label>
 
       {effect.executionCondition ? (
         <>
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Condition Argument Key</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.execution.argumentKey')}</label>
             <CardAdminSelect
               value={effect.executionCondition.argumentKey}
               onValueChange={(value) =>
@@ -228,7 +210,7 @@ export function CardAdminExecutionPanel({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Condition Expected Value</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.execution.expectedValue')}</label>
             <input
               type="text"
               value={effect.executionCondition.expectedValue}
@@ -253,9 +235,9 @@ export function CardAdminExecutionPanel({
                     ? { ...current.executionCondition, ignoreCase: checked }
                     : null,
                 }))}
-              ariaLabel="Ignore Case"
+              ariaLabel={t('admin.panels.execution.ignoreCase')}
             />
-            Ignore Case
+            {t('admin.panels.execution.ignoreCase')}
           </label>
 
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
@@ -268,9 +250,9 @@ export function CardAdminExecutionPanel({
                     ? { ...current.executionCondition, negate: checked }
                     : null,
                 }))}
-              ariaLabel="Negate Condition"
+              ariaLabel={t('admin.panels.execution.negateCondition')}
             />
-            Negate Condition
+            {t('admin.panels.execution.negateCondition')}
           </label>
         </>
       ) : null}
@@ -285,4 +267,39 @@ export function CardAdminExecutionPanel({
       </div>
     </details>
   )
+}
+
+function getFlags(effect: ICardCatalogEffectRequest) {
+  const declaresSelectableTargets =
+    effect.targetRules.rules.length > 0
+    || effect.targetRules.exactTargetCount !== null
+    || effect.targetRules.minimumTargetCount !== null
+    || effect.targetRules.maximumTargetCount !== null
+
+  const isPlayerScopedChakraLock = effect.runtimeEffectType === 'Lock Chakra Recovery'
+  const isAttackNegation = effect.runtimeEffectType === 'Interrupt Attack'
+  const isPromptedSelection = effect.selectionTiming === 'Prompted'
+
+  const asksForSelectionWithoutTargetRules =
+    effect.executionTargetSource === 'Selected Targets' && !declaresSelectableTargets
+
+  const declaresCountWithoutCollection =
+    effect.executionTargetSource === 'None'
+    && declaresSelectableTargets
+    && effect.targetRules.rules.length === 0
+
+  const promptedWithoutCandidateSource =
+    isPromptedSelection
+    && !declaresSelectableTargets
+    && !effect.moveCardActions.some((action) => action.sourceZone !== null)
+
+  return {
+    declaresSelectableTargets,
+    isPlayerScopedChakraLock,
+    isAttackNegation,
+    asksForSelectionWithoutTargetRules,
+    declaresCountWithoutCollection,
+    isPromptedSelection,
+    promptedWithoutCandidateSource,
+  }
 }

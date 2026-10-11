@@ -1,9 +1,14 @@
+import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 import {
+  FACE_STATE_LABEL_KEYS,
   FACE_STATE_OPTIONS,
+  FACE_STATE_TARGET_CATEGORY_LABEL_KEYS,
   FACE_STATE_TARGET_CATEGORY_OPTIONS,
+  optionLabel,
+  TARGET_RANGE_LABEL_KEYS,
   TARGET_RANGE_OPTIONS,
 } from '@/views/admin/constants'
 import type { ICardAdminFaceStateFlipsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
@@ -15,10 +20,12 @@ export function CardAdminFaceStateFlipsPanel({
   effectIndex,
   updateEffectAt,
 }: ICardAdminFaceStateFlipsPanelProps) {
+  const { t } = useTranslation()
+
   return (
     <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-indigo-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        <span>Face State Flips</span>
+        <span>{t('admin.panels.faceStateFlips.title')}</span>
         <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
@@ -34,7 +41,7 @@ export function CardAdminFaceStateFlipsPanel({
               summonCardFlips: [...current.summonCardFlips, createDefaultSummonCardFlip()],
             }))}
         >
-          Add Face State Flip
+          {t('admin.panels.faceStateFlips.add')}
         </AppButton>
       </div>
 
@@ -51,7 +58,7 @@ export function CardAdminFaceStateFlipsPanel({
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
             {FACE_STATE_TARGET_CATEGORY_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>{optionLabel(t, FACE_STATE_TARGET_CATEGORY_LABEL_KEYS, option)}</option>
             ))}
           </CardAdminSelect>
 
@@ -66,7 +73,7 @@ export function CardAdminFaceStateFlipsPanel({
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
             {TARGET_RANGE_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>{optionLabel(t, TARGET_RANGE_LABEL_KEYS, option)}</option>
             ))}
           </CardAdminSelect>
 
@@ -81,7 +88,7 @@ export function CardAdminFaceStateFlipsPanel({
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
             {FACE_STATE_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>{optionLabel(t, FACE_STATE_LABEL_KEYS, option)}</option>
             ))}
           </CardAdminSelect>
 
@@ -92,7 +99,7 @@ export function CardAdminFaceStateFlipsPanel({
                 summonCardFlips: current.summonCardFlips.filter((_, index) => index !== summonFlipIndex),
               }))}
             className="inline-flex h-10 w-10 items-center justify-center self-stretch rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]"
-            ariaLabel="Remove Face State Flip"
+            ariaLabel={t('admin.panels.faceStateFlips.remove')}
           />
         </div>
       ))}

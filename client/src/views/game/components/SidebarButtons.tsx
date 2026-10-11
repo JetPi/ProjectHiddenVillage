@@ -1,9 +1,11 @@
 import { Lightbulb, RotateCcw, ScrollText, SkipForward } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { IGameZonesProps } from "@/views/game/types";
 import { AppButton } from "@/components/ui";
 import { useGameUIStore } from "@/state/gameUIStore";
 
 export function SideBarButtons(props: IGameZonesProps){
+    const { t } = useTranslation()
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
     const isEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting !== null)
    
@@ -23,13 +25,13 @@ export function SideBarButtons(props: IGameZonesProps){
             variant="ghost"
             data-testid="theme-toggle-button"
             onClick={props.onToggleTheme}
-            aria-label="Toggle light and dark mode"
+            aria-label={t('game.sidebar.toggleThemeAria')}
             className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
           >
             <Lightbulb size={10} />
           </AppButton>
           <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-            Toggle Theme
+            {t('game.sidebar.toggleThemeTooltip')}
           </span>
         </div>
 
@@ -38,7 +40,7 @@ export function SideBarButtons(props: IGameZonesProps){
             type="button"
             variant="ghost"
             data-testid="pass-turn-button"
-            aria-label="Pass turn"
+            aria-label={t('game.sidebar.passTurnAria')}
             onClick={props.onPassTurn}
             disabled={!props.isConnected || props.isActionPending}
             className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
@@ -46,7 +48,7 @@ export function SideBarButtons(props: IGameZonesProps){
             <SkipForward size={10} />
           </AppButton>
           <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-            Do Nothing / Pass
+            {t('game.sidebar.passTurnTooltip')}
           </span>
         </div>
 
@@ -55,14 +57,14 @@ export function SideBarButtons(props: IGameZonesProps){
             <AppButton
               type="button"
               variant="ghost"
-              aria-label="Cancel attack target selection"
+              aria-label={t('game.sidebar.cancelAttackAria')}
               onClick={() => useGameUIStore.getState().cancelBattleTargeting()}
               className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
             >
               <span className="text-[10px] font-bold leading-none">X</span>
             </AppButton>
             <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-              Cancel Attack Target
+              {t('game.sidebar.cancelAttackTooltip')}
             </span>
           </div>
         ) : null}
@@ -72,14 +74,14 @@ export function SideBarButtons(props: IGameZonesProps){
             <AppButton
               type="button"
               variant="ghost"
-              aria-label="Cancel target selection"
+              aria-label={t('game.sidebar.cancelTargetAria')}
               onClick={() => useGameUIStore.getState().cancelEffectTargeting()}
               className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
             >
               <span className="text-[10px] font-bold leading-none">X</span>
             </AppButton>
             <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-              Cancel Target Selection
+              {t('game.sidebar.cancelTargetTooltip')}
             </span>
           </div>
         ) : null}
@@ -88,14 +90,14 @@ export function SideBarButtons(props: IGameZonesProps){
           <AppButton
             type="button"
             variant="ghost"
-            aria-label="Undo action"
+            aria-label={t('game.sidebar.undoAria')}
             disabled={!props.isConnected || props.isActionPending}
             className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
           >
             <RotateCcw size={10} />
           </AppButton>
           <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-            Undo Action
+            {t('game.sidebar.undoTooltip')}
           </span>
         </div>
 
@@ -103,14 +105,14 @@ export function SideBarButtons(props: IGameZonesProps){
           <AppButton
             type="button"
             variant="ghost"
-            aria-label="Open log"
+            aria-label={t('game.sidebar.openLogAria')}
             disabled={!props.isConnected || props.isActionPending}
             className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
           >
             <ScrollText size={10} />
           </AppButton>
           <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
-            Open Log
+            {t('game.sidebar.openLogTooltip')}
           </span>
         </div>
       </div>

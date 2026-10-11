@@ -1,11 +1,17 @@
+import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 import {
+  optionLabel,
+  PASSIVE_CONSEQUENCE_EFFECT_LABEL_KEYS,
   PASSIVE_CONSEQUENCE_EFFECT_OPTIONS,
+  PASSIVE_SCOPE_LABEL_KEYS,
   PASSIVE_SCOPE_OPTIONS,
+  PASSIVE_TARGET_POLICY_LABEL_KEYS,
   PASSIVE_TARGET_POLICY_OPTIONS,
+  PASSIVE_TRIGGER_KIND_LABEL_KEYS,
   PASSIVE_TRIGGER_KIND_OPTIONS,
 } from '@/views/admin/constants'
 import type { ICardAdminPassiveSettingsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
@@ -20,10 +26,12 @@ export function CardAdminPassiveSettingsPanel({
   effectIndex,
   updateEffectAt,
 }: ICardAdminPassiveSettingsPanelProps) {
+  const { t } = useTranslation()
+
   return (
     <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-violet-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        <span>Passive Settings</span>
+        <span>{t('admin.panels.passiveSettings.title')}</span>
         <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
@@ -39,15 +47,15 @@ export function CardAdminPassiveSettingsPanel({
                 ? current.passiveReevaluation ?? createDefaultPassiveReevaluation()
                 : null,
             }))}
-          ariaLabel="Passive Reevaluation Enabled"
+          ariaLabel={t('admin.panels.passiveSettings.reevaluationEnabled')}
         />
-        Passive Reevaluation Enabled
+        {t('admin.panels.passiveSettings.reevaluationEnabled')}
       </label>
 
       {effect.passiveReevaluation ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Reevaluation Scope</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.passiveSettings.reevaluationScope')}</label>
             <CardAdminSelect
               value={effect.passiveReevaluation.scope}
               onValueChange={(value) =>
@@ -59,13 +67,13 @@ export function CardAdminPassiveSettingsPanel({
                 }))}
             >
               {PASSIVE_SCOPE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
+                <option key={option} value={option}>{optionLabel(t, PASSIVE_SCOPE_LABEL_KEYS, option)}</option>
               ))}
             </CardAdminSelect>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Trigger Kind</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.passiveSettings.triggerKind')}</label>
             <CardAdminSelect
               value={effect.passiveReevaluation.triggerKinds[0] ?? 'Any'}
               onValueChange={(value) =>
@@ -77,7 +85,7 @@ export function CardAdminPassiveSettingsPanel({
                 }))}
             >
               {PASSIVE_TRIGGER_KIND_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
+                <option key={option} value={option}>{optionLabel(t, PASSIVE_TRIGGER_KIND_LABEL_KEYS, option)}</option>
               ))}
             </CardAdminSelect>
           </div>
@@ -86,7 +94,7 @@ export function CardAdminPassiveSettingsPanel({
 
       <div className="space-y-2 border-l-2 border-l-violet-500/30 pl-3">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Consequences</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.passiveSettings.consequences')}</p>
           <AppButton
             type="button"
             variant="ghost"
@@ -96,7 +104,7 @@ export function CardAdminPassiveSettingsPanel({
                 passiveConsequences: [...(current.passiveConsequences ?? []), createDefaultPassiveConsequence()],
               }))}
           >
-            Add Consequence
+            {t('admin.panels.passiveSettings.addConsequence')}
           </AppButton>
         </div>
 
@@ -113,7 +121,7 @@ export function CardAdminPassiveSettingsPanel({
               className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
             >
               {PASSIVE_CONSEQUENCE_EFFECT_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
+                <option key={option} value={option}>{optionLabel(t, PASSIVE_CONSEQUENCE_EFFECT_LABEL_KEYS, option)}</option>
               ))}
             </CardAdminSelect>
 
@@ -130,7 +138,7 @@ export function CardAdminPassiveSettingsPanel({
               className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
             >
               {PASSIVE_TARGET_POLICY_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
+                <option key={option} value={option}>{optionLabel(t, PASSIVE_TARGET_POLICY_LABEL_KEYS, option)}</option>
               ))}
             </CardAdminSelect>
 
@@ -141,7 +149,7 @@ export function CardAdminPassiveSettingsPanel({
                   passiveConsequences: (current.passiveConsequences ?? []).filter((_, index) => index !== consequenceIndex),
                 }))}
               className="inline-flex h-10 w-10 items-center justify-center self-stretch rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]"
-              ariaLabel="Remove Passive Consequence"
+              ariaLabel={t('admin.panels.passiveSettings.removeConsequence')}
             />
           </div>
         ))}

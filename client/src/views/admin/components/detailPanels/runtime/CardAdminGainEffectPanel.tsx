@@ -1,9 +1,13 @@
+import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 import {
+  KEYWORD_OPERATION_LABEL_KEYS,
   KEYWORD_OPERATION_OPTIONS,
+  KEYWORD_TARGET_TYPE_LABEL_KEYS,
   KEYWORD_TARGET_TYPE_OPTIONS,
+  optionLabel,
 } from '@/views/admin/constants'
 import type { ICardAdminGainEffectPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
 import { createDefaultKeywordModification } from '@/views/admin/utils'
@@ -15,10 +19,12 @@ export function CardAdminGainEffectPanel({
   updateEffectAt,
   effectConditionKeywordOptions,
 }: ICardAdminGainEffectPanelProps) {
+  const { t } = useTranslation()
+
   return (
     <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-fuchsia-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        <span>Gain Effect Settings</span>
+        <span>{t('admin.panels.gainEffect.title')}</span>
         <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
@@ -26,7 +32,7 @@ export function CardAdminGainEffectPanel({
 
       <div className="space-y-2 border-l-2 border-l-fuchsia-500/30 pl-3">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Keyword Modifications</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.gainEffect.keywordModifications')}</p>
           <AppButton
             type="button"
             variant="ghost"
@@ -36,7 +42,7 @@ export function CardAdminGainEffectPanel({
                 keywordModifications: [...(current.keywordModifications ?? []), createDefaultKeywordModification()],
               }))}
           >
-            Add Keyword Mod
+            {t('admin.panels.gainEffect.addKeywordMod')}
           </AppButton>
         </div>
 
@@ -54,7 +60,7 @@ export function CardAdminGainEffectPanel({
                 className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
               >
                 {KEYWORD_TARGET_TYPE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>{option}</option>
+                  <option key={option} value={option}>{optionLabel(t, KEYWORD_TARGET_TYPE_LABEL_KEYS, option)}</option>
                 ))}
               </CardAdminSelect>
 
@@ -69,7 +75,7 @@ export function CardAdminGainEffectPanel({
                 className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
               >
                 {KEYWORD_OPERATION_OPTIONS.map((option) => (
-                  <option key={option} value={option}>{option}</option>
+                  <option key={option} value={option}>{optionLabel(t, KEYWORD_OPERATION_LABEL_KEYS, option)}</option>
                 ))}
               </CardAdminSelect>
 
@@ -82,7 +88,7 @@ export function CardAdminGainEffectPanel({
                       index === keywordIndex ? { ...row, keyword: value } : row),
                   }))}
               >
-                <option value="">Select keyword</option>
+                <option value="">{t('admin.panels.gainEffect.selectKeyword')}</option>
                 {(effectConditionKeywordOptions.includes(modification.keyword) || !modification.keyword.trim()
                   ? effectConditionKeywordOptions
                   : [modification.keyword, ...effectConditionKeywordOptions]).map((option) => (
@@ -97,7 +103,7 @@ export function CardAdminGainEffectPanel({
                     keywordModifications: (current.keywordModifications ?? []).filter((_, index) => index !== keywordIndex),
                   }))}
                 className="inline-flex h-10 w-10 items-center justify-center self-stretch rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]"
-                ariaLabel="Remove keyword modification"
+                ariaLabel={t('admin.panels.gainEffect.removeKeywordModification')}
               />
             </div>
           </div>

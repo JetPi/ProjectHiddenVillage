@@ -1,18 +1,28 @@
 import { useRef, useState } from 'react'
 import type { DragEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
+import { translateKey } from '@/i18n'
 import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 import {
+  EFFECT_DURATION_MODE_LABEL_KEYS,
   EFFECT_DURATION_MODE_OPTIONS,
+  EFFECT_KIND_LABEL_KEYS,
   EFFECT_KIND_OPTIONS,
+  EFFECT_TIMING_LABEL_KEYS,
   EFFECT_TIMING_OPTIONS,
+  optionLabel,
+  PASSIVE_MODE_LABEL_KEYS,
   PASSIVE_MODE_OPTIONS,
+  RESTRICTIONS_LABEL_KEYS,
   RESTRICTIONS_OPTIONS,
+  RUNTIME_EFFECT_LABEL_KEYS,
   RUNTIME_EFFECT_OPTIONS,
+  TARGET_RANGE_LABEL_KEYS,
   TARGET_RANGE_OPTIONS,
 } from '@/views/admin/constants'
 import {
@@ -55,6 +65,7 @@ export function CardAdminEffectsSection({
   effectsError,
   effectBranchErrors,
 }: ICardAdminEffectsSectionProps) {
+  const { t } = useTranslation()
   const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null)
   const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null)
   // The card-sized ghost handed to the browser during a drag (`setDragImage` snapshots it immediately).
@@ -106,18 +117,18 @@ export function CardAdminEffectsSection({
     <div className="grid grid-cols-1 gap-2">
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Effects</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.detail.sections.effects')}</p>
           <AppButton
             type="button"
             variant="ghost"
             onClick={addEffect}
           >
-            Add Effect
+            {t('admin.detail.sections.addEffect')}
           </AppButton>
         </div>
 
         <div className="space-y-2 border-t border-[var(--border-subtle)] border-l-2 border-l-sky-500/45 pl-3 pt-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Interlinked Effects</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.detail.sections.interlinkedEffects')}</p>
           {linkedEffectGroups.length > 0 ? (
             <div className="space-y-1">
               {linkedEffectGroups.map((group) => (
@@ -129,7 +140,7 @@ export function CardAdminEffectsSection({
 
                   {group.onSuccessTarget ? (
                     <>
-                      <span className="text-[var(--text-secondary)]">On Success</span>
+                      <span className="text-[var(--text-secondary)]">{t('admin.detail.sections.onSuccess')}</span>
                       <span className="text-[var(--text-secondary)]">-&gt;</span>
                       <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-semibold text-emerald-700">{group.onSuccessTarget}</span>
                     </>
@@ -137,7 +148,7 @@ export function CardAdminEffectsSection({
 
                   {group.onFailureTarget ? (
                     <>
-                      <span className="text-[var(--text-secondary)]">On Failure</span>
+                      <span className="text-[var(--text-secondary)]">{t('admin.detail.sections.onFailure')}</span>
                       <span className="text-[var(--text-secondary)]">-&gt;</span>
                       <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 font-semibold text-rose-700">{group.onFailureTarget}</span>
                     </>
@@ -146,7 +157,7 @@ export function CardAdminEffectsSection({
               ))}
             </div>
           ) : (
-            <p className="text-xs text-[var(--text-secondary)]">No linked effects are currently configured.</p>
+            <p className="text-xs text-[var(--text-secondary)]">{t('admin.detail.sections.noLinkedEffects')}</p>
           )}
         </div>
 
@@ -190,7 +201,7 @@ export function CardAdminEffectsSection({
               <CardAdminRemoveButton
                 onClick={() => removeEffectAt(effectIndex)}
                 className="h-6 w-6 shrink-0"
-                ariaLabel="Remove Effect"
+                ariaLabel={t('admin.detail.sections.removeEffect')}
               />
 
               <input
@@ -198,7 +209,7 @@ export function CardAdminEffectsSection({
                 value={effect.id}
                 onChange={(event) => updateEffectAt(effectIndex, (current) => ({ ...current, id: event.target.value }))}
                 className="h-7 min-w-[4.5rem] flex-[1.2] rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 text-[11px] text-[var(--text-primary)]"
-                placeholder={`Effect ${effectIndex + 1}`}
+                placeholder={translateKey(t, 'admin.detail.sections.effectPlaceholder', { number: effectIndex + 1 })}
               />
 
               <div className="flex min-w-[4.5rem] flex-1 items-center gap-1">
@@ -212,7 +223,7 @@ export function CardAdminEffectsSection({
                     }))}
                   className="h-7 min-w-0 px-2 py-0 text-[11px]"
                 >
-                  <option value="">None</option>
+                  <option value="">{t('admin.detail.sections.none')}</option>
                   {effectIdOptions
                     .filter((id) => id !== normalizeEffectId(effect.id))
                     .map((idOption) => (
@@ -232,7 +243,7 @@ export function CardAdminEffectsSection({
                     }))}
                   className="h-7 min-w-0 px-2 py-0 text-[11px]"
                 >
-                  <option value="">None</option>
+                  <option value="">{t('admin.detail.sections.none')}</option>
                   {effectIdOptions
                     .filter((id) => id !== normalizeEffectId(effect.id))
                     .map((idOption) => (
@@ -242,7 +253,7 @@ export function CardAdminEffectsSection({
               </div>
 
               <div className="flex items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-                <span>Ch</span>
+                <span>{t('admin.detail.sections.chakraShort')}</span>
                 <CardAdminToggleSwitch
                   checked={effect.chakraCost !== null}
                   onChange={(checked) =>
@@ -250,7 +261,7 @@ export function CardAdminEffectsSection({
                       ...current,
                       chakraCost: checked ? current.chakraCost ?? 0 : null,
                     }))}
-                  ariaLabel="Chakra Cost Enabled"
+                  ariaLabel={t('admin.detail.sections.chakraCostEnabled')}
                 />
                 <input
                   type="number"
@@ -262,20 +273,20 @@ export function CardAdminEffectsSection({
               </div>
 
               <div className="flex items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-                <span>Opt</span>
+                <span>{t('admin.detail.sections.optionalShort')}</span>
                 <CardAdminToggleSwitch
                   checked={effect.isOptional}
                   onChange={(checked) => updateEffectAt(effectIndex, (current) => ({ ...current, isOptional: checked }))}
-                  ariaLabel="Optional"
+                  ariaLabel={t('admin.detail.sections.optional')}
                 />
               </div>
 
               <div className="flex items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-                <span>Sub</span>
+                <span>{t('admin.detail.sections.subordinateShort')}</span>
                 <CardAdminToggleSwitch
                   checked={effect.isSubordinate}
                   onChange={(checked) => updateEffectAt(effectIndex, (current) => ({ ...current, isSubordinate: checked }))}
-                  ariaLabel="Is Subordinate"
+                  ariaLabel={t('admin.detail.sections.isSubordinate')}
                 />
               </div>
 
@@ -284,8 +295,8 @@ export function CardAdminEffectsSection({
                   type="button"
                   onClick={() => toggleEffectCollapsedAt(effectIndex)}
                   className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
-                  aria-label={collapsedEffects.has(effectIndex) ? 'Expand effect' : 'Collapse effect'}
-                  title={collapsedEffects.has(effectIndex) ? 'Expand' : 'Collapse'}
+                  aria-label={collapsedEffects.has(effectIndex) ? t('admin.detail.sections.expandEffect') : t('admin.detail.sections.collapseEffect')}
+                  title={collapsedEffects.has(effectIndex) ? t('admin.detail.sections.expand') : t('admin.detail.sections.collapse')}
                 >
                   <CardAdminChevronIcon expanded={!collapsedEffects.has(effectIndex)} className="transition-transform duration-200" />
                 </button>
@@ -295,11 +306,11 @@ export function CardAdminEffectsSection({
                     handleEffectDragStart(
                       event,
                       effectIndex,
-                      `${effect.id.trim().length > 0 ? effect.id.trim() : `Effect ${effectIndex + 1}`}${effect.runtimeEffectType ? ` · ${effect.runtimeEffectType}` : ''}`,
+                      `${effect.id.trim().length > 0 ? effect.id.trim() : translateKey(t, 'admin.detail.sections.effectPlaceholder', { number: effectIndex + 1 })}${effect.runtimeEffectType ? ` · ${effect.runtimeEffectType}` : ''}`,
                     )}
                   className="inline-flex h-6 w-6 shrink-0 cursor-grab items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] active:cursor-grabbing"
                   aria-hidden="true"
-                  title="Drag to reorder"
+                  title={t('admin.detail.sections.dragToReorder')}
                   data-testid="effect-drag-handle"
                 >
                   <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-3.5 w-3.5">
@@ -318,20 +329,20 @@ export function CardAdminEffectsSection({
               <>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <div className="space-y-1 md:col-span-3">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Global Restrictions</label>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.detail.sections.globalRestrictions')}</label>
                     <CardAdminSelect
                       value={effect.globalRestrictions}
                       onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, globalRestrictions: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {RESTRICTIONS_OPTIONS.map((option) => (
-                        <option key={option} value={option}>{option}</option>
+                        <option key={option} value={option}>{optionLabel(t, RESTRICTIONS_LABEL_KEYS, option)}</option>
                       ))}
                     </CardAdminSelect>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Runtime Effect Type</label>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.detail.sections.runtimeEffectType')}</label>
                     <CardAdminSelect
                       value={effect.runtimeEffectType}
                       onValueChange={(value) =>
@@ -432,52 +443,52 @@ export function CardAdminEffectsSection({
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {RUNTIME_EFFECT_OPTIONS.map((option) => (
-                        <option key={option} value={option}>{option}</option>
+                        <option key={option} value={option}>{optionLabel(t, RUNTIME_EFFECT_LABEL_KEYS, option)}</option>
                       ))}
                     </CardAdminSelect>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Effect Type</label>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.detail.sections.effectType')}</label>
                     <CardAdminSelect
                       value={effect.effectType}
                       onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, effectType: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {EFFECT_KIND_OPTIONS.map((option) => (
-                        <option key={option} value={option}>{option}</option>
+                        <option key={option} value={option}>{optionLabel(t, EFFECT_KIND_LABEL_KEYS, option)}</option>
                       ))}
                     </CardAdminSelect>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Timing</label>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.detail.sections.timing')}</label>
                     <CardAdminSelect
                       value={effect.timing}
                       onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, timing: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {EFFECT_TIMING_OPTIONS.map((option) => (
-                        <option key={option} value={option}>{option}</option>
+                        <option key={option} value={option}>{optionLabel(t, EFFECT_TIMING_LABEL_KEYS, option)}</option>
                       ))}
                     </CardAdminSelect>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Duration</label>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.detail.sections.duration')}</label>
                     <CardAdminSelect
                       value={effect.durationMode}
                       onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, durationMode: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {EFFECT_DURATION_MODE_OPTIONS.map((option) => (
-                        <option key={option} value={option}>{option}</option>
+                        <option key={option} value={option}>{optionLabel(t, EFFECT_DURATION_MODE_LABEL_KEYS, option)}</option>
                       ))}
                     </CardAdminSelect>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Passive Mode</label>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.detail.sections.passiveMode')}</label>
                     <CardAdminSelect
                       value={effect.passiveMode}
                       onValueChange={(value) =>
@@ -499,20 +510,20 @@ export function CardAdminEffectsSection({
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {PASSIVE_MODE_OPTIONS.map((option) => (
-                        <option key={option} value={option}>{option}</option>
+                        <option key={option} value={option}>{optionLabel(t, PASSIVE_MODE_LABEL_KEYS, option)}</option>
                       ))}
                     </CardAdminSelect>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Range</label>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.detail.sections.targetRange')}</label>
                     <CardAdminSelect
                       value={effect.targetRange}
                       onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, targetRange: value }))}
                       className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                     >
                       {TARGET_RANGE_OPTIONS.map((option) => (
-                        <option key={option} value={option}>{option}</option>
+                        <option key={option} value={option}>{optionLabel(t, TARGET_RANGE_LABEL_KEYS, option)}</option>
                       ))}
                     </CardAdminSelect>
                   </div>

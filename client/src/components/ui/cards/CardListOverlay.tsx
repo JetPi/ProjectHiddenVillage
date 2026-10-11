@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { CardImage } from '@/components/ui/cards/CardImage'
 import { CardPreviewCard } from '@/components/ui/cards/CardPreviewCard'
@@ -72,11 +73,13 @@ function CardListOverlay({
   title,
   subtitle = '',
   entries,
-  emptyMessage = 'No cards here yet.',
+  emptyMessage,
   onClose,
   testId = 'card-list-overlay',
 }: ICardListOverlayProps) {
+  const { t } = useTranslation()
   const dialogTitleId = useId()
+  const resolvedEmptyMessage = emptyMessage ?? t('components.ui.cardListOverlay.empty')
 
   useEffect(() => {
     if (!isOpen) {
@@ -137,7 +140,7 @@ function CardListOverlay({
           <button
             type="button"
             data-testid={`${testId}-close-button`}
-            aria-label="Close card list"
+            aria-label={t('components.ui.cardListOverlay.close')}
             onClick={onClose}
             className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border border-[var(--border-subtle)] text-[var(--text-secondary)] transition-colors duration-150 hover:border-[var(--focus-ring)] hover:text-[var(--text-primary)]"
           >
@@ -156,7 +159,7 @@ function CardListOverlay({
           </div>
         ) : (
           <p data-testid={`${testId}-empty-message`} className="mt-3 text-sm text-[var(--text-secondary)]">
-            {emptyMessage}
+            {resolvedEmptyMessage}
           </p>
         )}
       </Panel>

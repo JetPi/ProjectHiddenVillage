@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { PageShell } from '@/components/layout/PageShell'
 import { Panel } from '@/components/ui'
 import { useInfiniteCardCatalogQuery } from '@/services/queries/cardQueries'
@@ -13,6 +14,7 @@ import { SORT_OPTIONS } from '@/views/admin/constants'
 import { buildUniqueFilterOptions, normalizeFilterValue } from '@/views/admin/utils/filterNormalization'
 
 export function CardAdminView() {
+  const { t } = useTranslation()
   const viewModel = useCardAdminViewModel()
 
   const catalogPageQuery = useInfiniteCardCatalogQuery(
@@ -163,9 +165,9 @@ export function CardAdminView() {
 
           <Panel className="themed-scrollbar m-3 h-[calc(100%-1.5rem)] min-h-0 overflow-y-auto">
             <div className="flex items-center justify-between gap-3">
-              <h1 className="text-xl font-bold text-[var(--text-primary)]">Card Admin</h1>
+              <h1 className="text-xl font-bold text-[var(--text-primary)]">{t('admin.view.title')}</h1>
               <Link to="/" className="text-sm text-[var(--text-secondary)] underline-offset-2 hover:underline">
-                Back to Login
+                {t('admin.view.backToLogin')}
               </Link>
             </div>
             <CardAdminDetailPane selectedCard={selectedCard} />

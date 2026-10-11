@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo } from 'react'
+import i18n from '@/i18n'
 import type { IErrorBoundaryProps, IErrorBoundaryState } from '@/components/feedback/types'
 
 const initialState: IErrorBoundaryState = {
@@ -35,9 +36,9 @@ export class ErrorBoundary extends Component<IErrorBoundaryProps, IErrorBoundary
       return (
         <section className="flex min-h-screen items-center justify-center bg-[var(--app-bg-end)] px-4">
           <div className="w-full max-w-lg rounded-2xl border border-[var(--border-subtle)] bg-[var(--popup-bg)] p-6 text-[var(--text-primary)] shadow-[var(--panel-shadow)]">
-            <h1 className="text-2xl font-black">Something went wrong</h1>
+            <h1 className="text-2xl font-black">{i18n.t('components.feedback.errorBoundary.title')}</h1>
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              An unexpected UI error occurred. You can try reloading the page.
+              {i18n.t('components.feedback.errorBoundary.body')}
             </p>
             {import.meta.env.DEV && errorMessage ? (
               <pre className="mt-4 overflow-auto rounded-lg bg-[var(--surface-muted)] p-3 text-xs text-[var(--text-secondary)]">
@@ -50,14 +51,14 @@ export class ErrorBoundary extends Component<IErrorBoundaryProps, IErrorBoundary
                 onClick={this.handleReset}
                 className="inline-flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-4 py-2 text-sm font-semibold transition-colors duration-200"
               >
-                Try Again
+                {i18n.t('components.feedback.errorBoundary.tryAgain')}
               </button>
               <button
                 type="button"
                 onClick={() => window.location.reload()}
                 className="inline-flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-semibold text-[var(--button-primary-text)] transition-colors duration-200 hover:bg-[var(--button-primary-hover)]"
               >
-                Reload Page
+                {i18n.t('components.feedback.errorBoundary.reloadPage')}
               </button>
             </div>
           </div>

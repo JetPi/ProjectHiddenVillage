@@ -1,3 +1,4 @@
+import i18n from '@/i18n'
 import type { IDeckCardsValidationResult } from '@/views/login/types/deckValidation'
 
 const DECK_LINE_PATTERN = /^\s*(\d+)x\s+([A-Za-z0-9-]+)\s*$/
@@ -11,7 +12,7 @@ export function validateDeckCardsPayload(cardsPayload: string): IDeckCardsValida
   if (lines.length === 0) {
     return {
       isValid: false,
-      message: 'Please paste at least one deck line (example: 1x N-001).',
+      message: i18n.t('auth.errors.deckEmpty'),
     }
   }
 
@@ -22,7 +23,7 @@ export function validateDeckCardsPayload(cardsPayload: string): IDeckCardsValida
     if (!match) {
       return {
         isValid: false,
-        message: `Invalid deck line ${index + 1}: "${line}". Expected format like "1x N-001".`,
+        message: i18n.t('auth.errors.deckInvalidLine', { line: index + 1, value: line }),
       }
     }
 
@@ -30,7 +31,7 @@ export function validateDeckCardsPayload(cardsPayload: string): IDeckCardsValida
     if (!Number.isFinite(quantity) || quantity <= 0) {
       return {
         isValid: false,
-        message: `Deck line ${index + 1} must use a positive quantity.`,
+        message: i18n.t('auth.errors.deckPositiveQuantity', { line: index + 1 }),
       }
     }
   }

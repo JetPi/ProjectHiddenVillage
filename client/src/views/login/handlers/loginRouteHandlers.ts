@@ -1,4 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router-dom'
+import i18n from '@/i18n'
 import { api } from '@/services/api/httpClient'
 import type { IAuthSession } from '@/state/authSession'
 import { persistAuthSession } from '@/state/authSession'
@@ -33,7 +34,7 @@ export async function loginAction({ request }: ActionFunctionArgs): Promise<ILog
     return {
       login: {
         ok: false,
-        error: 'Email and password are required.',
+        error: i18n.t('auth.errors.emailAndPasswordRequired'),
       },
     }
   }
@@ -66,7 +67,7 @@ export async function loginAction({ request }: ActionFunctionArgs): Promise<ILog
     return {
       login: {
         ok: false,
-        error: getApiErrorMessage(error, 'Login failed. Please try again.'),
+        error: getApiErrorMessage(error, i18n.t('auth.errors.loginFailed')),
       },
     }
   }

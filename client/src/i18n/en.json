@@ -1,0 +1,892 @@
+{
+  "components": {
+    "ui": {
+      "cardBack": {
+        "alt": "Card back"
+      },
+      "cardImage": {
+        "fallbackLabel": "Card image unavailable",
+        "placeholderTitle": "Card Image",
+        "placeholderUnavailable": "Unavailable"
+      },
+      "cardOverlayBadge": {
+        "ariaLabel": "Card overlay value"
+      },
+      "cardListOverlay": {
+        "close": "Close card list",
+        "empty": "No cards here yet."
+      },
+      "cardPreview": {
+        "unknownType": "Unknown type",
+        "noTraits": "No traits",
+        "noDescription": "No card description provided yet.",
+        "power": "POWER",
+        "damage": "DAMAGE",
+        "life": "LIFE",
+        "health": "HEALTH"
+      },
+      "leaderCard": {
+        "placeholder": "Leader",
+        "openDetails": "Open leader card details",
+        "activateRecovery": "Activate leader recovery",
+        "choose": "Choose",
+        "select": "Select"
+      },
+      "keywords": {
+        "rush": "This card can attack on the turn in which it is played."
+      }
+    },
+    "game": {
+      "pile": {
+        "deck": "Deck",
+        "trash": "Trash"
+      },
+      "chakraCard": {
+        "alt": "Chakra card"
+      },
+      "summonCard": {
+        "alt": "Summon card"
+      },
+      "revealedDeckCard": {
+        "alt": "Revealed deck card"
+      },
+      "trashCard": {
+        "alt": "Trash"
+      },
+      "openTrashPile": "Open trash pile"
+    },
+    "forms": {
+      "select": {
+        "placeholder": "Select an option"
+      }
+    },
+    "feedback": {
+      "loading": "Loading...",
+      "toast": {
+        "dismiss": "Dismiss notification"
+      },
+      "errorBoundary": {
+        "title": "Something went wrong",
+        "body": "An unexpected UI error occurred. You can try reloading the page.",
+        "tryAgain": "Try Again",
+        "reloadPage": "Reload Page"
+      },
+      "routeError": {
+        "badge": "Route Error",
+        "defaultTitle": "Something went wrong",
+        "defaultMessage": "The requested page could not be loaded.",
+        "unexpected": "An unexpected routing error occurred.",
+        "goHome": "Go To Home",
+        "reloadPage": "Reload Page"
+      },
+      "authRouteError": {
+        "badge": "Auth Route Error",
+        "defaultTitle": "Authentication Error",
+        "defaultMessage": "We could not load this authentication page.",
+        "unexpected": "An unexpected authentication error occurred.",
+        "goToLogin": "Go To Login",
+        "reload": "Reload"
+      }
+    }
+  },
+  "notFound": {
+    "code": "404",
+    "title": "Page Not Found",
+    "message": "This page does not exist. Return to login to continue.",
+    "goToLogin": "Go To Login"
+  },
+  "auth": {
+    "title": "Shinobi Tactics",
+    "tagline1": "Make your deck, test against opponents, and seize victory.",
+    "tagline2": "Prepare for official tournament play in a free online <strong>Naruto Card Game</strong> simulator.",
+    "displayName": "Display Name",
+    "displayNamePlaceholder": "Enter name here",
+    "displayNameRequired": "Please enter a display name.",
+    "gameCode": "Game Code",
+    "gameCodeModeAria": "Game code input mode",
+    "deckOptions": "Deck Options",
+    "deckOptionsModeAria": "Deck options input mode",
+    "retry": "Retry",
+    "importDeckButton": "Import your deck here",
+    "importedReady": "Imported deck list ready ({{lineCount}} lines).",
+    "enterGame": "Enter Game",
+    "toggleThemeAria": "Toggle light and dark mode",
+    "openLogoutModalAria": "Open logout modal",
+    "openLoginModalAria": "Open login modal",
+    "loginModalTitle": "Log In",
+    "email": "Email",
+    "password": "Password",
+    "emailPlaceholder": "you@example.com",
+    "passwordPlaceholder": "Enter password",
+    "notRegistered": "Not registered?",
+    "signUpHere": "Sign up here!",
+    "loggingIn": "Logging In...",
+    "logIn": "Log In",
+    "logoutConfirmTitle": "Are you sure?",
+    "logoutConfirmBody": "Do you want to log out of your current session?",
+    "cancel": "Cancel",
+    "logOut": "Log Out",
+    "importModalTitle": "Import Deck List",
+    "importModalBody": "Paste one card per line using format like: 1x N-001",
+    "importPlaceholder": "1x N-001\n2x N-045",
+    "close": "Close",
+    "deckChoice": {
+      "loginToLoad": "Log in to load your decks",
+      "loadingPublic": "Loading public decks...",
+      "noPublic": "No public decks available yet.",
+      "failedPublic": "Failed to load public decks.",
+      "noSaved": "No saved decks found for this user.",
+      "failedSaved": "Failed to load your decks.",
+      "deckLabel": "Deck {{number}} ({{shortId}}) - {{totalCards}} cards"
+    },
+    "deckMode": {
+      "saved": "saved deck",
+      "public": "public deck"
+    },
+    "toasts": {
+      "accountCreated": "Account created successfully.",
+      "loggedInAs": "Logged in as {{username}}",
+      "loggedOut": "Logged out successfully.",
+      "loginRequired": "Please log in before creating or joining a game.",
+      "pasteDeckList": "Please paste your deck list before continuing.",
+      "deckFormatInvalid": "Deck list format is invalid.",
+      "selectDeck": "Please select a {{mode}} before continuing.",
+      "gameCreated": "Game created. Share code {{code}}",
+      "joinedGame": "Joined game successfully.",
+      "gameCodeRequired": "Please provide a game code to join.",
+      "submitFailed": "Unable to submit deck or join game. Please try again."
+    },
+    "errors": {
+      "emailAndPasswordRequired": "Email and password are required.",
+      "loginFailed": "Login failed. Please try again.",
+      "signUpRequired": "Username, email, and password are required.",
+      "signUpFailed": "Sign up failed. Please try again.",
+      "deckEmpty": "Please paste at least one deck line (example: 1x N-001).",
+      "deckInvalidLine": "Invalid deck line {{line}}: \"{{value}}\". Expected format like \"1x N-001\".",
+      "deckPositiveQuantity": "Deck line {{line}} must use a positive quantity."
+    },
+    "signIn": {
+      "title": "Sign In",
+      "email": "Email",
+      "username": "Username",
+      "password": "Password",
+      "emailPlaceholder": "you@example.com",
+      "usernamePlaceholder": "Enter username",
+      "passwordPlaceholder": "Enter password",
+      "back": "Back",
+      "creatingAccount": "Creating Account...",
+      "submit": "Sign In"
+    },
+    "config": {
+      "deckImport": "Import",
+      "deckSaved": "Saved Decks",
+      "deckStarter": "Starter Decks",
+      "modeQuickMatch": "Quick Match",
+      "modeJoin": "Join",
+      "modeCreate": "Create",
+      "casual": "Casual",
+      "joinCodePlaceholder": "Paste your code here",
+      "createCodePlaceholder": "Code will be generated on create",
+      "importPlaceholder": "Use Import to paste your deck list",
+      "loadingSavedDecks": "Loading saved decks...",
+      "loadingPublicDecks": "Loading public decks..."
+    }
+  },
+  "game": {
+    "phase": {
+      "waitingForPlayers": "Waiting for player",
+      "waitingForOpponent": "Waiting for opponent",
+      "yourTurn": "Your turn",
+      "opponentTurn": "Opponent's turn",
+      "waitingForOpponentToChoose": "Waiting for opponent to choose",
+      "waitingForOpponentToPickStarter": "Waiting for opponent to choose who goes first",
+      "waitingForOpponentToMulligan": "Waiting for opponent to choose mulligan",
+      "yourAttackDeclaration": "Your Attack Declaration",
+      "opponentAttackDeclaration": "Opponent Declares Attack",
+      "effectDeclaration": "Effect Declaration",
+      "yourSupportCutIn": "Your Support Cut-In",
+      "opponentSupportCutIn": "Opponent Support Cut-In",
+      "damageStep": "Damage Step",
+      "selectingTributeMaterials": "Selecting tribute materials",
+      "fulfilledTributeRequirements": "Fulfilled tribute requirements",
+      "selectingSupportTargets": "Selecting support targets",
+      "fulfilledTargetSelection": "Fulfilled target selection",
+      "supportActivatedYourResponse": "Support Activated · Your Response",
+      "supportActivatedOpponentResponse": "Support Activated · Opponent Response",
+      "selectPlaceOnDeckTop": "Select a card to place on deck top",
+      "selectPlaceOnDeckBottom": "Select a card to place on the bottom of your deck",
+      "selectDiscardFromHand": "Select a card to discard",
+      "selectReturnToHand": "Select a card to return to hand",
+      "selectSearchDeck": "Select a card from your deck",
+      "selectSummonFromZone": "Select a Character to summon",
+      "selectDestroyFromZone": "Select a Character to destroy",
+      "selectFreezeFromZone": "Select a Leader or Character to freeze",
+      "selectGeneric": "Select a card",
+      "tributeNeeds": "Selecting tribute materials (needs: ({{needs}}))",
+      "effectTargetsNeeds": "Selecting support targets (needs: {{needs}})"
+    },
+    "prompt": {
+      "title": {
+        "chooseStartingPlayer": "Choose Who Starts",
+        "mulligan": "Mulligan",
+        "effect": "Choose a Card"
+      },
+      "subtitle": {
+        "chooseStartingPlayer": "Decide whether you or your opponent takes the first turn.",
+        "mulligan": "Choose whether to redraw your opening hand.",
+        "effect": "Choose one of the highlighted cards.",
+        "default": "Choose one of the available options."
+      },
+      "effectCopy": {
+        "placeOnDeckTop": {
+          "title": "Choose a card to place on deck top",
+          "subtitle": "Choose a card from your hand to place on top of your deck."
+        },
+        "placeOnDeckBottom": {
+          "title": "Choose a card to place on deck bottom",
+          "subtitle": "Choose a card from your hand to place on the bottom of your deck."
+        },
+        "discardFromHand": {
+          "title": "Discard a Card",
+          "subtitle": "Choose a card from your hand to discard."
+        },
+        "returnToHand": {
+          "title": "Return a Card to Hand",
+          "subtitle": "Choose a card to return to its owner's hand."
+        },
+        "searchDeck": {
+          "title": "Search Your Deck",
+          "subtitle": "Choose a card from your deck."
+        },
+        "summonFromZone": {
+          "title": "Choose a Character to Summon",
+          "subtitle": "Choose one of the highlighted cards to summon onto your field."
+        },
+        "destroyFromZone": {
+          "title": "Choose a Character to Destroy",
+          "subtitle": "Choose one of the highlighted cards to destroy."
+        },
+        "freezeFromZone": {
+          "title": "Choose a Card to Freeze",
+          "subtitle": "Choose a Leader or Character; the chosen card cannot attack."
+        },
+        "revealPresentation": {
+          "title": "Card Revealed",
+          "subtitle": "The revealed card stays face up while the effect resolves."
+        }
+      },
+      "option": {
+        "goFirst": "Go First",
+        "goSecond": "Go Second",
+        "mulligan": "Take Mulligan",
+        "noMulligan": "Keep Hand"
+      }
+    },
+    "tribute": {
+      "titleSatisfied": "All tribute requirements fulfilled · {{selected}}/{{required}} selected",
+      "titlePending": "Select tribute materials · {{selected}}/{{required}} selected · still needs {{needs}}"
+    },
+    "outcome": {
+      "victory": "Victory",
+      "defeat": "Defeat",
+      "draw": "Draw",
+      "reasonDeckOut": "A player ran out of cards to draw.",
+      "reasonLeaderLifeDepleted": "A leader's life points reached 0.",
+      "reasonDefault": "The game ended.",
+      "returnToMainPage": "Return to main page"
+    },
+    "supportChain": {
+      "heading": "Support chain",
+      "countOne": "1 activation",
+      "countOther": "{{total}} activations",
+      "resolvesLifo": "Resolves last in, first out.",
+      "actorYou": "You",
+      "actorOpponent": "Opponent",
+      "actorUnknown": "Player",
+      "unknownSupport": "Unknown support",
+      "next": "Next",
+      "negates": "⚡ Negates #{{sequence}} {{name}}",
+      "targetPrefix": "→ Targets",
+      "aCard": "a card",
+      "yours": "(yours)",
+      "theirs": "(theirs)",
+      "willBeNegated": "Will be negated by #{{sequence}}",
+      "negated": "Negated"
+    },
+    "zone": {
+      "noActions": "No actions",
+      "actionCountOne": "{{n}} action",
+      "actionCountOther": "{{n}} actions",
+      "view": "View",
+      "openCardDetails": "Open card details",
+      "choose": "Choose",
+      "tribute": "Tribute",
+      "select": "Select",
+      "selected": "Selected"
+    },
+    "trash": {
+      "yourPile": "Your trash pile",
+      "opponentPile": "Opponent trash pile",
+      "empty": "The trash pile is empty.",
+      "cardCountOne": "{{n}} card",
+      "cardCountOther": "{{n}} cards"
+    },
+    "sidebar": {
+      "toggleThemeAria": "Toggle light and dark mode",
+      "passTurnAria": "Pass turn",
+      "cancelAttackAria": "Cancel attack target selection",
+      "cancelTargetAria": "Cancel target selection",
+      "undoAria": "Undo action",
+      "openLogAria": "Open log",
+      "toggleThemeTooltip": "Toggle Theme",
+      "passTurnTooltip": "Do Nothing / Pass",
+      "cancelAttackTooltip": "Cancel Attack Target",
+      "cancelTargetTooltip": "Cancel Target Selection",
+      "undoTooltip": "Undo Action",
+      "openLogTooltip": "Open Log"
+    },
+    "actionRow": {
+      "cancel": "Cancel",
+      "cancelAria": "Cancel target selection",
+      "cancelTitle": "Cancel current target selection",
+      "confirmTributeAria": "Confirm tribute selection",
+      "confirmTargetAria": "Confirm target selection",
+      "pay": "Pay",
+      "confirm": "Confirm"
+    },
+    "view": {
+      "dismissErrorAria": "Dismiss error"
+    },
+    "errors": {
+      "fetchCardActionTargets": "Unable to fetch card action targets.",
+      "loginRequired": "You must be logged in to perform game actions.",
+      "gameCodeRequired": "Game code is required.",
+      "loadFailed": "Unable to load this game."
+    }
+  },
+  "admin": {
+    "view": {
+      "title": "Card Admin",
+      "backToLogin": "Back to Login"
+    },
+    "catalog": {
+      "loadingCards": "Loading cards...",
+      "loadFailed": "Failed to load cards. Try refreshing this page.",
+      "noMatches": "No cards matched your filters on this page.",
+      "loadingMore": "Loading more cards...",
+      "loadMore": "Load More",
+      "endOfCatalog": "You reached the end of the catalog.",
+      "cardArtPreviewAlt": "{{name}} card art preview",
+      "cardArtAlt": "{{name}} card art"
+    },
+    "filters": {
+      "search": "Search",
+      "type": "Type",
+      "color": "Color",
+      "sort": "Sort",
+      "allTypes": "All types",
+      "allColors": "All colors",
+      "allSelected": "All selected",
+      "typePrefix": "Type:",
+      "colorPrefix": "Color:",
+      "removeType": "Remove type {{name}}",
+      "removeColor": "Remove color {{name}}",
+      "unknown": "Unknown",
+      "all": "All",
+      "sortOption": {
+        "cardIdAsc": "Card ID (A-Z)",
+        "cardIdDesc": "Card ID (Z-A)",
+        "displayNameAsc": "Display Name (A-Z)",
+        "displayNameDesc": "Display Name (Z-A)",
+        "typeAsc": "Type (A-Z)",
+        "updatedNewest": "Updated (Newest)"
+      }
+    },
+    "controls": {
+      "countConstraint": {
+        "exact": "Exact",
+        "minimum": "Minimum",
+        "maximum": "Maximum",
+        "all": "All",
+        "allInZone": "All in zone"
+      },
+      "predicate": {
+        "selectValue": "Select value",
+        "addValueCurrent": "Add value (current: {{current}})",
+        "addNumber": "Add number and press Enter",
+        "addValue": "Add value and press Enter",
+        "ignoreCase": "Ignore Case",
+        "removeEntry": "Remove {{entry}}",
+        "removePredicate": "Remove Predicate"
+      }
+    },
+    "detail": {
+      "emptySelection": "Select a card from the left rail to prepare editing.",
+      "emptySelectionHint": "Select a card to edit effect fields and generate a full PATCH payload.",
+      "description": "Description",
+      "supportEffect": "Support Effect",
+      "reset": "Reset",
+      "unsavedChanges": "Unsaved Changes",
+      "saving": "Saving...",
+      "saveCard": "Save Card",
+      "summary": {
+        "name": "Name",
+        "supportCost": "Support Cost",
+        "id": "ID",
+        "type": "Type",
+        "color": "Color",
+        "power": "Power",
+        "damage": "Damage",
+        "life": "Life",
+        "health": "Health"
+      },
+      "sections": {
+        "effects": "Effects",
+        "addEffect": "Add Effect",
+        "interlinkedEffects": "Interlinked Effects",
+        "onSuccess": "On Success",
+        "onFailure": "On Failure",
+        "noLinkedEffects": "No linked effects are currently configured.",
+        "effectPlaceholder": "Effect {{number}}",
+        "none": "None",
+        "chakraShort": "Ch",
+        "optionalShort": "Opt",
+        "subordinateShort": "Sub",
+        "chakraCostEnabled": "Chakra Cost Enabled",
+        "optional": "Optional",
+        "isSubordinate": "Is Subordinate",
+        "expandEffect": "Expand effect",
+        "collapseEffect": "Collapse effect",
+        "expand": "Expand",
+        "collapse": "Collapse",
+        "dragToReorder": "Drag to reorder",
+        "removeEffect": "Remove Effect",
+        "globalRestrictions": "Global Restrictions",
+        "runtimeEffectType": "Runtime Effect Type",
+        "effectType": "Effect Type",
+        "timing": "Timing",
+        "duration": "Duration",
+        "passiveMode": "Passive Mode",
+        "targetRange": "Target Range",
+        "conditions": "Conditions",
+        "selectCondition": "Select a condition to add...",
+        "noNormalSummon": "No Normal Summon",
+        "removeCondition": "Remove {{condition}}"
+      }
+    },
+    "panels": {
+      "execution": {
+        "title": "Execution Target",
+        "targetSource": "Execution Target Source",
+        "flowMode": "Execution Flow Mode",
+        "selectionTiming": "Selection Timing",
+        "selectionPromptKind": "Selection Prompt Kind",
+        "conditionEnabled": "Execution Condition Enabled",
+        "argumentKey": "Condition Argument Key",
+        "expectedValue": "Condition Expected Value",
+        "ignoreCase": "Ignore Case",
+        "negateCondition": "Negate Condition",
+        "clearTargetCount": "Clear target count",
+        "setTargetSourceNone": "Set Execution Target Source to None",
+        "setSelectionTimingUpfront": "Set Selection Timing to Upfront",
+        "chakraLockHelp": "Locks the chakra of the players in Target Range (Self / Opponent / Any) for the effect's duration: while it lasts they cannot turn chakra face-up, so Recovery is refused. Keep Execution Target Source at None - this effect never picks a card.",
+        "attackNegationHelp": "Cancels the pending attack (the attacker stays rested) and then runs this effect's other nodes - \u201csummon this card\u201d is the usual branch. It resolves the attack itself, so keep Execution Target Source at None and leave the target counts empty.",
+        "selectionWithoutRulesHelp": "This effect asks for a target selection but declares no selectable target rules, so activation is refused with \u201cNo valid targets available.\u201d. Set Execution Target Source to None, or add target rules below.",
+        "countWithoutCollectionHelp": "This effect resolves its own target (Execution Target Source: None) but still declares a target count. Nothing is ever collected, and the count only makes the effect read \u201cNo valid targets available.\u201d.",
+        "selectionTimingHelp": "Upfront asks for the targets together with the activation. Prompted asks with a pop-up once this step runs, so an earlier step can change the candidate pool first (\u201cdraw 1 card, then place 1 card from your hand on top of your deck\u201d) - author that as two chained effects, the second one Prompted.",
+        "selectionPromptKindHelp": "Which wording the prompt uses. The copy lives in the client, so a new kind here needs a matching client entry.",
+        "promptedWithoutCandidateHelp": "A prompted selection needs something to pick from: add target rules, a target count, or a move-card action with a source zone (that zone supplies the candidates). Without one the prompt is skipped."
+      },
+      "targetRules": {
+        "title": "Target Rules",
+        "ruleOperator": "Rule Operator",
+        "tributeCompositionEnabled": "Tribute Composition Enabled",
+        "targetCount": "Target Count",
+        "tributeCount": "Tribute Count",
+        "requireSingleSummonTarget": "Require Single Summon Target",
+        "requireDistinctSummonAndTributes": "Require Distinct Summon And Tributes",
+        "ruleRows": "Target Rule Rows",
+        "addTargetRule": "Add Target Rule",
+        "selectedCount": "Selected Count",
+        "ruleNumber": "Rule #{{number}}",
+        "scope": "Scope",
+        "zone": "Zone",
+        "locationSelector": "Location Selector",
+        "tributeRole": "Tribute Role",
+        "supportSlotIndex": "Support Slot Index",
+        "restrictionMatchMode": "Restriction Match Mode",
+        "predicates": "Predicates",
+        "addPredicate": "Add Predicate",
+        "removeTargetRule": "Remove Target Rule",
+        "none": "None"
+      },
+      "contextRules": {
+        "title": "Context Rules",
+        "addContextRule": "Add Context Rule",
+        "contextNumber": "Context #{{number}}",
+        "removeContextRule": "Remove Context Rule",
+        "remove": "Remove",
+        "player": "Player",
+        "opponent": "Opponent",
+        "conditionsTitle": "{{title}} Conditions",
+        "conditionEnabled": "{{title}} Condition Enabled",
+        "inZone": "{{title}} In Zone",
+        "requirementsEnabled": "{{title}} In-Zone Requirements Enabled",
+        "requirementOperator": "Requirement Operator",
+        "distinctCards": "Distinct Cards Across Requirements",
+        "addRequirement": "Add {{title}} Requirement",
+        "predicates": "Predicates",
+        "addPredicate": "Add Predicate",
+        "removeRequirement": "Remove Requirement",
+        "none": "None"
+      },
+      "gainEffect": {
+        "title": "Gain Effect Settings",
+        "keywordModifications": "Keyword Modifications",
+        "addKeywordMod": "Add Keyword Mod",
+        "selectKeyword": "Select keyword",
+        "removeKeywordModification": "Remove keyword modification"
+      },
+      "passiveSettings": {
+        "title": "Passive Settings",
+        "reevaluationEnabled": "Passive Reevaluation Enabled",
+        "reevaluationScope": "Reevaluation Scope",
+        "triggerKind": "Trigger Kind",
+        "consequences": "Passive Consequences",
+        "addConsequence": "Add Consequence",
+        "removeConsequence": "Remove Passive Consequence"
+      },
+      "revealCard": {
+        "title": "Reveal Card Settings",
+        "revealTiming": "Reveal Timing",
+        "ruleSetEnabled": "Post-Reveal Rule Set Enabled",
+        "postRevealCondition": "Post-Reveal Condition",
+        "addGroup": "Add Group",
+        "groupOperator": "Group Operator",
+        "groupNumber": "Group {{number}}",
+        "removeGroup": "Remove Group",
+        "groupMatchMode": "Group Match Mode",
+        "addPredicate": "Add Predicate"
+      },
+      "searchCard": {
+        "title": "Search Options",
+        "help": "The player picks the card with a prompt. Configure the move below with Source Zone = Deck - that zone supplies the prompt's candidates - plus the destination the searched card should reach.",
+        "revealSelection": "Reveal the searched card",
+        "shuffleAfter": "Shuffle the deck afterwards"
+      },
+      "summonSettings": {
+        "title": "Summon Settings",
+        "suppressSummoned": "Suppress Summoned Effects On Field"
+      },
+      "attributeModifications": {
+        "title": "Attribute Modifications",
+        "add": "Add Attribute Modification",
+        "remove": "Remove Attribute Modification",
+        "targetType": "Target Type",
+        "targetRange": "Target Range",
+        "affectedProperty": "Affected Property",
+        "valueMode": "Value Mode",
+        "value": "Value",
+        "operation": "Operation"
+      },
+      "chakraAdjustments": {
+        "title": "Chakra Adjustments",
+        "add": "Add Chakra Adjustment",
+        "remove": "Remove Chakra Adjustment"
+      },
+      "faceStateFlips": {
+        "title": "Face State Flips",
+        "add": "Add Face State Flip",
+        "remove": "Remove Face State Flip"
+      },
+      "faceStateLocks": {
+        "title": "Face State Locks",
+        "add": "Add Face State Lock",
+        "remove": "Remove Face State Lock"
+      },
+      "moveCardActions": {
+        "title": "Move Card Actions",
+        "add": "Add Move Action",
+        "remove": "Remove Move Card Action",
+        "drawCountPlaceholder": "Draw count",
+        "destinationIndexPlaceholder": "Destination index",
+        "moveCountPlaceholder": "Move count",
+        "allowCrossPlayer": "Allow Cross Player Transfer"
+      }
+    },
+    "options": {
+      "runtimeEffect": {
+        "destroyCard": "Destroy Card",
+        "negateEffect": "Negate Effect",
+        "interruptAttack": "Interrupt Attack",
+        "gainEffect": "Gain Effect",
+        "changeValues": "Change Values",
+        "alterResources": "Alter Resources",
+        "tribute": "Tribute",
+        "searchCard": "Search Card",
+        "freezeCard": "Freeze Card",
+        "revealCard": "Reveal Card",
+        "summonCard": "Summon Card",
+        "moveCard": "Move Card",
+        "lockChakraRecovery": "Lock Chakra Recovery"
+      },
+      "effectKind": {
+        "support": "Support",
+        "recovery": "Recovery",
+        "summonRequirement": "Summon Requirement",
+        "rush": "Rush",
+        "activated": "Activated"
+      },
+      "timing": {
+        "activateMain": "Activate Main",
+        "duringOpponentAttack": "During Opponent Attack",
+        "supportActivated": "Support Activated",
+        "quick": "Quick",
+        "onSummon": "On Summon",
+        "duringYourMain": "During Your Main",
+        "yourTurn": "Your Turn",
+        "whenAttacking": "When Attacking"
+      },
+      "duration": {
+        "instant": "Instant",
+        "duringThisTurn": "During This Turn",
+        "duringOpponentNextTurn": "During Opponent Next Turn",
+        "untilEndOfYourNextTurn": "Until the End of your Next Turn",
+        "duringThisBattle": "During This Battle",
+        "continuous": "Continuous"
+      },
+      "restrictions": {
+        "none": "None",
+        "oncePerTurn": "Once Per Turn"
+      },
+      "selectionTiming": {
+        "upfront": "Upfront",
+        "prompted": "Prompted"
+      },
+      "selectionPromptKind": {
+        "generic": "Generic",
+        "placeOnDeckTop": "PlaceOnDeckTop",
+        "placeOnDeckBottom": "PlaceOnDeckBottom",
+        "discardFromHand": "DiscardFromHand",
+        "returnToHand": "ReturnToHand",
+        "searchDeck": "SearchDeck",
+        "summonFromZone": "SummonFromZone",
+        "destroyFromZone": "DestroyFromZone",
+        "freezeFromZone": "FreezeFromZone"
+      },
+      "matchMode": {
+        "any": "Any",
+        "all": "All"
+      },
+      "predicateOperator": {
+        "equals": "Equals",
+        "notEquals": "Not Equals",
+        "greaterThan": "Greater Than",
+        "greaterThanOrEqual": "Greater Than Or Equal",
+        "lessThan": "Less Than",
+        "lessThanOrEqual": "Less Than Or Equal",
+        "contains": "Contains",
+        "in": "In"
+      },
+      "predicateProperty": {
+        "self": "Self",
+        "name": "Name",
+        "trait": "Trait",
+        "type": "Type",
+        "color": "Color",
+        "power": "Power",
+        "damage": "Damage",
+        "health": "Health",
+        "currentHealth": "Current Health",
+        "isExhausted": "Is Exhausted",
+        "isRested": "Is Rested"
+      },
+      "predicateCardType": {
+        "leader": "Leader",
+        "character": "Character",
+        "exCharacter": "EX Character",
+        "chakra": "Chakra",
+        "summon": "Summon"
+      },
+      "predicateCardColor": {
+        "red": "Red",
+        "blue": "Blue",
+        "green": "Green",
+        "notApplicable": "N/A"
+      },
+      "targetRange": {
+        "self": "Self",
+        "opponent": "Opponent",
+        "any": "Any"
+      },
+      "executionTargetSource": {
+        "selectedTargets": "Selected Targets",
+        "sourceCard": "Source Card",
+        "none": "None"
+      },
+      "executionFlowMode": {
+        "perStep": "Per Step",
+        "atomicChain": "Atomic Chain"
+      },
+      "revealTiming": {
+        "revealFirst": "Reveal First",
+        "revealLast": "Reveal Last"
+      },
+      "ruleOperator": {
+        "any": "Any",
+        "all": "All"
+      },
+      "playerZone": {
+        "hand": "Hand",
+        "deck": "Deck",
+        "trash": "Trash",
+        "exileZone": "Exile Zone",
+        "supportZone": "Support Zone",
+        "characterField": "Character Field",
+        "leader": "Leader"
+      },
+      "revealZone": {
+        "hand": "Hand",
+        "deck": "Deck",
+        "supportZone": "Support Zone"
+      },
+      "tributeRole": {
+        "tributeMaterial": "Tribute Material",
+        "summonCandidate": "Summon Candidate"
+      },
+      "locationSelectorKind": {
+        "any": "Any",
+        "supportSlotIndex": "Support Slot Index",
+        "deckTop": "Deck Top"
+      },
+      "targetType": {
+        "selectedTargets": "Selected Targets",
+        "leader": "Leader"
+      },
+      "attributeOperation": {
+        "add": "Add",
+        "subtract": "Subtract",
+        "multiply": "Multiply",
+        "set": "Set"
+      },
+      "attributeType": {
+        "cardPower": "Card Power",
+        "cardHealth": "Card Health",
+        "cardDamage": "Card Damage",
+        "leaderPower": "Leader Power",
+        "leaderDamage": "Leader Damage",
+        "leaderCurrentLife": "Leader Current Life"
+      },
+      "chakraOperation": {
+        "pay": "Pay",
+        "recover": "Recover"
+      },
+      "faceState": {
+        "faceUp": "Face Up",
+        "faceDown": "Face Down"
+      },
+      "faceStateTargetCategory": {
+        "chakraCard": "Chakra Card",
+        "supportZoneCards": "Support Zone Cards"
+      },
+      "faceStateLockOperation": {
+        "cannotTurnFaceUp": "Cannot Turn Face Up"
+      },
+      "moveCardOperation": {
+        "move": "Move",
+        "draw": "Draw"
+      },
+      "moveCardZone": {
+        "hand": "Hand",
+        "deck": "Deck",
+        "trash": "Trash",
+        "exileZone": "Exile Zone",
+        "supportZone": "Support Zone",
+        "characterField": "Character Field"
+      },
+      "moveCardDestinationRange": {
+        "self": "Self",
+        "opponent": "Opponent",
+        "any": "Any"
+      },
+      "moveCardDeckPlacement": {
+        "top": "Top",
+        "bottom": "Bottom",
+        "index": "Index"
+      },
+      "moveCardMultiOrdering": {
+        "selectedOrder": "Selected Order",
+        "random": "Random"
+      },
+      "passiveMode": {
+        "none": "None",
+        "continuous": "Continuous",
+        "triggered": "Triggered"
+      },
+      "passiveScope": {
+        "sourceCardOnly": "Source Card Only",
+        "sourceController": "Source Controller",
+        "wholeGame": "Whole Game"
+      },
+      "passiveTriggerKind": {
+        "any": "Any",
+        "statsChanged": "Stats Changed",
+        "zoneChanged": "Zone Changed",
+        "turnChanged": "Turn Changed",
+        "phaseChanged": "Phase Changed",
+        "stackResolved": "Stack Resolved"
+      },
+      "passiveTargetPolicy": {
+        "sourceCard": "Source Card",
+        "triggerSelectedTargets": "Trigger Selected Targets"
+      },
+      "passiveConsequence": {
+        "destroyCard": "DestroyCard",
+        "negateCard": "NegateCard",
+        "summonCard": "SummonCard",
+        "tributeSummonCard": "TributeSummonCard",
+        "modifyAttribute": "ModifyAttribute",
+        "gainKeyword": "GainKeyword",
+        "alterResources": "AlterResources",
+        "noop": "Noop"
+      },
+      "keywordTargetType": {
+        "sourceCard": "Source Card",
+        "selectedTargets": "Selected Targets"
+      },
+      "keywordOperation": {
+        "add": "Add",
+        "remove": "Remove"
+      },
+      "condition": {
+        "isSecondTurnOrLater": "isSecondTurnOrLater",
+        "isFirstTurn": "isFirstTurn",
+        "isYourTurn": "isYourTurn",
+        "isOpponentTurn": "isOpponentTurn",
+        "hasAttackedThisTurn": "hasAttackedThisTurn",
+        "hasAvailableChakra": "hasAvailableChakra",
+        "canNormalSummon": "canNormalSummon",
+        "hasSummonTarget": "hasSummonTarget",
+        "hasTributeTargets": "hasTributeTargets"
+      }
+    },
+    "toasts": {
+      "noChanges": "No changes to save.",
+      "cardSaved": "Card saved successfully.",
+      "saveFailed": "Failed to save card payload."
+    },
+    "validation": {
+      "conditionsMustBeList": "Conditions must be a list of strings.",
+      "effectsMustBeList": "Effects must be a list.",
+      "effectFieldsRequired": "Each effect must include id, effectType, timing, contextRules, and targetRules.",
+      "effectIdUnique": "Effect id '{{id}}' must be unique.",
+      "branchTargetMissing": "{{label}} target '{{target}}' does not match any effect id.",
+      "branchTargetSelf": "{{label}} target cannot reference the same effect id '{{id}}'.",
+      "fixBranchErrors": "Fix effect branch validation errors before saving.",
+      "saveEffectFailed": "Failed to save effect payload.",
+      "validationFailed": "Validation failed while saving.",
+      "fixErrors": "Fix validation errors before saving.",
+      "cardEffectsSaved": "Card effects saved successfully."
+    }
+  }
+}

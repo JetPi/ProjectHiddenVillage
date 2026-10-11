@@ -1,9 +1,15 @@
+import { useTranslation } from 'react-i18next'
+import { translateKey } from '@/i18n'
 import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { CountConstraintField } from '@/views/admin/components/controls'
 import {
+  MATCH_MODE_LABEL_KEYS,
   MATCH_MODE_OPTIONS,
+  optionLabel,
+  PLAYER_ZONE_LABEL_KEYS,
   PLAYER_ZONE_OPTIONS,
+  RULE_OPERATOR_LABEL_KEYS,
   RULE_OPERATOR_OPTIONS,
 } from '@/views/admin/constants'
 import type {
@@ -31,10 +37,12 @@ export function CardAdminContextRulesPanel({
   effectIndex,
   updateEffectAt,
 }: ICardAdminContextRulesPanelProps) {
+  const { t } = useTranslation()
+
   return (
     <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-cyan-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        <span>Context Rules</span>
+        <span>{t('admin.panels.contextRules.title')}</span>
         <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
@@ -50,30 +58,30 @@ export function CardAdminContextRulesPanel({
               contextRules: [createDefaultContextRule(), ...current.contextRules],
             }))}
         >
-          Add Context Rule
+          {t('admin.panels.contextRules.addContextRule')}
         </AppButton>
       </div>
 
       {effect.contextRules.map((_, contextRuleIndex) => (
         <div key={`context-rule-${contextRuleIndex}`} className="space-y-3 border-l-2 border-l-cyan-500/30 pl-3">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-[var(--text-primary)]">Context #{contextRuleIndex + 1}</p>
+            <p className="text-xs font-semibold text-[var(--text-primary)]">{translateKey(t, 'admin.panels.contextRules.contextNumber', { number: contextRuleIndex + 1 })}</p>
             <CardAdminRemoveButton
               onClick={() =>
                 updateEffectAt(effectIndex, (current) => ({
                   ...current,
                   contextRules: current.contextRules.filter((_, index) => index !== contextRuleIndex),
                 }))}
-              ariaLabel="Remove Context Rule"
+              ariaLabel={t('admin.panels.contextRules.removeContextRule')}
             >
-              Remove
+              {t('admin.panels.contextRules.remove')}
             </CardAdminRemoveButton>
           </div>
 
           <div className="grid grid-cols-1 gap-3">
             <ContextRulePlayerPanel
               audience="player"
-              title="Player"
+              title={t('admin.panels.contextRules.player')}
               effect={effect}
               effectIndex={effectIndex}
               contextRuleIndex={contextRuleIndex}
@@ -82,7 +90,7 @@ export function CardAdminContextRulesPanel({
 
             <ContextRulePlayerPanel
               audience="opponent"
-              title="Opponent"
+              title={t('admin.panels.contextRules.opponent')}
               effect={effect}
               effectIndex={effectIndex}
               contextRuleIndex={contextRuleIndex}
@@ -104,13 +112,14 @@ function ContextRulePlayerPanel({
   contextRuleIndex,
   updateEffectAt,
 }: ICardAdminContextRulePlayerPanelProps) {
+  const { t } = useTranslation()
   const contextRule = effect.contextRules[contextRuleIndex]
   const audienceValue = contextRule[audience]
 
   return (
     <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-cyan-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        <span>{title} Conditions</span>
+        <span>{translateKey(t, 'admin.panels.contextRules.conditionsTitle', { title })}</span>
         <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
@@ -129,15 +138,15 @@ function ContextRulePlayerPanel({
                     }
                   : row),
             }))}
-          ariaLabel={`${title} Condition Enabled`}
+          ariaLabel={translateKey(t, 'admin.panels.contextRules.conditionEnabled', { title })}
         />
-        {title} Condition Enabled
+        {translateKey(t, 'admin.panels.contextRules.conditionEnabled', { title })}
       </label>
 
       {audienceValue ? (
         <>
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{title} In Zone</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{translateKey(t, 'admin.panels.contextRules.inZone', { title })}</label>
             <CardAdminSelect
               value={audienceValue.inZone ?? ''}
               onValueChange={(value) =>
@@ -160,9 +169,9 @@ function ContextRulePlayerPanel({
                   }),
                 }))}
             >
-              <option value="">None</option>
+              <option value="">{t('admin.panels.contextRules.none')}</option>
               {PLAYER_ZONE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
+                <option key={option} value={option}>{optionLabel(t, PLAYER_ZONE_LABEL_KEYS, option)}</option>
               ))}
             </CardAdminSelect>
           </div>
@@ -192,16 +201,16 @@ function ContextRulePlayerPanel({
                     }
                   }),
                 }))}
-              ariaLabel={`${title} In-Zone Requirements Enabled`}
+              ariaLabel={translateKey(t, 'admin.panels.contextRules.requirementsEnabled', { title })}
             />
-            {title} In-Zone Requirements Enabled
+            {translateKey(t, 'admin.panels.contextRules.requirementsEnabled', { title })}
           </label>
 
           {audienceValue.inZoneRequirements ? (
             <div className="space-y-2 border-l-2 border-l-cyan-500/30 pl-2">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Requirement Operator</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.contextRules.requirementOperator')}</label>
                   <CardAdminSelect
                     value={audienceValue.inZoneRequirements.operator}
                     onValueChange={(value) =>
@@ -232,13 +241,13 @@ function ContextRulePlayerPanel({
                     className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                   >
                     {RULE_OPERATOR_OPTIONS.map((option) => (
-                      <option key={option} value={option}>{option}</option>
+                      <option key={option} value={option}>{optionLabel(t, RULE_OPERATOR_LABEL_KEYS, option)}</option>
                     ))}
                   </CardAdminSelect>
                 </div>
 
                 <label className="inline-flex h-10 self-end items-center justify-between gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-primary)]">
-                  <span>Distinct Cards Across Requirements</span>
+                  <span>{t('admin.panels.contextRules.distinctCards')}</span>
                   <CardAdminToggleSwitch
                     checked={audienceValue.inZoneRequirements.distinctCardsAcrossRequirements}
                     onChange={(checked) =>
@@ -266,7 +275,7 @@ function ContextRulePlayerPanel({
                           }
                         }),
                       }))}
-                    ariaLabel="Distinct Cards Across Requirements"
+                    ariaLabel={t('admin.panels.contextRules.distinctCards')}
                   />
                 </label>
               </div>
@@ -301,7 +310,7 @@ function ContextRulePlayerPanel({
                       }),
                     }))}
                 >
-                  Add {title} Requirement
+                  {translateKey(t, 'admin.panels.contextRules.addRequirement', { title })}
                 </AppButton>
               </div>
 
@@ -412,7 +421,7 @@ function ContextRulePlayerPanel({
                         className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
                       >
                         {MATCH_MODE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>{option}</option>
+                          <option key={option} value={option}>{optionLabel(t, MATCH_MODE_LABEL_KEYS, option)}</option>
                         ))}
                       </CardAdminSelect>
 
@@ -443,13 +452,13 @@ function ContextRulePlayerPanel({
                             }),
                           }))}
                         className="inline-flex w-fit justify-self-end self-center"
-                        ariaLabel="Remove Requirement"
+                        ariaLabel={t('admin.panels.contextRules.removeRequirement')}
                       />
                     </div>
 
                     <div className="space-y-2 border-l-2 border-l-cyan-500/30 pl-2">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-semibold text-[var(--text-secondary)]">Predicates</p>
+                        <p className="text-xs font-semibold text-[var(--text-secondary)]">{t('admin.panels.contextRules.predicates')}</p>
                         <AppButton
                           type="button"
                           variant="ghost"
@@ -488,7 +497,7 @@ function ContextRulePlayerPanel({
                               }),
                             }))}
                         >
-                          Add Predicate
+                          {t('admin.panels.contextRules.addPredicate')}
                         </AppButton>
                       </div>
 

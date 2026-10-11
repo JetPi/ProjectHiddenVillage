@@ -4,6 +4,7 @@ import { CardImage } from '@/components/ui/cards/CardImage'
 import chakraCardImage from '@/assets/ChakraCard-hud.webp'
 import cardBackImage from '@/assets/CardBackside-hud.webp'
 import { twMerge } from 'tailwind-merge'
+import { useTranslation } from 'react-i18next'
 
 const RESOURCE_CARD_FRAME_CLASS = 'overflow-hidden rounded-sm border border-[var(--border-subtle)] bg-[var(--surface-muted)]'
 const CHAKRA_CARD_IMAGE_CLASS = 'h-full w-full rounded-none object-cover p-0 [image-rendering:auto]'
@@ -12,6 +13,7 @@ const CHAKRA_FACE_HUD_HEIGHT = 98
 const CHAKRA_BACK_HUD_HEIGHT = 97
 
 export function ResourceChakraGrid({ currentChakra = 5, cardClassName, className, slotClassName, slotCount = 5, topRowCount = 3 }: IResourceChakraGridProps) {
+  const { t } = useTranslation()
   const smallResourceCardSlots = Array.from({ length: slotCount }, (_, slotIndex) => slotIndex)
   const smallCardFrameClassName = twMerge(
     RESOURCE_CARD_FRAME_CLASS,
@@ -30,7 +32,7 @@ export function ResourceChakraGrid({ currentChakra = 5, cardClassName, className
           >
             <CardImage
               src={slotIndex < currentChakra  ? chakraCardImage : cardBackImage}
-              alt="Chakra card"
+              alt={t('components.game.chakraCard.alt')}
               width={CHAKRA_HUD_WIDTH}
               height={slotIndex < currentChakra ? CHAKRA_FACE_HUD_HEIGHT : CHAKRA_BACK_HUD_HEIGHT}
               className={CHAKRA_CARD_IMAGE_CLASS}
@@ -46,7 +48,7 @@ export function ResourceChakraGrid({ currentChakra = 5, cardClassName, className
           >
             <CardImage
               src={slotIndex < currentChakra  ? chakraCardImage : cardBackImage}
-              alt="Chakra card"
+              alt={t('components.game.chakraCard.alt')}
               width={CHAKRA_HUD_WIDTH}
               height={slotIndex < currentChakra ? CHAKRA_FACE_HUD_HEIGHT : CHAKRA_BACK_HUD_HEIGHT}
               className={CHAKRA_CARD_IMAGE_CLASS}

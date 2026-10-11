@@ -1,11 +1,20 @@
+import { useTranslation } from 'react-i18next'
+import { translateKey } from '@/i18n'
 import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { CountConstraintField } from '@/views/admin/components/controls'
 import {
+  MATCH_MODE_LABEL_KEYS,
   MATCH_MODE_OPTIONS,
+  optionLabel,
+  PLAYER_ZONE_LABEL_KEYS,
+  RULE_OPERATOR_LABEL_KEYS,
   RULE_OPERATOR_OPTIONS,
+  TARGET_LOCATION_SELECTOR_KIND_LABEL_KEYS,
   TARGET_LOCATION_SELECTOR_KIND_OPTIONS,
+  TARGET_RANGE_LABEL_KEYS,
   TARGET_RANGE_OPTIONS,
+  TRIBUTE_ROLE_LABEL_KEYS,
   TRIBUTE_ROLE_OPTIONS,
 } from '@/views/admin/constants'
 import type { ICardAdminTargetRulesPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
@@ -34,16 +43,18 @@ export function CardAdminTargetRulesPanel({
   effectIndex,
   updateEffectAt,
 }: ICardAdminTargetRulesPanelProps) {
+  const { t } = useTranslation()
+
   return (
     <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-emerald-500/55 pl-3 pt-3" open>
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        <span>Target Rules</span>
+        <span>{t('admin.panels.targetRules.title')}</span>
         <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
       <div className="mt-3 space-y-3">
         <div className="space-y-1">
-          <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Rule Operator</label>
+          <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.targetRules.ruleOperator')}</label>
           <CardAdminSelect
             value={effect.targetRules.operator}
             onValueChange={(value) =>
@@ -53,7 +64,7 @@ export function CardAdminTargetRulesPanel({
               }))}
           >
             {RULE_OPERATOR_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>{optionLabel(t, RULE_OPERATOR_LABEL_KEYS, option)}</option>
             ))}
           </CardAdminSelect>
         </div>
@@ -79,16 +90,16 @@ export function CardAdminTargetRulesPanel({
                     : null,
                 },
               }))}
-            ariaLabel="Tribute Composition Enabled"
+            ariaLabel={t('admin.panels.targetRules.tributeCompositionEnabled')}
           />
-          Tribute Composition Enabled
+          {t('admin.panels.targetRules.tributeCompositionEnabled')}
         </label>
       ) : null}
 
       <div className={`grid grid-cols-1 gap-3 ${effect.runtimeEffectType === 'Tribute' && effect.targetRules.tributeComposition ? 'sm:grid-cols-2' : ''}`}>
         {!isAttackNegationRuntimeEffect(effect.runtimeEffectType) ? (
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Count</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.targetRules.targetCount')}</label>
             <CountConstraintField
               mode={resolveCountConstraintMode(
                 effect.targetRules.exactTargetCount,
@@ -161,7 +172,7 @@ export function CardAdminTargetRulesPanel({
 
         {effect.runtimeEffectType === 'Tribute' && effect.targetRules.tributeComposition ? (
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Tribute Count</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.targetRules.tributeCount')}</label>
             <CountConstraintField
               mode={resolveCountConstraintMode(
                 effect.targetRules.tributeComposition.exactTributeCount,
@@ -251,9 +262,9 @@ export function CardAdminTargetRulesPanel({
                       }
                     : current.targetRules,
                 }))}
-              ariaLabel="Require Single Summon Target"
+              ariaLabel={t('admin.panels.targetRules.requireSingleSummonTarget')}
             />
-            Require Single Summon Target
+            {t('admin.panels.targetRules.requireSingleSummonTarget')}
           </label>
 
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)] sm:col-span-2">
@@ -272,16 +283,16 @@ export function CardAdminTargetRulesPanel({
                       }
                     : current.targetRules,
                 }))}
-              ariaLabel="Require Distinct Summon And Tributes"
+              ariaLabel={t('admin.panels.targetRules.requireDistinctSummonAndTributes')}
             />
-            Require Distinct Summon And Tributes
+            {t('admin.panels.targetRules.requireDistinctSummonAndTributes')}
           </label>
         </div>
       ) : null}
 
       <div className="space-y-3 my-2 border-l-2 border-l-emerald-500/30 pl-3">
         <div className="flex items-center  justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Rule Rows</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.targetRules.ruleRows')}</p>
           <AppButton
             type="button"
             variant="ghost"
@@ -294,7 +305,7 @@ export function CardAdminTargetRulesPanel({
                 },
               }))}
           >
-            Add Target Rule
+            {t('admin.panels.targetRules.addTargetRule')}
           </AppButton>
         </div>
 
@@ -304,7 +315,7 @@ export function CardAdminTargetRulesPanel({
           const zoneOptions = resolveTargetZoneOptions(effect.runtimeEffectType)
           const selectedCountField = (
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Selected Count</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.targetRules.selectedCount')}</label>
               <CountConstraintField
                 mode={resolveCountConstraintMode(
                   targetRule.exactSelectedTargetCount,
@@ -376,7 +387,7 @@ export function CardAdminTargetRulesPanel({
           return (
             <div key={`target-rule-${targetRuleIndex}`} className="space-y-3 border-l-2 border-l-emerald-500/30 pl-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-[var(--text-primary)]">Rule #{targetRuleIndex + 1}</p>
+                <p className="text-xs font-semibold text-[var(--text-primary)]">{translateKey(t, 'admin.panels.targetRules.ruleNumber', { number: targetRuleIndex + 1 })}</p>
                 <CardAdminRemoveButton
                   onClick={() =>
                     updateEffectAt(effectIndex, (current) => ({
@@ -387,7 +398,7 @@ export function CardAdminTargetRulesPanel({
                       },
                     }))}
                   className="h-8 w-8"
-                  ariaLabel="Remove Target Rule"
+                  ariaLabel={t('admin.panels.targetRules.removeTargetRule')}
                 />
               </div>
 
@@ -395,7 +406,7 @@ export function CardAdminTargetRulesPanel({
                 <div className="sm:col-span-2">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Scope</label>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.targetRules.scope')}</label>
                       <CardAdminSelect
                         value={targetRule.scope}
                         onValueChange={(value) =>
@@ -409,13 +420,13 @@ export function CardAdminTargetRulesPanel({
                           }))}
                       >
                         {TARGET_RANGE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>{option}</option>
+                          <option key={option} value={option}>{optionLabel(t, TARGET_RANGE_LABEL_KEYS, option)}</option>
                         ))}
                       </CardAdminSelect>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Zone</label>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.targetRules.zone')}</label>
                       <CardAdminSelect
                         value={targetRule.inZone}
                         onValueChange={(value) =>
@@ -438,13 +449,13 @@ export function CardAdminTargetRulesPanel({
                           }))}
                       >
                         {zoneOptions.map((option) => (
-                          <option key={option} value={option}>{option}</option>
+                          <option key={option} value={option}>{optionLabel(t, PLAYER_ZONE_LABEL_KEYS, option)}</option>
                         ))}
                       </CardAdminSelect>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Location Selector</label>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.targetRules.locationSelector')}</label>
                       <CardAdminSelect
                         value={targetRule.locationSelector?.kind ?? 'Any'}
                         onValueChange={(value) =>
@@ -468,14 +479,14 @@ export function CardAdminTargetRulesPanel({
                           }))}
                       >
                         {TARGET_LOCATION_SELECTOR_KIND_OPTIONS.map((option) => (
-                          <option key={option} value={option}>{option}</option>
+                          <option key={option} value={option}>{optionLabel(t, TARGET_LOCATION_SELECTOR_KIND_LABEL_KEYS, option)}</option>
                         ))}
                       </CardAdminSelect>
                     </div>
 
                     {showsTributeRole ? (
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Tribute Role</label>
+                        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.targetRules.tributeRole')}</label>
                         <CardAdminSelect
                           value={targetRule.tributeRole ?? ''}
                           onValueChange={(value) =>
@@ -490,9 +501,9 @@ export function CardAdminTargetRulesPanel({
                               },
                             }))}
                         >
-                          <option value="">None</option>
+                          <option value="">{t('admin.panels.targetRules.none')}</option>
                           {TRIBUTE_ROLE_OPTIONS.map((option) => (
-                            <option key={option} value={option}>{option}</option>
+                            <option key={option} value={option}>{optionLabel(t, TRIBUTE_ROLE_LABEL_KEYS, option)}</option>
                           ))}
                         </CardAdminSelect>
                       </div>
@@ -501,7 +512,7 @@ export function CardAdminTargetRulesPanel({
 
                   {targetRule.locationSelector?.kind === 'Support Slot Index' ? (
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Support Slot Index</label>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.targetRules.supportSlotIndex')}</label>
                       <input
                         type="number"
                         min={0}
@@ -532,7 +543,7 @@ export function CardAdminTargetRulesPanel({
                 {showsTributeRole && shouldShowSelectedCountField ? selectedCountField : null}
 
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Restriction Match Mode</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.targetRules.restrictionMatchMode')}</label>
                   <CardAdminSelect
                     value={targetRule.restriction.matchMode}
                     onValueChange={(value) =>
@@ -554,7 +565,7 @@ export function CardAdminTargetRulesPanel({
                       }))}
                   >
                     {MATCH_MODE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>{option}</option>
+                      <option key={option} value={option}>{optionLabel(t, MATCH_MODE_LABEL_KEYS, option)}</option>
                     ))}
                   </CardAdminSelect>
                 </div>
@@ -562,7 +573,7 @@ export function CardAdminTargetRulesPanel({
 
               <div className="space-y-2 border-l-2 border-l-emerald-500/30 pl-2">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-[var(--text-secondary)]">Predicates</p>
+                  <p className="text-xs font-semibold text-[var(--text-secondary)]">{t('admin.panels.targetRules.predicates')}</p>
                   <AppButton
                     type="button"
                     variant="ghost"
@@ -584,7 +595,7 @@ export function CardAdminTargetRulesPanel({
                         },
                       }))}
                   >
-                    Add Predicate
+                    {t('admin.panels.targetRules.addPredicate')}
                   </AppButton>
                 </div>
 

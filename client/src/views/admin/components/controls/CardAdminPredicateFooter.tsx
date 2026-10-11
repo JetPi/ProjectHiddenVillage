@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { translateKey } from '@/i18n'
 import { CardAdminToggleSwitch } from './CardAdminToggleSwitch'
 import { CardAdminRemoveButton } from './CardAdminRemoveButton'
 import type { ICardAdminPredicateFooterProps } from '@/views/admin/types/cardAdminPredicateControls'
@@ -9,6 +11,8 @@ export function CardAdminPredicateFooter({
   onIgnoreCaseChange,
   onRemovePredicate,
 }: ICardAdminPredicateFooterProps) {
+  const { t } = useTranslation()
+
   return (
     <>
       {predicateEntries.length > 0 ? (
@@ -22,7 +26,7 @@ export function CardAdminPredicateFooter({
               <CardAdminRemoveButton
                 variant="chip"
                 onClick={() => onRemoveEntry(entryIndex)}
-                ariaLabel={`Remove ${entry}`}
+                ariaLabel={translateKey(t, 'admin.controls.predicate.removeEntry', { entry })}
               />
             </div>
           ))}
@@ -31,18 +35,18 @@ export function CardAdminPredicateFooter({
 
       <div className="flex flex-wrap items-start justify-between gap-2">
         <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
-          <span>Ignore Case</span>
+          <span>{t('admin.controls.predicate.ignoreCase')}</span>
           <CardAdminToggleSwitch
             checked={ignoreCase}
             onChange={onIgnoreCaseChange}
-            ariaLabel="Ignore Case"
+            ariaLabel={t('admin.controls.predicate.ignoreCase')}
           />
         </label>
 
         <CardAdminRemoveButton
           onClick={onRemovePredicate}
           className="self-end"
-          ariaLabel="Remove Predicate"
+          ariaLabel={t('admin.controls.predicate.removePredicate')}
         />
       </div>
     </>

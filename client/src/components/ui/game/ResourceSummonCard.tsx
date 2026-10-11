@@ -2,12 +2,14 @@ import { PlayCard } from '@/components/ui/game/PlayCard'
 import { CardImage } from '@/components/ui/cards/CardImage'
 import summonCardImage from '@/assets/SummonCard-hud.webp'
 import { twMerge } from 'tailwind-merge'
+import { useTranslation } from 'react-i18next'
 import type { IResourceSummonCardProps } from '@/components/ui/types'
 
 const RESOURCE_CARD_FRAME_CLASS = 'h-full max-h-full overflow-hidden rounded-sm border border-[var(--border-subtle)] bg-[var(--surface-muted)]'
 const RESOURCE_CARD_IMAGE_CLASS = 'h-full w-full rounded-none object-contain p-[1px] [image-rendering:auto]'
 
 export function ResourceSummonCard({ isSummonCardReady = true, className }: IResourceSummonCardProps) {
+  const { t } = useTranslation()
   const largeCardFrameClassName = twMerge(
     RESOURCE_CARD_FRAME_CLASS,
     'border-transparent bg-transparent p-0.5',
@@ -24,7 +26,7 @@ export function ResourceSummonCard({ isSummonCardReady = true, className }: IRes
     >
       <CardImage
         src={summonCardImage}
-        alt="Summon card"
+        alt={t('components.game.summonCard.alt')}
         className={RESOURCE_CARD_IMAGE_CLASS}
       />
     </PlayCard>

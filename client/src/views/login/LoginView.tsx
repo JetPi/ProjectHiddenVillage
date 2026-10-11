@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SubmitEvent } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
+import i18n, { translateKey } from '@/i18n'
 import {
   deckOptionsModeOptions,
   gameCodeFieldConfigByMode,
@@ -19,6 +22,7 @@ import {
   FormTextarea,
   OptionToggle,
 } from '@/components/forms'
+import type { IAdaptiveFieldConfig } from '@/components/forms'
 import { Lightbulb, LogIn, X } from 'lucide-react'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { clearAuthSession, useAuthSessionStore } from '@/state/authSession'
@@ -51,7 +55,43 @@ function getFontFaceSet(): FontFaceSet | null {
   return fontSet
 }
 
+/**
+ * Field configs store translation keys in `placeholder`/`choices[].label`; resolve them here so
+ * the LoginView keeps its plain `IAdaptiveFieldConfig` contract while the copy lives in en.json.
+ */
+function translateAdaptiveFieldConfig(config: IAdaptiveFieldConfig, t: TFunction): IAdaptiveFieldConfig {
+  if (config.type === 'select') {
+    return {
+      ...config,
+      choices: config.choices.map((choice) => ({ ...choice, label: translateKey(t, choice.label) })),
+    }
+  }
+
+  if (config.type === 'input') {
+    const placeholder = config.props?.placeholder
+    if (typeof placeholder !== 'string' || !placeholder) {
+      return config
+    }
+
+    return {
+      ...config,
+      props: { ...config.props, placeholder: translateKey(t, placeholder) },
+    }
+  }
+
+  const placeholder = config.props?.placeholder
+  if (typeof placeholder !== 'string' || !placeholder) {
+    return config
+  }
+
+  return {
+    ...config,
+    props: { ...config.props, placeholder: translateKey(t, placeholder) },
+  }
+}
+
 export function LoginView() {
+  const { t } = useTranslation()
   const loaderData = useLoaderData() as ILoginLoaderData
   const actionData = useActionData() as ILoginActionData | undefined
   const navigation = useNavigation()
@@ -63,10 +103,10 @@ export function LoginView() {
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [savedDeckChoices, setSavedDeckChoices] = useState<{ value: string; label: string }[]>([
-    { value: '', label: 'Log in to load your decks' },
+    { value: '', label: t('auth.deckChoice.loginToLoad') },
   ])
   const [starterDeckChoices, setStarterDeckChoices] = useState<{ value: string; label: string }[]>([
-    { value: '', label: 'Loading public decks...' },
+    { value: '', label: t('auth.deckChoice.loadingPublic') },
   ])
   const [starterDeckFetchFailed, setStarterDeckFetchFailed] = useState(false)
   const [starterDeckRetryToken, setStarterDeckRetryToken] = useState(0)
@@ -143,9 +183,9 @@ export function LoginView() {
       return
     }
 
-    showAppSuccessToast('Account created successfully.', { id: 'signup-success', duration: 3200 })
+    showAppSuccessToast(t('auth.toasts.accountCreated'), { id: 'signup-success', duration: 3200 })
     hasShownSignupToast.current = true
-  }, [loaderData.signupSuccess])
+  }, [loaderData.signupSuccess, t])
 
   useEffect(() => {
     if (!authUsername) {
@@ -157,9 +197,9 @@ export function LoginView() {
       return
     }
 
-    showAppInfoToast('Logged in as ' + authUsername, { id: 'auth-login-status', duration: 3200 })
+    showAppInfoToast(t('auth.toasts.loggedInAs', { username: authUsername }), { id: 'auth-login-status', duration: 3200 })
     lastAuthToastUsername.current = authUsername
-  }, [authUsername, loaderData.signupSuccess])
+  }, [authUsername, loaderData.signupSuccess, t])
 
   useEffect(() => {
     if (!authUsername) {
@@ -196,13 +236,13 @@ export function LoginView() {
 
         if (!isCancelled) {
           const publicDecks = allDecks.filter((deck) => deck.type === 'Public')
-          setStarterDeckChoices(toDeckChoices(publicDecks, 'No public decks available yet.'))
+          setStarterDeckChoices(toDeckChoices(publicDecks, t('auth.deckChoice.noPublic')))
           setStarterDeckCardIdsByDeckId(toDeckCardIdsByDeckId(publicDecks))
           setStarterDeckFetchFailed(false)
         }
       } catch {
         if (!isCancelled) {
-          setStarterDeckChoices([{ value: '', label: 'Failed to load public decks.' }])
+          setStarterDeckChoices([{ value: '', label: t('auth.deckChoice.failedPublic') }])
           setStarterDeckCardIdsByDeckId({})
           setStarterDeckFetchFailed(true)
         }
@@ -210,7 +250,7 @@ export function LoginView() {
 
       if (!authUser?.userId) {
         if (!isCancelled) {
-          setSavedDeckChoices([{ value: '', label: 'Log in to load your decks' }])
+          setSavedDeckChoices([{ value: '', label: t('auth.deckChoice.loginToLoad') }])
           setSavedDeckCardIdsByDeckId({})
         }
 
@@ -221,12 +261,12 @@ export function LoginView() {
         const userDecks = await fetchDecks({ userId: authUser.userId })
 
         if (!isCancelled) {
-          setSavedDeckChoices(toDeckChoices(userDecks, 'No saved decks found for this user.'))
+          setSavedDeckChoices(toDeckChoices(userDecks, t('auth.deckChoice.noSaved')))
           setSavedDeckCardIdsByDeckId(toDeckCardIdsByDeckId(userDecks))
         }
       } catch {
         if (!isCancelled) {
-          setSavedDeckChoices([{ value: '', label: 'Failed to load your decks.' }])
+          setSavedDeckChoices([{ value: '', label: t('auth.deckChoice.failedSaved') }])
           setSavedDeckCardIdsByDeckId({})
         }
       }
@@ -237,7 +277,7 @@ export function LoginView() {
     return () => {
       isCancelled = true
     }
-  }, [authUser?.userId, starterDeckRetryToken])
+  }, [authUser?.userId, starterDeckRetryToken, t])
 
   useEffect(() => {
     const selectedDeckId = activeDeckOption.trim()
@@ -287,6 +327,21 @@ export function LoginView() {
     }
   }, [deckOptionsMode, savedDeckChoices, starterDeckChoices])
 
+  const translatedGameCodeModeOptions = useMemo(
+    () => gameCodeModeOptions.map((option) => ({ ...option, label: translateKey(t, option.label) })),
+    [t],
+  )
+
+  const translatedDeckOptionsModeOptions = useMemo(
+    () => deckOptionsModeOptions.map((option) => ({ ...option, label: translateKey(t, option.label) })),
+    [t],
+  )
+
+  const translatedGameCodeConfig = useMemo(
+    () => translateAdaptiveFieldConfig(gameCodeFieldConfigByMode[gameCodeMode], t),
+    [gameCodeMode, t],
+  )
+
   const importedDeckLineCount = useMemo(
     () =>
       activeDeckOption
@@ -302,7 +357,7 @@ export function LoginView() {
     setLoginEmail('')
     setLoginPassword('')
     setIsLogoutModalOpen(false)
-    showAppInfoToast('Logged out successfully.', { id: 'auth-logout-status', duration: 3200 })
+    showAppInfoToast(t('auth.toasts.loggedOut'), { id: 'auth-logout-status', duration: 3200 })
     navigate('/', { replace: true })
   }
 
@@ -326,7 +381,7 @@ export function LoginView() {
     }
 
     if (!authUser?.userId) {
-      showAppInfoToast('Please log in before creating or joining a game.')
+      showAppInfoToast(t('auth.toasts.loginRequired'))
       setIsLoginModalOpen(true)
       return
     }
@@ -339,13 +394,13 @@ export function LoginView() {
         const deckCardsPayload = activeDeckOption.trim()
         if (!deckCardsPayload) {
           if (isCreateMode) {
-            showAppInfoToast('Please paste your deck list before continuing.')
+            showAppInfoToast(t('auth.toasts.pasteDeckList'))
             return
           }
         } else {
           const deckPayloadValidation = validateDeckCardsPayload(deckCardsPayload)
           if (!deckPayloadValidation.isValid) {
-            showAppInfoToast(deckPayloadValidation.message ?? 'Deck list format is invalid.')
+            showAppInfoToast(deckPayloadValidation.message ?? t('auth.toasts.deckFormatInvalid'))
             return
           }
 
@@ -362,8 +417,8 @@ export function LoginView() {
           if (!isCreateMode) {
             deckId = null
           } else {
-            const deckModeLabel = deckOptionsMode === 'saved_decks' ? 'saved deck' : 'public deck'
-            showAppInfoToast(`Please select a ${deckModeLabel} before continuing.`)
+            const deckModeLabel = t(deckOptionsMode === 'saved_decks' ? 'auth.deckMode.saved' : 'auth.deckMode.public')
+            showAppInfoToast(t('auth.toasts.selectDeck', { mode: deckModeLabel }))
             return
           }
         } else {
@@ -373,8 +428,8 @@ export function LoginView() {
 
       if (gameCodeMode === 'create') {
         if (!deckId) {
-          const deckModeLabel = deckOptionsMode === 'saved_decks' ? 'saved deck' : 'public deck'
-          showAppInfoToast(`Please select a ${deckModeLabel} before continuing.`)
+          const deckModeLabel = t(deckOptionsMode === 'saved_decks' ? 'auth.deckMode.saved' : 'auth.deckMode.public')
+          showAppInfoToast(t('auth.toasts.selectDeck', { mode: deckModeLabel }))
           return
         }
 
@@ -389,13 +444,13 @@ export function LoginView() {
           gameCode: createdGame.id,
         })
 
-        showAppSuccessToast(`Game created. Share code ${createdGame.id}`)
+        showAppSuccessToast(t('auth.toasts.gameCreated', { code: createdGame.id }))
         navigate(toGameRoutePath(createdGame.id))
         return
       }
 
       if (!normalizedGameCode) {
-        showAppInfoToast('Please provide a game code to join.')
+        showAppInfoToast(t('auth.toasts.gameCodeRequired'))
         return
       }
 
@@ -409,10 +464,10 @@ export function LoginView() {
         gameCode: joinedGame.id,
       })
 
-      showAppSuccessToast('Joined game successfully.')
+      showAppSuccessToast(t('auth.toasts.joinedGame'))
       navigate(toGameRoutePath(joinedGame.id))
     } catch (error) {
-      const apiMessage = getApiErrorMessage(error, 'Unable to submit deck or join game. Please try again.')
+      const apiMessage = getApiErrorMessage(error, t('auth.toasts.submitFailed'))
 
       if (
         gameCodeMode === 'join' &&
@@ -440,11 +495,11 @@ export function LoginView() {
               isTitleFontReady ? 'opacity-100' : 'opacity-0'
             }`}
           >
-            Shinobi Tactics
+            {t('auth.title')}
           </p>
           <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)] sm:text-base">
-            <span className="block">Make your deck, test against opponents, and seize victory.</span>
-            <span className="block">Prepare for official tournament play in a free online <strong>Naruto Card Game</strong> simulator.</span>
+            <span className="block">{t('auth.tagline1')}</span>
+            <span className="block"><Trans i18nKey="auth.tagline2" components={{ strong: <strong /> }} /></span>
           </p>
         </Panel>
         <Panel className="my-2 w-full px-5 pt-3">
@@ -452,12 +507,12 @@ export function LoginView() {
 
             <FormField className="col-span-2">
               <div className="flex items-center justify-between gap-3">
-                <FormLabel htmlFor="displayName" className="mb-0">Display Name</FormLabel>
+                <FormLabel htmlFor="displayName" className="mb-0">{t('auth.displayName')}</FormLabel>
                 <AppButton
                   type="button"
                   variant="ghost"
                   onClick={toggleTheme}
-                  aria-label="Toggle light and dark mode"
+                  aria-label={t('auth.toggleThemeAria')}
                   className="h-6 w-6 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
                 >
                   <Lightbulb size={12} />
@@ -468,7 +523,7 @@ export function LoginView() {
                   id="displayName"
                   value={displayName}
                   onChange={(event) => setDisplayName(event.target.value)}
-                  placeholder="Enter name here"
+                  placeholder={t('auth.displayNamePlaceholder')}
                   maxLength={24}
                   className="py-1.5 pr-12"
                   required
@@ -483,21 +538,21 @@ export function LoginView() {
 
                     setIsLoginModalOpen(true)
                   }}
-                  aria-label={authUsername ? 'Open logout modal' : 'Open login modal'}
+                  aria-label={authUsername ? t('auth.openLogoutModalAria') : t('auth.openLoginModalAria')}
                   className="absolute right-0 top-0 bottom-0 inline-flex w-10 items-center justify-center rounded-r-xl border-l border-[var(--border-subtle)] bg-transparent text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                 >
                   {authUsername ? <X size={14} /> : <LogIn size={14} />}
                 </button>
               </div>
-              {showDisplayNameError ? <FormErrorText>Please enter a display name.</FormErrorText> : null}
+              {showDisplayNameError ? <FormErrorText>{t('auth.displayNameRequired')}</FormErrorText> : null}
             </FormField>
 
             <FormField className="col-span-1">
-              <FormLabel htmlFor="gameCode">Game Code</FormLabel>
+              <FormLabel htmlFor="gameCode">{t('auth.gameCode')}</FormLabel>
               <OptionToggle
-                ariaLabel="Game code input mode"
+                ariaLabel={t('auth.gameCodeModeAria')}
                 value={gameCodeMode}
-                options={gameCodeModeOptions}
+                options={translatedGameCodeModeOptions}
                 optionClassName="py-1"
                 onChange={(nextMode) => {
                   setGameCodeMode(nextMode)
@@ -507,28 +562,28 @@ export function LoginView() {
                 id="gameCode"
                 value={activeGameCode}
                 onValueChange={setGameCodeValue}
-                config={gameCodeFieldConfigByMode[gameCodeMode]}
+                config={translatedGameCodeConfig}
                 className="py-1.5"
               />
             </FormField>
 
             <FormField className="col-span-1">
                 <div className="flex items-center justify-between gap-2">
-                  <FormLabel htmlFor="deckOptions" className="mb-0">Deck Options</FormLabel>
+                  <FormLabel htmlFor="deckOptions" className="mb-0">{t('auth.deckOptions')}</FormLabel>
                   {starterDeckFetchFailed && deckOptionsMode === 'starter_decks' ? (
                     <button
                       type="button"
                       onClick={() => setStarterDeckRetryToken((value) => value + 1)}
                       className="px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] transition-opacity hover:opacity-75"
                     >
-                      Retry
+                      {t('auth.retry')}
                     </button>
                   ) : null}
                 </div>
                 <OptionToggle
-                  ariaLabel="Deck options input mode"
+                  ariaLabel={t('auth.deckOptionsModeAria')}
                   value={deckOptionsMode}
-                  options={deckOptionsModeOptions}
+                  options={translatedDeckOptionsModeOptions}
                   optionClassName="py-1"
                   onChange={(nextMode) => {
                     setDeckOptionsMode(nextMode)
@@ -545,11 +600,11 @@ export function LoginView() {
                       onClick={() => setIsImportModalOpen(true)}
                       className="w-full justify-center py-1.5"
                     >
-                      Import your deck here
+                      {t('auth.importDeckButton')}
                     </AppButton>
                     {importedDeckLineCount > 0 ? (
                       <p className="mt-2 text-xs text-[var(--text-secondary)]">
-                        Imported deck list ready ({importedDeckLineCount} lines).
+                        {t('auth.importedReady', { lineCount: importedDeckLineCount })}
                       </p>
                     ) : null}
                   </>
@@ -566,7 +621,7 @@ export function LoginView() {
 
             <FormActions className="col-span-full pt-2 w-full justify-start">
               <AppButton type="submit" className="w-full">
-                Enter Game
+                {t('auth.enterGame')}
               </AppButton>
             </FormActions>
           </Form>
@@ -587,7 +642,7 @@ export function LoginView() {
           >
             <div className="mb-4 flex items-center justify-between">
               <h2 id="login-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
-                Log In
+                {t('auth.loginModalTitle')}
               </h2>
             </div>
 
@@ -595,7 +650,7 @@ export function LoginView() {
               <input type="hidden" name="intent" value="login" />
               <FormField className="space-y-0">
                 <FormLabel htmlFor="loginEmail" className="mb-1 text-[11px] font-normal normal-case leading-none tracking-[0.08em] text-[var(--text-muted)]">
-                  Email
+                  {t('auth.email')}
                 </FormLabel>
                 <FormInput
                   id="loginEmail"
@@ -603,7 +658,7 @@ export function LoginView() {
                   type="email"
                   value={loginEmail}
                   onChange={(event) => setLoginEmail(event.target.value)}
-                  placeholder="you@example.com"
+                  placeholder={t('auth.emailPlaceholder')}
                   className="py-1.5"
                   required
                 />
@@ -611,7 +666,7 @@ export function LoginView() {
 
               <FormField className="space-y-0">
                 <FormLabel htmlFor="loginPassword" className="mb-1 text-[11px] font-normal normal-case leading-none tracking-[0.08em] text-[var(--text-muted)]">
-                  Password
+                  {t('auth.password')}
                 </FormLabel>
                 <FormInput
                   id="loginPassword"
@@ -619,7 +674,7 @@ export function LoginView() {
                   type="password"
                   value={loginPassword}
                   onChange={(event) => setLoginPassword(event.target.value)}
-                  placeholder="Enter password"
+                  placeholder={t('auth.passwordPlaceholder')}
                   className="py-1.5"
                   required
                 />
@@ -628,19 +683,19 @@ export function LoginView() {
                 <FormErrorText>{actionData.login.error}</FormErrorText>
               ) : null}
               <p className="text-center text-sm text-[var(--text-secondary)]">
-                Not registered?{' '}
+                {t('auth.notRegistered')}{' '}
                 <Link
                   to="/sign-in"
                   onClick={() => setIsLoginModalOpen(false)}
                   className="font-semibold text-[var(--text-accent)] underline-offset-2 hover:underline"
                 >
-                  Sign up here!
+                  {t('auth.signUpHere')}
                 </Link>
               </p>
 
               <FormActions className="w-full justify-end gap-2 pt-0">
                 <AppButton type="submit" disabled={isSubmittingLogin}>
-                  {isSubmittingLogin ? 'Logging In...' : 'Log In'}
+                  {isSubmittingLogin ? t('auth.loggingIn') : t('auth.logIn')}
                 </AppButton>
               </FormActions>
 
@@ -663,18 +718,18 @@ export function LoginView() {
           >
             <div className="mb-3 flex items-center justify-between">
               <h2 id="logout-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
-                Are you sure?
+                {t('auth.logoutConfirmTitle')}
               </h2>
             </div>
             <p className="mb-4 text-sm text-[var(--text-secondary)]">
-              Do you want to log out of your current session?
+              {t('auth.logoutConfirmBody')}
             </p>
             <div className="flex justify-end gap-2">
               <AppButton type="button" variant="ghost" onClick={() => setIsLogoutModalOpen(false)}>
-                Cancel
+                {t('auth.cancel')}
               </AppButton>
               <AppButton type="button" onClick={handleLogout}>
-                Log Out
+                {t('auth.logOut')}
               </AppButton>
             </div>
           </Panel>
@@ -695,11 +750,11 @@ export function LoginView() {
           >
             <div className="mb-3 flex items-center justify-between">
               <h2 id="import-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
-                Import Deck List
+                {t('auth.importModalTitle')}
               </h2>
             </div>
             <p className="mb-2 text-sm text-[var(--text-secondary)]">
-              Paste one card per line using format like: 1x N-001
+              {t('auth.importModalBody')}
             </p>
             <FormTextarea
               id="deckImportPayload"
@@ -711,13 +766,13 @@ export function LoginView() {
                   setIsImportModalOpen(false)
                 }
               }}
-              placeholder={'1x N-001\n2x N-045'}
+              placeholder={t('auth.importPlaceholder')}
               rows={10}
               className="py-2"
             />
             <div className="mt-4 flex justify-end gap-2">
               <AppButton type="button" variant="ghost" onClick={() => setIsImportModalOpen(false)}>
-                Close
+                {t('auth.close')}
               </AppButton>
             </div>
           </Panel>
@@ -743,7 +798,7 @@ function toDeckChoices(decks: IDeckResponse[], emptyStateLabel: string): { value
 
     return {
       value: deck.id,
-      label: `Deck ${deckNumber} (${shortId}) - ${totalCards} cards`,
+      label: i18n.t('auth.deckChoice.deckLabel', { number: deckNumber, shortId, totalCards }),
     }
   })
 }
