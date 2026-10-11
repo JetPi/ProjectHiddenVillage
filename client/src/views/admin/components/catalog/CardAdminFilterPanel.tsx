@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { FormInput, FormLabel, FormSelect } from '@/components/forms'
 import { translateKey } from '@/i18n'
 import { SORT_OPTION_LABEL_KEYS } from '@/views/admin/constants'
-import type { ICardAdminFilterPanelProps } from '@/views/admin/types/cardAdminFilterPanel'
+import type { ICardAdminFilterPanelProps } from '@/views/admin/types/cardAdminViewTypes'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 

@@ -14,7 +14,7 @@ import {
   PASSIVE_TRIGGER_KIND_LABEL_KEYS,
   PASSIVE_TRIGGER_KIND_OPTIONS,
 } from '@/views/admin/constants'
-import type { ICardAdminPassiveSettingsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import type { ICardAdminPassiveSettingsPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 import {
   createDefaultPassiveConsequence,
   createDefaultPassiveReevaluation,

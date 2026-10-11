@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { CardAdminChevronIcon } from '@/views/admin/components/controls'
-import type { ICardAdminSummonSettingsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import type { ICardAdminSummonSettingsPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 
 export function CardAdminSummonSettingsPanel({
   effect,

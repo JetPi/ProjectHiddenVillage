@@ -49,7 +49,7 @@ import {
   CardAdminSummonSettingsPanel,
   CardAdminTargetRulesPanel,
 } from '@/views/admin/components/detailPanels'
-import type { ICardAdminEffectsSectionProps } from '@/views/admin/types/cardAdminDetailSections'
+import type { ICardAdminEffectsSectionProps } from '@/views/admin/types/cardAdminDetailTypes'
 
 export function CardAdminEffectsSection({
   parsedEffects,

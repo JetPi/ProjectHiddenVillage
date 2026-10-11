@@ -1,5 +1,5 @@
 import { PLAYER_ZONE_OPTIONS, REVEAL_ZONE_OPTIONS } from '@/views/admin/constants'
-import type { ICountConstraintMode } from '@/views/admin/types/countConstraintField'
+import type { ICountConstraintMode } from '@/views/admin/types/cardAdminViewTypes'
 import type {
   ICardCatalogEffectRequest,
   ICardCatalogZoneCardPropertyPredicateRequest,

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { CardAdminChevronIcon, CardAdminToggleSwitch } from '@/views/admin/components/controls'
-import type { ICardAdminSearchCardPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import type { ICardAdminSearchCardPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 
 /**
  * "Search your deck for a card, [reveal it,] add it to your hand[, then shuffle]".

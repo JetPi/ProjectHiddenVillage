@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
-import type { ICardAdminPaginationFooterProps } from '@/views/admin/types/cardAdminPaginationFooter'
+import type { ICardAdminPaginationFooterProps } from '@/views/admin/types/cardAdminViewTypes'
 
 export function CardAdminPaginationFooter({
   sentinelRef,

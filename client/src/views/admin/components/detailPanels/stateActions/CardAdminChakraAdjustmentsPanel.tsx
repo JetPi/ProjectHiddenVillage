@@ -9,7 +9,7 @@ import {
   TARGET_RANGE_LABEL_KEYS,
   TARGET_RANGE_OPTIONS,
 } from '@/views/admin/constants'
-import type { ICardAdminChakraAdjustmentsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import type { ICardAdminChakraAdjustmentsPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 import { createDefaultChakraAdjustment } from '@/views/admin/utils'
 import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 

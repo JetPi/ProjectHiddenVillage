@@ -11,7 +11,7 @@ import {
   TARGET_RANGE_LABEL_KEYS,
   TARGET_RANGE_OPTIONS,
 } from '@/views/admin/constants'
-import type { ICardAdminFaceStateLocksPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import type { ICardAdminFaceStateLocksPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 import { createDefaultFaceStateLock } from '@/views/admin/utils'
 import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 

@@ -16,7 +16,7 @@ import {
   CONDITION_OPTIONS,
   EFFECT_CONDITION_KEYWORD_OPTIONS_FALLBACK,
 } from '@/views/admin/constants'
-import type { ICardAdminDetailEditorProps, ICardAdminDetailPaneProps } from '@/views/admin/types/cardAdminDetailPane'
+import type { ICardAdminDetailEditorProps, ICardAdminDetailPaneProps } from '@/views/admin/types/cardAdminDetailTypes'
 import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog'
 
 export function CardAdminDetailPane({ selectedCard }: ICardAdminDetailPaneProps) {

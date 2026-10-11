@@ -1,4 +1,4 @@
-import type { ICardAdminViewState } from '@/views/admin/types/cardAdminView'
+import type { ICardAdminViewState } from '@/views/admin/types/cardAdminViewTypes'
 
 export type ICardAdminViewStoreState = ICardAdminViewState & {
   setPage: (value: number) => void

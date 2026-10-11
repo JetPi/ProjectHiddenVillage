@@ -11,7 +11,7 @@ import {
   REVEAL_TIMING_MODE_LABEL_KEYS,
   REVEAL_TIMING_MODE_OPTIONS,
 } from '@/views/admin/constants'
-import type { ICardAdminRevealCardPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import type { ICardAdminRevealCardPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 import {
   appendPredicateEntries,
   createDefaultPredicate,

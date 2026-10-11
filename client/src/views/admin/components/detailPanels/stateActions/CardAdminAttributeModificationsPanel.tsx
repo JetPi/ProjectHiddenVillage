@@ -14,7 +14,7 @@ import {
   TARGET_TYPE_LABEL_KEYS,
   TARGET_TYPE_OPTIONS,
 } from '@/views/admin/constants'
-import type { ICardAdminAttributeModificationsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import type { ICardAdminAttributeModificationsPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 import {
   createDefaultAttributeModification,
   resolveAttributeValueConstraintMode,

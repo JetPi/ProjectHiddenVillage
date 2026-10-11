@@ -3,7 +3,7 @@ import type { CSSProperties, FocusEvent, KeyboardEvent as ReactKeyboardEvent, Re
 import { createPortal } from 'react-dom'
 import { twMerge } from 'tailwind-merge'
 import { CardAdminChevronIcon } from './CardAdminChevronIcon'
-import type { ICardAdminSelectOption, ICardAdminSelectProps } from '@/views/admin/types/cardAdminSelect'
+import type { ICardAdminSelectOption, ICardAdminSelectProps } from '@/views/admin/types/cardAdminViewTypes'
 
 const TRIGGER_CLASSNAME =
   'flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-left text-sm text-[var(--text-primary)] focus:border-[var(--focus-ring)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'

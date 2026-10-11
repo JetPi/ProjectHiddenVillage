@@ -9,7 +9,7 @@ import {
   KEYWORD_TARGET_TYPE_OPTIONS,
   optionLabel,
 } from '@/views/admin/constants'
-import type { ICardAdminGainEffectPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import type { ICardAdminGainEffectPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 import { createDefaultKeywordModification } from '@/views/admin/utils'
 import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 
