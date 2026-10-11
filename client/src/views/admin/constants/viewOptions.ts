@@ -1,7 +1,7 @@
 import type {
   ICardAdminFilterOption,
   ICardAdminSortOption,
-} from '@/views/admin/types/cardAdminView'
+} from '@/views/admin/types/cardAdminViewTypes'
 
 export const SORT_OPTIONS: readonly ICardAdminSortOption[] = [
   { value: 'cardId', label: 'Card ID (A-Z)' },

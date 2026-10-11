@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import type { ICountConstraintFieldProps, ICountConstraintMode } from '@/views/admin/types/countConstraintField'
+import type { ICountConstraintFieldProps, ICountConstraintMode } from '@/views/admin/types/cardAdminViewTypes'
 import { CardAdminSelect } from './CardAdminSelect'
 
 function parseNullableInteger(value: string): number | null {

@@ -16,7 +16,7 @@ import {
   MOVE_CARD_ZONE_OPTIONS,
   optionLabel,
 } from '@/views/admin/constants'
-import type { ICardAdminMoveCardActionsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import type { ICardAdminMoveCardActionsPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 import {
   createDefaultMoveCardAction,
   parseNullableInteger,

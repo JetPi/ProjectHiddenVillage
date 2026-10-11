@@ -15,8 +15,8 @@ import {
 import type {
   ICardAdminContextRulePlayerPanelProps,
   ICardAdminContextRulesPanelProps,
-} from '@/views/admin/types/cardAdminEffectPanels'
-import type { ICountConstraintMode } from '@/views/admin/types/countConstraintField'
+} from '@/views/admin/types/cardAdminDetailTypes'
+import type { ICountConstraintMode } from '@/views/admin/types/cardAdminViewTypes'
 import {
   appendPredicateEntries,
   createDefaultContextRule,

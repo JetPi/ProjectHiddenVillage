@@ -9,7 +9,7 @@ import type {
   ICardAdminEffectEditorSaveResult,
   ICardAdminEffectEditorValidationErrors,
   IParsedCardAdminEffectsPayload,
-} from '@/views/admin/types/cardAdminEffectEditor'
+} from '@/views/admin/types/cardAdminDetailTypes'
 import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog'
 
 const EMPTY_VALIDATION_ERRORS: ICardAdminEffectEditorValidationErrors = {

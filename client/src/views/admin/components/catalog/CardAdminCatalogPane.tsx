@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { CardAdminCardGrid } from './CardAdminCardGrid'
 import { CardAdminPaginationFooter } from './CardAdminPaginationFooter'
-import type { ICardAdminCatalogPaneProps } from '@/views/admin/types/cardAdminCatalogPane'
+import type { ICardAdminCatalogPaneProps } from '@/views/admin/types/cardAdminViewTypes'
 
 function renderStateMessage(message: string) {
   return <div className="bg-[var(--surface-muted)] px-4 py-6 text-sm text-[var(--text-secondary)]">{message}</div>

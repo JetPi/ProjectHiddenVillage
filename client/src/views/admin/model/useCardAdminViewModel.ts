@@ -1,6 +1,6 @@
 import { useShallow } from 'zustand/react/shallow'
 import { useCardAdminViewStore } from '@/state/cardAdminViewStore'
-import type { ICardAdminViewModel } from '@/views/admin/types/cardAdminView'
+import type { ICardAdminViewModel } from '@/views/admin/types/cardAdminViewTypes'
 
 export function useCardAdminViewModel(): ICardAdminViewModel {
   const viewModel = useCardAdminViewStore(

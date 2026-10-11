@@ -1,5 +1,5 @@
 import { twMerge } from 'tailwind-merge'
-import type { ICardAdminToggleSwitchProps } from '@/views/admin/types/cardAdminToggleSwitch'
+import type { ICardAdminToggleSwitchProps } from '@/views/admin/types/cardAdminViewTypes'
 
 export function CardAdminToggleSwitch({
   checked,

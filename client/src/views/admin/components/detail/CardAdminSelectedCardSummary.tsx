@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import type { ICardAdminSelectedCardSummaryProps } from '@/views/admin/types/cardAdminSelectedCardSummary'
+import type { ICardAdminSelectedCardSummaryProps } from '@/views/admin/types/cardAdminDetailTypes'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { optionLabel, PREDICATE_CARD_COLOR_LABEL_KEYS, PREDICATE_CARD_TYPE_LABEL_KEYS } from '@/views/admin/constants'
 

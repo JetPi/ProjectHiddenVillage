@@ -1,5 +1,5 @@
 import { twMerge } from 'tailwind-merge'
-import type { ICardAdminRemoveButtonProps } from '@/views/admin/types/cardAdminRemoveButton'
+import type { ICardAdminRemoveButtonProps } from '@/views/admin/types/cardAdminViewTypes'
 
 const variantClassNameMap = {
   inline: 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]',

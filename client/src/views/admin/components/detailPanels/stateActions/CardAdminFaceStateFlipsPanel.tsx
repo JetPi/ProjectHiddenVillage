@@ -11,7 +11,7 @@ import {
   TARGET_RANGE_LABEL_KEYS,
   TARGET_RANGE_OPTIONS,
 } from '@/views/admin/constants'
-import type { ICardAdminFaceStateFlipsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import type { ICardAdminFaceStateFlipsPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 import { createDefaultSummonCardFlip } from '@/views/admin/utils'
 import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 

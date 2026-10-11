@@ -1,5 +1,5 @@
 import { CardAdminCardTile } from './CardAdminCardTile'
-import type { ICardAdminCardGridProps } from '@/views/admin/types/cardAdminCardGrid'
+import type { ICardAdminCardGridProps } from '@/views/admin/types/cardAdminViewTypes'
 
 export function CardAdminCardGrid({ cards, selectedCardId, onSelectCard }: ICardAdminCardGridProps) {
   return (

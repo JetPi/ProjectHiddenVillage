@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { translateKey } from '@/i18n'
 import { CardAdminToggleSwitch } from './CardAdminToggleSwitch'
 import { CardAdminRemoveButton } from './CardAdminRemoveButton'
-import type { ICardAdminPredicateFooterProps } from '@/views/admin/types/cardAdminPredicateControls'
+import type { ICardAdminPredicateFooterProps } from '@/views/admin/types/cardAdminViewTypes'
 
 export function CardAdminPredicateFooter({
   predicateEntries,

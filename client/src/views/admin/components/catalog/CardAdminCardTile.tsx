@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { translateKey } from '@/i18n'
 import { CardImage } from '@/components/ui/cards'
-import type { ICardAdminCardTileProps } from '@/views/admin/types/cardAdminCardTile'
+import type { ICardAdminCardTileProps } from '@/views/admin/types/cardAdminViewTypes'
 import { CARD_ART_IMAGE_CLASS } from '@/components/ui/cards'
 
 export function CardAdminCardTile({ card, isSelected, onSelect }: ICardAdminCardTileProps) {

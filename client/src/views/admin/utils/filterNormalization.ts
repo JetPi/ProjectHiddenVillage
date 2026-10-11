@@ -1,6 +1,6 @@
 import i18n from '@/i18n'
 import { ALL_FILTER_OPTION } from '@/views/admin/constants'
-import type { ICardAdminFilterOption } from '@/views/admin/types/cardAdminView'
+import type { ICardAdminFilterOption } from '@/views/admin/types/cardAdminViewTypes'
 
 export function normalizeFilterValue(value: string | null | undefined): string {
   const normalizedValue = value?.trim().toLowerCase() ?? ''

@@ -18,7 +18,7 @@ import {
 import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { CardAdminChevronIcon } from '@/views/admin/components/controls'
-import type { ICardAdminExecutionPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import type { ICardAdminExecutionPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 
 export function CardAdminExecutionPanel({

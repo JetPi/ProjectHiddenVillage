@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { translateKey } from '@/i18n'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
-import type { ICardAdminConditionsSectionProps } from '@/views/admin/types/cardAdminDetailSections'
+import type { ICardAdminConditionsSectionProps } from '@/views/admin/types/cardAdminDetailTypes'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 import { CONDITION_LABEL_KEYS, optionLabel } from '@/views/admin/constants'

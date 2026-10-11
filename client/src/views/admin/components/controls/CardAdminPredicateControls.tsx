@@ -15,7 +15,7 @@ import {
   PREDICATE_PROPERTY_OPTIONS,
 } from '@/views/admin/constants'
 import type { ICardCatalogPredicateProperty } from '@/services/api/types/cardCatalog'
-import type { ICardAdminPredicateControlsProps } from '@/views/admin/types/cardAdminPredicateControls'
+import type { ICardAdminPredicateControlsProps } from '@/views/admin/types/cardAdminViewTypes'
 
 export function CardAdminPredicateControls({
   predicateProperty,

@@ -17,7 +17,7 @@ import {
   TRIBUTE_ROLE_LABEL_KEYS,
   TRIBUTE_ROLE_OPTIONS,
 } from '@/views/admin/constants'
-import type { ICardAdminTargetRulesPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
+import type { ICardAdminTargetRulesPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 import {
   appendPredicateEntries,
   createDefaultPredicate,
