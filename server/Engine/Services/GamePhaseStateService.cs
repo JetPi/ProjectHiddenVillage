@@ -412,7 +412,10 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
         {
             if (activePlayer.Deck.Count == 0)
             {
-                break;
+                // "If a player has to draw a card but their deck has no cards left, the other player wins."
+                // The draw stops here: the game is over, and the remaining draws of this turn are moot.
+                GameEndRules.TryResolveDeckOut(state, activePlayer.PlayerId);
+                return;
             }
 
             var drawnCard = activePlayer.Deck[0];

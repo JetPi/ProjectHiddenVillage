@@ -164,6 +164,38 @@ function pruneStaleGameUIState(): void {
   const currentHand = currentPlayer?.hand ?? []
   const availableActions = gameState.availableActions
 
+  // A finished game has no interaction left to preserve: every picker, the picked prompt candidate, the
+  // optimistic attack state and the attack link all belong to a running game, and the result overlay is the
+  // only affordance left. Clearing them here keeps the board from rendering a selection that can never be
+  // answered (no action is published to prune them the normal way).
+  //
+  // Every write is guarded: this store subscribes to itself, so an unconditional `set` re-schedules the pruner
+  // and spins forever (Zustand v5 notifies even for an unchanged value).
+  if (gameState.gameOutcome) {
+    if (ui.pendingCardTargeting) {
+      ui.setPendingCardTargeting(null)
+    }
+    if (ui.pendingSummonTargeting) {
+      ui.setPendingSummonTargeting(null)
+    }
+    if (ui.pendingEffectTargeting) {
+      ui.setPendingEffectTargeting(null)
+    }
+    if (ui.pendingPromptSelection) {
+      ui.clearPromptSelection()
+    }
+    if (ui.activeAttackLink) {
+      ui.setActiveAttackLink(null)
+    }
+    if (ui.lastSubmittedAttackSourceInstanceId !== null) {
+      ui.setLastSubmittedAttackSourceInstanceId(null)
+    }
+    if (Object.keys(ui.optimisticRestedByInstanceId).length > 0) {
+      ui.setOptimisticRestedByInstanceId({})
+    }
+    return
+  }
+
   const pendingBattleTargeting = ui.pendingCardTargeting
   if (pendingBattleTargeting && pendingBattleTargeting.kind === 'battle') {
     const actionId = pendingBattleTargeting.actionId

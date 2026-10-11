@@ -209,6 +209,15 @@ export async function resolveActorWithBottomHandAction(
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
     ])
 
+    // A finished game can never satisfy the search (no action is published at all), so fail fast with the
+    // reason instead of walking phases until the cycle budget runs out.
+    if (playerOneState.gameOutcome) {
+      throw new Error(
+        `The game ended (${playerOneState.gameOutcome.reason}) before a '${actionLabel}' action`
+        + `${normalizedRequestedCardDefinitionId.length > 0 ? ` for card definition '${normalizedRequestedCardDefinitionId}'` : ''} could be found.`,
+      )
+    }
+
     const resolveHandActionFromState = (state: GameStateResponse, actor: PlayerAuth) => {
       const actorState = resolvePlayerState(state, actor)
       for (const handCard of actorState.hand) {

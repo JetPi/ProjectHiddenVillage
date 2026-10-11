@@ -50,6 +50,12 @@ public static partial class GameStateResponseMapper
             return [];
         }
 
+        // A finished game has no leader actions left (no ability, no Recovery and no battle declaration).
+        if (GameEndRules.IsGameOver(state))
+        {
+            return [];
+        }
+
         if (!state.CardDefinitions.TryGetValue(leader.CardDefinitionId, out var leaderDefinition))
         {
             return [];

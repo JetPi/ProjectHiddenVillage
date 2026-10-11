@@ -423,6 +423,53 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   the card the player had just been shown was never summoned (`Execute_RevealFirst_MatchesPostCondition_WhenAnyPredicateOfAGroupMatches`
   pins it).
 
+## Game over (outcome, engine guards, result overlay)
+
+- **No terminal `GamePhase`.** A finished game is a write-once `GameState.Outcome`
+  (`server/Models/Game/GameOutcome.cs`): `GameEndReason.LeaderLifeDepleted | DeckOut`, `WinnerPlayerId`
+  (`null` == draw), `LoserPlayerIds`, `TurnNumber`. Its presence *is* "the game is over" for every consumer.
+  There is deliberately no timeout/`TimeExpired` reason: the rules' tiebreak is only used when **every**
+  player met a losing condition at the same instant.
+- **One home for the conditions**: `server/Api/Services/Games/GameEndRules.cs` (same shape as
+  `BattleActionRules`/`ChakraRecoveryRules`). `IsGameOver` / `ThrowIfGameOver` (throws
+  `"The game is over; no further actions are allowed."`), `TryResolveLeaderDefeat` (reads the **resolved**
+  life via `CardRuntimeEffectStateService.ResolveEffectiveLeaderCurrentLife`, so life still at 1 with a −1
+  effect in play already loses), `TryResolveDeckOut(state, playerId)` and `EnsureGameEndLogged` (records the
+  single `game_ended` action-log entry, de-duplicated on the append-only log). The tiebreak when both players
+  lose at once: most leader life → most cards between hand/support/battlefield → most cards in the deck →
+  draw. `Resolve` also clears the pending interaction (pending attack + its optional-effect fields,
+  `ConsecutivePasses`, `PhaseDirectives`, `InsertedPhases`, `EffectResolutionStack`) — but **not**
+  `PriorityPlayerId`, which the ActionStep invariant requires to be set.
+- **Registry enforcement**: `GameEndRules.ThrowIfGameOver` is the first statement inside the lock of *all*
+  seven mutating entry points (`ResolvePrompt`, `AdvancePhase`, `DeclarePassInActionStep`,
+  `DeclareActionInActionStep`, `ExecuteCardAction`, `DeclareEndStep`, `CompleteEndStep`), and
+  `EvaluateGameEnd(instance)` runs right after every `ValidateInvariants()` (so a leader whose life hit 0
+  mid-chain ends the game only once the whole action finished). `AutoAdvanceMainPhaseIfNoLegalActions`,
+  `SweepContinuousPassives` and `HasAnyMainPhaseLegalAction` early-return, and `GetCardActionTargets`
+  returns a **disabled** response carrying the same reason. A refused submit surfaces as a hub error, which
+  is harmless: the client has already been pushed the outcome.
+- **Deck-out is resolved inside the draw** (it is an event, not a state — an empty deck only loses when a
+  card is actually requested): `GamePhaseStateService.DrawCardsForActivePlayerTurn` (DrawPhase entry, stops
+  the remaining draws) and `GameRuntimeDeckService.DrawCardFromDeck` (an effect-driven draw). The tolerant
+  `Math.Min` in `DealInitialHands`/mulligan is unchanged — a short deck deals a short hand.
+- **Payload**: trailing optional `GameOutcomeResponse? GameOutcome` on `GameStateResponse` (projected by
+  `GameStateResponseMapper.ToGameOutcomeResponse`, `null` in → `null` out). When it is set the response
+  publishes `AvailableActions = []`, `PendingPrompt = null`, `IsSupportResponseWindowOpen = false` and
+  `SupportChain = []`, and `BuildCardAvailableActions`/`BuildLeaderAvailableActions` return `[]` for every
+  card (leader included, so no Battle/Recovery chip survives).
+- **Client**: `gameOutcome` on `IGameStateResponse`; `GameOverOverlay` (barrel-exported, `game-over-overlay`
+  / `-headline` / `-reason` / `-return-button`) is a blocking, non-dismissible `role="dialog"` at `z-[60]`
+  (above the action-error banner) whose button `navigate('/')`s; `buildGameOutcomePresentation`
+  (`utils/functions/helpers/index.ts`) turns the outcome into Victory/Defeat/Draw + the reason line;
+  `gameUIStore.pruneStaleGameUIState` clears every picker/optimistic artefact when an outcome arrives, and
+  `GameView` suppresses the prompt overlay and the hand "no actions" message while it is present. No hub
+  change was needed — the existing `GameStateInvalidated` → REST refetch carries it.
+- **Coverage**: `GameEndRulesTests`, `InMemoryGameInstanceRegistryGameOverTests` (real deck-out through the
+  phase flow, every mutation refused, a leader at 0 life resolving at a boundary) and
+  `GameStateResponseMapperGameOutcomeTests`; end-to-end via the `deck-out` seed profile (leader + exactly
+  five characters, so the opening hand takes the whole deck and the first DrawPhase whiffs) in
+  `e2e/gameview.multiplayer.game-over.spec.ts`.
+
 ## Backend guidance
 
 - `GameStateResponseMapper` builds available actions (`BuildLeaderAvailableActions`,

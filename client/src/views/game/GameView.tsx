@@ -13,7 +13,7 @@ import {
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IAttackTargetingState, IEffectTargetingState, IGameLoaderData, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
-import { BottomHandReorderRow, EffectNoticeBanner, GameHandRow, GamePromptOverlay, GameZones, PromptSelectionBanner, SupportChainBubble } from '@/views/game/components'
+import { BottomHandReorderRow, EffectNoticeBanner, GameHandRow, GamePromptOverlay, GameOverOverlay, GameZones, PromptSelectionBanner, SupportChainBubble } from '@/views/game/components'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
@@ -121,8 +121,13 @@ export function GameView() {
 
   const promptPresentation = toPromptPresentation(gameState.pendingPrompt)
 
+  // The result of a finished game. The engine publishes no prompt and no action at all once it exists, so the
+  // board keeps rendering as the last snapshot of the game and the overlay is the only affordance.
+  const gameOutcome = gameState.gameOutcome ?? null
+
   const shouldShowPromptOverlay =
-    promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
+    gameOutcome === null
+    && promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
   const canResolvePrompt = gameState.pendingPrompt?.isAwaitingRequestingPlayer ?? false
 
   // A pending prompt is answered by its own UI - the prompt overlay for a deck pick, the cards' Select buttons
@@ -133,7 +138,8 @@ export function GameView() {
     : gameState.availableActions
 
   const canShowHandNoActionsMessage =
-    Boolean(authUserId)
+    gameOutcome === null
+    && Boolean(authUserId)
     && gameState.phase === 'MainPhase'
     && gameState.activePlayerId.trim().toLowerCase() === authUserId?.trim().toLowerCase()
     && !gameState.pendingPrompt
@@ -361,6 +367,8 @@ export function GameView() {
         <SupportChainBubble gameInstance={gameState} authUserId={authUserId} />
 
         <EffectNoticeBanner notices={gameState.effectNotices} />
+
+        {gameOutcome ? <GameOverOverlay outcome={gameOutcome} authUserId={authUserId} /> : null}
 
         {actionError ? (
           <div

@@ -1,7 +1,9 @@
 import { PhaseValues } from "@/views/game/components/constants/gamePhaseActionRow"
-import type { IGameStateResponse, ISupportChainEntryResponse } from "@/services/api/gameApi"
+import type { IGameOutcomeResponse, IGameStateResponse, ISupportChainEntryResponse } from "@/services/api/gameApi"
 import type {
   IEffectTargetingState,
+  IGameOutcomePresentation,
+  IGameOutcomeStanding,
   ISummonTargetingState,
   ISupportChainViewActor,
   ISupportChainViewEntry,
@@ -480,6 +482,37 @@ function shouldShowSupportChainBubble(entries: ISupportChainViewEntry[]): boolea
   return entries.length > 0
 }
 
+/**
+ * The result overlay's copy. The engine publishes the outcome once (winner, losers and why), so this is pure
+ * presentation: "Victory" for the winner, "Defeat" for a loser, and "Draw" when the payload names no winner
+ * (both players met a losing condition at the same instant and every tiebreak metric was tied).
+ */
+function buildGameOutcomePresentation(
+  outcome: IGameOutcomeResponse | null | undefined,
+  authUserId?: string,
+): IGameOutcomePresentation | null {
+  if (!outcome) {
+    return null
+  }
+
+  const normalizedAuthUserId = normalizeId(authUserId)
+  const isWinner = normalizedAuthUserId.length > 0
+    && normalizeId(outcome.winnerPlayerId ?? '') === normalizedAuthUserId
+  const isLoser = outcome.loserPlayerIds.some((playerId) => normalizeId(playerId) === normalizedAuthUserId)
+
+  const standing: IGameOutcomeStanding = isWinner ? 'victory' : isLoser ? 'defeat' : 'draw'
+
+  return {
+    standing,
+    headline: standing === 'victory' ? 'Victory' : standing === 'defeat' ? 'Defeat' : 'Draw',
+    reason: outcome.reason === 'DeckOut'
+      ? 'A player ran out of cards to draw.'
+      : outcome.reason === 'LeaderLifeDepleted'
+        ? "A leader's life points reached 0."
+        : 'The game ended.',
+  }
+}
+
 export {
   normalizeId,
   getPhaseValue,
@@ -488,5 +521,6 @@ export {
   getTributeSelectionPhaseValue,
   buildSupportChainView,
   shouldShowSupportChainBubble,
+  buildGameOutcomePresentation,
 }
 export type { ITributeMaterialRequirementGroup, ITributeRequirementSummary }

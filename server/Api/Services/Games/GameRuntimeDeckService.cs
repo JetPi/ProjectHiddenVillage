@@ -284,6 +284,9 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 
 		if (bottomDeck < topDeck)
 		{
+			// Drawing from an empty deck is a losing condition even when an effect (rather than the
+			// DrawPhase) asked for the card.
+			GameEndRules.TryResolveDeckOut(gameInstance.State, playerId);
 			return null;
 		}
 

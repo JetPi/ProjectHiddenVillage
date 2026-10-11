@@ -29,6 +29,14 @@ paths:
   clears stale targeting, reconciles optimistic resting, rolls back on
   `actionError`, clears `activeAttackLink` when `isAttackSequencePending` drops.
 - Do **not** recreate per-render “clear stale pending state” effects.
+- When the game is over (`gameState.gameOutcome`), the pruner clears every pending
+  selection (battle/effect targeting, summon tributes, multi-target picks and the picked
+  prompt candidate), the attack link and the optimistic rest, then
+  returns — no action is published afterwards, so nothing else would ever drop them.
+  **Guard every one of those writes** (`if (ui.x) { ui.setX(null) }`): the store
+  subscribes to itself, and an unconditional `set` re-schedules the pruner forever —
+  a microtask loop that starves the renderer (the page stops responding to anything,
+  so a Playwright assertion on it just times out).
 - Zustand v5: `set()` notifies even when unchanged — guard writes in pruners
   (`recordsEqual`). Batch bursts via `queueMicrotask`. Use
   `useGameUIStore.getState().action()` in handlers, `useGameUIStore(selector)` for
@@ -57,6 +65,25 @@ paths:
   draw). Dispatch is re-armed until it actually fires — `lastAutoSignalKey` is
   committed only at dispatch time, so a phase never strands the player on a manual
   “Advance Phase” button.
+- **The auto-advance lifecycle lives in refs, never in the effect body**
+  (`autoAdvanceSignalRef` = `{ key, retriesLeft }`, `advanceTimerRef`,
+  `lastAutoSignalKeyRef`, `effectEpochRef`). A submit re-renders this effect twice on
+  its own (`setActionPending(true)`, then the ack `setActionPending(false)`), so a
+  cleanup that cancelled the pending timer — or a retry budget reset on every re-render —
+  silently dropped the signal: the latch was already committed, no timer survived to
+  retry, and `EndStep`/`DrawPhase` then stranded the turn until the spec's
+  active-player `MainPhase` poll timed out (the intermittent
+  `gameview.multiplayer.attack-sequence` failure — a stall, not a race). Invariants to
+  keep:
+  - a re-run with a **pending** timer never cancels it; the signal is abandoned only
+    when the snapshot moved on, an action is pending, a prompt is open, or the action
+    is no longer offered;
+  - a re-run whose snapshot is already latched keeps the retry alive
+    (`scheduleAutoAdvanceRetry`) instead of returning;
+  - every timer fire — first attempt and retry — re-reads the live store and dispatches
+    only when the snapshot still matches (`dispatchAutoAdvanceIfStillCurrent`), so a
+    stale timer can never advance a phase that already moved;
+  - the timer is cleared **only** on unmount (a dedicated empty-dep effect).
 - The same effect owns the **inferred** hand→trash flight (the safety net around the prompt-driven
   discard, which animates the real hand element itself in `usePromptSelectionSubmitEffect`): a card
   that left the hand is flown into the trash only when its instance id is **in the trash** in the new
@@ -66,7 +93,10 @@ paths:
   every tribute flew the trash slot in from the hand (which also flashed the pile's giant-card layout
   blowout described in `02-board-ui-hud.md`).
 - Tunables in that file: `DECK_TO_HAND_FLY_DURATION_MS`, `DRAW_ANIMATION_COMPLETE_PADDING_MS`,
-  `AUTO_ADVANCE_RECHECK_MS`.
+  `AUTO_ADVANCE_RECHECK_MS`, plus `AUTO_ADVANCE_RETRY_DELAY_MS` /
+  `AUTO_ADVANCE_MAX_RETRIES` (the per-snapshot retry budget). A retry only re-sends the
+  same snapshot, so it can never advance two phases: one snapshot dispatches at most once,
+  and a retry fires only while the store still shows that snapshot.
 - `handlePromptResolve` (mulligan) animates hand→deck, waits for any in-flight
   deck→hand animation (`drawAnimationEndsAt`) before discarding, then submits
   `resolve-prompt`.

@@ -17,6 +17,14 @@ public sealed class GameState
     public GamePhase Phase { get; set; } = GamePhase.MainPhase;
 
     /// <summary>
+    /// The terminal result of the game, or <c>null</c> while it is still running. It is written exactly
+    /// once (by <c>GameEndRules</c>, the single home for the game-end conditions) and never cleared, so
+    /// its presence IS "the game is over" for every consumer: the engine refuses further mutations, the
+    /// response mapper publishes no actions, and the clients show the result overlay.
+    /// </summary>
+    public GameOutcome? Outcome { get; set; }
+
+    /// <summary>
     /// True while an attack has been declared but its cut-in window has not been resolved yet. This is
     /// the window where "When Attacking" effects belong: the engine enters
     /// <see cref="GamePhase.AttackDeclaration"/> when the attacker must answer an optional On Attack

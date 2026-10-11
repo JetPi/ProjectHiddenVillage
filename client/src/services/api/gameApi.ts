@@ -15,6 +15,7 @@ export type {
   IGameCardInstanceResponse,
   IGameInstanceDetailResponse,
   IGameInstanceResponse,
+  IGameOutcomeResponse,
   IGamePlayerStateResponse,
   IGameStateResponse,
   IJoinGameAsPlayerRequest,

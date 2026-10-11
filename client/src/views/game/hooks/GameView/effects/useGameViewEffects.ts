@@ -802,6 +802,16 @@ function resolveBattlefieldCardElement(
   ) ?? null
 }
 
+/**
+ * The phase snapshot an auto-advance signal belongs to, plus the retries that snapshot still owes. It is
+ * stored in a ref rather than in the effect run so a re-render cannot reset the budget or drop the timer
+ * the budget is being spent on.
+ */
+type IAutoAdvanceSignalState = {
+  key: string
+  retriesLeft: number
+}
+
 function useAutoAdvancePhaseEffect({
   isConnected,
   isActionPendingFlag,
@@ -814,6 +824,10 @@ function useAutoAdvancePhaseEffect({
   submitHubIntent,
 }: IUseAutoAdvancePhaseEffectArgs): void {
   const advanceTimerRef = useRef<number | null>(null)
+  const autoAdvanceSignalRef = useRef<IAutoAdvanceSignalState>({
+    key: '',
+    retriesLeft: AUTO_ADVANCE_MAX_RETRIES,
+  })
 
   useEffect(() => {
     const animController = animControllerRef.current
@@ -825,9 +839,23 @@ function useAutoAdvancePhaseEffect({
       }
     }
 
-    clearPendingAdvanceTimer()
+    function armAutoAdvanceTimer(delayMs: number, onFire: () => void): void {
+      clearPendingAdvanceTimer()
+      advanceTimerRef.current = window.setTimeout(() => {
+        advanceTimerRef.current = null
+        onFire()
+      }, delayMs)
+    }
 
-    if (!isConnected || isActionPendingFlag || hasPendingPromptFlag) {
+    /** Drops the scheduled signal and forgets the snapshot it was scheduled for. */
+    function abandonPendingSignal(): void {
+      clearPendingAdvanceTimer()
+      autoAdvanceSignalRef.current = { key: '', retriesLeft: AUTO_ADVANCE_MAX_RETRIES }
+    }
+
+    if (!isConnected) {
+      // A disconnected client cannot drive the phase, so it must not hold on to a signal it cannot send.
+      abandonPendingSignal()
       return
     }
 
@@ -836,6 +864,7 @@ function useAutoAdvancePhaseEffect({
     )
     
     if (!hasEnabledAdvancePhaseAction) {
+      abandonPendingSignal()
       return
     }
 
@@ -843,12 +872,33 @@ function useAutoAdvancePhaseEffect({
       // Reaching a manual decision phase ends the previous auto-advance cycle. Clearing
       // the latch lets the same turn/phase/active player be auto-signalled again if it
       // comes back around later in the same turn (for example a second attack).
+      abandonPendingSignal()
       animController.lastAutoSignalKey = ''
       return
     }
 
     const phaseSnapshotKey = `${turnNumber}:${phase}:${activePlayerId}`
-    if (animController.lastAutoSignalKey === phaseSnapshotKey) {
+
+    if (autoAdvanceSignalRef.current.key !== phaseSnapshotKey) {
+      // A new snapshot always starts with a fresh retry budget: the previous signal's retries never carry
+      // over to a phase or turn they were not sent for.
+      abandonPendingSignal()
+      autoAdvanceSignalRef.current = { key: phaseSnapshotKey, retriesLeft: AUTO_ADVANCE_MAX_RETRIES }
+    }
+
+    if (isActionPendingFlag || hasPendingPromptFlag) {
+      // A submit or a prompt owns the board right now. A signal that is already scheduled stays scheduled
+      // (its own dispatch re-checks the store), and nothing new is armed until that resolves and re-runs
+      // this effect with the flag cleared.
+      return
+    }
+
+    // A signal - or one of its retries - is already scheduled for this snapshot, so leave it alone.
+    // Cancelling it here is what used to strand a phase: the dispatch flips the hub's pending flag, the
+    // resulting re-render re-ran this effect, the pending timer was dropped, and the latch check below
+    // then had nothing left to re-arm - so a single dropped or rejected dispatch left the phase waiting
+    // for a signal that nothing would ever send again.
+    if (advanceTimerRef.current !== null) {
       return
     }
 
@@ -868,13 +918,8 @@ function useAutoAdvancePhaseEffect({
         ? AUTO_ADVANCE_RECHECK_MS
         : Math.max(AUTO_ADVANCE_RECHECK_MS, drawAnimationEndsAt - Date.now())
 
-      advanceTimerRef.current = window.setTimeout(() => {
-        advanceTimerRef.current = null
-        dispatchAutoAdvance()
-      }, waitDelayMs)
+      armAutoAdvanceTimer(waitDelayMs, dispatchAutoAdvanceIfStillCurrent)
     }
-
-    let autoAdvanceRetriesLeft = AUTO_ADVANCE_MAX_RETRIES
 
     function resolveCurrentSnapshotKey(): string {
       const currentGameState = useGameHubStore.getState().gameState
@@ -885,44 +930,66 @@ function useAutoAdvancePhaseEffect({
       return `${currentGameState.turnNumber}:${currentGameState.phase}:${currentGameState.activePlayerId}`
     }
 
+    // The hub carries no phase token, so a signal only fires while the client still sees the snapshot it
+    // was armed for; a phase that already moved must never be advanced twice.
+    function dispatchAutoAdvanceIfStillCurrent(): void {
+      if (resolveCurrentSnapshotKey() === phaseSnapshotKey) {
+        dispatchAutoAdvance()
+      }
+    }
+
     // If the state does not move on after an auto signal (a dropped or transiently
     // rejected dispatch), retry a bounded number of times so the phase cannot stall
-    // until a manual page refresh.
+    // until a manual page refresh. The budget lives on the snapshot rather than on this
+    // effect run, so a re-render cannot reset it or cancel the retry it is spending.
     function scheduleAutoAdvanceRetry(): void {
-      if (autoAdvanceRetriesLeft <= 0) {
+      const signalState = autoAdvanceSignalRef.current
+      if (signalState.key !== phaseSnapshotKey || signalState.retriesLeft <= 0) {
         return
       }
 
-      autoAdvanceRetriesLeft -= 1
-      advanceTimerRef.current = window.setTimeout(() => {
-        advanceTimerRef.current = null
-        if (resolveCurrentSnapshotKey() !== phaseSnapshotKey) {
-          return
+      signalState.retriesLeft -= 1
+      armAutoAdvanceTimer(AUTO_ADVANCE_RETRY_DELAY_MS, () => {
+        // Only retry while the client still sees the snapshot the signal was sent for: a phase that has
+        // already moved must never be advanced a second time (the hub carries no phase token).
+        if (resolveCurrentSnapshotKey() === phaseSnapshotKey) {
+          dispatchAutoAdvance()
         }
-
-        dispatchAutoAdvance()
-      }, AUTO_ADVANCE_RETRY_DELAY_MS)
+      })
     }
 
     function dispatchAutoAdvance(): void {
       const currentStoreState = useGameHubStore.getState()
-      const isDispatchBlocked = currentStoreState.isActionPending
-        || Boolean(currentStoreState.gameState?.pendingPrompt)
-        || isDrawAnimationInFlight()
+      const isPromptPending = Boolean(currentStoreState.gameState?.pendingPrompt)
+      const isDispatchBlocked = currentStoreState.isActionPending || isPromptPending || isDrawAnimationInFlight()
 
       if (isDispatchBlocked) {
-        scheduleAutoAdvance()
+        if (isPromptPending) {
+          // Answering the prompt pushes new state, which re-runs this effect, so do not spin on it here.
+          return
+        }
+
+        // The phase still needs the signal, so check again shortly instead of giving up on it.
+        armAutoAdvanceTimer(AUTO_ADVANCE_RECHECK_MS, dispatchAutoAdvance)
         return
       }
 
-      advanceTimerRef.current = null
       animController.lastAutoSignalKey = phaseSnapshotKey
       void submitHubIntent({ intent: 'advance-phase' })
+
+      // The submit can be dropped silently (the hub's own guards refuse a submit while another action is
+      // pending or an action is missing from the store), so the signal always keeps a bounded retry alive.
       scheduleAutoAdvanceRetry()
     }
 
+    if (animController.lastAutoSignalKey === phaseSnapshotKey) {
+      // This snapshot was already signalled: keep its retry alive instead of leaving the phase with no
+      // driver at all.
+      scheduleAutoAdvanceRetry()
+      return
+    }
+
     scheduleAutoAdvance()
-    return clearPendingAdvanceTimer
   }, [
     activePlayerId,
     animControllerRef,
@@ -934,6 +1001,15 @@ function useAutoAdvancePhaseEffect({
     submitHubIntent,
     turnNumber,
   ])
+
+  // The pending signal deliberately outlives a re-render (see the body above), so it is only cancelled
+  // when the view goes away: a signal must never fire against a board the player has already left.
+  useEffect(() => () => {
+    if (advanceTimerRef.current !== null) {
+      window.clearTimeout(advanceTimerRef.current)
+      advanceTimerRef.current = null
+    }
+  }, [])
 }
 
 export {

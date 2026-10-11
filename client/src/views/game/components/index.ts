@@ -12,4 +12,5 @@ export * from './SidebarButtons'
 export * from './AttackLinkArrow'
 export * from './SupportChainBubble'
 export * from './EffectNoticeBanner'
+export * from './GameOverOverlay'
 
