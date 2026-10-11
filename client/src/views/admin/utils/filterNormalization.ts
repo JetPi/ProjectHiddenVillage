@@ -1,3 +1,4 @@
+import i18n from '@/i18n'
 import { ALL_FILTER_OPTION } from '@/views/admin/constants'
 import type { ICardAdminFilterOption } from '@/views/admin/types/cardAdminView'
 
@@ -22,7 +23,7 @@ export function buildUniqueFilterOptions(values: string[]): ICardAdminFilterOpti
     ALL_FILTER_OPTION,
     ...normalizedValues.map((value) => ({
       value,
-      label: value === 'unknown' ? 'Unknown' : toTitleCaseLabel(value),
+      label: value === 'unknown' ? i18n.t('admin.filters.unknown') : toTitleCaseLabel(value),
     })),
   ]
 }

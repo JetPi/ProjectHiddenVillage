@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import axios from 'axios'
+import i18n, { translateKey } from '@/i18n'
 import { useUpdateCardCatalogEffectsMutation } from '@/services/queries/cardQueries'
 import type {
   ICardAdminEffectEditorDraft,
@@ -128,11 +129,11 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
   }
 
   if (!Array.isArray(draft.conditions) || !draft.conditions.every((entry) => typeof entry === 'string')) {
-    nextErrors.conditions = 'Conditions must be a list of strings.'
+    nextErrors.conditions = i18n.t('admin.validation.conditionsMustBeList')
   }
 
   if (!Array.isArray(draft.effects)) {
-    nextErrors.effects = 'Effects must be a list.'
+    nextErrors.effects = i18n.t('admin.validation.effectsMustBeList')
   } else if (!draft.effects.every((effect) =>
     effect.id.trim().length > 0
     && effect.effectType.trim().length > 0
@@ -140,7 +141,7 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
     && effect.durationMode.trim().length > 0
     && Array.isArray(effect.contextRules)
     && !!effect.targetRules)) {
-    nextErrors.effects = 'Each effect must include id, effectType, timing, contextRules, and targetRules.'
+    nextErrors.effects = i18n.t('admin.validation.effectFieldsRequired')
   } else {
     const normalizedIds = draft.effects.map((effect) => effect.id.trim())
     const validIds = new Set(
@@ -169,27 +170,29 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
       const effectId = effect.id.trim()
 
       if (effectId && duplicateIds.has(effectId)) {
-        effectErrors.push(`Effect id '${effectId}' must be unique.`)
+        effectErrors.push(i18n.t('admin.validation.effectIdUnique', { id: effectId }))
       }
 
       const branchTargets = [
-        { label: 'On Success', target: effect.onSuccessEffectId },
-        { label: 'On Failure', target: effect.onFailureEffectId },
+        { labelKey: 'admin.detail.sections.onSuccess', target: effect.onSuccessEffectId },
+        { labelKey: 'admin.detail.sections.onFailure', target: effect.onFailureEffectId },
       ]
 
-      branchTargets.forEach(({ label, target }) => {
+      branchTargets.forEach(({ labelKey, target }) => {
         const normalizedTarget = target?.trim() ?? ''
         if (!normalizedTarget) {
           return
         }
 
+        const label = translateKey(i18n.t, labelKey)
+
         if (!validIds.has(normalizedTarget)) {
-          effectErrors.push(`${label} target '${normalizedTarget}' does not match any effect id.`)
+          effectErrors.push(i18n.t('admin.validation.branchTargetMissing', { label, target: normalizedTarget }))
           return
         }
 
         if (effectId && normalizedTarget === effectId) {
-          effectErrors.push(`${label} target cannot reference the same effect id '${effectId}'.`)
+          effectErrors.push(i18n.t('admin.validation.branchTargetSelf', { label, id: effectId }))
         }
       })
 
@@ -199,7 +202,7 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
     })
 
     if (Object.keys(effectBranchErrors).length > 0) {
-      nextErrors.effects = 'Fix effect branch validation errors before saving.'
+      nextErrors.effects = i18n.t('admin.validation.fixBranchErrors')
       nextErrors.effectBranches = effectBranchErrors
     }
   }
@@ -228,7 +231,7 @@ function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
 
 function getErrorMessage(error: unknown): string {
   if (!axios.isAxiosError(error)) {
-    return 'Failed to save effect payload.'
+    return i18n.t('admin.validation.saveEffectFailed')
   }
 
   const payload = error.response?.data
@@ -269,7 +272,7 @@ function getErrorMessage(error: unknown): string {
     })
 
     if (validationLines.length > 0) {
-      const lines = [title || 'Validation failed while saving.', '']
+      const lines = [title || i18n.t('admin.validation.validationFailed'), '']
       lines.push(...validationLines)
 
       return lines.join('\n')
@@ -284,7 +287,7 @@ function getErrorMessage(error: unknown): string {
     }
   }
 
-  return error.message || 'Failed to save effect payload.'
+  return error.message || i18n.t('admin.validation.saveEffectFailed')
 }
 
 export function useCardAdminEffectEditorModel(
@@ -417,7 +420,7 @@ export function useCardAdminEffectEditorModel(
     if (!parsed.payload) {
       return {
         ok: false,
-        message: 'Fix validation errors before saving.',
+        message: i18n.t('admin.validation.fixErrors'),
       }
     }
 
@@ -443,7 +446,7 @@ export function useCardAdminEffectEditorModel(
       setDraft(nextDraft)
       setInitialDraft(nextDraft)
       setErrors(EMPTY_VALIDATION_ERRORS)
-      setStatusMessage('Card effects saved successfully.')
+      setStatusMessage(i18n.t('admin.validation.cardEffectsSaved'))
 
       return {
         ok: true,

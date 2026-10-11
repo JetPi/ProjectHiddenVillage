@@ -1,3 +1,4 @@
+import i18n, { translateKey } from '@/i18n'
 import type {
   IGamePromptCandidateCard,
   IPromptPresentation,
@@ -7,76 +8,80 @@ import type {
 
 const OVERLAY_PROMPT_TYPES = new Set<string>(['ChooseStartingPlayer', 'Mulligan', 'Effect'])
 
-const PROMPT_TITLES: Record<string, string> = {
-  ChooseStartingPlayer: 'Choose Who Starts',
-  Mulligan: 'Mulligan',
-  Effect: 'Choose a Card',
+/** Copy lives in en.json; these maps only hold the keys. */
+const tr = (key: string, options?: Record<string, unknown>): string =>
+  translateKey(i18n.t, key, options)
+
+const PROMPT_TITLE_KEYS: Record<string, string> = {
+  ChooseStartingPlayer: 'game.prompt.title.chooseStartingPlayer',
+  Mulligan: 'game.prompt.title.mulligan',
+  Effect: 'game.prompt.title.effect',
 }
 
-const PROMPT_SUBTITLES: Record<string, string> = {
-  ChooseStartingPlayer: 'Decide whether you or your opponent takes the first turn.',
-  Mulligan: 'Choose whether to redraw your opening hand.',
-  Effect: 'Choose one of the highlighted cards.',
+const PROMPT_SUBTITLE_KEYS: Record<string, string> = {
+  ChooseStartingPlayer: 'game.prompt.subtitle.chooseStartingPlayer',
+  Mulligan: 'game.prompt.subtitle.mulligan',
+  Effect: 'game.prompt.subtitle.effect',
 }
 
 /**
  * Copy buckets for effect selection prompts, keyed by the server's EffectSelectionPromptKind. The server only
  * publishes the stable bucket, so new wording (or a new bucket) never needs a server change.
  */
-const EFFECT_SELECTION_PROMPT_COPY: Record<string, { title: string; subtitle: string }> = {
+const EFFECT_SELECTION_COPY_KEYS: Record<string, { title: string; subtitle: string }> = {
   PlaceOnDeckTop: {
-    title: 'Choose a card to place on deck top',
-    subtitle: 'Choose a card from your hand to place on top of your deck.',
+    title: 'game.prompt.effectCopy.placeOnDeckTop.title',
+    subtitle: 'game.prompt.effectCopy.placeOnDeckTop.subtitle',
   },
   PlaceOnDeckBottom: {
-    title: 'Choose a card to place on deck bottom',
-    subtitle: 'Choose a card from your hand to place on the bottom of your deck.',
+    title: 'game.prompt.effectCopy.placeOnDeckBottom.title',
+    subtitle: 'game.prompt.effectCopy.placeOnDeckBottom.subtitle',
   },
   DiscardFromHand: {
-    title: 'Discard a Card',
-    subtitle: 'Choose a card from your hand to discard.',
+    title: 'game.prompt.effectCopy.discardFromHand.title',
+    subtitle: 'game.prompt.effectCopy.discardFromHand.subtitle',
   },
   ReturnToHand: {
-    title: 'Return a Card to Hand',
-    subtitle: "Choose a card to return to its owner's hand.",
+    title: 'game.prompt.effectCopy.returnToHand.title',
+    subtitle: 'game.prompt.effectCopy.returnToHand.subtitle',
   },
   SearchDeck: {
-    title: 'Search Your Deck',
-    subtitle: 'Choose a card from your deck.',
+    title: 'game.prompt.effectCopy.searchDeck.title',
+    subtitle: 'game.prompt.effectCopy.searchDeck.subtitle',
   },
   // "Summon 1 [Naruto Uzumaki] Character from your trash" (an [On Summon] chain): the pool only exists once the
   // chain reaches this step, so the server asks for the pick instead of taking it up front.
   SummonFromZone: {
-    title: 'Choose a Character to Summon',
-    subtitle: 'Choose one of the highlighted cards to summon onto your field.',
+    title: 'game.prompt.effectCopy.summonFromZone.title',
+    subtitle: 'game.prompt.effectCopy.summonFromZone.subtitle',
   },
   // "Destroy 1 Character" (an [On Summon] chain): the picked card is the one the effect removes. A field
   // pick is answered by the card's own Select button, so this bucket only titles the picker if the effect
   // ever offers a zone the board does not draw as cards.
   DestroyFromZone: {
-    title: 'Choose a Character to Destroy',
-    subtitle: 'Choose one of the highlighted cards to destroy.',
+    title: 'game.prompt.effectCopy.destroyFromZone.title',
+    subtitle: 'game.prompt.effectCopy.destroyFromZone.subtitle',
   },
   // "Freeze 1 Leader or Character" (N-013): the picked card cannot attack during the opponent's next turn.
   // Both zones are drawn on the board, so the pick is answered with the card's own Select button - the leader
   // card included (it is listed in the board-answerable zones).
   FreezeFromZone: {
-    title: 'Choose a Card to Freeze',
-    subtitle: 'Choose a Leader or Character; the chosen card cannot attack.',
+    title: 'game.prompt.effectCopy.freezeFromZone.title',
+    subtitle: 'game.prompt.effectCopy.freezeFromZone.subtitle',
   },
   // A "Reveal First" chain suspends so the player can see the card it turned over; the client acknowledges it
   // on its own, so the copy is only shown if the presentation ever needs a caption.
   RevealPresentation: {
-    title: 'Card Revealed',
-    subtitle: 'The revealed card stays face up while the effect resolves.',
+    title: 'game.prompt.effectCopy.revealPresentation.title',
+    subtitle: 'game.prompt.effectCopy.revealPresentation.subtitle',
   },
 }
 
-const OPTION_LABELS: Record<string, string> = {
-  goFirst: 'Go First',
-  goSecond: 'Go Second',
-  mulligan: 'Take Mulligan',
-  noMulligan: 'Keep Hand',
+const OPTION_LABEL_KEYS: Record<string, string> = {
+  goFirst: 'game.prompt.option.goFirst',
+  goSecond: 'game.prompt.option.goSecond',
+  mulligan: 'game.prompt.option.mulligan',
+  noMulligan: 'game.prompt.option.noMulligan',
 }
 
 function toTitleCaseWords(rawValue: string): string {
@@ -91,7 +96,8 @@ function toTitleCaseWords(rawValue: string): string {
 }
 
 function toReadableOptionLabel(optionValue: string): string {
-  return OPTION_LABELS[optionValue] ?? toTitleCaseWords(optionValue)
+  const labelKey = OPTION_LABEL_KEYS[optionValue]
+  return labelKey ? tr(labelKey) : toTitleCaseWords(optionValue)
 }
 
 /**
@@ -131,17 +137,16 @@ function toPromptPresentation(pendingPrompt: IPromptPresentationSource): IPrompt
     return null
   }
 
-  const effectSelectionCopy =
+  const effectSelectionCopyKeys =
     pendingPrompt.type === 'Effect'
-      ? EFFECT_SELECTION_PROMPT_COPY[pendingPrompt.selectionPromptKind ?? '']
+      ? EFFECT_SELECTION_COPY_KEYS[pendingPrompt.selectionPromptKind ?? '']
       : undefined
 
-  const title =
-    effectSelectionCopy?.title ?? PROMPT_TITLES[pendingPrompt.type] ?? toTitleCaseWords(pendingPrompt.type)
-  const subtitle =
-    effectSelectionCopy?.subtitle
-    ?? PROMPT_SUBTITLES[pendingPrompt.type]
-    ?? 'Choose one of the available options.'
+  const titleKey = effectSelectionCopyKeys?.title ?? PROMPT_TITLE_KEYS[pendingPrompt.type]
+  const title = titleKey ? tr(titleKey) : toTitleCaseWords(pendingPrompt.type)
+
+  const subtitleKey = effectSelectionCopyKeys?.subtitle ?? PROMPT_SUBTITLE_KEYS[pendingPrompt.type]
+  const subtitle = subtitleKey ? tr(subtitleKey) : tr('game.prompt.subtitle.default')
 
   return {
     promptType: pendingPrompt.type,

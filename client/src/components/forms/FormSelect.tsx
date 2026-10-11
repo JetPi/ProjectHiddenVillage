@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import type { IFormSelectProps } from '@/components/forms/types'
 
@@ -9,12 +10,14 @@ export function FormSelect({
   options,
   onValueChange,
   name,
-  placeholder = 'Select an option',
+  placeholder,
   disabled = false,
   className = '',
 }: IFormSelectProps) {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const resolvedPlaceholder = placeholder ?? t('components.forms.select.placeholder')
 
   const selectedOption = useMemo(
     () => options.find((option) => option.value === value),
@@ -74,7 +77,7 @@ export function FormSelect({
               : 'font-normal text-[var(--text-muted)]'
           }
         >
-          {selectedOption?.label || placeholder}
+          {selectedOption?.label || resolvedPlaceholder}
         </span>
       </button>
       <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[var(--text-muted)]">

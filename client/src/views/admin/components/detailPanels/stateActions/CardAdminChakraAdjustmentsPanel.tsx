@@ -1,8 +1,12 @@
+import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 import {
+  CHAKRA_OPERATION_LABEL_KEYS,
   CHAKRA_OPERATION_OPTIONS,
+  optionLabel,
+  TARGET_RANGE_LABEL_KEYS,
   TARGET_RANGE_OPTIONS,
 } from '@/views/admin/constants'
 import type { ICardAdminChakraAdjustmentsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
@@ -14,10 +18,12 @@ export function CardAdminChakraAdjustmentsPanel({
   effectIndex,
   updateEffectAt,
 }: ICardAdminChakraAdjustmentsPanelProps) {
+  const { t } = useTranslation()
+
   return (
     <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-lime-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        <span>Chakra Adjustments</span>
+        <span>{t('admin.panels.chakraAdjustments.title')}</span>
         <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
@@ -33,7 +39,7 @@ export function CardAdminChakraAdjustmentsPanel({
               chakraAdjustments: [...current.chakraAdjustments, createDefaultChakraAdjustment()],
             }))}
         >
-          Add Chakra Adjustment
+          {t('admin.panels.chakraAdjustments.add')}
         </AppButton>
       </div>
 
@@ -50,7 +56,7 @@ export function CardAdminChakraAdjustmentsPanel({
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
             {TARGET_RANGE_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>{optionLabel(t, TARGET_RANGE_LABEL_KEYS, option)}</option>
             ))}
           </CardAdminSelect>
 
@@ -65,7 +71,7 @@ export function CardAdminChakraAdjustmentsPanel({
             className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
             {CHAKRA_OPERATION_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>{optionLabel(t, CHAKRA_OPERATION_LABEL_KEYS, option)}</option>
             ))}
           </CardAdminSelect>
 
@@ -88,7 +94,7 @@ export function CardAdminChakraAdjustmentsPanel({
                 chakraAdjustments: current.chakraAdjustments.filter((_, index) => index !== chakraIndex),
               }))}
             className="inline-flex h-10 w-10 items-center justify-center self-stretch rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]"
-            ariaLabel="Remove Chakra Adjustment"
+            ariaLabel={t('admin.panels.chakraAdjustments.remove')}
           />
         </div>
       ))}

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { CardAdminCardGrid } from './CardAdminCardGrid'
 import { CardAdminPaginationFooter } from './CardAdminPaginationFooter'
 import type { ICardAdminCatalogPaneProps } from '@/views/admin/types/cardAdminCatalogPane'
@@ -18,18 +19,20 @@ export function CardAdminCatalogPane({
   listScrollContainerRef,
   loadMoreSentinelRef,
 }: ICardAdminCatalogPaneProps) {
+  const { t } = useTranslation()
+
   return (
     <div
       ref={listScrollContainerRef}
       className="themed-scrollbar mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)]"
     >
-      {isLoading ? renderStateMessage('Loading cards...') : null}
+      {isLoading ? renderStateMessage(t('admin.catalog.loadingCards')) : null}
 
-      {isError ? renderStateMessage('Failed to load cards. Try refreshing this page.') : null}
+      {isError ? renderStateMessage(t('admin.catalog.loadFailed')) : null}
 
       {!isLoading && !isError ? (
         cards.length === 0 ? (
-          renderStateMessage('No cards matched your filters on this page.')
+          renderStateMessage(t('admin.catalog.noMatches'))
         ) : (
           <CardAdminCardGrid cards={cards} selectedCardId={selectedCardId} onSelectCard={onSelectCard} />
         )

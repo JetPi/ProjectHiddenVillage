@@ -1,8 +1,21 @@
+import { useTranslation } from 'react-i18next'
 import type { ICardAdminSelectedCardSummaryProps } from '@/views/admin/types/cardAdminSelectedCardSummary'
 import { CardAdminSelect } from '@/views/admin/components/controls'
+import { optionLabel, PREDICATE_CARD_COLOR_LABEL_KEYS, PREDICATE_CARD_TYPE_LABEL_KEYS } from '@/views/admin/constants'
 
 const CARD_TYPE_OPTIONS = ['Leader', 'Character', 'EX Character', 'Chakra', 'Summon'] as const
 const CARD_COLOR_OPTIONS = ['Red', 'Blue', 'Green', 'N/A'] as const
+
+/** Display labels for the card type/color `value`s above; the submitted values never change. */
+const CARD_TYPE_LABEL_KEYS: Readonly<Record<string, string>> = {
+  ...PREDICATE_CARD_TYPE_LABEL_KEYS,
+  'EX Character': 'admin.options.predicateCardType.exCharacter',
+}
+
+const CARD_COLOR_LABEL_KEYS: Readonly<Record<string, string>> = {
+  ...PREDICATE_CARD_COLOR_LABEL_KEYS,
+  'N/A': 'admin.options.predicateCardColor.notApplicable',
+}
 
 function parseStatInteger(value: string, fallback: number): number {
   const nextValue = value.trim()
@@ -28,6 +41,8 @@ export function CardAdminSelectedCardSummary({
   onLifeChange,
   onHealthChange,
 }: ICardAdminSelectedCardSummaryProps) {
+  const { t } = useTranslation()
+
   const formatValue = (value: string | number | null | undefined): string => {
     if (value === null || value === undefined) {
       return '-'
@@ -43,19 +58,19 @@ export function CardAdminSelectedCardSummary({
   const isLeaderType = draft.type.trim().toLowerCase() === 'leader'
 
   const statRows = [
-    ['ID', formatValue(card.id)],
+    [t('admin.detail.summary.id'), formatValue(card.id)],
   ]
 
   return (
     <div className="flex h-full flex-col rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-3 text-sm text-[var(--text-secondary)]">
       <div className="flex items-stretch gap-2">
         <div className="min-w-0 flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Name</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">{t('admin.detail.summary.name')}</p>
           <p className="truncate text-sm font-semibold text-[var(--text-primary)]" title={card.displayName}>{card.displayName}</p>
         </div>
 
         <div className="w-fit shrink-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Support Cost</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">{t('admin.detail.summary.supportCost')}</p>
           <p className="mt-0.5 text-right text-sm font-semibold tabular-nums text-[var(--text-primary)]">{formatValue(card.supportCost)}</p>
         </div>
       </div>
@@ -72,33 +87,33 @@ export function CardAdminSelectedCardSummary({
         ))}
 
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Type</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{t('admin.detail.summary.type')}</p>
           <CardAdminSelect
             value={draft.type}
             onValueChange={(value) => onTypeChange(value)}
             className="mt-1 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
           >
             {CARD_TYPE_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>{optionLabel(t, CARD_TYPE_LABEL_KEYS, option)}</option>
             ))}
           </CardAdminSelect>
         </div>
 
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Color</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{t('admin.detail.summary.color')}</p>
           <CardAdminSelect
             value={draft.color}
             onValueChange={(value) => onColorChange(value)}
             className="mt-1 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
           >
             {CARD_COLOR_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option} value={option}>{optionLabel(t, CARD_COLOR_LABEL_KEYS, option)}</option>
             ))}
           </CardAdminSelect>
         </div>
 
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Power</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{t('admin.detail.summary.power')}</p>
           <input
             type="number"
             min={0}
@@ -109,7 +124,7 @@ export function CardAdminSelectedCardSummary({
         </div>
 
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Damage</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{t('admin.detail.summary.damage')}</p>
           <input
             type="number"
             min={0}
@@ -120,7 +135,7 @@ export function CardAdminSelectedCardSummary({
         </div>
 
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{isLeaderType ? 'Life' : 'Health'}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{isLeaderType ? t('admin.detail.summary.life') : t('admin.detail.summary.health')}</p>
           <input
             type="number"
             min={0}

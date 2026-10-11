@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { CardAdminSelectedCardSummary } from './CardAdminSelectedCardSummary'
@@ -19,18 +20,21 @@ import type { ICardAdminDetailEditorProps, ICardAdminDetailPaneProps } from '@/v
 import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog'
 
 export function CardAdminDetailPane({ selectedCard }: ICardAdminDetailPaneProps) {
+  const { t } = useTranslation()
+
   return (
     <div className="mt-4 mb-16 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
       {selectedCard ? (
         <CardAdminDetailEditor key={selectedCard.id} selectedCard={selectedCard} />
       ) : (
-        renderEmptySelectionState('Select a card from the left rail to prepare editing.')
+        renderEmptySelectionState(t('admin.detail.emptySelection'))
       )}
     </div>
   )
 }
 
 function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
+  const { t } = useTranslation()
   const editorModel = useCardAdminEffectEditorModel(selectedCard)
   const [conditionToAdd, setConditionToAdd] = useState('')
   const [effectConditionKeywordOptions, setEffectConditionKeywordOptions] = useState<string[]>(
@@ -236,7 +240,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
         <div className="flex h-full flex-col gap-3">
           <div className="grid grid-cols-1 gap-3">
             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]" htmlFor="card-description">
-              Description
+              {t('admin.detail.description')}
             </label>
             <textarea
               id="card-description"
@@ -248,7 +252,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
           <div className="flex min-h-0 flex-1 flex-col gap-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]" htmlFor="support-effect">
-              Support Effect
+              {t('admin.detail.supportEffect')}
             </label>
             <textarea
               id="support-effect"
@@ -289,7 +293,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
           onClick={editorModel.reset}
           disabled={!editorModel.isDirty || editorModel.isSaving}
         >
-          Reset
+          {t('admin.detail.reset')}
         </AppButton>
       </div>
 
@@ -298,7 +302,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
           <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
             {editorModel.isDirty ? (
               <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
-                Unsaved Changes
+                {t('admin.detail.unsavedChanges')}
               </span>
             ) : null}
 
@@ -306,7 +310,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
               type="button"
               onClick={async () => {
                 if (!editorModel.isDirty) {
-                  showAppInfoToast('No changes to save.', {
+                  showAppInfoToast(t('admin.toasts.noChanges'), {
                     id: 'card-admin-save-status',
                     position: 'top-right',
                   })
@@ -315,14 +319,14 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
 
                 const result = await editorModel.save()
                 if (result.ok) {
-                  showAppSuccessToast('Card saved successfully.', {
+                  showAppSuccessToast(t('admin.toasts.cardSaved'), {
                     id: 'card-admin-save-status',
                     position: 'top-right',
                   })
                   return
                 }
 
-                showAppInfoToast(result.message ?? 'Failed to save card payload.', {
+                showAppInfoToast(result.message ?? t('admin.toasts.saveFailed'), {
                   id: 'card-admin-save-status',
                   position: 'top-right',
                 })
@@ -330,7 +334,7 @@ function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
               disabled={isSaveDisabled}
               className="shadow-lg"
             >
-              {editorModel.isSaving ? 'Saving...' : 'Save Card'}
+              {editorModel.isSaving ? t('admin.detail.saving') : t('admin.detail.saveCard')}
             </AppButton>
           </div>,
           document.body,

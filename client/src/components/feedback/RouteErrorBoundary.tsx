@@ -1,34 +1,37 @@
 import { Link, isRouteErrorResponse, useRouteError } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 
-function getErrorMessage(error: unknown) {
+function getErrorMessage(error: unknown, t: TFunction) {
   if (isRouteErrorResponse(error)) {
-    return error.data?.message || error.statusText || 'The requested page could not be loaded.'
+    return error.data?.message || error.statusText || t('components.feedback.routeError.defaultMessage')
   }
 
   if (error instanceof Error) {
     return error.message
   }
 
-  return 'An unexpected routing error occurred.'
+  return t('components.feedback.routeError.unexpected')
 }
 
-function getErrorTitle(error: unknown) {
+function getErrorTitle(error: unknown, t: TFunction) {
   if (isRouteErrorResponse(error)) {
     return `${error.status} ${error.statusText}`
   }
 
-  return 'Something went wrong'
+  return t('components.feedback.routeError.defaultTitle')
 }
 
 export function RouteErrorBoundary() {
+  const { t } = useTranslation()
   const error = useRouteError()
-  const title = getErrorTitle(error)
-  const message = getErrorMessage(error)
+  const title = getErrorTitle(error, t)
+  const message = getErrorMessage(error, t)
 
   return (
     <section className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_20%_20%,var(--app-bg-start)_0%,var(--app-bg-mid)_35%,var(--app-bg-deep)_65%,var(--app-bg-end)_100%)] px-4">
       <div className="w-full max-w-lg rounded-2xl border border-[var(--border-subtle)] bg-[var(--popup-bg)] p-6 text-[var(--text-primary)] shadow-[var(--panel-shadow)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-accent)]">Route Error</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-accent)]">{t('components.feedback.routeError.badge')}</p>
         <h1 className="mt-2 text-2xl font-black">{title}</h1>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">{message}</p>
         {import.meta.env.DEV && error instanceof Error && error.stack ? (
@@ -41,14 +44,14 @@ export function RouteErrorBoundary() {
             to="/"
             className="inline-flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-semibold text-[var(--button-primary-text)] transition-colors duration-200 hover:bg-[var(--button-primary-hover)]"
           >
-            Go To Home
+            {t('components.feedback.routeError.goHome')}
           </Link>
           <button
             type="button"
             onClick={() => window.location.reload()}
             className="inline-flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-4 py-2 text-sm font-semibold transition-colors duration-200"
           >
-            Reload Page
+            {t('components.feedback.routeError.reloadPage')}
           </button>
         </div>
       </div>

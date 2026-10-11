@@ -1,7 +1,10 @@
+import { useTranslation } from 'react-i18next'
+import { translateKey } from '@/i18n'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import type { ICardAdminConditionsSectionProps } from '@/views/admin/types/cardAdminDetailSections'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
+import { CONDITION_LABEL_KEYS, optionLabel } from '@/views/admin/constants'
 
 export function CardAdminConditionsSection({
   editorModel,
@@ -9,10 +12,12 @@ export function CardAdminConditionsSection({
   setConditionToAdd,
   availableConditionOptions,
 }: ICardAdminConditionsSectionProps) {
+  const { t } = useTranslation()
+
   return (
     <div className="grid grid-cols-1 gap-2 border-t border-[var(--border-subtle)] pt-3">
       <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        Conditions
+        {t('admin.detail.sections.conditions')}
       </label>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
@@ -31,18 +36,18 @@ export function CardAdminConditionsSection({
           }}
           className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
         >
-          <option value="">Select a condition to add...</option>
+          <option value="">{t('admin.detail.sections.selectCondition')}</option>
           {availableConditionOptions.map((conditionOption) => (
-            <option key={conditionOption} value={conditionOption}>{conditionOption}</option>
+            <option key={conditionOption} value={conditionOption}>{optionLabel(t, CONDITION_LABEL_KEYS, conditionOption)}</option>
           ))}
         </CardAdminSelect>
 
         <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
-          <span>No Normal Summon</span>
+          <span>{t('admin.detail.sections.noNormalSummon')}</span>
           <CardAdminToggleSwitch
             checked={editorModel.draft.cannotBeNormalSummoned}
             onChange={editorModel.setCannotBeNormalSummoned}
-            ariaLabel="No Normal Summon"
+            ariaLabel={t('admin.detail.sections.noNormalSummon')}
           />
         </label>
       </div>
@@ -54,11 +59,11 @@ export function CardAdminConditionsSection({
               key={condition}
               className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--text-primary)]"
             >
-              <span>{condition}</span>
+              <span>{optionLabel(t, CONDITION_LABEL_KEYS, condition)}</span>
               <CardAdminRemoveButton
                 variant="chip"
                 onClick={() => editorModel.removeCondition(condition)}
-                ariaLabel={`Remove ${condition}`}
+                ariaLabel={translateKey(t, 'admin.detail.sections.removeCondition', { condition })}
               />
             </div>
           ))}

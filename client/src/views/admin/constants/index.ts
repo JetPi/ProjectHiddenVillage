@@ -1,5 +1,6 @@
 export * from './conditionOptions'
 export * from './effectOptions'
+export * from './optionLabel'
 export * from './passiveKeywordOptions'
 export * from './predicateOptions'
 export * from './runtimeModificationOptions'

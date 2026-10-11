@@ -1,5 +1,6 @@
 import { useGameCardsQuery } from '@/services/queries/cardQueries'
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useLoaderData } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
 import { Panel } from '@/components/ui'
@@ -38,6 +39,7 @@ import {
 } from '@/views/game/hooks'
 
 export function GameView() {
+  const { t } = useTranslation()
   const { joinCode, gameCards, gameState: initialGameState } = useLoaderData() as IGameLoaderData
   const authUserId = useAuthSessionStore((state) => state.session?.userId)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
@@ -379,7 +381,7 @@ export function GameView() {
             <span className="min-w-0 flex-1 break-words">{actionError}</span>
             <button
               type="button"
-              aria-label="Dismiss error"
+              aria-label={t('game.view.dismissErrorAria')}
               onClick={() => setActionError(null)}
               className="shrink-0 rounded border border-white/30 px-1.5 leading-none text-white/85 transition-[filter] hover:brightness-125"
             >

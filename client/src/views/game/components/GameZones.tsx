@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { CardListOverlay, LeaderCard } from '@/components/ui/cards'
 import { PlayBottomResourceZone, PlayPileZone, PlayTopResourceZone } from '@/components/ui/game'
@@ -35,6 +36,7 @@ const ATTACK_SWEEP_SIDE_BEND_PX = 110
 type OpenTrashPileSide = 'top' | 'bottom'
 
 function GameZones(props: IGameZonesProps) {
+  const { t } = useTranslation()
   const { topLeaderCard, bottomLeaderCard } = props.derivedGameState
   const [openTrashPile, setOpenTrashPile] = useState<OpenTrashPileSide | null>(null)
   const pendingCardTargeting = useGameUIStore((state) => state.pendingCardTargeting)
@@ -77,7 +79,9 @@ function GameZones(props: IGameZonesProps) {
   
   const trashListSubtitle =
     trashListEntries.length > 0
-      ? `${trashListEntries.length} ${trashListEntries.length === 1 ? 'card' : 'cards'}`
+      ? trashListEntries.length === 1
+        ? t('game.trash.cardCountOne', { n: trashListEntries.length })
+        : t('game.trash.cardCountOther', { n: trashListEntries.length })
       : ''
 
   const cardRestedStateByInstanceId = useMemo(() => {
@@ -376,10 +380,10 @@ function GameZones(props: IGameZonesProps) {
 
       <CardListOverlay
         isOpen={openTrashPile !== null}
-        title={openTrashPile === 'top' ? 'Opponent trash pile' : 'Your trash pile'}
+        title={openTrashPile === 'top' ? t('game.trash.opponentPile') : t('game.trash.yourPile')}
         subtitle={trashListSubtitle}
         entries={trashListEntries}
-        emptyMessage="The trash pile is empty."
+        emptyMessage={t('game.trash.empty')}
         onClose={() => {
           setOpenTrashPile(null)
         }}

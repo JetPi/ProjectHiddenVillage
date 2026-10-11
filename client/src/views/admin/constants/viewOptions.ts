@@ -16,3 +16,15 @@ export const ALL_FILTER_OPTION: ICardAdminFilterOption = {
   value: 'all',
   label: 'All',
 }
+
+/** Display labels for the sort/filter `value`s above; the values (what the API receives) never change. */
+export const SORT_OPTION_LABEL_KEYS: Readonly<Record<string, string>> = {
+  'cardId': 'admin.filters.sortOption.cardIdAsc',
+  '-cardId': 'admin.filters.sortOption.cardIdDesc',
+  'displayName': 'admin.filters.sortOption.displayNameAsc',
+  '-displayName': 'admin.filters.sortOption.displayNameDesc',
+  'type': 'admin.filters.sortOption.typeAsc',
+  '-updatedAtUtc': 'admin.filters.sortOption.updatedNewest',
+}
+
+export const ALL_FILTER_OPTION_LABEL_KEY = 'admin.filters.all'

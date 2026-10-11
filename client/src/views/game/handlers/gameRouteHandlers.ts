@@ -1,4 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router-dom'
+import i18n from '@/i18n'
 import {
   fetchGameCards,
   fetchGameState,
@@ -13,7 +14,7 @@ import type { IGameActionData, IGameLoaderData } from '@/views/game/types'
 function resolveJoinCode(params: LoaderFunctionArgs['params']): string {
   const joinCode = params.joinCode?.trim() ?? ''
   if (!joinCode) {
-    throw new Response('Game code is required.', { status: 400 })
+    throw new Response(i18n.t('game.errors.gameCodeRequired'), { status: 400 })
   }
 
   return joinCode
@@ -27,7 +28,7 @@ function resolveActionPlayerId(): string {
   const authSession = readAuthSession()
   const playerId = normalizeRuntimePlayerId(authSession?.userId ?? '')
   if (!playerId) {
-    throw new Error('You must be logged in to perform game actions.')
+    throw new Error(i18n.t('game.errors.loginRequired'))
   }
 
   return playerId
@@ -51,7 +52,7 @@ export async function gameLoader({ params }: LoaderFunctionArgs): Promise<IGameL
       gameState,
     }
   } catch (error) {
-    throw new Response(getApiErrorMessage(error, 'Unable to load this game.'), { status: 400 })
+    throw new Response(getApiErrorMessage(error, i18n.t('game.errors.loadFailed')), { status: 400 })
   }
 }
 

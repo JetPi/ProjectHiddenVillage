@@ -1,11 +1,17 @@
+import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import { CountConstraintField } from '@/views/admin/components/controls'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 import {
+  ATTRIBUTE_OPERATION_LABEL_KEYS,
   ATTRIBUTE_OPERATION_OPTIONS,
+  ATTRIBUTE_TYPE_LABEL_KEYS,
   ATTRIBUTE_TYPE_OPTIONS,
+  optionLabel,
+  TARGET_RANGE_LABEL_KEYS,
   TARGET_RANGE_OPTIONS,
+  TARGET_TYPE_LABEL_KEYS,
   TARGET_TYPE_OPTIONS,
 } from '@/views/admin/constants'
 import type { ICardAdminAttributeModificationsPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
@@ -21,10 +27,12 @@ export function CardAdminAttributeModificationsPanel({
   effectIndex,
   updateEffectAt,
 }: ICardAdminAttributeModificationsPanelProps) {
+  const { t } = useTranslation()
+
   return (
     <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-rose-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        <span>Attribute Modifications</span>
+        <span>{t('admin.panels.attributeModifications.title')}</span>
         <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
@@ -40,7 +48,7 @@ export function CardAdminAttributeModificationsPanel({
               attributeModifications: [...current.attributeModifications, createDefaultAttributeModification()],
             }))}
         >
-          Add Attribute Modification
+          {t('admin.panels.attributeModifications.add')}
         </AppButton>
       </div>
 
@@ -54,13 +62,13 @@ export function CardAdminAttributeModificationsPanel({
                   attributeModifications: current.attributeModifications.filter((_, index) => index !== attributeIndex),
                 }))}
               className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]"
-              ariaLabel="Remove Attribute Modification"
+              ariaLabel={t('admin.panels.attributeModifications.remove')}
             />
           </div>
 
           <div className="grid grid-cols-1 gap-y-3 sm:grid-cols-4 sm:gap-x-2">
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Type</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.attributeModifications.targetType')}</label>
               <CardAdminSelect
                 value={attributeModification.targetType}
                 onValueChange={(value) =>
@@ -72,13 +80,13 @@ export function CardAdminAttributeModificationsPanel({
                 className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
               >
                 {TARGET_TYPE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>{option}</option>
+                  <option key={option} value={option}>{optionLabel(t, TARGET_TYPE_LABEL_KEYS, option)}</option>
                 ))}
               </CardAdminSelect>
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Target Range</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.attributeModifications.targetRange')}</label>
               <CardAdminSelect
                 value={attributeModification.targetRange}
                 onValueChange={(value) =>
@@ -90,13 +98,13 @@ export function CardAdminAttributeModificationsPanel({
                 className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
               >
                 {TARGET_RANGE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>{option}</option>
+                  <option key={option} value={option}>{optionLabel(t, TARGET_RANGE_LABEL_KEYS, option)}</option>
                 ))}
               </CardAdminSelect>
             </div>
 
             <div className="space-y-1 sm:col-span-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Affected Property</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.attributeModifications.affectedProperty')}</label>
               <CardAdminSelect
                 value={attributeModification.attribute}
                 onValueChange={(value) =>
@@ -108,7 +116,7 @@ export function CardAdminAttributeModificationsPanel({
                 className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
               >
                 {ATTRIBUTE_TYPE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>{option}</option>
+                  <option key={option} value={option}>{optionLabel(t, ATTRIBUTE_TYPE_LABEL_KEYS, option)}</option>
                 ))}
               </CardAdminSelect>
             </div>
@@ -117,9 +125,9 @@ export function CardAdminAttributeModificationsPanel({
               className="sm:col-span-4 grid grid-cols-1 gap-2 sm:grid-cols-4"
               selectClassName="w-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
               inputClassName="w-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
-              modeLabel="Value Mode"
-              valueLabel="Value"
-              placeholder="Value"
+              modeLabel={t('admin.panels.attributeModifications.valueMode')}
+              valueLabel={t('admin.panels.attributeModifications.value')}
+              placeholder={t('admin.panels.attributeModifications.value')}
               mode={resolveAttributeValueConstraintMode(
                 attributeModification.minimumValue,
                 attributeModification.maximumValue,
@@ -135,7 +143,7 @@ export function CardAdminAttributeModificationsPanel({
               )}
               trailingContent={(
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Operation</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.attributeModifications.operation')}</label>
                   <CardAdminSelect
                     value={attributeModification.operation}
                     onValueChange={(value) =>
@@ -147,7 +155,7 @@ export function CardAdminAttributeModificationsPanel({
                     className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
                   >
                     {ATTRIBUTE_OPERATION_OPTIONS.map((option) => (
-                      <option key={option} value={option}>{option}</option>
+                      <option key={option} value={option}>{optionLabel(t, ATTRIBUTE_OPERATION_LABEL_KEYS, option)}</option>
                     ))}
                   </CardAdminSelect>
                 </div>

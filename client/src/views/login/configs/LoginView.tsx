@@ -2,37 +2,39 @@ import type { IToggleOption } from '@/components/forms'
 import type { IAdaptiveFieldConfig } from '@/components/forms'
 import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from '@/types/login'
 
+// Labels and placeholders hold translation keys; LoginView resolves them through
+// `t()` (see translateAdaptiveFieldConfig / translateKey) so the copy lives in en.json.
 export const deckOptionsModeOptions: readonly IToggleOption<IDeckOptionsEntryMode>[] = [
-  { value: 'import', label: 'Import' },
-  { value: 'saved_decks', label: 'Saved Decks' },
-  { value: 'starter_decks', label: 'Starter Decks' },
+  { value: 'import', label: 'auth.config.deckImport' },
+  { value: 'saved_decks', label: 'auth.config.deckSaved' },
+  { value: 'starter_decks', label: 'auth.config.deckStarter' },
 ]
 
 export const gameCodeModeOptions: readonly IToggleOption<IGameCodeEntryMode>[] = [
-  { value: 'quickmatch', label: 'Quick Match' },
-  { value: 'join', label: 'Join' },
-  { value: 'create', label: 'Create' },
+  { value: 'quickmatch', label: 'auth.config.modeQuickMatch' },
+  { value: 'join', label: 'auth.config.modeJoin' },
+  { value: 'create', label: 'auth.config.modeCreate' },
 ]
 
 export const gameCodeFieldConfigByMode: Record<IGameCodeEntryMode, IAdaptiveFieldConfig> = {
   quickmatch: {
     type: 'select',
     choices: [
-      { value: 'casual', label: 'Casual' }
+      { value: 'casual', label: 'auth.config.casual' }
     ],
-    
+
   },
   join: {
     type: 'input',
     props: {
-      placeholder: 'Paste your code here',
+      placeholder: 'auth.config.joinCodePlaceholder',
       maxLength: 5,
     },
   },
   create: {
     type: 'input',
     props: {
-      placeholder: 'Code will be generated on create',
+      placeholder: 'auth.config.createCodePlaceholder',
       maxLength: 5,
     },
   },
@@ -42,21 +44,21 @@ export const deckOptionsFieldConfigByMode: Record<IDeckOptionsEntryMode, IAdapti
     import: {
       type: 'input',
       props: {
-        placeholder: 'Use Import to paste your deck list',
+        placeholder: 'auth.config.importPlaceholder',
         readOnly: true,
       },
     },
    saved_decks:{
     type: 'select',
     choices: [
-      { value: '', label: 'Loading saved decks...' }
+      { value: '', label: 'auth.config.loadingSavedDecks' }
     ],
-    
+
   },
   starter_decks: {
     type: 'select',
     choices: [
-      { value: '', label: 'Loading public decks...' }
+      { value: '', label: 'auth.config.loadingPublicDecks' }
     ],
   },
 }

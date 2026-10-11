@@ -43,7 +43,7 @@ export type ICardAdminPassiveSettingsPanelProps = ICardAdminEffectPanelBaseProps
 
 export type ICardAdminContextRulePlayerPanelProps = {
   audience: 'player' | 'opponent'
-  title: 'Player' | 'Opponent'
+  title: string
   effect: ICardCatalogEffectRequest
   effectIndex: number
   contextRuleIndex: number

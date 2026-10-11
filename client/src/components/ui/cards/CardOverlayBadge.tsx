@@ -1,4 +1,5 @@
 import { twMerge } from 'tailwind-merge'
+import { useTranslation } from 'react-i18next'
 import type { ICardOverlayBadgeProps } from '@/components/ui/types'
 
 const POSITION_CLASSES: Record<NonNullable<ICardOverlayBadgeProps['position']>, string> = {
@@ -15,9 +16,11 @@ const SIZE_CLASSES = {
 } as const;
 
 export function CardOverlayBadge({ size = "md", position = 'bottom-right', className, testId, children }: ICardOverlayBadgeProps) {
+  const { t } = useTranslation()
+
   return (
     <div
-      aria-label={`Card overlay value`}
+      aria-label={t('components.ui.cardOverlayBadge.ariaLabel')}
       data-testid={testId}
       className={twMerge(
         'card-overlay-badge pointer-events-none absolute z-10 flex items-center justify-center bg-slate-700/92 text-center font-extrabold leading-none',

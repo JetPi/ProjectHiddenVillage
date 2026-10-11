@@ -1,4 +1,5 @@
 import { twMerge } from 'tailwind-merge'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { AppButton, Panel } from '@/components/ui'
 import { buildGameOutcomePresentation } from '@/views/game/utils/functions/helpers'
@@ -18,6 +19,7 @@ const HEADLINE_CLASS: Record<IGameOutcomeStanding, string> = {
  * board's transient banners (z-60 vs their z-40/z-50) so a stale action error can never peek through.
  */
 function GameOverOverlay({ outcome, authUserId }: IGameOverOverlayProps) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const presentation = buildGameOutcomePresentation(outcome, authUserId)
 
@@ -58,7 +60,7 @@ function GameOverOverlay({ outcome, authUserId }: IGameOverOverlayProps) {
             void navigate('/')
           }}
         >
-          Return to main page
+          {t('game.outcome.returnToMainPage')}
         </AppButton>
       </Panel>
     </div>

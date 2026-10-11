@@ -1,9 +1,14 @@
+import { useTranslation } from 'react-i18next'
+import { translateKey } from '@/i18n'
 import { AppButton } from '@/components/ui'
 import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
 import {
+  MATCH_MODE_LABEL_KEYS,
   MATCH_MODE_OPTIONS,
+  optionLabel,
+  REVEAL_TIMING_MODE_LABEL_KEYS,
   REVEAL_TIMING_MODE_OPTIONS,
 } from '@/views/admin/constants'
 import type { ICardAdminRevealCardPanelProps } from '@/views/admin/types/cardAdminEffectPanels'
@@ -23,22 +28,24 @@ export function CardAdminRevealCardPanel({
   effectIndex,
   updateEffectAt,
 }: ICardAdminRevealCardPanelProps) {
+  const { t } = useTranslation()
+
   return (
     <details className="group border-t border-[var(--border-subtle)] border-l-2 border-l-emerald-500/55 pl-3 pt-3">
       <summary className="flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-        <span>Reveal Card Settings</span>
+        <span>{t('admin.panels.revealCard.title')}</span>
         <CardAdminChevronIcon rotateOnOpen />
       </summary>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
       <div className="space-y-1">
-        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Reveal Timing</label>
+        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.revealCard.revealTiming')}</label>
         <CardAdminSelect
           value={effect.revealTimingMode}
           onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, revealTimingMode: value }))}
         >
           {REVEAL_TIMING_MODE_OPTIONS.map((option) => (
-            <option key={option} value={option}>{option}</option>
+            <option key={option} value={option}>{optionLabel(t, REVEAL_TIMING_MODE_LABEL_KEYS, option)}</option>
           ))}
         </CardAdminSelect>
       </div>
@@ -69,15 +76,15 @@ export function CardAdminRevealCardPanel({
                 revealTimingMode: checked ? 'Reveal First' : current.revealTimingMode,
               }
             })}
-          ariaLabel="Post-Reveal Rule Set Enabled"
+          ariaLabel={t('admin.panels.revealCard.ruleSetEnabled')}
         />
-        Post-Reveal Rule Set Enabled
+        {t('admin.panels.revealCard.ruleSetEnabled')}
       </label>
 
       {resolveRevealPostConditionRuleSet(effect) ? (
         <div className="space-y-2 border-l-2 border-l-emerald-500/30 pl-3 sm:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Post-Reveal Condition</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.revealCard.postRevealCondition')}</p>
             <div className="flex items-center gap-2">
               <AppButton
                 type="button"
@@ -106,13 +113,13 @@ export function CardAdminRevealCardPanel({
                     }
                   })}
               >
-                Add Group
+                {t('admin.panels.revealCard.addGroup')}
               </AppButton>
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Group Operator</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.revealCard.groupOperator')}</label>
             <CardAdminSelect
               value={resolveRevealPostConditionRuleSet(effect)?.operator ?? 'All'}
               onValueChange={(value) =>
@@ -134,7 +141,7 @@ export function CardAdminRevealCardPanel({
                 })}
             >
               {MATCH_MODE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
+                <option key={option} value={option}>{optionLabel(t, MATCH_MODE_LABEL_KEYS, option)}</option>
               ))}
             </CardAdminSelect>
           </div>
@@ -145,7 +152,7 @@ export function CardAdminRevealCardPanel({
               className="space-y-2 border-l-2 border-l-emerald-500/30 pl-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Group {groupIndex + 1}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{translateKey(t, 'admin.panels.revealCard.groupNumber', { number: groupIndex + 1 })}</p>
                 <CardAdminRemoveButton
                   onClick={() =>
                     updateEffectAt(effectIndex, (current) => {
@@ -165,13 +172,13 @@ export function CardAdminRevealCardPanel({
                       }
                     })
                   }
-                  ariaLabel="Remove Group"
+                  ariaLabel={t('admin.panels.revealCard.removeGroup')}
                 />
               </div>
 
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Group Match Mode</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.revealCard.groupMatchMode')}</label>
                   <CardAdminSelect
                     value={restriction.matchMode}
                     onValueChange={(value) =>
@@ -199,7 +206,7 @@ export function CardAdminRevealCardPanel({
                       })}
                   >
                     {MATCH_MODE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>{option}</option>
+                      <option key={option} value={option}>{optionLabel(t, MATCH_MODE_LABEL_KEYS, option)}</option>
                     ))}
                   </CardAdminSelect>
                 </div>
@@ -231,7 +238,7 @@ export function CardAdminRevealCardPanel({
                       }
                     })}
                 >
-                  Add Predicate
+                  {t('admin.panels.revealCard.addPredicate')}
                 </AppButton>
               </div>
 

@@ -1,4 +1,5 @@
 import { Eye } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { PlayCard } from '@/components/ui/game/PlayCard'
 import { CardBack } from '@/components/ui/cards/CardBack'
@@ -16,6 +17,7 @@ function isTrashLabel(label: string): boolean {
 }
 
 export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', gameState, deckCardRef, trashCardRef, onOpenTrashPile }: IPlayPileZoneProps) {
+  const { t } = useTranslation()
   const labeledPileCardClassName =
     'h-full flex items-center justify-center text-center overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]'
   const deckPileCardClassName = 'h-full overflow-hidden rounded-lg'
@@ -115,7 +117,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                       <CardImage
                         card={revealedDeckCard}
                         variant="board"
-                        alt="Revealed deck card"
+                        alt={t('components.game.revealedDeckCard.alt')}
                         className="h-full w-full rounded-lg object-cover"
                       />
                     ) : null
@@ -125,18 +127,22 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                 <CardImage
                   card={latestTrashCard}
                   variant="board"
-                  alt="Trash"
+                  alt={t('components.game.trashCard.alt')}
                   className="h-full w-full rounded-lg object-cover"
                 />
               ) : (
-                label
+                isDeckLabel(label)
+                  ? t('components.game.pile.deck')
+                  : isTrashLabel(label)
+                    ? t('components.game.pile.trash')
+                    : label
               )}
               {isTrashLabel(label) && onOpenTrashPile ? (
                 <div className="card-overlay-controls pointer-events-none absolute inset-0 z-20 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
                   <button
                     type="button"
                     data-testid="trash-pile-viewer-button"
-                    aria-label="Open trash pile"
+                    aria-label={t('components.game.openTrashPile')}
                     onClick={onOpenTrashPile}
                     className="absolute right-2 top-2 z-30 inline-flex h-5 w-5 items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80"
                   >

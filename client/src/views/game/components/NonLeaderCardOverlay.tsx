@@ -1,5 +1,6 @@
 import { Eye } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { CardOverlayBadge, CardPreviewCard } from '@/components/ui/cards'
 import type { INonLeaderCardOverlayProps } from '@/views/game/types'
@@ -35,6 +36,7 @@ function NonLeaderCardOverlay({
   isActionPending,
   onSelectActionOption,
 }: INonLeaderCardOverlayProps) {
+  const { t } = useTranslation()
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false)
   const showZoneHud = card !== undefined && zone === 'battlefield'
   const isChoosingTarget = isTargetCandidate === true
@@ -73,7 +75,7 @@ function NonLeaderCardOverlay({
               onClick={() => {
                 setIsCardPreviewOpen(true)
               }}
-              aria-label="Open card details"
+              aria-label={t('game.zone.openCardDetails')}
               className="inline-flex h-5 w-5 items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80"
             >
               <Eye size={10} />
@@ -91,7 +93,7 @@ function NonLeaderCardOverlay({
               disabled={!isConnected || isActionPending}
               className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Choose
+              {t('game.zone.choose')}
             </button>
           ) : isTributeTargetCandidate && onToggleSummonTarget ? (
             <button
@@ -101,7 +103,7 @@ function NonLeaderCardOverlay({
               }}
               className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80"
             >
-              Tribute
+              {t('game.zone.tribute')}
             </button>
           ) : isEffectTargetCandidate && onToggleEffectTarget ? (
             <button
@@ -118,7 +120,7 @@ function NonLeaderCardOverlay({
                   : 'border-white/35 bg-black/65 text-white hover:bg-black/80',
               )}
             >
-              {isEffectTargetSelected ? 'Selected' : 'Select'}
+              {isEffectTargetSelected ? t('game.zone.selected') : t('game.zone.select')}
             </button>
           ) : hasActions ? (
             <div className="grid w-full place-items-center gap-0.5">
@@ -145,7 +147,7 @@ function NonLeaderCardOverlay({
                 disabled
                 className={ACTION_CHIP_CLASSNAME}
               >
-                No actions
+                {t('game.zone.noActions')}
               </button>
             </div>
           ) : null}
@@ -154,8 +156,14 @@ function NonLeaderCardOverlay({
 
       {visibilityMode === 'mixed' ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-between rounded-b-md border-t border-[var(--border-subtle)] bg-[var(--surface-elevated)]/95 px-1 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)]">
-          <span>{hasActions ? `${actionOptions.length} action${actionOptions.length > 1 ? 's' : ''}` : (showEmptyActionMessage ? 'No actions' : '')}</span>
-          <span>View</span>
+          <span>
+            {hasActions
+              ? actionOptions.length === 1
+                ? t('game.zone.actionCountOne', { n: actionOptions.length })
+                : t('game.zone.actionCountOther', { n: actionOptions.length })
+              : (showEmptyActionMessage ? t('game.zone.noActions') : '')}
+          </span>
+          <span>{t('game.zone.view')}</span>
         </div>
       ) : null}
 

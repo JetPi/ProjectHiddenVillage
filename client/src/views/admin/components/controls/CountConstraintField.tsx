@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { ICountConstraintFieldProps, ICountConstraintMode } from '@/views/admin/types/countConstraintField'
 import { CardAdminSelect } from './CardAdminSelect'
 
@@ -27,6 +28,7 @@ export function CountConstraintField({
   inputClassName,
   trailingContent,
 }: ICountConstraintFieldProps) {
+  const { t } = useTranslation()
   const displayValue = value === null ? '' : String(value)
   const placeholderLength = placeholder?.length ?? 0
   const minLength = String(min).length
@@ -41,17 +43,17 @@ export function CountConstraintField({
       onValueChange={(value) => onModeChange(value as ICountConstraintMode)}
       className={selectClassName ? `block ${selectClassName}` : 'block w-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]'}
     >
-      <option value="Exact">Exact</option>
-      <option value="Minimum">Minimum</option>
-      <option value="Maximum">Maximum</option>
-      <option value="All">All</option>
+      <option value="Exact">{t('admin.controls.countConstraint.exact')}</option>
+      <option value="Minimum">{t('admin.controls.countConstraint.minimum')}</option>
+      <option value="Maximum">{t('admin.controls.countConstraint.maximum')}</option>
+      <option value="All">{t('admin.controls.countConstraint.all')}</option>
     </CardAdminSelect>
   )
 
   const valueControl = mode === 'All'
     ? (
       <div className={resolvedInputClassName} style={{ minWidth: '6.5rem' }}>
-        All in zone
+        {t('admin.controls.countConstraint.allInZone')}
       </div>
     )
     : (

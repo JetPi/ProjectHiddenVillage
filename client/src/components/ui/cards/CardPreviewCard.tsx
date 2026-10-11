@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useId } from 'react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { CardImage } from '@/components/ui/cards/CardImage'
 import { resolveKeywordDescription } from '@/components/ui/cards/utils'
@@ -19,6 +20,7 @@ export function CardPreviewCard({
     isOpen,
     onClose,
 }: ICardPreviewCardProps) {
+    const { t } = useTranslation()
     const dialogTitleId = useId()
     const [keywordTooltipState, setKeywordTooltipState] = useState<IKeywordTooltipState>(null)
 
@@ -59,7 +61,7 @@ export function CardPreviewCard({
 
     const primaryName = getPrimaryName(card)
     const cardHasLife = card.life !== null
-    const vitalityLabel = cardHasLife ? 'LIFE' : 'HEALTH'
+    const vitalityLabel = cardHasLife ? t('components.ui.cardPreview.life') : t('components.ui.cardPreview.health')
     const vitalityValue = cardHasLife ? (card.life ?? '-') : (card.health ?? '-')
     const descriptionLines = splitDescriptionLines(card.description)
 
@@ -110,7 +112,7 @@ export function CardPreviewCard({
                       )}
                   </Fragment>
               ))
-            : 'No card description provided yet.'
+            : t('components.ui.cardPreview.noDescription')
 
     return createPortal(
               <div
@@ -133,12 +135,12 @@ export function CardPreviewCard({
                               <div className="flex items-center justify-center gap-2">
                                   <h2 className="text-xl font-black leading-tight text-[var(--text-primary)] sm:text-2xl">{primaryName}</h2>
                                   <span className="self-end pb-0.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                                      {card.type || 'Unknown type'}
+                                      {card.type || t('components.ui.cardPreview.unknownType')}
                                   </span>
                               </div>
 
                               <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)] sm:text-sm">
-                                  {card.traits.length > 0 ? card.traits.join(' • ') : 'No traits'}
+                                  {card.traits.length > 0 ? card.traits.join(' • ') : t('components.ui.cardPreview.noTraits')}
                               </p>
                           </div>
 
@@ -156,11 +158,11 @@ export function CardPreviewCard({
 
                           <div className="grid w-full grid-cols-3 gap-1.5">
                                   <p className="flex w-full flex-col items-center justify-center rounded-md border border-[var(--stat-pill-pow-border)] bg-[var(--stat-pill-pow-bg)] px-2.5 py-1 text-center leading-tight text-[var(--stat-pill-pow-text)]">
-                                      <span className="text-[0.65rem] font-medium tracking-wide sm:text-[0.7rem]">POWER</span>
+                                      <span className="text-[0.65rem] font-medium tracking-wide sm:text-[0.7rem]">{t('components.ui.cardPreview.power')}</span>
                                       <span className="text-xs font-semibold sm:text-sm">{card.power}</span>
                                   </p>
                                   <p className="flex w-full flex-col items-center justify-center rounded-md border border-[var(--stat-pill-dmg-border)] bg-[var(--stat-pill-dmg-bg)] px-2.5 py-1 text-center leading-tight text-[var(--stat-pill-dmg-text)]">
-                                      <span className="text-[0.65rem] font-medium tracking-wide sm:text-[0.7rem]">DAMAGE</span>
+                                      <span className="text-[0.65rem] font-medium tracking-wide sm:text-[0.7rem]">{t('components.ui.cardPreview.damage')}</span>
                                       <span className="text-xs font-semibold sm:text-sm">{card.damage}</span>
                                   </p>
                                   <p className={twMerge(

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ImgHTMLAttributes } from 'react'
+import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import type { ICardImageProps } from '@/components/ui/types'
 import { preloadImageSource } from '@/services/imagePreloadCache'
@@ -11,8 +12,9 @@ const IMAGE_RENDERING_CLASS: Record<NonNullable<ICardImageProps['imageRendering'
   'crisp-edges': '[image-rendering:crisp-edges]',
 }
 
-const fallbackSvg = encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="500" viewBox="0 0 360 500">
+function buildFallbackImageSrc(title: string, unavailableLabel: string): string {
+  const fallbackSvg = encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="500" viewBox="0 0 360 500">
     <defs>
       <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stop-color="#1f2937" />
@@ -20,12 +22,13 @@ const fallbackSvg = encodeURIComponent(
       </linearGradient>
     </defs>
     <rect x="0" y="0" width="360" height="500" fill="url(#g)" rx="22" ry="22" />
-    <text x="50%" y="48%" font-family="Segoe UI, sans-serif" text-anchor="middle" fill="#e5e7eb" font-size="20">Card Image</text>
-    <text x="50%" y="54%" font-family="Segoe UI, sans-serif" text-anchor="middle" fill="#9ca3af" font-size="15">Unavailable</text>
+    <text x="50%" y="48%" font-family="Segoe UI, sans-serif" text-anchor="middle" fill="#e5e7eb" font-size="20">${title}</text>
+    <text x="50%" y="54%" font-family="Segoe UI, sans-serif" text-anchor="middle" fill="#9ca3af" font-size="15">${unavailableLabel}</text>
   </svg>`,
-)
+  )
 
-const FALLBACK_IMAGE_SRC = `data:image/svg+xml;charset=UTF-8,${fallbackSvg}`
+  return `data:image/svg+xml;charset=UTF-8,${fallbackSvg}`
+}
 
 export function CardImage({
   src,
@@ -43,6 +46,7 @@ export function CardImage({
   onError,
   ...imageProps
 }: ICardImageProps) {
+  const { t } = useTranslation()
   const resolvedSource = card?.id
     ? cardArtUrl(card.id, CARD_ART_WIDTHS[variant], card.imageVersion)
     : (src?.trim() ?? '')
@@ -81,8 +85,17 @@ export function CardImage({
       return fallbackLabel
     }
 
-    return 'Card image unavailable'
-  }, [fallbackLabel])
+    return t('components.ui.cardImage.fallbackLabel')
+  }, [fallbackLabel, t])
+
+  const fallbackImageSrc = useMemo(
+    () =>
+      buildFallbackImageSrc(
+        t('components.ui.cardImage.placeholderTitle'),
+        t('components.ui.cardImage.placeholderUnavailable'),
+      ),
+    [t],
+  )
 
   const handleError: ImgHTMLAttributes<HTMLImageElement>['onError'] = (event) => {
     setFailedSource(normalizedSrc)
@@ -100,7 +113,7 @@ export function CardImage({
         style={{ width, height }}
       >
         <img
-          src={FALLBACK_IMAGE_SRC}
+          src={fallbackImageSrc}
           alt={resolvedFallbackLabel}
           draggable={false}
           onDragStart={(event) => {

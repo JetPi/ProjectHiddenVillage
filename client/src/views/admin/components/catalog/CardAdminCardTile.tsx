@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
+import { translateKey } from '@/i18n'
 import { CardImage } from '@/components/ui/cards'
 import type { ICardAdminCardTileProps } from '@/views/admin/types/cardAdminCardTile'
 import { CARD_ART_IMAGE_CLASS } from '@/components/ui/cards'
 
 export function CardAdminCardTile({ card, isSelected, onSelect }: ICardAdminCardTileProps) {
+  const { t } = useTranslation()
   const [isPreviewVisible, setIsPreviewVisible] = useState(false)
   const [previewPosition, setPreviewPosition] = useState<{ top: number; left: number }>({ top: 12, left: 12 })
   const buttonRef = useRef<HTMLButtonElement | null>(null)
@@ -76,7 +79,7 @@ export function CardAdminCardTile({ card, isSelected, onSelect }: ICardAdminCard
             <CardImage
               card={card}
               variant="preview"
-              alt={`${card.displayName} card art preview`}
+              alt={translateKey(t, 'admin.catalog.cardArtPreviewAlt', { name: card.displayName })}
               loading="lazy"
               decoding="async"
               className={CARD_ART_IMAGE_CLASS}
@@ -110,7 +113,7 @@ export function CardAdminCardTile({ card, isSelected, onSelect }: ICardAdminCard
             <CardImage
               card={card}
               variant="board"
-              alt={`${card.displayName} card art`}
+              alt={translateKey(t, 'admin.catalog.cardArtAlt', { name: card.displayName })}
               loading="lazy"
               decoding="async"
               className={CARD_ART_IMAGE_CLASS}

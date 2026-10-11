@@ -1,5 +1,8 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { FormInput, FormLabel, FormSelect } from '@/components/forms'
+import { translateKey } from '@/i18n'
+import { SORT_OPTION_LABEL_KEYS } from '@/views/admin/constants'
 import type { ICardAdminFilterPanelProps } from '@/views/admin/types/cardAdminFilterPanel'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
@@ -17,6 +20,7 @@ export function CardAdminFilterPanel({
   onColorChange,
   onSortChange,
 }: ICardAdminFilterPanelProps) {
+  const { t } = useTranslation()
   const [pendingTypeSelection, setPendingTypeSelection] = useState('')
   const [pendingColorSelection, setPendingColorSelection] = useState('')
 
@@ -32,12 +36,12 @@ export function CardAdminFilterPanel({
     <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-2.5">
       <div className="space-y-1">
         <FormLabel htmlFor="card-admin-search" className="text-[10px] tracking-[0.12em]">
-          Search
+          {t('admin.filters.search')}
         </FormLabel>
         <FormInput
           id="card-admin-search"
           value={searchText}
-          placeholder="Search"
+          placeholder={t('admin.filters.search')}
           onChange={(event) => onSearchTextChange(event.target.value)}
           className="py-2"
         />
@@ -45,7 +49,7 @@ export function CardAdminFilterPanel({
 
       <div className="space-y-1">
         <FormLabel className="text-[10px] tracking-[0.12em]">
-          Type
+          {t('admin.filters.type')}
         </FormLabel>
         <CardAdminSelect
           value={pendingTypeSelection}
@@ -66,7 +70,7 @@ export function CardAdminFilterPanel({
           }}
           className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--field-bg)] px-4 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--focus-ring)] focus:outline-none disabled:cursor-not-allowed"
         >
-          <option value="">{availableTypeOptions.length === 0 ? 'All selected' : 'All types'}</option>
+          <option value="">{availableTypeOptions.length === 0 ? t('admin.filters.allSelected') : t('admin.filters.allTypes')}</option>
           {availableTypeOptions.length > 0 ? (
             availableTypeOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
@@ -77,7 +81,7 @@ export function CardAdminFilterPanel({
 
       <div className="space-y-1">
         <FormLabel className="text-[10px] tracking-[0.12em]">
-          Color
+          {t('admin.filters.color')}
         </FormLabel>
         <CardAdminSelect
           value={pendingColorSelection}
@@ -98,7 +102,7 @@ export function CardAdminFilterPanel({
           }}
           className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--field-bg)] px-4 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--focus-ring)] focus:outline-none disabled:cursor-not-allowed"
         >
-          <option value="">{availableColorOptions.length === 0 ? 'All selected' : 'All colors'}</option>
+          <option value="">{availableColorOptions.length === 0 ? t('admin.filters.allSelected') : t('admin.filters.allColors')}</option>
           {availableColorOptions.length > 0 ? (
             availableColorOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
@@ -107,18 +111,18 @@ export function CardAdminFilterPanel({
         </CardAdminSelect>
       </div>
 
-      <div className="col-span-3 flex min-h-6 flex-wrap items-center gap-1.5">
+      { selectedTypeOptions.length > 0 ? <div className="col-span-3 flex min-h-6 flex-wrap items-center gap-1.5">
         {selectedTypeOptions.map((option) => (
           <div
             key={`type-${option.value}`}
             className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--text-primary)]"
           >
-            <span className="text-[var(--text-secondary)]">Type:</span>
+            <span className="text-[var(--text-secondary)]">{t('admin.filters.typePrefix')}</span>
             <span>{option.label}</span>
             <CardAdminRemoveButton
               variant="chip"
               onClick={() => onTypeChange(typeValues.filter((value) => value !== option.value))}
-              ariaLabel={`Remove type ${option.label}`}
+              ariaLabel={translateKey(t, 'admin.filters.removeType', { name: option.label })}
             />
           </div>
         ))}
@@ -128,25 +132,30 @@ export function CardAdminFilterPanel({
             key={`color-${option.value}`}
             className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--text-primary)]"
           >
-            <span className="text-[var(--text-secondary)]">Color:</span>
+            <span className="text-[var(--text-secondary)]">{t('admin.filters.colorPrefix')}</span>
             <span>{option.label}</span>
             <CardAdminRemoveButton
               variant="chip"
               onClick={() => onColorChange(colorValues.filter((value) => value !== option.value))}
-              ariaLabel={`Remove color ${option.label}`}
+              ariaLabel={translateKey(t, 'admin.filters.removeColor', { name: option.label })}
             />
           </div>
         ))}
-      </div>
+      </div> : null}
+
+      
 
       <div className="col-span-3 space-y-1">
         <FormLabel htmlFor="card-admin-sort" className="text-[10px] tracking-[0.12em]">
-          Sort
+          {t('admin.filters.sort')}
         </FormLabel>
         <FormSelect
           id="card-admin-sort"
           value={sortValue}
-          options={sortOptions}
+          options={sortOptions.map((option) => ({
+            ...option,
+            label: translateKey(t, SORT_OPTION_LABEL_KEYS[option.value] ?? option.label),
+          }))}
           onValueChange={onSortChange}
           className="py-2"
         />

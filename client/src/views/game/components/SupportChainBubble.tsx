@@ -1,12 +1,13 @@
+import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import type { ISupportChainBubbleProps, ISupportChainViewActor, ISupportChainViewEntry } from '@/views/game/types'
 import { buildSupportChainView, shouldShowSupportChainBubble } from '@/views/game/utils/functions/helpers'
 
-const ACTOR_LABEL: Record<ISupportChainViewActor, string> = {
-  you: 'You',
-  opponent: 'Opponent',
-  unknown: 'Player',
-}
+const ACTOR_LABEL_KEYS = {
+  you: 'game.supportChain.actorYou',
+  opponent: 'game.supportChain.actorOpponent',
+  unknown: 'game.supportChain.actorUnknown',
+} as const satisfies Record<ISupportChainViewActor, string>
 
 const ACTOR_CHIP_CLASS: Record<ISupportChainViewActor, string> = {
   you: 'border-orange-300/70 bg-orange-400/20 text-orange-100',
@@ -17,6 +18,7 @@ const ACTOR_CHIP_CLASS: Record<ISupportChainViewActor, string> = {
 const NEGATE_ACCENT_CLASS = 'text-rose-200'
 
 function SupportChainBubble({ gameInstance, authUserId }: ISupportChainBubbleProps) {
+  const { t } = useTranslation()
   const entries = buildSupportChainView(gameInstance, authUserId)
 
   if (!shouldShowSupportChainBubble(entries)) {
@@ -30,13 +32,15 @@ function SupportChainBubble({ gameInstance, authUserId }: ISupportChainBubblePro
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-cyan-200">
-          Support chain
+          {t('game.supportChain.heading')}
         </span>
         <span
           data-testid="support-chain-count"
           className="rounded-full border border-white/20 bg-white/10 px-1.5 py-px text-[9px] font-semibold text-white/85"
         >
-          {entries.length === 1 ? '1 activation' : `${entries.length} activations`}
+          {entries.length === 1
+            ? t('game.supportChain.countOne')
+            : t('game.supportChain.countOther', { total: entries.length })}
         </span>
       </div>
 
@@ -47,13 +51,14 @@ function SupportChainBubble({ gameInstance, authUserId }: ISupportChainBubblePro
       </ol>
 
       {entries.length > 1 ? (
-        <p className="text-[9px] leading-snug text-white/55">Resolves last in, first out.</p>
+        <p className="text-[9px] leading-snug text-white/55">{t('game.supportChain.resolvesLifo')}</p>
       ) : null}
     </div>
   )
 }
 
 function SupportChainBubbleRow({ entry }: { entry: ISupportChainViewEntry }) {
+  const { t } = useTranslation()
   const isClaimedByNegate = entry.negatedBySequence !== null
   const isDoomed = isClaimedByNegate || entry.isNegated
 
@@ -79,14 +84,14 @@ function SupportChainBubbleRow({ entry }: { entry: ISupportChainViewEntry }) {
             ACTOR_CHIP_CLASS[entry.actor],
           )}
         >
-          {ACTOR_LABEL[entry.actor]}
+          {t(ACTOR_LABEL_KEYS[entry.actor])}
         </span>
         <span className="min-w-0 flex-1 truncate font-semibold text-white" title={entry.sourceCardDisplayName}>
-          {entry.sourceCardDisplayName || 'Unknown support'}
+          {entry.sourceCardDisplayName || t('game.supportChain.unknownSupport')}
         </span>
         {entry.resolvesNext ? (
           <span className="shrink-0 rounded-sm border border-amber-300/70 bg-amber-400/20 px-1 text-[8px] font-bold uppercase tracking-[0.06em] text-amber-100">
-            Next
+            {t('game.supportChain.next')}
           </span>
         ) : null}
       </div>
@@ -95,7 +100,7 @@ function SupportChainBubbleRow({ entry }: { entry: ISupportChainViewEntry }) {
         <div className={twMerge('mt-0.5 flex flex-col', NEGATE_ACCENT_CLASS)}>
           {entry.negatedTargets.map((target) => (
             <span key={`negates-${target.sequence}`} data-testid="support-chain-negate-link" className="truncate">
-              ⚡ Negates #{target.sequence} {target.displayName}
+              {t('game.supportChain.negates', { sequence: target.sequence, name: target.displayName })}
             </span>
           ))}
         </div>
@@ -105,7 +110,7 @@ function SupportChainBubbleRow({ entry }: { entry: ISupportChainViewEntry }) {
         <div className="mt-0.5 flex flex-col text-white/80">
           {entry.cardTargets.map((target) => (
             <span key={`target-${target.cardInstanceId}`} className="truncate" title={target.displayName}>
-              → Targets {target.displayName || 'a card'} {target.isOwnCard ? '(yours)' : '(theirs)'}
+              {t('game.supportChain.targetPrefix')} {target.displayName || t('game.supportChain.aCard')} {target.isOwnCard ? t('game.supportChain.yours') : t('game.supportChain.theirs')}
             </span>
           ))}
         </div>
@@ -113,13 +118,13 @@ function SupportChainBubbleRow({ entry }: { entry: ISupportChainViewEntry }) {
 
       {isClaimedByNegate ? (
         <div data-testid="support-chain-negated-note" className={twMerge('mt-0.5 font-semibold', NEGATE_ACCENT_CLASS)}>
-          Will be negated by #{entry.negatedBySequence}
+          {t('game.supportChain.willBeNegated', { sequence: entry.negatedBySequence })}
         </div>
       ) : null}
 
       {entry.isNegated ? (
         <div data-testid="support-chain-negated-note" className={twMerge('mt-0.5 font-semibold', NEGATE_ACCENT_CLASS)}>
-          Negated
+          {t('game.supportChain.negated')}
         </div>
       ) : null}
     </li>
