@@ -9,29 +9,26 @@ import summonCardImage from '@/assets/SummonCard.webp'
 import cardBackImage from '@/assets/CardBackside.webp'
 import type {
   IGameLoaderData,
+  IGameViewAnimController,
   IPlayerCardZoneInstanceIds,
   IRevalidatorState,
-  IUseAutoAdvancePhaseEffectArgs,
   IUseCardMoveGhostAnimationEffectArgs,
   IUseHandZoneAnimationEffectsArgs,
+  IUsePhasePresentationAckEffectArgs,
   IUseRevealedCardSummonFlightEffectArgs,
   IUseTrashRecallSummonFlightEffectArgs,
 } from '@/views/game/types'
 import {
+  PHASE_PRESENTATION_RETRY_MS,
+  isPresentationAwaitingAck,
+  pruneSettledAnimations,
+  resolveAnimationsSettleAtMs,
+  resolvePresentationAckAtMs,
   runCardImageGhostToElementAnimation,
   runDeckToHandAnimation,
   runRectToDynamicElementAnimation,
 } from '@/views/game/utils/functions'
 const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackImage]
-const AUTO_SIGNAL_PHASES = new Set([
-  'DrawInitialHand',
-  'RefreshPhase',
-  'StartOfMainPhase',
-  'DrawPhase',
-  'AttackResolution',
-  'BattleEndStep',
-  'EndStep',
-])
 const DECK_TO_HAND_FLY_DURATION_MS = 420
 const DRAW_ANIMATION_COMPLETE_PADDING_MS = 140
 const CARD_TO_TRASH_FLY_DURATION_MS = 340
@@ -40,9 +37,6 @@ const CARD_TO_TRASH_STAGGER_MS = 90
 const REVEAL_SUMMON_FLIGHT_DURATION_MS = 360
 // A card summoned out of the trash (Gamabunta's "[On Summon]") flies from the trash slot onto the field.
 const TRASH_RECALL_SUMMON_FLIGHT_DURATION_MS = 360
-const AUTO_ADVANCE_RECHECK_MS = 80
-const AUTO_ADVANCE_RETRY_DELAY_MS = 2_500
-const AUTO_ADVANCE_MAX_RETRIES = 3
 
 /**
  * Where a card was rendered when the last snapshot was taken, so its exit can start from the exact spot
@@ -424,6 +418,16 @@ function useHandZoneAnimationEffects({
 
       if (topHandToTrashCards.length > 0 || bottomHandToTrashCards.length > 0) {
         animController.pendingDrawAnimationFrameId = window.requestAnimationFrame(() => {
+          // A discard is an animation like the draw: the phase-presentation acknowledgement has to wait for
+          // the last card to land in its pile, not just for the deck→hand flights.
+          const lastHandToPileIndex = Math.max(topHandToTrashCards.length, bottomHandToTrashCards.length) - 1
+          animController.noteAnimation(
+            'hand-to-pile',
+            Date.now()
+              + Math.max(lastHandToPileIndex, 0) * handToPileStaggerMs
+              + CARD_TO_TRASH_FLY_DURATION_MS,
+          )
+
           topHandToTrashCards.forEach((instanceId, index) => {
             const movementDelay = index * handToPileStaggerMs
             const timeoutId = window.setTimeout(() => {
@@ -468,6 +472,9 @@ function useHandZoneAnimationEffects({
           + DECK_TO_HAND_FLY_DURATION_MS
           + drawToHandRevealDelayMs
           + DRAW_ANIMATION_COMPLETE_PADDING_MS
+        // The deck→hand flight is the one animation the phase-presentation acknowledgement must never cut:
+        // a draw presentation is exactly "the cards are arriving in the hand".
+        animController.noteAnimation('draw', animController.drawAnimationEndsAt)
 
         animController.pendingDrawAnimationFrameId = window.requestAnimationFrame(() => {
           topDeckToHandCards.forEach((instanceId, index) => {
@@ -637,6 +644,9 @@ function useCardMoveGhostAnimationEffect({
         })
       }, movementDelay)
       animController.pendingDrawTimeoutIds.push(timeoutId)
+      // A card flying to its new zone is part of the transition the engine is waiting on: register the flight
+      // so the acknowledgement cannot cut it in half.
+      animController.noteAnimation(`ghost:${instanceId}`, Date.now() + movementDelay + CARD_TO_TRASH_FLY_DURATION_MS)
     }
 
     ghostSnapshotRef.current = nextSnapshots
@@ -803,213 +813,111 @@ function resolveBattlefieldCardElement(
 }
 
 /**
- * The phase snapshot an auto-advance signal belongs to, plus the retries that snapshot still owes. It is
- * stored in a ref rather than in the effect run so a re-render cannot reset the budget or drop the timer
- * the budget is being spent on.
+ * Answers the engine's phase presentation: the engine performed a transition on its own and holds the table
+ * until every connected client says its board has finished showing it. This client only answers for itself
+ * ("is it in `requiredAckPlayerIds` and not in `acknowledgedPlayerIds` yet") and it only answers once the
+ * transition is actually over on screen - the board's own animations plus a per-kind minimum - because the
+ * acknowledgement is what lets the engine take the next step.
+ *
+ * It must never look like a player action: it does not go through `submitHubIntent`, so it never sets
+ * `isActionPending` and the buttons, the prompt UI and the phase row are not restyled by it.
  */
-type IAutoAdvanceSignalState = {
-  key: string
-  retriesLeft: number
-}
-
-function useAutoAdvancePhaseEffect({
+function usePhasePresentationAckEffect({
   isConnected,
-  isActionPendingFlag,
-  hasPendingPromptFlag,
-  availableActions,
-  phase,
-  turnNumber,
-  activePlayerId,
+  authUserId,
+  pendingPresentation,
   animControllerRef,
-  submitHubIntent,
-}: IUseAutoAdvancePhaseEffectArgs): void {
-  const advanceTimerRef = useRef<number | null>(null)
-  const autoAdvanceSignalRef = useRef<IAutoAdvanceSignalState>({
-    key: '',
-    retriesLeft: AUTO_ADVANCE_MAX_RETRIES,
+  acknowledgePhasePresentation,
+}: IUsePhasePresentationAckEffectArgs): void {
+  const presentationId = pendingPresentation?.presentationId ?? null
+  const presentationKind = pendingPresentation?.kind ?? ''
+  const isAckOwed = isPresentationAwaitingAck(pendingPresentation, authUserId)
+
+  /** When this client first saw the presentation: the minimum display window is measured from here. */
+  const seenAtRef = useRef<{ presentationId: string | null; seenAtMs: number }>({
+    presentationId: null,
+    seenAtMs: 0,
   })
 
   useEffect(() => {
-    const animController = animControllerRef.current
-
-    function clearPendingAdvanceTimer(): void {
-      if (advanceTimerRef.current !== null) {
-        window.clearTimeout(advanceTimerRef.current)
-        advanceTimerRef.current = null
-      }
-    }
-
-    function armAutoAdvanceTimer(delayMs: number, onFire: () => void): void {
-      clearPendingAdvanceTimer()
-      advanceTimerRef.current = window.setTimeout(() => {
-        advanceTimerRef.current = null
-        onFire()
-      }, delayMs)
-    }
-
-    /** Drops the scheduled signal and forgets the snapshot it was scheduled for. */
-    function abandonPendingSignal(): void {
-      clearPendingAdvanceTimer()
-      autoAdvanceSignalRef.current = { key: '', retriesLeft: AUTO_ADVANCE_MAX_RETRIES }
-    }
-
-    if (!isConnected) {
-      // A disconnected client cannot drive the phase, so it must not hold on to a signal it cannot send.
-      abandonPendingSignal()
+    if (!isConnected || !presentationId || !isAckOwed) {
       return
     }
 
-    const hasEnabledAdvancePhaseAction = availableActions.some(
-      (action) => action.actionId === 'advance-phase' && action.isEnabled,
-    )
-    
-    if (!hasEnabledAdvancePhaseAction) {
-      abandonPendingSignal()
-      return
+    if (seenAtRef.current.presentationId !== presentationId) {
+      seenAtRef.current = { presentationId, seenAtMs: Date.now() }
     }
 
-    if (!AUTO_SIGNAL_PHASES.has(phase)) {
-      // Reaching a manual decision phase ends the previous auto-advance cycle. Clearing
-      // the latch lets the same turn/phase/active player be auto-signalled again if it
-      // comes back around later in the same turn (for example a second attack).
-      abandonPendingSignal()
-      animController.lastAutoSignalKey = ''
-      return
-    }
+    let isCancelled = false
+    let timeoutId = 0
 
-    const phaseSnapshotKey = `${turnNumber}:${phase}:${activePlayerId}`
+    const resolveAckAtMs = (animController: IGameViewAnimController): number => {
+      const nowMs = Date.now()
+      pruneSettledAnimations(animController.animationEndsAtByKey, nowMs)
 
-    if (autoAdvanceSignalRef.current.key !== phaseSnapshotKey) {
-      // A new snapshot always starts with a fresh retry budget: the previous signal's retries never carry
-      // over to a phase or turn they were not sent for.
-      abandonPendingSignal()
-      autoAdvanceSignalRef.current = { key: phaseSnapshotKey, retriesLeft: AUTO_ADVANCE_MAX_RETRIES }
-    }
-
-    if (isActionPendingFlag || hasPendingPromptFlag) {
-      // A submit or a prompt owns the board right now. A signal that is already scheduled stays scheduled
-      // (its own dispatch re-checks the store), and nothing new is armed until that resolves and re-runs
-      // this effect with the flag cleared.
-      return
-    }
-
-    // A signal - or one of its retries - is already scheduled for this snapshot, so leave it alone.
-    // Cancelling it here is what used to strand a phase: the dispatch flips the hub's pending flag, the
-    // resulting re-render re-ran this effect, the pending timer was dropped, and the latch check below
-    // then had nothing left to re-arm - so a single dropped or rejected dispatch left the phase waiting
-    // for a signal that nothing would ever send again.
-    if (advanceTimerRef.current !== null) {
-      return
-    }
-
-    // The initial hand deal, per-turn draws, and mulligan re-draws all animate
-    // cards from the deck into the hand. Auto-advancing to the next phase while
-    // one of those animations is still in flight would cut it, so every auto
-    // signal waits until the last scheduled deck→hand animation has finished.
-    // The signal is re-armed until it actually dispatches, so the user should
-    // never have to click an "Advance Phase" button in these flows.
-    function isDrawAnimationInFlight(): boolean {
-      return animController.drawAnimationEndsAt !== null && Date.now() < animController.drawAnimationEndsAt
-    }
-
-    function scheduleAutoAdvance(): void {
-      const drawAnimationEndsAt = animController.drawAnimationEndsAt
-      const waitDelayMs = drawAnimationEndsAt === null
-        ? AUTO_ADVANCE_RECHECK_MS
-        : Math.max(AUTO_ADVANCE_RECHECK_MS, drawAnimationEndsAt - Date.now())
-
-      armAutoAdvanceTimer(waitDelayMs, dispatchAutoAdvanceIfStillCurrent)
-    }
-
-    function resolveCurrentSnapshotKey(): string {
-      const currentGameState = useGameHubStore.getState().gameState
-      if (!currentGameState) {
-        return ''
-      }
-
-      return `${currentGameState.turnNumber}:${currentGameState.phase}:${currentGameState.activePlayerId}`
-    }
-
-    // The hub carries no phase token, so a signal only fires while the client still sees the snapshot it
-    // was armed for; a phase that already moved must never be advanced twice.
-    function dispatchAutoAdvanceIfStillCurrent(): void {
-      if (resolveCurrentSnapshotKey() === phaseSnapshotKey) {
-        dispatchAutoAdvance()
-      }
-    }
-
-    // If the state does not move on after an auto signal (a dropped or transiently
-    // rejected dispatch), retry a bounded number of times so the phase cannot stall
-    // until a manual page refresh. The budget lives on the snapshot rather than on this
-    // effect run, so a re-render cannot reset it or cancel the retry it is spending.
-    function scheduleAutoAdvanceRetry(): void {
-      const signalState = autoAdvanceSignalRef.current
-      if (signalState.key !== phaseSnapshotKey || signalState.retriesLeft <= 0) {
-        return
-      }
-
-      signalState.retriesLeft -= 1
-      armAutoAdvanceTimer(AUTO_ADVANCE_RETRY_DELAY_MS, () => {
-        // Only retry while the client still sees the snapshot the signal was sent for: a phase that has
-        // already moved must never be advanced a second time (the hub carries no phase token).
-        if (resolveCurrentSnapshotKey() === phaseSnapshotKey) {
-          dispatchAutoAdvance()
-        }
+      return resolvePresentationAckAtMs({
+        kind: presentationKind,
+        seenAtMs: seenAtRef.current.seenAtMs,
+        animationsSettleAtMs: resolveAnimationsSettleAtMs(animController.animationEndsAtByKey, nowMs),
       })
     }
 
-    function dispatchAutoAdvance(): void {
-      const currentStoreState = useGameHubStore.getState()
-      const isPromptPending = Boolean(currentStoreState.gameState?.pendingPrompt)
-      const isDispatchBlocked = currentStoreState.isActionPending || isPromptPending || isDrawAnimationInFlight()
+    const scheduleAck = (delayMs: number): void => {
+      timeoutId = window.setTimeout(() => {
+        void (async () => {
+          // Re-read the live snapshot: a submit of this client's own, a newer presentation, or a state pull
+          // may have landed while the timer ran, and only the presentation this timer was armed for may be
+          // acknowledged from here.
+          const liveStoreState = useGameHubStore.getState()
+          if (liveStoreState.gameState?.pendingPresentation?.presentationId !== presentationId) {
+            return
+          }
 
-      if (isDispatchBlocked) {
-        if (isPromptPending) {
-          // Answering the prompt pushes new state, which re-runs this effect, so do not spin on it here.
-          return
-        }
+          if (liveStoreState.isActionPending) {
+            // The engine rejects every other mutation while a presentation is pending, but a submit already in
+            // flight still owns the board: let it settle before answering.
+            scheduleAck(PHASE_PRESENTATION_RETRY_MS)
+            return
+          }
 
-        // The phase still needs the signal, so check again shortly instead of giving up on it.
-        armAutoAdvanceTimer(AUTO_ADVANCE_RECHECK_MS, dispatchAutoAdvance)
-        return
-      }
+          const animController = animControllerRef.current
+          const ackAtMs = resolveAckAtMs(animController)
+          const remainingMs = ackAtMs - Date.now()
+          if (remainingMs > 0) {
+            // The board is still animating (or the kind's minimum window has not elapsed): wait for whichever
+            // of the two is the real end of the transition instead of cutting it.
+            scheduleAck(remainingMs)
+            return
+          }
 
-      animController.lastAutoSignalKey = phaseSnapshotKey
-      void submitHubIntent({ intent: 'advance-phase' })
+          const wasAcknowledged = await acknowledgePhasePresentation(presentationId)
+          if (isCancelled || wasAcknowledged) {
+            return
+          }
 
-      // The submit can be dropped silently (the hub's own guards refuse a submit while another action is
-      // pending or an action is missing from the store), so the signal always keeps a bounded retry alive.
-      scheduleAutoAdvanceRetry()
+          // The acknowledgement was refused (a superseded presentation, a transient failure): re-check while
+          // the same presentation is still the one the engine is waiting on, so a single dropped call cannot
+          // leave the table parked.
+          scheduleAck(PHASE_PRESENTATION_RETRY_MS)
+        })()
+      }, delayMs)
     }
 
-    if (animController.lastAutoSignalKey === phaseSnapshotKey) {
-      // This snapshot was already signalled: keep its retry alive instead of leaving the phase with no
-      // driver at all.
-      scheduleAutoAdvanceRetry()
-      return
-    }
+    scheduleAck(Math.max(0, resolveAckAtMs(animControllerRef.current) - Date.now()))
 
-    scheduleAutoAdvance()
+    return () => {
+      isCancelled = true
+      window.clearTimeout(timeoutId)
+    }
   }, [
-    activePlayerId,
+    acknowledgePhasePresentation,
     animControllerRef,
-    availableActions,
-    hasPendingPromptFlag,
-    isActionPendingFlag,
+    authUserId,
+    isAckOwed,
     isConnected,
-    phase,
-    submitHubIntent,
-    turnNumber,
+    presentationId,
+    presentationKind,
   ])
-
-  // The pending signal deliberately outlives a re-render (see the body above), so it is only cancelled
-  // when the view goes away: a signal must never fire against a board the player has already left.
-  useEffect(() => () => {
-    if (advanceTimerRef.current !== null) {
-      window.clearTimeout(advanceTimerRef.current)
-      advanceTimerRef.current = null
-    }
-  }, [])
 }
 
 export {
@@ -1019,5 +927,5 @@ export {
   useCardMoveGhostAnimationEffect,
   useRevealedCardSummonFlightEffect,
   useTrashRecallSummonFlightEffect,
-  useAutoAdvancePhaseEffect,
+  usePhasePresentationAckEffect,
 }

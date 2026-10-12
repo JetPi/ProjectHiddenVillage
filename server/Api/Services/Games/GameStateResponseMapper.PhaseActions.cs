@@ -10,7 +10,8 @@ public static partial class GameStateResponseMapper
         GameState state,
         GamePhaseData phaseData,
         string requestingPlayerId,
-        GamePrompt? pendingPrompt)
+        GamePrompt? pendingPrompt,
+        bool isPhaseAutomationEnabled)
     {
         if (pendingPrompt is not null)
         {
@@ -47,7 +48,7 @@ public static partial class GameStateResponseMapper
         AddActionStepPriorityActions(actions, state.Phase, isRequestingPlayerPriority);
         AddResponseWindowPassAction(actions, state, requestingPlayerId);
         AddOptionalAttackEffectChoiceActions(actions, state, requestingPlayerId);
-        AddDefaultAdvancePhaseAction(actions, phaseData, isRequestingPlayerActive);
+        AddDefaultAdvancePhaseAction(actions, phaseData, isRequestingPlayerActive, isPhaseAutomationEnabled);
 
         return actions;
     }
@@ -126,8 +127,18 @@ public static partial class GameStateResponseMapper
     private static void AddDefaultAdvancePhaseAction(
         List<GameActionOptionResponse> actions,
         GamePhaseData phaseData,
-        bool isRequestingPlayerActive)
+        bool isRequestingPlayerActive,
+        bool isPhaseAutomationEnabled)
     {
+        if (isPhaseAutomationEnabled)
+        {
+            // The engine owns the non-interactive phases for this game: it advances them itself and stops on the
+            // ones a client has to present, so there is no system action to offer - and nothing a player could
+            // usefully click (the automation is what takes the step, driven by the acknowledgement).
+            return;
+        }
+
+        // The client drives these phases (automation off), so it needs the system action as it always did.
         if (!isRequestingPlayerActive || phaseData.AvailablePhaseOptions.Count > 0)
         {
             return;

@@ -16,7 +16,7 @@ import type { useGameRefs } from '@/views/game/hooks/GameView/memos/useGameRefs'
 import type { IGameUIStoreState, IPendingPromptSelectionState } from '@/state/types/gameUIStore'
 import { useBattlefieldCardReorderEffect } from './useBattleFieldCards'
 import { useGetMainPhaseActions } from './useGetMainPhaseActions'
-import { useAutoAdvancePhaseEffect, useCardCatalogPreload, useCardMoveGhostAnimationEffect, useHandZoneAnimationEffects, useRevealedCardSummonFlightEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
+import { useCardCatalogPreload, useCardMoveGhostAnimationEffect, useHandZoneAnimationEffects, usePhasePresentationAckEffect, useRevealedCardSummonFlightEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
 
 function useGameViewSideEffects({
   authUserId,
@@ -134,16 +134,12 @@ function useGameViewSideEffects({
     submitHubIntent: gameHubState.submitHubIntent,
   })
 
-  useAutoAdvancePhaseEffect({
+  usePhasePresentationAckEffect({
     isConnected,
-    isActionPendingFlag: isActionPending,
-    hasPendingPromptFlag,
-    availableActions: gameState.availableActions,
-    phase: gameState.phase,
-    turnNumber: gameState.turnNumber,
-    activePlayerId: gameState.activePlayerId,
+    authUserId,
+    pendingPresentation: gameState.pendingPresentation,
     animControllerRef,
-    submitHubIntent: gameHubState.submitHubIntent,
+    acknowledgePhasePresentation: gameHubState.acknowledgePhasePresentation,
   })
 
   useBattlefieldCardReorderEffect(currentTopBattlefieldRawCards, setTopBattlefieldDisplayOrder)

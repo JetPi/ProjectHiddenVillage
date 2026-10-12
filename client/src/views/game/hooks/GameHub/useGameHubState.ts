@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { HubConnection, HubConnectionState } from '@microsoft/signalr'
 import i18n from '@/i18n'
 import {
+  acknowledgePhasePresentation as acknowledgePhasePresentationOnHub,
   connectGameHub,
   createGameHubConnection,
   disconnectGameHub,
@@ -119,6 +120,51 @@ function useGameHubState(
       })()
     },
     [refreshCurrentGameState],
+  )
+
+  /**
+   * Tells the engine this board has finished presenting the phase transition it stopped on. The acknowledgement
+   * is the one call that has to survive while a presentation is outstanding (the server rejects every other
+   * mutation then), so it never goes through `submitHubIntent` and never touches `isActionPending`.
+   *
+   * A refusal is not a player-facing error: the server ignores an acknowledgement for a presentation it has
+   * already resumed past (or expired with its own watchdog), and the state pull below is what makes sure the
+   * board does not sit on a stale snapshot. Resolves true when the server took the acknowledgement.
+   */
+  const acknowledgePhasePresentation = useCallback(
+    async (presentationId: string): Promise<boolean> => {
+      const currentConnection = connectionRef.current
+      if (!currentConnection || !isConnectionConnected(currentConnection)) {
+        return false
+      }
+
+      try {
+        const result = await acknowledgePhasePresentationOnHub(currentConnection, gameId, presentationId)
+        if (!result.succeeded || !result.value) {
+          console.warn('[GameHub] phase presentation acknowledgement refused.', {
+            gameId,
+            presentationId,
+            errorCode: result.errorCode,
+            errorDescription: result.errorDescription,
+          })
+          requestGameStateRefresh(currentConnection)
+          return false
+        }
+
+        setGameState(result.value)
+        return true
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Phase presentation acknowledgement failed.'
+        console.warn('[GameHub] phase presentation acknowledgement threw.', {
+          gameId,
+          presentationId,
+          message,
+        })
+        requestGameStateRefresh(currentConnection)
+        return false
+      }
+    },
+    [gameId, requestGameStateRefresh, setGameState],
   )
 
   useEffect(() => {
@@ -373,10 +419,12 @@ function useGameHubState(
       connectionError,
       actionError,
       submitHubIntent,
+      acknowledgePhasePresentation,
       getCardActionTargets: getCardActionTargetsForRequest,
       refreshGameState,
     }),
     [
+      acknowledgePhasePresentation,
       actionError,
       connectionError,
       gameState,

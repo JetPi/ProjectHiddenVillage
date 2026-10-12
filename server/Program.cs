@@ -44,6 +44,22 @@ builder.Services.AddSingleton(_ => new GameInstanceFactory());
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.Interfaces.IGamePhaseStateService, ProjectHiddenVillage.Server.Engine.GamePhaseStateService>();
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.GamePhaseService>();
 builder.Services.AddSingleton<InMemoryGameInstanceRegistry>();
+builder.Services.AddSingleton<
+    ProjectHiddenVillage.Server.Api.Interfaces.Game.IGamePresenceTracker,
+    ProjectHiddenVillage.Server.Api.Services.Games.GamePresenceTracker>();
+builder.Services.AddSingleton<
+    ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameStateBroadcaster,
+    ProjectHiddenVillage.Server.Api.Services.Games.GamesHubStateBroadcaster>();
+// The phase automation is off unless the configuration turns it on, so a deployment (and a rollback) flips one
+// section instead of shipping code: see GamePhaseAutomationOptions.
+builder.Services.AddSingleton(serviceProvider =>
+{
+    var options = new ProjectHiddenVillage.Server.Engine.GamePhaseAutomationOptions();
+    serviceProvider.GetRequiredService<IConfiguration>()
+        .GetSection(ProjectHiddenVillage.Server.Engine.GamePhaseAutomationOptions.SectionName)
+        .Bind(options);
+    return options;
+});
 builder.Services.AddScoped<IGameEffectContextConditionEvaluator, EffectContextConditionEvaluator>();
 builder.Services.AddScoped<IGameEffectTargetResolver, EffectTargetResolver>();
 builder.Services.AddScoped<IGameRuntimeEffectSpecResolver, GameRuntimeEffectSpecResolver>();

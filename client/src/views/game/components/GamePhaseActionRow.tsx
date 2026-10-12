@@ -1,9 +1,12 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui/AppButton'
 import { useGameUIStore } from '@/state/gameUIStore'
 import type { IGamePhaseActionRowProps } from '@/views/game/types'
+import { useRetainedActionBlocked, useRetainedPhaseActionSource } from '@/views/game/hooks'
 import { getPhaseValue, getPhaseThemeClasses, getTributeRequirementSummary } from '@/views/game/utils/functions/helpers'
 import { canConfirmEffectTargetSelection } from '@/views/game/utils/functions/gameState/canConfirmEffectTargetSelection'
+import { resolvePhaseActionChips } from '@/views/game/utils/functions/gameState/phaseActionChips'
 import { invertedPhaseThemeClassByPhaseTheme, phaseActionChipClassName, translatePhaseValue } from './constants/gamePhaseActionRow'
 
 function cancelActiveTargetingMode(): void {
@@ -44,8 +47,31 @@ function GamePhaseActionRow({
     pendingCardTargeting !== null
     || pendingSummonTargeting !== null
     || pendingEffectTargeting !== null
-  const renderedActions = availableActions.filter((action) => action.actionId !== 'declare-action')
+
+  // While the engine holds a phase presentation the row paints the chips of the last interactive phase
+  // instead of this snapshot's actions - the board is mid-transition and the engine publishes no decision for
+  // it. That is what keeps the strip - and its open/close transition - absolutely still for the whole
+  // engine-driven chain, and it is also why the system `advance-phase` action can never be drawn.
+  const { phaseActions, isPresentationPending } = useRetainedPhaseActionSource(availableActions)
+  const { isActionBlocked } = useRetainedActionBlocked(!isConnected || isActionPending)
+  const renderedActions = useMemo(
+    () => resolvePhaseActionChips(phaseActions, isActionBlocked),
+    [phaseActions, isActionBlocked],
+  )
   const hasOptions = renderedActions.length > 0
+  // The held chips belong to a phase that already moved, so they are shown exactly as they were but
+  // cannot be used: a click would submit a stale action against the new phase. A chip that was already
+  // unusable keeps its dimmed look, which the frozen classes have to carry themselves - the `disabled`
+  // attribute would also restyle the usable ones.
+  const isFrozen = isPresentationPending && hasOptions
+
+  function resolveChipStateClassName(isUsable: boolean): string {
+    if (!isFrozen) {
+      return 'disabled:cursor-not-allowed disabled:opacity-50'
+    }
+
+    return isUsable ? 'pointer-events-none' : 'pointer-events-none cursor-not-allowed opacity-50'
+  }
 
   return (
     <div className="grid min-h-0 grid-cols-6">
@@ -56,16 +82,20 @@ function GamePhaseActionRow({
           }`}
         >
           <div className="flex h-full w-max items-stretch gap-1 overflow-x-auto">
-            {renderedActions.map((action) => (
+            {renderedActions.map(({ action, isUsable }) => (
               <button
                 key={action.actionId}
                 type="button"
-                onClick={() => {
-                  onSelectAction(action)
-                }}
-                disabled={!isConnected || isActionPending || !action.isEnabled}
+                onClick={isFrozen
+                  ? undefined
+                  : () => {
+                    onSelectAction(action)
+                  }}
+                disabled={!isFrozen && !isUsable}
+                aria-disabled={isFrozen || undefined}
+                tabIndex={isFrozen ? -1 : undefined}
                 title={action.disabledReason ?? undefined}
-                className={`${phaseActionChipClassName} disabled:cursor-not-allowed disabled:opacity-50 ${phaseThemeClasses}`}
+                className={`${phaseActionChipClassName} ${resolveChipStateClassName(isUsable)} ${phaseThemeClasses}`}
               >
                 {action.label}
               </button>

@@ -34,6 +34,8 @@ import {
   useBattlefieldCards,
   useCurrentBattlefieldRawCards,
   usePassLikeAction,
+  useRetainedActionBlocked,
+  useRetainedPhaseActionSource,
   useGameCardsBackfill,
   useGameViewSideEffects
 } from '@/views/game/hooks'
@@ -162,7 +164,14 @@ export function GameView() {
     setBottomBattlefieldDisplayOrder,
   })
 
-  const passLikeAction = usePassLikeAction({ mappedAvailableActions })
+  // While the client drives the phase itself the sidebar holds the pass-like action of the last
+  // interactive phase (and the interaction-blocked flag that goes with it), so neither the button's
+  // affordance nor its enabled state flickers from hop to hop. The phase row latches the same content
+  // for its chips.
+  const { phaseActions: retainedOrLiveAvailableActions, isPresentationPending } = useRetainedPhaseActionSource(mappedAvailableActions)
+  const { isActionBlocked } = useRetainedActionBlocked(!isConnected || isActionPending)
+
+  const passLikeAction = usePassLikeAction({ mappedAvailableActions: retainedOrLiveAvailableActions })
 
   function beginBattleTargeting(targeting: IAttackTargetingState): void {
     setActiveAttackLink(null)
@@ -234,7 +243,9 @@ export function GameView() {
   }
 
   function handlePassLikeAction(): void {
-    if (!passLikeAction || !passLikeAction.isEnabled) {
+    // The action held through an automatic transition belongs to a phase that already moved, so the
+    // sidebar is inert until the next interactive phase swaps its content back in.
+    if (isPresentationPending || !passLikeAction || !passLikeAction.isEnabled) {
       return
     }
 
@@ -319,6 +330,8 @@ export function GameView() {
               availableActions={mappedAvailableActions}
               isConnected={isConnected}
               isActionPending={isActionPending}
+              isActionBlocked={isActionBlocked}
+              isPresentationPending={isPresentationPending}
               onSelectAction={submitMappedAction}
               onSelectAttackTarget={submitCardTargetSelection}
               onConfirmSummonTargetSelection={submitSummonTargetSelection}

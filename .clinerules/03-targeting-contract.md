@@ -17,8 +17,16 @@ paths:
   battlefield `battle-action:{instanceId}` · a card's own ability
   `leader-effect:{instanceId}:{effectKey}` (leader) or
   `character-ability:{instanceId}:{effectKey}` (battlefield character, effectKey = effect `Id` or
-  `index-{i}`) · optional attacker choice `resolve-optional-attack-effect:*`. Phase-level: `advance-phase`,
-  `turn-end`/`endPhase` (`declare-end-step`), `complete-end-step`, `pass-turn`, `resolve-prompt:*`.
+  `index-{i}`) · optional attacker choice `resolve-optional-attack-effect:*`. Phase-level: `advance-phase`
+  (only when the phase automation is off), `turn-end`/`endPhase` (`declare-end-step`), `complete-end-step`,
+  `pass-turn`, `resolve-prompt:*`, plus the `declare-attack` chip that stands for the active player's
+  `declareAttack` phase option.
+- `advance-phase` is **system-internal and no longer published for an automation-owned game** (the engine
+  walks those phases itself and stops on `pendingPresentation` instead - see
+  `04-state-phase-effects.md`). It is never rendered as a chip either way (`resolvePhaseActionChips` filters
+  it), and the row holds the last interactive set through an engine transition instead - see
+  `02-board-ui-hud.md`. The only player-facing use of the hub's `AdvancePhase` left is the `declare-attack`
+  chip, which is a real decision (it enters the AttackDeclaration flow), not a background hop.
 - **A card's abilities are published on the card, never in the global list**, and leaders and battlefield
   cards share the whole path: `GameStateResponseMapper.BuildCardAbilityOptions` builds the options,
   `InMemoryGameInstanceRegistry.ExecuteCardAbilityAction` executes them, and the client's
@@ -473,7 +481,8 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
 ## Backend guidance
 
 - `GameStateResponseMapper` builds available actions (`BuildLeaderAvailableActions`,
-  `BuildEffectOptionLabel`, default `advance-phase`). Server stays authoritative:
+  `BuildEffectOptionLabel`, the default `advance-phase` only while the phase automation is off, and
+  `pendingPresentation` for the transitions the engine is holding). Server stays authoritative:
   the client only mirrors what the response exposes.
 - Be careful changing how availability evaluates “valid targets” for leader effects
   (`includeValidTargets` toggle in `EvaluateEffectAvailability`) — it can flip

@@ -150,10 +150,21 @@ public class GamePhaseData(
     GamePhase phaseName,
     List<string> availablePhaseOptions,
     bool hasPlayerInteraction,
-    PhaseAdvanceMode advanceMode)
+    PhaseAdvanceMode advanceMode,
+    PhasePresentationKind presentationKind = PhasePresentationKind.None)
 {
     public GamePhase PhaseName { get; } = phaseName;
     public List<string> AvailablePhaseOptions { get; } = availablePhaseOptions;
     public bool HasPlayerInteraction { get; } = hasPlayerInteraction;
     public PhaseAdvanceMode AdvanceMode { get; } = advanceMode;
+
+    /// <summary>What a client has to present for this phase, see <see cref="PhasePresentationKind"/>.</summary>
+    public PhasePresentationKind PresentationKind { get; } = presentationKind;
+
+    /// <summary>
+    /// True when the engine itself ends this phase: marked <see cref="PhaseAdvanceMode.AutoAdvanceImmediately"/>
+    /// and asking the players nothing. Interactive phases are never drained, so a decision can never be
+    /// skipped by the phase automation.
+    /// </summary>
+    public bool ShouldAutoAdvance => AdvanceMode == PhaseAdvanceMode.AutoAdvanceImmediately && !HasPlayerInteraction;
 }

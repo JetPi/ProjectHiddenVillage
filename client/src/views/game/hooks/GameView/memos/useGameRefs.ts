@@ -78,9 +78,30 @@ export function useGameRefs() {
   ])
 }
 
+/**
+ * The set of animations the phase-presentation acknowledgement has to wait for. Built as one unit so the
+ * registration function always mutates the very map the acknowledgement reads.
+ */
+function createAnimationRegistry(): Pick<IGameViewAnimController, 'animationEndsAtByKey' | 'noteAnimation'> {
+  const animationEndsAtByKey = new Map<string, number>()
+
+  return {
+    animationEndsAtByKey,
+    noteAnimation: (key: string, endsAt: number) => {
+      // Re-scheduling the same animation only ever pushes its deadline out: a later short flight must not
+      // shorten the wait for a longer one already in the air.
+      const existingEndsAt = animationEndsAtByKey.get(key)
+      animationEndsAtByKey.set(
+        key,
+        existingEndsAt === undefined ? endsAt : Math.max(existingEndsAt, endsAt),
+      )
+    },
+  }
+}
+
 export function useGameAnimationController() {
   return useRef<IGameViewAnimController>({
-    lastAutoSignalKey: '',
+    ...createAnimationRegistry(),
     drawAnimationEndsAt: null,
     pendingDrawAnimationFrameId: null,
     pendingDrawTimeoutIds: [],

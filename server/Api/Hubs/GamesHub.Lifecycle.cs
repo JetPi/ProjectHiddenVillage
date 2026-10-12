@@ -28,6 +28,7 @@ public sealed partial class GamesHub
 
         var gameId = NormalizeGameId(createResult.Value.Id);
         await Groups.AddToGroupAsync(Context.ConnectionId, gameId);
+        gamePresenceTracker.RegisterConnection(gameId, requesterIdResult.Value, Context.ConnectionId);
 
         var stateResponse = GameStateResponseMapper.ToGameStateResponse(createResult.Value, requesterIdResult.Value);
         await Clients.Group(gameId).SendAsync("GameStateInvalidated", gameId);
@@ -58,6 +59,7 @@ public sealed partial class GamesHub
 
         var normalizedGameId = NormalizeGameId(joinResult.Value.Id);
         await Groups.AddToGroupAsync(Context.ConnectionId, normalizedGameId);
+        gamePresenceTracker.RegisterConnection(normalizedGameId, requesterIdResult.Value, Context.ConnectionId);
 
         var stateResponse = GameStateResponseMapper.ToGameStateResponse(joinResult.Value, requesterIdResult.Value);
         await Clients.Group(normalizedGameId).SendAsync("GameStateInvalidated", normalizedGameId);

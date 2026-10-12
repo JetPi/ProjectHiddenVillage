@@ -6,22 +6,36 @@ namespace ProjectHiddenVillage.Server.Engine;
 
 public sealed class GamePhaseStateService : IGamePhaseStateService
 {
+    /// <summary>
+    /// The single home for how each phase behaves: what it offers the players, whether it asks them anything,
+    /// whether the engine ends it on its own, and what a client has to present when it is entered. The
+    /// presentation kind is what the phase-presentation handshake stops on (a <see cref="PhasePresentationKind.None"/>
+    /// entry means there is nothing to show and the engine keeps walking).
+    /// </summary>
     private static readonly IReadOnlyDictionary<GamePhase, PhaseMetadataTemplate> PhaseMetadata =
         new Dictionary<GamePhase, PhaseMetadataTemplate>
         {
-            [GamePhase.ChooseStartingPlayer] = new(["goFirst", "goSecond"], true, PhaseAdvanceMode.ManualOnly),
-            [GamePhase.DrawInitialHand] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
-            [GamePhase.Mulligan] = new(["mulligan", "noMulligan"], true, PhaseAdvanceMode.ManualOnly),
-            [GamePhase.RefreshPhase] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
-            [GamePhase.StartOfMainPhase] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
-            [GamePhase.DrawPhase] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
-            [GamePhase.MainPhase] = new(["endPhase"], true, PhaseAdvanceMode.ManualOnly),
-            [GamePhase.AttackDeclaration] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately),
-            [GamePhase.BlockerDeclaration] = new([], true, PhaseAdvanceMode.ManualOnly),
-            [GamePhase.ActionStep] = new(["pass"], true, PhaseAdvanceMode.ManualOnly),
-            [GamePhase.AttackResolution] = new([], false,  PhaseAdvanceMode.AutoAdvanceImmediately),
-            [GamePhase.BattleEndStep] = new([], false,  PhaseAdvanceMode.AutoAdvanceImmediately),
-            [GamePhase.EndStep] = new([], false,  PhaseAdvanceMode.AutoAdvanceImmediately)
+            [GamePhase.ChooseStartingPlayer] = new(["goFirst", "goSecond"], true, PhaseAdvanceMode.ManualOnly, PhasePresentationKind.None),
+            [GamePhase.DrawInitialHand] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately, PhasePresentationKind.InitialDeal),
+            [GamePhase.Mulligan] = new(["mulligan", "noMulligan"], true, PhaseAdvanceMode.ManualOnly, PhasePresentationKind.None),
+            [GamePhase.RefreshPhase] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately, PhasePresentationKind.Ready),
+            [GamePhase.StartOfMainPhase] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately, PhasePresentationKind.None),
+            [GamePhase.DrawPhase] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately, PhasePresentationKind.Draw),
+            [GamePhase.MainPhase] = new(["endPhase"], true, PhaseAdvanceMode.ManualOnly, PhasePresentationKind.None),
+            // The attack window is entered *only* when the attacker owes an optional On Attack choice
+            // (`TryPrepareOptionalWhenAttackingChoice`); a plain attack goes straight to the cut-in window. It
+            // therefore asks the attacker something and must never be drained past, which is exactly the stray
+            // "Advance Phase" click the old arrangement allowed.
+            [GamePhase.AttackDeclaration] = new([], true, PhaseAdvanceMode.ManualOnly, PhasePresentationKind.None),
+            // Nothing publishes an action for the blocker stage - the engine's support cut-in is ActionStep, and
+            // answering the optional On Attack choice leaves AttackDeclaration for ActionStep directly. Keeping
+            // it a pass-through means an engine path that still enters it can never strand the table on a phase
+            // with no affordance.
+            [GamePhase.BlockerDeclaration] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately, PhasePresentationKind.None),
+            [GamePhase.ActionStep] = new(["pass"], true, PhaseAdvanceMode.ManualOnly, PhasePresentationKind.None),
+            [GamePhase.AttackResolution] = new([], false,  PhaseAdvanceMode.AutoAdvanceImmediately, PhasePresentationKind.Damage),
+            [GamePhase.BattleEndStep] = new([], false,  PhaseAdvanceMode.AutoAdvanceImmediately, PhasePresentationKind.BattleEnd),
+            [GamePhase.EndStep] = new([], false, PhaseAdvanceMode.AutoAdvanceImmediately, PhasePresentationKind.TurnEnd)
         };
 
     public GamePhaseData GetPhaseData(GamePhase phase)
@@ -35,7 +49,8 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
             phase,
             [..metadata.AvailablePhaseOptions],
             metadata.HasPlayerInteraction,
-            metadata.AdvanceMode);
+            metadata.AdvanceMode,
+            metadata.PresentationKind);
     }
 
     public GamePhase GetNextPhase(GamePhase currentPhase)
@@ -544,5 +559,6 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
     private sealed record PhaseMetadataTemplate(
         IReadOnlyList<string> AvailablePhaseOptions,
         bool HasPlayerInteraction,
-        PhaseAdvanceMode AdvanceMode);
+        PhaseAdvanceMode AdvanceMode,
+        PhasePresentationKind PresentationKind);
 }

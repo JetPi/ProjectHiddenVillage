@@ -1,3 +1,6 @@
+using ErrorOr;
+using ProjectHiddenVillage.Server.Api.Services.Games;
+
 namespace ProjectHiddenVillage.Server.Api.Hubs;
 
 public sealed partial class GamesHub
@@ -79,5 +82,53 @@ public sealed partial class GamesHub
             gameId,
             operationName: "Game.CompleteEndStep",
             operation: () => gamePhaseHandlingService.CompleteEndStep(gameId));
+    }
+
+    /// <summary>
+    /// A client finished presenting the engine's last phase transition. This takes its own path instead of
+    /// <see cref="ExecuteAuthorizedGameMutation"/>: that one rejects every mutation while a presentation is
+    /// outstanding, and this acknowledgement is precisely what clears it.
+    /// </summary>
+    public async Task<HubOperationResult<GameStateResponse>> AcknowledgePhasePresentation(string gameId, string presentationId)
+    {
+        var requesterIdResult = GetRequestingPlayerId();
+        if (requesterIdResult.IsError)
+        {
+            return HubOperationResult<GameStateResponse>.FromErrors(requesterIdResult.Errors);
+        }
+
+        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        if (gameResult.IsError)
+        {
+            return HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors);
+        }
+
+        ErrorOr<GameInstance> result;
+
+        try
+        {
+            result = gamePhaseHandlingService.AcknowledgePhasePresentation(
+                gameId,
+                requesterIdResult.Value,
+                presentationId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Acknowledging a phase presentation threw for game {GameId}.", gameId);
+            result = Error.Unexpected(
+                code: "Game.AcknowledgePhasePresentation.Unexpected",
+                description: ex.Message);
+        }
+
+        if (result.IsError)
+        {
+            await NotifyGameStateInvalidatedAsync(gameResult.Value);
+            return HubOperationResult<GameStateResponse>.FromErrors(result.Errors);
+        }
+
+        var stateResponse = GameStateResponseMapper.ToGameStateResponse(result.Value, requesterIdResult.Value);
+        await NotifyGameStateInvalidatedAsync(result.Value);
+
+        return HubOperationResult<GameStateResponse>.Success(stateResponse);
     }
 }

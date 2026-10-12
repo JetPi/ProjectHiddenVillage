@@ -55,6 +55,46 @@ export function describeHubFailure(methodLabel: string, result: HubInvocationRes
 // a prompt is pending — i.e. the read-then-act race the resilient helpers absorb.
 export const ADVANCE_PHASE_INVALID_STATE_ERROR_CODE = 'Game.AdvancePhase.InvalidState'
 
+// The engine drives the non-interactive phases itself and holds the table on each transition until every
+// connected client has acknowledged that its board finished presenting it. While that receipt is outstanding
+// the hub rejects **every** other mutation (`ExecuteAuthorizedGameMutation`), so an API-driven helper has to
+// wait the gate out: the browser pages are the clients that own the acknowledgement.
+export const PHASE_PRESENTATION_PENDING_ERROR_CODE = 'Game.PhasePresentation.Pending'
+
+type PendingPresentationState = {
+  pendingPresentation?: { presentationId: string } | null
+}
+
+/**
+ * Resolves true once the engine is not parked on a phase presentation, false when the wait timed out. Reads the
+ * state through `GetCurrentGameState`, which is a read and therefore not gated.
+ */
+export async function waitForNoPendingPresentation(
+  gameCode: string,
+  player: PlayerAuth,
+  timeoutMs = 10_000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+
+  for (;;) {
+    const stateResult = await invokeGameHubMethod<PendingPresentationState>(
+      player,
+      'GetCurrentGameState',
+      [gameCode.toUpperCase()],
+    )
+
+    if (stateResult.succeeded && !stateResult.value?.pendingPresentation) {
+      return true
+    }
+
+    if (Date.now() >= deadline) {
+      return false
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  }
+}
+
 // The end-step pair races the same way: the caller reads a state where `turn-end` is enabled (or
 // already declared the end step) and the phase moves on before/inside the next call, so the server
 // rejects with `{operation}.InvalidState` (`ExecuteRegistryOperation` prefixes the operation name).

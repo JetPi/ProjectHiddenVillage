@@ -1,8 +1,7 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react'
-import type { IGamePlayerStateResponse } from '@/services/api/gameApi'
+import type { IGamePlayerStateResponse, IPhasePresentationResponse } from '@/services/api/types/game'
 import type { ILeaderCardViewModel } from './viewModels'
 import type { IHandZoneSnapshot } from '@/views/game/types'
-import type { IGameHubActionIntent, ISubmitHubIntentRequest } from './hub'
 
 export type IRevalidatorState = 'idle' | 'loading'
 
@@ -20,7 +19,18 @@ export type ILeaderCardsViewModel = {
 }
 
 export type IGameViewAnimController = {
-  lastAutoSignalKey: string
+  /**
+   * The animations the board is playing right now, keyed by the animation, valued by the timestamp they are
+   * expected to finish at. The phase-presentation acknowledgement waits on this instead of on a fixed delay, so a
+   * client never tells the engine "I am done animating" while a card is still in the air. Entries are pruned as
+   * their deadlines pass.
+   */
+  animationEndsAtByKey: Map<string, number>
+  /**
+   * Registers a flight the acknowledgement has to wait for. A key that is already registered is extended, never
+   * shortened, so a re-scheduled animation of the same kind cannot cut a longer one short.
+   */
+  noteAnimation: (key: string, endsAt: number) => void
   drawAnimationEndsAt: number | null
   pendingDrawAnimationFrameId: number | null
   pendingDrawTimeoutIds: number[]
@@ -100,15 +110,14 @@ export type IUseTrashRecallSummonFlightEffectArgs = {
   boardZoneRef: RefObject<HTMLDivElement | null>
 }
 
-export type IUseAutoAdvancePhaseEffectArgs = {
+export type IUsePhasePresentationAckEffectArgs = {
   isConnected: boolean
-  isActionPendingFlag: boolean
-  hasPendingPromptFlag: boolean
-  availableActions: Array<{ actionId: string; isEnabled: boolean }>
-  phase: string
-  turnNumber: number
-  activePlayerId: string
+  /** The local player: only the required participants acknowledge, and each one exactly once. */
+  authUserId?: string
+  /** The engine's outstanding transition, or null when the board is free to act. */
+  pendingPresentation: IPhasePresentationResponse | null | undefined
+  /** The board's animation registry: the acknowledgement waits for the flights it lists. */
   animControllerRef: RefObject<IGameViewAnimController>
-  submitHubIntent: (request: ISubmitHubIntentRequest) => Promise<void>
-  advancePhaseIntent?: IGameHubActionIntent
+  /** Sends the acknowledgement (never through `submitHubIntent`, so it cannot set the pending flag). */
+  acknowledgePhasePresentation: (presentationId: string) => Promise<boolean>
 }

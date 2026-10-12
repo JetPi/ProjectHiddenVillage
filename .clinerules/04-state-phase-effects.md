@@ -51,39 +51,74 @@ paths:
   `useGameStateQuery(code, { enabled: false })` is a manual fallback used by
   `useGameHubState` only when hub (re)connect fails — never overwrite a live push.
 
-## Phase auto-advance & hand animation gating
+## Engine-owned phase transitions & the presentation acknowledgement
 
-- `useAutoAdvancePhaseEffect` (`hooks/GameView/effects/useGameViewEffects.ts`) sends
-  `{ intent: 'advance-phase' }` while the active player is in an `AUTO_SIGNAL_PHASES`
-  phase with an enabled `advance-phase` action
-  (DrawInitialHand / RefreshPhase / StartOfMainPhase / DrawPhase / AttackResolution /
-  BattleEndStep / EndStep).
-- The auto signal **waits until the deck→hand animation finishes** before
-  dispatching: `useHandZoneAnimationEffects` stamps
-  `animController.drawAnimationEndsAt` (now + stagger + fly + reveal + padding)
-  whenever cards animate deck→hand (initial 5-card deal, mulligan re-draw, per-turn
-  draw). Dispatch is re-armed until it actually fires — `lastAutoSignalKey` is
-  committed only at dispatch time, so a phase never strands the player on a manual
-  “Advance Phase” button.
-- **The auto-advance lifecycle lives in refs, never in the effect body**
-  (`autoAdvanceSignalRef` = `{ key, retriesLeft }`, `advanceTimerRef`,
-  `lastAutoSignalKeyRef`, `effectEpochRef`). A submit re-renders this effect twice on
-  its own (`setActionPending(true)`, then the ack `setActionPending(false)`), so a
-  cleanup that cancelled the pending timer — or a retry budget reset on every re-render —
-  silently dropped the signal: the latch was already committed, no timer survived to
-  retry, and `EndStep`/`DrawPhase` then stranded the turn until the spec's
-  active-player `MainPhase` poll timed out (the intermittent
-  `gameview.multiplayer.attack-sequence` failure — a stall, not a race). Invariants to
-  keep:
-  - a re-run with a **pending** timer never cancels it; the signal is abandoned only
-    when the snapshot moved on, an action is pending, a prompt is open, or the action
-    is no longer offered;
-  - a re-run whose snapshot is already latched keeps the retry alive
-    (`scheduleAutoAdvanceRetry`) instead of returning;
-  - every timer fire — first attempt and retry — re-reads the live store and dispatches
-    only when the snapshot still matches (`dispatchAutoAdvanceIfStillCurrent`), so a
-    stale timer can never advance a phase that already moved;
-  - the timer is cleared **only** on unmount (a dedicated empty-dep effect).
+The engine drives the non-interactive phases itself now (`GamePhaseAutomation:Enabled`), and it stops on
+each transition until **every connected client** has confirmed its board finished showing it. The client's
+job is therefore no longer to advance anything: it is to *present* the transition and *acknowledge* it.
+
+- The engine publishes the receipt as `pendingPresentation` (`{ presentationId, phase, kind, turnNumber,
+  requiredAckPlayerIds, acknowledgedPlayerIds }`) and **withholds every other mutation** while it is
+  outstanding (`GamesHub.ExecuteAuthorizedGameMutation` rejects with `Game.PhasePresentation.Pending`). The
+  acknowledgement is the only call left, and it has its own hub path.
+- `usePhasePresentationAckEffect` (`hooks/GameView/effects/useGameViewEffects.ts`) answers it:
+  `isPresentationAwaitingAck` (`utils/functions/gameState/phasePresentation.ts`) decides whether **this**
+  client still owes an ack (listed in `requiredAckPlayerIds`, not yet in `acknowledgedPlayerIds`), and the
+  ack is sent once the board has actually finished animating.
+- **The ack never goes through `submitHubIntent`.** It is not a player action: `acknowledgePhasePresentation`
+  (returned by `useGameHubState`, implemented in `gameHubApi`) invokes the hub, applies the returned state
+  with `setGameState` and never touches `isActionPending` - so the buttons, the prompt UI and the phase row
+  are not restyled by it. A refusal (a superseded/expired presentation, the game ending) is logged and
+  followed by the coalesced state refresh, never shown as a player error.
+- **The ack waits on the board, not on a guessed delay.** `animController.animationEndsAtByKey` is the
+  animation registry (`noteAnimation(key, endsAt)` on `useGameAnimationController`): the deck→hand draw, the
+  hand→pile discard and every card ghost flight register their real end timestamp, and
+  `resolvePresentationAckAtMs` = `min(hardCap, max(seenAt + kindMinimum, animationsSettleAt))`. Per-kind
+  minimums (`InitialDeal` 900 ms, `Ready`/`Draw`/`Damage`/`BattleEnd` 700 ms, `TurnEnd` 400 ms, unknown
+  kinds 600 ms) keep a transition nobody animates readable; `PHASE_PRESENTATION_HARD_CAP_MS` (2.5 s) is the
+  backstop so a stuck flight can never hold the table (the server's own `PresentationAckTimeoutMs` watchdog
+  is the second line of defence - a timeout resumes the drain and notifies the clients from outside any hub
+  call).
+- Invariants to keep:
+  - the timer re-reads the live store before acking and only answers **the presentation it was armed for**;
+    a newer presentation is a new effect run, never an ack for a receipt the server has already replaced;
+  - while a submit of this client's own is in flight (`isActionPending`) the ack re-arms instead of racing
+    it - the engine refuses other mutations then, but the in-flight submit still owns the board;
+  - a failed or refused ack re-arms every `PHASE_PRESENTATION_RETRY_MS` (250 ms) while the same receipt is
+    still pending, so one dropped call cannot park the table;
+  - the timer is cancelled on unmount and whenever the receipt/presenter changes.
+- `handlePromptResolve` (mulligan) still animates hand→deck and waits for any in-flight deck→hand animation
+  (`drawAnimationEndsAt`) before submitting `resolve-prompt`.
+- A phase presentation is **not** a prompt: it never enters `pendingPrompt`, the `resolve-prompt:*` action
+  list or the pickers. `GamePrompt` means "you owe the engine a decision"; this means "you owe the engine an
+  animation receipt".
+
+## Frozen HUD during an engine transition
+
+- The engine no longer publishes a system `advance-phase` action for these games at all
+  (`AddDefaultAdvancePhaseAction` returns early when the automation is on), so there is nothing to flash: a
+  row that renders the payload verbatim simply goes empty between two engine-driven phases. It must not -
+  **the row holds its last interactive content until the next interactive phase arrives.**
+  `resolvePhaseActionChips` (`utils/functions/gameState/phaseActionChips.ts`) still drops `declare-action`
+  and `advance-phase` as a safety net for a table whose automation is off.
+- `gameUIStore` latches `retainedInteractiveAvailableActions` and `retainedIsActionBlocked` at every
+  snapshot that is not mid-transition (`syncPhasePresentationHudLatch`, wired to the hub-store
+  subscription) plus `isPhasePresentationPending` (= `Boolean(gameState.pendingPresentation)`);
+  `GamePhaseActionRow` paints the latched list whenever it is set, so the strip's open/close transition
+  never runs mid-chain and the chips keep both their text and their enabled/disabled look (the latch
+  carries that state, because the acknowledgement and the state it pushes would otherwise restyle live
+  chips).
+- Held chips belong to a phase that already moved, so they are **inert** while frozen
+  (`pointer-events-none` + `aria-disabled` + `tabIndex={-1}`, no click) - never `disabled`, which would
+  visibly dim them. `SideBarButtons` reads the same latch (`isActionBlocked`, `isPresentationPending`) so
+  the pass/undo/log buttons stop blinking during a transition.
+- The latch is written **synchronously** in the hub-store subscription, never in a microtask or during
+  render: the latch listener is registered before React's `useSyncExternalStore` one, so the store already
+  holds it when React reads the pushed state. A deferred write would render one frame of the unlatched
+  list, which is the flicker this removes. It is cleared on game over and on a session/game-id change, and
+  the opening deal has nothing latched until the first interactive phase.
+- `react-hooks/refs` (eslint) forbids render-phase ref access, so the latch cannot live in a component
+  ref - it is store state read through `useRetainedPhaseActionSource` / `useRetainedActionBlocked`.
 - The same effect owns the **inferred** hand→trash flight (the safety net around the prompt-driven
   discard, which animates the real hand element itself in `usePromptSelectionSubmitEffect`): a card
   that left the hand is flown into the trash only when its instance id is **in the trash** in the new
@@ -92,11 +127,9 @@ paths:
   material** leaving the field, and the old hand-removal-vs-trash-count delta paired those two, so
   every tribute flew the trash slot in from the hand (which also flashed the pile's giant-card layout
   blowout described in `02-board-ui-hud.md`).
-- Tunables in that file: `DECK_TO_HAND_FLY_DURATION_MS`, `DRAW_ANIMATION_COMPLETE_PADDING_MS`,
-  `AUTO_ADVANCE_RECHECK_MS`, plus `AUTO_ADVANCE_RETRY_DELAY_MS` /
-  `AUTO_ADVANCE_MAX_RETRIES` (the per-snapshot retry budget). A retry only re-sends the
-  same snapshot, so it can never advance two phases: one snapshot dispatches at most once,
-  and a retry fires only while the store still shows that snapshot.
+- Tunables in that file: `DECK_TO_HAND_FLY_DURATION_MS`, `DRAW_ANIMATION_COMPLETE_PADDING_MS`; the ack
+  cadence and per-kind windows live in `utils/functions/gameState/phasePresentation.ts`
+  (`PHASE_PRESENTATION_RETRY_MS`, `PHASE_PRESENTATION_MINIMUM_MS`, `PHASE_PRESENTATION_HARD_CAP_MS`).
 - `handlePromptResolve` (mulligan) animates hand→deck, waits for any in-flight
   deck→hand animation (`drawAnimationEndsAt`) before discarding, then submits
   `resolve-prompt`.
@@ -141,9 +174,10 @@ paths:
 - All game side effects run through
   `hooks/GameView/effects/useGameViewSideEffects.ts`
   (`useCardCatalogPreload`, `useHandZoneAnimationEffects`, `useCardMoveGhostAnimationEffect`,
-  `useAutoAdvancePhaseEffect`, `useBattlefieldCardReorderEffect`,
+  `usePhasePresentationAckEffect`, `useBattlefieldCardReorderEffect`,
   `useGetMainPhaseActions`) in a fixed order — the animation effect runs before the
-  auto-advance effect in the same commit.
+  acknowledgement effect in the same commit, which is what lets the ack read the deadlines that effect
+  just registered for this push.
 - `useCardMoveGhostAnimationEffect` owns the battlefield/hand → trash and battlefield → hand flights: it
   snapshots every rendered card face (rect + art + zone, keyed by instance id) on each render, and on the
   next one flies a `data-card-ghost` copy from that snapshot to the zone the card moved to (trash pile, or
