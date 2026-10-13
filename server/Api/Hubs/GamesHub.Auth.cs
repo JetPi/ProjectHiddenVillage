@@ -33,6 +33,16 @@ public sealed partial class GamesHub
             return HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors);
         }
 
+        // A transition the engine performed itself is waiting to be presented: the board must not act on a state
+        // that is mid-transition. The only thing a client may send then is the acknowledgement, which has its own
+        // path (see AcknowledgePhasePresentation) so this gate cannot swallow it.
+        if (gameResult.Value.PendingPhasePresentation is not null)
+        {
+            return HubOperationResult<GameStateResponse>.Failure(
+                code: "Game.PhasePresentation.Pending",
+                description: "Cannot act while a phase presentation is pending.");
+        }
+
         ErrorOr<GameInstance> result;
 
         try

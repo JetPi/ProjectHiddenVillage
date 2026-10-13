@@ -25,7 +25,23 @@ public sealed record GameStateResponse(
     IReadOnlyList<EffectNoticeResponse>? EffectNotices = null,
     // The terminal result of the game, or null while it is still running. Set exactly once by the engine;
     // when it is present no actions are published and the clients only offer "return to main page".
-    GameOutcomeResponse? GameOutcome = null);
+    GameOutcomeResponse? GameOutcome = null,
+    // The transition the engine performed itself and stopped on, waiting for every connected participant to
+    // acknowledge that their client finished presenting it. Null while nothing is outstanding - the engine may
+    // take the next phase step and the players may act. See PendingPhasePresentation.
+    PhasePresentationResponse? PendingPresentation = null);
+
+/// <summary>
+/// A phase transition waiting to be presented. It is deliberately not a prompt: nothing is being asked, the only
+/// answer is "my board finished animating", and it must never reach the prompt UI or the action list.
+/// </summary>
+public sealed record PhasePresentationResponse(
+    string PresentationId,
+    string Phase,
+    string Kind,
+    int TurnNumber,
+    IReadOnlyList<string> RequiredAckPlayerIds,
+    IReadOnlyList<string> AcknowledgedPlayerIds);
 
 /// <summary>
 /// The result of a finished game. <see cref="WinnerPlayerId"/> is null for a draw, which only happens when

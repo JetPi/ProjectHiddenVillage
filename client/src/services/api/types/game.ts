@@ -152,6 +152,30 @@ export type IGameOutcomeResponse = {
   turnNumber: number
 }
 
+export type IPhasePresentationKind =
+  | 'InitialDeal'
+  | 'Ready'
+  | 'Draw'
+  | 'Damage'
+  | 'BattleEnd'
+  | 'TurnEnd'
+
+/**
+ * A phase transition the engine performed on its own and is holding until every connected client confirms its
+ * board has finished presenting it (see `plans/server-owned-phase-transitions.md`). It is **not** a prompt: the
+ * only answer it accepts is `acknowledgePhasePresentation`, and while it is present the server rejects every
+ * other action.
+ */
+export type IPhasePresentationResponse = {
+  presentationId: string
+  phase: string
+  kind: string
+  turnNumber: number
+  /** The connected participants whose boards must finish animating before the engine resumes. */
+  requiredAckPlayerIds: string[]
+  acknowledgedPlayerIds: string[]
+}
+
 export type IGameStateResponse = {
   gameId: string
   turnNumber: number
@@ -170,6 +194,9 @@ export type IGameStateResponse = {
   // The result of the game. When present the engine publishes no actions or prompt at all, and the board only
   // offers the result overlay's "return to main page" button.
   gameOutcome?: IGameOutcomeResponse | null
+  // The engine's outstanding phase transition, waiting for this client's acknowledgement. While it is present
+  // the board must not act: the HUD holds its last interactive chips and the client answers with an ack.
+  pendingPresentation?: IPhasePresentationResponse | null
   pendingAttackVisualState: IPendingAttackVisualStateResponse | null
   pendingPrompt: IPendingPromptResponse | null
   availableActions: IGameActionOptionResponse[]

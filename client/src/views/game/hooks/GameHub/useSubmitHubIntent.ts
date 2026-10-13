@@ -3,26 +3,7 @@ import type { ISubmitHubIntentRequest } from "@/views/game/types"
 import { HubConnectionState, type HubConnection } from "@microsoft/signalr"
 import { useGameHubStore } from "@/state/gameHubStore"
 import type { IGameStateResponse } from "@/services/api/types/game"
-import { advancePhase, completeEndStep, declareActionInActionStep, declareEndStep, declarePassInActionStep, executeCardAction, resolvePrompt, type IHubOperationResult } from "@/services/api/gameHubApi"
-
-function isAdvanceWhilePromptPendingMessage(message: string | null | undefined): boolean {
-    if (!message) {
-        return false
-    }
-
-    return message.toLowerCase().includes('cannot advance phase while a prompt is pending')
-}
-
-function shouldSuppressAdvancePromptPendingError(
-    request: ISubmitHubIntentRequest,
-    result: IHubOperationResult<IGameStateResponse>,
-): boolean {
-    if (request.intent !== 'advance-phase') {
-        return false
-    }
-
-    return isAdvanceWhilePromptPendingMessage(result.errorDescription)
-}
+import { completeEndStep, declareActionInActionStep, declareAttack, declareEndStep, declarePassInActionStep, executeCardAction, resolvePrompt, type IHubOperationResult } from "@/services/api/gameHubApi"
 
 function resolveHubErrorMessage(result: IHubOperationResult<IGameStateResponse>): string {
     if (result.errorDescription) {
@@ -58,22 +39,14 @@ function useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId, requ
 
             const intent = request.intent
 
-            if (!authUserId && intent !== 'advance-phase') {
+            if (!authUserId) {
                 setActionError('You must be logged in to perform this action.')
                 return
             }
 
-            if (intent === 'advance-phase') {
-                if (currentGameState?.pendingPrompt) {
-                    return
-                }
-                const hasEnabledAdvancePhaseAction = (currentGameState?.availableActions ?? []).some(
-                    (action) => action.actionId === 'advance-phase' && action.isEnabled,
-                )
-
-                if (!hasEnabledAdvancePhaseAction) {
-                    return
-                }
+            if (intent === 'declare-attack' && currentGameState?.pendingPrompt) {
+                // A phase option cannot be taken while a decision is owed: the prompt owns the board.
+                return
             }
 
             setActionPending(true)
@@ -100,6 +73,9 @@ function useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId, requ
                             request.arguments,
                         )
                         break
+                    case 'declare-attack':
+                        result = await declareAttack(currentConnection, gameId)
+                        break
                     case 'declare-end-step':
                         result = await declareEndStep(currentConnection, gameId)
                         break
@@ -110,19 +86,12 @@ function useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId, requ
                         result = await resolvePrompt(currentConnection, gameId, authUserId ?? '', request.selectedOption)
                         break
                     default:
-                        result = await advancePhase(currentConnection, gameId)
+                        // Unreachable: the union covers every intent, and there is no fallback action left now
+                        // that the engine drives the non-interactive phases itself.
+                        throw new Error(`Unsupported game intent '${intent}'.`)
                 }
 
                 if (!result.succeeded || !result.value) {
-                    if (shouldSuppressAdvancePromptPendingError(request, result)) {
-                        console.warn('[GameHub] advance-phase ignored because a prompt is pending.', {
-                            gameId,
-                            errorCode: result.errorCode,
-                            errorDescription: result.errorDescription,
-                        })
-                        return
-                    }
-
                     const errorMessage = resolveHubErrorMessage(result)
                     console.error('[GameHub] hub intent failed.', {
                         intent,
@@ -144,14 +113,6 @@ function useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId, requ
                 setGameState(result.value)
             } catch (error) {
                 const message = error instanceof Error ? error.message : 'Hub action failed.'
-
-                if (request.intent === 'advance-phase' && isAdvanceWhilePromptPendingMessage(message)) {
-                    console.warn('[GameHub] advance-phase ignored because a prompt is pending.', {
-                        gameId,
-                        errorMessage: message,
-                    })
-                    return
-                }
 
                 setActionError(message)
                 console.error('[GameHub] hub intent threw.', { intent, gameId, message })

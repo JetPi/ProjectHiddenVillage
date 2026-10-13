@@ -45,6 +45,106 @@ public sealed class GameInstance
 
     public List<GameActionLogEntry> ActionLog { get; } = [];
 
+    /// <summary>
+    /// The phase transition this instance stopped on, waiting for its acknowledgement from every connected
+    /// participant. <c>null</c> means nothing is outstanding: the phase automation may take the next step and
+    /// the clients may act. See <see cref="PendingPhasePresentation"/>.
+    /// </summary>
+    public PendingPhasePresentation? PendingPhasePresentation { get; private set; }
+
+    /// <summary>
+    /// True when the engine owns this game's non-interactive phases (the phase automation is on for the registry
+    /// that created it). The response mapper stops publishing the client's system <c>advance-phase</c> action
+    /// when it is: driving the phases is the engine's job then, and the client's is to present and acknowledge.
+    /// </summary>
+    public bool IsPhaseAutomationEnabled { get; set; }
+
+    /// <summary>
+    /// Stops the phase automation on the transition that was just performed and records who has to present it.
+    /// The previous presentation (if any) is replaced: only the newest transition can still be on screen.
+    /// </summary>
+    public PendingPhasePresentation MintPhasePresentation(
+        PhasePresentationKind kind,
+        IEnumerable<string> requiredAckPlayerIds,
+        DateTimeOffset? timestampUtc = null)
+    {
+        if (kind == PhasePresentationKind.None)
+        {
+            throw new InvalidOperationException("A presentation with nothing to show must not be minted.");
+        }
+
+        var presentation = new PendingPhasePresentation(
+            presentationId: Guid.NewGuid().ToString("N"),
+            phase: State.Phase,
+            kind: kind,
+            turnNumber: State.TurnNumber,
+            requiredAckPlayerIds: requiredAckPlayerIds);
+
+        PendingPhasePresentation = presentation;
+
+        AddActionLogEntry(
+            actionType: "phase_presented",
+            message: $"Phase {State.Phase} is waiting to be presented ({kind}).",
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["presentationId"] = presentation.PresentationId,
+                ["presentationKind"] = kind.ToString(),
+                ["phase"] = State.Phase.ToString(),
+                ["turnNumber"] = State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["requiredAckPlayerIds"] = string.Join(",", presentation.RequiredAckPlayerIds),
+            },
+            timestampUtc: timestampUtc);
+
+        return presentation;
+    }
+
+    /// <summary>
+    /// Records an acknowledgement for the outstanding presentation. Returns false when the id does not match the
+    /// pending one (already superseded, or expired by the ack timeout) or the player was not expected to ack -
+    /// neither is an error, the caller just has nothing to resume.
+    /// </summary>
+    public bool AcknowledgePhasePresentation(string presentationId, string playerId)
+    {
+        var presentation = PendingPhasePresentation;
+        if (presentation is null
+            || !string.Equals(presentation.PresentationId, presentationId, StringComparison.Ordinal)
+            || !presentation.IsRequiredFrom(playerId))
+        {
+            return false;
+        }
+
+        presentation.Acknowledge(playerId);
+
+        AddActionLogEntry(
+            actionType: "phase_presentation_acknowledged",
+            message: $"Phase {presentation.Phase} presentation acknowledged.",
+            playerId: playerId,
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["presentationId"] = presentation.PresentationId,
+                ["presentationKind"] = presentation.Kind.ToString(),
+                ["phase"] = presentation.Phase.ToString(),
+            });
+
+        return true;
+    }
+
+    /// <summary>
+    /// Drops a disconnected participant from the outstanding requirement, so a closed tab can never hold the
+    /// table. Returns whether the requirement changed, which tells the caller to re-check the drain.
+    /// </summary>
+    public bool ReleasePhasePresentationRequirement(string playerId)
+    {
+        var presentation = PendingPhasePresentation;
+        return presentation is not null && presentation.ReleaseRequirement(playerId);
+    }
+
+    /// <summary>Clears the outstanding presentation: it is satisfied, or the game ended and nothing is presented.</summary>
+    public void ClearPhasePresentation()
+    {
+        PendingPhasePresentation = null;
+    }
+
     public GameActionLogEntry AddActionLogEntry(
         string actionType,
         string message,
@@ -249,6 +349,42 @@ public sealed class GameInstance
         }
 
         ValidatePendingPrompts(playerIds);
+
+        ValidatePendingPhasePresentation();
+    }
+
+    /// <summary>
+    /// A presentation can only belong to the phase the engine is currently showing, in the current turn: the
+    /// phase automation stops on it, so anything else means a transition ran past the acknowledgement it owed.
+    /// </summary>
+    private void ValidatePendingPhasePresentation()
+    {
+        var presentation = PendingPhasePresentation;
+        if (presentation is null)
+        {
+            return;
+        }
+
+        if (presentation.Kind == PhasePresentationKind.None)
+        {
+            throw new InvalidOperationException("A pending phase presentation must have something to show.");
+        }
+
+        if (presentation.Phase != State.Phase || presentation.TurnNumber != State.TurnNumber)
+        {
+            throw new InvalidOperationException(
+                $"Pending phase presentation {presentation.PresentationId} belongs to " +
+                $"{presentation.Phase}/{presentation.TurnNumber} but the engine is on {State.Phase}/{State.TurnNumber}.");
+        }
+
+        foreach (var playerId in presentation.RequiredAckPlayerIds)
+        {
+            if (!State.Players.Any(player => string.Equals(player.PlayerId, playerId, StringComparison.Ordinal)))
+            {
+                throw new InvalidOperationException(
+                    $"Pending phase presentation requires an acknowledgement from unknown player '{playerId}'.");
+            }
+        }
     }
 
     private static void ValidateActionLogEntry(GameActionLogEntry entry, HashSet<string> playerIds)

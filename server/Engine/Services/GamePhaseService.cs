@@ -109,6 +109,15 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
         return phaseStateService.GetNextPhase(currentPhase);
     }
 
+    /// <summary>
+    /// The behaviour of a phase: what it offers, whether it asks the players anything, whether the engine ends
+    /// it on its own and what a client has to present for it. The phase automation reads it before every step.
+    /// </summary>
+    public GamePhaseData GetPhaseData(GamePhase phase)
+    {
+        return phaseStateService.GetPhaseData(phase);
+    }
+
     public void EnqueueSkipPhase(GameInstance instance, GamePhase phaseToSkip)
     {
         ArgumentNullException.ThrowIfNull(instance);

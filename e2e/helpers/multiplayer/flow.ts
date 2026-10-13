@@ -2,7 +2,7 @@ import { expect } from '@playwright/test'
 import type { APIRequestContext, Page } from '@playwright/test'
 import { fetchGameState } from './api'
 import { normalizeUserId, resolvePlayerState } from './core'
-import { ADVANCE_PHASE_INVALID_STATE_ERROR_CODE, COMPLETE_END_STEP_INVALID_STATE_ERROR_CODE, DECLARE_END_STEP_INVALID_STATE_ERROR_CODE, declarePassInActionStepViaHub, describeHubFailure, tryAdvancePhaseViaHub, tryCompleteEndStepViaHub, tryDeclareEndStepViaHub } from './hub'
+import { ADVANCE_PHASE_INVALID_STATE_ERROR_CODE, COMPLETE_END_STEP_INVALID_STATE_ERROR_CODE, DECLARE_END_STEP_INVALID_STATE_ERROR_CODE, PHASE_PRESENTATION_PENDING_ERROR_CODE, declarePassInActionStepViaHub, describeHubFailure, tryAdvancePhaseViaHub, tryCompleteEndStepViaHub, tryDeclareEndStepViaHub, waitForNoPendingPresentation } from './hub'
 import type { GameStateResponse, MultiplayerPages, MultiplayerSetup, PlayerAuth } from './types'
 
 export async function installAnimationCounter(page: Page): Promise<void> {
@@ -124,19 +124,28 @@ export async function progressToNextDecisionWindow(
   const activePlayer = resolveActivePlayerFromStates(setup, playerOneState)
   const activePlayerState = activePlayer.userId === setup.playerOne.userId ? playerOneState : playerTwoState
 
+  // The engine now walks the non-interactive phases itself and holds the table on each transition until the
+  // boards have acknowledged it; the hub therefore refuses every other mutation in the meantime. Those
+  // acknowledgements belong to the pages, so an API-driven helper waits the gate out (and its own calls below
+  // still absorb a gate that closed again in the middle of the window).
+  await waitForNoPendingPresentation(setup.gameCode, activePlayer)
+
   const canEndTurn = activePlayerState.availableActions.some((action) => action.actionId === 'turn-end' && action.isEnabled)
   if (canEndTurn) {
     // Read-then-act race: the state above is a snapshot, so either end-step call can be rejected by
     // the server once the phase has already moved (e.g. it auto-completed the end step). Absorb the
     // invalid-state rejections and report 'waiting' so the caller re-reads instead of failing.
     const declareResult = await tryDeclareEndStepViaHub(setup.gameCode, activePlayer)
-    if (!declareResult.succeeded && declareResult.errorCode !== DECLARE_END_STEP_INVALID_STATE_ERROR_CODE) {
+    if (!declareResult.succeeded
+      && declareResult.errorCode !== DECLARE_END_STEP_INVALID_STATE_ERROR_CODE
+      && declareResult.errorCode !== PHASE_PRESENTATION_PENDING_ERROR_CODE) {
       throw new Error(describeHubFailure('Hub.DeclareEndStep', declareResult))
     }
 
     const completeResult = await tryCompleteEndStepViaHub(setup.gameCode, activePlayer)
     if (!completeResult.succeeded) {
-      if (completeResult.errorCode === COMPLETE_END_STEP_INVALID_STATE_ERROR_CODE) {
+      if (completeResult.errorCode === COMPLETE_END_STEP_INVALID_STATE_ERROR_CODE
+        || completeResult.errorCode === PHASE_PRESENTATION_PENDING_ERROR_CODE) {
         return 'waiting'
       }
 
@@ -163,6 +172,8 @@ export async function progressToNextDecisionWindow(
 
   const canAdvance = activePlayerState.availableActions.some((action) => action.actionId === 'advance-phase' && action.isEnabled)
   if (!canAdvance) {
+    // With the phase automation on there is no system action left to take: the engine is either still walking
+    // (the gate above clears) or a prompt owns the board. Either way the caller re-reads the state.
     await new Promise((resolve) => setTimeout(resolve, 350))
     return 'waiting'
   }
@@ -172,7 +183,8 @@ export async function progressToNextDecisionWindow(
     // Read-then-act race: someone else advanced the phase, or a prompt appeared, after the state
     // read above. The server rejected our advance — report 'waiting' (never 'progressed') so the
     // caller re-reads the state instead of failing.
-    if (advanceResult.errorCode === ADVANCE_PHASE_INVALID_STATE_ERROR_CODE) {
+    if (advanceResult.errorCode === ADVANCE_PHASE_INVALID_STATE_ERROR_CODE
+      || advanceResult.errorCode === PHASE_PRESENTATION_PENDING_ERROR_CODE) {
       return 'waiting'
     }
 
@@ -765,6 +777,84 @@ export async function resolveBattleActionForSpecificCard(
   }
 
   throw new Error(`No enabled Battle action was found for card '${cardInstanceId}' within retry limit.`)
+}
+
+export type PhaseRowSample = {
+  /** The phase banner's text, e.g. the turn the board is showing. */
+  phaseText: string
+  /** Every action chip painted in the phase row at that frame, in order. */
+  chipTexts: string[]
+  /** Page-clock timestamp (`performance.now()`). */
+  at: number
+}
+
+/**
+ * Samples the phase row (the banner plus its action chips) every animation frame.
+ *
+ * A system `advance-phase` chip - if the HUD ever drew one - would only live for the few hundred
+ * milliseconds between the state push and the auto-advance signal, and the row's content is what changes
+ * across a transition, so a test that starts polling after the turn was ended can miss the whole window.
+ * Per-frame sampling records every intermediate state however briefly it shows, including the frames that
+ * prove the chips were held while the phase moved on.
+ */
+export async function installPhaseRowSampler(page: Page, maxFrames = 3_600): Promise<void> {
+  await page.evaluate((frameBudget) => {
+    const marker = '__phvPhaseRowSamplerInstalled'
+    const state = window as unknown as {
+      [key: string]: unknown
+      __phvPhaseRowSamples?: Array<{ phaseText: string; chipTexts: string[]; at: number }>
+    }
+
+    if (state[marker] === true) {
+      return
+    }
+
+    state.__phvPhaseRowSamples = []
+    let frames = 0
+
+    const tick = () => {
+      const indicator = document.querySelector('[data-testid="phase-indicator"]')
+      if (indicator) {
+        const row = indicator.parentElement
+        const chipTexts = row
+          ? Array.from(row.querySelectorAll('button')).map((button) => (button.textContent ?? '').trim())
+          : []
+
+        state.__phvPhaseRowSamples?.push({
+          phaseText: (indicator.textContent ?? '').trim(),
+          chipTexts,
+          at: Math.round(performance.now()),
+        })
+      }
+
+      frames += 1
+      if (frames < frameBudget) {
+        window.requestAnimationFrame(tick)
+      }
+    }
+
+    state[marker] = true
+    tick()
+  }, maxFrames)
+}
+
+/** Stamps the page clock, so a caller can slice the samples recorded after this point. */
+export async function markPhaseRowSampleTime(page: Page): Promise<number> {
+  return await page.evaluate(() => {
+    const state = window as unknown as { __phvPhaseRowMarkTime?: number }
+    const mark = Math.round(performance.now())
+    state.__phvPhaseRowMarkTime = mark
+    return mark
+  })
+}
+
+export async function getPhaseRowSamples(page: Page): Promise<PhaseRowSample[]> {
+  return await page.evaluate(() => {
+    const state = window as unknown as {
+      __phvPhaseRowSamples?: Array<{ phaseText: string; chipTexts: string[]; at: number }>
+    }
+    return state.__phvPhaseRowSamples ?? []
+  })
 }
 
 /**

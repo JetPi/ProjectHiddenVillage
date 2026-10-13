@@ -1,4 +1,5 @@
 import type { SetStateAction } from 'react'
+import type { IGameActionOptionResponse } from '@/services/api/types/game'
 import type { IAttackFlowLinkState, IAttackTargetingState, IEffectTargetingState, IPendingCardTargetingState, ISummonTargetingState } from '@/views/game/types'
 
 export type IPendingPromptSelectionState = {
@@ -38,5 +39,35 @@ export type IGameUIStoreState = {
   setActiveAttackLink: (value: SetStateAction<IAttackFlowLinkState | null>) => void
   lastSubmittedAttackSourceInstanceId: string | null
   setLastSubmittedAttackSourceInstanceId: (value: SetStateAction<string | null>) => void
+  /**
+   * True while the engine is holding a phase presentation this board has to answer: the transition just
+   * happened, the state is mid-flight, and the HUD holds its last interactive content instead of redrawing for a
+   * phase whose only published entry would be the system `advance-phase` action (which the automation does not
+   * publish at all).
+   */
+  isPhasePresentationPending: boolean
+  setIsPhasePresentationPending: (value: SetStateAction<boolean>) => void
+  /**
+   * The global action list as it last looked on an interactive snapshot. The phase row paints this
+   * instead of the live list while `isPhasePresentationPending`, which is what keeps the chips - and the
+   * strip's open/close transition - still through the whole engine-driven chain.
+   */
+  retainedInteractiveAvailableActions: IGameActionOptionResponse[]
+  setRetainedInteractiveAvailableActions: (value: SetStateAction<IGameActionOptionResponse[]>) => void
+  /**
+   * Whether an action was in flight when the last interactive snapshot was taken. The sidebar reads
+   * this instead of the live flag while `isPhasePresentationPending`, so its buttons are not dimmed by an
+   * acknowledgement or a refresh landing in the middle of a transition.
+   */
+  retainedIsActionBlocked: boolean
+  setRetainedIsActionBlocked: (value: SetStateAction<boolean>) => void
+  /**
+   * True while a MainPhase support reaction window is open and this board is the side waiting on it (the
+   * activator, not the priority player). The window is not a phase change, so the row keeps painting the chips
+   * it had ("End Turn" included) and the sidebar stays inert until the window closes, instead of collapsing the
+   * strip for the round trip and reopening it.
+   */
+  isSupportWindowHudHolding: boolean
+  setIsSupportWindowHudHolding: (value: SetStateAction<boolean>) => void
 }
 

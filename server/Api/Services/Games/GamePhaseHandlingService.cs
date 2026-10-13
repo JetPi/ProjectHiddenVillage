@@ -95,6 +95,36 @@ public sealed class GamePhaseHandlingService(
             operation: () => registry.CompleteEndStep(gameId, reactiveEffectOrchestrator, sequentialEffectExecutor));
     }
 
+    public ErrorOr<GameInstance> AcknowledgePhasePresentation(string gameId, string playerId, string presentationId)
+    {
+        if (string.IsNullOrWhiteSpace(presentationId))
+        {
+            return Error.Validation(
+                code: "Game.AcknowledgePhasePresentation.InvalidRequest",
+                description: "A presentation id is required.");
+        }
+
+        return ExecuteRegistryOperation(
+            operationName: "Game.AcknowledgePhasePresentation",
+            operation: () => registry.AcknowledgePhasePresentation(gameId, playerId, presentationId));
+    }
+
+    public ErrorOr<GameInstance> ReleasePhasePresentationRequirement(string gameId, string playerId)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return Error.Validation(
+                code: "Game.ReleasePhasePresentationRequirement.InvalidRequest",
+                description: "A player id is required.");
+        }
+
+        return ExecuteRegistryOperation(
+            operationName: "Game.ReleasePhasePresentationRequirement",
+            // The registry notifies the clients itself when a release lets the engine take the next step: this
+            // path carries no hub mutation that would.
+            operation: () => registry.ReleasePhasePresentationRequirement(gameId, playerId));
+    }
+
     private ErrorOr<GameInstance> ExecuteRegistryOperation(string operationName, Func<GameInstance> operation)
     {
         try

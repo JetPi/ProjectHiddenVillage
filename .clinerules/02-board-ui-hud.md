@@ -120,6 +120,25 @@ paths:
   sidebar `X` (same actions). While an effect multi-pick is open the row also renders a
   **Confirm** chip (`data-testid="confirm-effect-target-selection-button"`), disabled
   until `canConfirmEffectTargetSelection` passes.
+- **The row draws no system action and never empties itself mid-transition.** The phase-level chips it
+  paints come from `resolvePhaseActionChips`
+  (`utils/functions/gameState/phaseActionChips.ts`), which drops `declare-action` and the engine's
+  `advance-phase`. The engine drives those phases itself now and does not publish the action for an
+  automation-owned game at all, so an “Advance Phase” chip is a bug, not an affordance; the filter stays as
+  the safety net for a table whose automation is off (the transition regression spec
+  `e2e/gameview.multiplayer.phase-transition.spec.ts` watches for it either way).
+- While the engine holds a transition the row paints the **last interactive chip set** held in
+  `gameUIStore` (`isPhasePresentationPending` + `retainedInteractiveAvailableActions` +
+  `retainedIsActionBlocked`, latched by the store's hub subscription on
+  `gameState.pendingPresentation` - see `04-state-phase-effects.md`). The chips therefore keep their text
+  *and* their enabled/disabled look for the whole engine-driven chain, and only the phase banner moves on.
+  Held chips are inert (`pointer-events-none`, `aria-disabled`, `tabIndex={-1}`, no click) rather than
+  `disabled`, which would dim them; the sidebar pass/undo/log buttons read the same latch.
+- The same hold covers the MainPhase `[Support Activated]` reaction window for the side waiting on it
+  (`gameUIStore.isSupportWindowHudHolding`, set by the hub subscription while `isSupportResponseWindowOpen`
+  and this board's own action list is empty). The activator has no action of their own while the opponent
+  answers, so the row keeps its chips (the `End Turn` chip included) instead of collapsing and reopening
+  around the window; the priority player is offered `Pass Turn` live and is never held.
 - The phase text itself comes from `getPhaseValue`:
   `Support Activated · Your Response` / `Support Activated · Opponent Response` while a MainPhase support
   activation waits for reactions (server flag `isSupportResponseWindowOpen`, see

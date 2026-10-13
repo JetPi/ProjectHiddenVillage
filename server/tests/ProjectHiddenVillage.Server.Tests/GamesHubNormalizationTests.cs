@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using ProjectHiddenVillage.Server.Api.Services.Games;
 
 namespace ProjectHiddenVillage.Server.Tests;
 
@@ -93,6 +94,73 @@ public sealed class GamesHubNormalizationTests
         Assert.AreEqual(canonicalGameId, (string)messages[0].Args[0]);
     }
 
+    [TestMethod]
+    public async Task AcknowledgePhasePresentation_ForwardsTheRequester_AndNotifiesTheGroup()
+    {
+        var requesterUserId = Guid.NewGuid();
+        const string canonicalGameId = "ABCDE";
+
+        var game = CreateGameInstance(canonicalGameId, requesterUserId.ToString("N"));
+        game.MintPhasePresentation(PhasePresentationKind.Draw, [requesterUserId.ToString("N")]);
+
+        var phaseHandlingService = new StubGamePhaseHandlingService
+        {
+            AcknowledgeHandler = (_, _, _) => game
+        };
+
+        var hub = CreateHub(
+            requesterUserId,
+            new StubGameInstanceService(),
+            phaseHandlingService,
+            new StubGameReadService(canonicalGameId, game));
+
+        var result = await hub.Hub.AcknowledgePhasePresentation("abcde", "presentation-1");
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsNotNull(result.Value);
+
+        var request = phaseHandlingService.AcknowledgeRequests.Single();
+        Assert.AreEqual(requesterUserId.ToString("N"), request.PlayerId);
+        Assert.AreEqual("presentation-1", request.PresentationId);
+
+        var messages = hub.ClientsRecorder.GetGroupMessages(canonicalGameId);
+        Assert.AreEqual(1, messages.Count);
+        Assert.AreEqual("GameStateInvalidated", messages[0].Method);
+        Assert.AreEqual(canonicalGameId, (string)messages[0].Args[0]);
+    }
+
+    [TestMethod]
+    public async Task DeclareEndStep_IsRejected_WhileAPresentationIsOutstanding()
+    {
+        var requesterUserId = Guid.NewGuid();
+        const string canonicalGameId = "ABCDE";
+
+        var game = CreateGameInstance(canonicalGameId, requesterUserId.ToString("N"));
+        game.MintPhasePresentation(PhasePresentationKind.Draw, [requesterUserId.ToString("N")]);
+
+        var phaseHandlingService = new StubGamePhaseHandlingService();
+
+        var hub = CreateHub(
+            requesterUserId,
+            new StubGameInstanceService(),
+            phaseHandlingService,
+            new StubGameReadService(canonicalGameId, game));
+
+        var result = await hub.Hub.DeclareEndStep("abcde");
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual("Game.PhasePresentation.Pending", result.ErrorCode);
+        Assert.AreEqual(
+            0,
+            phaseHandlingService.DeclareEndStepRequestCount,
+            "The board must not act on a state that is mid-transition: the gate rejects before the engine is asked.");
+
+        Assert.AreEqual(
+            0,
+            hub.ClientsRecorder.GetGroupMessages(canonicalGameId).Count,
+            "A rejected action never mutated anything, so there is nothing to resync.");
+    }
+
     private static HubFixture CreateHub(
         Guid requesterUserId,
         IGameInstanceService instanceService,
@@ -105,6 +173,7 @@ public sealed class GamesHubNormalizationTests
             instanceService,
             phaseHandlingService,
             gameReadService,
+            new GamePresenceTracker(),
             NullLogger<GamesHub>.Instance)
         {
             Context = new TestHubCallerContext(requesterUserId),
@@ -232,6 +301,12 @@ public sealed class GamesHubNormalizationTests
 
     private sealed class StubGamePhaseHandlingService : IGamePhaseHandlingService
     {
+        public Func<string, string, string, ErrorOr<GameInstance>>? AcknowledgeHandler { get; init; }
+
+        public List<(string GameId, string PlayerId, string PresentationId)> AcknowledgeRequests { get; } = [];
+
+        public int DeclareEndStepRequestCount { get; private set; }
+
         public ErrorOr<GameInstance> ResolvePrompt(string gameId, ResolvePromptRequest request)
             => throw new NotImplementedException();
 
@@ -251,9 +326,23 @@ public sealed class GamesHubNormalizationTests
             => throw new NotImplementedException();
 
         public ErrorOr<GameInstance> DeclareEndStep(string gameId)
-            => throw new NotImplementedException();
+        {
+            DeclareEndStepRequestCount++;
+            throw new NotImplementedException();
+        }
 
         public ErrorOr<GameInstance> CompleteEndStep(string gameId)
+            => throw new NotImplementedException();
+
+        public ErrorOr<GameInstance> AcknowledgePhasePresentation(string gameId, string playerId, string presentationId)
+        {
+            AcknowledgeRequests.Add((gameId, playerId, presentationId));
+
+            return AcknowledgeHandler?.Invoke(gameId, playerId, presentationId)
+                ?? throw new InvalidOperationException("AcknowledgeHandler not configured.");
+        }
+
+        public ErrorOr<GameInstance> ReleasePhasePresentationRequirement(string gameId, string playerId)
             => throw new NotImplementedException();
     }
 

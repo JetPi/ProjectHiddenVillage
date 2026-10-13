@@ -47,14 +47,32 @@ public sealed class InMemoryGameInstanceRegistry
     private readonly ConcurrentDictionary<string, GameInstance> instances =
         new(StringComparer.Ordinal);
 
+    /// <summary>One watchdog per game: the timer that resumes the drain when acknowledgements never arrive.</summary>
+    private readonly ConcurrentDictionary<string, Timer> presentationWatchdogs =
+        new(StringComparer.Ordinal);
+
     private readonly GameInstanceFactory factory;
     private readonly global::ProjectHiddenVillage.Server.Engine.GamePhaseService phaseService;
     private readonly IGameRuntimeDeckService runtimeDeckService;
+    private readonly GamePhaseAutomationOptions phaseAutomation;
+    private readonly IGamePresenceTracker? presenceTracker;
+    private readonly IGameStateBroadcaster? stateBroadcaster;
 
-    public InMemoryGameInstanceRegistry(GameInstanceFactory factory, global::ProjectHiddenVillage.Server.Engine.GamePhaseService phaseService)
+    public InMemoryGameInstanceRegistry(
+        GameInstanceFactory factory,
+        global::ProjectHiddenVillage.Server.Engine.GamePhaseService phaseService,
+        GamePhaseAutomationOptions? phaseAutomation = null,
+        IGamePresenceTracker? presenceTracker = null,
+        IGameStateBroadcaster? stateBroadcaster = null)
     {
         this.factory = factory;
         this.phaseService = phaseService;
+        // The phase automation is opt-in: a registry built without options - unit-test composition, and every
+        // caller that predates the presentation contract - behaves exactly as it did before the engine owned
+        // the non-interactive phases.
+        this.phaseAutomation = phaseAutomation ?? new GamePhaseAutomationOptions();
+        this.presenceTracker = presenceTracker;
+        this.stateBroadcaster = stateBroadcaster;
         runtimeDeckService = new Api.Services.Games.GameRuntimeDeckService(new GameEffectHandlingService());
     }
 
@@ -65,6 +83,9 @@ public sealed class InMemoryGameInstanceRegistry
         Random? random = null)
     {
         var instance = factory.Create(players, cardDefinitions, random);
+        // The payload has to say who owns the non-interactive phases: with the automation on the client must not
+        // be offered the system action at all (see GameInstance.IsPhaseAutomationEnabled).
+        instance.IsPhaseAutomationEnabled = phaseAutomation.Enabled;
 
         if (!string.IsNullOrWhiteSpace(preferredGameCode))
         {
@@ -173,6 +194,7 @@ public sealed class InMemoryGameInstanceRegistry
 
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
+            DrainIdlePhases(instance, reactiveEffectOrchestrator, sequentialEffectExecutor);
 
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
@@ -299,6 +321,7 @@ public sealed class InMemoryGameInstanceRegistry
             ApplyPendingAttackResolutionIfNeeded(instance, previousPhase);
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
+            DrainIdlePhases(instance, reactiveEffectOrchestrator, sequentialEffectExecutor);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
             return instance;
@@ -332,6 +355,7 @@ public sealed class InMemoryGameInstanceRegistry
                 }
 
                 AutoAdvanceMainPhaseIfNoLegalActions(instance);
+                DrainIdlePhases(instance, reactiveEffectOrchestrator, sequentialEffectExecutor);
                 instance.ValidateInvariants();
                 EvaluateGameEnd(instance);
                 return instance;
@@ -350,6 +374,7 @@ public sealed class InMemoryGameInstanceRegistry
             }
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
+            DrainIdlePhases(instance, reactiveEffectOrchestrator, sequentialEffectExecutor);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
             return instance;
@@ -366,6 +391,7 @@ public sealed class InMemoryGameInstanceRegistry
 
             phaseService.DeclareActionInActionStep(instance, playerId);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
+            DrainIdlePhases(instance);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
             return instance;
@@ -467,6 +493,7 @@ public sealed class InMemoryGameInstanceRegistry
 
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
+            DrainIdlePhases(instance, reactiveEffectOrchestrator, sequentialEffectExecutor);
 
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
@@ -727,6 +754,7 @@ public sealed class InMemoryGameInstanceRegistry
             ResolvePendingActivations(instance, sequentialEffectExecutor);
             phaseService.DeclareEndStep(instance);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
+            DrainIdlePhases(instance, null, sequentialEffectExecutor);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
             return instance;
@@ -748,6 +776,7 @@ public sealed class InMemoryGameInstanceRegistry
             ResolvePendingActivations(instance, sequentialEffectExecutor);
             phaseService.CompleteEndStep(instance);
             SweepContinuousPassives(instance, reactiveEffectOrchestrator);
+            DrainIdlePhases(instance, reactiveEffectOrchestrator, sequentialEffectExecutor);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
             return instance;
@@ -2578,6 +2607,315 @@ public sealed class InMemoryGameInstanceRegistry
         state.PendingAttackDefenderInstanceId = string.Empty;
         state.PendingAttackDefenderZone = null;
         ClearPendingOptionalAttackEffectState(state);
+    }
+
+    /// <summary>
+    /// Walks the phases the engine owns (<see cref="GamePhaseData.ShouldAutoAdvance"/>), one step at a time,
+    /// stopping wherever the board owes somebody something: a prompt, an unacknowledged phase presentation, an
+    /// interactive phase or the end of the game. With the automation switched off this does nothing, and the
+    /// client keeps driving those phases as it did before the presentation contract existed.
+    ///
+    /// A phase that produced something a client animates mints a <see cref="PendingPhasePresentation"/> for the
+    /// connected participants and stops, so the acknowledgement decides when the next step happens; a phase
+    /// with nothing to show is walked straight through.
+    /// </summary>
+    private void DrainIdlePhases(
+        GameInstance instance,
+        IGameReactiveEffectOrchestrator? reactiveEffectOrchestrator = null,
+        IGameSequentialEffectExecutor? sequentialEffectExecutor = null,
+        bool phaseAlreadyPresented = false)
+    {
+        if (!phaseAutomation.Enabled)
+        {
+            return;
+        }
+
+        var stepBudget = Math.Max(phaseAutomation.MaxDrainSteps, 1);
+
+        for (var step = 0; step < stepBudget; step++)
+        {
+            if (!CanDrainPhase(instance))
+            {
+                return;
+            }
+
+            // The phase the engine is sitting in - entered by the mutation that called us, or by the previous
+            // step - may be one a client has to present before anything else happens (EndStep's turn swap, the
+            // damage step, a draw). A phase whose presentation was just acknowledged is skipped instead: it has
+            // been presented, so the engine may now leave it.
+            if (phaseAlreadyPresented)
+            {
+                phaseAlreadyPresented = false;
+            }
+            else
+            {
+                var currentPhaseData = phaseService.GetPhaseData(instance.State.Phase);
+                if (currentPhaseData.PresentationKind != PhasePresentationKind.None
+                    && PhaseHasSomethingToPresent(instance, currentPhaseData.PresentationKind)
+                    && TryMintPresentation(instance, currentPhaseData.PresentationKind))
+                {
+                    return;
+                }
+            }
+
+            var previousPhase = instance.State.Phase;
+            phaseService.AdvancePhase(instance);
+
+            // Leaving the cut-in ActionStep closes the window, so anything still pending resolves now. The drain
+            // never walks out of ActionStep (it is interactive), so this stays a safety net for a phase graph
+            // change rather than a path in use.
+            if (previousPhase == GamePhase.ActionStep)
+            {
+                ResolvePendingActivations(instance, sequentialEffectExecutor);
+            }
+
+            ApplyPendingAttackResolutionIfNeeded(instance, previousPhase);
+            SweepContinuousPassives(instance, reactiveEffectOrchestrator);
+            AutoAdvanceMainPhaseIfNoLegalActions(instance);
+
+            if (GameEndRules.IsGameOver(instance.State))
+            {
+                // A phase entry can end the game (a deck-out during the draw): the result overlay is the only
+                // affordance left, so nothing is presented and nothing is owed.
+                instance.ClearPhasePresentation();
+                return;
+            }
+        }
+
+        if (!CanDrainPhase(instance))
+        {
+            // The loop ended because the engine reached a phase somebody owns (or has something to wait for),
+            // which is the normal exit.
+            return;
+        }
+
+        // Not reaching a phase a player owns inside the budget means the phase graph is looping, which would
+        // otherwise hold the instance lock for good. Leave a trace instead of throwing: the table keeps the last
+        // state and a client can still act on it.
+        instance.AddActionLogEntry(
+            actionType: "phase_automation_budget_exhausted",
+            message: $"The phase automation took {stepBudget} steps without reaching a phase a player owns.",
+            metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["phase"] = instance.State.Phase.ToString(),
+                ["maxDrainSteps"] = stepBudget.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            });
+    }
+
+    /// <summary>
+    /// Whether the engine may take another step right now: the phase has to be one it owns, and nothing may be
+    /// waiting on a player (a prompt, an open support window) or on a client (an outstanding presentation).
+    /// </summary>
+    private bool CanDrainPhase(GameInstance instance)
+    {
+        if (instance.PendingPhasePresentation is not null || instance.GetPendingPrompt() is not null)
+        {
+            return false;
+        }
+
+        if (GameEndRules.IsGameOver(instance.State))
+        {
+            return false;
+        }
+
+        if (SupportTimingRules.HasPendingSupportActivation(instance.State))
+        {
+            // An open support window is a decision, even in a phase the engine otherwise owns.
+            return false;
+        }
+
+        return phaseService.GetPhaseData(instance.State.Phase).ShouldAutoAdvance;
+    }
+
+    /// <summary>
+    /// Whether the current stop is worth parking the table for. The "Ready" presentation exists to show rested
+    /// cards standing back up, so a RefreshPhase that readied nothing is walked straight through instead of
+    /// costing the clients a whole acknowledgement round trip for a transition with nothing to show. Every other
+    /// kind has something to present.
+    /// </summary>
+    private static bool PhaseHasSomethingToPresent(GameInstance instance, PhasePresentationKind kind)
+    {
+        return kind != PhasePresentationKind.Ready || instance.State.LastPhaseEntryChangedAnything;
+    }
+
+    /// <summary>
+    /// Stops the drain on the current phase for the connected participants. Returns false when nobody is
+    /// watching: there is nobody to present it to, so the drain keeps walking and a client that connects later
+    /// simply pulls the state it missed without animating the transitions in between.
+    /// </summary>
+    private bool TryMintPresentation(GameInstance instance, PhasePresentationKind kind)
+    {
+        var requiredAckPlayerIds = presenceTracker?.GetConnectedPlayerIds(instance.Id) ?? [];
+        if (requiredAckPlayerIds.Count == 0)
+        {
+            return false;
+        }
+
+        var presentation = instance.MintPhasePresentation(kind, requiredAckPlayerIds);
+        ArmPresentationWatchdog(instance.Id, presentation.PresentationId);
+        return true;
+    }
+
+    /// <summary>
+    /// Arms the "acknowledgements never arrived" watchdog. It is what keeps a hung, reloading or disconnected
+    /// client from stranding the table: the transition is already on screen, so the engine resumes and a late
+    /// acknowledgement is ignored instead of replayed.
+    /// </summary>
+    private void ArmPresentationWatchdog(string gameId, string presentationId)
+    {
+        ClearPresentationWatchdog(gameId);
+
+        if (phaseAutomation.PresentationAckTimeoutMs <= 0)
+        {
+            return;
+        }
+
+        var watchdog = new Timer(
+            callback: _ => ResumeAfterPresentationTimeout(gameId, presentationId),
+            state: null,
+            dueTime: phaseAutomation.PresentationAckTimeoutMs,
+            period: Timeout.Infinite);
+
+        presentationWatchdogs[gameId] = watchdog;
+    }
+
+    private void ClearPresentationWatchdog(string gameId)
+    {
+        if (presentationWatchdogs.TryRemove(gameId, out var watchdog))
+        {
+            watchdog.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// The watchdog fired: nobody acknowledged the presentation in time. Resuming changes the state outside any
+    /// hub call, so the clients are told to pull it again through the broadcaster.
+    /// </summary>
+    private void ResumeAfterPresentationTimeout(string gameId, string presentationId)
+    {
+        ClearPresentationWatchdog(gameId);
+
+        if (!instances.TryGetValue(gameId, out var instance) || instance is null)
+        {
+            return;
+        }
+
+        var didResume = false;
+
+        lock (instance)
+        {
+            var presentation = instance.PendingPhasePresentation;
+            if (presentation is null
+                || !string.Equals(presentation.PresentationId, presentationId, StringComparison.Ordinal))
+            {
+                // Acknowledged, or superseded, in the meantime: nothing is owed any more.
+                return;
+            }
+
+            instance.AddActionLogEntry(
+                actionType: "phase_presentation_timed_out",
+                message: $"Phase {presentation.Phase} presentation was not acknowledged within "
+                    + $"{phaseAutomation.PresentationAckTimeoutMs} ms.",
+                metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["presentationId"] = presentation.PresentationId,
+                    ["presentationKind"] = presentation.Kind.ToString(),
+                    ["phase"] = presentation.Phase.ToString(),
+                    ["requiredAckPlayerIds"] = string.Join(",", presentation.RequiredAckPlayerIds),
+                    ["acknowledgedPlayerIds"] = string.Join(",", presentation.AcknowledgedPlayerIds),
+                });
+
+            instance.ClearPhasePresentation();
+            // The phase that was presented is the one to leave now: re-presenting it would loop.
+            DrainIdlePhases(instance, phaseAlreadyPresented: true);
+            instance.ValidateInvariants();
+            EvaluateGameEnd(instance);
+            didResume = true;
+        }
+
+        if (didResume)
+        {
+            NotifyStateInvalidated(instance.Id);
+        }
+    }
+
+    /// <summary>
+    /// Records one participant's acknowledgement and takes the next phase step once every required player has
+    /// presented. An acknowledgement for a superseded or expired presentation - or from a player who was never
+    /// required - is ignored: neither is something a player should ever see an error for.
+    /// </summary>
+    public GameInstance AcknowledgePhasePresentation(string gameId, string playerId, string presentationId)
+    {
+        var instance = GetRequired(gameId);
+
+        lock (instance)
+        {
+            GameEndRules.ThrowIfGameOver(instance.State);
+
+            if (!instance.AcknowledgePhasePresentation(presentationId, playerId))
+            {
+                return instance;
+            }
+
+            if (instance.PendingPhasePresentation is { IsSatisfied: true })
+            {
+                ClearPresentationWatchdog(instance.Id);
+                instance.ClearPhasePresentation();
+                DrainIdlePhases(instance, phaseAlreadyPresented: true);
+                instance.ValidateInvariants();
+                EvaluateGameEnd(instance);
+            }
+
+            return instance;
+        }
+    }
+
+    /// <summary>
+    /// Drops a participant who is no longer connected from the outstanding presentation, so a closed tab can
+    /// never hold the table until the watchdog fires. When that lets the engine resume, the clients are notified
+    /// here: this path has no hub mutation of its own to carry the notification.
+    /// </summary>
+    public GameInstance ReleasePhasePresentationRequirement(string gameId, string playerId)
+    {
+        var instance = GetRequired(gameId);
+        var didResume = false;
+
+        lock (instance)
+        {
+            if (!instance.ReleasePhasePresentationRequirement(playerId)
+                || instance.PendingPhasePresentation is not { IsSatisfied: true })
+            {
+                return instance;
+            }
+
+            ClearPresentationWatchdog(instance.Id);
+            instance.ClearPhasePresentation();
+            DrainIdlePhases(instance, phaseAlreadyPresented: true);
+            instance.ValidateInvariants();
+            EvaluateGameEnd(instance);
+            didResume = true;
+        }
+
+        if (didResume)
+        {
+            NotifyStateInvalidated(instance.Id);
+        }
+
+        return instance;
+    }
+
+    /// <summary>
+    /// Tells the clients the state changed, for the changes that did not come from a hub call of their own (the
+    /// presentation watchdog, a disconnecting participant).
+    /// </summary>
+    private void NotifyStateInvalidated(string gameId)
+    {
+        if (stateBroadcaster is null)
+        {
+            return;
+        }
+
+        _ = stateBroadcaster.NotifyGameStateInvalidatedAsync(gameId);
     }
 
     private void AutoAdvanceMainPhaseIfNoLegalActions(GameInstance instance)

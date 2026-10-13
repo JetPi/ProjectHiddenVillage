@@ -3,7 +3,7 @@ import type { SetStateAction } from 'react'
 import type { IGameStateResponse } from '@/services/api/types/game'
 import { useAuthSessionStore } from '@/state/authSession'
 import { useGameHubStore } from '@/state/gameHubStore'
-import { resolveCurrentPlayer, toggleEffectTargetSelection, toggleSummonTargetSelection } from '@/views/game/utils/functions'
+import { areActionListsEqual, resolveCurrentPlayer, toggleEffectTargetSelection, toggleSummonTargetSelection } from '@/views/game/utils/functions'
 import type { IGameUIStoreState } from '@/state/types/gameUIStore'
 
 function resolveUpdate<T>(value: SetStateAction<T>, previous: T): T {
@@ -62,6 +62,10 @@ const initialState = {
   optimisticRestedByInstanceId: {},
   activeAttackLink: null,
   lastSubmittedAttackSourceInstanceId: null,
+  isPhasePresentationPending: false,
+  retainedInteractiveAvailableActions: [],
+  retainedIsActionBlocked: false,
+  isSupportWindowHudHolding: false,
 }
 
 export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
@@ -141,6 +145,14 @@ export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
     }),
   setLastSubmittedAttackSourceInstanceId: (value) =>
     set((state) => ({ lastSubmittedAttackSourceInstanceId: resolveUpdate(value, state.lastSubmittedAttackSourceInstanceId) })),
+  setIsPhasePresentationPending: (value) =>
+    set((state) => ({ isPhasePresentationPending: resolveUpdate(value, state.isPhasePresentationPending) })),
+  setRetainedInteractiveAvailableActions: (value) =>
+    set((state) => ({ retainedInteractiveAvailableActions: resolveUpdate(value, state.retainedInteractiveAvailableActions) })),
+  setRetainedIsActionBlocked: (value) =>
+    set((state) => ({ retainedIsActionBlocked: resolveUpdate(value, state.retainedIsActionBlocked) })),
+  setIsSupportWindowHudHolding: (value) =>
+    set((state) => ({ isSupportWindowHudHolding: resolveUpdate(value, state.isSupportWindowHudHolding) })),
 }))
 
 function recordsEqual(left: Record<string, boolean>, right: Record<string, boolean>): boolean {
@@ -354,12 +366,105 @@ function schedulePruneStaleGameUIState(): void {
   })
 }
 
+/**
+ * Drops the retained interactive HUD content: a finished or replaced game must not leave the phase
+ * row painting the chips of a turn nobody is playing any more.
+ *
+ * Every write is guarded - this store subscribes to itself, so an unconditional `set` re-schedules the
+ * pruner forever.
+ */
+function clearPhasePresentationHudLatch(ui: IGameUIStoreState): void {
+  if (ui.isPhasePresentationPending) {
+    ui.setIsPhasePresentationPending(false)
+  }
+  if (ui.retainedIsActionBlocked) {
+    ui.setRetainedIsActionBlocked(false)
+  }
+  if (ui.isSupportWindowHudHolding) {
+    ui.setIsSupportWindowHudHolding(false)
+  }
+  if (ui.retainedInteractiveAvailableActions.length > 0) {
+    ui.setRetainedInteractiveAvailableActions([])
+  }
+}
+
+/**
+ * Keeps the HUD's phase-presentation latch in step with the pushed game state.
+ *
+ * The engine now performs the non-interactive transitions itself and stops on a presentation receipt
+ * (`pendingPresentation`) until every connected client acknowledges it. While such a receipt is outstanding the
+ * board is mid-transition: the last interactive content is deliberately left alone, so the phase row and the
+ * sidebar keep painting exactly what they painted before the transition started instead of collapsing to an
+ * empty strip for the hops of one engine-driven chain. Every other snapshot - an interactive phase, the
+ * opponent's turn, a reconnect - re-latches, so a real decision and a legitimately empty action list both take
+ * over normally.
+ *
+ * This runs synchronously in the hub subscription (not in a microtask): the latch is registered before
+ * React's own `useSyncExternalStore` listener, so the store already holds it by the time React reads
+ * the new state. A deferred write would render one frame of the unlatched list, which is the flicker
+ * this exists to remove.
+ */
+function syncPhasePresentationHudLatch(): void {
+  const hubState = useGameHubStore.getState()
+  const ui = useGameUIStore.getState()
+  const gameState = hubState.gameState
+
+  if (!gameState || gameState.gameOutcome) {
+    clearPhasePresentationHudLatch(ui)
+    return
+  }
+
+  const isPhasePresentationPending = Boolean(gameState.pendingPresentation)
+
+  if (ui.isPhasePresentationPending !== isPhasePresentationPending) {
+    ui.setIsPhasePresentationPending(isPhasePresentationPending)
+  }
+
+  if (isPhasePresentationPending) {
+    return
+  }
+
+  // A MainPhase support reaction window is an interruption, not a phase change: while the opponent answers it,
+  // the activator has no action of their own, so the live list is empty for them. Treat that as a hold so the
+  // row keeps the chips it had (the "End Turn" chip included) instead of collapsing the strip for the round
+  // trip. The side that owns the window (the priority player) is offered `pass-turn` live, so the hold only
+  // applies while this board's own list is genuinely empty.
+  const isSupportWindowHudHolding =
+    gameState.isSupportResponseWindowOpen === true && gameState.availableActions.length === 0
+
+  if (ui.isSupportWindowHudHolding !== isSupportWindowHudHolding) {
+    ui.setIsSupportWindowHudHolding(isSupportWindowHudHolding)
+  }
+
+  if (isSupportWindowHudHolding) {
+    return
+  }
+
+  const isActionBlocked = !hubState.isConnected || hubState.isActionPending
+  if (ui.retainedIsActionBlocked !== isActionBlocked) {
+    ui.setRetainedIsActionBlocked(isActionBlocked)
+  }
+
+  if (!areActionListsEqual(ui.retainedInteractiveAvailableActions, gameState.availableActions)) {
+    ui.setRetainedInteractiveAvailableActions(gameState.availableActions)
+  }
+}
+
 useGameHubStore.subscribe((state, previousState) => {
   if (
     state.gameState !== previousState.gameState
     || state.actionError !== previousState.actionError
   ) {
     schedulePruneStaleGameUIState()
+  }
+
+  if (
+    state.gameState !== previousState.gameState
+    || state.isConnected !== previousState.isConnected
+    || state.isActionPending !== previousState.isActionPending
+    || state.activeGameId !== previousState.activeGameId
+  ) {
+    syncPhasePresentationHudLatch()
   }
 })
 useGameUIStore.subscribe(schedulePruneStaleGameUIState)

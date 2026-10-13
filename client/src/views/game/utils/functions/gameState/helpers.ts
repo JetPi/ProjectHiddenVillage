@@ -183,16 +183,15 @@ export function mapActionToHubIntent(
     return { intent: 'pass-turn' }
   }
 
-  if (action.actionId === 'advance-phase') {
-    return { intent: 'advance-phase' }
-  }
-
   if (action.actionId === 'declare-end-step' || action.actionId === 'endPhase' || action.actionId === 'turn-end') {
     return { intent: 'declare-end-step' }
   }
 
+  // The active player's `declareAttack` phase option: the engine enters the AttackDeclaration flow. It is a real
+  // decision on the board, not the system `advance-phase` hop the engine now performs on its own - so it is the
+  // only option that maps to the hub's phase-advance method.
   if (action.actionId === 'declare-attack' || action.actionId === 'declareAttack') {
-    return { intent: 'advance-phase' }
+    return { intent: 'declare-attack' }
   }
 
   if (action.actionId === 'complete-end-step') {

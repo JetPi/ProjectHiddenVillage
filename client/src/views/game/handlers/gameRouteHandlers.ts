@@ -65,7 +65,7 @@ export async function gameAction({ params, request }: ActionFunctionArgs): Promi
     return {}
   }
 
-  if (intent === 'pass-turn' || intent === 'declare-action') {
+  if (intent === 'pass-turn' || intent === 'declare-action' || intent === 'declare-attack') {
     try {
       resolveActionPlayerId()
       return { gameAction: { ok: true, intent } }
@@ -78,10 +78,6 @@ export async function gameAction({ params, request }: ActionFunctionArgs): Promi
         },
       }
     }
-  }
-
-  if (intent === 'advance-phase') {
-    return { gameAction: { ok: true, intent } }
   }
 
   return {

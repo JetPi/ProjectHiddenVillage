@@ -4,6 +4,7 @@ import { fetchGameState } from './api'
 import { normalizeUserId } from './core'
 import {
   ADVANCE_PHASE_INVALID_STATE_ERROR_CODE,
+  PHASE_PRESENTATION_PENDING_ERROR_CODE,
   describeHubFailure,
   resolvePromptViaHub,
   tryAdvancePhaseViaHub,
@@ -124,8 +125,11 @@ export async function advanceToMulliganPromptIfNeeded(
 
     // Read-then-act race: between the state read above and this call the phase can advance (or a
     // prompt can appear) on the server, which then rejects the advance. Nothing is broken — loop
-    // again to observe the mulligan prompt or advance the next phase. Anything else is a real error.
-    if (result.errorCode !== ADVANCE_PHASE_INVALID_STATE_ERROR_CODE) {
+    // again to observe the mulligan prompt or advance the next phase. Anything else is a real error,
+    // except the engine holding a phase presentation (the pages own that acknowledgement, so the
+    // next iteration simply observes the walk).
+    if (result.errorCode !== ADVANCE_PHASE_INVALID_STATE_ERROR_CODE
+      && result.errorCode !== PHASE_PRESENTATION_PENDING_ERROR_CODE) {
       throw new Error(describeHubFailure('Hub.AdvancePhase', result))
     }
 

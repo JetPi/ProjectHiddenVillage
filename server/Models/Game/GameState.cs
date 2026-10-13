@@ -14,6 +14,14 @@ public sealed class GameState
 
     public int ConsecutivePasses { get; set; }
 
+    /// <summary>
+    /// Drain-time hint, not durable state: whether the phase entry that just ran changed something a client
+    /// would show. The phase automation reads it to skip a presentation for a stop with nothing to present (a
+    /// RefreshPhase that readied no rested card), so a turn never parks on a "nothing happened" transition. No
+    /// response mapper publishes it.
+    /// </summary>
+    public bool LastPhaseEntryChangedAnything { get; set; } = true;
+
     public GamePhase Phase { get; set; } = GamePhase.MainPhase;
 
     /// <summary>
@@ -150,10 +158,21 @@ public class GamePhaseData(
     GamePhase phaseName,
     List<string> availablePhaseOptions,
     bool hasPlayerInteraction,
-    PhaseAdvanceMode advanceMode)
+    PhaseAdvanceMode advanceMode,
+    PhasePresentationKind presentationKind = PhasePresentationKind.None)
 {
     public GamePhase PhaseName { get; } = phaseName;
     public List<string> AvailablePhaseOptions { get; } = availablePhaseOptions;
     public bool HasPlayerInteraction { get; } = hasPlayerInteraction;
     public PhaseAdvanceMode AdvanceMode { get; } = advanceMode;
+
+    /// <summary>What a client has to present for this phase, see <see cref="PhasePresentationKind"/>.</summary>
+    public PhasePresentationKind PresentationKind { get; } = presentationKind;
+
+    /// <summary>
+    /// True when the engine itself ends this phase: marked <see cref="PhaseAdvanceMode.AutoAdvanceImmediately"/>
+    /// and asking the players nothing. Interactive phases are never drained, so a decision can never be
+    /// skipped by the phase automation.
+    /// </summary>
+    public bool ShouldAutoAdvance => AdvanceMode == PhaseAdvanceMode.AutoAdvanceImmediately && !HasPlayerInteraction;
 }

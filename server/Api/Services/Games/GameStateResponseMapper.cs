@@ -20,19 +20,42 @@ public static partial class GameStateResponseMapper
             game.State,
             requestingPlayerId,
             game.GetPendingPrompt(),
-            BuildEffectNotices(game, requestingPlayerId));
+            BuildEffectNotices(game, requestingPlayerId),
+            isPhaseAutomationEnabled: game.IsPhaseAutomationEnabled,
+            pendingPresentation: ToPhasePresentationResponse(game.PendingPhasePresentation));
     }
 
     public static GameStateResponse ToGameStateResponse(GameState state, string requestingPlayerId)
     {
-        return ToGameStateResponse(state, requestingPlayerId, pendingPrompt: null, effectNotices: null);
+        return ToGameStateResponse(
+            state,
+            requestingPlayerId,
+            pendingPrompt: null,
+            effectNotices: null,
+            isPhaseAutomationEnabled: false,
+            pendingPresentation: null);
+    }
+
+    private static PhasePresentationResponse? ToPhasePresentationResponse(PendingPhasePresentation? presentation)
+    {
+        return presentation is null
+            ? null
+            : new PhasePresentationResponse(
+                PresentationId: presentation.PresentationId,
+                Phase: presentation.Phase.ToString(),
+                Kind: presentation.Kind.ToString(),
+                TurnNumber: presentation.TurnNumber,
+                RequiredAckPlayerIds: [.. presentation.RequiredAckPlayerIds],
+                AcknowledgedPlayerIds: [.. presentation.AcknowledgedPlayerIds]);
     }
 
     private static GameStateResponse ToGameStateResponse(
         GameState state,
         string requestingPlayerId,
         GamePrompt? pendingPrompt,
-        IReadOnlyList<EffectNoticeResponse>? effectNotices)
+        IReadOnlyList<EffectNoticeResponse>? effectNotices,
+        bool isPhaseAutomationEnabled,
+        PhasePresentationResponse? pendingPresentation)
     {
         var phaseData = PhaseStateService.GetPhaseData(state.Phase);
         var hasOutcome = GameEndRules.IsGameOver(state);
@@ -51,7 +74,7 @@ public static partial class GameStateResponseMapper
             PendingPrompt: hasOutcome ? null : ToPendingPromptResponse(pendingPrompt, requestingPlayerId),
             AvailableActions: hasOutcome
                 ? []
-                : BuildAvailableActions(state, phaseData, requestingPlayerId, pendingPrompt),
+                : BuildAvailableActions(state, phaseData, requestingPlayerId, pendingPrompt, isPhaseAutomationEnabled),
             ActiveTemporaryEffects: CardRuntimeEffectStateService
                 .BuildTemporaryEffectProjections(state)
                 .Select(effect => new ActiveTemporaryEffectResponse(
@@ -75,7 +98,9 @@ public static partial class GameStateResponseMapper
                 && SupportTimingRules.HasPendingSupportActivation(state),
             SupportChain: hasOutcome ? [] : BuildSupportChain(state),
             EffectNotices: effectNotices,
-            GameOutcome: ToGameOutcomeResponse(state.Outcome));
+            GameOutcome: ToGameOutcomeResponse(state.Outcome),
+            // A finished game owes nobody a presentation: the result overlay is the only affordance left.
+            PendingPresentation: hasOutcome ? null : pendingPresentation);
     }
 
     /// <summary>

@@ -8,6 +8,12 @@ export function SideBarButtons(props: IGameZonesProps){
     const { t } = useTranslation()
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
     const isEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting !== null)
+
+    // While the engine holds a phase presentation the sidebar holds the state it had at the last
+    // interactive snapshot: `isActionBlocked` is that held value, and `isPresentationPending` makes the
+    // buttons inert without changing how they look. Otherwise the acknowledgement and the state it pushes
+    // would dim and undim every button, and a click could land on a phase that already moved.
+    const frozenClassName = props.isPresentationPending ? ' pointer-events-none' : ''
    
     return<div className="flex flex-col items-end justify-center gap-1">
         {props.joinCode ? (
@@ -41,9 +47,11 @@ export function SideBarButtons(props: IGameZonesProps){
             variant="ghost"
             data-testid="pass-turn-button"
             aria-label={t('game.sidebar.passTurnAria')}
-            onClick={props.onPassTurn}
-            disabled={!props.isConnected || props.isActionPending}
-            className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+            onClick={props.isPresentationPending ? undefined : props.onPassTurn}
+            disabled={props.isActionBlocked}
+            aria-disabled={props.isPresentationPending || undefined}
+            tabIndex={props.isPresentationPending ? -1 : undefined}
+            className={`h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]${frozenClassName}`}
           >
             <SkipForward size={10} />
           </AppButton>
@@ -91,8 +99,10 @@ export function SideBarButtons(props: IGameZonesProps){
             type="button"
             variant="ghost"
             aria-label={t('game.sidebar.undoAria')}
-            disabled={!props.isConnected || props.isActionPending}
-            className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+            disabled={props.isActionBlocked}
+            aria-disabled={props.isPresentationPending || undefined}
+            tabIndex={props.isPresentationPending ? -1 : undefined}
+            className={`h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]${frozenClassName}`}
           >
             <RotateCcw size={10} />
           </AppButton>
@@ -106,8 +116,10 @@ export function SideBarButtons(props: IGameZonesProps){
             type="button"
             variant="ghost"
             aria-label={t('game.sidebar.openLogAria')}
-            disabled={!props.isConnected || props.isActionPending}
-            className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+            disabled={props.isActionBlocked}
+            aria-disabled={props.isPresentationPending || undefined}
+            tabIndex={props.isPresentationPending ? -1 : undefined}
+            className={`h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]${frozenClassName}`}
           >
             <ScrollText size={10} />
           </AppButton>
