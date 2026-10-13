@@ -12,6 +12,22 @@ import type { IGameActionOptionResponse } from '@/services/api/types/game'
 const SYSTEM_PHASE_ACTION_IDS = new Set(['declare-action', 'advance-phase'])
 
 /**
+ * The engine publishes a pending prompt's choices as `resolve-prompt:<option>` actions. Those options belong to
+ * the prompt's own UI - the overlay for a deck pick, the cards' Select buttons for a board pick - so the phase
+ * row must never paint them as chips.
+ *
+ * The filter is on the prefix, not a fixed list, so every prompt kind (starting player, mulligan, effect
+ * selection) is covered. It also cleans the frozen chips the row holds across an engine-driven transition: the
+ * retained list is the raw snapshot taken while a prompt was pending, so the prompt's own options would
+ * otherwise reappear as chips the moment the phase presentation starts.
+ */
+const PROMPT_RESOLVE_ACTION_ID_PREFIX = 'resolve-prompt:'
+
+function isPromptResolveAction(action: IGameActionOptionResponse): boolean {
+  return action.actionId.startsWith(PROMPT_RESOLVE_ACTION_ID_PREFIX)
+}
+
+/**
  * One phase action chip as the row paints it: the action itself plus whether it could actually be
  * used when the list was taken. Both are carried together so a held chip keeps the exact look -
  * label and enabled/disabled treatment - it had before an automatic transition started, instead of
@@ -27,7 +43,7 @@ function resolvePhaseActionChips(
   isActionBlocked: boolean,
 ): IPhaseActionChip[] {
   return availableActions
-    .filter((action) => !SYSTEM_PHASE_ACTION_IDS.has(action.actionId))
+    .filter((action) => !SYSTEM_PHASE_ACTION_IDS.has(action.actionId) && !isPromptResolveAction(action))
     .map((action) => ({
       action,
       isUsable: !isActionBlocked && action.isEnabled,
@@ -56,5 +72,11 @@ function areActionListsEqual(
   })
 }
 
-export { SYSTEM_PHASE_ACTION_IDS, areActionListsEqual, resolvePhaseActionChips }
+export {
+  PROMPT_RESOLVE_ACTION_ID_PREFIX,
+  SYSTEM_PHASE_ACTION_IDS,
+  areActionListsEqual,
+  isPromptResolveAction,
+  resolvePhaseActionChips,
+}
 export type { IPhaseActionChip }

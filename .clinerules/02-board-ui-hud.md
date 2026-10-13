@@ -134,6 +134,11 @@ paths:
   *and* their enabled/disabled look for the whole engine-driven chain, and only the phase banner moves on.
   Held chips are inert (`pointer-events-none`, `aria-disabled`, `tabIndex={-1}`, no click) rather than
   `disabled`, which would dim them; the sidebar pass/undo/log buttons read the same latch.
+- The same hold covers the MainPhase `[Support Activated]` reaction window for the side waiting on it
+  (`gameUIStore.isSupportWindowHudHolding`, set by the hub subscription while `isSupportResponseWindowOpen`
+  and this board's own action list is empty). The activator has no action of their own while the opponent
+  answers, so the row keeps its chips (the `End Turn` chip included) instead of collapsing and reopening
+  around the window; the priority player is offered `Pass Turn` live and is never held.
 - The phase text itself comes from `getPhaseValue`:
   `Support Activated · Your Response` / `Support Activated · Opponent Response` while a MainPhase support
   activation waits for reactions (server flag `isSupportResponseWindowOpen`, see

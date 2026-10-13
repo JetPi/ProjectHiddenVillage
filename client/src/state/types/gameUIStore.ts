@@ -61,5 +61,13 @@ export type IGameUIStoreState = {
    */
   retainedIsActionBlocked: boolean
   setRetainedIsActionBlocked: (value: SetStateAction<boolean>) => void
+  /**
+   * True while a MainPhase support reaction window is open and this board is the side waiting on it (the
+   * activator, not the priority player). The window is not a phase change, so the row keeps painting the chips
+   * it had ("End Turn" included) and the sidebar stays inert until the window closes, instead of collapsing the
+   * strip for the round trip and reopening it.
+   */
+  isSupportWindowHudHolding: boolean
+  setIsSupportWindowHudHolding: (value: SetStateAction<boolean>) => void
 }
 

@@ -20,7 +20,7 @@ import {
   GAMEBOARD_COLUMNS_CLASS,
   LEADER_CARD_FRAME_CLASS,
 } from '@/views/game/utils/contants'
-import { buildPromptCandidateCards, handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitEffectTargetSelection as submitEffectTargetAction, submitMappedAction as submitMappedGameAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
+import { PROMPT_RESOLVE_ACTION_ID_PREFIX, buildPromptCandidateCards, handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitEffectTargetSelection as submitEffectTargetAction, submitMappedAction as submitMappedGameAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
 import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 import { resolveBoardPromptCandidateInstanceIds, useGameUIStore } from '@/state/gameUIStore'
 import { useGameHubStore } from '@/state/gameHubStore'
@@ -135,10 +135,12 @@ export function GameView() {
   const canResolvePrompt = gameState.pendingPrompt?.isAwaitingRequestingPlayer ?? false
 
   // A pending prompt is answered by its own UI - the prompt overlay for a deck pick, the cards' Select buttons
-  // for a board pick - so its options must never also render as middle-row action chips.
+  // for a board pick - so its options must never also render as middle-row action chips. The phase row's own
+  // resolver enforces this as well (`resolvePhaseActionChips`), which is what also keeps the prompt's options
+  // out of the frozen chips it holds across an engine-driven transition.
   const isPromptAwaitingAnswer = gameState.pendingPrompt?.isAwaitingRequestingPlayer === true
   const mappedAvailableActions = isPromptAwaitingAnswer
-    ? gameState.availableActions.filter((action) => !action.actionId.startsWith('resolve-prompt:'))
+    ? gameState.availableActions.filter((action) => !action.actionId.startsWith(PROMPT_RESOLVE_ACTION_ID_PREFIX))
     : gameState.availableActions
 
   const canShowHandNoActionsMessage =
@@ -164,11 +166,10 @@ export function GameView() {
     setBottomBattlefieldDisplayOrder,
   })
 
-  // While the client drives the phase itself the sidebar holds the pass-like action of the last
-  // interactive phase (and the interaction-blocked flag that goes with it), so neither the button's
-  // affordance nor its enabled state flickers from hop to hop. The phase row latches the same content
-  // for its chips.
-  const { phaseActions: retainedOrLiveAvailableActions, isPresentationPending } = useRetainedPhaseActionSource(mappedAvailableActions)
+  // While the engine holds a transition - or a support reaction window has this board waiting - the sidebar and
+  // the phase row hold their last interactive content (and the interaction-blocked flag that goes with it), so
+  // neither the affordance nor its enabled state flickers from hop to hop.
+  const { phaseActions: retainedOrLiveAvailableActions, isHolding } = useRetainedPhaseActionSource(mappedAvailableActions)
   const { isActionBlocked } = useRetainedActionBlocked(!isConnected || isActionPending)
 
   const passLikeAction = usePassLikeAction({ mappedAvailableActions: retainedOrLiveAvailableActions })
@@ -243,9 +244,9 @@ export function GameView() {
   }
 
   function handlePassLikeAction(): void {
-    // The action held through an automatic transition belongs to a phase that already moved, so the
-    // sidebar is inert until the next interactive phase swaps its content back in.
-    if (isPresentationPending || !passLikeAction || !passLikeAction.isEnabled) {
+    // The action held through an automatic transition (or a support reaction window) belongs to a state that
+    // already moved, so the sidebar is inert until the HUD swaps its content back in.
+    if (isHolding || !passLikeAction || !passLikeAction.isEnabled) {
       return
     }
 
@@ -331,7 +332,7 @@ export function GameView() {
               isConnected={isConnected}
               isActionPending={isActionPending}
               isActionBlocked={isActionBlocked}
-              isPresentationPending={isPresentationPending}
+              isPresentationPending={isHolding}
               onSelectAction={submitMappedAction}
               onSelectAttackTarget={submitCardTargetSelection}
               onConfirmSummonTargetSelection={submitSummonTargetSelection}

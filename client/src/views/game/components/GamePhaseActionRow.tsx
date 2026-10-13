@@ -52,7 +52,7 @@ function GamePhaseActionRow({
   // instead of this snapshot's actions - the board is mid-transition and the engine publishes no decision for
   // it. That is what keeps the strip - and its open/close transition - absolutely still for the whole
   // engine-driven chain, and it is also why the system `advance-phase` action can never be drawn.
-  const { phaseActions, isPresentationPending } = useRetainedPhaseActionSource(availableActions)
+  const { phaseActions, isHolding } = useRetainedPhaseActionSource(availableActions)
   const { isActionBlocked } = useRetainedActionBlocked(!isConnected || isActionPending)
   const renderedActions = useMemo(
     () => resolvePhaseActionChips(phaseActions, isActionBlocked),
@@ -63,7 +63,7 @@ function GamePhaseActionRow({
   // cannot be used: a click would submit a stale action against the new phase. A chip that was already
   // unusable keeps its dimmed look, which the frozen classes have to carry themselves - the `disabled`
   // attribute would also restyle the usable ones.
-  const isFrozen = isPresentationPending && hasOptions
+  const isFrozen = isHolding && hasOptions
 
   function resolveChipStateClassName(isUsable: boolean): string {
     if (!isFrozen) {

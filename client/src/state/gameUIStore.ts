@@ -65,6 +65,7 @@ const initialState = {
   isPhasePresentationPending: false,
   retainedInteractiveAvailableActions: [],
   retainedIsActionBlocked: false,
+  isSupportWindowHudHolding: false,
 }
 
 export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
@@ -150,6 +151,8 @@ export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
     set((state) => ({ retainedInteractiveAvailableActions: resolveUpdate(value, state.retainedInteractiveAvailableActions) })),
   setRetainedIsActionBlocked: (value) =>
     set((state) => ({ retainedIsActionBlocked: resolveUpdate(value, state.retainedIsActionBlocked) })),
+  setIsSupportWindowHudHolding: (value) =>
+    set((state) => ({ isSupportWindowHudHolding: resolveUpdate(value, state.isSupportWindowHudHolding) })),
 }))
 
 function recordsEqual(left: Record<string, boolean>, right: Record<string, boolean>): boolean {
@@ -377,6 +380,9 @@ function clearPhasePresentationHudLatch(ui: IGameUIStoreState): void {
   if (ui.retainedIsActionBlocked) {
     ui.setRetainedIsActionBlocked(false)
   }
+  if (ui.isSupportWindowHudHolding) {
+    ui.setIsSupportWindowHudHolding(false)
+  }
   if (ui.retainedInteractiveAvailableActions.length > 0) {
     ui.setRetainedInteractiveAvailableActions([])
   }
@@ -415,6 +421,22 @@ function syncPhasePresentationHudLatch(): void {
   }
 
   if (isPhasePresentationPending) {
+    return
+  }
+
+  // A MainPhase support reaction window is an interruption, not a phase change: while the opponent answers it,
+  // the activator has no action of their own, so the live list is empty for them. Treat that as a hold so the
+  // row keeps the chips it had (the "End Turn" chip included) instead of collapsing the strip for the round
+  // trip. The side that owns the window (the priority player) is offered `pass-turn` live, so the hold only
+  // applies while this board's own list is genuinely empty.
+  const isSupportWindowHudHolding =
+    gameState.isSupportResponseWindowOpen === true && gameState.availableActions.length === 0
+
+  if (ui.isSupportWindowHudHolding !== isSupportWindowHudHolding) {
+    ui.setIsSupportWindowHudHolding(isSupportWindowHudHolding)
+  }
+
+  if (isSupportWindowHudHolding) {
     return
   }
 
