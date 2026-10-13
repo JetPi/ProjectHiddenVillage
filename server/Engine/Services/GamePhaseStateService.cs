@@ -259,13 +259,18 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
 
     private void ApplyPhaseEntryState(GameState state)
     {
+        // Default true so an entry with nothing to hide still presents: only an entry that knows it changed
+        // nothing (a RefreshPhase that readied no rested card) turns this off, and the drain reads it to skip a
+        // presentation with nothing to show.
+        state.LastPhaseEntryChangedAnything = true;
+
         switch (state.Phase)
         {
             case GamePhase.DrawPhase:
                 DrawCardsForActivePlayerTurn(state);
                 break;
             case GamePhase.RefreshPhase:
-                OnEnterRefreshPhase(state);
+                state.LastPhaseEntryChangedAnything = OnEnterRefreshPhase(state);
                 break;
             case GamePhase.ActionStep:
                 OnEnterActionStep(state);
@@ -276,28 +281,38 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
         }
     }
 
-    private static void OnEnterRefreshPhase(GameState state)
+    /// <summary>
+    /// Readies the active player's rested cards. Returns whether anything actually stood up: the drain uses that
+    /// to skip the "Ready" presentation for a refresh that changed nothing, instead of parking the table for a
+    /// transition with no visible content.
+    /// </summary>
+    private static bool OnEnterRefreshPhase(GameState state)
     {
         var activePlayer = state.Players.SingleOrDefault(player =>
             string.Equals(player.PlayerId, state.ActivePlayerId, StringComparison.Ordinal));
 
         if (activePlayer is null)
         {
-            return;
+            return false;
         }
+
+        var didStandAnything = false;
 
         foreach (var card in activePlayer.Battlefield)
         {
+            didStandAnything |= card.IsRested;
             card.IsRested = false;
         }
 
         // Leaders rest like battlefield cards when they attack, so they stand up with them too.
         if (activePlayer.LeaderCardInstance is not null)
         {
+            didStandAnything |= activePlayer.LeaderCardInstance.IsRested;
             activePlayer.LeaderCardInstance.IsRested = false;
         }
 
         state.SetSummonCardReady(activePlayer.PlayerId, true);
+        return didStandAnything;
     }
 
     private static void OnEnterActionStep(GameState state)

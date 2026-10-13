@@ -14,6 +14,14 @@ public sealed class GameState
 
     public int ConsecutivePasses { get; set; }
 
+    /// <summary>
+    /// Drain-time hint, not durable state: whether the phase entry that just ran changed something a client
+    /// would show. The phase automation reads it to skip a presentation for a stop with nothing to present (a
+    /// RefreshPhase that readied no rested card), so a turn never parks on a "nothing happened" transition. No
+    /// response mapper publishes it.
+    /// </summary>
+    public bool LastPhaseEntryChangedAnything { get; set; } = true;
+
     public GamePhase Phase { get; set; } = GamePhase.MainPhase;
 
     /// <summary>

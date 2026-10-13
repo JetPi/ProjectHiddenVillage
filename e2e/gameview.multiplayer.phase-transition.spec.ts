@@ -24,6 +24,10 @@ const END_TURN_CHIP_TEXT = 'End Turn'
 // The phase banner's text while it is this client's turn, in the MainPhase *and* in every automatic phase
 // that follows it (EndStep) until the turn actually changes hands.
 const OWN_TURN_PHASE_TEXT = 'Your turn'
+// A full turn hand-over (the TurnEnd presentation, the new turn's Draw, and a Ready only when something
+// actually stood up) has to land inside this budget. It is generous for CI variance but tight enough to catch
+// a return to the old 400/700/700 ms per-kind floors, which summed to a couple of seconds of dead time.
+const HANDOVER_BUDGET_MS = 2_500
 
 function isPlayerOneActive(
   state: { activePlayerId: string },
@@ -110,6 +114,7 @@ test.describe('GameView multiplayer phase transitions', () => {
       const activeUserIdBefore = (await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken))
         .activePlayerId.replace(/-/g, '').toLowerCase()
       const markTime = await markPhaseRowSampleTime(activePage)
+      const handoverStartedAtMs = Date.now()
 
       // Ending the turn is the transition under test: the MainPhase chips ("End Turn") must survive it while
       // the engine walks EndStep and hands the turn over.
@@ -134,11 +139,28 @@ test.describe('GameView multiplayer phase transitions', () => {
       // used to flash "Advance Phase" - kept exactly the chips the row had before the turn was ended.
       const ownTurnSamples = transitionSamples.filter((sample) => sample.phaseText === OWN_TURN_PHASE_TEXT)
       expect(ownTurnSamples.length).toBeGreaterThan(0)
-      expect(ownTurnSamples.every((sample) => sample.chipTexts.join('|') === END_TURN_CHIP_TEXT)).toBe(true)
+
+      // Every painted own-turn chip set must be exactly the held "End Turn". A single frame may momentarily
+      // report no buttons while React commits the held list; anything more than one such frame is the strip
+      // collapsing, which is the flicker this pins.
+      const ownTurnChipSets = Array.from(new Set(
+        ownTurnSamples.filter((sample) => sample.chipTexts.length > 0).map((sample) => sample.chipTexts.join('|')),
+      ))
+      expect(ownTurnChipSets).toEqual([END_TURN_CHIP_TEXT])
+      const emptyOwnTurnFrameCount = ownTurnSamples.filter((sample) => sample.chipTexts.length === 0).length
+      expect(emptyOwnTurnFrameCount).toBeLessThanOrEqual(1)
 
       // The turn did move on, so the held frames above really are the transition and not a stalled row.
       const opponentTurnSamples = transitionSamples.filter((sample) => sample.phaseText !== OWN_TURN_PHASE_TEXT)
       expect(opponentTurnSamples.length).toBeGreaterThan(0)
+
+      // And the hand-over is snappy: wait until the new turn actually reaches its MainPhase (so the whole
+      // TurnEnd -> Draw -> Ready chain has settled) and assert it landed inside the budget.
+      await expect.poll(async () => {
+        const settledNextState = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)
+        return settledNextState.phase
+      }, { timeout: 30_000 }).toBe('MainPhase')
+      expect(Date.now() - handoverStartedAtMs).toBeLessThan(HANDOVER_BUDGET_MS)
     } finally {
       await closeMultiplayerPages(pages)
     }

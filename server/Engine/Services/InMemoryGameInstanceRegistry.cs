@@ -2651,6 +2651,7 @@ public sealed class InMemoryGameInstanceRegistry
             {
                 var currentPhaseData = phaseService.GetPhaseData(instance.State.Phase);
                 if (currentPhaseData.PresentationKind != PhasePresentationKind.None
+                    && PhaseHasSomethingToPresent(instance, currentPhaseData.PresentationKind)
                     && TryMintPresentation(instance, currentPhaseData.PresentationKind))
                 {
                     return;
@@ -2724,6 +2725,17 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         return phaseService.GetPhaseData(instance.State.Phase).ShouldAutoAdvance;
+    }
+
+    /// <summary>
+    /// Whether the current stop is worth parking the table for. The "Ready" presentation exists to show rested
+    /// cards standing back up, so a RefreshPhase that readied nothing is walked straight through instead of
+    /// costing the clients a whole acknowledgement round trip for a transition with nothing to show. Every other
+    /// kind has something to present.
+    /// </summary>
+    private static bool PhaseHasSomethingToPresent(GameInstance instance, PhasePresentationKind kind)
+    {
+        return kind != PhasePresentationKind.Ready || instance.State.LastPhaseEntryChangedAnything;
     }
 
     /// <summary>

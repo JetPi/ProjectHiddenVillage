@@ -72,13 +72,20 @@ job is therefore no longer to advance anything: it is to *present* the transitio
   followed by the coalesced state refresh, never shown as a player error.
 - **The ack waits on the board, not on a guessed delay.** `animController.animationEndsAtByKey` is the
   animation registry (`noteAnimation(key, endsAt)` on `useGameAnimationController`): the deck→hand draw, the
-  hand→pile discard and every card ghost flight register their real end timestamp, and
-  `resolvePresentationAckAtMs` = `min(hardCap, max(seenAt + kindMinimum, animationsSettleAt))`. Per-kind
-  minimums (`InitialDeal` 900 ms, `Ready`/`Draw`/`Damage`/`BattleEnd` 700 ms, `TurnEnd` 400 ms, unknown
-  kinds 600 ms) keep a transition nobody animates readable; `PHASE_PRESENTATION_HARD_CAP_MS` (2.5 s) is the
+  hand→pile discard and every card ghost flight register their real end timestamp, and the ack is
+  **animation-first**: `resolvePresentationAckAtMs` = `min(hardCap, max(seenAt + floor, animationsSettleAt))`,
+  where `floor` is `PHASE_PRESENTATION_ANIMATED_FLOOR_MS` (120 ms) when the board registered an animation and
+  the kind's small idle minimum otherwise. The idle minimums (`InitialDeal` 500 ms, `Ready` 220 ms, `Draw`
+  260 ms, `Damage` 420 ms, `BattleEnd` 320 ms, `TurnEnd` 220 ms, unknown 220 ms) only keep a stop that
+  animates nothing readable - keep them small: a large floor is pure dead time on a stop like `Ready` whose
+  only motion is a rotation that registers no animation. `PHASE_PRESENTATION_HARD_CAP_MS` (2.5 s) is the
   backstop so a stuck flight can never hold the table (the server's own `PresentationAckTimeoutMs` watchdog
   is the second line of defence - a timeout resumes the drain and notifies the clients from outside any hub
   call).
+- **A stop with nothing to present is walked through, not parked.** The drain only mints a presentation when
+  the stop has something to show: `PhaseHasSomethingToPresent` skips the `Ready` kind when the refresh readied
+  no rested card (`GameState.LastPhaseEntryChangedAnything`, set by `OnEnterRefreshPhase`). Without it a turn
+  hand-over paid a whole acknowledgement round trip for a "card stands up" that never happened.
 - Invariants to keep:
   - the timer re-reads the live store before acking and only answers **the presentation it was armed for**;
     a newer presentation is a new effect run, never an ack for a receipt the server has already replaced;
@@ -127,9 +134,11 @@ job is therefore no longer to advance anything: it is to *present* the transitio
   material** leaving the field, and the old hand-removal-vs-trash-count delta paired those two, so
   every tribute flew the trash slot in from the hand (which also flashed the pile's giant-card layout
   blowout described in `02-board-ui-hud.md`).
-- Tunables in that file: `DECK_TO_HAND_FLY_DURATION_MS`, `DRAW_ANIMATION_COMPLETE_PADDING_MS`; the ack
-  cadence and per-kind windows live in `utils/functions/gameState/phasePresentation.ts`
-  (`PHASE_PRESENTATION_RETRY_MS`, `PHASE_PRESENTATION_MINIMUM_MS`, `PHASE_PRESENTATION_HARD_CAP_MS`).
+- Tunables: `DECK_TO_HAND_FLY_DURATION_MS` and `DRAW_ANIMATION_COMPLETE_PADDING_MS` in
+  `hooks/GameView/effects/useGameViewEffects.ts`, `DRAW_TO_HAND_REVEAL_DELAY_MS` in `utils/contants.ts`; the
+  ack cadence and per-kind idle windows live in `utils/functions/gameState/phasePresentation.ts`
+  (`PHASE_PRESENTATION_RETRY_MS`, `PHASE_PRESENTATION_ANIMATED_FLOOR_MS`, `PHASE_PRESENTATION_MINIMUM_MS`,
+  `PHASE_PRESENTATION_HARD_CAP_MS`).
 - `handlePromptResolve` (mulligan) animates hand→deck, waits for any in-flight
   deck→hand animation (`drawAnimationEndsAt`) before discarding, then submits
   `resolve-prompt`.

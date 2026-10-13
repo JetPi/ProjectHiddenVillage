@@ -61,15 +61,41 @@ public sealed class GamePhaseAutomationDrainTests
         Assert.AreEqual(GamePhase.DrawPhase, game.State.Phase);
         AcknowledgeAll(registry, game);
 
-        // DrawPhase -> RefreshPhase: the cards standing up are worth showing too.
-        Assert.AreEqual(PhasePresentationKind.Ready, game.PendingPhasePresentation!.Kind);
-        Assert.AreEqual(GamePhase.RefreshPhase, game.State.Phase);
-        AcknowledgeAll(registry, game);
-
-        // RefreshPhase -> MainPhase is a phase a player owns: the walk is over and nothing is presented.
+        // DrawPhase -> RefreshPhase -> MainPhase: nothing was rested on the first turn, so the ready step has
+        // nothing to show and the drain walks straight to the phase a player owns without parking the table.
         Assert.IsNull(game.PendingPhasePresentation);
         Assert.AreEqual(GamePhase.MainPhase, game.State.Phase);
         Assert.AreEqual(1, game.State.TurnNumber);
+    }
+
+    [TestMethod]
+    public void Drain_PresentsTheReadyStepWhenARestedCardStoodUp()
+    {
+        var presence = new GamePresenceTracker();
+        var registry = CreateRegistry(presence, new RecordingGameStateBroadcaster());
+        var game = CreateGame(registry);
+        ConnectBothPlayers(presence, game);
+
+        ResolveStartingPrompt(registry, game);
+        AdvanceToMainPhase(registry, game);
+
+        // A card that attacked earlier is rested; the refresh stands it up, which is worth presenting.
+        var activePlayer = game.State.Players.Single(player => player.PlayerId == game.State.ActivePlayerId);
+        activePlayer.Battlefield.Add(new CardInstance
+        {
+            InstanceId = "rested-1",
+            CardDefinitionId = "card-1",
+            OwnerPlayerId = activePlayer.PlayerId,
+            ControllerPlayerId = activePlayer.PlayerId,
+            IsRested = true,
+        });
+
+        // Re-enter the DrawPhase so the very next drain step is the refresh.
+        game.State.Phase = GamePhase.DrawPhase;
+        registry.AdvancePhase(game.Id);
+
+        Assert.AreEqual(GamePhase.RefreshPhase, game.State.Phase);
+        Assert.AreEqual(PhasePresentationKind.Ready, game.PendingPhasePresentation!.Kind);
     }
 
     [TestMethod]

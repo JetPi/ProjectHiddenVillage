@@ -2,7 +2,7 @@ import { CARD_ART_IMAGE_CLASS } from '@/components/ui/cards'
 
 const GAME_CARD_PRELOAD_POLL_INTERVAL_MS = 6_000
 const DRAW_TO_HAND_STAGGER_MS = 70
-const DRAW_TO_HAND_REVEAL_DELAY_MS = 220
+const DRAW_TO_HAND_REVEAL_DELAY_MS = 140
 const HAND_TO_PILE_STAGGER_MS = 60
 const HAND_TO_PILE_DURATION_MS = 340
 // How long a reveal presentation stays on screen before the client acknowledges it and lets the chain resume.

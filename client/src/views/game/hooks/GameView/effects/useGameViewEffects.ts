@@ -29,8 +29,8 @@ import {
   runRectToDynamicElementAnimation,
 } from '@/views/game/utils/functions'
 const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackImage]
-const DECK_TO_HAND_FLY_DURATION_MS = 420
-const DRAW_ANIMATION_COMPLETE_PADDING_MS = 140
+const DECK_TO_HAND_FLY_DURATION_MS = 300
+const DRAW_ANIMATION_COMPLETE_PADDING_MS = 100
 const CARD_TO_TRASH_FLY_DURATION_MS = 340
 const CARD_TO_TRASH_STAGGER_MS = 90
 // A revealed card summoned straight out of the deck travels the same route a hand→field summon does.

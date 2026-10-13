@@ -2,22 +2,28 @@ import type { IPhasePresentationResponse } from '@/services/api/types/game'
 import { normalizePlayerId } from './gameViewFunctions'
 
 /**
- * How long each kind of engine transition is worth showing on this board before the client is allowed to
- * acknowledge it. The number is a floor, not a schedule: the board's own animations (the draw flight, a card's
- * ghost flight, the ready step) usually decide when the presentation is actually over, and these minimums only
- * guarantee that a transition nobody animates (a phase with no visible change) is still readable.
+ * The floor when the board DID register an animation for this presentation. The animations are what pace the
+ * transition; this only keeps a very short flight from flickering past before it is acknowledged.
+ */
+const PHASE_PRESENTATION_ANIMATED_FLOOR_MS = 120
+
+/**
+ * How long each kind of engine transition is worth showing when the board registered **no** animation for it.
+ * With the animations gating the transitions that actually draw something, these idle floors only have to keep
+ * a contentless stop readable, so they are small: the old 600-700 ms floors were pure dead time on a stop like
+ * `Ready` that shows nothing but a card standing up (a rotation that registers no animation).
  */
 const PHASE_PRESENTATION_MINIMUM_MS: Record<string, number> = {
-  InitialDeal: 900,
-  Ready: 700,
-  Draw: 700,
-  Damage: 700,
-  BattleEnd: 700,
-  TurnEnd: 400,
+  InitialDeal: 500,
+  Ready: 220,
+  Draw: 260,
+  Damage: 420,
+  BattleEnd: 320,
+  TurnEnd: 220,
 }
 
 /** Used for a kind this build does not know yet (the server can add one before the client catches up). */
-const PHASE_PRESENTATION_FALLBACK_MINIMUM_MS = 600
+const PHASE_PRESENTATION_FALLBACK_MINIMUM_MS = 220
 
 /**
  * The hard cap on how long one presentation may hold the table. A board that never reports its animations as
@@ -104,9 +110,10 @@ type IResolvePresentationAckAtArgs = {
 }
 
 /**
- * When the acknowledgement may be sent: never before this kind's minimum and never before the board's animations
- * settle, and never later than the hard cap. Pure on purpose - it is the piece of this handshake worth testing on
- * its own.
+ * When the acknowledgement may be sent: never before the board's animations settle and never later than the hard
+ * cap. Animation-first: when the board registered an animation, its own end is the gate (with only a tiny floor
+ * so a very short flight is still shown); only a stop that animates nothing falls back to its kind's small idle
+ * floor. Pure on purpose - it is the piece of this handshake worth testing on its own.
  */
 function resolvePresentationAckAtMs({
   kind,
@@ -114,14 +121,16 @@ function resolvePresentationAckAtMs({
   animationsSettleAtMs,
   hardCapMs = PHASE_PRESENTATION_HARD_CAP_MS,
 }: IResolvePresentationAckAtArgs): number {
-  const minimumAtMs = seenAtMs + resolvePresentationMinimumMs(kind)
   const hardCapAtMs = seenAtMs + hardCapMs
-  const settledAtMs = animationsSettleAtMs === null ? minimumAtMs : Math.max(minimumAtMs, animationsSettleAtMs)
+  const settledAtMs = animationsSettleAtMs === null
+    ? seenAtMs + resolvePresentationMinimumMs(kind)
+    : Math.max(seenAtMs + PHASE_PRESENTATION_ANIMATED_FLOOR_MS, animationsSettleAtMs)
 
   return Math.min(settledAtMs, hardCapAtMs)
 }
 
 export {
+  PHASE_PRESENTATION_ANIMATED_FLOOR_MS,
   PHASE_PRESENTATION_FALLBACK_MINIMUM_MS,
   PHASE_PRESENTATION_HARD_CAP_MS,
   PHASE_PRESENTATION_MINIMUM_MS,
