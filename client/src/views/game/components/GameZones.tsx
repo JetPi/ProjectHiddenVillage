@@ -17,6 +17,7 @@ import {
 import { renderBattlefieldRow } from './BattleFieldRow'
 import { RenderZoneCardSlots } from './ZoneCardSlots'
 import { AttackLinkArrow } from './AttackLinkArrow'
+import { CardFlightLayer } from '@/views/game/animation/CardFlightLayer'
 import { SideBarButtons } from './SidebarButtons'
 import { resolveBoardPromptCandidateInstanceIds, useGameUIStore } from '@/state/gameUIStore'
 import { useBackendAttackLink } from '@/views/game/hooks/GameView/memos/useBackendAttackLink'
@@ -374,6 +375,8 @@ function GameZones(props: IGameZonesProps) {
             />
           </div>
         </div>
+
+        <CardFlightLayer />
       </div>
 
       <SideBarButtons {...props} />

@@ -7,13 +7,23 @@ import type {
   IRectToElementAnimationArgs,
   IWaitForElementArgs,
 } from "@/views/game/types"
+import {
+  DEFAULT_DYNAMIC_TARGET_MAX_FRAMES,
+  DEFAULT_DYNAMIC_TARGET_TIMEOUT_MS,
+  HAND_TO_ELEMENT_PIXELS_PER_MS,
+  MAX_HAND_TO_ELEMENT_DURATION_MS,
+  MIN_HAND_TO_ELEMENT_DURATION_MS,
+  STANDARD_MOVEMENT_EASING,
+} from "@/views/game/animation/tuning"
+import { getCardFlightLayerElement } from "@/views/game/animation/cardFlightLayerMount"
+import {
+  registerFlight,
+  resolveElementFlightKey,
+  unregisterFlight,
+} from "@/views/game/animation/flightRegistry"
 
-const MIN_HAND_TO_ELEMENT_DURATION_MS = 220
-const MAX_HAND_TO_ELEMENT_DURATION_MS = 520
-const HAND_TO_ELEMENT_PIXELS_PER_MS = 3.3
-const STANDARD_MOVEMENT_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)'
-const DEFAULT_DYNAMIC_TARGET_TIMEOUT_MS = 700
-const DEFAULT_DYNAMIC_TARGET_MAX_FRAMES = 12
+/** Fallback key for a copy whose caller did not name the card it belongs to. */
+let flightCopySequence = 0
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -25,118 +35,158 @@ function resolveHandToElementDurationMs(translateX: number, translateY: number):
   return clamp(rawDuration, MIN_HAND_TO_ELEMENT_DURATION_MS, MAX_HAND_TO_ELEMENT_DURATION_MS)
 }
 
-type IOverflowSnapshot = {
-  element: HTMLElement
-  overflow: string
-  overflowX: string
-  overflowY: string
+/** The image a card is currently showing, or an empty string for a face-down/imageless card. */
+function readCardImageSource(element: HTMLElement): string {
+  const imageElement = element.querySelector<HTMLImageElement>('img')
+  return imageElement?.currentSrc || imageElement?.src || ''
 }
 
-function resolveOverflowAncestors(startElement: HTMLElement): IOverflowSnapshot[] {
-  const snapshots: IOverflowSnapshot[] = []
-  let current: HTMLElement | null = startElement.parentElement
-
-  while (current && current !== document.body) {
-    const computedStyle = window.getComputedStyle(current)
-    const hasClipping =
-      computedStyle.overflow !== 'visible'
-      || computedStyle.overflowX !== 'visible'
-      || computedStyle.overflowY !== 'visible'
-
-    if (hasClipping) {
-      snapshots.push({
-        element: current,
-        overflow: current.style.overflow,
-        overflowX: current.style.overflowX,
-        overflowY: current.style.overflowY,
-      })
-
-      current.style.overflow = 'visible'
-      current.style.overflowX = 'visible'
-      current.style.overflowY = 'visible'
-    }
-
-    current = current.parentElement
+/**
+ * Builds the overlay copy a flight animates: an image-only stand-in appended to the flight layer. The real
+ * card is never moved, so nothing fights React's re-render and no layout ancestor has to be un-clipped for the
+ * copy to travel. The copy carries the card's instance id in `data-flight-instance-id` (never
+ * `data-card-instance-id`, which card locators rely on) so observers can attribute a flight to its card.
+ */
+function createFlightCopyElement(imageSrc: string, anchorRect: DOMRect, instanceKey: string): HTMLDivElement | null {
+  const layer = getCardFlightLayerElement()
+  if (!layer || anchorRect.width <= 0 || anchorRect.height <= 0) {
+    return null
   }
 
-  return snapshots
+  const layerRect = layer.getBoundingClientRect()
+  const copy = document.createElement('div')
+  copy.setAttribute('data-card-flight-copy', 'true')
+  copy.setAttribute('data-flight-instance-id', instanceKey)
+  copy.style.position = 'absolute'
+  copy.style.left = `${anchorRect.left - layerRect.left}px`
+  copy.style.top = `${anchorRect.top - layerRect.top}px`
+  copy.style.width = `${anchorRect.width}px`
+  copy.style.height = `${anchorRect.height}px`
+  copy.style.willChange = 'transform'
+  copy.style.transformOrigin = 'center center'
+  copy.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
+  copy.style.borderRadius = '8px'
+  copy.style.overflow = 'hidden'
+  copy.style.backgroundColor = 'var(--surface-elevated)'
+
+  if (imageSrc) {
+    const image = document.createElement('img')
+    image.src = imageSrc
+    image.alt = ''
+    image.draggable = false
+    image.style.width = '100%'
+    image.style.height = '100%'
+    image.style.objectFit = 'cover'
+    image.style.borderRadius = '8px'
+    copy.appendChild(image)
+  }
+
+  layer.appendChild(copy)
+  return copy
 }
 
-function restoreOverflowAncestors(snapshots: IOverflowSnapshot[]): void {
-  snapshots.forEach((snapshot) => {
-    snapshot.element.style.overflow = snapshot.overflow
-    snapshot.element.style.overflowX = snapshot.overflowX
-    snapshot.element.style.overflowY = snapshot.overflowY
+/**
+ * Flies an overlay copy from `sourceRect` to `destinationRect`. Only the copy is drawn; a real card already
+ * rendered at the destination is hidden with `visibility` for the flight's duration (never transformed), so
+ * the copy and the real card never render on top of each other.
+ */
+function animateOverlayCopy({
+  imageSrc,
+  sourceRect,
+  destinationRect,
+  durationMs,
+  key,
+  elementHiddenDuringFlight,
+  mode,
+}: {
+  imageSrc: string
+  sourceRect: DOMRect
+  destinationRect: DOMRect
+  durationMs: number
+  key: string
+  elementHiddenDuringFlight: HTMLElement | null
+  mode: 'enter' | 'exit'
+}): Promise<void> {
+  if (destinationRect.width <= 0 || destinationRect.height <= 0) {
+    return Promise.resolve()
+  }
+
+  // `enter` anchors the copy at the destination and animates it in from the source offset (so the recorded
+  // first frame proves the card travelled); `exit` anchors it at the source and animates it towards the
+  // destination offset.
+  const anchorRect = mode === 'enter' ? destinationRect : sourceRect
+  const copy = createFlightCopyElement(imageSrc, anchorRect, key)
+  if (!copy) {
+    return Promise.resolve()
+  }
+
+  const offsetX = destinationRect.left + destinationRect.width / 2 - (sourceRect.left + sourceRect.width / 2)
+  const offsetY = destinationRect.top + destinationRect.height / 2 - (sourceRect.top + sourceRect.height / 2)
+  const endScale = Math.max(destinationRect.width / sourceRect.width, 0.15)
+  const previousVisibility = elementHiddenDuringFlight?.style.visibility ?? ''
+  if (elementHiddenDuringFlight) {
+    elementHiddenDuringFlight.style.visibility = 'hidden'
+  }
+
+  const startKeyframe = mode === 'enter'
+    ? { transform: `translate(${-offsetX}px, ${-offsetY}px) scale(0.92)`, opacity: 0.96 }
+    : { transform: 'translate(0px, 0px) scale(1)', opacity: 0.98 }
+  const endKeyframe = mode === 'enter'
+    ? { transform: 'translate(0px, 0px) scale(1)', opacity: 1 }
+    : { transform: `translate(${offsetX}px, ${offsetY}px) scale(${endScale})`, opacity: 0.92 }
+
+  const animation = copy.animate(
+    [startKeyframe, endKeyframe],
+    {
+      duration: durationMs,
+      easing: STANDARD_MOVEMENT_EASING,
+    },
+  )
+
+  return new Promise<void>((resolve) => {
+    let hasSettled = false
+
+    const cleanup = () => {
+      if (hasSettled) {
+        return
+      }
+      hasSettled = true
+      unregisterFlight(key, animation)
+      if (elementHiddenDuringFlight) {
+        elementHiddenDuringFlight.style.visibility = previousVisibility
+      }
+      copy.remove()
+      resolve()
+    }
+
+    animation.onfinish = cleanup
+    animation.oncancel = cleanup
+    registerFlight({ key, element: copy, animation })
   })
 }
 
+/**
+ * Animates a card leaving its current spot for a destination rectangle (a hand card on its way to a pile).
+ * Only an overlay copy travels; the real source card is left where it is for the state update to remove.
+ */
 function animateCardEntityToDestination(
   sourceCardElement: HTMLDivElement,
   destinationRect: DOMRect,
   durationMs: number,
 ): Promise<void> {
   const sourceRect = sourceCardElement.getBoundingClientRect()
-
-  if (sourceRect.width <= 0 || sourceRect.height <= 0 || destinationRect.width <= 0 || destinationRect.height <= 0) {
+  if (sourceRect.width <= 0 || sourceRect.height <= 0) {
     return Promise.resolve()
   }
 
-  const sourceCenterX = sourceRect.left + sourceRect.width / 2
-  const sourceCenterY = sourceRect.top + sourceRect.height / 2
-  const destinationCenterX = destinationRect.left + destinationRect.width / 2
-  const destinationCenterY = destinationRect.top + destinationRect.height / 2
-  const translateX = destinationCenterX - sourceCenterX
-  const translateY = destinationCenterY - sourceCenterY
-
-  const previousTransition = sourceCardElement.style.transition
-  const previousTransform = sourceCardElement.style.transform
-  const previousZIndex = sourceCardElement.style.zIndex
-  const previousPointerEvents = sourceCardElement.style.pointerEvents
-  const previousFilter = sourceCardElement.style.filter
-  const previousMovingFlag = sourceCardElement.getAttribute('data-card-moving')
-  const overflowSnapshots = resolveOverflowAncestors(sourceCardElement)
-
-  sourceCardElement.style.zIndex = '260'
-  sourceCardElement.style.pointerEvents = 'none'
-  sourceCardElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
-  sourceCardElement.style.transition = 'none'
-  sourceCardElement.setAttribute('data-card-moving', 'true')
-
-  return new Promise<void>((resolve) => {
-    const animation = sourceCardElement.animate(
-      [
-        {
-          transform: 'translate(0px, 0px) scale(1)',
-          opacity: 0.98,
-        },
-        {
-          transform: `translate(${translateX}px, ${translateY}px) scale(0.9)`,
-          opacity: 0.92,
-        },
-      ],
-      {
-        duration: durationMs,
-        easing: STANDARD_MOVEMENT_EASING,
-      },
-    )
-
-    const cleanup = () => {
-      sourceCardElement.style.transition = previousTransition
-      sourceCardElement.style.transform = previousTransform
-      sourceCardElement.style.zIndex = previousZIndex
-      sourceCardElement.style.pointerEvents = previousPointerEvents
-      sourceCardElement.style.filter = previousFilter
-      if (previousMovingFlag === null) {
-        sourceCardElement.removeAttribute('data-card-moving')
-      } else {
-        sourceCardElement.setAttribute('data-card-moving', previousMovingFlag)
-      }
-      restoreOverflowAncestors(overflowSnapshots)
-      resolve()
-    }
-
-    animation.onfinish = cleanup
-    animation.oncancel = cleanup
+  return animateOverlayCopy({
+    imageSrc: readCardImageSource(sourceCardElement),
+    sourceRect,
+    destinationRect,
+    durationMs,
+    key: resolveElementFlightKey(sourceCardElement),
+    elementHiddenDuringFlight: null,
+    mode: 'exit',
   })
 }
 
@@ -214,6 +264,11 @@ export async function runRectToDynamicElementAnimation({
   })
 }
 
+/**
+ * Flies an overlay copy from `sourceRect` into the destination element's box (a deck card drawn into the
+ * hand, a summoned card arriving from a pile). The real destination card is hidden for the flight so the
+ * copy reads as the same card landing, rather than a second copy appearing beside it.
+ */
 export function runRectToElementAnimation({
   sourceRect,
   destinationElement,
@@ -223,68 +278,14 @@ export function runRectToElementAnimation({
     return Promise.resolve()
   }
 
-  const destinationRect = destinationElement.getBoundingClientRect()
-  if (sourceRect.width <= 0 || sourceRect.height <= 0 || destinationRect.width <= 0 || destinationRect.height <= 0) {
-    return Promise.resolve()
-  }
-
-  const sourceCenterX = sourceRect.left + sourceRect.width / 2
-  const sourceCenterY = sourceRect.top + sourceRect.height / 2
-  const destinationCenterX = destinationRect.left + destinationRect.width / 2
-  const destinationCenterY = destinationRect.top + destinationRect.height / 2
-  const fromTranslateX = sourceCenterX - destinationCenterX
-  const fromTranslateY = sourceCenterY - destinationCenterY
-
-  const targetElement = destinationElement as HTMLElement
-  const previousTransition = targetElement.style.transition
-  const previousTransform = targetElement.style.transform
-  const previousZIndex = targetElement.style.zIndex
-  const previousPointerEvents = targetElement.style.pointerEvents
-  const previousFilter = targetElement.style.filter
-  const previousMovingFlag = targetElement.getAttribute('data-card-moving')
-  const overflowSnapshots = resolveOverflowAncestors(targetElement)
-
-  targetElement.style.zIndex = '260'
-  targetElement.style.pointerEvents = 'none'
-  targetElement.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
-  targetElement.style.transition = 'none'
-  targetElement.setAttribute('data-card-moving', 'true')
-
-  return new Promise<void>((resolve) => {
-    const animation = targetElement.animate(
-      [
-        {
-          transform: `translate(${fromTranslateX}px, ${fromTranslateY}px) scale(0.92)`,
-          opacity: 0.96,
-        },
-        {
-          transform: 'translate(0px, 0px) scale(1)',
-          opacity: 1,
-        },
-      ],
-      {
-        duration: durationMs,
-        easing: STANDARD_MOVEMENT_EASING,
-      },
-    )
-
-    const cleanup = () => {
-      targetElement.style.transition = previousTransition
-      targetElement.style.transform = previousTransform
-      targetElement.style.zIndex = previousZIndex
-      targetElement.style.pointerEvents = previousPointerEvents
-      targetElement.style.filter = previousFilter
-      if (previousMovingFlag === null) {
-        targetElement.removeAttribute('data-card-moving')
-      } else {
-        targetElement.setAttribute('data-card-moving', previousMovingFlag)
-      }
-      restoreOverflowAncestors(overflowSnapshots)
-      resolve()
-    }
-
-    animation.onfinish = cleanup
-    animation.oncancel = cleanup
+  return animateOverlayCopy({
+    imageSrc: readCardImageSource(destinationElement),
+    sourceRect,
+    destinationRect: destinationElement.getBoundingClientRect(),
+    durationMs,
+    key: resolveElementFlightKey(destinationElement),
+    elementHiddenDuringFlight: destinationElement,
+    mode: 'enter',
   })
 }
 
@@ -323,40 +324,6 @@ export function runHandToPileAnimation({
   return animateCardEntityToDestination(sourceCardElement, destinationRect, 340)
 }
 
-function createCardImageGhostElement(imageSrc: string, sourceRect: DOMRect): HTMLDivElement | null {
-  if (!imageSrc || sourceRect.width <= 0 || sourceRect.height <= 0) {
-    return null
-  }
-
-  const ghost = document.createElement('div')
-  ghost.setAttribute('data-card-ghost', 'true')
-  ghost.style.position = 'fixed'
-  ghost.style.left = `${sourceRect.left}px`
-  ghost.style.top = `${sourceRect.top}px`
-  ghost.style.width = `${sourceRect.width}px`
-  ghost.style.height = `${sourceRect.height}px`
-  ghost.style.zIndex = '400'
-  ghost.style.pointerEvents = 'none'
-  ghost.style.willChange = 'transform'
-  ghost.style.transformOrigin = 'center center'
-  ghost.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
-  ghost.style.borderRadius = '8px'
-  ghost.style.overflow = 'hidden'
-
-  const image = document.createElement('img')
-  image.src = imageSrc
-  image.alt = ''
-  image.draggable = false
-  image.style.width = '100%'
-  image.style.height = '100%'
-  image.style.objectFit = 'cover'
-  image.style.borderRadius = '8px'
-  ghost.appendChild(image)
-
-  document.body.appendChild(ghost)
-  return ghost
-}
-
 /**
  * Flies a throwaway copy of a card's art from a captured rectangle towards a destination element.
  * Only the image is drawn (no overlays), and the real card in the DOM is never moved - so there is
@@ -367,44 +334,22 @@ export function runCardImageGhostToElementAnimation({
   sourceRect,
   destinationElement,
   durationMs = 340,
+  key,
 }: ICardImageGhostToElementAnimationArgs): Promise<void> {
-  const ghost = createCardImageGhostElement(imageSrc, sourceRect)
-  const destinationRect = destinationElement?.getBoundingClientRect() ?? null
-
-  if (!ghost || !destinationRect || destinationRect.width <= 0 || destinationRect.height <= 0) {
-    ghost?.remove()
+  if (!destinationElement) {
     return Promise.resolve()
   }
 
-  const offsetX = destinationRect.left + destinationRect.width / 2 - (sourceRect.left + sourceRect.width / 2)
-  const offsetY = destinationRect.top + destinationRect.height / 2 - (sourceRect.top + sourceRect.height / 2)
-  const endScale = Math.max(destinationRect.width / sourceRect.width, 0.15)
-
-  const animation = ghost.animate(
-    [
-      {
-        transform: 'translate(0px, 0px) scale(1)',
-        opacity: 0.98,
-      },
-      {
-        transform: `translate(${offsetX}px, ${offsetY}px) scale(${endScale})`,
-        opacity: 0.9,
-      },
-    ],
-    {
-      duration: durationMs,
-      easing: STANDARD_MOVEMENT_EASING,
-    },
-  )
-
-  return new Promise<void>((resolve) => {
-    const cleanup = () => {
-      ghost.remove()
-      resolve()
-    }
-
-    animation.onfinish = cleanup
-    animation.oncancel = cleanup
+  return animateOverlayCopy({
+    imageSrc,
+    sourceRect,
+    destinationRect: destinationElement.getBoundingClientRect(),
+    durationMs,
+    // The caller names the card the copy belongs to, so a second flight for the same card takes this one
+    // over instead of stacking a second copy in the air.
+    key: key ?? `flight-anonymous-${flightCopySequence++}`,
+    elementHiddenDuringFlight: null,
+    mode: 'exit',
   })
 }
 

@@ -262,18 +262,31 @@ test.describe('GameView multiplayer battle visuals', () => {
           const startScreen = toScreen(0)
           const endScreen = toScreen(path.getTotalLength())
 
+          // The card's tilt is applied by whatever owns its transform - a Tailwind `rotate` class or, after the
+          // Motion migration, a Motion `rotate` on the card's wrapper. Read the effective rotation by walking up
+          // from the card, so the measurement follows the visual tilt wherever it is applied.
+          const readEffectiveRotationRad = (element: HTMLElement): number => {
+            let node: HTMLElement | null = element
+            while (node) {
+              const style = getComputedStyle(node)
+              const rotateMatch = (style.rotate ?? '').match(/(-?[\d.]+)deg/)
+              if (rotateMatch) {
+                return (Number.parseFloat(rotateMatch[1]) * Math.PI) / 180
+              }
+              if (style.transform && style.transform !== 'none') {
+                const matrix = new DOMMatrixReadOnly(style.transform)
+                if (matrix.a !== 1 || matrix.b !== 0) {
+                  return Math.atan2(matrix.b, matrix.a)
+                }
+              }
+              node = node.parentElement
+            }
+            return 0
+          }
+
           const distanceToSurface = (element: HTMLElement, point: { x: number; y: number }) => {
             const rect = element.getBoundingClientRect()
-            const style = getComputedStyle(element)
-            // Tailwind v4 emits the rested tilt as the standalone `rotate` property (the `transform`
-            // property stays "none" while the card is visually tilted) - reading it from `transform`
-            // alone would measure the anchor against the unrotated box and hide the drift.
-            const rotateMatch = (style.rotate ?? '').match(/(-?[\d.]+)deg/)
-            const angle = rotateMatch
-              ? (Number.parseFloat(rotateMatch[1]) * Math.PI) / 180
-              : style.transform && style.transform !== 'none'
-                ? Math.atan2(new DOMMatrixReadOnly(style.transform).b, new DOMMatrixReadOnly(style.transform).a)
-                : 0
+            const angle = readEffectiveRotationRad(element)
             // Distances are rotation invariant, so bring the point into the card's own frame and measure
             // against its unrotated layout box: 0 = the anchor sits on the card.
             const dx = point.x - (rect.left + rect.width / 2)
@@ -300,11 +313,30 @@ test.describe('GameView multiplayer battle visuals', () => {
         timeout: 8_000,
       }).toEqual({ sourceOnVisualEdge: true, targetOnVisualEdge: true })
 
+      // The attacker is tilted from the backend's rested flag. Motion applies the rotation on the card's
+      // wrapper rather than as a Tailwind class on the card, so assert the effective rotation instead.
       await expect.poll(async () => {
-        return await attackerAfterReload.getAttribute('class')
+        return await attackerAfterReload.evaluate((element) => {
+          let node: HTMLElement | null = element
+          while (node) {
+            const style = getComputedStyle(node)
+            const rotateMatch = (style.rotate ?? '').match(/(-?[\d.]+)deg/)
+            if (rotateMatch) {
+              return Math.round(Number.parseFloat(rotateMatch[1]))
+            }
+            if (style.transform && style.transform !== 'none') {
+              const matrix = new DOMMatrixReadOnly(style.transform)
+              if (matrix.a !== 1 || matrix.b !== 0) {
+                return Math.round((Math.atan2(matrix.b, matrix.a) * 180) / Math.PI)
+              }
+            }
+            node = node.parentElement
+          }
+          return 0
+        })
       }, {
         timeout: 8_000,
-      }).toContain('rotate-[14deg]')
+      }).toBe(14)
 
       await expect.poll(async () => {
         return await attackerAfterReload.getAttribute('class')

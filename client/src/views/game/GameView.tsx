@@ -276,6 +276,7 @@ export function GameView() {
             <GameHandRow
               cards={topHandCards}
               rowRef={viewRefs.setTopHandRowRefs}
+              getCardKey={(card) => card.instanceId}
               rowTestId="top-hand-row"
               rowClassName="h-[230%] -translate-y-[62%]"
               renderCard={(card) => {
@@ -290,7 +291,7 @@ export function GameView() {
                   <div
                     key={`top-hand-${card.instanceId}`}
                     data-hand-instance-id={card.instanceId}
-                    className="h-full aspect-[200/277] shrink-0"
+                    className="h-full w-full"
                   >
                     <FlippableCard
                       isFlipped={revealedCard !== null}

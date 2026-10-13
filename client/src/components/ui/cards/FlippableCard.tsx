@@ -1,4 +1,6 @@
+import { motion } from 'motion/react'
 import { twMerge } from 'tailwind-merge'
+import { BOARD_MOVEMENT_EASE } from '@/views/game/animation/tuning'
 import type { IFlippableCardProps } from '@/components/ui/types'
 
 export function FlippableCard({
@@ -13,13 +15,15 @@ export function FlippableCard({
 }: IFlippableCardProps) {
   return (
     <div className={twMerge('relative h-full w-full [perspective:920px]', className)}>
-      <div
-        className={twMerge(
-          'relative h-full w-full [transform-style:preserve-3d] transition-transform ease-[cubic-bezier(0.22,1,0.36,1)]',
-          isFlipped ? '[transform:rotateY(180deg)]' : '[transform:rotateY(0deg)]',
-          innerClassName,
-        )}
-        style={{ transitionDuration: `${durationMs}ms` }}
+      <motion.div
+        // Motion owns the flip: the 3D transform is animated declaratively instead of through a CSS
+        // `transition-transform` class, so the card's transform has a single owner. `initial={false}` applies
+        // the current face on mount (a card that is already flipped, e.g. a revealed deck card, must not
+        // perform the flip as an entrance animation).
+        initial={false}
+        animate={{ rotateY: isFlipped ? 180 : 0 }}
+        transition={{ duration: durationMs / 1000, ease: BOARD_MOVEMENT_EASE }}
+        className={twMerge('relative h-full w-full [transform-style:preserve-3d]', innerClassName)}
       >
         <div
           className={twMerge('absolute inset-0 [backface-visibility:hidden]', backClassName)}
@@ -36,7 +40,7 @@ export function FlippableCard({
         >
           {front}
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }

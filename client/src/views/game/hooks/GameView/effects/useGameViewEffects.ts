@@ -9,7 +9,6 @@ import summonCardImage from '@/assets/SummonCard.webp'
 import cardBackImage from '@/assets/CardBackside.webp'
 import type {
   IGameLoaderData,
-  IGameViewAnimController,
   IPlayerCardZoneInstanceIds,
   IRevalidatorState,
   IUseCardMoveGhostAnimationEffectArgs,
@@ -21,22 +20,29 @@ import type {
 import {
   PHASE_PRESENTATION_RETRY_MS,
   isPresentationAwaitingAck,
-  pruneSettledAnimations,
-  resolveAnimationsSettleAtMs,
   resolvePresentationAckAtMs,
   runCardImageGhostToElementAnimation,
   runDeckToHandAnimation,
   runRectToDynamicElementAnimation,
 } from '@/views/game/utils/functions'
+import {
+  clearFlights,
+  noteFlight,
+  pruneSettledFlights,
+  resolveFlightsSettleAtMs,
+  whenIdle,
+} from '@/views/game/animation'
+import {
+  CARD_TO_TRASH_FLY_DURATION_MS,
+  CARD_TO_TRASH_STAGGER_MS,
+  DECK_TO_HAND_FLY_DURATION_MS,
+  DRAW_ANIMATION_COMPLETE_PADDING_MS,
+  REVEAL_SUMMON_FLIGHT_DURATION_MS,
+  TRASH_RECALL_SUMMON_FLIGHT_DURATION_MS,
+} from '@/views/game/animation/tuning'
+import { cancelAllFlights } from '@/views/game/animation/flightRegistry'
+
 const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackImage]
-const DECK_TO_HAND_FLY_DURATION_MS = 300
-const DRAW_ANIMATION_COMPLETE_PADDING_MS = 100
-const CARD_TO_TRASH_FLY_DURATION_MS = 340
-const CARD_TO_TRASH_STAGGER_MS = 90
-// A revealed card summoned straight out of the deck travels the same route a hand→field summon does.
-const REVEAL_SUMMON_FLIGHT_DURATION_MS = 360
-// A card summoned out of the trash (Gamabunta's "[On Summon]") flies from the trash slot onto the field.
-const TRASH_RECALL_SUMMON_FLIGHT_DURATION_MS = 360
 
 /**
  * Where a card was rendered when the last snapshot was taken, so its exit can start from the exact spot
@@ -421,7 +427,7 @@ function useHandZoneAnimationEffects({
           // A discard is an animation like the draw: the phase-presentation acknowledgement has to wait for
           // the last card to land in its pile, not just for the deck→hand flights.
           const lastHandToPileIndex = Math.max(topHandToTrashCards.length, bottomHandToTrashCards.length) - 1
-          animController.noteAnimation(
+          noteFlight(
             'hand-to-pile',
             Date.now()
               + Math.max(lastHandToPileIndex, 0) * handToPileStaggerMs
@@ -474,7 +480,7 @@ function useHandZoneAnimationEffects({
           + DRAW_ANIMATION_COMPLETE_PADDING_MS
         // The deck→hand flight is the one animation the phase-presentation acknowledgement must never cut:
         // a draw presentation is exactly "the cards are arriving in the hand".
-        animController.noteAnimation('draw', animController.drawAnimationEndsAt)
+        noteFlight('draw', animController.drawAnimationEndsAt)
 
         animController.pendingDrawAnimationFrameId = window.requestAnimationFrame(() => {
           topDeckToHandCards.forEach((instanceId, index) => {
@@ -575,6 +581,11 @@ function useHandZoneAnimationEffects({
         window.clearTimeout(timeoutId)
       })
       animController.pendingDrawTimeoutIds = []
+
+      // The board is being torn down: no flight may outlive it (its ghost would be orphaned in the DOM), and the
+      // director's flight registry must not leak deadlines into a remount.
+      cancelAllFlights()
+      clearFlights()
     }
   }, [animControllerRef])
 }
@@ -641,12 +652,13 @@ function useCardMoveGhostAnimationEffect({
           sourceRect: snapshot.rect,
           destinationElement,
           durationMs: CARD_TO_TRASH_FLY_DURATION_MS,
+          key: instanceId,
         })
       }, movementDelay)
       animController.pendingDrawTimeoutIds.push(timeoutId)
       // A card flying to its new zone is part of the transition the engine is waiting on: register the flight
       // so the acknowledgement cannot cut it in half.
-      animController.noteAnimation(`ghost:${instanceId}`, Date.now() + movementDelay + CARD_TO_TRASH_FLY_DURATION_MS)
+      noteFlight(`ghost:${instanceId}`, Date.now() + movementDelay + CARD_TO_TRASH_FLY_DURATION_MS)
     }
 
     ghostSnapshotRef.current = nextSnapshots
@@ -826,7 +838,6 @@ function usePhasePresentationAckEffect({
   isConnected,
   authUserId,
   pendingPresentation,
-  animControllerRef,
   acknowledgePhasePresentation,
 }: IUsePhasePresentationAckEffectArgs): void {
   const presentationId = pendingPresentation?.presentationId ?? null
@@ -851,14 +862,14 @@ function usePhasePresentationAckEffect({
     let isCancelled = false
     let timeoutId = 0
 
-    const resolveAckAtMs = (animController: IGameViewAnimController): number => {
+    const resolveAckAtMs = (): number => {
       const nowMs = Date.now()
-      pruneSettledAnimations(animController.animationEndsAtByKey, nowMs)
+      pruneSettledFlights(nowMs)
 
       return resolvePresentationAckAtMs({
         kind: presentationKind,
         seenAtMs: seenAtRef.current.seenAtMs,
-        animationsSettleAtMs: resolveAnimationsSettleAtMs(animController.animationEndsAtByKey, nowMs),
+        animationsSettleAtMs: resolveFlightsSettleAtMs(nowMs),
       })
     }
 
@@ -880,8 +891,17 @@ function usePhasePresentationAckEffect({
             return
           }
 
-          const animController = animControllerRef.current
-          const ackAtMs = resolveAckAtMs(animController)
+          // Wait for the director's queue to drain before answering: the acknowledgement is the engine's gate,
+          // and a card still in the air must not be cut in half.
+          await whenIdle()
+
+          // The wait may have spanned a state push: only the presentation this timer was armed for may be
+          // acknowledged, and a submit that landed meanwhile still owns the board.
+          if (useGameHubStore.getState().gameState?.pendingPresentation?.presentationId !== presentationId) {
+            return
+          }
+
+          const ackAtMs = resolveAckAtMs()
           const remainingMs = ackAtMs - Date.now()
           if (remainingMs > 0) {
             // The board is still animating (or the kind's minimum window has not elapsed): wait for whichever
@@ -903,7 +923,7 @@ function usePhasePresentationAckEffect({
       }, delayMs)
     }
 
-    scheduleAck(Math.max(0, resolveAckAtMs(animControllerRef.current) - Date.now()))
+    scheduleAck(Math.max(0, resolveAckAtMs() - Date.now()))
 
     return () => {
       isCancelled = true
@@ -911,7 +931,6 @@ function usePhasePresentationAckEffect({
     }
   }, [
     acknowledgePhasePresentation,
-    animControllerRef,
     authUserId,
     isAckOwed,
     isConnected,

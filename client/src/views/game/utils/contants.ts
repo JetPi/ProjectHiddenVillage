@@ -1,12 +1,13 @@
 import { CARD_ART_IMAGE_CLASS } from '@/components/ui/cards'
+import {
+  DRAW_TO_HAND_REVEAL_DELAY_MS,
+  DRAW_TO_HAND_STAGGER_MS,
+  HAND_TO_PILE_DURATION_MS,
+  HAND_TO_PILE_STAGGER_MS,
+  REVEAL_PRESENTATION_MS,
+} from '@/views/game/animation/tuning'
 
 const GAME_CARD_PRELOAD_POLL_INTERVAL_MS = 6_000
-const DRAW_TO_HAND_STAGGER_MS = 70
-const DRAW_TO_HAND_REVEAL_DELAY_MS = 140
-const HAND_TO_PILE_STAGGER_MS = 60
-const HAND_TO_PILE_DURATION_MS = 340
-// How long a reveal presentation stays on screen before the client acknowledges it and lets the chain resume.
-const REVEAL_PRESENTATION_MS = 2_000
 
 const ATTACK_ARROW_COLOR = 'rgba(251, 146, 60, 0.98)'
 const ATTACK_ARROW_STROKE_WIDTH_PX = 4.5

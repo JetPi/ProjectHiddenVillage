@@ -40,9 +40,10 @@ export async function getAnimationCount(page: Page): Promise<number> {
 }
 
 /**
- * Counts how many card ghosts actually fly (`data-card-ghost`, see `runCardImageGhostToElementAnimation`).
- * Cards that leave the battlefield or the hand for the trash animate through that path, so a rising count
- * proves the exit was animated instead of the card appearing in the trash out of nowhere.
+ * Counts how many card flight copies actually fly (`data-card-flight-copy`, see the animation helpers under
+ * `views/game/animation`). Cards that leave the battlefield or the hand for the trash animate through that
+ * path, so a rising count proves the exit was animated instead of the card appearing in the trash out of
+ * nowhere.
  */
 export async function installCardGhostAnimationCounter(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -61,7 +62,7 @@ export async function installCardGhostAnimationCounter(page: Page): Promise<void
       keyframes: PropertyIndexedKeyframes | Keyframe[],
       options?: number | KeyframeAnimationOptions,
     ): Animation {
-      if (this instanceof Element && this.getAttribute('data-card-ghost') === 'true') {
+      if (this instanceof Element && this.getAttribute('data-card-flight-copy') === 'true') {
         const currentCount = typeof state.__phvCardGhostCount === 'number' ? state.__phvCardGhostCount : 0
         state.__phvCardGhostCount = currentCount + 1
       }
@@ -78,6 +79,59 @@ export async function getCardGhostAnimationCount(page: Page): Promise<number> {
   return await page.evaluate(() => {
     const state = window as unknown as { __phvCardGhostCount?: number }
     return typeof state.__phvCardGhostCount === 'number' ? state.__phvCardGhostCount : 0
+  })
+}
+
+/**
+ * Counts attack lunges. The lunge is the only board animation that yoyos back to where it started - three
+ * keyframes, the first and last both `translate(0px, 0px)` with the middle one displaced - so counting that
+ * shape proves the attack resolution was drawn on the board instead of only landing in the phase banner.
+ */
+export async function installCardLungeCounter(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const marker = '__phvCardLungeCounterInstalled'
+    const state = window as unknown as {
+      [key: string]: unknown
+      __phvCardLungeCount?: number
+    }
+
+    if (state[marker] === true) {
+      return
+    }
+
+    const originalAnimate = Element.prototype.animate
+    Element.prototype.animate = function patchedAnimate(
+      keyframes: PropertyIndexedKeyframes | Keyframe[],
+      options?: number | KeyframeAnimationOptions,
+    ): Animation {
+      const frames = Array.isArray(keyframes) ? keyframes : null
+      if (frames && frames.length === 3) {
+        const firstTransform = String((frames[0] as Keyframe).transform ?? '')
+        const middleTransform = String((frames[1] as Keyframe).transform ?? '')
+        const lastTransform = String((frames[2] as Keyframe).transform ?? '')
+
+        if (
+          firstTransform === 'translate(0px, 0px)'
+          && lastTransform === 'translate(0px, 0px)'
+          && middleTransform.startsWith('translate(')
+        ) {
+          const currentCount = typeof state.__phvCardLungeCount === 'number' ? state.__phvCardLungeCount : 0
+          state.__phvCardLungeCount = currentCount + 1
+        }
+      }
+
+      return originalAnimate.call(this, keyframes, options)
+    }
+
+    state.__phvCardLungeCount = 0
+    state[marker] = true
+  })
+}
+
+export async function getCardLungeCount(page: Page): Promise<number> {
+  return await page.evaluate(() => {
+    const state = window as unknown as { __phvCardLungeCount?: number }
+    return typeof state.__phvCardLungeCount === 'number' ? state.__phvCardLungeCount : 0
   })
 }
 
@@ -598,9 +652,11 @@ export type PileSlotGeometrySample = {
 }
 
 /**
- * Records the entry animations of character-field cards. `runRectToDynamicElementAnimation` animates the real
- * destination element from its source rectangle, so a recorded frame whose start transform is offset proves the
- * card FLEW into its slot (a reveal-summon out of the deck, a hand summon) instead of simply appearing there.
+ * Records the entry animations of character-field cards. A flight is drawn by an overlay copy in the board's
+ * flight layer (`CardFlightLayer`), which starts offset from the source and lands on the destination, so a
+ * recorded frame whose start transform is offset proves the card FLEW into its slot (a reveal-summon out of the
+ * deck, a hand summon) instead of simply appearing there. The copy's card is read from
+ * `data-flight-instance-id`.
  */
 export async function installBattlefieldEntryAnimationRecorder(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -620,7 +676,9 @@ export async function installBattlefieldEntryAnimationRecorder(page: Page): Prom
       options?: number | KeyframeAnimationOptions,
     ): Animation {
       const target = this instanceof Element ? this : null
-      if (target?.getAttribute('data-zone') === 'character-field-card') {
+      const isBattlefieldCard = target?.getAttribute('data-zone') === 'character-field-card'
+      const isFlightCopy = target?.getAttribute('data-card-flight-copy') === 'true'
+      if (target && (isBattlefieldCard || isFlightCopy)) {
         const firstKeyframe = Array.isArray(keyframes) ? keyframes[0] : keyframes
         const fromTransform =
           firstKeyframe && typeof firstKeyframe === 'object'
@@ -628,7 +686,9 @@ export async function installBattlefieldEntryAnimationRecorder(page: Page): Prom
             : ''
         const recorded = state.__phvBattlefieldEntryAnimations ?? []
         recorded.push({
-          instanceId: target.getAttribute('data-card-instance-id') ?? '',
+          instanceId: isFlightCopy
+            ? (target.getAttribute('data-flight-instance-id') ?? '')
+            : (target.getAttribute('data-card-instance-id') ?? ''),
           fromTransform,
           at: Math.round(performance.now()),
         })

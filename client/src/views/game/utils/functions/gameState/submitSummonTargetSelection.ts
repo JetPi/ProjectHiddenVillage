@@ -143,6 +143,7 @@ function scheduleCardGhostAnimations({
         imageSrc: ghostSource.imageSrc,
         sourceRect: ghostSource.sourceRect,
         destinationElement: ghostSource.side === 'top' ? topTrashCardRef.current : bottomTrashCardRef.current,
+        key: ghostSource.instanceId,
       })
     }, index * HAND_TO_PILE_STAGGER_MS)
 

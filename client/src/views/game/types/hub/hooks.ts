@@ -20,17 +20,12 @@ export type ILeaderCardsViewModel = {
 
 export type IGameViewAnimController = {
   /**
-   * The animations the board is playing right now, keyed by the animation, valued by the timestamp they are
-   * expected to finish at. The phase-presentation acknowledgement waits on this instead of on a fixed delay, so a
-   * client never tells the engine "I am done animating" while a card is still in the air. Entries are pruned as
-   * their deadlines pass.
+   * Resolves when the director's flight registry has drained (immediately when nothing is in flight). The
+   * phase-presentation acknowledgement waits on this instead of inspecting individual animations, so a new kind
+   * of animation cannot forget to register and the engine never resumes while a card is still in the air. The
+   * registry itself lives in `views/game/animation/boardAnimationDirector.ts`.
    */
-  animationEndsAtByKey: Map<string, number>
-  /**
-   * Registers a flight the acknowledgement has to wait for. A key that is already registered is extended, never
-   * shortened, so a re-scheduled animation of the same kind cannot cut a longer one short.
-   */
-  noteAnimation: (key: string, endsAt: number) => void
+  whenIdle: () => Promise<void>
   drawAnimationEndsAt: number | null
   pendingDrawAnimationFrameId: number | null
   pendingDrawTimeoutIds: number[]
@@ -116,8 +111,6 @@ export type IUsePhasePresentationAckEffectArgs = {
   authUserId?: string
   /** The engine's outstanding transition, or null when the board is free to act. */
   pendingPresentation: IPhasePresentationResponse | null | undefined
-  /** The board's animation registry: the acknowledgement waits for the flights it lists. */
-  animControllerRef: RefObject<IGameViewAnimController>
   /** Sends the acknowledgement (never through `submitHubIntent`, so it cannot set the pending flag). */
   acknowledgePhasePresentation: (presentationId: string) => Promise<boolean>
 }

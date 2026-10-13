@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
-import { useAutoAnimate } from '@formkit/auto-animate/react'
+import { useCallback, useRef } from 'react'
 import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 import { GameHandRow } from './GameHandRow'
 import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
@@ -23,13 +22,11 @@ export function BottomHandReorderRow({
   onChooseTarget,
 }: IBottomHandReorderRowProps) {
   const internalRowRef = useRef<HTMLDivElement | null>(null)
-  const [autoAnimateRef, setAutoAnimateEnabled] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
 
   const handleRowMount = useCallback((node: HTMLDivElement | null) => {
     internalRowRef.current = node
-    autoAnimateRef(node)
     rowRef(node)
-  }, [autoAnimateRef, rowRef])
+  }, [rowRef])
 
   const {
     orderedCards,
@@ -41,14 +38,14 @@ export function BottomHandReorderRow({
     rowRef: internalRowRef,
   })
 
-  useEffect(() => {
-    setAutoAnimateEnabled(!isReorderDragging)
-  }, [isReorderDragging, setAutoAnimateEnabled])
-
   return (
     <GameHandRow
       cards={orderedCards}
       rowRef={handleRowMount}
+      getCardKey={(card) => card.instanceId}
+      // The reorder engine moves the dragged card itself (fixed position + transform), so Motion must not
+      // also lay the slots out while a drag is in progress.
+      isLayoutAnimationEnabled={!isReorderDragging}
       rowTestId="bottom-hand-row"
       rowClassName="overflow-visible"
       renderCard={(card) => {
@@ -72,7 +69,7 @@ export function BottomHandReorderRow({
             onDragStart={(event) => {
               event.preventDefault()
             }}
-            className={`h-full aspect-[200/277] shrink-0 select-none ${activeDraggedInstanceId === card.instanceId ? 'z-[260] touch-none' : 'touch-manipulation'}`}
+            className={`h-full w-full select-none ${activeDraggedInstanceId === card.instanceId ? 'z-[260] touch-none' : 'touch-manipulation'}`}
             {...cardPointerHandlers}
           >
             <FlippableCard

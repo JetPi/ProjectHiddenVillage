@@ -9,7 +9,24 @@ import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/
 // freely-arranged battlefield characters (which use 14deg in BattleFieldRow).
 const LEADER_RESTED_ROTATION_CLASS = 'rotate-[5deg]'
 
+// The card's tilt may be applied on the element itself (a Tailwind `rotate-[…deg]` class) or, now that Motion
+// owns the board card's transform, on a wrapper element. Walk up from the card until a rotation is found so the
+// visual-edge compensation below follows the tilt wherever it is applied; a pure translate/scale ancestor
+// yields a zero angle and the walk simply continues.
 function getRotationRadians(element: HTMLElement): number {
+  let current: HTMLElement | null = element
+  while (current) {
+    const angle = getOwnRotationRadians(current)
+    if (angle !== 0) {
+      return angle
+    }
+    current = current.parentElement
+  }
+
+  return 0
+}
+
+function getOwnRotationRadians(element: HTMLElement): number {
   const style = window.getComputedStyle(element)
 
   // Tailwind v4 emits `rotate-[14deg]` / `rotate-[5deg]` as the standalone `rotate` property, so the

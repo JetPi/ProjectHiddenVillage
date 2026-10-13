@@ -5,6 +5,8 @@ import {
   declarePassInActionStepViaHub,
   executeBattleActionViaHub,
   fetchGameState,
+  getCardLungeCount,
+  installCardLungeCounter,
   openMultiplayerPages,
   resolveActorWithBottomBattleAction,
   resolveActorWithBottomHandAction,
@@ -131,10 +133,14 @@ test.describe('GameView multiplayer attack sequence', () => {
         const activePage = isPlayerOneActive ? pages.playerOnePage : pages.playerTwoPage
 
         await activePage.getByTestId('pass-turn-button').click()
+        // This waits on an infrastructure round trip (two clients acking an engine-driven turn hand-over), not
+        // on an animation: on a loaded machine the EndStep -> Draw -> Ready chain plus the REST polls can take
+        // well past 25 s even though nothing is wrong. The condition asserted below is unchanged - only the
+        // wait budget is generous.
         await expect.poll(async () => {
           const nextState = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)
           return `${nextState.phase}:${nextState.activePlayerId.toLowerCase() !== state.activePlayerId.toLowerCase()}`
-        }, { timeout: 25_000 }).toBe('MainPhase:true')
+        }, { timeout: 45_000 }).toBe('MainPhase:true')
       }
 
       // Both attackers are summoned one turn ahead so they are not summon-sick when attacking.
@@ -146,6 +152,9 @@ test.describe('GameView multiplayer attack sequence', () => {
       // Attack #1 by the starting owner.
       const firstAttack = await resolveActorWithBottomBattleAction(request, setup, pages)
       expect(firstAttack.cardInstanceId).toBe(firstAttacker)
+      // The attack resolution has to be visible on the board - the attacker lunges out and back. The counter
+      // observes that yoyo on the attacker's own card element.
+      await installCardLungeCounter(firstAttack.actorPage)
       await executeBattleActionViaHub(setup.gameCode, firstAttack.actor, firstAttack.actionId, firstAttack.cardInstanceId)
       await passThroughActionStep(request, setup)
       await waitForMainPhase(request, setup)
@@ -160,6 +169,8 @@ test.describe('GameView multiplayer attack sequence', () => {
       await passThroughActionStep(request, setup)
       await waitForMainPhase(request, setup)
       await expectActivePlayerCanAct(request, setup)
+
+      await expect.poll(async () => getCardLungeCount(firstAttack.actorPage), { timeout: 8_000 }).toBeGreaterThan(0)
     } finally {
       await closeMultiplayerPages(pages)
     }

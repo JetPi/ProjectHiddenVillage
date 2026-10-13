@@ -5,6 +5,7 @@ import { useAuthSessionStore } from '@/state/authSession'
 import { useGameHubStore } from '@/state/gameHubStore'
 import { areActionListsEqual, resolveCurrentPlayer, toggleEffectTargetSelection, toggleSummonTargetSelection } from '@/views/game/utils/functions'
 import type { IGameUIStoreState } from '@/state/types/gameUIStore'
+import { resolveEnvBoardAnimationMode } from '@/views/game/animation/boardAnimationMode'
 
 function resolveUpdate<T>(value: SetStateAction<T>, previous: T): T {
   return typeof value === 'function' ? (value as (previous: T) => T)(previous) : value
@@ -66,12 +67,15 @@ const initialState = {
   retainedInteractiveAvailableActions: [],
   retainedIsActionBlocked: false,
   isSupportWindowHudHolding: false,
+  boardAnimationMode: resolveEnvBoardAnimationMode(),
 }
 
 export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
   ...initialState,
   setBottomHandFaceUpByInstanceId: (value) =>
     set((state) => ({ bottomHandFaceUpByInstanceId: resolveUpdate(value, state.bottomHandFaceUpByInstanceId) })),
+  setBoardAnimationMode: (value) =>
+    set((state) => ({ boardAnimationMode: resolveUpdate(value, state.boardAnimationMode) })),
   setIsMulliganAnimationPending: (value) =>
     set((state) => ({ isMulliganAnimationPending: resolveUpdate(value, state.isMulliganAnimationPending) })),
   setPendingCardTargeting: (value) =>

@@ -1,5 +1,7 @@
+import { motion } from 'motion/react'
 import { CardBack, CardImage } from '@/components/ui/cards'
 import { PlayCard } from '@/components/ui/game'
+import { BOARD_MOVEMENT_EASE, RESTED_CARD_TILT_DEG, RESTED_CARD_TILT_DURATION_MS } from '@/views/game/animation/tuning'
 import { twMerge } from 'tailwind-merge'
 import type { IGameZonesProps } from '@/views/game/types'
 import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
@@ -42,16 +44,28 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                 const shouldDimRestedCard = isCardRested && !shouldDelayRestedDimming
 
                 return (
+                    <motion.div
+                        key={`character-field-${card.instanceId}`}
+                        // Motion owns the board card's transform: the rested tilt is an animated property here
+                        // instead of a CSS `transition-transform` class, so nothing else writes `transform` and
+                        // the permanent `will-change-transform` the old class carried is gone.
+                        animate={{ rotate: isCardRested ? RESTED_CARD_TILT_DEG : 0 }}
+                        transition={{ duration: RESTED_CARD_TILT_DURATION_MS / 1000, ease: BOARD_MOVEMENT_EASE }}
+                        // `position` only: when a card leaves or joins the row the remaining cards slide into
+                        // their new slots instead of snapping, and card art is never left at a fractional scale.
+                        // Deliberately no `layoutId`: cross-zone travel is still drawn by the flight layer's
+                        // overlay copy, and a shared layout id would double-animate the same move.
+                        layout="position"
+                        className="h-full w-auto shrink-0 origin-center aspect-[200/277]"
+                    >
                         <PlayCard
-                            key={`character-field-${card.instanceId}`}
                             id={toAnchorId(card.instanceId)}
                             data-zone="character-field-card"
                             data-slot-side={data.isCurrentPlayerZone ? 'bottom' : 'top'}
                             data-slot-index={index}
                             data-card-instance-id={card.instanceId}
                             className={twMerge(
-                                'group relative h-full shrink-0 overflow-hidden rounded-lg bg-[var(--surface-elevated)] transition-transform duration-300 ease-out will-change-transform origin-center',
-                                isCardRested ? 'rotate-[14deg]' : 'rotate-0',
+                                'group relative h-full w-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
                                 shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
                                 isBattleTarget ? getBattleTargetHighlightClass(data.isCurrentPlayerZone ? 'bottom' : 'top') : '',
                                 isSummonTarget ? getSummonTargetHighlightClass(data.isCurrentPlayerZone ? 'bottom' : 'top') : '',
@@ -111,6 +125,7 @@ export function renderBattlefieldRow(data: IBattleFieldRowProps) {
                                 }}
                             />
                         </PlayCard>
+                    </motion.div>
                 )
             })}
         </div>

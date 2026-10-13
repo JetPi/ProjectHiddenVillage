@@ -17,6 +17,7 @@ import type { IGameUIStoreState, IPendingPromptSelectionState } from '@/state/ty
 import { useBattlefieldCardReorderEffect } from './useBattleFieldCards'
 import { useGetMainPhaseActions } from './useGetMainPhaseActions'
 import { useCardCatalogPreload, useCardMoveGhostAnimationEffect, useHandZoneAnimationEffects, usePhasePresentationAckEffect, useRevealedCardSummonFlightEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
+import { useAttackLungeEffect } from './useAttackLungeEffect'
 
 function useGameViewSideEffects({
   authUserId,
@@ -138,8 +139,14 @@ function useGameViewSideEffects({
     isConnected,
     authUserId,
     pendingPresentation: gameState.pendingPresentation,
-    animControllerRef,
     acknowledgePhasePresentation: gameHubState.acknowledgePhasePresentation,
+  })
+
+  // The attacker lunges when the engine reaches the damage stop - the moment the attack actually resolves.
+  useAttackLungeEffect({
+    pendingPresentation: gameState.pendingPresentation,
+    attackVisualState: gameState.pendingAttackVisualState,
+    boardZoneRef: viewRefs.boardZoneRef,
   })
 
   useBattlefieldCardReorderEffect(currentTopBattlefieldRawCards, setTopBattlefieldDisplayOrder)

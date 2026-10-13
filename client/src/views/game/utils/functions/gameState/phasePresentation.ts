@@ -14,7 +14,7 @@ const PHASE_PRESENTATION_ANIMATED_FLOOR_MS = 120
  * `Ready` that shows nothing but a card standing up (a rotation that registers no animation).
  */
 const PHASE_PRESENTATION_MINIMUM_MS: Record<string, number> = {
-  InitialDeal: 500,
+  InitialDeal: 200,
   Ready: 220,
   Draw: 260,
   Damage: 420,
@@ -69,36 +69,6 @@ function isPresentationAwaitingAck(
   )
 }
 
-/** Drops the animation deadlines that have already passed, so the registry cannot grow without bound. */
-function pruneSettledAnimations(animationEndsAtByKey: Map<string, number>, nowMs: number): void {
-  animationEndsAtByKey.forEach((endsAt, key) => {
-    if (endsAt <= nowMs) {
-      animationEndsAtByKey.delete(key)
-    }
-  })
-}
-
-/**
- * The moment every animation the board registered has finished, or null when nothing is in flight. This is what
- * lets the acknowledgement wait for the real flights (draw, ghosts) instead of guessing from the phase name.
- */
-function resolveAnimationsSettleAtMs(
-  animationEndsAtByKey: ReadonlyMap<string, number>,
-  nowMs: number,
-): number | null {
-  let settleAt: number | null = null
-
-  animationEndsAtByKey.forEach((endsAt) => {
-    if (endsAt <= nowMs) {
-      return
-    }
-
-    settleAt = settleAt === null ? endsAt : Math.max(settleAt, endsAt)
-  })
-
-  return settleAt
-}
-
 type IResolvePresentationAckAtArgs = {
   /** The presentation kind the server published (`Draw`, `Ready`, ...). */
   kind: string
@@ -136,8 +106,6 @@ export {
   PHASE_PRESENTATION_MINIMUM_MS,
   PHASE_PRESENTATION_RETRY_MS,
   isPresentationAwaitingAck,
-  pruneSettledAnimations,
-  resolveAnimationsSettleAtMs,
   resolvePresentationAckAtMs,
   resolvePresentationMinimumMs,
 }
