@@ -3,12 +3,13 @@ import { useGameHubStore } from '@/state/gameHubStore'
 import { preloadCardArtInPriorityBatches, type ICardArtPreloadEntry } from '@/services/cardPreloadService'
 import { preloadImageSources } from '@/services/imagePreloadCache'
 import { CARD_ART_WIDTHS } from '@/services/api/cardArt'
-import type { IGameStateResponse, IGamePlayerStateResponse } from '@/services/api/types/game'
+import type { IAnimationEventResponse, IGameStateResponse, IGamePlayerStateResponse } from '@/services/api/types/game'
 import chakraCardImage from '@/assets/ChakraCard.webp'
 import summonCardImage from '@/assets/SummonCard.webp'
 import cardBackImage from '@/assets/CardBackside.webp'
 import type {
   IGameLoaderData,
+  IGameViewAnimController,
   IPlayerCardZoneInstanceIds,
   IRevalidatorState,
   IUseCardMoveGhostAnimationEffectArgs,
@@ -21,15 +22,15 @@ import {
   PHASE_PRESENTATION_RETRY_MS,
   isPresentationAwaitingAck,
   resolvePresentationAckAtMs,
-  runCardImageGhostToElementAnimation,
-  runDeckToHandAnimation,
-  runRectToDynamicElementAnimation,
 } from '@/views/game/utils/functions'
 import {
   clearFlights,
   noteFlight,
   pruneSettledFlights,
   resolveFlightsSettleAtMs,
+  runCardImageGhostToElementAnimation,
+  runDeckToHandAnimation,
+  runRectToDynamicElementAnimation,
   whenIdle,
 } from '@/views/game/animation'
 import {
@@ -339,6 +340,153 @@ function useCardCatalogPreload(
 }
 
 
+const DRAW_MOVEMENT_KIND = 'draw'
+const DISCARD_MOVEMENT_KIND = 'discard'
+const HAND_MOVEMENT_ZONE = 'hand'
+const TRASH_MOVEMENT_ZONE = 'trash'
+
+type IRecordedHandMovements = {
+  drawnTop: string[]
+  drawnBottom: string[]
+  discardedTop: string[]
+  discardedBottom: string[]
+}
+
+/**
+ * The hand-affecting movements the engine recorded, consuming the events so the republished tail is only ever
+ * animated once.
+ *
+ * A movement's side is implicit: the event's card is looked up in that side's own zone instance ids, so a move for
+ * the other player simply does not match and no player-id comparison is needed. Returns null when the push carried
+ * no usable events - which is exactly when the caller falls back to inferring the moves from count/zone deltas.
+ */
+function consumeRecordedHandMovements(
+  animController: IGameViewAnimController,
+  animationEvents: IAnimationEventResponse[] | null | undefined,
+  zoneInstanceIdsBySide: {
+    topHand: string[]
+    bottomHand: string[]
+    topTrash: string[]
+    bottomTrash: string[]
+  },
+): IRecordedHandMovements | null {
+  if (!animationEvents || animationEvents.length === 0) {
+    return null
+  }
+
+  const topHand = toNormalizedInstanceIdSet(zoneInstanceIdsBySide.topHand)
+  const bottomHand = toNormalizedInstanceIdSet(zoneInstanceIdsBySide.bottomHand)
+  const topTrash = toNormalizedInstanceIdSet(zoneInstanceIdsBySide.topTrash)
+  const bottomTrash = toNormalizedInstanceIdSet(zoneInstanceIdsBySide.bottomTrash)
+  const movements: IRecordedHandMovements = {
+    drawnTop: [],
+    drawnBottom: [],
+    discardedTop: [],
+    discardedBottom: [],
+  }
+
+  for (const animationEvent of animationEvents) {
+    if (animController.handledAnimationEventIds.has(animationEvent.eventId)) {
+      continue
+    }
+
+    const kind = animationEvent.kind.trim().toLowerCase()
+    const toZone = (animationEvent.toZone ?? '').trim().toLowerCase()
+    const normalizedCardInstanceId = animationEvent.cardInstanceId.trim().toLowerCase()
+
+    // Only an event this consumer actually *acts on* is claimed. Several consumers read the same republished
+    // tail in the same commit, so claiming every event here would starve the others.
+    if (kind === DRAW_MOVEMENT_KIND && toZone === HAND_MOVEMENT_ZONE) {
+      if (topHand.has(normalizedCardInstanceId)) {
+        animController.handledAnimationEventIds.add(animationEvent.eventId)
+        movements.drawnTop.push(animationEvent.cardInstanceId)
+      } else if (bottomHand.has(normalizedCardInstanceId)) {
+        animController.handledAnimationEventIds.add(animationEvent.eventId)
+        movements.drawnBottom.push(animationEvent.cardInstanceId)
+      }
+      continue
+    }
+
+    if (kind === DISCARD_MOVEMENT_KIND && toZone === TRASH_MOVEMENT_ZONE) {
+      if (topTrash.has(normalizedCardInstanceId)) {
+        animController.handledAnimationEventIds.add(animationEvent.eventId)
+        movements.discardedTop.push(animationEvent.cardInstanceId)
+      } else if (bottomTrash.has(normalizedCardInstanceId)) {
+        animController.handledAnimationEventIds.add(animationEvent.eventId)
+        movements.discardedBottom.push(animationEvent.cardInstanceId)
+      }
+    }
+  }
+
+  const hasRecordedMovement = movements.drawnTop.length > 0
+    || movements.drawnBottom.length > 0
+    || movements.discardedTop.length > 0
+    || movements.discardedBottom.length > 0
+
+  return hasRecordedMovement ? movements : null
+}
+
+function toNormalizedInstanceIdSet(instanceIds: string[]): Set<string> {
+  return new Set(instanceIds.map((instanceId) => instanceId.trim().toLowerCase()))
+}
+
+const SUMMON_MOVEMENT_KIND = 'summon'
+const DECK_MOVEMENT_ZONE = 'deck'
+
+/**
+ * The first recorded summon out of a deck this client has not claimed yet, claimed by this call. Same
+ * claim-what-you-act-on rule as the hand consumer: the republished tail is shared by every consumer.
+ */
+function consumeRecordedDeckSummon(
+  animController: IGameViewAnimController,
+  animationEvents: IAnimationEventResponse[] | null | undefined,
+): IAnimationEventResponse | null {
+  if (!animationEvents || animationEvents.length === 0) {
+    return null
+  }
+
+  let deckSummon: IAnimationEventResponse | null = null
+
+  for (const animationEvent of animationEvents) {
+    if (animController.handledAnimationEventIds.has(animationEvent.eventId)) {
+      continue
+    }
+
+    if (deckSummon
+      || animationEvent.kind.trim().toLowerCase() !== SUMMON_MOVEMENT_KIND
+      || (animationEvent.fromZone ?? '').trim().toLowerCase() !== DECK_MOVEMENT_ZONE) {
+      continue
+    }
+
+    animController.handledAnimationEventIds.add(animationEvent.eventId)
+    deckSummon = animationEvent
+  }
+
+  return deckSummon
+}
+
+/** Which side of the board a movement's player sits on, or null when the id matches neither player. */
+function resolveCardSideForPlayerId(
+  playerId: string,
+  currentPlayer: IGamePlayerStateResponse | null,
+  opponentPlayer: IGamePlayerStateResponse | null,
+): 'top' | 'bottom' | null {
+  const normalizedPlayerId = playerId.trim().toLowerCase()
+  if (!normalizedPlayerId) {
+    return null
+  }
+
+  if ((currentPlayer?.playerId ?? '').trim().toLowerCase() === normalizedPlayerId) {
+    return 'bottom'
+  }
+
+  if ((opponentPlayer?.playerId ?? '').trim().toLowerCase() === normalizedPlayerId) {
+    return 'top'
+  }
+
+  return null
+}
+
 function useHandZoneAnimationEffects({
   topHandInstanceIds,
   bottomHandInstanceIds,
@@ -351,6 +499,7 @@ function useHandZoneAnimationEffects({
   drawToHandStaggerMs,
   drawToHandRevealDelayMs,
   handToPileStaggerMs,
+  animationEvents,
   topDeckCardRef,
   bottomDeckCardRef,
   topTrashCardRef,
@@ -377,19 +526,36 @@ function useHandZoneAnimationEffects({
       const bottomDeckDecrease = Math.max(previousSnapshot.bottomDeckCount - bottomDeckCount, 0)
       const topTrashIncrease = Math.max(topTrashCount - previousSnapshot.topTrashCount, 0)
       const bottomTrashIncrease = Math.max(bottomTrashCount - previousSnapshot.bottomTrashCount, 0)
-      const topDeckToHandCards = newTopHandCards.slice(0, topDeckDecrease)
+      // A draw or a discard is animated because the engine recorded which card moved, not because a new hand card
+      // happened to appear alongside a count drop. The count/zone inference below stays as the fallback for a push
+      // that carries no events (an older server, or a state no movement was recorded for).
+      const recordedMovements = consumeRecordedHandMovements(animController, animationEvents, {
+        topHand: topHandInstanceIds,
+        bottomHand: bottomHandInstanceIds,
+        topTrash: topTrashInstanceIds,
+        bottomTrash: bottomTrashInstanceIds,
+      })
+      const topDeckToHandCards = recordedMovements?.drawnTop.length
+        ? recordedMovements.drawnTop
+        : newTopHandCards.slice(0, topDeckDecrease)
       const bottomDeckToHandCards = animController.pendingMulliganDrawReplay
         ? bottomHandInstanceIds
-        : newBottomHandCards.slice(0, bottomDeckDecrease)
-      // A removed hand card is only on its way to the trash when it is *in* the trash now. The count delta alone
-      // mis-attributes a summon's hand exit to whatever else grew the trash in the same push (a tribute material
-      // coming off the field), which then flew the trash slot in from the hand on every tribute summon.
-      const topHandToTrashCards = removedTopHandCards
-        .filter((instanceId) => nextTopTrashInstanceIdSet.has(instanceId))
-        .slice(0, topTrashIncrease)
-      const bottomHandToTrashCards = removedBottomHandCards
-        .filter((instanceId) => nextBottomTrashInstanceIdSet.has(instanceId))
-        .slice(0, bottomTrashIncrease)
+        : recordedMovements?.drawnBottom.length
+          ? recordedMovements.drawnBottom
+          : newBottomHandCards.slice(0, bottomDeckDecrease)
+      // The count/zone inference (a removed hand card that is *in* the trash now) is the shape that used to
+      // mis-attribute a summon's hand exit to whatever else grew the trash in the same push - a tribute material
+      // coming off the field. It stays only as the fallback; the engine's recorded discard is the real source.
+      const topHandToTrashCards = recordedMovements?.discardedTop.length
+        ? recordedMovements.discardedTop
+        : removedTopHandCards
+          .filter((instanceId) => nextTopTrashInstanceIdSet.has(instanceId))
+          .slice(0, topTrashIncrease)
+      const bottomHandToTrashCards = recordedMovements?.discardedBottom.length
+        ? recordedMovements.discardedBottom
+        : removedBottomHandCards
+          .filter((instanceId) => nextBottomTrashInstanceIdSet.has(instanceId))
+          .slice(0, bottomTrashIncrease)
 
       if (animController.pendingMulliganDrawReplay) {
         animController.pendingMulliganDrawReplay = false
@@ -552,6 +718,7 @@ function useHandZoneAnimationEffects({
     bottomHandInstanceIds,
     bottomTrashCount,
     bottomTrashInstanceIds,
+    animationEvents,
     drawToHandRevealDelayMs,
     drawToHandStaggerMs,
     handToPileStaggerMs,
@@ -675,50 +842,51 @@ function useCardMoveGhostAnimationEffect({
 }
 
 /**
- * Flies the card a reveal turned face up out of the deck slot and onto its owner's character field: a
- * "Reveal First" chain that summons the revealed card (N-019 / N-022) moves it deck→battlefield without any
- * client submission, and the revealed card is drawn by the deck pile rather than as a card face - so the
- * generic move-ghost effect has no snapshot to fly from. The flight is driven by the reveal itself: the card
- * that was the revealed deck card last render and now has a character-field card element lands from the deck
- * slot.
+ * Flies a card summoned out of a deck onto the field.
+ *
+ * The engine records the movement (`summon` from `deck`), which is exactly what a "Reveal First" chain that
+ * summons its revealed card does - and which also covers a search-and-summon, a case the old "the deck card is
+ * flagged `isRevealed`" heuristic missed entirely. A deck card is drawn by the pile rather than as a card face,
+ * so the generic move effect has no snapshot to fly from; the deck slot is this flight's source.
  */
-function useRevealedCardSummonFlightEffect({
+function useDeckSummonFlightEffect({
   currentPlayer,
   opponentPlayer,
   topDeckCardRef,
   bottomDeckCardRef,
   boardZoneRef,
+  animationEvents,
+  animControllerRef,
 }: IUseRevealedCardSummonFlightEffectArgs): void {
-  const revealedDeckCardRef = useRef<IRevealedDeckCardLocation | null>(null)
-
   useEffect(() => {
-    const revealedDeckCard = resolveRevealedDeckCardLocation(currentPlayer, opponentPlayer)
-    const previousRevealedDeckCard = revealedDeckCardRef.current
-    revealedDeckCardRef.current = revealedDeckCard
-
-    // Still the same reveal (or no reveal was ever presented): nothing left the deck yet.
-    if (!previousRevealedDeckCard || previousRevealedDeckCard.instanceId === revealedDeckCard?.instanceId) {
+    const deckSummon = consumeRecordedDeckSummon(animControllerRef.current, animationEvents)
+    if (!deckSummon) {
       return
     }
 
-    const deckSlotElement = previousRevealedDeckCard.side === 'top'
-      ? topDeckCardRef.current
-      : bottomDeckCardRef.current
-    const destinationElement = resolveBattlefieldCardElement(boardZoneRef.current, previousRevealedDeckCard)
+    const side = resolveCardSideForPlayerId(deckSummon.playerId, currentPlayer, opponentPlayer)
+    if (!side) {
+      return
+    }
 
-    // The reveal ended without a summon (the post-condition failed) or left play: nothing to fly.
+    const deckSlotElement = side === 'top' ? topDeckCardRef.current : bottomDeckCardRef.current
+    const location: ICardZoneLocation = { instanceId: deckSummon.cardInstanceId, side }
+    const destinationElement = resolveBattlefieldCardElement(boardZoneRef.current, location)
+
     if (!deckSlotElement || !destinationElement) {
       return
     }
 
-    // The destination element is animated in place (scale 0.92 → 1 from the deck slot), exactly like an
-    // explicit hand→field summon: only the real card is drawn, so no copy is left behind in the slot.
+    // The destination element is animated in place (scale 0.92 -> 1 from the deck slot), exactly like an
+    // explicit hand-to-field summon: only the real card is drawn, so no copy is left behind in the slot.
     void runRectToDynamicElementAnimation({
       sourceRect: deckSlotElement.getBoundingClientRect(),
       durationMs: REVEAL_SUMMON_FLIGHT_DURATION_MS,
-      resolveDestinationElement: () => resolveBattlefieldCardElement(boardZoneRef.current, previousRevealedDeckCard),
+      resolveDestinationElement: () => resolveBattlefieldCardElement(boardZoneRef.current, location),
     })
   }, [
+    animControllerRef,
+    animationEvents,
     boardZoneRef,
     bottomDeckCardRef,
     currentPlayer,
@@ -768,7 +936,7 @@ function useTrashRecallSummonFlightEffect({
           continue
         }
 
-        const location: IRevealedDeckCardLocation = { instanceId, side }
+        const location: ICardZoneLocation = { instanceId, side }
         if (!resolveBattlefieldCardElement(boardZoneRef.current, location)) {
           continue
         }
@@ -794,29 +962,15 @@ function useTrashRecallSummonFlightEffect({
   ])
 }
 
-/** The deck card a reveal turned face up, and whose deck slot the flight starts from. */
-type IRevealedDeckCardLocation = {
+/** A card on one side of the board: its instance id and which rail it sits on. */
+type ICardZoneLocation = {
   instanceId: string
   side: 'top' | 'bottom'
 }
 
-function resolveRevealedDeckCardLocation(
-  currentPlayer: IGamePlayerStateResponse | null,
-  opponentPlayer: IGamePlayerStateResponse | null,
-): IRevealedDeckCardLocation | null {
-  const ownRevealedCard = currentPlayer?.deck.find((card) => card.isRevealed === true)
-  if (ownRevealedCard) {
-    return { instanceId: ownRevealedCard.instanceId, side: 'bottom' }
-  }
-
-  // The opponent only receives the deck cards a reveal has turned over.
-  const opponentRevealedCard = opponentPlayer?.deck.find((card) => card.isRevealed === true)
-  return opponentRevealedCard ? { instanceId: opponentRevealedCard.instanceId, side: 'top' } : null
-}
-
 function resolveBattlefieldCardElement(
   boardElement: HTMLElement | null,
-  location: IRevealedDeckCardLocation,
+  location: ICardZoneLocation,
 ): HTMLElement | null {
   return boardElement?.querySelector<HTMLElement>(
     `[data-zone="character-field-card"][data-slot-side="${location.side}"]`
@@ -944,7 +1098,7 @@ export {
   useCardCatalogPreload,
   useHandZoneAnimationEffects,
   useCardMoveGhostAnimationEffect,
-  useRevealedCardSummonFlightEffect,
+  useDeckSummonFlightEffect,
   useTrashRecallSummonFlightEffect,
   usePhasePresentationAckEffect,
 }

@@ -95,6 +95,15 @@ public sealed class DestroyCardEffect(
             // (matching GameRuntimeDeckService.MoveCardToZone).
             ownerTrashZone.Insert(0, cardInstance);
 
+            // This path moves the card by hand rather than through the move service, so it records the movement
+            // itself: the client animates the destruction out of its zone from this, not from a count delta.
+            context.Game.State.RecordCardMovement(
+                kind: CardMovementKinds.Destroy,
+                cardInstanceId: cardInstance.InstanceId,
+                playerId: ownerPlayer.PlayerId,
+                fromZone: sourceZone.ToString(),
+                toZone: PlayerZone.Trash.ToString());
+
             affectedCardInstanceIds.Add(cardInstance.InstanceId);
             affectedPlayerIds.Add(sourcePlayer.PlayerId);
             affectedPlayerIds.Add(ownerPlayer.PlayerId);

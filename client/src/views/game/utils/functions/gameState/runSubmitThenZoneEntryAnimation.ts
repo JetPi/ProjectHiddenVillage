@@ -1,5 +1,5 @@
 import type { ISubmitHubIntentRequest } from '@/views/game/types'
-import { runRectToDynamicElementAnimation } from '@/views/game/utils/functions/animations'
+import { runRectToDynamicElementAnimation } from '@/views/game/animation'
 
 async function runSubmitThenZoneEntryAnimation({
   submitHubIntent,

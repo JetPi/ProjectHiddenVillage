@@ -1,5 +1,5 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react'
-import type { IGamePlayerStateResponse, IPhasePresentationResponse } from '@/services/api/types/game'
+import type { IAnimationEventResponse, IGamePlayerStateResponse, IPhasePresentationResponse } from '@/services/api/types/game'
 import type { ILeaderCardViewModel } from './viewModels'
 import type { IHandZoneSnapshot } from '@/views/game/types'
 
@@ -26,6 +26,12 @@ export type IGameViewAnimController = {
    * registry itself lives in `views/game/animation/boardAnimationDirector.ts`.
    */
   whenIdle: () => Promise<void>
+  /**
+   * The animation-event ids already consumed. The server republishes a bounded tail of recent card movements on
+   * every push, so a consumer must animate each event exactly once; the ids live on the controller (a mutable
+   * ref bag) because consuming an event must not re-render and they have to survive across pushes.
+   */
+  handledAnimationEventIds: Set<string>
   drawAnimationEndsAt: number | null
   pendingDrawAnimationFrameId: number | null
   pendingDrawTimeoutIds: number[]
@@ -50,6 +56,11 @@ export type IUseHandZoneAnimationEffectsArgs = {
   drawToHandStaggerMs: number
   drawToHandRevealDelayMs: number
   handToPileStaggerMs: number
+  /**
+   * The engine's recorded card movements. When present they are the authoritative source for which card drew,
+   * and the count/id inference below is only the fallback for a push that carries none.
+   */
+  animationEvents?: IAnimationEventResponse[] | null
   topDeckCardRef: RefObject<HTMLDivElement | null>
   bottomDeckCardRef: RefObject<HTMLDivElement | null>
   topTrashCardRef: RefObject<HTMLDivElement | null>
@@ -89,6 +100,10 @@ export type IUseRevealedCardSummonFlightEffectArgs = {
   topDeckCardRef: RefObject<HTMLDivElement | null>
   bottomDeckCardRef: RefObject<HTMLDivElement | null>
   boardZoneRef: RefObject<HTMLDivElement | null>
+  /** The engine's recorded card movements; a `summon` whose source zone is the deck starts this flight. */
+  animationEvents?: IAnimationEventResponse[] | null
+  /** The board's animation registry: the movement is claimed through it so it is animated exactly once. */
+  animControllerRef: RefObject<IGameViewAnimController>
 }
 
 /**

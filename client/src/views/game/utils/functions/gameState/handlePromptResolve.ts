@@ -2,7 +2,7 @@ import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { IGameCardInstanceResponse } from '@/services/api/types/game'
 import type { IGameViewAnimController, IPromptPresentation, ISubmitHubIntentRequest } from '@/views/game/types'
 import { HAND_TO_PILE_DURATION_MS, HAND_TO_PILE_STAGGER_MS } from '@/views/game/utils/contants'
-import { runHandToPileAnimation, waitMillis } from '@/views/game/utils/functions/animations'
+import { runHandToPileAnimation, waitMillis } from '@/views/game/animation'
 
 async function handlePromptResolve({
   selectedOption,

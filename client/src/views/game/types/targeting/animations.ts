@@ -34,14 +34,6 @@ export type ICardImageGhostToElementAnimationArgs = {
   key?: string
 }
 
-export type IHandToElementAnimationArgs = {
-  side: 'top' | 'bottom'
-  cardInstanceId: string
-  destinationElement: HTMLElement | null
-  topHandRowRef: RefObject<HTMLDivElement | null>
-  bottomHandRowRef: RefObject<HTMLDivElement | null>
-}
-
 export type IRectToElementAnimationArgs = {
   sourceRect: DOMRect
   destinationElement: HTMLElement | null

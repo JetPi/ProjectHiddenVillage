@@ -29,7 +29,11 @@ public sealed record GameStateResponse(
     // The transition the engine performed itself and stopped on, waiting for every connected participant to
     // acknowledge that their client finished presenting it. Null while nothing is outstanding - the engine may
     // take the next phase step and the players may act. See PendingPhasePresentation.
-    PhasePresentationResponse? PendingPresentation = null);
+    PhasePresentationResponse? PendingPresentation = null,
+    // The card movements the engine performed, oldest first, as a bounded tail. The client de-duplicates by
+    // AnimationEventResponse.EventId and animates the ones it has not seen yet, so a move is drawn because the
+    // engine said it happened rather than because a zone count changed (see CardMovementRecord).
+    IReadOnlyList<AnimationEventResponse>? AnimationEvents = null);
 
 /// <summary>
 /// A phase transition waiting to be presented. It is deliberately not a prompt: nothing is being asked, the only
@@ -93,6 +97,18 @@ public sealed record PendingAttackVisualStateResponse(
     string DefenderPlayerId,
     string DefenderCardInstanceId,
     string DefenderZone);
+
+/// <summary>
+/// One card movement, projected from the engine's recorded movements (see <see cref="CardMovementRecord"/>).
+/// Unlike an effect notice, a movement is published for every player: a card moving is visible on both boards.
+/// </summary>
+public sealed record AnimationEventResponse(
+    string EventId,
+    string Kind,
+    string CardInstanceId,
+    string PlayerId,
+    string? FromZone,
+    string? ToZone);
 
 public sealed record ActiveTemporaryEffectResponse(
     string EffectId,

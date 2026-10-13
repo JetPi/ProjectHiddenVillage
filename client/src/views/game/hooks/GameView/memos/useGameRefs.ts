@@ -79,6 +79,7 @@ export function useGameAnimationController() {
     // The flight registry and its idle promise are owned by the director module, not by this ref: the
     // acknowledgement asks the director whether the board is still animating.
     whenIdle,
+    handledAnimationEventIds: new Set<string>(),
     drawAnimationEndsAt: null,
     pendingDrawAnimationFrameId: null,
     pendingDrawTimeoutIds: [],

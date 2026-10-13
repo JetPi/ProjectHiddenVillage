@@ -1,39 +1,39 @@
+/**
+ * The flight primitives: everything the board uses to fly an overlay copy of a card from one box to another.
+ *
+ * This file is part of the animation home (`views/game/animation/`), beside the tuning, the reduced-motion
+ * policy, the flight registry and the flight layer itself. It used to live under `utils/functions/animations`,
+ * which split "how a flight is tuned / owned / drawn" away from the primitives that used them.
+ *
+ * Every flight funnels through `animateOverlayCopy` below, and that is deliberate: it is the single point where
+ * the copy is created, the reduced-motion policy is applied, and the copy is removed exactly once (the registry
+ * owns it, so an interrupted flight cannot orphan it). A real card is never moved or transformed - only hidden
+ * with `visibility` while its copy is in the air.
+ */
+
 import type {
   ICardImageGhostToElementAnimationArgs,
   IDeckToHandAnimationArgs,
-  IHandToElementAnimationArgs,
   IHandToPileAnimationArgs,
   IRectToDynamicElementAnimationArgs,
   IRectToElementAnimationArgs,
   IWaitForElementArgs,
-} from "@/views/game/types"
+} from '@/views/game/types'
 import {
   DEFAULT_DYNAMIC_TARGET_MAX_FRAMES,
   DEFAULT_DYNAMIC_TARGET_TIMEOUT_MS,
-  HAND_TO_ELEMENT_PIXELS_PER_MS,
-  MAX_HAND_TO_ELEMENT_DURATION_MS,
-  MIN_HAND_TO_ELEMENT_DURATION_MS,
   STANDARD_MOVEMENT_EASING,
-} from "@/views/game/animation/tuning"
-import { getCardFlightLayerElement } from "@/views/game/animation/cardFlightLayerMount"
+} from './tuning'
+import { getCardFlightLayerElement } from './cardFlightLayerMount'
 import {
   registerFlight,
   resolveElementFlightKey,
   unregisterFlight,
-} from "@/views/game/animation/flightRegistry"
+} from './flightRegistry'
+import { prefersReducedMotion, resolveFlightDurationMs } from './reducedMotion'
 
 /** Fallback key for a copy whose caller did not name the card it belongs to. */
 let flightCopySequence = 0
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
-}
-
-function resolveHandToElementDurationMs(translateX: number, translateY: number): number {
-  const distance = Math.hypot(translateX, translateY)
-  const rawDuration = Math.round(distance / HAND_TO_ELEMENT_PIXELS_PER_MS)
-  return clamp(rawDuration, MIN_HAND_TO_ELEMENT_DURATION_MS, MAX_HAND_TO_ELEMENT_DURATION_MS)
-}
 
 /** The image a card is currently showing, or an empty string for a face-down/imageless card. */
 function readCardImageSource(element: HTMLElement): string {
@@ -111,6 +111,14 @@ function animateOverlayCopy({
     return Promise.resolve()
   }
 
+  // Reduced motion: skip the motion outright rather than run a zero-length animation. No copy is created and
+  // the promise resolves at once, so the caller's descriptor settles immediately instead of leaving the
+  // phase-presentation acknowledgement waiting on an animation that will never play (see `reducedMotion.ts`).
+  const resolvedDurationMs = resolveFlightDurationMs(durationMs)
+  if (resolvedDurationMs <= 0) {
+    return Promise.resolve()
+  }
+
   // `enter` anchors the copy at the destination and animates it in from the source offset (so the recorded
   // first frame proves the card travelled); `exit` anchors it at the source and animates it towards the
   // destination offset.
@@ -138,7 +146,7 @@ function animateOverlayCopy({
   const animation = copy.animate(
     [startKeyframe, endKeyframe],
     {
-      duration: durationMs,
+      duration: resolvedDurationMs,
       easing: STANDARD_MOVEMENT_EASING,
     },
   )
@@ -229,6 +237,12 @@ export async function runRectToDynamicElementAnimation({
   timeoutMs,
   maxFrames,
 }: IRectToDynamicElementAnimationArgs): Promise<void> {
+  // Reduced motion resolves immediately: never spin the frame loop waiting for a destination the copy will not
+  // fly to (the copy itself skips under the same policy, in `animateOverlayCopy`).
+  if (prefersReducedMotion()) {
+    return
+  }
+
   const destinationElement = await waitForElement({
     resolveElement: resolveDestinationElement,
     timeoutMs,
@@ -395,38 +409,4 @@ export function runDeckToHandAnimation({
       return destinationHandRowElement
     },
   })
-}
-
-export function runHandToElementAnimation({
-  side,
-  cardInstanceId,
-  destinationElement,
-  topHandRowRef,
-  bottomHandRowRef,
-}: IHandToElementAnimationArgs): Promise<void> {
-  const sourceHandRowElement = side === 'top' ? topHandRowRef.current : bottomHandRowRef.current
-
-  if (!sourceHandRowElement || !destinationElement) {
-    return Promise.resolve()
-  }
-
-  const sourceCardElement = sourceHandRowElement.querySelector<HTMLDivElement>(
-    `[data-hand-instance-id="${cardInstanceId}"]`,
-  )
-  if (!sourceCardElement) {
-    return Promise.resolve()
-  }
-
-  const destinationRect = destinationElement.getBoundingClientRect()
-
-  const sourceRect = sourceCardElement.getBoundingClientRect()
-  const sourceCenterX = sourceRect.left + sourceRect.width / 2
-  const sourceCenterY = sourceRect.top + sourceRect.height / 2
-  const destinationCenterX = destinationRect.left + destinationRect.width / 2
-  const destinationCenterY = destinationRect.top + destinationRect.height / 2
-  const translateX = destinationCenterX - sourceCenterX
-  const translateY = destinationCenterY - sourceCenterY
-  const animationDurationMs = resolveHandToElementDurationMs(translateX, translateY)
-
-  return animateCardEntityToDestination(sourceCardElement, destinationRect, animationDurationMs)
 }

@@ -300,37 +300,46 @@ paths:
   slot rects before/after a negate target highlights and fails by ~40×53px per slot
   without the guard.
 - The same hazard hits the **pile slots** from the other direction. Each pile zone is a grid item of
-  its rail column (`grid-rows-[1fr_1fr]`, whose `1fr` rows carry an `auto` minimum), so once its clip
-  is gone the freshly rendered deck/trash art blows the whole pile grid out to its min-content box —
-  both slots grew from ~78×108 to ~100×274 on a 1080p board. `PlayPileZone`'s root therefore carries
-  `min-w-0 min-h-0`. It is what stops the destination-side flight animations from flashing a giant
-  card: `runRectToElementAnimation` calls `resolveOverflowAncestors`, which strips `overflow` from
-  every clipping ancestor for the length of the animation (and leaves it stripped if the animated
-  element is unmounted mid-flight, which made the inflated pile stick until the next layout).
+  its rail column (`grid-rows-[1fr_1fr]`, whose `1fr` rows carry an `auto` minimum), so if its clip
+  is ever lost the freshly rendered deck/trash art blows the whole pile grid out to its min-content
+  box — both slots grew from ~78×108 to ~100×274 on a 1080p board. `PlayPileZone`'s root therefore
+  carries `min-w-0 min-h-0`. This used to be *load-bearing*: the old flights called
+  `resolveOverflowAncestors` to strip `overflow` from every clipping ancestor for the length of the
+  animation (leaving it stripped if the animated element unmounted mid-flight), so a spurious
+  inferred hand→trash flight (see `04-state-phase-effects.md`) un-clipped the pile and made a
+  **tribute summon flash a giant card**. That whole path is gone — since the Motion migration flights
+  animate an overlay copy in `CardFlightLayer`, nothing un-clips the board — so this is now a plain
+  layout guard that holds even if a future animation, reveal or drag temporarily lifts the clip.
   Measure it by un-clipping the zone with an injected `overflow: visible` — that alone reproduces the
-  blowout, and re-adding `min-w-0 min-h-0` keeps both slots at their lane size. This is what made a
-  **tribute summon flash a giant card**: the spurious inferred hand→trash flight (see
-  `04-state-phase-effects.md`) animated the trash slot in place, which un-clipped the pile for the
-  length of the animation.
+  blowout, and re-adding `min-w-0 min-h-0` keeps both slots at their lane size.
 
 ## Attack-link arrow: anchors + arrowhead (measured live, never predicted)
 
-- `react-xarrows` draws the dashed tail; the **arrowhead is ours**, and it is *measured
-  from the tail the library actually drew* (`measureAttackLinkHead` in
-  `AttackLinkArrow.tsx`): its tip is the tail path's end point, its rotation the
-  path's end direction (sampled over the last head length). Never re-introduce the
-  old predicted head (`resolveAttackHeadConfig` is gone): predicting from the anchors
-  meant the head could disagree with the line, and dropping back to the library's own
-  head flips `showHead`, which re-trims the tail path (so `head` is never cleared once
-  measured).
+- The arrow is **our own SVG**, not a library. `AttackLinkArrow.tsx` renders a container
+  (`div#attack-link-overlay`, `data-testid="attack-link-overlay"`) holding two siblings: an
+  `<svg>` with the dashed tail `<path>`, and a second `<svg data-testid="attack-link-head">`
+  with the head `<g>`. `react-xarrows` is gone and must stay gone — its per-prop
+  `useLayoutEffect` re-render storms, its `useXarrow`/`Xwrapper` updater and its own
+  rotation-from-anchor-side head were all patched around, then deleted.
+- **The tail and the head are both computed from the geometry**, not measured back out of a
+  rendered path: `resolveAttackLinkCubic(geometry, sourceRect, targetRect)` gives the cubic
+  (converted to board-local points) and `resolveAttackLinkHeadConfig(cubic)` derives the head
+  from the cubic's end point + end direction. Because both come from the same cubic they can
+  never disagree — the whole `measureAttackLinkHead` dance existed only to reconcile a
+  predicted head with a library-drawn tail.
 - **Geometry is re-derived from the live elements on every layout sample**, inside
   `AttackLinkArrow` (`sampleAttackLinkLayout` → `resolveAttackLinkGeometry` from
   `utils/functions/gameState/gameZoneFunctions.ts`). GameZones' config only carries the
   anchor ids + the tuning constants (`IAttackLinkGeometryOptions`) — never finished
-  anchors. A rested card keeps moving through its **CSS transition**, so anchors
-  computed once per render are stale within a frame.
+  anchors. A rested card keeps moving (a Motion animation on its wrapper since the
+  migration), so anchors computed once per render are stale within a frame.
+- **Sampling runs from animation frames over a short window, never synchronously in the
+  effect.** `sampleAttackLinkLayout` re-runs via `requestAnimationFrame` for up to
+  `ATTACK_LINK_SETTLE_FRAMES` frames, resetting the count whenever the anchor signature
+  changes. A `setState` inside a layout effect is a *nested* update, which is what used to
+  drive React into "Maximum update depth exceeded".
 - **Every anchor on a tilted card needs a *two-component* visual-edge offset**, because
-  react-xarrows anchors on the element's **bounding box**:
+  anchors are taken from the element's **bounding box**:
   - source (`getVerticalVisualEdgeOffset`): the bbox's top/bottom edge midpoint floats
     out at the rotated card's corner — and the attacker rests on declaration, so this
     hits *every* attack;
@@ -341,40 +350,34 @@ paths:
     visible edge midpoint.
   Both feed `withAnchorGap(side, gap, offset)` (one builder for all sides; zero offset
   for an untilted card, so the untilted look is unchanged).
-- **Read the tilt from the `rotate` property, not `transform`**: Tailwind v4 emits
-  `rotate-[14deg]` as the standalone `rotate` property, so
-  `getComputedStyle(el).transform` is `"none"` while the card is visibly tilted.
-  `getRotationRadians` reads `rotate` first and falls back to the transform matrix.
-  (Missing this silently made every offset above a no-op.)
+- **Read the tilt from the nearest element that owns a transform.** Two traps, and the second one
+  is the current shape:
+  - Tailwind v4 emits `rotate-[14deg]` as the standalone `rotate` property, so
+    `getComputedStyle(el).transform` is `"none"` while the card is visibly tilted;
+  - since the Motion migration the tilt is applied by a **wrapper** (`BattleFieldRow` renders the card
+    inside a `motion.div` that animates `rotate`), so reading the card element alone returns `0`.
+  `getRotationRadians` therefore walks **up** from the card until it finds a rotation, checking each
+  element's standalone `rotate` first and then its `transform` matrix.
+  (Missing the first trap silently made every offset above a no-op; missing the second reintroduced
+  exactly that once the tilt moved to the wrapper.)
 - The target's horizontal end anchor is only used when the source's anchor point lies
-  **beyond** it (`resolveAttackAnchorSides` → `endAnchorSide`): react-xarrows draws the
-  end tangent along `sign(endAnchorX - startAnchorX)`, so choosing the side from the card
-  centres alone puts the tail on the *far* side of the target whenever the two cards
-  overlap horizontally — the dashes then travel *out* of the card and any head fights the
-  line. When neither side is approachable the **sweeping path** is used (same idiom as
-  stacked cards), which always hooks into its anchor from outside.
+  **beyond** it (`resolveAttackAnchorSides` → `endAnchorSide`): the end tangent follows
+  `sign(endAnchorX - startAnchorX)`, so choosing the side from the card centres alone
+  puts the tail on the *far* side of the target whenever the two cards overlap
+  horizontally — the dashes then travel *out* of the card. When neither side is
+  approachable the **sweeping path** is used (same idiom as stacked cards), which always
+  hooks into its anchor from outside.
 - Head coordinates are **board-local** (`svgRect + pathPoint - boardRect`), because the
   board box is the offset parent. `x/y` is the head's **base**, one head length behind the
   path's end along the end direction, so the head's **tip lands on the end of the dashed
-  tail**: react-xarrows stops the dashes up to `nonStrokeLen` (10) px before the anchor.
-  Keep the head length ≥ the dash `nonStrokeLen`.
-- **react-xarrows pitfalls that bit us (keep these in mind):**
-  - its `he()` hook runs a `useLayoutEffect` *per prop* with `deps=[prop]` that calls
-    `setState({...state})`, so every object literal passed as a prop (`dashness`,
-    `headShape`, `passProps`, `divContainerProps`, …) must be referentially **stable**
-    (module constants / `useMemo`), or each of our re-renders fires ~6 setStates;
-  - a `setState` from *our* layout effect makes those nested updates, which together trip
-    React's "Maximum update depth exceeded" — sample from `requestAnimationFrame`
-    (`ATTACK_LINK_SETTLE_FRAMES`), never synchronously in the effect;
-  - `useXarrow`/`Xwrapper` are **not** used: the wrapper updater fires from a dep-less
-    layout effect and blows up the same way, and our own re-render already makes the
-    library re-measure;
-  - the overlay container must be **`position: absolute` inline** — `.game-board-spill > *`
-    in `index.css` forces `position: relative` on every direct child of the board
-    (unlayered CSS beats Tailwind's utilities layer), which made the overlay a grid item
-    whose size fed back into the board layout.
-- The dark glow (`ATTACK_ARROW_LINE_FILTER`) lives on the head's **`<svg>` root**, same
-  constant as the tail's `passProps.style.filter`. A CSS filter on an SVG *child*
+  tail**. Keep the head length ≥ the dash `ATTACK_LINK_DASH_GAP_PX` so a gap cannot open
+  between the last dash and the head.
+- The overlay container must be **`position: absolute` inline** (same for the head `<svg>`,
+  see below) — `.game-board-spill > *` in `index.css` forces `position: relative` on every
+  direct child of the board (unlayered CSS beats Tailwind's utilities layer), which made the
+  overlay a grid item whose size fed back into the board layout.
+- The dark glow (`ATTACK_ARROW_LINE_FILTER`) lives on the head's **`<svg>` root**, the same
+  constant the tail path applies as its inline `style.filter`. A CSS filter on an SVG *child*
   (`<g>`/`<path>`) is clipped by its own tiny filter region, which silently kills the drop
   shadows — that is why the head looked flat against the glowing dashes.
 - **The head's unit-space tip vertex is `(1, 0.5)`, not `(1, 0)`** (`ATTACK_ARROW_HEAD_PATH`).

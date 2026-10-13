@@ -109,6 +109,21 @@ export type IPendingAttackVisualStateResponse = {
   defenderZone: string
 }
 
+/**
+ * One card movement the engine performed, published so the client animates the move instead of inferring it
+ * from zone/count deltas. `eventId` is stable per movement and the server republishes a bounded tail on every
+ * push, so consumers de-duplicate on it rather than tracking a cursor.
+ */
+export type IAnimationEventResponse = {
+  eventId: string
+  /** The movement kind, e.g. `draw` (see the server's `CardMovementKinds`). */
+  kind: string
+  cardInstanceId: string
+  playerId: string
+  fromZone: string | null
+  toZone: string | null
+}
+
 export type ISupportChainTargetResponse = {
   cardInstanceId: string
   displayName: string
@@ -197,6 +212,8 @@ export type IGameStateResponse = {
   // The engine's outstanding phase transition, waiting for this client's acknowledgement. While it is present
   // the board must not act: the HUD holds its last interactive chips and the client answers with an ack.
   pendingPresentation?: IPhasePresentationResponse | null
+  /** The engine's recent card movements, oldest first, as a bounded tail (see `IAnimationEventResponse`). */
+  animationEvents?: IAnimationEventResponse[] | null
   pendingAttackVisualState: IPendingAttackVisualStateResponse | null
   pendingPrompt: IPendingPromptResponse | null
   availableActions: IGameActionOptionResponse[]

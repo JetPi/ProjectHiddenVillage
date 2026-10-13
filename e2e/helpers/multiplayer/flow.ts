@@ -45,7 +45,7 @@ export async function getAnimationCount(page: Page): Promise<number> {
  * path, so a rising count proves the exit was animated instead of the card appearing in the trash out of
  * nowhere.
  */
-export async function installCardGhostAnimationCounter(page: Page): Promise<void> {
+export async function installCardFlightCounter(page: Page): Promise<void> {
   await page.evaluate(() => {
     const marker = '__phvCardGhostCounterInstalled'
     const state = window as unknown as {
@@ -75,10 +75,125 @@ export async function installCardGhostAnimationCounter(page: Page): Promise<void
   })
 }
 
-export async function getCardGhostAnimationCount(page: Page): Promise<number> {
+export async function getCardFlightCount(page: Page): Promise<number> {
   return await page.evaluate(() => {
     const state = window as unknown as { __phvCardGhostCount?: number }
     return typeof state.__phvCardGhostCount === 'number' ? state.__phvCardGhostCount : 0
+  })
+}
+
+/** Copies attached to the flight layer right now. It must be back to 0 once the board settles. */
+export async function countCardFlightCopies(page: Page): Promise<number> {
+  return await page
+    .locator('[data-testid="card-flight-layer"] [data-card-flight-copy="true"]')
+    .count()
+}
+
+export type CardFlightLeakReport = {
+  /** Copies that started flying during the observation window. */
+  seen: number
+  /** Most copies alive at the same time. */
+  peak: number
+  /** Copies still attached long after their flight should have ended - the "ghost" regression. */
+  leaks: number
+}
+
+/**
+ * Watches the flight layer and counts copies that outlive their flight.
+ *
+ * The engine's contract is that a flight owns its copy and removes it exactly once. The old engine appended
+ * ghosts to `document.body` and could orphan one when a flight was interrupted, so "a copy that no longer
+ * belongs to any flight but is still attached" is the regression this observer pins. The check runs on a
+ * timer (not on removal bookkeeping) so a copy that is *never* removed is caught even if its removal would
+ * have come from a code path that no longer runs.
+ */
+export async function installCardFlightLeakObserver(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const marker = '__phvCardFlightLeakObserverInstalled'
+    const state = window as unknown as {
+      [key: string]: unknown
+      __phvCardFlightLeakSeen?: number
+      __phvCardFlightLeakPeak?: number
+      __phvCardFlightLeakCount?: number
+    }
+
+    if (state[marker] === true) {
+      return
+    }
+
+    const COPY_SELECTOR = '[data-card-flight-copy="true"]'
+    const LAYER_SELECTOR = '[data-testid="card-flight-layer"]'
+    // Longer than any flight the board runs, so an in-flight copy is never mistaken for a leak.
+    const MAX_FLIGHT_AGE_MS = 2_000
+    const addedAtByCopy = new WeakMap<Element, number>()
+    const recordedLeaks = new WeakSet<Element>()
+    let liveCount = 0
+
+    state.__phvCardFlightLeakSeen = 0
+    state.__phvCardFlightLeakPeak = 0
+    state.__phvCardFlightLeakCount = 0
+
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        record.addedNodes.forEach((node) => {
+          if (!(node instanceof Element) || !node.matches(COPY_SELECTOR)) {
+            return
+          }
+
+          addedAtByCopy.set(node, performance.now())
+          liveCount += 1
+          state.__phvCardFlightLeakSeen = (state.__phvCardFlightLeakSeen ?? 0) + 1
+          state.__phvCardFlightLeakPeak = Math.max(state.__phvCardFlightLeakPeak ?? 0, liveCount)
+        })
+
+        record.removedNodes.forEach((node) => {
+          if (!(node instanceof Element) || !node.matches(COPY_SELECTOR)) {
+            return
+          }
+
+          liveCount = Math.max(0, liveCount - 1)
+          addedAtByCopy.delete(node)
+        })
+      }
+    })
+
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    window.setInterval(() => {
+      document.querySelectorAll<HTMLElement>(`${LAYER_SELECTOR} ${COPY_SELECTOR}`).forEach((copy) => {
+        const addedAt = addedAtByCopy.get(copy)
+        if (addedAt === undefined) {
+          // A copy that was already flying when this observer was installed: start its clock now.
+          addedAtByCopy.set(copy, performance.now())
+          return
+        }
+
+        if (performance.now() - addedAt <= MAX_FLIGHT_AGE_MS || recordedLeaks.has(copy)) {
+          return
+        }
+
+        recordedLeaks.add(copy)
+        state.__phvCardFlightLeakCount = (state.__phvCardFlightLeakCount ?? 0) + 1
+      })
+    }, 250)
+
+    state[marker] = true
+  })
+}
+
+export async function getCardFlightLeakReport(page: Page): Promise<CardFlightLeakReport> {
+  return await page.evaluate(() => {
+    const state = window as unknown as {
+      __phvCardFlightLeakSeen?: number
+      __phvCardFlightLeakPeak?: number
+      __phvCardFlightLeakCount?: number
+    }
+
+    return {
+      seen: state.__phvCardFlightLeakSeen ?? 0,
+      peak: state.__phvCardFlightLeakPeak ?? 0,
+      leaks: state.__phvCardFlightLeakCount ?? 0,
+    }
   })
 }
 

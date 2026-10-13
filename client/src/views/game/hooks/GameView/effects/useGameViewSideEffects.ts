@@ -10,13 +10,13 @@ import type {
   IUseGameHubStateResult,
 } from '@/views/game/types'
 import { DRAW_TO_HAND_REVEAL_DELAY_MS, DRAW_TO_HAND_STAGGER_MS, HAND_TO_PILE_STAGGER_MS, REVEAL_PRESENTATION_MS } from '@/views/game/utils/contants'
-import { runHandToPileAnimation } from '@/views/game/utils/functions/animations'
+import { runHandToPileAnimation } from '@/views/game/animation'
 import { useGameHubStore } from '@/state/gameHubStore'
 import type { useGameRefs } from '@/views/game/hooks/GameView/memos/useGameRefs'
 import type { IGameUIStoreState, IPendingPromptSelectionState } from '@/state/types/gameUIStore'
 import { useBattlefieldCardReorderEffect } from './useBattleFieldCards'
 import { useGetMainPhaseActions } from './useGetMainPhaseActions'
-import { useCardCatalogPreload, useCardMoveGhostAnimationEffect, useHandZoneAnimationEffects, usePhasePresentationAckEffect, useRevealedCardSummonFlightEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
+import { useCardCatalogPreload, useCardMoveGhostAnimationEffect, useDeckSummonFlightEffect, useHandZoneAnimationEffects, usePhasePresentationAckEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
 import { useAttackLungeEffect } from './useAttackLungeEffect'
 
 function useGameViewSideEffects({
@@ -84,6 +84,7 @@ function useGameViewSideEffects({
     drawToHandStaggerMs: DRAW_TO_HAND_STAGGER_MS,
     drawToHandRevealDelayMs: DRAW_TO_HAND_REVEAL_DELAY_MS,
     handToPileStaggerMs: HAND_TO_PILE_STAGGER_MS,
+    animationEvents: gameState.animationEvents,
     topDeckCardRef: viewRefs.topDeckCardRef,
     bottomDeckCardRef: viewRefs.bottomDeckCardRef,
     topTrashCardRef: viewRefs.topTrashCardRef,
@@ -105,12 +106,14 @@ function useGameViewSideEffects({
     animControllerRef,
   })
 
-  useRevealedCardSummonFlightEffect({
+  useDeckSummonFlightEffect({
     currentPlayer,
     opponentPlayer,
     topDeckCardRef: viewRefs.topDeckCardRef,
     bottomDeckCardRef: viewRefs.bottomDeckCardRef,
     boardZoneRef: viewRefs.boardZoneRef,
+    animationEvents: gameState.animationEvents,
+    animControllerRef,
   })
 
   useTrashRecallSummonFlightEffect({

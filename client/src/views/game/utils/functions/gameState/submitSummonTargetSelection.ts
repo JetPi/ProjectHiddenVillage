@@ -2,7 +2,7 @@ import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { IGameCardInstanceResponse } from '@/services/api/types/game'
 import type { IGameViewAnimController, ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
 import { HAND_TO_PILE_STAGGER_MS } from '@/views/game/utils/contants'
-import { runCardImageGhostToElementAnimation } from '@/views/game/utils/functions/animations'
+import { runCardImageGhostToElementAnimation } from '@/views/game/animation'
 import { canConfirmSummonTargetSelection } from './canConfirmSummonTargetSelection'
 import { runSubmitThenZoneEntryAnimation } from './runSubmitThenZoneEntryAnimation'
 

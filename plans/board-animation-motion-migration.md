@@ -252,60 +252,63 @@ lunge descriptor runs on damage resolution.
 mis-attributed a flight.
 **Exit:** no mis-attributed flights; special-case inference deleted.
 
-### Stage 8 — Replace `react-xarrows` with a Motion-native attack link
+### Stage 8 — Replace `react-xarrows` with a board-owned attack link
 
-**Goal:** make the attack link ours and animate it with Motion, deleting the patches that exist only
-to keep `react-xarrows` working. The link is the second-most patched animation surface after the card
-engine: its workarounds all compensate for the library anchoring on live bounding boxes, which keep
-moving while the rested tilt transitions.
+**Goal:** make the attack link ours end to end, deleting the patches that exist only to keep
+`react-xarrows` working. The link is the second-most patched animation surface after the card engine:
+its workarounds all compensate for the library anchoring on live bounding boxes, which keep moving
+while the rested tilt animates.
 
-**Motion-native replacement**
+**Board-owned replacement (as landed)**
 
-- Draw the link as a `motion.path` (dashed tail + head) inside the `CardFlightLayer`, geometry in
-  board-local coordinates.
-- Animate the anchor points (and therefore the `d` attribute) with Motion, so the tail follows the
-  cards without any re-sampling; the head is a `motion` element whose position and rotation derive
-  from the same animated points instead of from measuring the drawn path.
-- Keep the existing geometry maths — `resolveAttackLinkGeometry` and
-  `buildFallbackAttackLinkGeometry` in `utils/functions/gameState/gameZoneFunctions.ts` — as the
-  coordinate resolver. It becomes a pure function read on demand instead of feeding library props.
-- Update `e2e/gameview.multiplayer.battle-visuals.spec.ts` to the new anchors/testids in the same
-  stage (it currently asserts on the library's rendered path and head geometry).
+- `AttackLinkArrow` draws the link itself: a container (`div#attack-link-overlay`) with the dashed tail
+  as a plain `<path>` and a second, absolutely-positioned `<svg>` for the head — both from our own
+  geometry, in board-local coordinates.
+- The geometry stays a pure function: `resolveAttackLinkGeometry` in
+  `utils/functions/gameState/gameZoneFunctions.ts` (the existing, hard-won anchor maths) feeds
+  `resolveAttackLinkCubic` → `resolveAttackLinkPathData` / `resolveAttackLinkHeadConfig`. The head's
+  tip and rotation come from the same cubic as the tail, so nothing is measured back out of a rendered
+  path.
+- The bounded `ATTACK_LINK_SETTLE_FRAMES` rAF re-sample **stays**: the anchors genuinely keep moving now
+  (the rested tilt is a Motion animation on the card's wrapper), so re-reading them for a short window is
+  correct. See the Stage 8 status section for why the tail is not a `motion.path`.
+- The e2e geometry bands measure anchor-to-surface distances, not the curve, so the rewrite landed with
+  **no spec changes** to `gameview.multiplayer.battle-visuals.spec.ts`.
 
-**Patches to delete (all in `components/AttackLinkArrow.tsx` unless noted)**
+**Patches deleted (all in `components/AttackLinkArrow.tsx` unless noted)**
 
-- The `ATTACK_LINK_SETTLE_FRAMES` (30-frame) rAF re-sample loop and its `measuredSignature` ref.
-- `measureAttackLinkHead()`, which queries `#attack-link-overlay svg path[stroke]` and uses
-  `getTotalLength()` / `getPointAtLength()` / `getScreenCTM()` to reverse-engineer the head from the
-  library's rendered output.
+- The `measuredSignature`-driven measurement of the head: `measureAttackLinkHead()`, which queried
+  `#attack-link-overlay svg path[stroke]` and used `getTotalLength()` / `getPointAtLength()` /
+  `getScreenCTM()` to reverse-engineer the head from the library's rendered output.
 - The `showHead={head === null}` flip-flop workaround and the "head is never cleared once measured"
   rule.
 - The referentially-stable object props (`ATTACK_LINK_OVERLAY_CONTAINER_PROPS`,
-  `ATTACK_LINK_ARROW_HEAD_PROPS`, `ATTACK_LINK_TAIL_PROPS`, `headShape`) that exist only to stop
+  `ATTACK_LINK_ARROW_HEAD_PROPS`, `ATTACK_LINK_TAIL_PROPS`, `headShape`) that existed only to stop
   react-xarrows re-running its layout effects into "Maximum update depth exceeded".
-- The inline `position: absolute` container override and its `.game-board-spill > *` explanation.
-- The `translate(0 -0.5)` unit-shape vertex fudge and the SVG head-region filter workaround.
 - The library-only props `showHead` / `headShape` / `_cpx1Offset` / `_cpx2Offset` /
   `_extendSVGcanvas` / `divContainerProps` / `passProps`.
-- The library-compensation tuning in `GameZones.tsx`
-  (`ATTACK_ARROW_HEAD_RETRACTION_COMPENSATION_PX`, `ATTACK_HEAD_OFFSET_DEFAULT` and the gap/sweep
-  offsets) — simplify to sane gaps now that the geometry is fully ours.
-- The `IAttackLinkGeometry` / `IAttackLinkHeadConfig` / `IAttackLinkRenderConfig` types in
-  `types/hub/viewModels.ts` collapse to what the new component actually needs.
+- `buildFallbackAttackLinkGeometry`, and the library-compensation tuning in `GameZones.tsx`
+  (`ATTACK_HEAD_OFFSET_DEFAULT` / `headOffsetForward`).
 - The `react-xarrows` dependency.
+
+**Kept on purpose:** the inline `position: absolute` overrides (still required by `.game-board-spill > *`),
+the `translate(0 -0.5)` unit-shape vertex fix, the SVG-root filter rule, the rAF settle window,
+`ATTACK_ARROW_HEAD_RETRACTION_COMPENSATION_PX` (reviewed in Stage 9 cleanup C) and the
+`IAttackLinkHeadConfig` / `IAttackLinkRenderConfig` types.
 
 **Verification:** `npm run typecheck`, `npm run lint`; `gameview.multiplayer.battle-visuals`,
 `gameview.multiplayer.attack-sequence`, `gameview.multiplayer.leader-battle`.
-**Exit:** the link is owned end to end and animated by Motion, with no measurement loop and no
-library-compensation constants; `react-xarrows` is gone.
+**Exit:** the link is owned end to end, with no measurement loop and no library-compensation
+constants; `react-xarrows` is gone.
 
 ### Stage 9 — Cleanup, docs, e2e rework
 
 **Goal:** no dead code; docs and tests match the new architecture.
 
-- Delete leftovers: `utils/functions/animations/`, the ghost factory, `data-card-moving` CSS,
-  now-unused dependencies (`@formkit/auto-animate`, `react-xarrows`), and any `min-w-0 min-h-0`
-  guards that only existed for the overflow hack.
+- Delete leftovers: the `data-card-moving` CSS and the now-unused dependencies (`@formkit/auto-animate`,
+  `react-xarrows`). The animation primitives *move* from `utils/functions/animations/` into
+  `views/game/animation/` (one home for animation) rather than being deleted, and the `PlayPileZone`
+  `min-w-0 min-h-0` guards stay (they are a plain layout guard now, not part of the deleted overflow hack).
 - Update `.clinerules`:
   - `02-board-ui-hud.md` — animation ownership model, the flight layer, reduced motion, the DOM
     anchors e2e may use.
@@ -334,7 +337,7 @@ flowchart LR
   S4 --> S5[Stage 5: Director and ack gate]
   S5 --> S6[Stage 6: Attack lunge]
   S5 --> S7[Stage 7: Server animation events]
-  S6 --> S8[Stage 8: Motion-native attack link]
+  S6 --> S8[Stage 8: Board-owned attack link]
   S7 --> S8
   S8 --> S9[Stage 9: Cleanup and docs]
 ```
@@ -361,7 +364,7 @@ Each arrow is a hard prerequisite; any stage boundary is a safe stopping point.
 | Server event contract churn | Stage 7 is additive and independently revertable; the director can still diff until it lands |
 | e2e churn | Anchors catalogued in Stage 0; specs updated per stage, never asserted on art URLs |
 | Rendering sharpness regressions | Respect the no-fractional-scale / no-idle-`will-change` rules when adding Motion |
-| Attack-link geometry regressions | Keep `resolveAttackLinkGeometry` as the resolver; rework the geometry e2e in the same stage as the swap |
+| Attack-link geometry regressions | Keep `resolveAttackLinkGeometry` as the resolver; the geometry bands measure anchor-to-surface distance, so the Stage 8 swap needed no spec changes |
 | Removing a library mid-flight | Stage 8 is last before cleanup and has no downstream dependants; revert restores the dependency and the old component |
 
 ## Decisions (confirmed before Stage 0)
@@ -559,6 +562,26 @@ machinery for projection in the subset of moves where projection is actually equ
 spec rewrite and new pile layout ids. It is recorded here as an explicit open decision rather than a pending
 chore.
 
+### 5c: WONTFIX (decided after Stages 2, 5 and 7)
+
+Re-examined before building, and cancelled because its premise no longer holds:
+
+1. **Draws and discards must keep the copy mechanism.** A pile cannot adopt an *incoming* card's `layoutId` at
+   the moment it changes without giving a long-lived pile slot a dynamic layout id, so the primitive module
+   survives 5c regardless - the deletion it was meant to buy is only ever partial.
+2. **The copies are no longer the problem 5c was written against.** Since Stage 2 they render into one flight
+   layer, take the element exclusively through the registry, never mutate a live node, and since Stage 7b they
+   are driven by the engine's own recorded movements. 5c would add a *second* travel mechanism for exits -
+   exactly the duplication this migration set out to remove.
+3. **It would break working assertions for no deletion credit.** Motion's projection writes transforms from its
+   own rAF loop rather than through `Element.prototype.animate`, so `getCardFlightCount(...) > 0` (support K.O.,
+   tribute-to-trash, bounce) would observe nothing and would have to be rewritten as bounding-box sampling.
+
+Net: 5c would increase the mechanism count, keep all the code it aimed to delete, and cost 3-4 spec rewrites.
+The goal underneath it - one home and one owner for animation - is instead delivered by consolidating the
+remaining primitive module into `views/game/animation/`, where the director, registry, tuning, flight layer and
+reduced-motion policy already live.
+
 ## Stage 6 status: attack lunge landed
 
 - New `views/game/animation/runAttackLunge.ts`: the attacker travels along the attacker→defender vector and back
@@ -619,8 +642,163 @@ Proposed design, for review before building:
 
 Estimate: ~8 mutation sites + mapper + client consumers + the server test suite - a task in its own right.
 
-### Carried into Stage 9
+### 7a - the contract + the draw movement (landed)
 
-`.clinerules/02-board-ui-hud.md` still says to read a card's tilt from the `rotate` property (and that
-`transform` stays `"none"`). That guidance is now incomplete - Motion applies the tilt on a wrapper - and must
-be replaced with the ancestor-aware rule, or the next person reintroduces the same silent breakage.
+- **Server contract**: `CardMovementRecord` plus the `CardMovementKinds` / `CardMovementZones` vocabulary
+  (`server/Models/Game/CardMovementRecord.cs`), a bounded movement sink on `GameState`
+  (`RecordedCardMovements` + `RecordCardMovement`, capped at `MaxRecordedCardMovements` with monotonic
+  `EventId`s), and `AnimationEventResponse` published as `GameStateResponse.AnimationEvents` by the response
+  mapper. Every movement goes to every player - a moving card is visible on both boards - unlike the effect
+  notices, which are addressed to the player whose effect produced them.
+- **Instrumented**: `GamePhaseStateService.DrawCardsForActivePlayerTurn` records a `draw` movement
+  (`Deck` → `Hand`) for each card it draws. That is the single site, right where the move already happens, so
+  the client never has to infer it.
+- **Client**: `IAnimationEventResponse` mirrored in `services/api/types/game.ts`;
+  `useHandZoneAnimationEffects` takes `animationEvents` and consumes them, de-duplicated by `eventId` through a
+  new `handledAnimationEventIds` set on the controller (the server republishes the tail on every push, so
+  consuming once is essential). A movement's side is implicit - the event's card is looked up in each hand's own
+  instance ids - so no player-id comparison is needed. **The count/id inference is kept as the fallback** when a
+  push carries no usable events, so an older server or an un-instrumented site cannot silently break the draw.
+- **Coverage**: `CardMovementRecordTests` (id ordering + zones, blank-identity guard, cap + monotonic ids)
+  passes; the server suite is **599/599**. Client typecheck + lint clean. Full e2e **40/40 green**, which
+  exercises the event-driven draw on every turn hand-over.
+
+### 7b - the remaining seven kinds (next)
+
+`discard`, `summon`, `tribute`, `destroy`, `support_used`, `reveal` and `trash_recall` each need their own
+mutation site instrumented (the vocabulary is already defined), then the matching inference
+(`useCardMoveGhostAnimationEffect`, `useRevealedCardSummonFlightEffect`, `useTrashRecallSummonFlightEffect`,
+the hand→trash inference) switched over with the same fallback-before-delete discipline.
+
+### 7b instrumentation: landed (every kind is now published)
+
+- **`GameRuntimeDeckService.MoveCardToZone`** - the engine's choke point for zone-to-zone travel - records the
+  move through a single `CardMovementKinds.ResolveForZonePair(sourceZone, destinationZone)` mapping, so "why" a
+  card moved is decided in one place rather than re-derived per consumer. That covers discard,
+  summon-from-hand, set-support, support-used, trash-recall, bounce, place-on-deck and exile.
+- **The four effect sites that move cards by hand** record their own movement, because they bypass the service:
+  `TributeSummonCardEffect` (the tribute material into the trash, and the summoned card onto the field),
+  `DestroyCardEffect` (the destroyed card into the trash), `SummonCardEffect` (an effect summon onto the field)
+  and `RevealCardEffect` (the deck card turned face up - recorded with the deck on both ends, since nothing
+  moved).
+- `CardMovementZones` is now derived from `PlayerZone` instead of re-typed, so the wire vocabulary cannot drift
+  from the engine's own zone names (`ExileZone` included).
+
+Verified: server build clean, server suite **599/599**, client typecheck + lint clean, full e2e **40/40 green** -
+the instrumentation runs on every summon, tribute, destroy, set-support and reveal in that suite.
+
+**Consumer side (7b):** switched for `draw`, `discard` and deck-summons, with the count/zone inference kept as
+the fallback for a push that carries no usable events.
+
+- **A shared tail needs a "claim what you act on" rule.** Several consumers read the same republished events in
+  the same commit, so an event is only marked handled by the consumer that acts on it. (The first version marked
+  *every* event handled in each consumer, which would have starved the others - caught while adding the second
+  consumer.)
+- **Deck summons are event-driven now** (`useDeckSummonFlightEffect`, replacing `useRevealedCardSummonFlightEffect`).
+  The trigger is `summon` with `fromZone: deck`, which covers the "Reveal First" chain *and* a search-and-summon -
+  a case the old "the deck card is flagged `isRevealed`" heuristic missed entirely. The heuristic and its
+  `resolveRevealedDeckCardLocation` are deleted.
+- **Deliberately NOT switched, with reasons:** `useCardMoveGhostAnimationEffect` detects exits by *instance-id
+  zone membership*, not by a count delta - exact for "which card left which zone" - and it still needs the
+  previous-render snapshot for the card's rect and art (the source is already gone from the DOM). Driving it from
+  events would not remove the snapshot, so it would add a second decision path for no correctness gain. The same
+  applies to `useTrashRecallSummonFlightEffect` ("was in the trash, now has a field element") and to the discard
+  prompt path, which is an explicit pre-submit flight rather than an inference.
+- The `discard` prompt's hand→pile flight stays where it is: it animates *before* submitting (so the state update
+  cannot unmount the card mid-air), which is the opposite order to every event-driven flight.
+
+## Stage 9 status: in progress (documentation + naming landed)
+
+- **`.clinerules/02-board-ui-hud.md`** - the tilt rule now names *both* traps: Tailwind v4's standalone `rotate`
+  property, and (since the Motion migration) the tilt being applied on a **wrapper**, so reading the card element
+  alone returns `0`. It documents that `getRotationRadians` walks up until it finds a rotation. This was the
+  correctness hazard flagged when Stage 4a exposed the silent breakage.
+- **`.clinerules/04-state-phase-effects.md`** - the ack description now points at the director (`noteFlight` /
+  `whenIdle` / `resolveFlightsSettleAtMs`) instead of the retired `animController.animationEndsAtByKey` /
+  `noteAnimation`, and records the post-await live-store re-check.
+- **e2e helper rename** - `installCardGhostAnimationCounter` / `getCardGhostAnimationCount` are now
+  `installCardFlightCounter` / `getCardFlightCount`; the "ghost" names described a mechanism that no longer
+  exists. No references to the old names remain anywhere, and `support` passes 5/5.
+
+This paragraph used to promise Stage 9 the dead-code sweep (tied to the 5c consumer switch) and the two new
+specs. Stage 9 has since landed all of it: 5c is **WONTFIX**, `utils/functions/animations/` moved into
+`views/game/animation/flights.ts` and was deleted, and the ghost-leak / reduced-motion coverage is
+[`gameview.multiplayer.board-animation.spec.ts`](e2e/gameview.multiplayer.board-animation.spec.ts). See
+"Stage 9 status: landed" at the end of this file.
+
+## Stage 8 status: landed
+
+`react-xarrows` is gone. The board draws the attack link itself: [`AttackLinkArrow.tsx`](client/src/views/game/components/AttackLinkArrow.tsx:1)
+renders one `<path>` (the dashed tail) and one absolutely-positioned `<svg>` for the head, both from our own
+geometry.
+
+**What made this tractable was one observation:** the e2e geometry bands (`sourceOnVisualEdge` ≤ 11,
+`targetOnVisualEdge` 13–19) measure the distance from each *anchor point* to the card's rotated surface — they
+do **not** depend on the curve. So reproducing the anchor points exactly (they come straight out of the existing,
+hard-won configs) let the whole rewrite land with **zero e2e changes**: all three arrow specs passed on the first
+run, and the full suite is 40/40.
+
+- New pure helpers in [`gameZoneFunctions.ts`](client/src/views/game/utils/functions/gameState/gameZoneFunctions.ts:515):
+  `resolveAttackAnchorPoint` (config → board point), `resolveAttackLinkCubic`, `resolveAttackLinkPathData` and
+  `resolveAttackLinkHeadConfig`. The head is derived from **the cubic's own control points** — its tip is the
+  path's end and its rotation is the end tangent — so nothing is measured back out of a rendered path.
+- Deleted: the `useXarrow`/`Xwrapper` usage, `measureAttackLinkHead` and its `getTotalLength`/`getPointAtLength`/
+  `getScreenCTM` reverse-engineering, the `showHead` flip-flop, the stable-prop objects that existed only to stop
+  the library re-running its layout effects, the library-only props (`headShape`, `_cpx1Offset`, `_cpx2Offset`,
+  `_extendSVGcanvas`, `divContainerProps`, `passProps`), `headOffsetForward` and its constant, and
+  `buildFallbackAttackLinkGeometry`.
+- **Deviation from the plan's wording:** the tail is a plain SVG path re-computed on a bounded rAF window rather
+  than a `motion.path`. Motion could interpolate `d` here (the cubic always has the same segment count), but a
+  recomputed path is simpler and, crucially, it does not touch any card's `transform` — so it composes with the
+  Motion-owned tilt instead of competing with it. The 30-frame settle window stays (as `ATTACK_LINK_SETTLE_FRAMES`)
+  because the tilt is now a Motion animation on the card's wrapper, and its comment says so.
+
+### Cleanup inventory (tracked so none of it is forgotten)
+
+| Done? | Item | Where |
+|---|---|---|
+| ✅ A | Rewrite the react-xarrows block: `measureAttackLinkHead`, the per-prop `useLayoutEffect` pitfall list, `useXarrow`/`Xwrapper`, "keep the head length ≥ the dash nonStrokeLen" | [`.clinerules/02-board-ui-hud.md`](.clinerules/02-board-ui-hud.md:316) |
+| ✅ B | Comments naming the library where the rule is now just "anchors are bounding-box based" | `gameZoneFunctions.ts`, `viewModels.ts`, `battle-visuals.spec.ts`, `utils/contants.ts`, `AttackLinkArrow.tsx` |
+| ✅ B | This plan's own Stage 8 text said "animated with Motion" and listed `buildFallbackAttackLinkGeometry` as kept | this file |
+| ✅ B | The baseline still named the "ghost" counters and called the rested tilt a CSS transition | [`plans/board-animation-anchor-baseline.md`](plans/board-animation-anchor-baseline.md) |
+| ✅ C | `ATTACK_ARROW_HEAD_RETRACTION_COMPENSATION_PX` → renamed `ATTACK_LINK_TARGET_CLEARANCE_PX` and documented as "the arrow deliberately stops short of the target outline". **The value is unchanged on purpose**: it is no longer a library compensation, but moving it would move the target anchor that the geometry band pins, so removing it is a visual decision, not a cleanup. | `GameZones.tsx` |
+| ✅ C | `IAttackLinkGeometry.path` and the `IAttackLinkPathMode` type deleted (there is only one curve shape; nothing read the field) | `types/game/attackLink.ts` |
+| ✅ C | `ATTACK_ARROW_HEAD_SIZE_SCALE` inlined into `ATTACK_ARROW_HEAD_LENGTH_PX` (`2.25 * strokeWidth`) and dropped from the exports | `utils/contants.ts` |
+| ✅ C | The whole attack-link geometry block (`IBoardPoint`, `IAttackAnchorPosition`, `IAttackAnchorConfig`, `IAttackLinkGeometryOptions`, `IAttackLinkGeometry`, `IAttackLinkCubic`, `IAttackLinkRenderConfig`, `IAttackLinkHeadConfig`) moved out of the hub view-models into `types/game/attackLink.ts`; every consumer already imports from the `@/views/game/types` barrel, so only the barrel gained a line. `AttackLinkArrow`'s local duplicate `IBoardPoint` was replaced by the shared one. | `viewModels.ts`, `types/game/attackLink.ts` |
+| ✅ D | Added [`e2e/gameview.multiplayer.board-animation.spec.ts`](e2e/gameview.multiplayer.board-animation.spec.ts) plus `countCardFlightCopies` / `installCardFlightLeakObserver` / `getCardFlightLeakReport` in [`flow.ts`](e2e/helpers/multiplayer/flow.ts): (1) the flight layer drains to empty and no copy outlives its flight, and (2) under `prefers-reduced-motion: reduce` **no** flight copy is created while the engine still walks its phases and clears `pendingPresentation`. The reduced-motion gate had to be **wired, not just tested**: `resolveFlightDurationMs` was dead code, so `animateOverlayCopy` now skips the copy at duration 0 and `runRectToDynamicElementAnimation` skips its wait loop. | `e2e/`, `utils/functions/animations/index.ts` |
+| ✅ home | Moved: the flight primitives are now [`views/game/animation/flights.ts`](client/src/views/game/animation/flights.ts), exported from the animation barrel, with all five importers repointed. The old `utils/functions/animations/` folder is **deleted** (and no longer re-exported from the `utils/functions` barrel), so animation has one home. While moving, the never-called `runHandToElementAnimation` was dropped as dead code, together with its distance→duration helper, its args type and the three `HAND_TO_ELEMENT_*` tuning constants that existed only for it. | `client/src/views/game/` |
+
+### Carried into Stage 9 (both done)
+
+- `.clinerules/02-board-ui-hud.md` said to read a card's tilt from the `rotate` property (and that `transform`
+  stays `"none"`). That guidance is now incomplete - Motion applies the tilt on a wrapper - so it was replaced
+  with the ancestor-aware rule, or the next person reintroduces the same silent breakage.
+- The react-xarrows block in the same file (cleanup A) and the library-naming comments across the client
+  (cleanup B) are rewritten; the geometry is now described as "anchors are bounding-box edge midpoints" with no
+  library in the explanation.
+
+---
+
+## Stage 9 status: landed (cleanups A-D and the animation home)
+
+Verified at the end of Stage 9: `npm run typecheck:client` and `npm run lint:client` clean; the full e2e suite
+green at 42 specs. The two setup-phase specs (`battle-visuals` "battle action click…", `attack-sequence` "two
+attacks…") flaked once inside a slow full run (the run took 6.5m vs 3.9m) and passed immediately in isolation
+(16.3s / 24.8s) — the same load pattern recorded under "e2e reliability fix".
+
+- **A** — the react-xarrows section of [`02-board-ui-hud.md`](.clinerules/02-board-ui-hud.md:316) now describes
+  the board-owned path, and the pile paragraph above it no longer claims anything un-clips `overflow` (that path
+  was deleted in Stage 2; `min-w-0 min-h-0` survives as a plain layout guard).
+- **B** — no client comment explains the geometry by naming the library. The plan's own Stage 8 text, its mermaid
+  label, its Stage 9 bullets and its risk row are corrected too, as is the anchor baseline.
+- **C** — the attack-link geometry has its own type home
+  ([`types/game/attackLink.ts`](client/src/views/game/types/game/attackLink.ts)); `IAttackLinkPathMode` and the
+  unread `IAttackLinkGeometry.path` are gone; `ATTACK_ARROW_HEAD_SIZE_SCALE` is inlined; the target-clearance
+  constant is renamed and documented (value deliberately unchanged, see the inventory).
+- **D** — the ghost-leak and reduced-motion coverage lands as
+  [`gameview.multiplayer.board-animation.spec.ts`](e2e/gameview.multiplayer.board-animation.spec.ts), and the
+  reduced-motion policy is now actually **applied** to flights: it had been dead code, so `animateOverlayCopy`
+  skips the copy at duration 0 and `runRectToDynamicElementAnimation` skips its wait loop.
+- **Animation home** — the flight primitives live in
+  [`views/game/animation/flights.ts`](client/src/views/game/animation/flights.ts) beside the tuning, the
+  reduced-motion policy, the registry, the flight layer and the director, so animation has exactly one home.

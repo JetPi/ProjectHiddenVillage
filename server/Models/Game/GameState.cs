@@ -68,6 +68,46 @@ public sealed class GameState
     public List<PassiveActivationState> PassiveStates { get; set; } = [];
 
     /// <summary>
+    /// The card movements the engine performed, oldest first, capped at <see cref="MaxRecordedCardMovements"/>.
+    /// Published to clients as animation events (see <see cref="AnimationEventResponse"/>) so they animate a move
+    /// instead of inferring it from zone/count deltas. Clients de-duplicate by <see cref="CardMovementRecord.EventId"/>,
+    /// so republishing a bounded tail on every push is safe - the same contract the effect notices use.
+    /// </summary>
+    public List<CardMovementRecord> RecordedCardMovements { get; } = [];
+
+    /// <summary>How many movements the published tail keeps. Bounded like the effect notices.</summary>
+    public const int MaxRecordedCardMovements = 20;
+
+    private int nextCardMovementSequence;
+
+    /// <summary>Records one card movement for the published tail, dropping the oldest entries past the cap.</summary>
+    public void RecordCardMovement(
+        string kind,
+        string cardInstanceId,
+        string playerId,
+        string? fromZone,
+        string? toZone)
+    {
+        if (string.IsNullOrWhiteSpace(kind) || string.IsNullOrWhiteSpace(cardInstanceId))
+        {
+            return;
+        }
+
+        RecordedCardMovements.Add(new CardMovementRecord(
+            EventId: $"movement:{++nextCardMovementSequence}",
+            Kind: kind,
+            CardInstanceId: cardInstanceId,
+            PlayerId: playerId ?? string.Empty,
+            FromZone: fromZone,
+            ToZone: toZone));
+
+        if (RecordedCardMovements.Count > MaxRecordedCardMovements)
+        {
+            RecordedCardMovements.RemoveRange(0, RecordedCardMovements.Count - MaxRecordedCardMovements);
+        }
+    }
+
+    /// <summary>
     /// Activations recorded for effects flagged with <see cref="EffectRestrictions.OncePerTurn"/>. Only
     /// the current turn is kept, so the restriction naturally refreshes each turn.
     /// </summary>

@@ -27,21 +27,23 @@ non-animation coverage.
 - `data-card-ghost` — **removed in Stage 2**; flights are overlay copies under the `CardFlightLayer`
   (`data-card-flight-copy`) and the e2e counter observes that instead.
 - `#attack-link-overlay`, `#attack-link-overlay svg path[stroke]`, `[data-testid="attack-link-head"]` —
-  reworked in **Stage 8** when `react-xarrows` is replaced by a Motion-native path.
+  **kept deliberately** through the Stage 8 rewrite. The board draws the tail path and the head itself now (no
+  `react-xarrows`), but under the same id/testid and with the same "head tip sits on the tail's end" contract, so
+  the geometry assertions in `battle-visuals` needed no changes at all.
 - `data-card-moving` (CSS + inline flag) — removed in **Stage 2**; not referenced by e2e today, only by
   `index.css` and the animation helpers.
 
-## The flight-copy counter (updated Stage 2)
+## The flight-copy counter (updated Stage 2, renamed Stage 9)
 
-`e2e/helpers/multiplayer/flow.ts` installs `installCardGhostAnimationCounter`, which monkey-patches
+`e2e/helpers/multiplayer/flow.ts` installs `installCardFlightCounter`, which monkey-patches
 `Element.prototype.animate` and increments a counter whenever an element carrying
-`data-card-flight-copy="true"` starts an animation. `getCardGhostAnimationCount` then asserts a card was
+`data-card-flight-copy="true"` starts an animation. `getCardFlightCount` then asserts a card was
 actually animated rather than teleported (used by the support K.O., bounce and leave-play specs).
 
 Stage 2 repointed the attribute from `data-card-ghost` to `data-card-flight-copy`, so the counter now sees
-*every* flight (draws included), not just zone exits; the specs assert `> 0`, so they stay valid. The
-function names still say "ghost" - Stage 9 renames them, and the director's descriptor log becomes the
-durable signal.
+*every* WAAPI flight (draws included), not just zone exits; the specs assert `> 0`, so they stay valid.
+Copies that Motion animates are **not** seen by it, so the attack lunge has its own counter
+(`installCardLungeCounter` / `getCardLungeCount`).
 
 ## Specs that assert animation DOM today
 
@@ -60,5 +62,6 @@ durable signal.
 - The hand rows are Motion-owned from Stage 3 (`AnimatePresence` + per-card `motion.div`); `@formkit/auto-animate`
   is gone. The hand-row anchors above (`bottom-hand-row`, `data-hand-instance-id`, `bottom-hand-card-{id}`)
   are unchanged, and per-card `layout` is switched off while a drag is in progress.
-- The rested tilt is a CSS `transition-transform` (`BattleFieldRow.tsx`), which is why `AttackLinkArrow`
-  re-samples layout for 30 frames and why the e2e arrow geometry has tolerances.
+- The rested tilt is a **Motion** `rotate` on a wrapper (`BattleFieldRow.tsx`), which is why `AttackLinkArrow`
+  keeps re-sampling layout for 30 frames (`ATTACK_LINK_SETTLE_FRAMES`), why the tilt must be read from the
+  nearest transformed ancestor, and why the e2e arrow geometry still carries tolerances.

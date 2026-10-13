@@ -156,6 +156,15 @@ public sealed class TributeSummonCardEffect(
             // GameRuntimeDeckService.MoveCardToZone) so clients can surface it as the pile's face.
             ownerTrashZone.Insert(0, tributeCard);
 
+            // This site moves the material by hand rather than through the move service, so it records the
+            // movement itself - the client animates the tribute into the trash from this, not from a count delta.
+            context.Game.State.RecordCardMovement(
+                kind: CardMovementKinds.Tribute,
+                cardInstanceId: tributeCard.InstanceId,
+                playerId: ownerPlayer.PlayerId,
+                fromZone: tributeTarget.Zone.ToString(),
+                toZone: PlayerZone.Trash.ToString());
+
             affectedCardInstanceIds.Add(tributeCard.InstanceId);
             affectedPlayerIds.Add(tributeSourcePlayer.PlayerId);
             affectedPlayerIds.Add(ownerPlayer.PlayerId);
@@ -181,6 +190,13 @@ public sealed class TributeSummonCardEffect(
         CharacterFieldStateRules.ApplyOnFieldEntry(context.Game.State, summonedCard, context.Game.State.TurnNumber);
         summonedCard.ControllerPlayerId = summoningPlayer.PlayerId;
         summoningPlayerField.Add(summonedCard);
+
+        context.Game.State.RecordCardMovement(
+            kind: CardMovementKinds.Summon,
+            cardInstanceId: summonedCard.InstanceId,
+            playerId: summoningPlayer.PlayerId,
+            fromZone: summonTarget.Zone.ToString(),
+            toZone: PlayerZone.CharacterField.ToString());
 
         affectedCardInstanceIds.Add(summonedCard.InstanceId);
         affectedPlayerIds.Add(summonSourcePlayer.PlayerId);

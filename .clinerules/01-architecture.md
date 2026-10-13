@@ -13,6 +13,21 @@ paths:
 - Game screen: `client/src/views/game/` — `GameView.tsx` composes; board lives in
   `components/`; hooks in `hooks/`; types in `types/` (barrel at `types/index.ts`);
   pure helpers in `utils/functions/`.
+- **Animation has exactly one home**: `client/src/views/game/animation/` —
+  `tuning.ts` (every duration, easing and stagger), `reducedMotion.ts` (the skip policy
+  both the flights and the attack lunge obey), `flights.ts` (the overlay-copy
+  primitives; every flight funnels through `animateOverlayCopy`), `flightRegistry.ts`
+  (one owner per card, so a new flight takes over an old one rather than stacking and an
+  interrupted flight cannot orphan its copy), `CardFlightLayer.tsx` +
+  `cardFlightLayerMount.ts` (the single surface flights render into),
+  `boardAnimationDirector.ts` (`noteFlight` / `whenIdle` / `resolveFlightsSettleAtMs` —
+  what the phase-presentation acknowledgement drains on) and `runAttackLunge.ts`. Barrel:
+  `animation/index.ts`. The arrow lives in `02-board-ui-hud.md`, the ack in
+  `04-state-phase-effects.md`.
+- Motion (`motion/react`) owns the declarative animations — hand-row presence/layout,
+  the rested-card tilt (on a wrapper, so read a card's rotation from its nearest
+  transformed ancestor) and card flips — while card flights stay WAAPI copies on the
+  flight layer, because a copy must never compete with a real card for `transform`.
 
 ## Backend patterns
 

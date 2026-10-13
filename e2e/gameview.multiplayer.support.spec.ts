@@ -9,8 +9,8 @@ import {
   fetchGameState,
   getBottomSupportCardsBySlot,
   getCardActionTargetsViaHub,
-  getCardGhostAnimationCount,
-  installCardGhostAnimationCounter,
+  getCardFlightCount,
+  installCardFlightCounter,
   openMultiplayerPages,
   progressToNextDecisionWindow,
   resolveActorWithBottomBattleAction,
@@ -160,7 +160,7 @@ test.describe('GameView multiplayer support activation', () => {
 
       // 5. The opponent declines: that single pass closes the window (the activator is only asked after an
       //    actual reaction), so the activation resolves and K.O.s every character on the board.
-      await installCardGhostAnimationCounter(activatorPage)
+      await installCardFlightCounter(activatorPage)
       await declarePassInActionStepViaHub(setup.gameCode, opponent)
 
       await expect.poll(async () => {
@@ -192,7 +192,7 @@ test.describe('GameView multiplayer support activation', () => {
         timeout: 12_000,
       }).toBe('MainPhase')
       await expect(activatorPage.getByTestId('phase-indicator')).not.toContainText('Support Activated')
-      expect(await getCardGhostAnimationCount(activatorPage)).toBeGreaterThan(0)
+      expect(await getCardFlightCount(activatorPage)).toBeGreaterThan(0)
     } finally {
       await closeMultiplayerPages(pages)
     }
@@ -759,7 +759,7 @@ async function playReturnToHandScenario(
   await restableCharacterCard.getByRole('button', { name: /^choose$/i }).click()
 
   // 5. The attacker declines to react, the activation resolves, and the character flies back to hand.
-  await installCardGhostAnimationCounter(attackerPage)
+  await installCardFlightCounter(attackerPage)
   await passUntilCardReturnsToHand(request, setup, attacker, attackerCardInstanceId)
 
   await expect.poll(async () => {
@@ -777,7 +777,7 @@ async function playReturnToHandScenario(
   })
 
   // The bounce is animated into the hand row instead of the card simply reappearing there.
-  expect(await getCardGhostAnimationCount(attackerPage)).toBeGreaterThan(0)
+  expect(await getCardFlightCount(attackerPage)).toBeGreaterThan(0)
 }
 
 async function playRangeSupportScenario(
@@ -897,7 +897,7 @@ async function playRangeSupportScenario(
       // 5. Passes resolve the queued activation: the rested attacker is K.O.'d and the used support leaves
       //    the support area for the trash (it is spent, not parked face up). The K.O. flies the card into
       //    the trash as a ghost.
-      await installCardGhostAnimationCounter(defenderPage)
+      await installCardFlightCounter(defenderPage)
       await passUntilAttackerIsDefeated(request, setup, attacker, attackerCardInstanceId)
 
       await expect.poll(async () => {
@@ -923,7 +923,7 @@ async function playRangeSupportScenario(
       })
 
       // The K.O.'d attacker was animated out of the field, not teleported into the trash.
-      expect(await getCardGhostAnimationCount(defenderPage)).toBeGreaterThan(0)
+      expect(await getCardFlightCount(defenderPage)).toBeGreaterThan(0)
 }
 
 /**

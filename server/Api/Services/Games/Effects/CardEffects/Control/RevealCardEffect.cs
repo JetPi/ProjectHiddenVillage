@@ -83,6 +83,16 @@ public sealed class RevealCardEffect(
 
             card.IsRevealedToBothPlayers = true;
             card.RevealedInZone = target.Zone;
+
+            // A reveal is not a zone move, but it is a movement the client animates (the deck slot turns over),
+            // so it is recorded with the zone it was revealed in on both ends.
+            context.Game.State.RecordCardMovement(
+                kind: CardMovementKinds.Reveal,
+                cardInstanceId: card.InstanceId,
+                playerId: targetPlayer.PlayerId,
+                fromZone: target.Zone.ToString(),
+                toZone: target.Zone.ToString());
+
             affectedCardIds.Add(card.InstanceId);
             affectedPlayerIds.Add(targetPlayer.PlayerId);
         }

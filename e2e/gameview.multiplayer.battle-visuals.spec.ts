@@ -163,9 +163,8 @@ test.describe('GameView multiplayer battle visuals', () => {
         timeout: 8_000,
       }).toBeGreaterThan(0)
 
-      // The arrowhead is rendered by us and follows the tail: it must point at the target (react-xarrows
-      // derives its own head rotation from the anchor side, which can end up pointing away from it). The
-      // bound is loose on purpose now that the head is measured from the tail rather than aimed at the
+      // The arrowhead is rendered by us and follows the tail: it must point at the target. The bound is
+      // loose on purpose now that the head is derived from the tail's end direction rather than aimed at the
       // centre - on a sweeping tail the chord of the last head length differs from the aim by a degree or
       // two, and the tail's "travels into the target" check below covers the direction itself.
       await expect.poll(async () => {
@@ -244,11 +243,11 @@ test.describe('GameView multiplayer battle visuals', () => {
         timeout: 8_000,
       }).toEqual({ tipToTailEnd: 0, hasGlow: true, headVsTailDeg: 0 })
 
-      // The tail must leave and enter on the *visual* edges of the attacked pair. A rested card is tilted,
-      // and react-xarrows anchors on the bounding box: the bbox's top/bottom edge midpoint floats out at
-      // the rotated card's corner (the attacker is always rested, so this hits every attack), and its
-      // left/right edge midpoint sits level with the card's centre - i.e. visibly below the tilted edge's
-      // midpoint. Both ends must therefore sit roughly the gap away from the *rotated* card surface.
+      // The tail must leave and enter on the *visual* edges of the attacked pair. A rested card is tilted, so
+      // its bounding-box anchors float off the card: the bbox's top/bottom edge midpoint sits out at the
+      // rotated card's corner (the attacker is always rested, so this hits every attack), and its left/right
+      // edge midpoint sits level with the card's centre - i.e. visibly below the tilted edge's midpoint. Both
+      // ends must therefore sit roughly the gap away from the *rotated* card surface.
       await expect.poll(async () => {
         return await battleActor.actorPage.evaluate(([sourceInstanceId, targetInstanceId]) => {
           const path = document.querySelector<SVGPathElement>('#attack-link-overlay svg path[stroke]')
