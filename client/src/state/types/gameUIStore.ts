@@ -1,7 +1,6 @@
 import type { SetStateAction } from 'react'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
 import type { IAttackFlowLinkState, IAttackTargetingState, IEffectTargetingState, IPendingCardTargetingState, ISummonTargetingState } from '@/views/game/types'
-import type { BoardAnimationMode } from '@/views/game/animation/boardAnimationMode'
 
 export type IPendingPromptSelectionState = {
   promptId: string
@@ -70,12 +69,5 @@ export type IGameUIStoreState = {
    */
   isSupportWindowHudHolding: boolean
   setIsSupportWindowHudHolding: (value: SetStateAction<boolean>) => void
-  /**
-   * Which board-animation engine this session runs: `legacy` (the WAAPI/ghost engine being retired) or
-   * `motion` (the Motion + director board). Defaults from `VITE_BOARD_ANIMATION_MODE` and can be
-   * overridden at runtime while the migration is in flight.
-   */
-  boardAnimationMode: BoardAnimationMode
-  setBoardAnimationMode: (value: SetStateAction<BoardAnimationMode>) => void
 }
 

@@ -1,13 +1,13 @@
 /**
  * The single source of truth for board-animation tuning.
  *
- * Durations, easings, stagger windows and the destination-lookup clamps used to be declared separately
- * in the animation primitives, the GameView effect hooks and the game constants. They live here now so a
- * value is never defined twice with two different numbers while the board migrates from the WAAPI/ghost
- * engine to Motion (see `plans/board-animation-motion-migration.md`).
+ * Durations, easings, stagger windows and the destination-lookup clamps used to be declared separately in the
+ * animation primitives, the GameView effect hooks and the game constants. They live here now so a value is
+ * never defined twice with two different numbers (the migration that consolidated them is
+ * `plans/board-animation-motion-migration.md`).
  *
- * Existing consumers import these directly, or through the re-exports in
- * `views/game/utils/contants.ts`; new code (the flight layer, the director) reads them from here.
+ * Existing consumers import these directly, or through the re-exports in `views/game/utils/contants.ts`;
+ * the flight layer, the director and the lunge read them from here.
  */
 
 /** The board's one card-travel easing (a soft, decisive ease-out), as a CSS timing function. */

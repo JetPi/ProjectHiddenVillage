@@ -4,12 +4,10 @@ import type { MultiplayerPages, MultiplayerSetup } from './helpers/gameviewMulti
 import {
   advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
-  countCardFlightCopies,
+  countTravelingCardElements,
   fetchGameState,
   getCardFlightCount,
-  getCardFlightLeakReport,
   installCardFlightCounter,
-  installCardFlightLeakObserver,
   openMultiplayerPages,
   resolveAllMulliganPrompts,
   resolvePromptViaHub,
@@ -20,11 +18,12 @@ import {
 /**
  * Board-animation hygiene.
  *
- * The overlay flight engine exists to make one promise: a flight draws a copy on the flight layer and removes
- * that copy exactly once. The two specs here pin the two halves of it:
+ * The flight engine makes one promise: the card that travels is the card itself, and the flight cleans up after
+ * itself exactly once. The two specs here pin the two halves of it:
  *
- *  - the layer drains (no copy outlives its flight - the "ghost" regression), and
- *  - reduced motion skips the copy entirely while the phase-presentation acknowledgement still resolves
+ *  - no card is left mid-flight, and none renders twice (the card that flies is the card that lands - a second
+ *    element for the same card, or a marker left behind on a live card, is the regression), and
+ *  - reduced motion skips the flight entirely while the phase-presentation acknowledgement still resolves
  *    (the protocol half: a skipped flight must settle, never leave the engine parked).
  */
 
@@ -63,7 +62,7 @@ function bothPages(pages: MultiplayerPages): Page[] {
 test.describe('GameView multiplayer board animation hygiene', () => {
   test.describe.configure({ timeout: 180_000 })
 
-  test('card flights drain to an empty layer and never leave a copy behind', async ({ browser, request }) => {
+  test('a moving card travels as itself and never leaves a copy or a duplicate behind', async ({ browser, request }) => {
     const setup = await setupMultiplayerGame(request)
     const pages = await openMultiplayerPages(browser, setup)
 
@@ -72,13 +71,12 @@ test.describe('GameView multiplayer board animation hygiene', () => {
       // cumulative, so it does not matter which of the two clients draws first.
       for (const page of bothPages(pages)) {
         await installCardFlightCounter(page)
-        await installCardFlightLeakObserver(page)
       }
 
       await playOpeningIntoMainPhase(request, setup)
 
-      // Draws fly deck -> hand as overlay copies, so the opening has already produced at least one flight.
-      // Without this the drain assertion below could pass on a board that simply never animated.
+      // A draw is an entity-based flight: the arriving hand card itself travels from the deck. The counter sees
+      // whichever marker moved, so this proves the opening animated rather than teleported.
       await expect.poll(async () => {
         let total = 0
         for (const page of bothPages(pages)) {
@@ -87,17 +85,34 @@ test.describe('GameView multiplayer board animation hygiene', () => {
         return total
       }, { timeout: 30_000 }).toBeGreaterThan(0)
 
-      // The layer drains: no copy survives its flight.
+      // Every flight cleaned up after itself: nothing is still marked as travelling once the board has settled.
       for (const page of bothPages(pages)) {
-        await expect.poll(async () => await countCardFlightCopies(page), { timeout: 30_000 }).toBe(0)
+        await expect.poll(async () => await countTravelingCardElements(page), { timeout: 30_000 }).toBe(0)
       }
 
-      // And nothing was orphaned along the way. A copy still attached long after the longest flight would be
-      // the old engine's ghost, and the observer reports it whether or not the layer happens to look empty.
+      // Nothing is duplicated either - the card that flew is the card that landed, not a second element beside it.
       for (const page of bothPages(pages)) {
-        const report = await getCardFlightLeakReport(page)
-        expect(report.seen, 'the opening should have flown at least one copy').toBeGreaterThan(0)
-        expect(report.leaks, `orphaned flight copies: ${JSON.stringify(report)}`).toBe(0)
+        const duplicatedInstanceIds = await page.evaluate(() => {
+          const seen = new Set<string>()
+          const duplicates: string[] = []
+          document.querySelectorAll<HTMLElement>('[data-hand-instance-id]').forEach((element) => {
+            const instanceId = element.getAttribute('data-hand-instance-id')
+            if (!instanceId) {
+              return
+            }
+
+            if (seen.has(instanceId)) {
+              duplicates.push(instanceId)
+              return
+            }
+
+            seen.add(instanceId)
+          })
+
+          return duplicates
+        })
+
+        expect(duplicatedInstanceIds, 'a hand card must never render twice').toEqual([])
       }
     } finally {
       await closeMultiplayerPages(pages)
@@ -128,7 +143,7 @@ test.describe('GameView multiplayer board animation hygiene', () => {
 
       for (const page of bothPages(pages)) {
         expect(await getCardFlightCount(page)).toBe(0)
-        expect(await countCardFlightCopies(page)).toBe(0)
+        expect(await countTravelingCardElements(page)).toBe(0)
       }
     } finally {
       await closeMultiplayerPages(pages)

@@ -1,9 +1,8 @@
-import { useCallback, useRef } from 'react'
 import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
 import { GameHandRow } from './GameHandRow'
 import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
 import { useGameUIStore } from '@/state/gameUIStore'
-import { useLongPressHandReorder } from '@/views/game/hooks/useLongPressHandReorder'
+import { useHandRowReorder } from '@/views/game/hooks/useHandRowReorder'
 import { resolveCardActionOptionsForInstanceId } from '@/views/game/utils/functions'
 import type { IBottomHandReorderRowProps } from '@/views/game/types'
 
@@ -21,33 +20,31 @@ export function BottomHandReorderRow({
   validEffectTargetsByCardId,
   onChooseTarget,
 }: IBottomHandReorderRowProps) {
-  const internalRowRef = useRef<HTMLDivElement | null>(null)
-
-  const handleRowMount = useCallback((node: HTMLDivElement | null) => {
-    internalRowRef.current = node
-    rowRef(node)
-  }, [rowRef])
-
+  // Motion's `Reorder` owns the drag; this hook owns the order and the post-drag click suppression.
   const {
     orderedCards,
-    activeDraggedInstanceId,
+    orderedIds,
+    activeInstanceId,
     isReorderDragging,
-    getCardPointerHandlers,
-  } = useLongPressHandReorder({
-    cards,
-    rowRef: internalRowRef,
-  })
+    isDraggableCard,
+    handleReorder,
+    handleDragStateChange,
+  } = useHandRowReorder({ cards })
 
   return (
     <GameHandRow
       cards={orderedCards}
-      rowRef={handleRowMount}
+      rowRef={rowRef}
       getCardKey={(card) => card.instanceId}
-      // The reorder engine moves the dragged card itself (fixed position + transform), so Motion must not
-      // also lay the slots out while a drag is in progress.
-      isLayoutAnimationEnabled={!isReorderDragging}
       rowTestId="bottom-hand-row"
       rowClassName="overflow-visible"
+      reorder={{
+        values: orderedIds,
+        onReorder: handleReorder,
+        isDraggableCard,
+        activeValue: activeInstanceId,
+        onDragStateChange: handleDragStateChange,
+      }}
       renderCard={(card) => {
         const previewCard = cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null
         const cardActionOptions = resolveCardActionOptionsForInstanceId(
@@ -55,7 +52,6 @@ export function BottomHandReorderRow({
           card.instanceId,
           card.availableActions,
         )
-        const cardPointerHandlers = getCardPointerHandlers(card.instanceId)
         const isEffectTargetCandidate =
           isEffectActionTargeting
           && validEffectTargetsByCardId?.has(card.instanceId.trim().toLowerCase()) === true
@@ -69,8 +65,7 @@ export function BottomHandReorderRow({
             onDragStart={(event) => {
               event.preventDefault()
             }}
-            className={`h-full w-full select-none ${activeDraggedInstanceId === card.instanceId ? 'z-[260] touch-none' : 'touch-manipulation'}`}
-            {...cardPointerHandlers}
+            className="h-full w-full select-none"
           >
             <FlippableCard
               isFlipped={faceUpByInstanceId[card.instanceId] ?? true}

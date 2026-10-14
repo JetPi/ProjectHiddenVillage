@@ -4,7 +4,9 @@ import {
   closeMultiplayerPages,
   fetchGameState,
   getAnimationCount,
+  getCardFlightRecords,
   installAnimationCounter,
+  installCardFlightCounter,
   normalizeUserId,
   openMultiplayerPages,
   resolvePromptViaHub,
@@ -169,7 +171,21 @@ test.describe('GameView multiplayer prompts', () => {
       await installAnimationCounter(mulliganOwnerPage)
       const initialAnimationCount = await getAnimationCount(mulliganOwnerPage)
 
-      await resolvePromptViaHub(setup.gameCode, mulliganOwner, 'mulligan')
+      // The hand this mulligan is about to send back, read off the board: a card keeps its own element (and so
+      // its own instance id) through the flight, which is what lets the assertion below name the cards. Scoped
+      // to the owner's own row - the opponent's hand is rendered too and is not the hand being mulliganed.
+      const mulliganHandInstanceIds = await mulliganOwnerPage
+        .locator('[data-testid^="bottom-hand-card-"]')
+        .evaluateAll((nodes) => nodes
+          .map((node) => node.getAttribute('data-hand-instance-id') ?? '')
+          .filter((instanceId) => instanceId !== ''))
+      expect(mulliganHandInstanceIds.length).toBeGreaterThan(0)
+
+      await installCardFlightCounter(mulliganOwnerPage)
+
+      // Answered on the board rather than through the hub on purpose: the client's own resolution flow is the
+      // one that flies the hand back into the deck, and resolving out of band skips it entirely.
+      await mulliganOwnerPage.getByTestId('prompt-option-mulligan').click()
 
       await expect.poll(async () => {
         const state = await fetchGameState(request, setup.gameCode, mulliganOwner.session.accessToken)
@@ -183,6 +199,28 @@ test.describe('GameView multiplayer prompts', () => {
       }, {
         timeout: 8_000,
       }).toBeGreaterThan(initialAnimationCount)
+
+      // Every card of that hand leaves as itself: one flight per card, named, rather than a cumulative count of
+      // something having moved. The missed ids are reported so a failure names the card that did not travel
+      // instead of only a number.
+      await expect.poll(async () => {
+        const records = await getCardFlightRecords(mulliganOwnerPage)
+        const handInstanceIds = new Set(mulliganHandInstanceIds)
+        const travelledInstanceIds = new Set(
+          records
+            .filter((record) => handInstanceIds.has(record.instanceId))
+            .map((record) => record.instanceId),
+        )
+        return {
+          travelled: mulliganHandInstanceIds.filter((instanceId) => travelledInstanceIds.has(instanceId)).length,
+          missed: mulliganHandInstanceIds.filter((instanceId) => !travelledInstanceIds.has(instanceId)),
+        }
+      }, {
+        timeout: 10_000,
+      }).toEqual({
+        travelled: mulliganHandInstanceIds.length,
+        missed: [],
+      })
     } finally {
       await closeMultiplayerPages(pages)
     }

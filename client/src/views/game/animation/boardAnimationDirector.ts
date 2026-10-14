@@ -5,8 +5,9 @@
  * phase-presentation acknowledgement reads only this, so a new kind of animation cannot forget to register and
  * the engine can never resume while a card is still in the air.
  *
- * Policy lives here; the mechanism stays with the callers (WAAPI overlay copies today, Motion next). Deadlines
- * are keyed, so re-scheduling an animation extends its own wait instead of resetting or stacking it.
+ * Policy lives here; the mechanism stays with the callers (the flight primitives in
+ * `views/game/animation/flights.ts`). Deadlines are keyed, so re-scheduling an animation extends its own wait
+ * instead of resetting or stacking it.
  */
 
 const flightEndsAtByKey = new Map<string, number>()

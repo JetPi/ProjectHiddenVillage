@@ -40,10 +40,11 @@ export async function getAnimationCount(page: Page): Promise<number> {
 }
 
 /**
- * Counts how many card flight copies actually fly (`data-card-flight-copy`, see the animation helpers under
- * `views/game/animation`). Cards that leave the battlefield or the hand for the trash animate through that
- * path, so a rising count proves the exit was animated instead of the card appearing in the trash out of
- * nowhere.
+ * Counts how many cards actually travel, and which card each animation was for.
+ *
+ * A flight marks the element it moves with `data-card-traveling` while it is in the air, and that element is the
+ * card itself - there is no second card and no stand-in for it. A rising count therefore proves the movement was
+ * drawn instead of the card appearing out of nowhere, which is what every caller of this counter asserts.
  */
 export async function installCardFlightCounter(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -62,15 +63,29 @@ export async function installCardFlightCounter(page: Page): Promise<void> {
       keyframes: PropertyIndexedKeyframes | Keyframe[],
       options?: number | KeyframeAnimationOptions,
     ): Animation {
-      if (this instanceof Element && this.getAttribute('data-card-flight-copy') === 'true') {
+      if (this instanceof Element && this.getAttribute('data-card-traveling') === 'true') {
         const currentCount = typeof state.__phvCardGhostCount === 'number' ? state.__phvCardGhostCount : 0
         state.__phvCardGhostCount = currentCount + 1
+
+        // The card this animation belongs to, when the element carries it. A count alone cannot tell which card
+        // moved, and a cumulative count can be satisfied by an unrelated animation earlier in a scenario.
+        const instanceId = this.getAttribute('data-departing-instance-id')
+          ?? this.getAttribute('data-card-instance-id')
+          ?? this.getAttribute('data-hand-instance-id')
+        if (instanceId) {
+          const records = Array.isArray(state.__phvCardFlightRecords)
+            ? state.__phvCardFlightRecords as Array<{ instanceId: string }>
+            : []
+          records.push({ instanceId })
+          state.__phvCardFlightRecords = records
+        }
       }
 
       return originalAnimate.call(this, keyframes, options)
     }
 
     state.__phvCardGhostCount = 0
+    state.__phvCardFlightRecords = []
     state[marker] = true
   })
 }
@@ -82,119 +97,28 @@ export async function getCardFlightCount(page: Page): Promise<number> {
   })
 }
 
-/** Copies attached to the flight layer right now. It must be back to 0 once the board settles. */
-export async function countCardFlightCopies(page: Page): Promise<number> {
-  return await page
-    .locator('[data-testid="card-flight-layer"] [data-card-flight-copy="true"]')
-    .count()
+export type CardFlightRecord = {
+  /** The card whose own element moved. */
+  instanceId: string
 }
 
-export type CardFlightLeakReport = {
-  /** Copies that started flying during the observation window. */
-  seen: number
-  /** Most copies alive at the same time. */
-  peak: number
-  /** Copies still attached long after their flight should have ended - the "ghost" regression. */
-  leaks: number
+/** What has actually been animated since the counter was installed. */
+export async function getCardFlightRecords(page: Page): Promise<CardFlightRecord[]> {
+  return await page.evaluate(() => {
+    const state = window as unknown as { __phvCardFlightRecords?: CardFlightRecord[] }
+    return Array.isArray(state.__phvCardFlightRecords) ? state.__phvCardFlightRecords : []
+  })
 }
 
 /**
- * Watches the flight layer and counts copies that outlive their flight.
+ * Cards still marked as flying right now.
  *
- * The engine's contract is that a flight owns its copy and removes it exactly once. The old engine appended
- * ghosts to `document.body` and could orphan one when a flight was interrupted, so "a copy that no longer
- * belongs to any flight but is still attached" is the regression this observer pins. The check runs on a
- * timer (not on removal bookkeeping) so a copy that is *never* removed is caught even if its removal would
- * have come from a code path that no longer runs.
+ * A settled board must have none: the marker is the flight's own bookkeeping on a live card element, so one
+ * left behind means a card was abandoned mid-flight - still transformed, or still hidden by the frame the
+ * flight used to avoid flashing at its slot before it started.
  */
-export async function installCardFlightLeakObserver(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const marker = '__phvCardFlightLeakObserverInstalled'
-    const state = window as unknown as {
-      [key: string]: unknown
-      __phvCardFlightLeakSeen?: number
-      __phvCardFlightLeakPeak?: number
-      __phvCardFlightLeakCount?: number
-    }
-
-    if (state[marker] === true) {
-      return
-    }
-
-    const COPY_SELECTOR = '[data-card-flight-copy="true"]'
-    const LAYER_SELECTOR = '[data-testid="card-flight-layer"]'
-    // Longer than any flight the board runs, so an in-flight copy is never mistaken for a leak.
-    const MAX_FLIGHT_AGE_MS = 2_000
-    const addedAtByCopy = new WeakMap<Element, number>()
-    const recordedLeaks = new WeakSet<Element>()
-    let liveCount = 0
-
-    state.__phvCardFlightLeakSeen = 0
-    state.__phvCardFlightLeakPeak = 0
-    state.__phvCardFlightLeakCount = 0
-
-    const observer = new MutationObserver((records) => {
-      for (const record of records) {
-        record.addedNodes.forEach((node) => {
-          if (!(node instanceof Element) || !node.matches(COPY_SELECTOR)) {
-            return
-          }
-
-          addedAtByCopy.set(node, performance.now())
-          liveCount += 1
-          state.__phvCardFlightLeakSeen = (state.__phvCardFlightLeakSeen ?? 0) + 1
-          state.__phvCardFlightLeakPeak = Math.max(state.__phvCardFlightLeakPeak ?? 0, liveCount)
-        })
-
-        record.removedNodes.forEach((node) => {
-          if (!(node instanceof Element) || !node.matches(COPY_SELECTOR)) {
-            return
-          }
-
-          liveCount = Math.max(0, liveCount - 1)
-          addedAtByCopy.delete(node)
-        })
-      }
-    })
-
-    observer.observe(document.body, { childList: true, subtree: true })
-
-    window.setInterval(() => {
-      document.querySelectorAll<HTMLElement>(`${LAYER_SELECTOR} ${COPY_SELECTOR}`).forEach((copy) => {
-        const addedAt = addedAtByCopy.get(copy)
-        if (addedAt === undefined) {
-          // A copy that was already flying when this observer was installed: start its clock now.
-          addedAtByCopy.set(copy, performance.now())
-          return
-        }
-
-        if (performance.now() - addedAt <= MAX_FLIGHT_AGE_MS || recordedLeaks.has(copy)) {
-          return
-        }
-
-        recordedLeaks.add(copy)
-        state.__phvCardFlightLeakCount = (state.__phvCardFlightLeakCount ?? 0) + 1
-      })
-    }, 250)
-
-    state[marker] = true
-  })
-}
-
-export async function getCardFlightLeakReport(page: Page): Promise<CardFlightLeakReport> {
-  return await page.evaluate(() => {
-    const state = window as unknown as {
-      __phvCardFlightLeakSeen?: number
-      __phvCardFlightLeakPeak?: number
-      __phvCardFlightLeakCount?: number
-    }
-
-    return {
-      seen: state.__phvCardFlightLeakSeen ?? 0,
-      peak: state.__phvCardFlightLeakPeak ?? 0,
-      leaks: state.__phvCardFlightLeakCount ?? 0,
-    }
-  })
+export async function countTravelingCardElements(page: Page): Promise<number> {
+  return await page.locator('[data-card-traveling="true"]').count()
 }
 
 /**
@@ -248,6 +172,48 @@ export async function getCardLungeCount(page: Page): Promise<number> {
     const state = window as unknown as { __phvCardLungeCount?: number }
     return typeof state.__phvCardLungeCount === 'number' ? state.__phvCardLungeCount : 0
   })
+}
+
+/**
+ * A point on a bottom-hand card that is safe to press to start a reorder drag.
+ *
+ * The row deliberately refuses to start a drag from one of the hover overlay's controls (so the card's buttons
+ * keep working), which makes a press at the card's centre a coin flip: hover the card, and the control may be
+ * under the cursor. This walks a grid of candidate points and returns the first that is inside the card and not
+ * covered by a control.
+ *
+ * Call it *after* hovering the card, so the overlay is in the state the press will actually see.
+ */
+export async function resolveHandCardDragPressPoint(
+  page: Page,
+  cardInstanceId: string,
+): Promise<{ x: number; y: number } | null> {
+  return await page.evaluate((instanceId) => {
+    const card = document.querySelector<HTMLElement>(`[data-hand-instance-id="${instanceId}"]`)
+    if (!card) {
+      return null
+    }
+
+    const box = card.getBoundingClientRect()
+    for (const horizontalRatio of [0.5, 0.35, 0.65, 0.2, 0.8, 0.12, 0.88]) {
+      for (const verticalRatio of [0.25, 0.4, 0.6, 0.75, 0.15, 0.88]) {
+        const x = box.left + box.width * horizontalRatio
+        const y = box.top + box.height * verticalRatio
+        const element = document.elementFromPoint(x, y)
+        if (!element || (element !== card && !card.contains(element))) {
+          continue
+        }
+
+        if (element.closest('button,[role="button"],[data-prevent-hand-drag="true"]')) {
+          continue
+        }
+
+        return { x, y }
+      }
+    }
+
+    return null
+  }, cardInstanceId)
 }
 
 export async function getBottomBattlefieldInstanceOrder(page: Page): Promise<string[]> {
@@ -767,11 +733,10 @@ export type PileSlotGeometrySample = {
 }
 
 /**
- * Records the entry animations of character-field cards. A flight is drawn by an overlay copy in the board's
- * flight layer (`CardFlightLayer`), which starts offset from the source and lands on the destination, so a
+ * Records the entry animations of character-field cards. The card that flies is the card itself, marked with
+ * `data-card-traveling` while it is in the air, and its first keyframe is offset from where it came from - so a
  * recorded frame whose start transform is offset proves the card FLEW into its slot (a reveal-summon out of the
- * deck, a hand summon) instead of simply appearing there. The copy's card is read from
- * `data-flight-instance-id`.
+ * deck, a hand summon) instead of simply appearing there.
  */
 export async function installBattlefieldEntryAnimationRecorder(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -792,8 +757,8 @@ export async function installBattlefieldEntryAnimationRecorder(page: Page): Prom
     ): Animation {
       const target = this instanceof Element ? this : null
       const isBattlefieldCard = target?.getAttribute('data-zone') === 'character-field-card'
-      const isFlightCopy = target?.getAttribute('data-card-flight-copy') === 'true'
-      if (target && (isBattlefieldCard || isFlightCopy)) {
+      const isTravelingCard = target?.getAttribute('data-card-traveling') === 'true'
+      if (target && (isBattlefieldCard || isTravelingCard)) {
         const firstKeyframe = Array.isArray(keyframes) ? keyframes[0] : keyframes
         const fromTransform =
           firstKeyframe && typeof firstKeyframe === 'object'
@@ -801,9 +766,7 @@ export async function installBattlefieldEntryAnimationRecorder(page: Page): Prom
             : ''
         const recorded = state.__phvBattlefieldEntryAnimations ?? []
         recorded.push({
-          instanceId: isFlightCopy
-            ? (target.getAttribute('data-flight-instance-id') ?? '')
-            : (target.getAttribute('data-card-instance-id') ?? ''),
+          instanceId: target.getAttribute('data-card-instance-id') ?? '',
           fromTransform,
           at: Math.round(performance.now()),
         })

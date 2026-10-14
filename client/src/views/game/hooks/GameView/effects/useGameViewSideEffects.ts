@@ -130,6 +130,7 @@ function useGameViewSideEffects({
     clearPromptSelection: ui.clearPromptSelection,
     submitHubIntent: gameHubState.submitHubIntent,
     viewRefs,
+    animControllerRef,
   })
 
   useRevealPresentationAckEffect({
@@ -179,6 +180,7 @@ function usePromptSelectionSubmitEffect({
   clearPromptSelection,
   submitHubIntent,
   viewRefs,
+  animControllerRef,
 }: IUsePromptSelectionSubmitEffectArgs): void {
   useEffect(() => {
     if (!pendingPromptSelection) {
@@ -200,6 +202,13 @@ function usePromptSelectionSubmitEffect({
       // real hand element, so submitting first would let the pushed state unmount it mid-air and the card would
       // simply vanish instead of landing.
       if (pendingPrompt.candidateZone === 'Hand' && pileDestination) {
+        // A trash-bound card is claimed for this flight. The recorded-discard effect would otherwise fly the same
+        // card out of the hand a second time once the resolved state lands, and by then the hand row is still
+        // holding the card in its exit window - so the player would watch one discard twice.
+        if (pileDestination === 'trash') {
+          animControllerRef.current.suppressedExitGhostInstanceIds.add(selection.selectedInstanceId)
+        }
+
         await runHandToPileAnimation({
           side: 'bottom',
           destination: pileDestination,
@@ -220,7 +229,7 @@ function usePromptSelectionSubmitEffect({
         selectedOption: selection.selectedInstanceId,
       })
     })()
-  }, [clearPromptSelection, gameState.pendingPrompt, pendingPromptSelection, submitHubIntent, viewRefs])
+  }, [animControllerRef, clearPromptSelection, gameState.pendingPrompt, pendingPromptSelection, submitHubIntent, viewRefs])
 }
 
 /** Which pile a hand card picked by a prompt leaves for (null when the prompt's action moves no hand card). */
@@ -299,6 +308,7 @@ type IUsePromptSelectionSubmitEffectArgs = {
   clearPromptSelection: () => void
   submitHubIntent: IUseGameHubStateResult['submitHubIntent']
   viewRefs: ReturnType<typeof useGameRefs>
+  animControllerRef: RefObject<IGameViewAnimController>
 }
 
 type IUseGameViewSideEffectsArgs = {

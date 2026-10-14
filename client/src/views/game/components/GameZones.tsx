@@ -14,10 +14,9 @@ import {
   isCardRestedState,
   toAnchorId,
 } from '@/views/game/utils/functions'
-import { renderBattlefieldRow } from './BattleFieldRow'
+import { BattlefieldRow } from './BattleFieldRow'
 import { RenderZoneCardSlots } from './ZoneCardSlots'
 import { AttackLinkArrow } from './AttackLinkArrow'
-import { CardFlightLayer } from '@/views/game/animation/CardFlightLayer'
 import { SideBarButtons } from './SidebarButtons'
 import { resolveBoardPromptCandidateInstanceIds, useGameUIStore } from '@/state/gameUIStore'
 import { useBackendAttackLink } from '@/views/game/hooks/GameView/memos/useBackendAttackLink'
@@ -300,13 +299,15 @@ function GameZones(props: IGameZonesProps) {
 
           <div className="grid min-h-0 grid-rows-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-2">
             {RenderZoneCardSlots({ ...renderZoneCardSlotsProps, zone: 'support', visibilityMode: 'hover', isCurrentPlayerZone: false })}
-            {renderBattlefieldRow({
-              ...battlefieldRowProps,
-              cards: cardOptions.topBattlefieldCards,
-              isCurrentPlayerZone: false,
-              normalizedAttackLinkSourceCardId: cardOptions.normalizedAttackLinkSourceCardId,
-              normalizedAttackLinkTargetCardId: cardOptions.normalizedAttackLinkTargetCardId,
-            })}
+            <BattlefieldRow
+              data={{
+                ...battlefieldRowProps,
+                cards: cardOptions.topBattlefieldCards,
+                isCurrentPlayerZone: false,
+                normalizedAttackLinkSourceCardId: cardOptions.normalizedAttackLinkSourceCardId,
+                normalizedAttackLinkTargetCardId: cardOptions.normalizedAttackLinkTargetCardId,
+              }}
+            />
           </div>
 
           <div className="flex min-h-0 w-full justify-end pr-3">
@@ -348,13 +349,15 @@ function GameZones(props: IGameZonesProps) {
           </div>
 
           <div className="grid min-h-0 grid-rows-[minmax(0,1.05fr)_minmax(0,0.95fr)] gap-2">
-            {renderBattlefieldRow({
-              ...battlefieldRowProps,
-              cards: cardOptions.bottomBattlefieldCards,
-              isCurrentPlayerZone: true,
-              normalizedAttackLinkSourceCardId: cardOptions.normalizedAttackLinkSourceCardId,
-              normalizedAttackLinkTargetCardId: cardOptions.normalizedAttackLinkTargetCardId,
-            })}
+            <BattlefieldRow
+              data={{
+                ...battlefieldRowProps,
+                cards: cardOptions.bottomBattlefieldCards,
+                isCurrentPlayerZone: true,
+                normalizedAttackLinkSourceCardId: cardOptions.normalizedAttackLinkSourceCardId,
+                normalizedAttackLinkTargetCardId: cardOptions.normalizedAttackLinkTargetCardId,
+              }}
+            />
             {RenderZoneCardSlots({ ...renderZoneCardSlotsProps, zone: 'support', visibilityMode: 'hover', isCurrentPlayerZone: true })}
           </div>
 
@@ -376,8 +379,6 @@ function GameZones(props: IGameZonesProps) {
             />
           </div>
         </div>
-
-        <CardFlightLayer />
       </div>
 
       <SideBarButtons {...props} />

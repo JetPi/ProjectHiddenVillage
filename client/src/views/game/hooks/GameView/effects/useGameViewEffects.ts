@@ -28,9 +28,9 @@ import {
   noteFlight,
   pruneSettledFlights,
   resolveFlightsSettleAtMs,
-  runCardImageGhostToElementAnimation,
   runDeckToHandAnimation,
-  runRectToDynamicElementAnimation,
+  runElementFromRectAnimation,
+  runElementToRectAnimation,
   whenIdle,
 } from '@/views/game/animation'
 import {
@@ -51,8 +51,11 @@ const STATIC_GAME_IMAGE_SOURCES = [chakraCardImage, summonCardImage, cardBackIma
  */
 type ICardRenderedZone = 'battlefield' | 'support' | 'hand'
 
+/**
+ * Geometry only: the card's own element carries the art, the face and the styling, so a snapshot no longer has
+ * to remember what the card looked like (and a face-down card can be flied too - it has no `<img>` to snapshot).
+ */
 type ICardGhostSnapshot = {
-  imageSrc: string
   rect: DOMRect
   side: 'top' | 'bottom'
   zone: ICardRenderedZone
@@ -93,14 +96,12 @@ function collectCardGhostSnapshots(
       continue
     }
 
-    const imageElement = element.querySelector<HTMLImageElement>('img')
     const rect = element.getBoundingClientRect()
-    if (!imageElement || rect.width <= 0 || rect.height <= 0) {
+    if (rect.width <= 0 || rect.height <= 0) {
       continue
     }
 
     snapshots.set(instanceId, {
-      imageSrc: imageElement.currentSrc || imageElement.src,
       rect,
       side: element.dataset.slotSide === 'top' ? 'top' : element.dataset.slotSide === 'bottom' ? 'bottom' : fallbackSide,
       zone: resolveRenderedZone(element, fallbackZone),
@@ -562,29 +563,35 @@ function useHandZoneAnimationEffects({
       }
 
       function runInferredHandToTrashAnimation(side: 'top' | 'bottom', cardInstanceId: string): void {
+        // A discard the client already flew itself - before it submitted, so the hand card was still mounted -
+        // claims the card here. Without this the same move would be animated twice: once by that flight, and
+        // again by this one, because the hand row is still holding the card in its exit window.
+        if (animController.suppressedExitGhostInstanceIds.delete(cardInstanceId)) {
+          return
+        }
+
         const sourceHandRowElement = side === 'top' ? topHandRowRef.current : bottomHandRowRef.current
         const sourceCardElement = sourceHandRowElement?.querySelector<HTMLDivElement>(
           `[data-hand-instance-id="${cardInstanceId}"]`,
         ) ?? null
 
+        // The hand row keeps a removed card mounted while it exits, so within that window the discarded card is
+        // still a live element and travels to the pile as itself. Once the element is gone there is nothing left
+        // to move - drawing a copy of a card the player can no longer see is worse than no animation at all.
         if (!sourceCardElement) {
           return
         }
 
-        const sourceRect = sourceCardElement.getBoundingClientRect()
-        if (sourceRect.width <= 0 || sourceRect.height <= 0) {
+        const destinationElement = side === 'top' ? topTrashCardRef.current : bottomTrashCardRef.current
+        if (!destinationElement) {
           return
         }
 
-        void runRectToDynamicElementAnimation({
-          sourceRect,
-          durationMs: 340,
-          resolveDestinationElement: () => {
-            return side === 'top' ? topTrashCardRef.current : bottomTrashCardRef.current
-          },
-          resolveFallbackElement: () => {
-            return side === 'top' ? topTrashCardRef.current : bottomTrashCardRef.current
-          },
+        void runElementToRectAnimation({
+          element: sourceCardElement,
+          destinationRect: destinationElement.getBoundingClientRect(),
+          durationMs: CARD_TO_TRASH_FLY_DURATION_MS,
+          key: cardInstanceId,
         })
       }
 
@@ -811,13 +818,33 @@ function useCardMoveGhostAnimationEffect({
         continue
       }
 
+      // A card leaving the character field is owned by that row: it retains the element and travels it to the
+      // pile itself, so a flight here would draw the same move twice.
+      if (snapshot.zone === 'battlefield') {
+        continue
+      }
+
+      // A card the hand row is still holding (it keeps a removed card mounted for a moment) is flown by that row
+      // as the card itself - the better flight, because it is the card rather than a stand-in for it. Checked
+      // here instead of by claim so the two effects do not depend on the order they run in.
+      const handRowStillHoldsCard = [topHandRowRef.current, bottomHandRowRef.current].some((handRow) => {
+        return handRow?.querySelector(`[data-hand-instance-id="${instanceId}"]`) != null
+      })
+      if (snapshot.zone === 'hand' && handRowStillHoldsCard) {
+        continue
+      }
+
       const movementDelay = flyingIndex * CARD_TO_TRASH_STAGGER_MS
       flyingIndex += 1
+
       const timeoutId = window.setTimeout(() => {
-        void runCardImageGhostToElementAnimation({
-          imageSrc: snapshot.imageSrc,
+        // The card that travels is whatever the board renders now: the arriving hand card, or the card that has
+        // just landed on top of the trash pile (the pile's own slot element, which shows it). A real element at
+        // this end of the motion either way - `runElementFromRectAnimation` offsets it back to where the card
+        // came from, so the move reads as the card itself having travelled.
+        void runElementFromRectAnimation({
+          element: destinationElement,
           sourceRect: snapshot.rect,
-          destinationElement,
           durationMs: CARD_TO_TRASH_FLY_DURATION_MS,
           key: instanceId,
         })
@@ -877,12 +904,13 @@ function useDeckSummonFlightEffect({
       return
     }
 
-    // The destination element is animated in place (scale 0.92 -> 1 from the deck slot), exactly like an
-    // explicit hand-to-field summon: only the real card is drawn, so no copy is left behind in the slot.
-    void runRectToDynamicElementAnimation({
+    // The real battlefield card travels from the deck slot: it is the entity that stays, so no copy is drawn
+    // and nothing has to be hidden and revealed around it (the old path drew a copy *and* hid this card, which
+    // is exactly the duplicate this replaced).
+    void runElementFromRectAnimation({
+      element: destinationElement,
       sourceRect: deckSlotElement.getBoundingClientRect(),
       durationMs: REVEAL_SUMMON_FLIGHT_DURATION_MS,
-      resolveDestinationElement: () => resolveBattlefieldCardElement(boardZoneRef.current, location),
     })
   }, [
     animControllerRef,
@@ -941,12 +969,16 @@ function useTrashRecallSummonFlightEffect({
           continue
         }
 
-        // The destination element is animated in place (scale 0.92 → 1 from the trash slot), matching the
-        // reveal/hand→field flights: only the real card is drawn, so no copy is left behind in the slot.
-        void runRectToDynamicElementAnimation({
+        // The real battlefield card travels from the trash slot - the entity that stays is the thing that moves.
+        const destinationElement = resolveBattlefieldCardElement(boardZoneRef.current, location)
+        if (!destinationElement) {
+          continue
+        }
+
+        void runElementFromRectAnimation({
+          element: destinationElement,
           sourceRect: trashSlotElement.getBoundingClientRect(),
           durationMs: TRASH_RECALL_SUMMON_FLIGHT_DURATION_MS,
-          resolveDestinationElement: () => resolveBattlefieldCardElement(boardZoneRef.current, location),
         })
       }
     }

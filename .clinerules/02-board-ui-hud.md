@@ -307,9 +307,10 @@ paths:
   `resolveOverflowAncestors` to strip `overflow` from every clipping ancestor for the length of the
   animation (leaving it stripped if the animated element unmounted mid-flight), so a spurious
   inferred hand→trash flight (see `04-state-phase-effects.md`) un-clipped the pile and made a
-  **tribute summon flash a giant card**. That whole path is gone — since the Motion migration flights
-  animate an overlay copy in `CardFlightLayer`, nothing un-clips the board — so this is now a plain
-  layout guard that holds even if a future animation, reveal or drag temporarily lifts the clip.
+  **tribute summon flash a giant card**. That whole path is gone — a flight now moves the card's own
+  element (see the entity rule in `01-architecture.md`) and never un-clips anything, which is why
+  trash-bound exits can fly the pile's own card back out of the slot it landed in — so this is now a
+  plain layout guard that holds even if a future animation, reveal or drag temporarily lifts the clip.
   Measure it by un-clipping the zone with an injected `overflow: visible` — that alone reproduces the
   blowout, and re-adding `min-w-0 min-h-0` keeps both slots at their lane size.
 

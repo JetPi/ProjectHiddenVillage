@@ -60,9 +60,9 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
       data-side={side}
       // `min-w-0 min-h-0` is load-bearing: the pile slots size themselves from the rail lane (`h-full` +
       // `aspect-[200/277]`), so without the guard freshly rendered card art can inflate the whole pile grid to
-      // its min-content box (the slots grow to ~2.5x their height). Flights no longer un-clip ancestors (they
-      // render into `CardFlightLayer`), so this guard is now purely about the pile's own layout. Same idiom as
-      // the support-slot guard in `ZoneCardSlots`.
+      // its min-content box (the slots grow to ~2.5x their height). A flight moves the card's own element and
+      // never un-clips an ancestor, so this guard is now purely about the pile's own layout. Same idiom as the
+      // support-slot guard in `ZoneCardSlots`.
       className={twMerge(
         'h-full min-h-0 w-full min-w-0 max-w-[var(--resource-rail-max-width)] justify-self-center overflow-hidden px-1',
         side === 'top' ? 'play-pile-zone-top' : 'play-pile-zone-bottom',

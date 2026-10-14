@@ -1,4 +1,5 @@
 import type { ReactNode, RefCallback } from 'react'
+import type { IHandRowReorderProps } from '@/views/game/types/hands/handReorder'
 
 export type IGameHandRowProps<TCard> = {
   cards: TCard[]
@@ -10,8 +11,11 @@ export type IGameHandRowProps<TCard> = {
   containerClassName?: string
   rowClassName?: string
   cardsContainerClassName?: string
-  /** Off while the reorder engine owns card positions (see `useLongPressHandReorder`). */
-  isLayoutAnimationEnabled?: boolean
+  /**
+   * Present when the row is reorderable (Motion `Reorder` owns the cards' positions). Absent for the
+   * opponent's hand, which is render-only.
+   */
+  reorder?: IHandRowReorderProps<TCard>
   footer?: ReactNode
   footerClassName?: string
 }

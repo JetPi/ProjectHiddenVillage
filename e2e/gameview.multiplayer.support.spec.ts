@@ -10,6 +10,7 @@ import {
   getBottomSupportCardsBySlot,
   getCardActionTargetsViaHub,
   getCardFlightCount,
+  getCardFlightRecords,
   installCardFlightCounter,
   openMultiplayerPages,
   progressToNextDecisionWindow,
@@ -118,6 +119,10 @@ test.describe('GameView multiplayer support activation', () => {
         'Support',
         { cardDefinitionId: SUPPORT_CARD_DEFINITION_ID, actorUserId: summonActor.actor.userId },
       )
+      // The activation is submitted from the hand, and the destination slot only exists once the state arrives:
+      // the card that must arrive there is the card itself, so the flight is attributed to the arriving card.
+      await installCardFlightCounter(supportActor.actorPage)
+
       const supportCard = supportActor.actorPage.locator(`[data-testid="bottom-hand-card-${supportActor.cardInstanceId}"]`)
       await supportCard.hover()
       await supportCard.getByRole('button', { name: /^support$/i }).click()
@@ -193,6 +198,15 @@ test.describe('GameView multiplayer support activation', () => {
       }).toBe('MainPhase')
       await expect(activatorPage.getByTestId('phase-indicator')).not.toContainText('Support Activated')
       expect(await getCardFlightCount(activatorPage)).toBeGreaterThan(0)
+
+      // 7. The support card reached its slot as itself. This is the assertion that the arrival is an entity
+      //    flight: the flight is attributed to the card that moved, which is the card the player can see.
+      await expect.poll(async () => {
+        const records = await getCardFlightRecords(activatorPage)
+        return records.some((record) => record.instanceId === supportActor.cardInstanceId)
+      }, {
+        timeout: 8_000,
+      }).toBe(true)
     } finally {
       await closeMultiplayerPages(pages)
     }
@@ -922,8 +936,12 @@ async function playRangeSupportScenario(
         usedSupportInTrash: true,
       })
 
-      // The K.O.'d attacker was animated out of the field, not teleported into the trash.
-      expect(await getCardFlightCount(defenderPage)).toBeGreaterThan(0)
+      // The K.O.'d attacker was animated out of the field, not teleported into the trash - and it is *that* card
+      // which moved. A bare count is cumulative, so an unrelated animation earlier in the scenario can satisfy it;
+      // that is exactly how a broken departure lookup stayed hidden, so assert on the card's identity instead.
+      await expect.poll(async () => await getCardFlightRecords(defenderPage), { timeout: 8_000 })
+        .toContainEqual({ instanceId: attackerCardInstanceId })
+
 }
 
 /**

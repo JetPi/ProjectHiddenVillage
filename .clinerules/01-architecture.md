@@ -15,19 +15,45 @@ paths:
   pure helpers in `utils/functions/`.
 - **Animation has exactly one home**: `client/src/views/game/animation/` —
   `tuning.ts` (every duration, easing and stagger), `reducedMotion.ts` (the skip policy
-  both the flights and the attack lunge obey), `flights.ts` (the overlay-copy
-  primitives; every flight funnels through `animateOverlayCopy`), `flightRegistry.ts`
-  (one owner per card, so a new flight takes over an old one rather than stacking and an
-  interrupted flight cannot orphan its copy), `CardFlightLayer.tsx` +
-  `cardFlightLayerMount.ts` (the single surface flights render into),
-  `boardAnimationDirector.ts` (`noteFlight` / `whenIdle` / `resolveFlightsSettleAtMs` —
-  what the phase-presentation acknowledgement drains on) and `runAttackLunge.ts`. Barrel:
-  `animation/index.ts`. The arrow lives in `02-board-ui-hud.md`, the ack in
-  `04-state-phase-effects.md`.
-- Motion (`motion/react`) owns the declarative animations — hand-row presence/layout,
-  the rested-card tilt (on a wrapper, so read a card's rotation from its nearest
-  transformed ancestor) and card flips — while card flights stay WAAPI copies on the
-  flight layer, because a copy must never compete with a real card for `transform`.
+  both the flights and the attack lunge obey), `flights.ts` (the flight primitives),
+  `flightRegistry.ts` (one owner per card, so a new flight takes over an old one rather
+  than stacking), `cardDepartures.ts` (which zone a recorded movement leaves for, and
+  where that zone's pile slot is), `boardAnimationDirector.ts` (`noteFlight` / `whenIdle`
+  / `resolveFlightsSettleAtMs` — what the phase-presentation acknowledgement drains on)
+  and `runAttackLunge.ts`. Barrel: `animation/index.ts`. The arrow lives in
+  `02-board-ui-hud.md`, the ack in `04-state-phase-effects.md`.
+- **A flight moves the card itself** (the entity rule — every motion on the board):
+  - the card *leaving* a zone flies as itself (`runElementToRectAnimation`): the hand card
+    of a discard or a mulligan, a tribute material on its way to the trash, a card the
+    field row is retiring;
+  - the card *arriving* in a zone flies as itself (`runElementFromRectAnimation`,
+    `runElementArrivalFromRectAnimation`): a draw landing in the hand, a reveal-summon
+    landing on the field, the support card of a submit, the card that has just landed on
+    top of a pile.
+  There is a real element at **both** ends of every motion. Nothing is fabricated: an
+  overlay copy cannot show a face-down card's back, and its cover-fit/rounded-8 styling
+  never matched the card it landed on — that is the "duplicate card" and the "empty
+  rounded box" entity flight removed. When a flight's source no longer exists, move the
+  *destination* element from the captured rect instead of inventing a card.
+- A flight marks the element it borrows with `data-card-traveling` and registers it with
+  the director; transform/visibility/z-index are restored on settle **and** on cancel. A
+  `data-card-traveling` left behind after the board settles means a card was abandoned
+  mid-flight (transformed, or hidden by the frame the flight used to avoid flashing at its
+  slot) — `gameview.multiplayer.board-animation.spec.ts` asserts none is left.
+- **One card, one flight.** When the id of a card it has already flown appears in
+  `animController.suppressedExitGhostInstanceIds`, whoever flies that card next must
+  `delete` the id as it reads it, so a claim is consumed exactly once.
+- **Never lift a card with `position: fixed` inside the board.** Any ancestor carrying
+  `transform`/`filter`/`perspective`/`will-change`/`contain` becomes the containing block,
+  so a viewport-derived `left/top` is read in the wrong space — a dragged hand card was
+  measured 566 px below and 645 px right of the pointer
+  (`plans/board-position-animation-diagnosis.md`). Dragging belongs to Motion's `Reorder`
+  (`dragListener={false}` + `useDragControls`), which owns the transform and keeps the card
+  in its row.
+- Motion (`motion/react`) owns the declarative animations — hand-row presence/layout and
+  the drag, the rested-card tilt (on a wrapper, so read a card's rotation from its nearest
+  transformed ancestor) and card flips — while the flights above are imperative WAAPI
+  animations on the card's own element.
 
 ## Backend patterns
 

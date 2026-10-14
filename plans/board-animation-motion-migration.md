@@ -372,6 +372,8 @@ Each arrow is a hard prerequisite; any stage boundary is a safe stopping point.
 1. **Package**: `motion` (`motion/react`), installed as `^14.2.0`, which supports React 19.
 2. **Flag mechanism**: a `gameUIStore` slice — `boardAnimationMode: 'legacy' | 'motion'` seeded from
    `VITE_BOARD_ANIMATION_MODE` (default `legacy`), overridable at runtime during the migration.
+   **Deleted in Stage 9**: once the migration was complete there was no second engine left to switch to, and
+   nothing had ever read the flag (see the cleanup inventory).
 3. **Piles as layout targets**: deck/hand/trash piles and empty slots get `layoutId`s so flights land by
    projection rather than aiming an overlay copy at the pile element.
 4. **Server events shape** (Stage 7): a new ordered `animationEvents` array on the game-state response.
@@ -380,12 +382,12 @@ Each arrow is a hard prerequisite; any stage boundary is a safe stopping point.
 
 - `motion@^14.2.0` added to `client/package.json`.
 - `client/src/views/game/animation/` created: `tuning.ts` (single source for durations/easings/stagger),
-  `reducedMotion.ts` (policy incl. `resolveFlightDurationMs`, where `0` means "skip and resolve now"),
-  `boardAnimationMode.ts` (the `VITE_BOARD_ANIMATION_MODE` resolver) and the `index.ts` barrel.
+  `reducedMotion.ts` (policy incl. `resolveFlightDurationMs`, where `0` means "skip and resolve now") and the
+  `index.ts` barrel. (`boardAnimationMode.ts` was also added here; Stage 9 deleted it.)
 - `utils/contants.ts`, `utils/functions/animations/index.ts` and
   `hooks/GameView/effects/useGameViewEffects.ts` now import their tuning from `animation/tuning.ts`
   instead of declaring their own literals (no behaviour change).
-- `gameUIStore` carries `boardAnimationMode` + `setBoardAnimationMode`.
+- `gameUIStore` carries `boardAnimationMode` + `setBoardAnimationMode` (both deleted in Stage 9).
 - e2e anchor baseline captured in `plans/board-animation-anchor-baseline.md`.
 
 ## Stage 1 status: landed
@@ -767,6 +769,7 @@ run, and the full suite is 40/40.
 | ✅ C | The whole attack-link geometry block (`IBoardPoint`, `IAttackAnchorPosition`, `IAttackAnchorConfig`, `IAttackLinkGeometryOptions`, `IAttackLinkGeometry`, `IAttackLinkCubic`, `IAttackLinkRenderConfig`, `IAttackLinkHeadConfig`) moved out of the hub view-models into `types/game/attackLink.ts`; every consumer already imports from the `@/views/game/types` barrel, so only the barrel gained a line. `AttackLinkArrow`'s local duplicate `IBoardPoint` was replaced by the shared one. | `viewModels.ts`, `types/game/attackLink.ts` |
 | ✅ D | Added [`e2e/gameview.multiplayer.board-animation.spec.ts`](e2e/gameview.multiplayer.board-animation.spec.ts) plus `countCardFlightCopies` / `installCardFlightLeakObserver` / `getCardFlightLeakReport` in [`flow.ts`](e2e/helpers/multiplayer/flow.ts): (1) the flight layer drains to empty and no copy outlives its flight, and (2) under `prefers-reduced-motion: reduce` **no** flight copy is created while the engine still walks its phases and clears `pendingPresentation`. The reduced-motion gate had to be **wired, not just tested**: `resolveFlightDurationMs` was dead code, so `animateOverlayCopy` now skips the copy at duration 0 and `runRectToDynamicElementAnimation` skips its wait loop. | `e2e/`, `utils/functions/animations/index.ts` |
 | ✅ home | Moved: the flight primitives are now [`views/game/animation/flights.ts`](client/src/views/game/animation/flights.ts), exported from the animation barrel, with all five importers repointed. The old `utils/functions/animations/` folder is **deleted** (and no longer re-exported from the `utils/functions` barrel), so animation has one home. While moving, the never-called `runHandToElementAnimation` was dropped as dead code, together with its distance→duration helper, its args type and the three `HAND_TO_ELEMENT_*` tuning constants that existed only for it. | `client/src/views/game/` |
+| ✅ dead-code sweep | Removed the rest of what the migration left behind: the never-read `boardAnimationMode` flag (module, store slice + setter, its type and barrel export) plus the comments that still claimed a `legacy` engine exists; the flight registry's vestigial **ghost** concept - no caller ever passes a ghost, because a flight removes its own copy, so `activeGhosts`, `removeGhost`, the `registerFlight` `ghost` option and the teardown sweep are gone; the never-called `cancelFlightsForElement`; and the unused `usePrefersReducedMotion`. | `animation/`, `state/` |
 
 ### Carried into Stage 9 (both done)
 

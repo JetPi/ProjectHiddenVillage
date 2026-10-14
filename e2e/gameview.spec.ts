@@ -3,8 +3,11 @@ import type { Page } from '@playwright/test'
 import {
   advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
+  countTravelingCardElements,
+  fetchGameState,
   openMultiplayerPages,
   resolveAllMulliganPrompts,
+  resolveHandCardDragPressPoint,
   resolvePromptViaHub,
   resolveStartingPromptOwner,
   setupMultiplayerGame,
@@ -72,6 +75,18 @@ test.describe('GameView', () => {
 
       page = pages.playerOnePage
       await expect(page.getByTestId('game-board')).toBeVisible()
+
+      // The board is only usable once the engine has walked the opening into a MainPhase and the last draw has
+      // landed: before that the deal/draw batch keeps changing the hand, which races any measured gesture (that
+      // race is what made the drag test intermittently fail to arm).
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)
+        return state.phase
+      }, { timeout: 60_000 }).toBe('MainPhase')
+
+      // Nothing may still be mid-flight: a card left marked as travelling would be stuck transformed, or stuck
+      // hidden behind the frame the flight uses before it starts.
+      await expect.poll(async () => await countTravelingCardElements(page), { timeout: 30_000 }).toBe(0)
     })
 
     test.afterEach(async () => {
@@ -136,30 +151,134 @@ test.describe('GameView', () => {
         return
       }
 
-      let reordered = false
-
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        await page.mouse.move(draggedBox.x + draggedBox.width / 2, draggedBox.y + draggedBox.height / 2)
-        await page.mouse.down()
-        await page.waitForTimeout(360)
-        await page.mouse.move(secondBox.x + secondBox.width + 24, secondBox.y + secondBox.height / 2)
-        // Give the dragged card a frame to settle at the drop position before releasing: the reorder is
-        // committed from the pointer-move pipeline, and an immediate release can outrun that frame.
-        await page.waitForTimeout(120)
-        await page.mouse.up()
-        await page.waitForTimeout(120)
-
-        const nextOrder = await getBottomHandInstanceOrder(page)
-        const firstIndex = nextOrder.indexOf(firstCardInstanceId)
-        const secondIndex = nextOrder.indexOf(secondCardInstanceId)
-
-        if (firstIndex >= 0 && secondIndex >= 0 && firstIndex > secondIndex) {
-          reordered = true
-          break
-        }
+      // One gesture, no retry loop: hover first so the overlay is in its real state, then press a point that is
+      // not one of its controls (a press on a control is deliberately not a drag).
+      await page.mouse.move(draggedBox.x + draggedBox.width / 2, draggedBox.y + draggedBox.height / 2)
+      await page.waitForTimeout(180)
+      const pressPoint = await resolveHandCardDragPressPoint(page, firstCardInstanceId)
+      expect(pressPoint, 'no non-interactive point on the hand card: a drag cannot be started').not.toBeNull()
+      if (!pressPoint) {
+        return
       }
 
-      expect(reordered).toBe(true)
+      await page.mouse.move(pressPoint.x, pressPoint.y)
+      await page.mouse.down()
+      await page.waitForTimeout(120)
+      await page.mouse.move(secondBox.x + secondBox.width + 24, pressPoint.y)
+      // Motion commits the new order from the pointer-move pipeline; let it land before releasing.
+      await page.waitForTimeout(120)
+      await page.mouse.up()
+      await page.waitForTimeout(160)
+
+      const nextOrder = await getBottomHandInstanceOrder(page)
+      const firstIndex = nextOrder.indexOf(firstCardInstanceId)
+      const secondIndex = nextOrder.indexOf(secondCardInstanceId)
+
+      expect(firstIndex, 'the dragged card must still be in the hand').toBeGreaterThanOrEqual(0)
+      expect(secondIndex, 'the card it was dragged past must still be in the hand').toBeGreaterThanOrEqual(0)
+      expect(firstIndex, 'the dragged card must end up after the card it was dragged past').toBeGreaterThan(secondIndex)
+    })
+
+    /**
+     * Regression for the measured hand-drag defect (see `plans/board-position-animation-diagnosis.md`): the
+     * reorder engine lifted the card with `position: fixed` while its Motion slot parent carried a `transform`,
+     * so the slot became the containing block and the card was drawn 566px below / 645px right of the pointer
+     * (off-screen). One gesture, no retry loop: if the card stops tracking the pointer, or has to be positioned
+     * with `fixed` to do it, this fails.
+     */
+    test('the dragged hand card tracks the pointer and never leaves the row', async () => {
+      await expect(page.getByTestId('game-board')).toBeVisible()
+
+      const initialOrder = await waitForBottomHandToSettle(page)
+      expect(initialOrder.length).toBeGreaterThanOrEqual(2)
+
+      const firstInstanceId = initialOrder[0]
+      const draggedCard = page.locator(`[data-testid="bottom-hand-card-${firstInstanceId}"]`)
+      const draggedBox = await draggedCard.boundingBox()
+      expect(draggedBox).not.toBeNull()
+      if (!draggedBox) {
+        return
+      }
+
+      // Hover the card first so the hover overlay is in its real (revealed) state, then pick a press point
+      // that is *not* an interactive control: a mouse press that lands on a control defers the drag instead of
+      // arming it, which is intended, but it makes a fixed centre-of-card press a coin flip.
+      const hoverX = draggedBox.x + draggedBox.width / 2
+      const hoverY = draggedBox.y + draggedBox.height / 2
+      await page.mouse.move(hoverX, hoverY)
+      await page.waitForTimeout(180)
+
+      const pressPoint = await resolveHandCardDragPressPoint(page, firstInstanceId)
+
+      expect(pressPoint, 'no non-interactive point on the hand card: a drag cannot be started at all').not.toBeNull()
+      if (!pressPoint) {
+        return
+      }
+
+      const rowBox = await page.locator('[data-testid="bottom-hand-row"]').boundingBox()
+      const pointerX = rowBox
+        ? Math.min(pressPoint.x + draggedBox.width * 1.4, rowBox.x + rowBox.width - 12)
+        : pressPoint.x + draggedBox.width * 1.4
+      const pointerY = pressPoint.y
+
+      await page.mouse.move(pressPoint.x, pressPoint.y)
+      await page.mouse.down()
+      // A mouse press on a non-interactive spot arms the drag synchronously; give the lift a frame to apply.
+      await page.waitForTimeout(120)
+      await page.mouse.move(pointerX, pointerY)
+      await page.waitForTimeout(120)
+
+      const snapshot = await page.evaluate(({ instanceId, currentPointerX, currentPointerY }) => {
+        const row = document.querySelector<HTMLElement>('[data-testid="bottom-hand-row"]')
+        const dragged = document.querySelector<HTMLElement>(`[data-hand-instance-id="${instanceId}"]`)
+        const rowRect = row?.getBoundingClientRect() ?? null
+        const rowCards = row ? Array.from(row.querySelectorAll<HTMLElement>('[data-hand-instance-id]')) : []
+        const draggedRect = dragged?.getBoundingClientRect() ?? null
+
+        return {
+          draggedPosition: dragged ? window.getComputedStyle(dragged).position : null,
+          draggedCentreX: draggedRect ? draggedRect.left + draggedRect.width / 2 : null,
+          draggedCentreY: draggedRect ? draggedRect.top + draggedRect.height / 2 : null,
+          pointerX: currentPointerX,
+          pointerY: currentPointerY,
+          rowCardCount: rowCards.length,
+          cards: rowCards.map((card) => {
+            const box = card.getBoundingClientRect()
+            const style = window.getComputedStyle(card)
+            return {
+              id: card.getAttribute('data-hand-instance-id'),
+              centreY: box.top + box.height / 2,
+              opacity: style.opacity,
+              visibility: style.visibility,
+              insideRowBand: rowRect
+                ? box.top >= rowRect.top - 4 && box.bottom <= rowRect.bottom + 4
+                : true,
+            }
+          }),
+        }
+      }, { instanceId: firstInstanceId, currentPointerX: pointerX, currentPointerY: pointerY })
+
+      await page.mouse.up()
+      await page.waitForTimeout(220)
+
+      expect(snapshot.draggedPosition, 'the lifted card must not rely on position: fixed').not.toBe('fixed')
+      expect(snapshot.rowCardCount, 'the row must keep every card while one is being dragged').toBe(initialOrder.length)
+      expect(snapshot.cards.filter((card) => card.opacity !== '1'), 'no hand card may fade mid-drag').toEqual([])
+      expect(snapshot.cards.filter((card) => card.visibility !== 'visible'), 'no hand card may hide mid-drag').toEqual([])
+      expect(snapshot.cards.filter((card) => !card.insideRowBand), 'no hand card may leave the row band').toEqual([])
+
+      // The card must follow the pointer's *movement*: the press point is deliberately off-centre (it has to
+      // avoid the hover overlay's controls), so the expectation is the card's own start centre displaced by the
+      // pointer delta, not the pointer position itself.
+      const expectedCentreX = draggedBox.x + draggedBox.width / 2 + (pointerX - pressPoint.x)
+      const expectedCentreY = draggedBox.y + draggedBox.height / 2 + (pointerY - pressPoint.y)
+
+      expect(snapshot.draggedCentreX, 'dragged card centre x').not.toBeNull()
+      expect(snapshot.draggedCentreY, 'dragged card centre y').not.toBeNull()
+      if (snapshot.draggedCentreX !== null && snapshot.draggedCentreY !== null) {
+        expect(Math.abs(snapshot.draggedCentreX - expectedCentreX), 'dragged card must follow the pointer horizontally').toBeLessThanOrEqual(4)
+        expect(Math.abs(snapshot.draggedCentreY - expectedCentreY), 'dragged card must keep the pointer height').toBeLessThanOrEqual(4)
+      }
     })
 
     test('closing the card details overlay does not trap the game in a drag state', async () => {

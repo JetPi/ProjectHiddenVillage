@@ -1,22 +1,24 @@
 /**
- * The flight primitives: everything the board uses to fly an overlay copy of a card from one box to another.
+ * The flight primitives: everything the board uses to move a card from one box to another.
  *
  * This file is part of the animation home (`views/game/animation/`), beside the tuning, the reduced-motion
  * policy, the flight registry and the flight layer itself. It used to live under `utils/functions/animations`,
  * which split "how a flight is tuned / owned / drawn" away from the primitives that used them.
  *
- * Every flight funnels through `animateOverlayCopy` below, and that is deliberate: it is the single point where
- * the copy is created, the reduced-motion policy is applied, and the copy is removed exactly once (the registry
- * owns it, so an interrupted flight cannot orphan it). A real card is never moved or transformed - only hidden
- * with `visibility` while its copy is in the air.
+ * The rule is entity flight: **the card that travels is the card itself**, either the real card leaving a zone
+ * (`runElementToRectAnimation`) or the real card arriving in one (`runElementFromRectAnimation`,
+ * `runElementArrivalFromRectAnimation`). A fabricated overlay copy cannot be that card - it cannot even show a
+ * face-down card's back, and its cover-fit/rounded-8 styling never matched the card it landed on.
+ *
+ * `animateOverlayCopy` and the flight layer survive only for the one path with no live element to move (a card
+ * the client never rendered, such as a snapshot taken before a state update). That path is what the entity
+ * primitives below are replacing, and it is retired with them.
  */
 
 import type {
-  ICardImageGhostToElementAnimationArgs,
   IDeckToHandAnimationArgs,
   IHandToPileAnimationArgs,
   IRectToDynamicElementAnimationArgs,
-  IRectToElementAnimationArgs,
   IWaitForElementArgs,
 } from '@/views/game/types'
 import {
@@ -24,7 +26,6 @@ import {
   DEFAULT_DYNAMIC_TARGET_TIMEOUT_MS,
   STANDARD_MOVEMENT_EASING,
 } from './tuning'
-import { getCardFlightLayerElement } from './cardFlightLayerMount'
 import {
   registerFlight,
   resolveElementFlightKey,
@@ -32,123 +33,142 @@ import {
 } from './flightRegistry'
 import { prefersReducedMotion, resolveFlightDurationMs } from './reducedMotion'
 
-/** Fallback key for a copy whose caller did not name the card it belongs to. */
-let flightCopySequence = 0
-
-/** The image a card is currently showing, or an empty string for a face-down/imageless card. */
-function readCardImageSource(element: HTMLElement): string {
-  const imageElement = element.querySelector<HTMLImageElement>('img')
-  return imageElement?.currentSrc || imageElement?.src || ''
-}
-
 /**
- * Builds the overlay copy a flight animates: an image-only stand-in appended to the flight layer. The real
- * card is never moved, so nothing fights React's re-render and no layout ancestor has to be un-clipped for the
- * copy to travel. The copy carries the card's instance id in `data-flight-instance-id` (never
- * `data-card-instance-id`, which card locators rely on) so observers can attribute a flight to its card.
+ * Flies the real card element from `sourceRect` to its own, already laid out position.
+ *
+ * This is the entity-based flight: the element that stays on the board is the thing that travels, so there is
+ * never a second card at either end of the motion, and the art, the face and the styling are the card's own -
+ * a fabricated copy cannot reproduce those (a face-down card has no `<img>` to copy, and the copy's own
+ * cover-fit/rounded-8/drop-shadow never matched the card it landed on).
+ *
+ * The element keeps its slot, which keeps its size, so nothing in the layout moves while the card flies.
  */
-function createFlightCopyElement(imageSrc: string, anchorRect: DOMRect, instanceKey: string): HTMLDivElement | null {
-  const layer = getCardFlightLayerElement()
-  if (!layer || anchorRect.width <= 0 || anchorRect.height <= 0) {
-    return null
-  }
-
-  const layerRect = layer.getBoundingClientRect()
-  const copy = document.createElement('div')
-  copy.setAttribute('data-card-flight-copy', 'true')
-  copy.setAttribute('data-flight-instance-id', instanceKey)
-  copy.style.position = 'absolute'
-  copy.style.left = `${anchorRect.left - layerRect.left}px`
-  copy.style.top = `${anchorRect.top - layerRect.top}px`
-  copy.style.width = `${anchorRect.width}px`
-  copy.style.height = `${anchorRect.height}px`
-  copy.style.willChange = 'transform'
-  copy.style.transformOrigin = 'center center'
-  copy.style.filter = 'drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45))'
-  copy.style.borderRadius = '8px'
-  copy.style.overflow = 'hidden'
-  copy.style.backgroundColor = 'var(--surface-elevated)'
-
-  if (imageSrc) {
-    const image = document.createElement('img')
-    image.src = imageSrc
-    image.alt = ''
-    image.draggable = false
-    image.style.width = '100%'
-    image.style.height = '100%'
-    image.style.objectFit = 'cover'
-    image.style.borderRadius = '8px'
-    copy.appendChild(image)
-  }
-
-  layer.appendChild(copy)
-  return copy
-}
-
-/**
- * Flies an overlay copy from `sourceRect` to `destinationRect`. Only the copy is drawn; a real card already
- * rendered at the destination is hidden with `visibility` for the flight's duration (never transformed), so
- * the copy and the real card never render on top of each other.
- */
-function animateOverlayCopy({
-  imageSrc,
+export function runElementFromRectAnimation({
+  element,
   sourceRect,
-  destinationRect,
   durationMs,
   key,
-  elementHiddenDuringFlight,
-  mode,
 }: {
-  imageSrc: string
+  element: HTMLElement
   sourceRect: DOMRect
-  destinationRect: DOMRect
   durationMs: number
-  key: string
-  elementHiddenDuringFlight: HTMLElement | null
-  mode: 'enter' | 'exit'
+  /** Ownership key; defaults to the element's card identity. */
+  key?: string
 }): Promise<void> {
-  if (destinationRect.width <= 0 || destinationRect.height <= 0) {
-    return Promise.resolve()
-  }
-
-  // Reduced motion: skip the motion outright rather than run a zero-length animation. No copy is created and
-  // the promise resolves at once, so the caller's descriptor settles immediately instead of leaving the
-  // phase-presentation acknowledgement waiting on an animation that will never play (see `reducedMotion.ts`).
   const resolvedDurationMs = resolveFlightDurationMs(durationMs)
   if (resolvedDurationMs <= 0) {
     return Promise.resolve()
   }
 
-  // `enter` anchors the copy at the destination and animates it in from the source offset (so the recorded
-  // first frame proves the card travelled); `exit` anchors it at the source and animates it towards the
-  // destination offset.
-  const anchorRect = mode === 'enter' ? destinationRect : sourceRect
-  const copy = createFlightCopyElement(imageSrc, anchorRect, key)
-  if (!copy) {
+  const resolvedKey = key ?? resolveElementFlightKey(element)
+
+  const destinationRect = element.getBoundingClientRect()
+  if (destinationRect.width <= 0 || destinationRect.height <= 0 || sourceRect.width <= 0 || sourceRect.height <= 0) {
     return Promise.resolve()
   }
 
+  const offsetX = sourceRect.left + sourceRect.width / 2 - (destinationRect.left + destinationRect.width / 2)
+  const offsetY = sourceRect.top + sourceRect.height / 2 - (destinationRect.top + destinationRect.height / 2)
+  const startScale = Math.max(sourceRect.width / destinationRect.width, 0.15)
+  const startTransform = `translate(${offsetX}px, ${offsetY}px) scale(${startScale})`
+
+  const previousTransform = element.style.transform
+  const previousVisibility = element.style.visibility
+  const previousWillChange = element.style.willChange
+
+  // The element is hidden for the single frame before the flight starts, so it can never flash at its slot
+  // before appearing where it came from (the caller sees the same mount-to-flight frame gap either way).
+  element.style.visibility = 'hidden'
+
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => {
+      // Draw it at the source for this frame, then animate the remaining distance: the first painted frame of
+      // the flight is already the offset one, so there is no jump.
+      element.setAttribute('data-card-traveling', 'true')
+      element.style.willChange = 'transform'
+      element.style.transform = startTransform
+      element.style.visibility = previousVisibility
+
+      const animation = element.animate(
+        [
+          { transform: startTransform },
+          { transform: 'translate(0px, 0px) scale(1)' },
+        ],
+        { duration: resolvedDurationMs, easing: STANDARD_MOVEMENT_EASING },
+      )
+
+      let hasSettled = false
+      const cleanup = () => {
+        if (hasSettled) {
+          return
+        }
+        hasSettled = true
+        unregisterFlight(resolvedKey, animation)
+        element.style.transform = previousTransform
+        element.style.visibility = previousVisibility
+        element.style.willChange = previousWillChange
+        element.removeAttribute('data-card-traveling')
+        resolve()
+      }
+
+      animation.onfinish = cleanup
+      animation.oncancel = cleanup
+      registerFlight({ key: resolvedKey, element, animation })
+    })
+  })
+}
+
+/**
+ * Flies a real card element from where it is to a destination rect, for a card that leaves a zone before the
+ * state removes it (a tribute material, a discard).
+ *
+ * This is the exit half of entity-based flight: the card that travels is the card itself, so nothing is left
+ * sitting in place while a stand-in leaves. The caller stays responsible for the element's own lifecycle - the
+ * flight only borrows its transform, and restores it when the animation settles or is cancelled.
+ */
+export function runElementToRectAnimation({
+  element,
+  destinationRect,
+  durationMs,
+  key,
+}: {
+  element: HTMLElement
+  destinationRect: DOMRect
+  durationMs: number
+  /** Ownership key; defaults to the element's card identity. */
+  key?: string
+}): Promise<void> {
+  const resolvedDurationMs = resolveFlightDurationMs(durationMs)
+  if (resolvedDurationMs <= 0) {
+    return Promise.resolve()
+  }
+
+  const sourceRect = element.getBoundingClientRect()
+  if (
+    sourceRect.width <= 0
+    || sourceRect.height <= 0
+    || destinationRect.width <= 0
+    || destinationRect.height <= 0
+  ) {
+    return Promise.resolve()
+  }
+
+  const resolvedKey = key ?? resolveElementFlightKey(element)
   const offsetX = destinationRect.left + destinationRect.width / 2 - (sourceRect.left + sourceRect.width / 2)
   const offsetY = destinationRect.top + destinationRect.height / 2 - (sourceRect.top + sourceRect.height / 2)
   const endScale = Math.max(destinationRect.width / sourceRect.width, 0.15)
-  const previousVisibility = elementHiddenDuringFlight?.style.visibility ?? ''
-  if (elementHiddenDuringFlight) {
-    elementHiddenDuringFlight.style.visibility = 'hidden'
-  }
 
-  const startKeyframe = mode === 'enter'
-    ? { transform: `translate(${-offsetX}px, ${-offsetY}px) scale(0.92)`, opacity: 0.96 }
-    : { transform: 'translate(0px, 0px) scale(1)', opacity: 0.98 }
-  const endKeyframe = mode === 'enter'
-    ? { transform: 'translate(0px, 0px) scale(1)', opacity: 1 }
-    : { transform: `translate(${offsetX}px, ${offsetY}px) scale(${endScale})`, opacity: 0.92 }
+  const previousTransform = element.style.transform
+  const previousZIndex = element.style.zIndex
+  element.setAttribute('data-card-traveling', 'true')
+  element.style.zIndex = '260'
 
-  const animation = copy.animate(
-    [startKeyframe, endKeyframe],
-    {
-      duration: resolvedDurationMs,
-      easing: STANDARD_MOVEMENT_EASING,
-    },
+  const animation = element.animate(
+    [
+      { transform: 'translate(0px, 0px) scale(1)' },
+      { transform: `translate(${offsetX}px, ${offsetY}px) scale(${endScale})` },
+    ],
+    { duration: resolvedDurationMs, easing: STANDARD_MOVEMENT_EASING },
   )
 
   return new Promise<void>((resolve) => {
@@ -159,42 +179,16 @@ function animateOverlayCopy({
         return
       }
       hasSettled = true
-      unregisterFlight(key, animation)
-      if (elementHiddenDuringFlight) {
-        elementHiddenDuringFlight.style.visibility = previousVisibility
-      }
-      copy.remove()
+      unregisterFlight(resolvedKey, animation)
+      element.style.transform = previousTransform
+      element.style.zIndex = previousZIndex
+      element.removeAttribute('data-card-traveling')
       resolve()
     }
 
     animation.onfinish = cleanup
     animation.oncancel = cleanup
-    registerFlight({ key, element: copy, animation })
-  })
-}
-
-/**
- * Animates a card leaving its current spot for a destination rectangle (a hand card on its way to a pile).
- * Only an overlay copy travels; the real source card is left where it is for the state update to remove.
- */
-function animateCardEntityToDestination(
-  sourceCardElement: HTMLDivElement,
-  destinationRect: DOMRect,
-  durationMs: number,
-): Promise<void> {
-  const sourceRect = sourceCardElement.getBoundingClientRect()
-  if (sourceRect.width <= 0 || sourceRect.height <= 0) {
-    return Promise.resolve()
-  }
-
-  return animateOverlayCopy({
-    imageSrc: readCardImageSource(sourceCardElement),
-    sourceRect,
-    destinationRect,
-    durationMs,
-    key: resolveElementFlightKey(sourceCardElement),
-    elementHiddenDuringFlight: null,
-    mode: 'exit',
+    registerFlight({ key: resolvedKey, element, animation })
   })
 }
 
@@ -229,16 +223,25 @@ export async function waitForElement({
   return null
 }
 
-export async function runRectToDynamicElementAnimation({
+/**
+ * Waits for the card a submit puts on the board, then flies *that real card* from `sourceRect` to its own slot.
+ *
+ * This is the arrival shape a submit needs: the hand card that was picked is already gone by the time the state
+ * arrives (the submit moved it), so the card that travels is the destination - the element the player will look
+ * at from now on. Nothing is fabricated, so the arriving card's own art, face and styling fly, and the motion
+ * ends exactly on the card's own slot instead of on a stand-in drawn beside it.
+ *
+ * Reduced motion returns before the wait, so a reader who turned motion off never spins the frame loop waiting
+ * for a destination that will not be animated.
+ */
+export async function runElementArrivalFromRectAnimation({
   sourceRect,
   resolveDestinationElement,
   resolveFallbackElement,
-  durationMs,
+  durationMs = 360,
   timeoutMs,
   maxFrames,
 }: IRectToDynamicElementAnimationArgs): Promise<void> {
-  // Reduced motion resolves immediately: never spin the frame loop waiting for a destination the copy will not
-  // fly to (the copy itself skips under the same policy, in `animateOverlayCopy`).
   if (prefersReducedMotion()) {
     return
   }
@@ -247,62 +250,34 @@ export async function runRectToDynamicElementAnimation({
     resolveElement: resolveDestinationElement,
     timeoutMs,
     maxFrames,
-  })
-
-  if (destinationElement) {
-    await runRectToElementAnimation({
-      sourceRect,
-      destinationElement,
-      durationMs,
+  }) ?? (resolveFallbackElement
+    ? await waitForElement({
+      resolveElement: resolveFallbackElement,
+      timeoutMs,
+      maxFrames,
     })
+    : null)
+
+  if (!destinationElement) {
     return
   }
 
-  if (!resolveFallbackElement) {
-    return
-  }
-
-  const fallbackElement = await waitForElement({
-    resolveElement: resolveFallbackElement,
-    timeoutMs,
-    maxFrames,
-  })
-  if (!fallbackElement) {
-    return
-  }
-
-  await runRectToElementAnimation({
+  await runElementFromRectAnimation({
+    element: destinationElement,
     sourceRect,
-    destinationElement: fallbackElement,
     durationMs,
   })
 }
 
 /**
- * Flies an overlay copy from `sourceRect` into the destination element's box (a deck card drawn into the
- * hand, a summoned card arriving from a pile). The real destination card is hidden for the flight so the
- * copy reads as the same card landing, rather than a second copy appearing beside it.
+ * Flies the hand card itself to the pile it leaves for (a discard, a card put on top of the deck, the mulligan
+ * sending the opening hand back).
+ *
+ * The card is still mounted when this runs - the caller submits only once the flight has settled - so the card
+ * the player can see is the card that travels. The destination is a pile slot rather than a card (the deck shows
+ * a back, the trash shows its own top card), so this is an exit flight: the card borrows its own transform, and
+ * the pile is only a rectangle to fly to.
  */
-export function runRectToElementAnimation({
-  sourceRect,
-  destinationElement,
-  durationMs = 360,
-}: IRectToElementAnimationArgs): Promise<void> {
-  if (!destinationElement) {
-    return Promise.resolve()
-  }
-
-  return animateOverlayCopy({
-    imageSrc: readCardImageSource(destinationElement),
-    sourceRect,
-    destinationRect: destinationElement.getBoundingClientRect(),
-    durationMs,
-    key: resolveElementFlightKey(destinationElement),
-    elementHiddenDuringFlight: destinationElement,
-    mode: 'enter',
-  })
-}
-
 export function runHandToPileAnimation({
   side,
   destination,
@@ -335,37 +310,15 @@ export function runHandToPileAnimation({
   }
   const destinationRect = destinationPileElement.getBoundingClientRect()
 
-  return animateCardEntityToDestination(sourceCardElement, destinationRect, 340)
-}
-
-/**
- * Flies a throwaway copy of a card's art from a captured rectangle towards a destination element.
- * Only the image is drawn (no overlays), and the real card in the DOM is never moved - so there is
- * no snap-back once the state update removes the source card.
- */
-export function runCardImageGhostToElementAnimation({
-  imageSrc,
-  sourceRect,
-  destinationElement,
-  durationMs = 340,
-  key,
-}: ICardImageGhostToElementAnimationArgs): Promise<void> {
-  if (!destinationElement) {
-    return Promise.resolve()
-  }
-
-  return animateOverlayCopy({
-    imageSrc,
-    sourceRect,
-    destinationRect: destinationElement.getBoundingClientRect(),
-    durationMs,
-    // The caller names the card the copy belongs to, so a second flight for the same card takes this one
-    // over instead of stacking a second copy in the air.
-    key: key ?? `flight-anonymous-${flightCopySequence++}`,
-    elementHiddenDuringFlight: null,
-    mode: 'exit',
+  return runElementToRectAnimation({
+    element: sourceCardElement,
+    destinationRect,
+    durationMs: 340,
+    // The card's own identity, so a second flight for the same card takes this one over instead of stacking.
+    key: cardInstanceId,
   })
 }
+
 
 export async function waitMillis(durationMs: number): Promise<void> {
   if (durationMs <= 0) {
@@ -379,7 +332,7 @@ export async function waitMillis(durationMs: number): Promise<void> {
   })
 }
 
-export function runDeckToHandAnimation({
+export async function runDeckToHandAnimation({
   side,
   cardInstanceId,
   topDeckCardRef,
@@ -399,14 +352,26 @@ export function runDeckToHandAnimation({
     return Promise.resolve()
   }
 
-  return runRectToDynamicElementAnimation({
-    sourceRect,
-    durationMs: 420,
-    resolveDestinationElement: () => {
+  if (prefersReducedMotion()) {
+    return
+  }
+
+  // The arriving hand card is the entity that travels: no copy is drawn, so nothing has to be hidden and
+  // revealed around it. If the card is not on the board yet there is nothing to fly - better than dragging the
+  // whole row around, which is what the copy engine's row fallback did.
+  const destinationElement = await waitForElement({
+    resolveElement: () => {
       return destinationHandRowElement.querySelector<HTMLElement>(`[data-hand-instance-id="${cardInstanceId}"]`)
     },
-    resolveFallbackElement: () => {
-      return destinationHandRowElement
-    },
+  })
+  if (!destinationElement) {
+    return
+  }
+
+  await runElementFromRectAnimation({
+    element: destinationElement,
+    sourceRect,
+    durationMs: 420,
+    key: resolveElementFlightKey(destinationElement),
   })
 }
