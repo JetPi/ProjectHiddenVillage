@@ -278,7 +278,14 @@ function GameZones(props: IGameZonesProps) {
           <AttackLinkArrow config={attackLinkRenderConfig} />
         ) : null}
 
-        <div className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
+        {/* `data-board-half`: a card can be flown *out of this half* (a summon, a support set from hand, a discard),
+            and while it travels it must be above the hand rows - which the half's own `z-20` stacking context
+            prevents, because the flying card's `z-index: 260` is local to it. See the `[data-board-half]:has(...)`
+            rule in `index.css`, which promotes the half that owns a flight. */}
+        <div
+          data-board-half="true"
+          className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5"
+        >
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
             <PlayPileZone
               side="top"
@@ -336,7 +343,10 @@ function GameZones(props: IGameZonesProps) {
           />
         </div>
 
-        <div className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
+        <div
+          data-board-half="true"
+          className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5"
+        >
           <div className="min-h-0 w-full pl-2">
             <div
               className={twMerge(

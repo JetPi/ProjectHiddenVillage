@@ -502,6 +502,42 @@ function markCardAwaitingArrival(instanceId: string, handRowRef: RefObject<HTMLD
     ?.setAttribute('data-card-arrival-pending', 'true')
 }
 
+/**
+ * Clears a departure's hide from a card that the hand *is rendering again* - and only from that card.
+ *
+ * An exit flight ends with its card hidden (see `runElementToRectAnimation`) so a departed card cannot be painted
+ * back into the row it left. But a card can come straight back: a mulligan returns the whole hand and can deal some
+ * of the same instances again (four of five in a measured run), and a hand row keeps an exiting card mounted for
+ * presence - so React reuses that very element, and the card would be laid out in the hand while invisible.
+ *
+ * The "and only that card" is load-bearing, and was measured the hard way: clearing the hide off *every* departed
+ * element on *every* push un-hid the cards that had just flown out of the hand but are not in the new hand - they
+ * are kept mounted for one more commit, so the push that brought the replacement hand painted exactly the cards the
+ * exit hide exists to keep out of sight ("the old cards appear in the hand for a moment before the new ones
+ * reappear"). The set below is the hand being rendered now: a departed card that is not in it stays hidden until
+ * React removes it.
+ */
+function clearStaleDepartureHides(
+  handRowRef: RefObject<HTMLDivElement | null>,
+  presentInstanceIds: ReadonlySet<string>,
+): void {
+  handRowRef.current
+    ?.querySelectorAll<HTMLElement>('[data-card-departed="true"]')
+    .forEach((element) => {
+      const instanceId = element.getAttribute('data-hand-instance-id') ?? ''
+      if (!presentInstanceIds.has(instanceId)) {
+        return
+      }
+
+      if (element.getAttribute('data-card-traveling') === 'true') {
+        return
+      }
+
+      element.removeAttribute('data-card-departed')
+      element.style.visibility = ''
+    })
+}
+
 function releaseCardAwaitingArrival(instanceId: string, handRowRef: RefObject<HTMLDivElement | null>): void {
   handRowRef.current
     ?.querySelector<HTMLElement>(`[data-hand-instance-id="${instanceId}"]`)
@@ -546,8 +582,14 @@ function useHandZoneAnimationEffects({
   useLayoutEffect(() => {
     const animController = animControllerRef.current
     const previousSnapshot = animController.previousHandZoneSnapshot
+
+    // A card dealt straight back into a hand must not stay hidden by the departure it made a moment ago - but a
+    // card that flew out and is *not* in the hand being rendered now must stay hidden, which is why the healer is
+    // given the instance ids this push renders.
     const nextTopHandInstanceIdSet = new Set(topHandInstanceIds)
     const nextBottomHandInstanceIdSet = new Set(bottomHandInstanceIds)
+    clearStaleDepartureHides(topHandRowRef, nextTopHandInstanceIdSet)
+    clearStaleDepartureHides(bottomHandRowRef, nextBottomHandInstanceIdSet)
     const nextTopTrashInstanceIdSet = new Set(topTrashInstanceIds)
     const nextBottomTrashInstanceIdSet = new Set(bottomTrashInstanceIds)
 
@@ -572,7 +614,23 @@ function useHandZoneAnimationEffects({
       const topDeckToHandCards = recordedMovements?.drawnTop.length
         ? recordedMovements.drawnTop
         : newTopHandCards.slice(0, topDeckDecrease)
-      const bottomDeckToHandCards = animController.pendingMulliganDrawReplay
+      // The mulligan replay is only valid for the push that actually carries the replacement hand. The prompt can
+      // resolve in one push and the redrawn hand arrive in another (the resolve also moves the phase and the
+      // priority), and the flag used to be consumed by whichever push came first - so the redraw often had no
+      // batch to fly and the new hand simply appeared, which is the "sometimes something delays" half of the
+      // mulligan complaint. `pendingMulliganDrawReplayExpiresAtMs` stops a flag that never finds its hand from
+      // leaking into an unrelated later draw.
+      const previousBottomHandIds = previousSnapshot.bottomHandInstanceIds
+      const bottomHandChanged = bottomHandInstanceIds.length !== previousBottomHandIds.size
+        || bottomHandInstanceIds.some((instanceId) => !previousBottomHandIds.has(instanceId))
+      const isMulliganDrawReplay = animController.pendingMulliganDrawReplay
+        && bottomHandChanged
+        && Date.now() <= animController.pendingMulliganDrawReplayExpiresAtMs
+      if (animController.pendingMulliganDrawReplay && Date.now() > animController.pendingMulliganDrawReplayExpiresAtMs) {
+        animController.pendingMulliganDrawReplay = false
+      }
+
+      const bottomDeckToHandCards = isMulliganDrawReplay
         ? bottomHandInstanceIds
         : recordedMovements?.drawnBottom.length
           ? recordedMovements.drawnBottom
@@ -598,7 +656,7 @@ function useHandZoneAnimationEffects({
       topDeckToHandCards.forEach((instanceId) => markCardAwaitingArrival(instanceId, topHandRowRef))
       bottomDeckToHandCards.forEach((instanceId) => markCardAwaitingArrival(instanceId, bottomHandRowRef))
 
-      if (animController.pendingMulliganDrawReplay) {
+      if (isMulliganDrawReplay) {
         animController.pendingMulliganDrawReplay = false
       }
 

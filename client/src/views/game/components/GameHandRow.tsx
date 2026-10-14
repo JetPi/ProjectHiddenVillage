@@ -28,7 +28,12 @@ function GameHandRow<TCard>({
   const cardsContainerClassNameResolved = twMerge(CARDS_CONTAINER_CLASSNAME, cardsContainerClassName)
 
   return (
-    <div className={twMerge('flex min-h-0 items-stretch gap-1', containerClassName)}>
+    // `relative z-30` - a hand row's cards fly *out over the board* (a draw comes in from the pile, a discard goes
+    // out to it), and the board is `position: relative`, so an unpositioned row painted underneath the whole board:
+    // a card in the air was measured covered by a pile element (`plans/…`, probe `card-z-order`). Positioning the
+    // row with a z-index above the board's own layers puts its cards - including the airborne one - over the board,
+    // while the attack-link arrow (z-35) and every overlay (z-40 and up) stay above them.
+    <div className={twMerge('relative z-30 flex min-h-0 items-stretch gap-1', containerClassName)}>
       <PlayRow className={twMerge('min-h-0 p-0 m-0 min-w-0 flex flex-1 flex-col rounded-2xl border border-dashed border-[var(--border-subtle)] p-1.5', rowClassName)}>
         {reorder ? (
           // Reorder.Group owns the cards' positions: the dragged card is transformed in place and the other

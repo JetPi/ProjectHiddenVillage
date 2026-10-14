@@ -103,6 +103,21 @@ paths:
   `BottomHandReorderRow` + `GameHandRow` (hand), `NonLeaderCardOverlay` (per-card
   hover actions/preview/HUD), `LeaderCard` (`components/ui/cards/`),
   `SidebarButtons`, `GamePhaseActionRow`/`GamePhaseIndicator`.
+- **A card in the air is above the UI, and its own `z-index` is never enough.** A hand card's
+  element is a static `div` inside a `Reorder.Item` (a Motion transform = a stacking context of
+  its own), and a card flying out of a board half is inside that half's `z-20` context - so in
+  both cases the airborne rung belongs to the card **and its slot**, which is what
+  `promoteAirborneLayer` in `animation/flights.ts` does, with the board half promoted for the
+  duration of a flight by `[data-board-half]:has([data-card-traveling])` (see the ladder in
+  `02-board-ui-hud.md`). Measured: without it a card set from hand was painted under the bottom
+  hand row for the first frames of its flight.
+- **A departure's hide must be healable *and* targeted.** An exit flight ends with its card
+  hidden and marked `data-card-departed`, because the card has left and the state that removes
+  the element has not landed yet. A hand row keeps it mounted for presence, so if the same
+  instance is dealt straight back the element is reused and the hide must be cleared - but only
+  for the cards the current push renders (`clearStaleDepartureHides(row, presentInstanceIds)`),
+  otherwise the push that brings the replacement hand un-hides exactly the cards that just flew
+  out. Both halves of that rule are load-bearing; measured both ways.
 
 ## Refs & React Compiler lint (strict-clean, no eslint-disables)
 

@@ -64,7 +64,10 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
       // never un-clips an ancestor, so this guard is now purely about the pile's own layout. Same idiom as the
       // support-slot guard in `ZoneCardSlots`.
       className={twMerge(
-        'h-full min-h-0 w-full min-w-0 max-w-[var(--resource-rail-max-width)] justify-self-center overflow-hidden px-1',
+        // `card-drop-zone`: cards are flown into the pile, and the pile's clip would cut them in half as they cross
+        // its edge - see the `body:has([data-card-traveling])` rule in `index.css`, which lifts it while a card is
+        // in the air. The clip is still what keeps the resting layout honest (with `min-w-0 min-h-0`).
+        'card-drop-zone h-full min-h-0 w-full min-w-0 max-w-[var(--resource-rail-max-width)] justify-self-center overflow-hidden px-1',
         side === 'top' ? 'play-pile-zone-top' : 'play-pile-zone-bottom',
         className,
       )}

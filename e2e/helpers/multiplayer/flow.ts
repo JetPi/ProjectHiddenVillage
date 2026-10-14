@@ -136,6 +136,14 @@ export type HandArrivalFlickerReport = {
   /** Cards whose slot ran a Motion opacity animation while a flight was moving them. Must be zero. */
   doubleAnimated: number
   /**
+   * Arriving cards that were resized while in the air. Must be zero: an arrival is a move, not a resize, so the
+   * card keeps its own size for the whole flight (a card that changes size mid-flight reads as a different card -
+   * a summon used to deflate by 28% because a hand card is wider than a battlefield card).
+   */
+  resizedWhileArriving: number
+  /** The instance ids behind `resizedWhileArriving`. */
+  resizedWhileArrivingIds: string[]
+  /**
    * Cards painted back into a row they had already flown out of. Must be zero: it is the "the old cards show up
    * for a moment before the new ones" artefact (the exit flight restoring a departed card to its resting spot
    * while the state that removes it is still in flight).
@@ -143,16 +151,56 @@ export type HandArrivalFlickerReport = {
   returnedAfterExit: number
   /** The instance ids behind `returnedAfterExit`, so a failure names the cards and not only a count. */
   returnedAfterExitIds: string[]
+  /**
+   * Cards that travelled while something was painted over the point they occupied, by something that is not above
+   * them in the Z ladder (the arrow at 35 and the overlays at 40+ may cover a card in the air; the hand rows at 30
+   * and the board halves at 20 may not). Must be zero.
+   *
+   * Measured before the fix: the first painted frame of a `Set Support` arrival was covered by `bottom-hand-row`
+   * (z 30), because the flying card's own `z-index: 260` is *local* to the board half that contains it
+   * (`relative z-20 row-span-2`) - "it is like they are going beneath the UI when going from hand to support
+   * zone". The same measurement is what a container clip looks like: a card cut out of its own box is not
+   * hit-tested at its centre either, so the point resolves to whatever sits under the clip.
+   */
+  clippedWhileFlying: number
+  /** The instance ids behind `clippedWhileFlying`. */
+  clippedWhileFlyingIds: string[]
+  /**
+   * The first cover seen per card, with what covered it (bounded to a handful). A count alone cannot tell whether
+   * a card was cut out of a clipping container or painted under a stacking context that outranks it.
+   */
+  clippedWhileFlyingDetails: Array<{ cardId: string; covering: string; coveringZ: number }>
+  /**
+   * Hand cards laid out in the hand but not painted, with no flight and no hold to explain it. Must be zero: it
+   * is the reported "upon mulliganing one of the cards in hand went missing", i.e. an element still carrying a
+   * hide that no longer applies (a departed card whose instance was dealt straight back into the hand).
+   */
+  unpaintedHandCards: number
+  /** The instance ids behind `unpaintedHandCards`. */
+  unpaintedHandCardsIds: string[]
+  /** Frames the sampler ran. A sampler that died reports zeros for everything, so this is asserted too. */
+  framesSampled: number
+  /** Exceptions the sampler swallowed. Must be zero, otherwise every count above is only a partial picture. */
+  observerErrors: number
 }
 
 /**
- * Watches every hand card, frame by frame, for the two ways a dealt card can be animated twice.
+ * Watches every hand card, frame by frame, for the ways a card bound for (or leaving) the hand can be seen in the
+ * wrong state. All of it is measured, never inferred from the code that is supposed to prevent it:
  *
- * Both are keyed on the *hold* (`data-card-arrival-pending`), which is what marks a card as arriving rather than
- * merely standing in the hand: it is the hold that must keep the card out of sight, and a card that is visibly
- * standing in the hand before its exit flight is normal. So the report asks, of every card that was ever held,
- * whether it was painted while held, and of every card that ever flew, whether Motion was animating its slot at
- * the same time.
+ * - `paintedWhileHeld` / `doubleAnimated`: keyed on the *hold* (`data-card-arrival-pending`), which is what marks a
+ *   card as arriving rather than merely standing in the hand. A card that is visibly standing in the hand before
+ *   its exit flight is normal, so the hold is the only thing that makes "painted too early" decidable.
+ * - `resizedWhileArriving`: keyed on the flight's *direction* (read from where the card is on its last airborne
+ *   frame), because the hold is released in the same task a flight starts and a departure may legitimately scale.
+ * - `returnedAfterExit`: a departed card painted back into the row it left.
+ * - `clippedWhileFlying`: a card in the air not painted at the point it occupies - covered by something below it in
+ *   the Z ladder, or cut out of its own box by a clipping container.
+ * - `unpaintedHandCards`: a card in the hand, laid out, and invisible with nothing to explain it.
+ *
+ * `framesSampled` and `observerErrors` exist because an exception inside a frame callback stops the loop
+ * silently: every count then reads zero and green means nothing. This helper shipped that bug once, so the sampler
+ * now counts its own failures instead of swallowing them.
  */
 export async function installHandArrivalFlickerObserver(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -163,6 +211,12 @@ export async function installHandArrivalFlickerObserver(page: Page): Promise<voi
       __phvHandArrivalFlickerPaintedWhileHeld?: string[]
       __phvHandArrivalFlickerDoubleAnimated?: string[]
       __phvHandArrivalFlickerReturnedAfterExit?: string[]
+      __phvHandArrivalFlickerResizedWhileArriving?: string[]
+      __phvHandArrivalFlickerClipped?: string[]
+      __phvHandArrivalFlickerClippedDetails?: Array<{ cardId: string; covering: string; coveringZ: number }>
+      __phvHandArrivalFlickerUnpainted?: string[]
+      __phvHandArrivalFlickerFrames?: number
+      __phvHandArrivalFlickerErrors?: number
     }
 
     if (state[marker] === true) {
@@ -173,11 +227,22 @@ export async function installHandArrivalFlickerObserver(page: Page): Promise<voi
     state.__phvHandArrivalFlickerPaintedWhileHeld = []
     state.__phvHandArrivalFlickerDoubleAnimated = []
     state.__phvHandArrivalFlickerReturnedAfterExit = []
+    state.__phvHandArrivalFlickerResizedWhileArriving = []
+    state.__phvHandArrivalFlickerClipped = []
+    state.__phvHandArrivalFlickerClippedDetails = []
+    state.__phvHandArrivalFlickerUnpainted = []
+    state.__phvHandArrivalFlickerFrames = 0
+    state.__phvHandArrivalFlickerErrors = 0
 
     // Addressed by element, not by id: a card that comes back later is a *new* element, and only the same element
     // being painted again after it flew out is the artefact.
     const travelingElements = new Set<Element>()
     const departedElements = new Map<Element, string>()
+    // Whether this element's flight changed its size at any point; judged when the flight ends, because only then
+    // is it known whether the flight was an arrival (which must not resize).
+    const airborneResizeByElement = new Map<Element, boolean>()
+    // Consecutive frames this element has been hidden with no flight and no hold to explain it.
+    const hiddenFramesByElement = new Map<Element, number>()
     // What a flight *is* has to be read from where it goes, not from the hold: the hold is released in the same
     // task that starts an arrival's flight (so the earliest card of a batch is held for less than a frame), and the
     // fix itself (a departure ending hidden) cannot be the thing the discrimination relies on. Where the flight is
@@ -199,6 +264,141 @@ export async function installHandArrivalFlickerObserver(page: Page): Promise<voi
       return Math.abs(numbers[4]) > 1 || Math.abs(numbers[5]) > 1
     }
 
+    // The Z ladder (`02-board-ui-hud.md`): board halves 20, hand rows 30, the half that owns a flight 34, the
+    // attack-link arrow 35/36, banners and prompt modals 40+. At or above the arrow's rung, whatever covers a card
+    // in the air is legitimately above it. Below that rung a cover is a defect - and also the signature of a clip,
+    // because a card cut out of its own box is not hit-tested at its centre either.
+    const MIN_Z_ABOVE_A_FLYING_CARD = 35
+
+    const readEffectiveZIndex = (element: Element | null): number => {
+      let node: Element | null = element
+      while (node && node !== document.documentElement) {
+        const zIndex = getComputedStyle(node).zIndex
+        if (zIndex !== 'auto') {
+          const parsed = Number(zIndex)
+          if (!Number.isNaN(parsed)) {
+            return parsed
+          }
+        }
+        node = node.parentElement
+      }
+      return 0
+    }
+
+    /** How a card is named in the report: a board card carries one id attribute, a hand card the other. */
+    const readCardLabel = (element: HTMLElement): string =>
+      element.getAttribute('data-card-instance-id')
+      ?? element.getAttribute('data-hand-instance-id')
+      ?? 'unknown'
+
+    /**
+     * Whether an element actually paints at the point it was hit-tested at.
+     *
+     * `elementFromPoint` answers "which element owns this point", not "which element hides what is behind it": an
+     * empty, transparent slot owns the point just as a card's art does. The residual covers measured on the opening
+     * deal were exactly that - the empty slots of cards that had not been dealt yet - and counting them as defects
+     * would be wrong, because nothing is hidden at all.
+     */
+    const coverPaints = (element: Element | null): boolean => {
+      if (!element) {
+        return false
+      }
+
+      // The element *itself* has to be painted at the point it owns. A slot whose child happens to carry an opaque
+      // background does not paint the point the slot owns - measured, and the reason this check is not recursive:
+      // the last flag on the opening deal was a card slot that owns the point while painting nothing there.
+      if (element.matches('img,svg,canvas,video,picture')) {
+        return true
+      }
+
+      const style = getComputedStyle(element)
+      if (style.backgroundImage !== 'none') {
+        return true
+      }
+
+      const backgroundMatch = style.backgroundColor.match(/rgba?\(([^)]+)\)/)
+      if (!backgroundMatch) {
+        return false
+      }
+
+      const channels = backgroundMatch[1].split(',').map((channel) => Number(channel.trim()))
+      const alpha = channels.length > 3 ? channels[3] : 1
+      return alpha > 0.05
+    }
+
+    /**
+     * Records a card that is in the air yet is *hidden* where it is - covered by something opaque that is not above
+     * it in the ladder, or cut away by a clipping container.
+     *
+     * Sampled for *every* travelling card rather than only hand cards: the reported artefact is a card flying from
+     * the hand into the support zone, and that flight's element is the support-slot card, not a hand card.
+     */
+    const recordCoveredIfClipped = (element: HTMLElement): void => {
+      const rect = element.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) {
+        return
+      }
+
+      const centreX = rect.left + rect.width / 2
+      const centreY = rect.top + rect.height / 2
+      // Unmeasurable frames are not defects. A card dealt into the opponent's hand row really does travel to a slot
+      // that sits above the viewport (that row overhangs its grid row by design), and a hidden element is not
+      // hit-tested at all - counting either would make the metric lie.
+      if (centreX < 0 || centreY < 0 || centreX > window.innerWidth || centreY > window.innerHeight) {
+        return
+      }
+
+      if (getComputedStyle(element).visibility === 'hidden') {
+        return
+      }
+
+      const centreElement = document.elementFromPoint(centreX, centreY)
+      const paintedAtCentre = Boolean(
+        centreElement
+        && (centreElement === element
+          || element.contains(centreElement)
+          || centreElement.contains(element)),
+      )
+      if (paintedAtCentre) {
+        return
+      }
+
+      // A cover that is above the ladder's arrow is legitimate (prompt modals, banners, the arrow itself), and so
+      // is another card in the air: a deal staggers its flights, so two overlap and the later one paints over the
+      // earlier one - that is a card covering a card, which is what the board is supposed to look like. Measured:
+      // the raw check flagged exactly those five frames of the opening deal, all of them another hand card's slot.
+      if (readEffectiveZIndex(centreElement) >= MIN_Z_ABOVE_A_FLYING_CARD) {
+        return
+      }
+
+      if (centreElement?.querySelector('[data-card-traveling="true"]')
+        ?? centreElement?.closest('[data-card-traveling="true"]')) {
+        return
+      }
+
+      if (!coverPaints(centreElement)) {
+        return
+      }
+
+      const label = readCardLabel(element)
+      if (!state.__phvHandArrivalFlickerClipped?.includes(label)) {
+        state.__phvHandArrivalFlickerClipped?.push(label)
+      }
+
+      const details = state.__phvHandArrivalFlickerClippedDetails ?? []
+      if (details.length < 8 && !details.some((detail) => detail.cardId === label)) {
+        const classList = (centreElement?.getAttribute('class') ?? '').split(/\s+/).filter(Boolean).slice(0, 3)
+        details.push({
+          cardId: label,
+          covering: centreElement
+            ? `${centreElement.tagName.toLowerCase()}${classList.length ? `.${classList.join('.')}` : ''}`
+            : 'nothing',
+          coveringZ: readEffectiveZIndex(centreElement),
+        })
+        state.__phvHandArrivalFlickerClippedDetails = details
+      }
+    }
+
     const hasOpacityAnimation = (element: Element): boolean => {
       return element.getAnimations().some((animation) => {
         const effect = animation.effect as KeyframeEffect | null
@@ -214,16 +414,24 @@ export async function installHandArrivalFlickerObserver(page: Page): Promise<voi
       if (frames > 4_000) {
         return
       }
+      state.__phvHandArrivalFlickerFrames = frames
 
-      document.querySelectorAll<HTMLElement>('[data-hand-instance-id]').forEach((cardElement) => {
+      const sampleCard = (cardElement: HTMLElement): void => {
         const instanceId = cardElement.getAttribute('data-hand-instance-id') ?? ''
         if (!instanceId) {
           return
         }
 
         const held = cardElement.getAttribute('data-card-arrival-pending') === 'true'
-        if (held && !state.__phvHandArrivalFlickerHeld?.includes(instanceId)) {
-          state.__phvHandArrivalFlickerHeld?.push(instanceId)
+        if (held) {
+          // A card being dealt *into* this row is not a card "painted back after leaving it": a mulligan can hand
+          // the same instance straight back, React reuses the very element a departure left hidden, the heal makes
+          // it visible again and a new flight carries it in. Only a card painted again with no flight and no hold
+          // in between is the artefact this metric exists for.
+          departedElements.delete(cardElement)
+          if (!state.__phvHandArrivalFlickerHeld?.includes(instanceId)) {
+            state.__phvHandArrivalFlickerHeld?.push(instanceId)
+          }
         }
 
         const slot = cardElement.parentElement
@@ -233,6 +441,8 @@ export async function installHandArrivalFlickerObserver(page: Page): Promise<voi
 
         if (traveling) {
           travelingElements.add(cardElement)
+          // Same reason as the hold above: a card flying a second time is arriving, not being painted back.
+          departedElements.delete(cardElement)
           const row = cardElement.closest('[data-testid="bottom-hand-row"],[data-testid="top-hand-row"]')
           if (row) {
             const rowRect = row.getBoundingClientRect()
@@ -245,13 +455,36 @@ export async function installHandArrivalFlickerObserver(page: Page): Promise<voi
                 || cardRect.top > rowRect.bottom,
             )
           }
+
+          // An *arrival* is a move: the card keeps its own size for the whole flight. Sampled per frame and judged
+          // when the flight ends (see below), because only then is it known whether this was an arrival - a
+          // departure may legitimately scale, where shrinking into a pile is the message. A card resized in the
+          // air reads as a different card (a summon used to deflate by 28%, a hand card being wider than a
+          // battlefield card).
+          const matrix = getComputedStyle(cardElement).transform
+          const numbers = matrix.match(/-?\d*\.?\d+(?:e-?\d+)?/gi)?.map(Number) ?? []
+          if (numbers.length >= 6) {
+            const airborneScale = Math.hypot(numbers[0], numbers[1])
+            if (Math.abs(airborneScale - 1) > 0.05) {
+              airborneResizeByElement.set(cardElement, true)
+            }
+          }
         } else if (travelingElements.has(cardElement)) {
-          // This element's flight just ended. It was a departure if the card was on its way out of the row.
+          // This element's flight just ended, and where the card was on its last airborne frame says which kind
+          // of flight it was: an arriving card is coming towards its own row, a departing card is heading out of
+          // it. The direction - not the hold - is what discriminates, because the hold is released in the same
+          // task its flight starts (so the earliest card of a batch is held for less than a frame), and the
+          // departure's own hide cannot be the thing the discrimination relies on.
           travelingElements.delete(cardElement)
           if (lastAirborneFrameOutsideRow.get(cardElement) === true) {
             departedElements.set(cardElement, instanceId)
+          } else if (airborneResizeByElement.get(cardElement) === true) {
+            if (!state.__phvHandArrivalFlickerResizedWhileArriving?.includes(instanceId)) {
+              state.__phvHandArrivalFlickerResizedWhileArriving?.push(instanceId)
+            }
           }
           lastAirborneFrameOutsideRow.delete(cardElement)
+          airborneResizeByElement.delete(cardElement)
         }
 
         if (
@@ -275,10 +508,44 @@ export async function installHandArrivalFlickerObserver(page: Page): Promise<voi
           }
         }
 
+        // A card that is in the hand, in the DOM, laid out - and invisible, with nothing to explain it. The single
+        // frame an arrival is deliberately hidden for before its flight starts does not count (two consecutive
+        // frames are required), and neither does a departed card, whose hide is exactly the point of the hide.
+        const departed = cardElement.getAttribute('data-card-departed') === 'true'
+        if (!traveling && !held && !departed && !visible) {
+          const hiddenFrames = (hiddenFramesByElement.get(cardElement) ?? 0) + 1
+          hiddenFramesByElement.set(cardElement, hiddenFrames)
+          if (hiddenFrames >= 2 && !state.__phvHandArrivalFlickerUnpainted?.includes(instanceId)) {
+            state.__phvHandArrivalFlickerUnpainted?.push(instanceId)
+          }
+        } else {
+          hiddenFramesByElement.delete(cardElement)
+        }
+
         if (traveling && slot && hasOpacityAnimation(slot) && !offsetByFlight(slot)) {
           if (!state.__phvHandArrivalFlickerDoubleAnimated?.includes(instanceId)) {
             state.__phvHandArrivalFlickerDoubleAnimated?.push(instanceId)
           }
+        }
+      }
+
+      // Every card in the air, whichever zone it belongs to: the cover check is the one metric that applies to a
+      // board card too (a card flying into the support zone from the hand is a board card for the whole flight).
+      document.querySelectorAll<HTMLElement>('[data-card-traveling="true"]').forEach((cardElement) => {
+        try {
+          recordCoveredIfClipped(cardElement)
+        } catch {
+          state.__phvHandArrivalFlickerErrors = (state.__phvHandArrivalFlickerErrors ?? 0) + 1
+        }
+      })
+
+      document.querySelectorAll<HTMLElement>('[data-hand-instance-id]').forEach((cardElement) => {
+        try {
+          sampleCard(cardElement)
+        } catch {
+          // An exception inside a frame callback stops the loop silently, and then every count in the report reads
+          // zero: green means nothing at all. The sampler counts its own failures so that cannot happen quietly.
+          state.__phvHandArrivalFlickerErrors = (state.__phvHandArrivalFlickerErrors ?? 0) + 1
         }
       })
 
@@ -298,14 +565,29 @@ export async function getHandArrivalFlickerReport(page: Page): Promise<HandArriv
       __phvHandArrivalFlickerPaintedWhileHeld?: string[]
       __phvHandArrivalFlickerDoubleAnimated?: string[]
       __phvHandArrivalFlickerReturnedAfterExit?: string[]
+      __phvHandArrivalFlickerResizedWhileArriving?: string[]
+      __phvHandArrivalFlickerClipped?: string[]
+      __phvHandArrivalFlickerClippedDetails?: Array<{ cardId: string; covering: string; coveringZ: number }>
+      __phvHandArrivalFlickerUnpainted?: string[]
+      __phvHandArrivalFlickerFrames?: number
+      __phvHandArrivalFlickerErrors?: number
     }
 
     return {
       returnedAfterExit: state.__phvHandArrivalFlickerReturnedAfterExit?.length ?? 0,
       returnedAfterExitIds: state.__phvHandArrivalFlickerReturnedAfterExit ?? [],
+      resizedWhileArriving: state.__phvHandArrivalFlickerResizedWhileArriving?.length ?? 0,
+      resizedWhileArrivingIds: state.__phvHandArrivalFlickerResizedWhileArriving ?? [],
       heldCards: state.__phvHandArrivalFlickerHeld?.length ?? 0,
       paintedWhileHeld: state.__phvHandArrivalFlickerPaintedWhileHeld?.length ?? 0,
       doubleAnimated: state.__phvHandArrivalFlickerDoubleAnimated?.length ?? 0,
+      clippedWhileFlying: state.__phvHandArrivalFlickerClipped?.length ?? 0,
+      clippedWhileFlyingIds: state.__phvHandArrivalFlickerClipped ?? [],
+      clippedWhileFlyingDetails: state.__phvHandArrivalFlickerClippedDetails ?? [],
+      unpaintedHandCards: state.__phvHandArrivalFlickerUnpainted?.length ?? 0,
+      unpaintedHandCardsIds: state.__phvHandArrivalFlickerUnpainted ?? [],
+      framesSampled: state.__phvHandArrivalFlickerFrames ?? 0,
+      observerErrors: state.__phvHandArrivalFlickerErrors ?? 0,
     }
   })
 }

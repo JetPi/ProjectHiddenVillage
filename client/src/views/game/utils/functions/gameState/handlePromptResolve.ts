@@ -96,6 +96,9 @@ async function handlePromptResolve({
       : 0
 
   animControllerRef.current.pendingMulliganDrawReplay = true
+  // The replay has to survive the pushes that resolve the prompt and move the phase: the hand it is meant to fly
+  // in can arrive a push later, and consuming the flag early left the redraw with nothing to animate.
+  animControllerRef.current.pendingMulliganDrawReplayExpiresAtMs = Date.now() + 2_000
 
   await waitMillis(totalHandToPileMs)
 

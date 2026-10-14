@@ -34,6 +34,43 @@ import {
 import { prefersReducedMotion, resolveFlightDurationMs } from './reducedMotion'
 
 /**
+ * Puts a card that is in the air above the siblings of its own stacking context - the card *and* the slot it lives
+ * in, because the card alone is not enough.
+ *
+ * `z-index` needs a positioned element and only orders it *inside* the stacking context it belongs to. A hand card's
+ * slot is a `Reorder.Item`, i.e. a Motion element carrying a transform, so it is a stacking context of its own at
+ * `z-index: auto` - which means a card flying out of an earlier slot painted *under* a later one (measured: the
+ * point at a flying card's centre resolved to another hand card's slot while the deal was running). The card is the
+ * element with the id (`data-hand-instance-id`), so raising it can never win that contest; the slot travels with
+ * it. The returned function restores both.
+ */
+function promoteAirborneLayer(element: HTMLElement): () => void {
+  const slot = element.parentElement
+  const previousElementPosition = element.style.position
+  const previousElementZIndex = element.style.zIndex
+  const previousSlotPosition = slot?.style.position ?? ''
+  const previousSlotZIndex = slot?.style.zIndex ?? ''
+  const promoteSlot = slot !== null && slot !== document.body
+
+  // `position: relative` with no offsets moves nothing - it is what makes `z-index` apply at all.
+  element.style.position = 'relative'
+  element.style.zIndex = '260'
+  if (promoteSlot) {
+    slot.style.position = 'relative'
+    slot.style.zIndex = '260'
+  }
+
+  return () => {
+    element.style.position = previousElementPosition
+    element.style.zIndex = previousElementZIndex
+    if (promoteSlot) {
+      slot.style.position = previousSlotPosition
+      slot.style.zIndex = previousSlotZIndex
+    }
+  }
+}
+
+/**
  * Flies the real card element from `sourceRect` to its own, already laid out position.
  *
  * This is the entity-based flight: the element that stays on the board is the thing that travels, so there is
@@ -69,12 +106,26 @@ export function runElementFromRectAnimation({
 
   const offsetX = sourceRect.left + sourceRect.width / 2 - (destinationRect.left + destinationRect.width / 2)
   const offsetY = sourceRect.top + sourceRect.height / 2 - (destinationRect.top + destinationRect.height / 2)
-  const startScale = Math.max(sourceRect.width / destinationRect.width, 0.15)
-  const startTransform = `translate(${offsetX}px, ${offsetY}px) scale(${startScale})`
+  // Deliberately **no scale**: an arrival is a move, not a resize. The card is drawn at the size it is going to
+  // keep (its own slot) for the whole flight, so nothing about it interpolates and the motion ends exactly on the
+  // card. Matching the source rect's size instead is what made a summon "scale awkwardly": a hand card is 28%
+  // wider than a battlefield card, so the card popped to hand size and deflated on its way down - measured on the
+  // summon path, where the flight started at `s=1.28` and ended at `s=1`. Shrinking into a *pile* (an exit) still
+  // scales, because there the change of size is the message.
+  const startTransform = `translate(${offsetX}px, ${offsetY}px)`
+
+  // A card that is arriving is present: if it still carries the hide from a departure it made earlier in this
+  // scenario (a mulligan can deal the same instance straight back), clear it, and record the pre-flight
+  // visibility as visible - otherwise this flight would restore the card to hidden when it lands.
+  if (element.hasAttribute('data-card-departed')) {
+    element.removeAttribute('data-card-departed')
+    element.style.visibility = ''
+  }
 
   const previousTransform = element.style.transform
   const previousVisibility = element.style.visibility
   const previousWillChange = element.style.willChange
+  let restoreAirborneLayer: (() => void) | null = null
 
   // The element is hidden for the single frame before the flight starts, so it can never flash at its slot
   // before appearing where it came from (the caller sees the same mount-to-flight frame gap either way).
@@ -86,13 +137,17 @@ export function runElementFromRectAnimation({
       // the flight is already the offset one, so there is no jump.
       element.setAttribute('data-card-traveling', 'true')
       element.style.willChange = 'transform'
+      // Same reason as the exit flight: a card in the air is above the siblings it is flying over. Each sibling
+      // carries a Motion transform, which makes it its own stacking context, so the airborne card's position in
+      // the DOM is not enough to decide who paints last.
+      restoreAirborneLayer = promoteAirborneLayer(element)
       element.style.transform = startTransform
       element.style.visibility = previousVisibility
 
       const animation = element.animate(
         [
           { transform: startTransform },
-          { transform: 'translate(0px, 0px) scale(1)' },
+          { transform: 'translate(0px, 0px)' },
         ],
         { duration: resolvedDurationMs, easing: STANDARD_MOVEMENT_EASING },
       )
@@ -107,6 +162,7 @@ export function runElementFromRectAnimation({
         element.style.transform = previousTransform
         element.style.visibility = previousVisibility
         element.style.willChange = previousWillChange
+        restoreAirborneLayer?.()
         element.removeAttribute('data-card-traveling')
         resolve()
       }
@@ -163,9 +219,8 @@ export function runElementToRectAnimation({
   const endScale = Math.max(destinationRect.width / sourceRect.width, 0.15)
 
   const previousTransform = element.style.transform
-  const previousZIndex = element.style.zIndex
   element.setAttribute('data-card-traveling', 'true')
-  element.style.zIndex = '260'
+  const restoreAirborneLayer = promoteAirborneLayer(element)
 
   const animation = element.animate(
     [
@@ -185,13 +240,19 @@ export function runElementToRectAnimation({
       hasSettled = true
       unregisterFlight(resolvedKey, animation)
       element.style.transform = previousTransform
-      element.style.zIndex = previousZIndex
+      restoreAirborneLayer()
       element.removeAttribute('data-card-traveling')
       // The card has *left* the zone it was in. If the state that removes it has not arrived yet - one hub
       // round-trip is enough - restoring its resting spot paints it back where it came from, and that is exactly
       // what "the old cards appear in the hand for a moment before the new ones reappear" is. A card that travels
       // away does not come back: from the moment its flight lands it stays out of sight, and the state that
       // removes it takes the element away for good.
+      //
+      // The marker goes with it because the hide must be *healable*: a hand row keeps an exiting card mounted
+      // (presence), so if the same card instance is dealt straight back - which a mulligan does, four of five in a
+      // measured run - React reuses this very element, and the card would be laid out in the hand while invisible.
+      // `clearStaleDepartureHides` clears this on the next push, before the browser paints it.
+      element.setAttribute('data-card-departed', 'true')
       element.style.visibility = 'hidden'
       resolve()
     }

@@ -7,11 +7,14 @@ import {
   declarePassInActionStepViaHub,
   executeBattleActionViaHub,
   fetchGameState,
+  countTravelingCardElements,
   getBottomSupportCardsBySlot,
   getCardActionTargetsViaHub,
   getCardFlightCount,
   getCardFlightRecords,
+  getHandArrivalFlickerReport,
   installCardFlightCounter,
+  installHandArrivalFlickerObserver,
   openMultiplayerPages,
   progressToNextDecisionWindow,
   resolveActorWithBottomBattleAction,
@@ -199,11 +202,113 @@ test.describe('GameView multiplayer support activation', () => {
       await expect(activatorPage.getByTestId('phase-indicator')).not.toContainText('Support Activated')
       expect(await getCardFlightCount(activatorPage)).toBeGreaterThan(0)
 
-      // Note (recorded in `plans/hand-deal-flicker.md`): an activated-from-hand support is *queued*, not placed.
-      // A 12s DOM probe showed the activating card is never rendered in the support zone, so there is no arrival
-      // element for it to fly into - which is why `submitSetSupport`'s destination resolver carries a fallback to
-      // any support card. Asserting a flight for this card would assert something the design cannot deliver; the
-      // K.O. travel asserted above is what this scenario can honestly pin.
+      // Note (recorded in `plans/hand-deal-flicker.md`): `activate-support:` (this scenario) is *queued*, not
+      // placed. A 12s DOM probe showed the activating card is never rendered in the support zone, so there is no
+      // arrival element for it to fly into. Asserting a flight for this card would assert something the design
+      // cannot deliver; the K.O. travel asserted above is what this scenario can honestly pin.
+      //
+      // `set-support:` is the other half of the pair and *does* place the card - it goes through
+      // `submitSetSupport`, whose resolver falls back to "any support card in the bottom row" when the exact slot
+      // is not found (a latent wrong-target hazard, since a queued activation renders no slot at all). The placed
+      // case is what the next test pins.
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  test('a support set from hand flies into its slot without going under the bottom hand row', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
+      await advanceToMulliganPromptIfNeeded(request, setup)
+      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+      // The reported path: "it is like they are going beneath the UI when going from hand to support zone. From
+      // hand to field looks fine however." `set-support:` puts the card *into* the support row, and the element
+      // that flies is the slot the player will look at from then on - a board card, inside the half's `z-20`
+      // stacking context, which is what used to hide the first frames of the flight behind the hand row.
+      const supportActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Set Support')
+
+      // Installed before the click: both samplers have to be watching from the first frame of the flight.
+      await installCardFlightCounter(supportActor.actorPage)
+      await installHandArrivalFlickerObserver(supportActor.actorPage)
+
+      const supportCard = supportActor.actorPage.locator(`[data-testid="bottom-hand-card-${supportActor.cardInstanceId}"]`)
+      await supportCard.hover()
+      await supportCard.getByRole('button', { name: /^set support$/i }).click()
+
+      // The card the player set is in the support zone, and no longer in the hand.
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, supportActor.actor.session.accessToken)
+        const actorState = resolvePlayerState(state, supportActor.actor)
+        return {
+          inSupportZone: actorState.supportZone.some((card) => card.instanceId === supportActor.cardInstanceId),
+          stillInHand: actorState.hand.some((card) => card.instanceId === supportActor.cardInstanceId),
+        }
+      }, {
+        timeout: 12_000,
+      }).toEqual({ inSupportZone: true, stillInHand: false })
+
+      // It got there by flying, as itself: the flight is attributed to the arriving card rather than to a stand-in.
+      await expect.poll(async () => {
+        const records = await getCardFlightRecords(supportActor.actorPage)
+        return records.some((record) => record.instanceId === supportActor.cardInstanceId)
+      }, {
+        timeout: 10_000,
+      }).toBe(true)
+
+      await expect.poll(async () => await countTravelingCardElements(supportActor.actorPage), { timeout: 10_000 }).toBe(0)
+
+      const flickerReport = await getHandArrivalFlickerReport(supportActor.actorPage)
+      // The sampler's own bookkeeping first: an exception inside its frame callback stops the loop silently, and
+      // every count below would then read zero for the wrong reason.
+      expect(
+        flickerReport.framesSampled,
+        `the arrival sampler never ran: ${JSON.stringify(flickerReport)}`,
+      ).toBeGreaterThan(0)
+      expect(
+        flickerReport.observerErrors,
+        `the arrival sampler swallowed an exception: ${JSON.stringify(flickerReport)}`,
+      ).toBe(0)
+      // The reported artefact. Measured before the fix: the first painted frame of this flight (`rect 335,591`,
+      // on its way from the hand slot at `y=591` to the support slot at `y=450`) resolved to `bottom-hand-row` at
+      // the card's own centre, because a board card's `z-index: 260` is local to its half.
+      expect(
+        flickerReport.clippedWhileFlying,
+        `a card in the air was not painted where it was: ${JSON.stringify(flickerReport)}`,
+      ).toBe(0)
+      expect(
+        flickerReport.unpaintedHandCards,
+        `a hand card was left unpainted: ${JSON.stringify(flickerReport)}`,
+      ).toBe(0)
+
+      // And the mechanism is pinned structurally, because the metric above cannot see it: the element that covers
+      // the card in the pre-fix measurement is the hand row's *root*, which paints nothing, so a card behind it is
+      // still visible - the artefact the user reported is the card crossing the row's own painted parts (the
+      // dashed edge and the cards in it). The board half that owns a flight must therefore be promoted above the
+      // hand rows for the flight's duration (`[data-board-half]:has([data-card-traveling='true'])`, rung 34).
+      const promotedHalfZIndex = await supportActor.actorPage.evaluate(() => {
+        const half = document.querySelector('[data-board-half]')
+        if (!half) {
+          return -1
+        }
+
+        const marker = document.createElement('div')
+        marker.setAttribute('data-card-traveling', 'true')
+        marker.style.display = 'none'
+        half.appendChild(marker)
+        const zIndex = Number(getComputedStyle(half).zIndex)
+        marker.remove()
+        return zIndex
+      })
+      expect(
+        promotedHalfZIndex,
+        'a board half is not promoted above the hand rows while a card is in the air',
+      ).toBe(34)
     } finally {
       await closeMultiplayerPages(pages)
     }

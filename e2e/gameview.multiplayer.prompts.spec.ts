@@ -226,21 +226,20 @@ test.describe('GameView multiplayer prompts', () => {
         missed: [],
       })
 
-      // The batch swap is the other half of the deal: the incoming hand is held back the same way, so the new
-      // cards cannot be painted before the flights that deal them - which is what used to make a mulligan look
-      // like the hand "snapping back" and then being dealt again.
-      await expect.poll(async () => (await getHandArrivalFlickerReport(mulliganOwnerPage)).heldCards, {
-        timeout: 10_000,
-      }).toBeGreaterThan(0)
-
+      // The assertions here are the ones that hold whatever mechanism drives the redraw. The hold itself is not
+      // asserted for a mulligan: measured on a real run, the whole batch can arrive without ever being held
+      // (`held=0` with 17 flights, four of them the same card flying out and back), so a hold precondition would be
+      // asserting a mechanism this scenario does not use. The hold contract is pinned deterministically by the deal
+      // test in `gameview.multiplayer.board-animation.spec.ts`; what a mulligan can honestly pin is the three
+      // properties below, which apply to any flight.
       const mulliganFlickerReport = await getHandArrivalFlickerReport(mulliganOwnerPage)
-      expect(
-        mulliganFlickerReport.paintedWhileHeld,
-        `a mulligan card was painted while held: ${JSON.stringify(mulliganFlickerReport)}`,
-      ).toBe(0)
       expect(
         mulliganFlickerReport.doubleAnimated,
         `a mulligan card was animated twice: ${JSON.stringify(mulliganFlickerReport)}`,
+      ).toBe(0)
+      expect(
+        mulliganFlickerReport.resizedWhileArriving,
+        `a mulligan card was resized in the air: ${JSON.stringify(mulliganFlickerReport)}`,
       ).toBe(0)
       // The reported artefact: a card that has flown out of the hand must not be painted back into it while the
       // server's replacement hand is on its way. It used to be, because the exit flight restored the departed card
@@ -248,6 +247,27 @@ test.describe('GameView multiplayer prompts', () => {
       expect(
         mulliganFlickerReport.returnedAfterExit,
         `a departed card was painted back into the hand: ${JSON.stringify(mulliganFlickerReport)}`,
+      ).toBe(0)
+      // The other reported artefact: "upon mulliganing one of the cards in hand went missing". A mulligan can deal
+      // the same card instance straight back, and the hand row keeps the exiting element mounted, so React reuses
+      // the very element a departure left hidden - a card laid out in the hand and invisible.
+      expect(
+        mulliganFlickerReport.unpaintedHandCards,
+        `a hand card was left unpainted after the mulligan: ${JSON.stringify(mulliganFlickerReport)}`,
+      ).toBe(0)
+      // A card that flies in the hand must not be covered by the row it is in or by the board behind it, and the
+      // sampler has to have been alive for all of the above to mean anything.
+      expect(
+        mulliganFlickerReport.clippedWhileFlying,
+        `a card was covered while it flew: ${JSON.stringify(mulliganFlickerReport)}`,
+      ).toBe(0)
+      expect(
+        mulliganFlickerReport.framesSampled,
+        `the arrival sampler never ran: ${JSON.stringify(mulliganFlickerReport)}`,
+      ).toBeGreaterThan(0)
+      expect(
+        mulliganFlickerReport.observerErrors,
+        `the arrival sampler swallowed an exception: ${JSON.stringify(mulliganFlickerReport)}`,
       ).toBe(0)
       await expect.poll(async () => await countHeldArrivalCardElements(mulliganOwnerPage), { timeout: 10_000 }).toBe(0)
     } finally {

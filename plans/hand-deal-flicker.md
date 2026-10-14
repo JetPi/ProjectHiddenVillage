@@ -184,6 +184,25 @@ holds (4 false positives). What works is reading the flight's **direction**: on 
 arriving card is inside its own row and a departing card is at a pile outside it - a signal that is independent of
 the fix it guards.
 
+## Two more measurements, from the hand -> playzone movement
+
+1. **A summon was resizing its card.** The screencast report blamed a missing `layoutId` / a competing `layout`
+   animation; the probe says neither is happening - the field slot runs no animation at all
+   (`slotAnimates=transform:no/opacity:no`), and the awkwardness was *inside* the flight: it started at `s=1.28`
+   and ended at `s=1`, because `runElementFromRectAnimation` opened at
+   `sourceRect.width / destinationRect.width` and a hand card is 28% wider than a battlefield card. The card
+   popped to hand size and deflated on the way down. Fixed: **an arrival is a move, not a resize** - the card is
+   drawn at the size it is going to keep for the whole flight (`s=1` on every frame afterwards, same probe). A
+   *pile*-bound exit still scales, because there the change of size is the message. Guard:
+   `resizedWhileArriving` must be 0.
+2. **A mulligan's replacement hand is not always held.** The same observer, on a real mulligan run, reported
+   `held=0` while 17 flights happened (four of them the same card flying out and back) - so the redraw is not
+   driven by the replay hold in that run, even after the replay flag was fixed to survive until the push that
+   actually changes the hand (`pendingMulliganDrawReplayExpiresAtMs`). Not chased further: the hold contract is
+   pinned deterministically by the deal, and the mulligan test now asserts the mechanism-independent properties
+   (nothing animated twice, nothing resized in the air, nothing painted back after leaving, the whole hand
+   travelling) plus "no hold left behind". Worth revisiting if a redraw is ever seen arriving without animation.
+
 ## Findings that are *not* fixed here (recorded, not guessed)
 
 1. **An activated-from-hand support is queued, not placed.** A 12 s DOM probe found the activating card is never
@@ -203,3 +222,92 @@ the fix it guards.
    gap is cosmetic; the owner's page - where the player's own hand is - is complete.
 4. The `attack-sequence` turn-handover test remains the known load flake: it failed in the loaded full run
    (44/45) and passed in isolation (22.3 s).
+
+## Pass 2: "going beneath the UI" (hand → support) and "a card in hand went missing" (mulligan)
+
+Two reports, both measured before being changed:
+
+> "upon mulliganing one of the cards in hand went missing, that shouldnt happen, also the reported error is still
+> happening, its like they are going beneath the ui when going from hand to support zone. from hand to field looks
+> fine however, so keep that in mind"
+
+### First, the measuring instrument was broken
+
+`installHandArrivalFlickerObserver`'s frame loop referenced `isDepartureByElement`, an identifier that does not
+exist anywhere in the file (left over from an earlier classifier iteration). The callback threw on the **first
+airborne card**, which killed `requestAnimationFrame` recursion silently - so `returnedAfterExit`,
+`resizedWhileArriving`, `doubleAnimated` and `paintedWhileHeld` were *always* reported as 0 for every scenario that
+flew a card. Several green assertions in the suite were green for that reason alone. The loop now counts its own
+failures (`observerErrors`, `framesSampled`) and both are asserted, and the classifier reads the flight's direction
+instead of the missing map.
+
+### What the probe measured
+
+A temporary probe played the two hand→board paths on the same page (`Set Support` and `Summon`) and sampled every
+`[data-card-traveling]` element every 40 ms: its rect, whether `elementFromPoint` at its own centre resolved to it,
+what resolved instead, its effective z, its stacking-context ancestors and every clipping ancestor.
+
+| | Set Support (the reported path) | Summon (the path reported as fine) |
+| --- | --- | --- |
+| flights sampled | 7-8 frames, `y 591 → 450` | 7-8 frames, `y 586 → 331` |
+| frames *not* painted at their own centre | **1** (first frame) | **2** (first frames) |
+| what covered them | `data-testid="bottom-hand-row"`, z 30 | `bottom-hand-row` (z 30) and a hand card's action button (z 20) |
+| the card's own inline z | 260 | 260 |
+| its stacking ancestor | `div.relative.z-20.row-span-2` → the value is **local** | same |
+| centre outside a clipping ancestor | never | never |
+
+So the reported artefact was **stacking, not clipping**: a card flying out of a board half is trapped under the
+hand rows, because the half is a stacking context at z 20 and the airborne card's z 260 lives inside it. The
+"hand to field looks fine" half of the report is the same defect with a shorter overlap - both are fixed by the same
+rung.
+
+### The fixes (each proven failing-first)
+
+| Change | Without it | With it |
+| --- | --- | --- |
+| `[data-board-half]:has([data-card-traveling='true']) { z-index: 34 }` (new rung in the ladder) | set-support 1 covered frame, summon 1 | **0 and 0** |
+| `body:has([data-card-traveling='true']) .card-drop-zone { overflow: visible }` | set-support 2 covered frames (the card is cut out of the row for its first two) | 0 |
+| `promoteAirborneLayer` in the flight primitives (card **and** its slot) | a flying hand card is painted under a later sibling slot (opaque art) - measured on the mulligan | 0 |
+| `clearStaleDepartureHides(row, presentIds)` | the outgoing hand is painted back: `returnedAfterExit 5`, then 3 after healing only re-dealt cards | **0** |
+
+Two details worth keeping:
+
+- **A flying card's `z-index` was inert.** The element carrying `data-hand-instance-id` is a plain `div` (static), so
+  `z-index: 260` did nothing on it, and its `Reorder.Item` slot is a Motion element with a transform - a stacking
+  context of its own - so a card flying out of an *earlier* slot painted under a *later* one. The primitive now
+  promotes the card and its slot together and restores both.
+- **The hide healer was undoing the hide it exists to preserve.** `clearStaleDepartureHides` cleared the departure
+  hide from *every* marked element on *every* push, including the cards that had just flown out of the hand and are
+  kept mounted for one more commit - so the push carrying the replacement hand painted exactly the cards the exit
+  hide is for. It now heals only the cards the push actually renders (the set of instance ids), which is what makes
+  the exit hide *and* the re-deal case work at the same time.
+
+### The metric had to be made honest twice over
+
+The raw hit-test check flagged frames that are not defects, and every one was measured rather than assumed away:
+
+- cards dealt into the opponent's hand row travel to a slot that is **above the viewport** by design (that row
+  overhangs its grid row), where `elementFromPoint` returns `null` - skipped now (centre outside the viewport);
+- a cover by another card that is **in the air itself** is legitimate (the deal staggers its flights, so two
+  overlap) - skipped now;
+- `elementFromPoint` answers "who owns this point", not "who hides what is behind it": the residual flag on the
+  opening deal was an **empty, transparent slot** that owns the point but paints nothing there - the cover must now
+  paint at the point itself.
+
+### Guards added
+
+- `support.spec.ts`: a new test for the reported path - the set-support card lands in the support zone and leaves
+  the hand, the flight is attributed to it, nothing is left travelling, `clippedWhileFlying === 0`,
+  `unpaintedHandCards === 0`, the sampler ran and swallowed nothing, and the half promotion is asserted
+  structurally (a travelling marker makes a half's computed z-index 34). The structural assertion exists because the
+  element that covered the card pre-fix is the hand row's *root*, which paints nothing - the metric alone would not
+  catch the rule being removed.
+- `prompts.spec.ts` (mulligan): `unpaintedHandCards === 0` (the "card went missing" report), plus the cover, exit
+  and sampler-liveness assertions.
+- `board-animation.spec.ts` (deal): the same cover/sampler-liveness/unpainted assertions beside the existing ones.
+
+### Verified
+
+`npm run typecheck:client` and `npm run lint:client` clean; full e2e **43/45**, with `attack-sequence` (turn
+handover) and `battle-visuals` (battle action click) failing under the loaded run and passing in isolation
+(22.6 s) - the same load-flake family as before. The three tests touched here pass consistently.

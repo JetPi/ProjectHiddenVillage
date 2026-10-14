@@ -36,6 +36,15 @@ export type IGameViewAnimController = {
   pendingDrawAnimationFrameId: number | null
   pendingDrawTimeoutIds: number[]
   pendingMulliganDrawReplay: boolean
+  /**
+   * When the pending mulligan replay stops being valid (`Date.now()`-based).
+   *
+   * The flag has to survive until the push that actually carries the replacement hand: a mulligan resolves the
+   * prompt, moves the phase and republishes the hand, and those can be separate pushes. Consuming the flag on the
+   * first one left the redraw with no batch to fly, so the new hand simply appeared. The deadline keeps a flag
+   * that never finds its hand from leaking into a later draw.
+   */
+  pendingMulliganDrawReplayExpiresAtMs: number
   previousHandZoneSnapshot: IHandZoneSnapshot
   // Instance ids whose battlefield/hand exit is already animated by an explicit ghost (tribute summons):
   // the generic exit-to-trash effect consumes the id and skips it, so a card never flies twice.

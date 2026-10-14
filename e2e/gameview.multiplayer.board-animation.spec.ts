@@ -151,6 +151,35 @@ test.describe('GameView multiplayer board animation hygiene', () => {
           flickerReport.doubleAnimated,
           `a flying card also ran a Motion animation: ${JSON.stringify(flickerReport)}`,
         ).toBe(0)
+        // An arrival is a move, not a resize: the card keeps its own size for the whole flight.
+        expect(
+          flickerReport.resizedWhileArriving,
+          `a card was resized in the air: ${JSON.stringify(flickerReport)}`,
+        ).toBe(0)
+
+        // The sampler's own bookkeeping first: an exception inside its frame callback stops the loop silently and
+        // every count above then reads zero, so green would mean nothing at all.
+        expect(
+          flickerReport.framesSampled,
+          `the arrival sampler never ran: ${JSON.stringify(flickerReport)}`,
+        ).toBeGreaterThan(0)
+        expect(
+          flickerReport.observerErrors,
+          `the arrival sampler swallowed an exception: ${JSON.stringify(flickerReport)}`,
+        ).toBe(0)
+
+        // A dealt card is drawn where it is at every frame of its flight - on top of the hand row and the board it
+        // crosses, not under them (a board card's own `z-index` is local to its half, which is what the
+        // `[data-board-half]:has(...)` promotion in `index.css` exists for).
+        expect(
+          flickerReport.clippedWhileFlying,
+          `a card was covered while it flew: ${JSON.stringify(flickerReport)}`,
+        ).toBe(0)
+        // And none is left laid out in the hand but invisible.
+        expect(
+          flickerReport.unpaintedHandCards,
+          `a hand card was left unpainted: ${JSON.stringify(flickerReport)}`,
+        ).toBe(0)
 
         // And every hold is released once the board settles: a held card left behind would be invisible.
         await expect.poll(async () => await countHeldArrivalCardElements(page), { timeout: 30_000 }).toBe(0)

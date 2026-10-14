@@ -314,6 +314,46 @@ paths:
   Measure it by un-clipping the zone with an injected `overflow: visible` — that alone reproduces the
   blowout, and re-adding `min-w-0 min-h-0` keeps both slots at their lane size.
 
+## Z-order on the board (the ladder lives here)
+
+A card in the air has to be above the board it flies over, and below the arrow and the overlays that sit above
+everything in regular view. That ordering is explicit because it was wrong: a flying hand card was measured
+covered by the bottom trash pile (`elementFromPoint` at the card's centre returned
+`data-testid="trash-pile-card"`) - a hand row is *outside* the board's box and was unpositioned while the board is
+`position: relative`, so the whole board painted over it, line included.
+
+| z | what |
+| --- | --- |
+| 0 | the board's background (the blue/orange turn split) and its dashed border (`.game-board-spill::after`) |
+| 10 | board chrome - the phase action row |
+| 20 | the board's two halves: piles, resources, support slots, battlefield |
+| 30 | the hand rows (`GameHandRow`) - they hold the cards that fly over the board |
+| 34 | the board half that owns a **live flight** - only while a card is travelling (`[data-board-half]:has([data-card-traveling])`) |
+| 35 / 36 | the attack-link arrow (`ATTACK_LINK_OVERLAY_Z_INDEX` / `ATTACK_LINK_HEAD_Z_INDEX`) |
+| 40 | transient banners and prompt modals (`GamePromptOverlay`, `CardListOverlay`, `PromptSelectionBanner`, notices) |
+| 50-70 | card preview, game over · 120: route transition |
+
+- A card **in the air** carries `z-index: 260` for the length of its flight, restored on settle
+  (`runElementFromRectAnimation`, `runElementToRectAnimation`, `runAttackLunge`). That value is *local*: it only
+  orders the card against its row's siblings, each of which carries a Motion transform and is therefore its own
+  stacking context, so DOM order alone would let a neighbour paint over a flying card.
+- What carries a card over the *board* is its **row** (30), and the arrow sits above every row (35) but below the
+  overlays (40+). A new always-visible board element belongs in this ladder - and `z-index` needs a positioned
+  element to do anything.
+- A card flying **out of a board half** is not carried by a row: the halves are `z-index: 20` *stacking contexts*, so
+  the card's own `z-index: 260` is local to its half and the hand rows (30) paint over it. Measured on a `Set
+  Support` arrival (a card set from hand into the support row): its first painted frame - `rect 335,591`, halfway
+  between the hand slot at `y=591` and the support slot at `y=450` - resolved to `bottom-hand-row` at the card's
+  centre, so the card was seen *sliding out from under the bottom UI*. The summon (hand -> field) was covered for
+  its first two frames by the same row plus a hand card's action button: the same defect, not a support-zone one.
+  Rung 34 is the fix - the half that owns the flight is promoted while the flight lasts, which is why the hand row
+  cannot carry a board card on its own. Trade-off, deliberate and bounded: for those ~360 ms the promoted half also
+  paints above the part of a hand row its box overlaps (the opponent's cards peek over the top edge by design).
+- The dashed outer border is why the board used to be `isolation: isolate` (it sat at `z-index: -1`, which without
+  isolation escapes behind the board's own background). It now sits at `z-index: 0`, below every board child (they
+  all carry a z-index), and that is what let the board stop being a stacking context - which was the one thing
+  making it impossible to order the arrow above the rows.
+
 ## Attack-link arrow: anchors + arrowhead (measured live, never predicted)
 
 - The arrow is **our own SVG**, not a library. `AttackLinkArrow.tsx` renders a container

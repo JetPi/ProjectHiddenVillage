@@ -84,6 +84,7 @@ export function useGameAnimationController() {
     pendingDrawAnimationFrameId: null,
     pendingDrawTimeoutIds: [],
     pendingMulliganDrawReplay: false,
+    pendingMulliganDrawReplayExpiresAtMs: 0,
     previousHandZoneSnapshot: {
       topHandInstanceIds: new Set<string>(),
       bottomHandInstanceIds: new Set<string>(),

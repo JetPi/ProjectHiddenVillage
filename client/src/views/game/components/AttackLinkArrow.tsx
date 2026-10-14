@@ -24,8 +24,16 @@ interface AttackLinkArrowProps {
   config: IAttackLinkRenderConfig;
 }
 
-const ATTACK_LINK_OVERLAY_Z_INDEX = 50
-const ATTACK_LINK_HEAD_Z_INDEX = 51
+// The board's Z ladder, outermost context (the arrow's overlay layer is a direct child of the board, and the
+// board is no longer an isolation context - see `.game-board-spill` in `index.css`):
+//   0   the board's own background and its dashed outer border
+//   10  board chrome (the phase action row)
+//   20  the board's two halves: piles, resources, support, battlefield
+//   30  the hand rows, which hold the cards that fly over the board
+//   35  this arrow - above every card, below every overlay
+//   40  transient banners and prompt modals   ·   50-70 card preview / game over   ·   120 route transition
+const ATTACK_LINK_OVERLAY_Z_INDEX = 35
+const ATTACK_LINK_HEAD_Z_INDEX = 36
 // The attacker's rested tilt is a Motion animation on the card's wrapper, so the anchors keep moving for a
 // moment after the attack is declared. The geometry is therefore re-sampled over a short window instead of
 // once. Samples are taken from an animation frame rather than synchronously in the effect: a setState inside a
