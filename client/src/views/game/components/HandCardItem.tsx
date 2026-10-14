@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { Reorder, useDragControls } from 'motion/react'
 import { twMerge } from 'tailwind-merge'
-import { BOARD_MOVEMENT_EASE, DECK_TO_HAND_FLY_DURATION_MS } from '@/views/game/animation/tuning'
 
 /**
  * One hand-row slot, owned by Motion's `Reorder`.
@@ -113,10 +112,10 @@ function HandCardItem({
       onDragEnd={() => onDragStateChange(null)}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
-      initial={{ opacity: 0, scale: 0.94 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ duration: DECK_TO_HAND_FLY_DURATION_MS / 1000, ease: BOARD_MOVEMENT_EASE }}
+      // No entrance or exit animation: a hand card's arrival and departure are *flights* that move the card
+      // itself, and a mount fade running at the same time was measured doing both at once - the card fading in
+      // at its resting spot (up to 223ms, fully opaque) while the flight carried it in from the deck. Motion
+      // stays the owner of the drag and of the reorder projection; it is not a second arrival animation.
       className={twMerge(className, isActive ? 'z-[260] touch-none' : 'touch-manipulation')}
     >
       {children}

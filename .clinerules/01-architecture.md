@@ -43,6 +43,23 @@ paths:
 - **One card, one flight.** When the id of a card it has already flown appears in
   `animController.suppressedExitGhostInstanceIds`, whoever flies that card next must
   `delete` the id as it reads it, so a claim is consumed exactly once.
+- **A card that travels away does not come back.** An *exit* flight (`runElementToRectAnimation`: a discard, a
+  mulligan return, a tribute material, a field row retiring a card) ends with its card **hidden**, not restored to
+  its resting spot. The element is still mounted when the flight settles - the state that removes it takes a
+  round-trip - and restoring it painted the departed card back into the row it had just left, which is the "the
+  old cards show up for a moment before the new ones" flash. The transform is still restored (the element's own
+  state stays clean); only visibility is left hidden.
+- **A hand card has no mount animation, and an arriving card is held until its flight takes it.** The hand row
+  runs no `initial`/`animate`/`exit` on its cards: the flight that carries a card in (or out) is the only thing
+  that may reveal it, because a mount fade running beside a flight was measured doing both at once - the card
+  fading in at its resting spot (up to 223 ms fully opaque) while the flight also carried it from the deck, and
+  starting to fly at 64% opacity (`plans/hand-deal-flicker.md`). The arrival is instead *held*: the hand-zone
+  layout effect marks the arriving cards `data-card-arrival-pending` (which `index.css` renders unpaintable)
+  before the browser paints them, and each flight removes its own marker in the same task that offsets the card.
+  Two consequences to respect when touching this: the hold must be released on every path (including a skipped
+  flight and the teardown), or a card is stranded invisible; and an arrival's destination is only a destination
+  once it has a box - `runElementArrivalFromRectAnimation` waits for the box, because treating a mounted-but-laid
+  out-less slot as ready is how an arrival ends up skipped, leaving the card to land unanimated.
 - **Never lift a card with `position: fixed` inside the board.** Any ancestor carrying
   `transform`/`filter`/`perspective`/`will-change`/`contain` becomes the containing block,
   so a viewport-derived `left/top` is read in the wrong space — a dragged hand card was

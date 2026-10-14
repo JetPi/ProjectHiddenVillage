@@ -74,9 +74,9 @@ export async function installCardFlightCounter(page: Page): Promise<void> {
           ?? this.getAttribute('data-hand-instance-id')
         if (instanceId) {
           const records = Array.isArray(state.__phvCardFlightRecords)
-            ? state.__phvCardFlightRecords as Array<{ instanceId: string }>
+            ? state.__phvCardFlightRecords as Array<{ instanceId: string; at: number }>
             : []
-          records.push({ instanceId })
+          records.push({ instanceId, at: Math.round(performance.now()) })
           state.__phvCardFlightRecords = records
         }
       }
@@ -100,6 +100,8 @@ export async function getCardFlightCount(page: Page): Promise<number> {
 export type CardFlightRecord = {
   /** The card whose own element moved. */
   instanceId: string
+  /** Page-clock time (`performance.now()`, rounded) at which the flight started. */
+  at: number
 }
 
 /** What has actually been animated since the counter was installed. */
@@ -119,6 +121,193 @@ export async function getCardFlightRecords(page: Page): Promise<CardFlightRecord
  */
 export async function countTravelingCardElements(page: Page): Promise<number> {
   return await page.locator('[data-card-traveling="true"]').count()
+}
+
+/** Cards still held back waiting for their flight. A settled board must have none (that would be an invisible card). */
+export async function countHeldArrivalCardElements(page: Page): Promise<number> {
+  return await page.locator('[data-card-arrival-pending="true"]').count()
+}
+
+export type HandArrivalFlickerReport = {
+  /** Cards seen held back for an arrival flight. Zero means nothing was held, so the other counts prove nothing. */
+  heldCards: number
+  /** Held cards that were nevertheless painted at their resting spot (the "dealt twice" look). Must be zero. */
+  paintedWhileHeld: number
+  /** Cards whose slot ran a Motion opacity animation while a flight was moving them. Must be zero. */
+  doubleAnimated: number
+  /**
+   * Cards painted back into a row they had already flown out of. Must be zero: it is the "the old cards show up
+   * for a moment before the new ones" artefact (the exit flight restoring a departed card to its resting spot
+   * while the state that removes it is still in flight).
+   */
+  returnedAfterExit: number
+  /** The instance ids behind `returnedAfterExit`, so a failure names the cards and not only a count. */
+  returnedAfterExitIds: string[]
+}
+
+/**
+ * Watches every hand card, frame by frame, for the two ways a dealt card can be animated twice.
+ *
+ * Both are keyed on the *hold* (`data-card-arrival-pending`), which is what marks a card as arriving rather than
+ * merely standing in the hand: it is the hold that must keep the card out of sight, and a card that is visibly
+ * standing in the hand before its exit flight is normal. So the report asks, of every card that was ever held,
+ * whether it was painted while held, and of every card that ever flew, whether Motion was animating its slot at
+ * the same time.
+ */
+export async function installHandArrivalFlickerObserver(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const marker = '__phvHandArrivalFlickerInstalled'
+    const state = window as unknown as {
+      [key: string]: unknown
+      __phvHandArrivalFlickerHeld?: string[]
+      __phvHandArrivalFlickerPaintedWhileHeld?: string[]
+      __phvHandArrivalFlickerDoubleAnimated?: string[]
+      __phvHandArrivalFlickerReturnedAfterExit?: string[]
+    }
+
+    if (state[marker] === true) {
+      return
+    }
+
+    state.__phvHandArrivalFlickerHeld = []
+    state.__phvHandArrivalFlickerPaintedWhileHeld = []
+    state.__phvHandArrivalFlickerDoubleAnimated = []
+    state.__phvHandArrivalFlickerReturnedAfterExit = []
+
+    // Addressed by element, not by id: a card that comes back later is a *new* element, and only the same element
+    // being painted again after it flew out is the artefact.
+    const travelingElements = new Set<Element>()
+    const departedElements = new Map<Element, string>()
+    // What a flight *is* has to be read from where it goes, not from the hold: the hold is released in the same
+    // task that starts an arrival's flight (so the earliest card of a batch is held for less than a frame), and the
+    // fix itself (a departure ending hidden) cannot be the thing the discrimination relies on. Where the flight is
+    // on its last airborne frame does the job: an arriving card is coming towards its own row, a departing card is
+    // heading for a pile outside it.
+    const lastAirborneFrameOutsideRow = new Map<Element, boolean>()
+
+    const offsetByFlight = (element: Element): boolean => {
+      const matrix = getComputedStyle(element).transform
+      if (!matrix || matrix === 'none') {
+        return false
+      }
+
+      const numbers = matrix.match(/-?\d*\.?\d+(?:e-?\d+)?/gi)?.map(Number) ?? []
+      if (numbers.length < 6) {
+        return false
+      }
+
+      return Math.abs(numbers[4]) > 1 || Math.abs(numbers[5]) > 1
+    }
+
+    const hasOpacityAnimation = (element: Element): boolean => {
+      return element.getAnimations().some((animation) => {
+        const effect = animation.effect as KeyframeEffect | null
+        const frames = effect && typeof effect.getKeyframes === 'function' ? effect.getKeyframes() : []
+        return frames.some((frame) => Object.prototype.hasOwnProperty.call(frame, 'opacity'))
+      })
+    }
+
+    let frames = 0
+
+    const tick = () => {
+      frames += 1
+      if (frames > 4_000) {
+        return
+      }
+
+      document.querySelectorAll<HTMLElement>('[data-hand-instance-id]').forEach((cardElement) => {
+        const instanceId = cardElement.getAttribute('data-hand-instance-id') ?? ''
+        if (!instanceId) {
+          return
+        }
+
+        const held = cardElement.getAttribute('data-card-arrival-pending') === 'true'
+        if (held && !state.__phvHandArrivalFlickerHeld?.includes(instanceId)) {
+          state.__phvHandArrivalFlickerHeld?.push(instanceId)
+        }
+
+        const slot = cardElement.parentElement
+        const traveling = cardElement.getAttribute('data-card-traveling') === 'true'
+        const visible = getComputedStyle(cardElement).visibility !== 'hidden'
+        const opacity = slot ? Number(getComputedStyle(slot).opacity) : 1
+
+        if (traveling) {
+          travelingElements.add(cardElement)
+          const row = cardElement.closest('[data-testid="bottom-hand-row"],[data-testid="top-hand-row"]')
+          if (row) {
+            const rowRect = row.getBoundingClientRect()
+            const cardRect = cardElement.getBoundingClientRect()
+            lastAirborneFrameOutsideRow.set(
+              cardElement,
+              cardRect.right < rowRect.left
+                || cardRect.left > rowRect.right
+                || cardRect.bottom < rowRect.top
+                || cardRect.top > rowRect.bottom,
+            )
+          }
+        } else if (travelingElements.has(cardElement)) {
+          // This element's flight just ended. It was a departure if the card was on its way out of the row.
+          travelingElements.delete(cardElement)
+          if (lastAirborneFrameOutsideRow.get(cardElement) === true) {
+            departedElements.set(cardElement, instanceId)
+          }
+          lastAirborneFrameOutsideRow.delete(cardElement)
+        }
+
+        if (
+          departedElements.get(cardElement) === instanceId
+          && !traveling
+          && !held
+          && visible
+          && opacity > 0.02
+        ) {
+          // A card that has left this row must not be painted in it again while the state catches up.
+          if (!state.__phvHandArrivalFlickerReturnedAfterExit?.includes(instanceId)) {
+            state.__phvHandArrivalFlickerReturnedAfterExit?.push(instanceId)
+          }
+        }
+
+        if (held && visible && opacity >= 0.5) {
+          // The hold is supposed to make the card unpaintable: if it is painted anyway, the card is seen at its
+          // resting spot before its flight, which is the artefact this observer exists to prevent.
+          if (!state.__phvHandArrivalFlickerPaintedWhileHeld?.includes(instanceId)) {
+            state.__phvHandArrivalFlickerPaintedWhileHeld?.push(instanceId)
+          }
+        }
+
+        if (traveling && slot && hasOpacityAnimation(slot) && !offsetByFlight(slot)) {
+          if (!state.__phvHandArrivalFlickerDoubleAnimated?.includes(instanceId)) {
+            state.__phvHandArrivalFlickerDoubleAnimated?.push(instanceId)
+          }
+        }
+      })
+
+      window.requestAnimationFrame(tick)
+    }
+
+    window.requestAnimationFrame(tick)
+
+    state[marker] = true
+  })
+}
+
+export async function getHandArrivalFlickerReport(page: Page): Promise<HandArrivalFlickerReport> {
+  return await page.evaluate(() => {
+    const state = window as unknown as {
+      __phvHandArrivalFlickerHeld?: string[]
+      __phvHandArrivalFlickerPaintedWhileHeld?: string[]
+      __phvHandArrivalFlickerDoubleAnimated?: string[]
+      __phvHandArrivalFlickerReturnedAfterExit?: string[]
+    }
+
+    return {
+      returnedAfterExit: state.__phvHandArrivalFlickerReturnedAfterExit?.length ?? 0,
+      returnedAfterExitIds: state.__phvHandArrivalFlickerReturnedAfterExit ?? [],
+      heldCards: state.__phvHandArrivalFlickerHeld?.length ?? 0,
+      paintedWhileHeld: state.__phvHandArrivalFlickerPaintedWhileHeld?.length ?? 0,
+      doubleAnimated: state.__phvHandArrivalFlickerDoubleAnimated?.length ?? 0,
+    }
+  })
 }
 
 /**

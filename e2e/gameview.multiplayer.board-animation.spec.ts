@@ -4,10 +4,13 @@ import type { MultiplayerPages, MultiplayerSetup } from './helpers/gameviewMulti
 import {
   advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
+  countHeldArrivalCardElements,
   countTravelingCardElements,
   fetchGameState,
   getCardFlightCount,
+  getHandArrivalFlickerReport,
   installCardFlightCounter,
+  installHandArrivalFlickerObserver,
   openMultiplayerPages,
   resolveAllMulliganPrompts,
   resolvePromptViaHub,
@@ -119,7 +122,45 @@ test.describe('GameView multiplayer board animation hygiene', () => {
     }
   })
 
-  test('reduced motion skips every flight copy while the engine still walks its phases', async ({ browser, request }) => {
+  test('a dealt hand is revealed by its own flight, never by a second animation', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      // Installed before the opening deal (which the engine runs when the starting player is chosen), so the
+      // whole batch is observed from the first frame each card exists.
+      for (const page of bothPages(pages)) {
+        await installHandArrivalFlickerObserver(page)
+        await installCardFlightCounter(page)
+      }
+
+      await playOpeningIntoMainPhase(request, setup)
+
+      for (const page of bothPages(pages)) {
+        // A hold has to have happened at all, otherwise the two counts below would be vacuously true.
+        await expect.poll(async () => (await getHandArrivalFlickerReport(page)).heldCards, {
+          timeout: 30_000,
+        }).toBeGreaterThan(0)
+
+        const flickerReport = await getHandArrivalFlickerReport(page)
+        expect(
+          flickerReport.paintedWhileHeld,
+          `a card was painted at its resting spot while held for its flight: ${JSON.stringify(flickerReport)}`,
+        ).toBe(0)
+        expect(
+          flickerReport.doubleAnimated,
+          `a flying card also ran a Motion animation: ${JSON.stringify(flickerReport)}`,
+        ).toBe(0)
+
+        // And every hold is released once the board settles: a held card left behind would be invisible.
+        await expect.poll(async () => await countHeldArrivalCardElements(page), { timeout: 30_000 }).toBe(0)
+      }
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  test('reduced motion skips every flight while the engine still walks its phases', async ({ browser, request }) => {
     const setup = await setupMultiplayerGame(request)
     const pages = await openMultiplayerPages(browser, setup)
 
@@ -144,6 +185,8 @@ test.describe('GameView multiplayer board animation hygiene', () => {
       for (const page of bothPages(pages)) {
         expect(await getCardFlightCount(page)).toBe(0)
         expect(await countTravelingCardElements(page)).toBe(0)
+        // A skipped flight must still release its card: a hold left behind would be an invisible card.
+        expect(await countHeldArrivalCardElements(page)).toBe(0)
       }
     } finally {
       await closeMultiplayerPages(pages)

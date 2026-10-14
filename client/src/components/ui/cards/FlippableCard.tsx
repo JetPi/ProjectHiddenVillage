@@ -14,7 +14,9 @@ export function FlippableCard({
   durationMs = 320,
 }: IFlippableCardProps) {
   return (
-    <div className={twMerge('relative h-full w-full [perspective:920px]', className)}>
+    // `data-card-face` publishes which face is showing, so the flip is observable (and assertable): the two faces
+    // are both in the DOM at all times, so nothing else in the markup distinguishes them.
+    <div data-card-face={isFlipped ? 'front' : 'back'} className={twMerge('relative h-full w-full [perspective:920px]', className)}>
       <motion.div
         // Motion owns the flip: the 3D transform is animated declaratively instead of through a CSS
         // `transition-transform` class, so the card's transform has a single owner. `initial={false}` applies

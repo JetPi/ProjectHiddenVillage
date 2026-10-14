@@ -67,6 +67,10 @@ async function handlePromptResolve({
     }
   }
 
+  // The fan-out is deliberately staggered: the hand going back one card at a time is the look we want for a
+  // mulligan. What must not happen is the old hand reappearing while the server's redraw is on its way - the exit
+  // flight leaves a departed card hidden when it lands (see `runElementToRectAnimation`), so the tail of this
+  // sequence cannot paint the old hand back into the row.
   const currentBottomHandInstanceIds = bottomHandCards.map((card) => card.instanceId)
   currentBottomHandInstanceIds.forEach((instanceId, index) => {
     const animationTimeoutId = window.setTimeout(() => {

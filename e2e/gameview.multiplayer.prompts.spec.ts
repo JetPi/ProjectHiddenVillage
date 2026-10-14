@@ -2,11 +2,14 @@ import { expect, test } from '@playwright/test'
 import {
   advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
+  countHeldArrivalCardElements,
   fetchGameState,
   getAnimationCount,
   getCardFlightRecords,
+  getHandArrivalFlickerReport,
   installAnimationCounter,
   installCardFlightCounter,
+  installHandArrivalFlickerObserver,
   normalizeUserId,
   openMultiplayerPages,
   resolvePromptViaHub,
@@ -182,6 +185,7 @@ test.describe('GameView multiplayer prompts', () => {
       expect(mulliganHandInstanceIds.length).toBeGreaterThan(0)
 
       await installCardFlightCounter(mulliganOwnerPage)
+      await installHandArrivalFlickerObserver(mulliganOwnerPage)
 
       // Answered on the board rather than through the hub on purpose: the client's own resolution flow is the
       // one that flies the hand back into the deck, and resolving out of band skips it entirely.
@@ -221,6 +225,31 @@ test.describe('GameView multiplayer prompts', () => {
         travelled: mulliganHandInstanceIds.length,
         missed: [],
       })
+
+      // The batch swap is the other half of the deal: the incoming hand is held back the same way, so the new
+      // cards cannot be painted before the flights that deal them - which is what used to make a mulligan look
+      // like the hand "snapping back" and then being dealt again.
+      await expect.poll(async () => (await getHandArrivalFlickerReport(mulliganOwnerPage)).heldCards, {
+        timeout: 10_000,
+      }).toBeGreaterThan(0)
+
+      const mulliganFlickerReport = await getHandArrivalFlickerReport(mulliganOwnerPage)
+      expect(
+        mulliganFlickerReport.paintedWhileHeld,
+        `a mulligan card was painted while held: ${JSON.stringify(mulliganFlickerReport)}`,
+      ).toBe(0)
+      expect(
+        mulliganFlickerReport.doubleAnimated,
+        `a mulligan card was animated twice: ${JSON.stringify(mulliganFlickerReport)}`,
+      ).toBe(0)
+      // The reported artefact: a card that has flown out of the hand must not be painted back into it while the
+      // server's replacement hand is on its way. It used to be, because the exit flight restored the departed card
+      // to its resting spot when it landed and the state that removes it had not arrived yet.
+      expect(
+        mulliganFlickerReport.returnedAfterExit,
+        `a departed card was painted back into the hand: ${JSON.stringify(mulliganFlickerReport)}`,
+      ).toBe(0)
+      await expect.poll(async () => await countHeldArrivalCardElements(mulliganOwnerPage), { timeout: 10_000 }).toBe(0)
     } finally {
       await closeMultiplayerPages(pages)
     }

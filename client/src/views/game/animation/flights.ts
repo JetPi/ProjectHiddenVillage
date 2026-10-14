@@ -124,7 +124,11 @@ export function runElementFromRectAnimation({
  *
  * This is the exit half of entity-based flight: the card that travels is the card itself, so nothing is left
  * sitting in place while a stand-in leaves. The caller stays responsible for the element's own lifecycle - the
- * flight only borrows its transform, and restores it when the animation settles or is cancelled.
+ * flight only borrows its transform and restores it when the animation settles or is cancelled.
+ *
+ * It ends with the card **hidden**, because the card has left: an untouched resting spot would paint it back into
+ * the row it came from for as long as the state that removes it takes to arrive. Restoring the transform while
+ * leaving the card out of sight keeps the element's own state clean for whoever renders it next.
  */
 export function runElementToRectAnimation({
   element,
@@ -183,6 +187,12 @@ export function runElementToRectAnimation({
       element.style.transform = previousTransform
       element.style.zIndex = previousZIndex
       element.removeAttribute('data-card-traveling')
+      // The card has *left* the zone it was in. If the state that removes it has not arrived yet - one hub
+      // round-trip is enough - restoring its resting spot paints it back where it came from, and that is exactly
+      // what "the old cards appear in the hand for a moment before the new ones reappear" is. A card that travels
+      // away does not come back: from the moment its flight lands it stays out of sight, and the state that
+      // removes it takes the element away for good.
+      element.style.visibility = 'hidden'
       resolve()
     }
 
@@ -246,13 +256,26 @@ export async function runElementArrivalFromRectAnimation({
     return
   }
 
+  // "Found" means found *and laid out*: a slot element that has mounted but has no box yet cannot be flown to,
+  // and treating it as the destination is how an arrival ends up skipped entirely (the card lands with no
+  // animation at all). Waiting for a box instead turns that race into a wait.
+  const resolveWhenLaidOut = (resolveElement: () => HTMLElement | null) => () => {
+    const element = resolveElement()
+    if (!element) {
+      return null
+    }
+
+    const rect = element.getBoundingClientRect()
+    return rect.width > 0 && rect.height > 0 ? element : null
+  }
+
   const destinationElement = await waitForElement({
-    resolveElement: resolveDestinationElement,
+    resolveElement: resolveWhenLaidOut(resolveDestinationElement),
     timeoutMs,
     maxFrames,
   }) ?? (resolveFallbackElement
     ? await waitForElement({
-      resolveElement: resolveFallbackElement,
+      resolveElement: resolveWhenLaidOut(resolveFallbackElement),
       timeoutMs,
       maxFrames,
     })

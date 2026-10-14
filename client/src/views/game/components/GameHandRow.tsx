@@ -1,7 +1,6 @@
 import { AnimatePresence, Reorder, motion } from 'motion/react'
 import { twMerge } from 'tailwind-merge'
 import { PlayRow } from '@/components/ui/game'
-import { BOARD_MOVEMENT_EASE, DECK_TO_HAND_FLY_DURATION_MS } from '@/views/game/animation/tuning'
 import { HandCardItem } from './HandCardItem'
 import type { IGameHandRowProps } from '@/views/game/types'
 
@@ -73,12 +72,9 @@ function GameHandRow<TCard>({
                 <motion.div
                   key={getCardKey(card, index)}
                   // `layout="position"` animates only the slot: the card's own drawing scale is left alone (a
-                  // persistent fractional scale softens the art and its HUD text).
+                  // persistent fractional scale softens the art and its HUD text). Deliberately no entrance or
+                  // exit animation - see `HandCardItem`, a hand card is revealed by the flight that carries it.
                   layout="position"
-                  initial={{ opacity: 0, scale: 0.94 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: DECK_TO_HAND_FLY_DURATION_MS / 1000, ease: BOARD_MOVEMENT_EASE }}
                   className={HAND_CARD_SLOT_CLASSNAME}
                 >
                   {renderCard(card, index)}

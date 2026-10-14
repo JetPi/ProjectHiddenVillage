@@ -508,3 +508,17 @@ html[data-theme='light'] {
   -webkit-appearance: none;
   margin: 0;
 }
+
+/*
+ * A card the hand row is holding back until its own flight releases it.
+ *
+ * The flight that carries an arriving card starts in an effect, i.e. after the push that mounted the card has
+ * already been painted - and its staggered siblings start even later. Without this the card is painted at its
+ * resting spot first (measured: up to 223 ms fully opaque) and then appears to be dealt a second time.
+ *
+ * The hold is only about visibility: the hand row deliberately runs no mount animation at all (see
+ * `HandCardItem`), because an arriving card is revealed by the flight and nothing else animates it.
+ */
+[data-card-arrival-pending='true'] {
+  visibility: hidden;
+}

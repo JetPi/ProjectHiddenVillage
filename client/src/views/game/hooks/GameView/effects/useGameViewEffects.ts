@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
 import { useGameHubStore } from '@/state/gameHubStore'
 import { preloadCardArtInPriorityBatches, type ICardArtPreloadEntry } from '@/services/cardPreloadService'
 import { preloadImageSources } from '@/services/imagePreloadCache'
@@ -488,6 +488,35 @@ function resolveCardSideForPlayerId(
   return null
 }
 
+/**
+ * Holds an arriving card back so it cannot be painted at its resting spot before its flight starts.
+ *
+ * The marker is CSS (`[data-card-arrival-pending]` in `index.css`): the card is not painted at all while it is
+ * held, and the slot's Motion mount fade is neutralised at the same time, because the flight - not the mount -
+ * is what should reveal the card. Releasing it is a plain attribute removal, done in the same task that starts
+ * the flight, so no frame can be painted in between.
+ */
+function markCardAwaitingArrival(instanceId: string, handRowRef: RefObject<HTMLDivElement | null>): void {
+  handRowRef.current
+    ?.querySelector<HTMLElement>(`[data-hand-instance-id="${instanceId}"]`)
+    ?.setAttribute('data-card-arrival-pending', 'true')
+}
+
+function releaseCardAwaitingArrival(instanceId: string, handRowRef: RefObject<HTMLDivElement | null>): void {
+  handRowRef.current
+    ?.querySelector<HTMLElement>(`[data-hand-instance-id="${instanceId}"]`)
+    ?.removeAttribute('data-card-arrival-pending')
+}
+
+/** Drops every hold in a row - the safety net, so a cancelled batch can never strand an invisible card. */
+function releaseAllCardArrivals(handRowRef: RefObject<HTMLDivElement | null>): void {
+  handRowRef.current
+    ?.querySelectorAll<HTMLElement>('[data-card-arrival-pending="true"]')
+    .forEach((element) => {
+      element.removeAttribute('data-card-arrival-pending')
+    })
+}
+
 function useHandZoneAnimationEffects({
   topHandInstanceIds,
   bottomHandInstanceIds,
@@ -510,7 +539,11 @@ function useHandZoneAnimationEffects({
   animControllerRef,
   setBottomHandFaceUpByInstanceId,
 }: IUseHandZoneAnimationEffectsArgs): void {
-  useEffect(() => {
+  // A layout effect on purpose: it runs after React has mounted the pushed hand but *before* the browser paints
+  // it, which is the only moment at which the arriving cards can still be held back from their first paint. Under
+  // the same commit the flights below are only *scheduled* (each one waits out its stagger), so the hold is what
+  // keeps a waiting card out of sight until its own flight releases it.
+  useLayoutEffect(() => {
     const animController = animControllerRef.current
     const previousSnapshot = animController.previousHandZoneSnapshot
     const nextTopHandInstanceIdSet = new Set(topHandInstanceIds)
@@ -557,6 +590,13 @@ function useHandZoneAnimationEffects({
         : removedBottomHandCards
           .filter((instanceId) => nextBottomTrashInstanceIdSet.has(instanceId))
           .slice(0, bottomTrashIncrease)
+
+      // The holds go on before anything is scheduled: every arriving card is marked here, and each of the flights
+      // below removes its own marker as it starts. A card that leaves the row while still held cannot strand
+      // invisibly - it is no longer in the hand for the marker to matter, and both the cleanup paths below drop
+      // the holds explicitly.
+      topDeckToHandCards.forEach((instanceId) => markCardAwaitingArrival(instanceId, topHandRowRef))
+      bottomDeckToHandCards.forEach((instanceId) => markCardAwaitingArrival(instanceId, bottomHandRowRef))
 
       if (animController.pendingMulliganDrawReplay) {
         animController.pendingMulliganDrawReplay = false
@@ -659,6 +699,9 @@ function useHandZoneAnimationEffects({
           topDeckToHandCards.forEach((instanceId, index) => {
             const movementDelay = index * drawToHandStaggerMs
             const timeoutId = window.setTimeout(() => {
+              // Release first, in the same task as the flight's first step: no frame can be painted between the
+              // hold coming off and the flight offsetting the card, so the card is never seen at its resting spot.
+              releaseCardAwaitingArrival(instanceId, topHandRowRef)
               runDeckToHandAnimation({
                 side: 'top',
                 cardInstanceId: instanceId,
@@ -674,6 +717,7 @@ function useHandZoneAnimationEffects({
           bottomDeckToHandCards.forEach((instanceId, index) => {
             const movementDelay = index * drawToHandStaggerMs
             const movementTimeoutId = window.setTimeout(() => {
+              releaseCardAwaitingArrival(instanceId, bottomHandRowRef)
               runDeckToHandAnimation({
                 side: 'bottom',
                 cardInstanceId: instanceId,
@@ -756,12 +800,17 @@ function useHandZoneAnimationEffects({
       })
       animController.pendingDrawTimeoutIds = []
 
+      // A cancelled batch must never strand a held card: the holds come off with the same teardown that cancels
+      // the flights which would have released them.
+      releaseAllCardArrivals(topHandRowRef)
+      releaseAllCardArrivals(bottomHandRowRef)
+
       // The board is being torn down: no flight may outlive it (its ghost would be orphaned in the DOM), and the
       // director's flight registry must not leak deadlines into a remount.
       cancelAllFlights()
       clearFlights()
     }
-  }, [animControllerRef])
+  }, [animControllerRef, bottomHandRowRef, topHandRowRef])
 }
 
 /**
