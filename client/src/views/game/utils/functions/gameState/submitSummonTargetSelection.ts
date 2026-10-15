@@ -1,8 +1,8 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { IGameCardInstanceResponse } from '@/services/api/types/game'
 import type { IGameViewAnimController, ISubmitHubIntentRequest, ISummonTargetingState } from '@/views/game/types'
-import { HAND_TO_PILE_STAGGER_MS } from '@/views/game/utils/contants'
-import { runCardImageGhostToElementAnimation } from '@/views/game/utils/functions/animations'
+import { HAND_TO_PILE_DURATION_MS, HAND_TO_PILE_STAGGER_MS } from '@/views/game/utils/contants'
+import { runElementToRectAnimation } from '@/views/game/animation'
 import { canConfirmSummonTargetSelection } from './canConfirmSummonTargetSelection'
 import { runSubmitThenZoneEntryAnimation } from './runSubmitThenZoneEntryAnimation'
 
@@ -94,8 +94,11 @@ interface ISubmitSummonTargetSelectionArgs {
 }
 
 /**
- * Captures, before the summon is submitted, the art and on-screen rectangle of each tribute card so
- * the card can visually fly to the trash afterwards without moving (or mutating) the real elements.
+ * Captures, before the summon is submitted, the live element of each tribute card.
+ *
+ * The card that goes to the trash is the card itself: the real element travels, so nothing is left standing in
+ * its slot while a stand-in flies away from it. The submit follows immediately, and the state update that
+ * removes the card lands as the travel finishes.
  */
 function captureTributeGhostSources(
   tributeTargets: ISummonTargetingState['selectedTargets'],
@@ -111,15 +114,13 @@ function captureTributeGhostSources(
     const cardElement = boardElement.querySelector<HTMLElement>(
       `[data-zone="character-field-card"][data-card-instance-id="${target.cardInstanceId}"]`,
     )
-    const imageElement = cardElement?.querySelector<HTMLImageElement>('img') ?? null
-    if (!cardElement || !imageElement) {
+    if (!cardElement) {
       continue
     }
 
     ghostSources.push({
       instanceId: target.cardInstanceId,
-      imageSrc: imageElement.currentSrc || imageElement.src,
-      sourceRect: cardElement.getBoundingClientRect(),
+      element: cardElement,
       side: cardElement.getAttribute('data-slot-side') === 'top' ? 'top' : 'bottom',
     })
   }
@@ -139,10 +140,16 @@ function scheduleCardGhostAnimations({
     animControllerRef.current.suppressedExitGhostInstanceIds.add(ghostSource.instanceId)
 
     const animationTimeoutId = window.setTimeout(() => {
-      void runCardImageGhostToElementAnimation({
-        imageSrc: ghostSource.imageSrc,
-        sourceRect: ghostSource.sourceRect,
-        destinationElement: ghostSource.side === 'top' ? topTrashCardRef.current : bottomTrashCardRef.current,
+      const destinationElement = ghostSource.side === 'top' ? topTrashCardRef.current : bottomTrashCardRef.current
+      if (!destinationElement) {
+        return
+      }
+
+      void runElementToRectAnimation({
+        element: ghostSource.element,
+        destinationRect: destinationElement.getBoundingClientRect(),
+        durationMs: HAND_TO_PILE_DURATION_MS,
+        key: ghostSource.instanceId,
       })
     }, index * HAND_TO_PILE_STAGGER_MS)
 
@@ -152,8 +159,8 @@ function scheduleCardGhostAnimations({
 
 interface ICardGhostSource {
   instanceId: string
-  imageSrc: string
-  sourceRect: DOMRect
+  /** The live card element that travels; the flight borrows its transform and restores it. */
+  element: HTMLElement
   side: 'top' | 'bottom'
 }
 

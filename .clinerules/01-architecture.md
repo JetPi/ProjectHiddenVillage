@@ -13,6 +13,64 @@ paths:
 - Game screen: `client/src/views/game/` — `GameView.tsx` composes; board lives in
   `components/`; hooks in `hooks/`; types in `types/` (barrel at `types/index.ts`);
   pure helpers in `utils/functions/`.
+- **Animation has exactly one home**: `client/src/views/game/animation/` —
+  `tuning.ts` (every duration, easing and stagger), `reducedMotion.ts` (the skip policy
+  both the flights and the attack lunge obey), `flights.ts` (the flight primitives),
+  `flightRegistry.ts` (one owner per card, so a new flight takes over an old one rather
+  than stacking), `cardDepartures.ts` (which zone a recorded movement leaves for, and
+  where that zone's pile slot is), `boardAnimationDirector.ts` (`noteFlight` / `whenIdle`
+  / `resolveFlightsSettleAtMs` — what the phase-presentation acknowledgement drains on)
+  and `runAttackLunge.ts`. Barrel: `animation/index.ts`. The arrow lives in
+  `02-board-ui-hud.md`, the ack in `04-state-phase-effects.md`.
+- **A flight moves the card itself** (the entity rule — every motion on the board):
+  - the card *leaving* a zone flies as itself (`runElementToRectAnimation`): the hand card
+    of a discard or a mulligan, a tribute material on its way to the trash, a card the
+    field row is retiring;
+  - the card *arriving* in a zone flies as itself (`runElementFromRectAnimation`,
+    `runElementArrivalFromRectAnimation`): a draw landing in the hand, a reveal-summon
+    landing on the field, the support card of a submit, the card that has just landed on
+    top of a pile.
+  There is a real element at **both** ends of every motion. Nothing is fabricated: an
+  overlay copy cannot show a face-down card's back, and its cover-fit/rounded-8 styling
+  never matched the card it landed on — that is the "duplicate card" and the "empty
+  rounded box" entity flight removed. When a flight's source no longer exists, move the
+  *destination* element from the captured rect instead of inventing a card.
+- A flight marks the element it borrows with `data-card-traveling` and registers it with
+  the director; transform/visibility/z-index are restored on settle **and** on cancel. A
+  `data-card-traveling` left behind after the board settles means a card was abandoned
+  mid-flight (transformed, or hidden by the frame the flight used to avoid flashing at its
+  slot) — `gameview.multiplayer.board-animation.spec.ts` asserts none is left.
+- **One card, one flight.** When the id of a card it has already flown appears in
+  `animController.suppressedExitGhostInstanceIds`, whoever flies that card next must
+  `delete` the id as it reads it, so a claim is consumed exactly once.
+- **A card that travels away does not come back.** An *exit* flight (`runElementToRectAnimation`: a discard, a
+  mulligan return, a tribute material, a field row retiring a card) ends with its card **hidden**, not restored to
+  its resting spot. The element is still mounted when the flight settles - the state that removes it takes a
+  round-trip - and restoring it painted the departed card back into the row it had just left, which is the "the
+  old cards show up for a moment before the new ones" flash. The transform is still restored (the element's own
+  state stays clean); only visibility is left hidden.
+- **A hand card has no mount animation, and an arriving card is held until its flight takes it.** The hand row
+  runs no `initial`/`animate`/`exit` on its cards: the flight that carries a card in (or out) is the only thing
+  that may reveal it, because a mount fade running beside a flight was measured doing both at once - the card
+  fading in at its resting spot (up to 223 ms fully opaque) while the flight also carried it from the deck, and
+  starting to fly at 64% opacity (`plans/hand-deal-flicker.md`). The arrival is instead *held*: the hand-zone
+  layout effect marks the arriving cards `data-card-arrival-pending` (which `index.css` renders unpaintable)
+  before the browser paints them, and each flight removes its own marker in the same task that offsets the card.
+  Two consequences to respect when touching this: the hold must be released on every path (including a skipped
+  flight and the teardown), or a card is stranded invisible; and an arrival's destination is only a destination
+  once it has a box - `runElementArrivalFromRectAnimation` waits for the box, because treating a mounted-but-laid
+  out-less slot as ready is how an arrival ends up skipped, leaving the card to land unanimated.
+- **Never lift a card with `position: fixed` inside the board.** Any ancestor carrying
+  `transform`/`filter`/`perspective`/`will-change`/`contain` becomes the containing block,
+  so a viewport-derived `left/top` is read in the wrong space — a dragged hand card was
+  measured 566 px below and 645 px right of the pointer
+  (`plans/board-position-animation-diagnosis.md`). Dragging belongs to Motion's `Reorder`
+  (`dragListener={false}` + `useDragControls`), which owns the transform and keeps the card
+  in its row.
+- Motion (`motion/react`) owns the declarative animations — hand-row presence/layout and
+  the drag, the rested-card tilt (on a wrapper, so read a card's rotation from its nearest
+  transformed ancestor) and card flips — while the flights above are imperative WAAPI
+  animations on the card's own element.
 
 ## Backend patterns
 
@@ -45,6 +103,21 @@ paths:
   `BottomHandReorderRow` + `GameHandRow` (hand), `NonLeaderCardOverlay` (per-card
   hover actions/preview/HUD), `LeaderCard` (`components/ui/cards/`),
   `SidebarButtons`, `GamePhaseActionRow`/`GamePhaseIndicator`.
+- **A card in the air is above the UI, and its own `z-index` is never enough.** A hand card's
+  element is a static `div` inside a `Reorder.Item` (a Motion transform = a stacking context of
+  its own), and a card flying out of a board half is inside that half's `z-20` context - so in
+  both cases the airborne rung belongs to the card **and its slot**, which is what
+  `promoteAirborneLayer` in `animation/flights.ts` does, with the board half promoted for the
+  duration of a flight by `[data-board-half]:has([data-card-traveling])` (see the ladder in
+  `02-board-ui-hud.md`). Measured: without it a card set from hand was painted under the bottom
+  hand row for the first frames of its flight.
+- **A departure's hide must be healable *and* targeted.** An exit flight ends with its card
+  hidden and marked `data-card-departed`, because the card has left and the state that removes
+  the element has not landed yet. A hand row keeps it mounted for presence, so if the same
+  instance is dealt straight back the element is reused and the hide must be cleared - but only
+  for the cards the current push renders (`clearStaleDepartureHides(row, presentInstanceIds)`),
+  otherwise the push that brings the replacement hand un-hides exactly the cards that just flew
+  out. Both halves of that rule are load-bearing; measured both ways.
 
 ## Refs & React Compiler lint (strict-clean, no eslint-disables)
 

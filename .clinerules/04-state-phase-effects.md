@@ -70,9 +70,13 @@ job is therefore no longer to advance anything: it is to *present* the transitio
   with `setGameState` and never touches `isActionPending` - so the buttons, the prompt UI and the phase row
   are not restyled by it. A refusal (a superseded/expired presentation, the game ending) is logged and
   followed by the coalesced state refresh, never shown as a player error.
-- **The ack waits on the board, not on a guessed delay.** `animController.animationEndsAtByKey` is the
-  animation registry (`noteAnimation(key, endsAt)` on `useGameAnimationController`): the deck→hand draw, the
-  hand→pile discard and every card ghost flight register their real end timestamp, and the ack is
+- **The ack waits on the board, not on a guessed delay.** The animation registry lives in the director
+  (`views/game/animation/boardAnimationDirector.ts`): `noteFlight(key, endsAt)` registers a flight's real end
+  timestamp, `resolveFlightsSettleAtMs(nowMs)` is its synchronous form, and `whenIdle()` resolves once the
+  registry has drained. The deck→hand draw, the hand→pile discard, every card flight copy and the attack lunge
+  all register. `usePhasePresentationAckEffect` awaits `whenIdle()` inside its scheduled callback and then
+  **re-reads the live store before acking** (the await can span a state push, so the presentation-id check and
+  the `isActionPending` re-arm both run again), and the ack is
   **animation-first**: `resolvePresentationAckAtMs` = `min(hardCap, max(seenAt + floor, animationsSettleAt))`,
   where `floor` is `PHASE_PRESENTATION_ANIMATED_FLOOR_MS` (120 ms) when the board registered an animation and
   the kind's small idle minimum otherwise. The idle minimums (`InitialDeal` 500 ms, `Ready` 220 ms, `Draw`

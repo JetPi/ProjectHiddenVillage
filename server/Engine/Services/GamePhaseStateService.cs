@@ -451,6 +451,15 @@ public sealed class GamePhaseStateService : IGamePhaseStateService
             var drawnCard = activePlayer.Deck[0];
             activePlayer.Deck.RemoveAt(0);
             activePlayer.Hand.Add(drawnCard);
+
+            // Publish the movement so the client can draw the draw, instead of inferring which of the new hand
+            // cards came from the deck out of a count delta (which mis-attributes whenever two pushes batch).
+            state.RecordCardMovement(
+                kind: CardMovementKinds.Draw,
+                cardInstanceId: drawnCard.InstanceId,
+                playerId: activePlayer.PlayerId,
+                fromZone: CardMovementZones.Deck,
+                toZone: CardMovementZones.Hand);
         }
     }
 

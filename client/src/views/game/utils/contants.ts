@@ -1,18 +1,21 @@
 import { CARD_ART_IMAGE_CLASS } from '@/components/ui/cards'
+import {
+  DRAW_TO_HAND_REVEAL_DELAY_MS,
+  DRAW_TO_HAND_STAGGER_MS,
+  HAND_TO_PILE_DURATION_MS,
+  HAND_TO_PILE_STAGGER_MS,
+  REVEAL_PRESENTATION_MS,
+} from '@/views/game/animation/tuning'
 
 const GAME_CARD_PRELOAD_POLL_INTERVAL_MS = 6_000
-const DRAW_TO_HAND_STAGGER_MS = 70
-const DRAW_TO_HAND_REVEAL_DELAY_MS = 140
-const HAND_TO_PILE_STAGGER_MS = 60
-const HAND_TO_PILE_DURATION_MS = 340
-// How long a reveal presentation stays on screen before the client acknowledges it and lets the chain resume.
-const REVEAL_PRESENTATION_MS = 2_000
 
 const ATTACK_ARROW_COLOR = 'rgba(251, 146, 60, 0.98)'
 const ATTACK_ARROW_STROKE_WIDTH_PX = 4.5
-const ATTACK_ARROW_HEAD_SIZE_SCALE = 2.25
-// react-xarrows scales its unit head shape by headSize * strokeWidth.
-const ATTACK_ARROW_HEAD_LENGTH_PX = ATTACK_ARROW_HEAD_SIZE_SCALE * ATTACK_ARROW_STROKE_WIDTH_PX
+// The head is the same unit shape as the tail's stroke, scaled by this length (2.25× the stroke width).
+const ATTACK_ARROW_HEAD_LENGTH_PX = 2.25 * ATTACK_ARROW_STROKE_WIDTH_PX
+// The dashed tail's own dash pattern (the board draws the tail itself now).
+const ATTACK_LINK_DASH_LENGTH_PX = 12
+const ATTACK_LINK_DASH_GAP_PX = 10
 const ATTACK_ARROW_HEAD_PATH = 'M 0 0 L 1 0.5 L 0 1 L 0.25 0.5 z'
 // Shared by the dashed tail and the custom arrowhead so both carry the same dark glow.
 const ATTACK_ARROW_LINE_FILTER = 'drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 5px rgba(0, 0, 0, 0.42))'
@@ -35,8 +38,9 @@ export {
   REVEAL_PRESENTATION_MS,
   ATTACK_ARROW_COLOR,
   ATTACK_ARROW_STROKE_WIDTH_PX,
-  ATTACK_ARROW_HEAD_SIZE_SCALE,
   ATTACK_ARROW_HEAD_LENGTH_PX,
   ATTACK_ARROW_HEAD_PATH,
+  ATTACK_LINK_DASH_LENGTH_PX,
+  ATTACK_LINK_DASH_GAP_PX,
   ATTACK_ARROW_LINE_FILTER,
 }

@@ -56,7 +56,11 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
   }, [cardOptions.topSupportCards])
 
     return (
-      <div className="grid min-h-0 w-full overflow-hidden grid-cols-5 justify-items-center gap-1.5">
+      // `card-drop-zone`: a card can be flown *into* this row (a support set from hand), and it crosses the row's
+      // edge on the way - see the `body:has([data-card-traveling])` rule in `index.css`, which lifts the clip for
+      // the length of any flight. The clip itself is load-bearing for the resting layout (with `min-w-0 min-h-0`
+      // it keeps the art's min-content box out of the grid tracks).
+      <div className="card-drop-zone grid min-h-0 w-full overflow-hidden grid-cols-5 justify-items-center gap-1.5">
         {Array.from({ length: 5 }).map((_, index) => {
           const card = zone === 'support'
             ? (isCurrentPlayerZone

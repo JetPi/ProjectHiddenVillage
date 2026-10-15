@@ -14,7 +14,7 @@ import {
   isCardRestedState,
   toAnchorId,
 } from '@/views/game/utils/functions'
-import { renderBattlefieldRow } from './BattleFieldRow'
+import { BattlefieldRow } from './BattleFieldRow'
 import { RenderZoneCardSlots } from './ZoneCardSlots'
 import { AttackLinkArrow } from './AttackLinkArrow'
 import { SideBarButtons } from './SidebarButtons'
@@ -24,12 +24,15 @@ import { useBackendAttackLink } from '@/views/game/hooks/GameView/memos/useBacke
 const ATTACK_OUTLINE_WIDTH_PX = 4.5
 const ATTACK_OUTLINE_OFFSET_PX = 4
 const ATTACK_OUTLINE_OUTER_REACH_PX = ATTACK_OUTLINE_WIDTH_PX + ATTACK_OUTLINE_OFFSET_PX
-const ATTACK_ARROW_HEAD_RETRACTION_COMPENSATION_PX = 7.5
+// The tail's end anchor (which is also the head's tip) deliberately stops this far outside the target's
+// outline, so the arrowhead sits clear of the highlight ring rather than overlapping it. It used to be a
+// compensation for the library stopping the dashes short of the anchor; the value now just means "leave a
+// visible gap", so it is kept (moving it would move the target anchor, which the geometry spec band pins).
+const ATTACK_LINK_TARGET_CLEARANCE_PX = 7.5
 const ATTACK_LINK_SOURCE_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX
-const ATTACK_LINK_TARGET_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX + ATTACK_ARROW_HEAD_RETRACTION_COMPENSATION_PX
+const ATTACK_LINK_TARGET_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX + ATTACK_LINK_TARGET_CLEARANCE_PX
 const ATTACK_VERTICAL_DIRECTION_BIAS_PX = 2
 const ATTACK_VERTICAL_TARGET_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX + 2
-const ATTACK_HEAD_OFFSET_DEFAULT = 0.25
 const ATTACK_SWEEP_SIDE_BEND_PX = 110
 
 /** Which side's trash pile the reader overlay currently lists ('top' = the opponent's rail). */
@@ -116,13 +119,11 @@ function GameZones(props: IGameZonesProps) {
     if (!renderedAttackLink) return null;
 
     // Only the ids + tuning constants travel with the config: the geometry is re-derived from the live
-    // elements inside `AttackLinkArrow` on every layout sample, because the attacker's rested tilt is a
-    // CSS transition that keeps moving the cards' bounding boxes (which is what react-xarrows anchors on)
-    // after this render.
+    // elements inside `AttackLinkArrow` on every layout sample, because the attacker's rested tilt is a Motion
+    // animation on the card's wrapper that keeps moving the cards' boxes after this render.
     return {
       startId: toAnchorId(renderedAttackLink.sourceCardInstanceId),
       endId: toAnchorId(renderedAttackLink.targetCardInstanceId),
-      headOffsetForward: ATTACK_HEAD_OFFSET_DEFAULT,
       options: {
         sourceGapPx: ATTACK_LINK_SOURCE_GAP_PX,
         targetGapPx: ATTACK_LINK_TARGET_GAP_PX,
@@ -277,7 +278,14 @@ function GameZones(props: IGameZonesProps) {
           <AttackLinkArrow config={attackLinkRenderConfig} />
         ) : null}
 
-        <div className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
+        {/* `data-board-half`: a card can be flown *out of this half* (a summon, a support set from hand, a discard),
+            and while it travels it must be above the hand rows - which the half's own `z-20` stacking context
+            prevents, because the flying card's `z-index: 260` is local to it. See the `[data-board-half]:has(...)`
+            rule in `index.css`, which promotes the half that owns a flight. */}
+        <div
+          data-board-half="true"
+          className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5"
+        >
           <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
             <PlayPileZone
               side="top"
@@ -298,13 +306,15 @@ function GameZones(props: IGameZonesProps) {
 
           <div className="grid min-h-0 grid-rows-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-2">
             {RenderZoneCardSlots({ ...renderZoneCardSlotsProps, zone: 'support', visibilityMode: 'hover', isCurrentPlayerZone: false })}
-            {renderBattlefieldRow({
-              ...battlefieldRowProps,
-              cards: cardOptions.topBattlefieldCards,
-              isCurrentPlayerZone: false,
-              normalizedAttackLinkSourceCardId: cardOptions.normalizedAttackLinkSourceCardId,
-              normalizedAttackLinkTargetCardId: cardOptions.normalizedAttackLinkTargetCardId,
-            })}
+            <BattlefieldRow
+              data={{
+                ...battlefieldRowProps,
+                cards: cardOptions.topBattlefieldCards,
+                isCurrentPlayerZone: false,
+                normalizedAttackLinkSourceCardId: cardOptions.normalizedAttackLinkSourceCardId,
+                normalizedAttackLinkTargetCardId: cardOptions.normalizedAttackLinkTargetCardId,
+              }}
+            />
           </div>
 
           <div className="flex min-h-0 w-full justify-end pr-3">
@@ -333,7 +343,10 @@ function GameZones(props: IGameZonesProps) {
           />
         </div>
 
-        <div className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5">
+        <div
+          data-board-half="true"
+          className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5"
+        >
           <div className="min-h-0 w-full pl-2">
             <div
               className={twMerge(
@@ -346,13 +359,15 @@ function GameZones(props: IGameZonesProps) {
           </div>
 
           <div className="grid min-h-0 grid-rows-[minmax(0,1.05fr)_minmax(0,0.95fr)] gap-2">
-            {renderBattlefieldRow({
-              ...battlefieldRowProps,
-              cards: cardOptions.bottomBattlefieldCards,
-              isCurrentPlayerZone: true,
-              normalizedAttackLinkSourceCardId: cardOptions.normalizedAttackLinkSourceCardId,
-              normalizedAttackLinkTargetCardId: cardOptions.normalizedAttackLinkTargetCardId,
-            })}
+            <BattlefieldRow
+              data={{
+                ...battlefieldRowProps,
+                cards: cardOptions.bottomBattlefieldCards,
+                isCurrentPlayerZone: true,
+                normalizedAttackLinkSourceCardId: cardOptions.normalizedAttackLinkSourceCardId,
+                normalizedAttackLinkTargetCardId: cardOptions.normalizedAttackLinkTargetCardId,
+              }}
+            />
             {RenderZoneCardSlots({ ...renderZoneCardSlotsProps, zone: 'support', visibilityMode: 'hover', isCurrentPlayerZone: true })}
           </div>
 

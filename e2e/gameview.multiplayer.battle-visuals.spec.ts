@@ -163,9 +163,8 @@ test.describe('GameView multiplayer battle visuals', () => {
         timeout: 8_000,
       }).toBeGreaterThan(0)
 
-      // The arrowhead is rendered by us and follows the tail: it must point at the target (react-xarrows
-      // derives its own head rotation from the anchor side, which can end up pointing away from it). The
-      // bound is loose on purpose now that the head is measured from the tail rather than aimed at the
+      // The arrowhead is rendered by us and follows the tail: it must point at the target. The bound is
+      // loose on purpose now that the head is derived from the tail's end direction rather than aimed at the
       // centre - on a sweeping tail the chord of the last head length differs from the aim by a degree or
       // two, and the tail's "travels into the target" check below covers the direction itself.
       await expect.poll(async () => {
@@ -244,11 +243,11 @@ test.describe('GameView multiplayer battle visuals', () => {
         timeout: 8_000,
       }).toEqual({ tipToTailEnd: 0, hasGlow: true, headVsTailDeg: 0 })
 
-      // The tail must leave and enter on the *visual* edges of the attacked pair. A rested card is tilted,
-      // and react-xarrows anchors on the bounding box: the bbox's top/bottom edge midpoint floats out at
-      // the rotated card's corner (the attacker is always rested, so this hits every attack), and its
-      // left/right edge midpoint sits level with the card's centre - i.e. visibly below the tilted edge's
-      // midpoint. Both ends must therefore sit roughly the gap away from the *rotated* card surface.
+      // The tail must leave and enter on the *visual* edges of the attacked pair. A rested card is tilted, so
+      // its bounding-box anchors float off the card: the bbox's top/bottom edge midpoint sits out at the
+      // rotated card's corner (the attacker is always rested, so this hits every attack), and its left/right
+      // edge midpoint sits level with the card's centre - i.e. visibly below the tilted edge's midpoint. Both
+      // ends must therefore sit roughly the gap away from the *rotated* card surface.
       await expect.poll(async () => {
         return await battleActor.actorPage.evaluate(([sourceInstanceId, targetInstanceId]) => {
           const path = document.querySelector<SVGPathElement>('#attack-link-overlay svg path[stroke]')
@@ -262,18 +261,31 @@ test.describe('GameView multiplayer battle visuals', () => {
           const startScreen = toScreen(0)
           const endScreen = toScreen(path.getTotalLength())
 
+          // The card's tilt is applied by whatever owns its transform - a Tailwind `rotate` class or, after the
+          // Motion migration, a Motion `rotate` on the card's wrapper. Read the effective rotation by walking up
+          // from the card, so the measurement follows the visual tilt wherever it is applied.
+          const readEffectiveRotationRad = (element: HTMLElement): number => {
+            let node: HTMLElement | null = element
+            while (node) {
+              const style = getComputedStyle(node)
+              const rotateMatch = (style.rotate ?? '').match(/(-?[\d.]+)deg/)
+              if (rotateMatch) {
+                return (Number.parseFloat(rotateMatch[1]) * Math.PI) / 180
+              }
+              if (style.transform && style.transform !== 'none') {
+                const matrix = new DOMMatrixReadOnly(style.transform)
+                if (matrix.a !== 1 || matrix.b !== 0) {
+                  return Math.atan2(matrix.b, matrix.a)
+                }
+              }
+              node = node.parentElement
+            }
+            return 0
+          }
+
           const distanceToSurface = (element: HTMLElement, point: { x: number; y: number }) => {
             const rect = element.getBoundingClientRect()
-            const style = getComputedStyle(element)
-            // Tailwind v4 emits the rested tilt as the standalone `rotate` property (the `transform`
-            // property stays "none" while the card is visually tilted) - reading it from `transform`
-            // alone would measure the anchor against the unrotated box and hide the drift.
-            const rotateMatch = (style.rotate ?? '').match(/(-?[\d.]+)deg/)
-            const angle = rotateMatch
-              ? (Number.parseFloat(rotateMatch[1]) * Math.PI) / 180
-              : style.transform && style.transform !== 'none'
-                ? Math.atan2(new DOMMatrixReadOnly(style.transform).b, new DOMMatrixReadOnly(style.transform).a)
-                : 0
+            const angle = readEffectiveRotationRad(element)
             // Distances are rotation invariant, so bring the point into the card's own frame and measure
             // against its unrotated layout box: 0 = the anchor sits on the card.
             const dx = point.x - (rect.left + rect.width / 2)
@@ -300,11 +312,30 @@ test.describe('GameView multiplayer battle visuals', () => {
         timeout: 8_000,
       }).toEqual({ sourceOnVisualEdge: true, targetOnVisualEdge: true })
 
+      // The attacker is tilted from the backend's rested flag. Motion applies the rotation on the card's
+      // wrapper rather than as a Tailwind class on the card, so assert the effective rotation instead.
       await expect.poll(async () => {
-        return await attackerAfterReload.getAttribute('class')
+        return await attackerAfterReload.evaluate((element) => {
+          let node: HTMLElement | null = element
+          while (node) {
+            const style = getComputedStyle(node)
+            const rotateMatch = (style.rotate ?? '').match(/(-?[\d.]+)deg/)
+            if (rotateMatch) {
+              return Math.round(Number.parseFloat(rotateMatch[1]))
+            }
+            if (style.transform && style.transform !== 'none') {
+              const matrix = new DOMMatrixReadOnly(style.transform)
+              if (matrix.a !== 1 || matrix.b !== 0) {
+                return Math.round((Math.atan2(matrix.b, matrix.a) * 180) / Math.PI)
+              }
+            }
+            node = node.parentElement
+          }
+          return 0
+        })
       }, {
         timeout: 8_000,
-      }).toContain('rotate-[14deg]')
+      }).toBe(14)
 
       await expect.poll(async () => {
         return await attackerAfterReload.getAttribute('class')

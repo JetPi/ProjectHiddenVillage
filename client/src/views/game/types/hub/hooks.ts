@@ -1,5 +1,5 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react'
-import type { IGamePlayerStateResponse, IPhasePresentationResponse } from '@/services/api/types/game'
+import type { IAnimationEventResponse, IGamePlayerStateResponse, IPhasePresentationResponse } from '@/services/api/types/game'
 import type { ILeaderCardViewModel } from './viewModels'
 import type { IHandZoneSnapshot } from '@/views/game/types'
 
@@ -20,21 +20,31 @@ export type ILeaderCardsViewModel = {
 
 export type IGameViewAnimController = {
   /**
-   * The animations the board is playing right now, keyed by the animation, valued by the timestamp they are
-   * expected to finish at. The phase-presentation acknowledgement waits on this instead of on a fixed delay, so a
-   * client never tells the engine "I am done animating" while a card is still in the air. Entries are pruned as
-   * their deadlines pass.
+   * Resolves when the director's flight registry has drained (immediately when nothing is in flight). The
+   * phase-presentation acknowledgement waits on this instead of inspecting individual animations, so a new kind
+   * of animation cannot forget to register and the engine never resumes while a card is still in the air. The
+   * registry itself lives in `views/game/animation/boardAnimationDirector.ts`.
    */
-  animationEndsAtByKey: Map<string, number>
+  whenIdle: () => Promise<void>
   /**
-   * Registers a flight the acknowledgement has to wait for. A key that is already registered is extended, never
-   * shortened, so a re-scheduled animation of the same kind cannot cut a longer one short.
+   * The animation-event ids already consumed. The server republishes a bounded tail of recent card movements on
+   * every push, so a consumer must animate each event exactly once; the ids live on the controller (a mutable
+   * ref bag) because consuming an event must not re-render and they have to survive across pushes.
    */
-  noteAnimation: (key: string, endsAt: number) => void
+  handledAnimationEventIds: Set<string>
   drawAnimationEndsAt: number | null
   pendingDrawAnimationFrameId: number | null
   pendingDrawTimeoutIds: number[]
   pendingMulliganDrawReplay: boolean
+  /**
+   * When the pending mulligan replay stops being valid (`Date.now()`-based).
+   *
+   * The flag has to survive until the push that actually carries the replacement hand: a mulligan resolves the
+   * prompt, moves the phase and republishes the hand, and those can be separate pushes. Consuming the flag on the
+   * first one left the redraw with no batch to fly, so the new hand simply appeared. The deadline keeps a flag
+   * that never finds its hand from leaking into a later draw.
+   */
+  pendingMulliganDrawReplayExpiresAtMs: number
   previousHandZoneSnapshot: IHandZoneSnapshot
   // Instance ids whose battlefield/hand exit is already animated by an explicit ghost (tribute summons):
   // the generic exit-to-trash effect consumes the id and skips it, so a card never flies twice.
@@ -55,6 +65,11 @@ export type IUseHandZoneAnimationEffectsArgs = {
   drawToHandStaggerMs: number
   drawToHandRevealDelayMs: number
   handToPileStaggerMs: number
+  /**
+   * The engine's recorded card movements. When present they are the authoritative source for which card drew,
+   * and the count/id inference below is only the fallback for a push that carries none.
+   */
+  animationEvents?: IAnimationEventResponse[] | null
   topDeckCardRef: RefObject<HTMLDivElement | null>
   bottomDeckCardRef: RefObject<HTMLDivElement | null>
   topTrashCardRef: RefObject<HTMLDivElement | null>
@@ -94,6 +109,10 @@ export type IUseRevealedCardSummonFlightEffectArgs = {
   topDeckCardRef: RefObject<HTMLDivElement | null>
   bottomDeckCardRef: RefObject<HTMLDivElement | null>
   boardZoneRef: RefObject<HTMLDivElement | null>
+  /** The engine's recorded card movements; a `summon` whose source zone is the deck starts this flight. */
+  animationEvents?: IAnimationEventResponse[] | null
+  /** The board's animation registry: the movement is claimed through it so it is animated exactly once. */
+  animControllerRef: RefObject<IGameViewAnimController>
 }
 
 /**
@@ -116,8 +135,6 @@ export type IUsePhasePresentationAckEffectArgs = {
   authUserId?: string
   /** The engine's outstanding transition, or null when the board is free to act. */
   pendingPresentation: IPhasePresentationResponse | null | undefined
-  /** The board's animation registry: the acknowledgement waits for the flights it lists. */
-  animControllerRef: RefObject<IGameViewAnimController>
   /** Sends the acknowledgement (never through `submitHubIntent`, so it cannot set the pending flag). */
   acknowledgePhasePresentation: (presentationId: string) => Promise<boolean>
 }

@@ -26,14 +26,12 @@ export type ICardImageGhostToElementAnimationArgs = {
   sourceRect: DOMRect
   destinationElement: HTMLElement | null
   durationMs?: number
-}
-
-export type IHandToElementAnimationArgs = {
-  side: 'top' | 'bottom'
-  cardInstanceId: string
-  destinationElement: HTMLElement | null
-  topHandRowRef: RefObject<HTMLDivElement | null>
-  bottomHandRowRef: RefObject<HTMLDivElement | null>
+  /**
+   * The card instance id this ghost belongs to. It becomes the flight's ownership key, so a second flight
+   * for the same card takes over the first instead of stacking another copy in the air. Omitted callers get
+   * a unique anonymous key.
+   */
+  key?: string
 }
 
 export type IRectToElementAnimationArgs = {

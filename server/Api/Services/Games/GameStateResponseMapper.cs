@@ -100,7 +100,10 @@ public static partial class GameStateResponseMapper
             EffectNotices: effectNotices,
             GameOutcome: ToGameOutcomeResponse(state.Outcome),
             // A finished game owes nobody a presentation: the result overlay is the only affordance left.
-            PendingPresentation: hasOutcome ? null : pendingPresentation);
+            PendingPresentation: hasOutcome ? null : pendingPresentation,
+            // Card movements are the engine's own record of what it did, so the client animates them directly
+            // instead of inferring a move from zone/count deltas.
+            AnimationEvents: BuildAnimationEvents(state));
     }
 
     /// <summary>
@@ -166,6 +169,24 @@ public static partial class GameStateResponseMapper
             GamePhase.AttackResolution => "DamageStep",
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// Projects the engine's recorded card movements into the animation-event tail the client consumes. Every
+    /// movement is published to every player, because a card moving is visible on both boards - unlike the effect
+    /// notices, which are addressed to the player whose effect produced them.
+    /// </summary>
+    private static IReadOnlyList<AnimationEventResponse> BuildAnimationEvents(GameState state)
+    {
+        return state.RecordedCardMovements
+            .Select(movement => new AnimationEventResponse(
+                EventId: movement.EventId,
+                Kind: movement.Kind,
+                CardInstanceId: movement.CardInstanceId,
+                PlayerId: movement.PlayerId,
+                FromZone: movement.FromZone,
+                ToZone: movement.ToZone))
+            .ToList();
     }
 
     private static PendingAttackVisualStateResponse? ResolvePendingAttackVisualState(GameState state)

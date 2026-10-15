@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef } from 'react'
-import { useAutoAnimate } from '@formkit/auto-animate/react'
 import type { IGameViewAnimController } from '@/views/game/types'
+import { whenIdle } from '@/views/game/animation'
 
 export function useGameRefs() {
   const boardZoneRef = useRef<HTMLDivElement | null>(null)
@@ -10,12 +10,10 @@ export function useGameRefs() {
   const bottomTrashCardRef = useRef<HTMLDivElement | null>(null)
   const topHandRowRef = useRef<HTMLDivElement | null>(null)
   const bottomHandRowRef = useRef<HTMLDivElement | null>(null)
-  const [topHandAutoAnimateRef] = useAutoAnimate({ duration: 220, easing: 'ease-out' })
 
   const setTopHandRowRefs = useCallback((node: HTMLDivElement | null) => {
     topHandRowRef.current = node
-    topHandAutoAnimateRef(node)
-  }, [topHandAutoAnimateRef, topHandRowRef])
+  }, [topHandRowRef])
 
   const setBottomHandRowRefs = useCallback((node: HTMLDivElement | null) => {
     bottomHandRowRef.current = node
@@ -51,7 +49,6 @@ export function useGameRefs() {
     bottomTrashCardRef,
     topHandRowRef,
     bottomHandRowRef,
-    topHandAutoAnimateRef,
     setTopHandRowRefs,
     setBottomHandRowRefs,
     setBoardZoneRef,
@@ -67,7 +64,6 @@ export function useGameRefs() {
     bottomTrashCardRef,
     topHandRowRef,
     bottomHandRowRef,
-    topHandAutoAnimateRef,
     setTopHandRowRefs,
     setBottomHandRowRefs,
     setBoardZoneRef,
@@ -78,34 +74,17 @@ export function useGameRefs() {
   ])
 }
 
-/**
- * The set of animations the phase-presentation acknowledgement has to wait for. Built as one unit so the
- * registration function always mutates the very map the acknowledgement reads.
- */
-function createAnimationRegistry(): Pick<IGameViewAnimController, 'animationEndsAtByKey' | 'noteAnimation'> {
-  const animationEndsAtByKey = new Map<string, number>()
-
-  return {
-    animationEndsAtByKey,
-    noteAnimation: (key: string, endsAt: number) => {
-      // Re-scheduling the same animation only ever pushes its deadline out: a later short flight must not
-      // shorten the wait for a longer one already in the air.
-      const existingEndsAt = animationEndsAtByKey.get(key)
-      animationEndsAtByKey.set(
-        key,
-        existingEndsAt === undefined ? endsAt : Math.max(existingEndsAt, endsAt),
-      )
-    },
-  }
-}
-
 export function useGameAnimationController() {
   return useRef<IGameViewAnimController>({
-    ...createAnimationRegistry(),
+    // The flight registry and its idle promise are owned by the director module, not by this ref: the
+    // acknowledgement asks the director whether the board is still animating.
+    whenIdle,
+    handledAnimationEventIds: new Set<string>(),
     drawAnimationEndsAt: null,
     pendingDrawAnimationFrameId: null,
     pendingDrawTimeoutIds: [],
     pendingMulliganDrawReplay: false,
+    pendingMulliganDrawReplayExpiresAtMs: 0,
     previousHandZoneSnapshot: {
       topHandInstanceIds: new Set<string>(),
       bottomHandInstanceIds: new Set<string>(),

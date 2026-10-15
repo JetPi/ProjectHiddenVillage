@@ -10,13 +10,14 @@ import type {
   IUseGameHubStateResult,
 } from '@/views/game/types'
 import { DRAW_TO_HAND_REVEAL_DELAY_MS, DRAW_TO_HAND_STAGGER_MS, HAND_TO_PILE_STAGGER_MS, REVEAL_PRESENTATION_MS } from '@/views/game/utils/contants'
-import { runHandToPileAnimation } from '@/views/game/utils/functions/animations'
+import { runHandToPileAnimation } from '@/views/game/animation'
 import { useGameHubStore } from '@/state/gameHubStore'
 import type { useGameRefs } from '@/views/game/hooks/GameView/memos/useGameRefs'
 import type { IGameUIStoreState, IPendingPromptSelectionState } from '@/state/types/gameUIStore'
 import { useBattlefieldCardReorderEffect } from './useBattleFieldCards'
 import { useGetMainPhaseActions } from './useGetMainPhaseActions'
-import { useCardCatalogPreload, useCardMoveGhostAnimationEffect, useHandZoneAnimationEffects, usePhasePresentationAckEffect, useRevealedCardSummonFlightEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
+import { useCardCatalogPreload, useCardMoveGhostAnimationEffect, useDeckSummonFlightEffect, useHandZoneAnimationEffects, usePhasePresentationAckEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
+import { useAttackLungeEffect } from './useAttackLungeEffect'
 
 function useGameViewSideEffects({
   authUserId,
@@ -83,6 +84,7 @@ function useGameViewSideEffects({
     drawToHandStaggerMs: DRAW_TO_HAND_STAGGER_MS,
     drawToHandRevealDelayMs: DRAW_TO_HAND_REVEAL_DELAY_MS,
     handToPileStaggerMs: HAND_TO_PILE_STAGGER_MS,
+    animationEvents: gameState.animationEvents,
     topDeckCardRef: viewRefs.topDeckCardRef,
     bottomDeckCardRef: viewRefs.bottomDeckCardRef,
     topTrashCardRef: viewRefs.topTrashCardRef,
@@ -104,12 +106,14 @@ function useGameViewSideEffects({
     animControllerRef,
   })
 
-  useRevealedCardSummonFlightEffect({
+  useDeckSummonFlightEffect({
     currentPlayer,
     opponentPlayer,
     topDeckCardRef: viewRefs.topDeckCardRef,
     bottomDeckCardRef: viewRefs.bottomDeckCardRef,
     boardZoneRef: viewRefs.boardZoneRef,
+    animationEvents: gameState.animationEvents,
+    animControllerRef,
   })
 
   useTrashRecallSummonFlightEffect({
@@ -126,6 +130,7 @@ function useGameViewSideEffects({
     clearPromptSelection: ui.clearPromptSelection,
     submitHubIntent: gameHubState.submitHubIntent,
     viewRefs,
+    animControllerRef,
   })
 
   useRevealPresentationAckEffect({
@@ -138,8 +143,14 @@ function useGameViewSideEffects({
     isConnected,
     authUserId,
     pendingPresentation: gameState.pendingPresentation,
-    animControllerRef,
     acknowledgePhasePresentation: gameHubState.acknowledgePhasePresentation,
+  })
+
+  // The attacker lunges when the engine reaches the damage stop - the moment the attack actually resolves.
+  useAttackLungeEffect({
+    pendingPresentation: gameState.pendingPresentation,
+    attackVisualState: gameState.pendingAttackVisualState,
+    boardZoneRef: viewRefs.boardZoneRef,
   })
 
   useBattlefieldCardReorderEffect(currentTopBattlefieldRawCards, setTopBattlefieldDisplayOrder)
@@ -169,6 +180,7 @@ function usePromptSelectionSubmitEffect({
   clearPromptSelection,
   submitHubIntent,
   viewRefs,
+  animControllerRef,
 }: IUsePromptSelectionSubmitEffectArgs): void {
   useEffect(() => {
     if (!pendingPromptSelection) {
@@ -190,6 +202,13 @@ function usePromptSelectionSubmitEffect({
       // real hand element, so submitting first would let the pushed state unmount it mid-air and the card would
       // simply vanish instead of landing.
       if (pendingPrompt.candidateZone === 'Hand' && pileDestination) {
+        // A trash-bound card is claimed for this flight. The recorded-discard effect would otherwise fly the same
+        // card out of the hand a second time once the resolved state lands, and by then the hand row is still
+        // holding the card in its exit window - so the player would watch one discard twice.
+        if (pileDestination === 'trash') {
+          animControllerRef.current.suppressedExitGhostInstanceIds.add(selection.selectedInstanceId)
+        }
+
         await runHandToPileAnimation({
           side: 'bottom',
           destination: pileDestination,
@@ -210,7 +229,7 @@ function usePromptSelectionSubmitEffect({
         selectedOption: selection.selectedInstanceId,
       })
     })()
-  }, [clearPromptSelection, gameState.pendingPrompt, pendingPromptSelection, submitHubIntent, viewRefs])
+  }, [animControllerRef, clearPromptSelection, gameState.pendingPrompt, pendingPromptSelection, submitHubIntent, viewRefs])
 }
 
 /** Which pile a hand card picked by a prompt leaves for (null when the prompt's action moves no hand card). */
@@ -289,6 +308,7 @@ type IUsePromptSelectionSubmitEffectArgs = {
   clearPromptSelection: () => void
   submitHubIntent: IUseGameHubStateResult['submitHubIntent']
   viewRefs: ReturnType<typeof useGameRefs>
+  animControllerRef: RefObject<IGameViewAnimController>
 }
 
 type IUseGameViewSideEffectsArgs = {

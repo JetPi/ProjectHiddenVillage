@@ -242,6 +242,7 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 				var rightIndex = right.SupportSlotIndex ?? int.MaxValue;
 				return leftIndex.CompareTo(rightIndex);
 			});
+			RecordZoneMove(gameInstance, movedCard, resolvedDestinationPlayerId, sourceZone, destinationZone);
 			return movedCard;
 		}
 
@@ -267,7 +268,35 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 		}
 
 		destinationList.Insert(insertIndex, movedCard);
+		RecordZoneMove(gameInstance, movedCard, resolvedDestinationPlayerId, sourceZone, destinationZone);
 		return movedCard;
+	}
+
+	/// <summary>
+	/// Records a zone-to-zone move for the animation-event tail. This service is the engine's choke point for moves
+	/// a card performs by travelling between zones, so recording here is what lets a client animate a move because
+	/// the engine said it happened - instead of inferring it from a count delta that a batched push can
+	/// mis-attribute (see <see cref="CardMovementRecord"/>).
+	/// </summary>
+	private static void RecordZoneMove(
+		GameInstance gameInstance,
+		CardInstance movedCard,
+		string destinationPlayerId,
+		PlayerZone sourceZone,
+		PlayerZone destinationZone)
+	{
+		var movementKind = CardMovementKinds.ResolveForZonePair(sourceZone, destinationZone);
+		if (movementKind is null)
+		{
+			return;
+		}
+
+		gameInstance.State.RecordCardMovement(
+			kind: movementKind,
+			cardInstanceId: movedCard.InstanceId,
+			playerId: destinationPlayerId,
+			fromZone: sourceZone.ToString(),
+			toZone: destinationZone.ToString());
 	}
 
 	public CardInstance? DrawCardFromDeck(GameInstance gameInstance, string playerId)

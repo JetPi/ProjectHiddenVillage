@@ -216,7 +216,13 @@ html[data-theme='light'] {
 
 .game-board-spill {
   position: relative;
-  isolation: isolate;
+  /* Deliberately *not* an isolation context. The board used to isolate so the dashed border below could sit at
+     z-index -1 without escaping behind the board's own background; the border now sits at z-index 0 instead (below
+     every child of the board, which all carry a z-index), which keeps the border where it belongs *and* lets the
+     board's children take part in the page-level Z ladder: the hand rows (z-30) and the attack-link arrow (z-35)
+     have to be ordered against each other and against the overlays, and an isolation context would have trapped
+     the arrow underneath the rows. Ladder: board background/border 0, board chrome 10, board halves 20, hand rows
+     30, arrow 35, banners/prompts 40+, card preview and game over 50-70, route transition 120. */
   overflow: visible;
 }
 
@@ -227,7 +233,7 @@ html[data-theme='light'] {
   border: 1px dashed var(--border-subtle);
   border-radius: 1rem;
   pointer-events: none;
-  z-index: -1;
+  z-index: 0;
 }
 
 .game-board-spill > * {
@@ -444,14 +450,6 @@ html[data-theme='light'] {
   animation: card-preview-slide-in 220ms ease-out;
 }
 
-[data-card-moving="true"] .card-overlay-controls,
-[data-card-moving="true"] .card-overlay-badge,
-[data-card-moving="true"] .card-overlay-requirement-label,
-[data-card-moving="true"] .card-selection-tint {
-  pointer-events: none !important;
-  opacity: 0 !important;
-}
-
 @keyframes phase-indicator-text-swap {
   from {
     opacity: 0.35;
@@ -515,4 +513,64 @@ html[data-theme='light'] {
 .count-constraint-number::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+/*
+ * A card that has travelled away, until whatever renders it is sure it is gone. The marker exists so the hide can
+ * be *healed*: a departed card's element can be reused for the same card dealt straight back into the hand (a
+ * mulligan), and then the card must be visible again - `clearStaleDepartureHides` clears this on the next push,
+ * before the browser paints it.
+ */
+[data-card-departed='true'] {
+  visibility: hidden;
+}
+
+/*
+ * A card that is flying into one of these containers crosses its edge on the way, and the container's clip cuts it
+ * in half - a card set from hand into a row appeared to slide *under* the row it was entering, and a card returned
+ * to a pile vanished at the pile's rim. The old engine stripped every clipping ancestor for the length of a flight
+ * (`resolveOverflowAncestors`); entity flights inherited that job. The clip stays for the resting layout, where
+ * with `min-w-0 min-h-0` it keeps the art's min-content box from inflating the grid tracks - it has nothing to do
+ * with a card in the air, whose displacement is a transform and therefore cannot change any layout.
+ */
+body:has([data-card-traveling='true']) .card-drop-zone {
+  overflow: visible;
+}
+
+/*
+ * A card in flight *inside a board half* is trapped below the hand rows even though it carries `z-index: 260`,
+ * because that value is local to the half's own stacking context (`relative z-20 row-span-2` in `GameZones`) while
+ * a hand row is rung 30.
+ *
+ * Measured on the `Set Support` arrival - the flight reported as "it is like they are going beneath the UI when
+ * going from hand to support zone": the card's first painted frame (`rect 335,591`, on its way up from the hand
+ * slot at `y=591` to the support slot at `y=450`) resolved to `data-testid="bottom-hand-row"` (z 30) at its own
+ * centre. The summon (hand -> field), which "looks fine however", was covered for its first two frames by the same
+ * row plus a hand card's action button - so this is the same defect, not a support-zone one.
+ *
+ * So the half that owns a flight takes rung 34 for the length of that flight: above the hand rows (30), below the
+ * attack-link arrow (35) and every overlay (40+), which is where the ladder puts a card in the air. `:has()` keeps
+ * the promotion to the half the flight is actually in - the other half, the rows and the arrow are untouched, and
+ * the hand rows keep their own rung so the cards they own still fly over the board.
+ *
+ * Known trade-off: a half promoted this way paints above the hand rows for the flight's duration, so the opponent's
+ * hand cards, which deliberately peek over the top edge (`h-[230%] -translate-y-[62%]`), are behind the top half's
+ * content in the thin strip where the two boxes overlap. That is bounded by the flight (~360 ms) and by the strip.
+ */
+[data-board-half]:has([data-card-traveling='true']) {
+  z-index: 34;
+}
+
+/*
+ * A card the hand row is holding back until its own flight releases it.
+ *
+ * The flight that carries an arriving card starts in an effect, i.e. after the push that mounted the card has
+ * already been painted - and its staggered siblings start even later. Without this the card is painted at its
+ * resting spot first (measured: up to 223 ms fully opaque) and then appears to be dealt a second time.
+ *
+ * The hold is only about visibility: the hand row deliberately runs no mount animation at all (see
+ * `HandCardItem`), because an arriving card is revealed by the flight and nothing else animates it.
+ */
+[data-card-arrival-pending='true'] {
+  visibility: hidden;
 }

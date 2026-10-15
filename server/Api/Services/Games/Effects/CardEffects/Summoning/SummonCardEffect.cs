@@ -138,6 +138,15 @@ public sealed class SummonCardEffect(
 			cardInstance.EffectsSuppressedWhileOnField = suppressSummonedTargetsEffectsWhileOnField;
 			summoningPlayerField.Add(cardInstance);
 
+			// A summon performed by an effect places the card by hand rather than through the move service, so it
+			// records the movement itself - the client animates the card arriving from its source zone.
+			context.Game.State.RecordCardMovement(
+				kind: CardMovementKinds.Summon,
+				cardInstanceId: cardInstance.InstanceId,
+				playerId: summoningPlayer.PlayerId,
+				fromZone: target.Zone.ToString(),
+				toZone: PlayerZone.CharacterField.ToString());
+
 			summonedCards.Add(cardInstance);
 			affectedCardInstanceIds.Add(cardInstance.InstanceId);
 			affectedPlayerIds.Add(sourcePlayer.PlayerId);
