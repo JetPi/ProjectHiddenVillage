@@ -5,7 +5,7 @@ import { runAttackLungeAnimation } from '@/views/game/animation/runAttackLunge'
 import { toAnchorId } from '@/views/game/utils/functions'
 
 /**
- * Plays the attacker's lunge exactly once per attack that resolves.
+ * Plays the attacker's hit beat (the shake) exactly once per attack that resolves.
  *
  * The trigger is the engine-owned resolve stop - the `Damage` phase presentation - not the attack declaration:
  * the snapshot that announces the attack is the wrong moment, and it is also the one the arrow already shows.
@@ -52,14 +52,15 @@ function useAttackLungeEffect({
     }
 
     const attackerElement = resolveCardElement(boardZoneRef.current, pair.attackerCardInstanceId)
-    const defenderElement = resolveCardElement(boardZoneRef.current, pair.defenderCardInstanceId)
-    if (!attackerElement || !defenderElement) {
+    if (!attackerElement) {
       return
     }
 
     void runAttackLungeAnimation({
       attackerElement,
-      defenderElement,
+      // Only the shake's first swing reads the defender (to swing towards the card being hit), so a defender
+      // that is already gone - K.O.'d by this very attack, which unmounts it - must not swallow the hit beat.
+      defenderElement: resolveCardElement(boardZoneRef.current, pair.defenderCardInstanceId),
       key: `attack-lunge:${pair.attackerCardInstanceId}`,
     })
   }, [boardZoneRef, pendingPresentation])

@@ -10,9 +10,14 @@ type IPromptSelectionBannerProps = {
 }
 
 /**
- * Transient "pick a card" nudge for effect selection prompts. It announces the question and fades away on its
+ * Transient "pick a card" nudge for effect selection prompts that have **no box of their own** - a board pick,
+ * where the player answers through the card's own Select button. It announces the question and fades away on its
  * own: the selectable cards (their Select buttons) and the middle phase indicator carry the state from then on,
  * so the banner must never require a click to dismiss.
+ *
+ * It must not be shown for a selection the prompt overlay already renders: that panel carries the same title plus
+ * the candidate list, so the banner would only repeat the question (see `shouldShowPromptSelectionBanner` in
+ * `GameView`). Adding a new pile-backed effect kind therefore needs no change here.
  */
 function PromptSelectionBanner({ promptKey, title }: IPromptSelectionBannerProps) {
   // The caller keys this component by prompt id, so each new question starts un-expired and the only state

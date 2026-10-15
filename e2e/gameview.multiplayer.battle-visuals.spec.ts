@@ -163,10 +163,12 @@ test.describe('GameView multiplayer battle visuals', () => {
         timeout: 8_000,
       }).toBeGreaterThan(0)
 
-      // The arrowhead is rendered by us and follows the tail: it must point at the target. The bound is
-      // loose on purpose now that the head is derived from the tail's end direction rather than aimed at the
-      // centre - on a sweeping tail the chord of the last head length differs from the aim by a degree or
-      // two, and the tail's "travels into the target" check below covers the direction itself.
+      // The arrowhead is rendered by us and follows the tail: it must point at the target. The bound is loose
+      // on purpose now that the head is derived from the tail's end direction rather than aimed at the centre -
+      // on a sweeping tail the chord of the last head length differs from the aim by a degree or two, and the
+      // tail's "travels into the target" check below covers the direction itself. The tail's arc leans the head
+      // the other way (it lobs over the chord and turns into the card, see `resolveAttackLinkCubic`), so the
+      // arc reduces the deviation instead of adding to it.
       await expect.poll(async () => {
         return await battleActor.actorPage.evaluate((targetInstanceId) => {
           const head = document.querySelector<SVGSVGElement>('[data-testid="attack-link-head"]')

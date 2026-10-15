@@ -15,6 +15,7 @@ import {
 } from "@/views/game/utils/contants";
 import {
   resolveAttackLinkCubic,
+  resolveAttackLinkDashOffset,
   resolveAttackLinkGeometry,
   resolveAttackLinkHeadConfig,
   resolveAttackLinkPathData,
@@ -157,12 +158,22 @@ export const AttackLinkArrow = ({ config }: AttackLinkArrowProps) => {
             pointerEvents: 'none',
           }}
         >
+          {/* The dashed tail: a cubic, and always an arc (the flat case is a symmetric arc through a midpoint
+              control point, with a clamped depth and a side that follows the layout - see
+              `resolveAttackLinkCubic`). There is deliberately no SVG `<marker>` here: the head is derived from this
+              same cubic, and its tip *is* the path's end, so the two can never disagree.
+              The dash phase is what keeps them from colliding: a pattern painted from the path's start would drop
+              its last dash right under the head, where the head's silhouette is narrower than the 4.5px stroke and
+              the dashes would poke out beside it. `resolveAttackLinkDashOffset` pins the final gap to the end of
+              the path instead, so the tail stops at the head's base - while the path itself still ends on the
+              head's tip, which is what the battle-visuals spec measures. */}
           <path
             d={resolveAttackLinkPathData(cubic)}
             fill="none"
             stroke={ATTACK_ARROW_COLOR}
             strokeWidth={ATTACK_ARROW_STROKE_WIDTH_PX}
             strokeDasharray={`${ATTACK_LINK_DASH_LENGTH_PX} ${ATTACK_LINK_DASH_GAP_PX}`}
+            strokeDashoffset={resolveAttackLinkDashOffset(cubic)}
             strokeLinecap="butt"
             strokeLinejoin="miter"
             style={{ filter: ATTACK_ARROW_LINE_FILTER }}

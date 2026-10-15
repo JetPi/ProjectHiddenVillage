@@ -2,7 +2,15 @@ import { twMerge } from 'tailwind-merge'
 import type { ILeaderCardProps } from '@/components/ui/types'
 import type { IGameActionOptionResponse, IGameStateResponse } from '@/services/api/types/game'
 import type { IGameZonesProps, IAttackAnchorPosition, IAttackAnchorConfig, IAttackLinkCubic, IAttackLinkGeometry, IAttackLinkGeometryOptions, IAttackLinkHeadConfig, IBoardPoint, IAttackFlowLinkState, INonLeaderCardViewModel, ILeaderCardViewModel } from '@/views/game/types'
-import { ATTACK_ARROW_HEAD_LENGTH_PX, LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
+import {
+  ATTACK_ARROW_HEAD_LENGTH_PX,
+  ATTACK_LINK_ARC_DEPTH_FACTOR,
+  ATTACK_LINK_ARC_MAX_DEPTH_PX,
+  ATTACK_LINK_ARC_MIN_DEPTH_PX,
+  ATTACK_LINK_DASH_GAP_PX,
+  ATTACK_LINK_DASH_LENGTH_PX,
+  LEADER_CARD_IMAGE_CLASS,
+} from '@/views/game/utils/contants'
 import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions/cards'
 
 // Leaders sit in a fixed frame against the board edge, so they get a gentler rested tilt than the
@@ -452,13 +460,13 @@ function resolveAttackLinkGeometry(
 ): IAttackLinkGeometry {
   const boardRect = boardElement.getBoundingClientRect();
   const sides = resolveAttackAnchorSides(sourceCard, targetCard, options.targetGapPx);
+  const boardCenterX = boardRect.left + boardRect.width * 0.5;
 
   // The sweeping path is used when the cards are stacked (no clear side to enter from) or when the
   // source overlaps the target horizontally, so neither horizontal anchor can be approached from the
   // outside. It always hooks into the target's side from beyond it, so the dashes travel into the card
   // and the head continues them instead of fighting them.
   if (sides.isVerticallyAligned || sides.endAnchorSide === null) {
-    const boardCenterX = boardRect.left + boardRect.width * 0.5;
     const linkCenterX = (sides.sourceCenter.x + sides.targetCenter.x) * 0.5;
     const inwardSide: 'left' | 'right' = linkCenterX <= boardCenterX ? 'right' : 'left';
     const sideBend = inwardSide === 'right' ? options.sideBendPx : -options.sideBendPx;
@@ -497,6 +505,11 @@ function resolveAttackLinkGeometry(
       getHorizontalVisualEdgeOffset(targetCard, sides.endAnchorSide)
     ),
     curveness: 0.68,
+    // Nothing arc-specific travels with this branch: not carrying `controlPointOffsets` is what makes it the arc,
+    // and `resolveAttackLinkCubic` derives the bow's depth and side from the chord itself. Both handles used to sit
+    // *on* the chord here, which draws a dead straight line: rigid, and it sliced diagonally across whatever
+    // occupies the board's middle - the phase action row is a full-width grid row between the two halves, so every
+    // attack crosses it (that is the banner the report saw, e.g. "Opponent Support Cut-In").
   };
 }
 
@@ -544,12 +557,20 @@ function resolveAttackAnchorPoint(anchor: IAttackAnchorConfig, rect: IAttackLink
 }
 
 /**
- * The tail as a cubic Bézier.
+ * The tail as a cubic Bézier - the one shape both branches produce, so everything downstream (the path data and
+ * the head, which reads `control2`) works off the same curve.
  *
- * The second handle always sits on the start→end chord, so the curve arrives at the target travelling *into*
- * it - which is what keeps the dashes and the head pointing at the card instead of arriving backwards. The
- * sweep's sideways bend goes on the first handle only, which bows the path outwards without spoiling that
- * approach.
+ * The sweep keeps its hook: the first handle is pushed sideways by a fixed pixel amount (it has to clear a whole
+ * card) and the second stays on the start→end chord, which is what makes the tail arrive travelling into the card
+ * from beyond it.
+ *
+ * The flat case is the arc it is specified as: a quadratic with exactly one control point, `ATTACK_LINK_ARC_*` off
+ * the chord's *midpoint* and perpendicular to it, mirrored by `sign(deltaX)` so the bow lands on the same visual
+ * side whichever way the pair happens to be laid out. It is written out as the equivalent cubic (control points at
+ * two thirds of the way from each end to the quadratic's control point), which is the same curve, and which keeps
+ * the head derivation exact: `end - control2` is then the quadratic's own end tangent, so the head continues the
+ * arc instead of fighting it. Because the arc is symmetric, the tail leaves the source and arrives at the target at
+ * the same angle - the kinked, lopsided look a bow on one handle alone produces is gone.
  */
 function resolveAttackLinkCubic(
   geometry: IAttackLinkGeometry,
@@ -563,18 +584,54 @@ function resolveAttackLinkCubic(
   const chordLength = Math.hypot(deltaX, deltaY)
   const normalX = chordLength > 0 ? -deltaY / chordLength : 0
   const normalY = chordLength > 0 ? deltaX / chordLength : 0
-  const bend = geometry.controlPointOffsets?.cpx1 ?? 0
-  const pull = geometry.curveness
+
+  if (geometry.controlPointOffsets) {
+    const bend = geometry.controlPointOffsets.cpx1
+    const pull = geometry.curveness
+
+    return {
+      start,
+      control1: {
+        x: start.x + deltaX * pull * 0.4 + normalX * bend,
+        y: start.y + deltaY * pull * 0.4 + normalY * bend,
+      },
+      control2: {
+        x: end.x - deltaX * pull * 0.6,
+        y: end.y - deltaY * pull * 0.6,
+      },
+      end,
+    }
+  }
+
+  // Responsive depth, clamped into a fixed pixel band.
+  const arcDepth = Math.min(
+    Math.max(chordLength * ATTACK_LINK_ARC_DEPTH_FACTOR, ATTACK_LINK_ARC_MIN_DEPTH_PX),
+    ATTACK_LINK_ARC_MAX_DEPTH_PX,
+  )
+  // ...and a side chosen from *both* ends of the link, because "the wide side" is not a property of the target
+  // alone: the arc lobs *towards the card it is aimed at*, so it bows above the chord when the link climbs the
+  // board (the viewer's own half is at the bottom, so that is every attack they declare) and below it when the
+  // link descends (the opponent's attack, or a leader striking down into the battlefield). Which perpendicular
+  // that is also flips with the target's side, since a perpendicular to an up-left chord points up-right or
+  // down-left - the sign below picks the one whose vertical component points the way the link travels. Reversing a
+  // link therefore mirrors its arc across the chord, so an attack and the counter-attack read as the same shot
+  // seen from opposite ends of the table, and the arc always turns *into* the card it lands on.
+  const bowsUpward = deltaY <= 0
+  const directionMultiplier = (deltaX > 0) === bowsUpward ? -1 : 1
+  const control = {
+    x: (start.x + end.x) * 0.5 + normalX * arcDepth * directionMultiplier,
+    y: (start.y + end.y) * 0.5 + normalY * arcDepth * directionMultiplier,
+  }
 
   return {
     start,
     control1: {
-      x: start.x + deltaX * pull * 0.4 + normalX * bend,
-      y: start.y + deltaY * pull * 0.4 + normalY * bend,
+      x: start.x + (2 / 3) * (control.x - start.x),
+      y: start.y + (2 / 3) * (control.y - start.y),
     },
     control2: {
-      x: end.x - deltaX * pull * 0.6,
-      y: end.y - deltaY * pull * 0.6,
+      x: end.x + (2 / 3) * (control.x - end.x),
+      y: end.y + (2 / 3) * (control.y - end.y),
     },
     end,
   }
@@ -587,10 +644,62 @@ function resolveAttackLinkPathData(cubic: IAttackLinkCubic): string {
     + `${cubic.end.x} ${cubic.end.y}`
 }
 
+// Segments used to integrate the cubic's length below. The dash pattern is 12px long, so this is orders of
+// magnitude finer than anything the result is used for.
+const ATTACK_LINK_LENGTH_SAMPLES = 32
+
 /**
- * The arrowhead, derived from the tail's own control points rather than measured off the drawn path: its tip
- * is the tail's end (so it covers the dash pattern's final gap) and its rotation is the curve's end tangent,
- * which for this cubic is exactly the start→end direction.
+ * The drawn path's length, integrated from the cubic rather than read back out of the rendered `<path>`: the
+ * component must not measure its own output (the whole point of deriving the head from the same control points),
+ * and the dash phase below needs the length in the same render pass that produces the path data.
+ */
+function resolveAttackLinkPathLength(cubic: IAttackLinkCubic): number {
+  let length = 0
+  let previousX = cubic.start.x
+  let previousY = cubic.start.y
+
+  for (let index = 1; index <= ATTACK_LINK_LENGTH_SAMPLES; index += 1) {
+    const t = index / ATTACK_LINK_LENGTH_SAMPLES
+    const u = 1 - t
+    const x = u * u * u * cubic.start.x
+      + 3 * u * u * t * cubic.control1.x
+      + 3 * u * t * t * cubic.control2.x
+      + t * t * t * cubic.end.x
+    const y = u * u * u * cubic.start.y
+      + 3 * u * u * t * cubic.control1.y
+      + 3 * u * t * t * cubic.control2.y
+      + t * t * t * cubic.end.y
+
+    length += Math.hypot(x - previousX, y - previousY)
+    previousX = x
+    previousY = y
+  }
+
+  return length
+}
+
+/**
+ * The dash phase that keeps the dashed tail clear of the arrowhead.
+ *
+ * The stroke paints its pattern from the path's *start*, so whether a dash happens to land in the head's last
+ * few pixels is luck - and there it pokes out on both sides of the head, because the head tapers to a point and
+ * the 4.5px stroke is wider than the head's silhouette over its front half. Anchoring the pattern so it *ends*
+ * in a gap one gap length before the path's end pins the tail's last dash to the head's base instead. The path
+ * itself still ends on the head's tip, so every measured point of the geometry is untouched.
+ */
+function resolveAttackLinkDashOffset(cubic: IAttackLinkCubic): number {
+  const period = ATTACK_LINK_DASH_LENGTH_PX + ATTACK_LINK_DASH_GAP_PX
+  const dashEndsAt = resolveAttackLinkPathLength(cubic) - ATTACK_LINK_DASH_GAP_PX
+  const offset = (ATTACK_LINK_DASH_LENGTH_PX - dashEndsAt) % period
+
+  return offset < 0 ? offset + period : offset
+}
+
+/**
+ * The arrowhead, derived from the tail's own control points rather than measured off the drawn path: its tip is
+ * the tail's end (so it sits on the anchor the geometry picked) and its rotation is the curve's end tangent - the
+ * chord direction for the sweep, the arc's own tangent for the flat case - so the head always continues the tail
+ * exactly.
  */
 function resolveAttackLinkHeadConfig(cubic: IAttackLinkCubic): IAttackLinkHeadConfig {
   const directionX = cubic.end.x - cubic.control2.x
@@ -618,6 +727,7 @@ export {
   resolveAttackAnchorPoint,
   resolveAttackLinkCubic,
   resolveAttackLinkPathData,
+  resolveAttackLinkDashOffset,
   resolveAttackLinkHeadConfig,
   computeCardDisplayFlags,
   extractTargetIds,
