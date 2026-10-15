@@ -588,7 +588,10 @@ reduced-motion policy already live.
 
 - New `views/game/animation/runAttackLunge.ts`: the attacker travels along the attacker→defender vector and back
   - a three-stop yoyo (`0 → travel → 0`, `ATTACK_LUNGE_DURATION_MS` 520 ms, travel = `ATTACK_LUNGE_TRAVEL_RATIO`
-  of the gap clamped to `ATTACK_LUNGE_MAX_TRAVEL_PX`). It animates the card's own element, which is safe here in
+  of the gap clamped to `ATTACK_LUNGE_MAX_TRAVEL_PX`). *(Superseded: the motion is now a decaying horizontal
+  shake, `ATTACK_LUNGE_SHAKE_*` — a single eased excursion read as a stutter that never went anywhere. The file,
+  hook and flight registration are unchanged; only the keyframes and tuning moved. See
+  `02-board-ui-hud.md`/`01-architecture.md` for the live behaviour.)* It animates the card's own element, which is safe here in
   a way the retired zone flights were not: the inner card node has no other transform owner (Motion owns the
   rested tilt and the layout offset on the wrapper), and the Stage 1 flight registry gives the lunge the element
   exclusively. It registers with the director via `noteFlight`, so the acknowledgement waits for the lunge like
@@ -606,7 +609,8 @@ reduced-motion policy already live.
   the OS asks for reduced motion, so leaving that preference to the environment would make the lunge - and the
   flight assertions - environmentally flaky.
 - Coverage: `installCardLungeCounter` / `getCardLungeCount` (in `e2e/helpers/multiplayer/flow.ts`) count the
-  yoyo shape (three keyframes, first and last `translate(0px, 0px)`), and
+  yoyo shape (the track opens and closes on `translate(0px, 0px)`; the swing frames are matched as horizontal
+  translations, so the matcher survived the shake rewrite), and
   `gameview.multiplayer.attack-sequence` asserts the counter rose across the two attacks.
 - Verified: typecheck + lint clean; full suite **40/40 green** at `--workers=2`.
 

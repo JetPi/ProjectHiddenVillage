@@ -152,7 +152,7 @@ test.describe('GameView multiplayer attack sequence', () => {
       // Attack #1 by the starting owner.
       const firstAttack = await resolveActorWithBottomBattleAction(request, setup, pages)
       expect(firstAttack.cardInstanceId).toBe(firstAttacker)
-      // The attack resolution has to be visible on the board - the attacker lunges out and back. The counter
+      // The attack resolution has to be visible on the board - the attacker shakes and settles back. The counter
       // observes that yoyo on the attacker's own card element.
       await installCardLungeCounter(firstAttack.actorPage)
       await executeBattleActionViaHub(setup.gameCode, firstAttack.actor, firstAttack.actionId, firstAttack.cardInstanceId)

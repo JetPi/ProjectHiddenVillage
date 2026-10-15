@@ -31,10 +31,14 @@ export type IAttackLinkGeometryOptions = {
 }
 
 // Resolved anchors plus the curve parameters. There is only one curve shape (the smooth cubic), so the
-// old `path: 'smooth' | 'straight'` mode is gone - `resolveAttackLinkCubic` always bends the chord.
+// old `path: 'smooth' | 'straight'` mode is gone - `resolveAttackLinkCubic` always bends the chord. Carrying
+// `controlPointOffsets` selects the sweep's pixel-bent hook (it has to clear a whole card); without them the tail
+// is the flat case's arc, whose depth and side the cubic derives from the chord itself (`ATTACK_LINK_ARC_*`, and
+// the sign of both chord components, so the arc lobs towards the card it is aimed at).
 export type IAttackLinkGeometry = {
   startAnchor: IAttackAnchorConfig
   endAnchor: IAttackAnchorConfig
+  // Only the sweep reads this (its second handle sits on the chord, so `curveness` is what pulls the tail in).
   curveness: number
   controlPointOffsets?: {
     cpx1: number

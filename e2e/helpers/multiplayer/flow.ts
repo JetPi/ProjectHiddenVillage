@@ -593,9 +593,11 @@ export async function getHandArrivalFlickerReport(page: Page): Promise<HandArriv
 }
 
 /**
- * Counts attack lunges. The lunge is the only board animation that yoyos back to where it started - three
- * keyframes, the first and last both `translate(0px, 0px)` with the middle one displaced - so counting that
- * shape proves the attack resolution was drawn on the board instead of only landing in the phase banner.
+ * Counts attack hit beats (the attacker's shake). It is the only board animation that yoyos back to where it
+ * started: its keyframe track opens and closes on `translate(0px, 0px)`, and every swing in between is a
+ * horizontal-only `translate(<x>px, 0px)` - so counting that shape proves the attack resolution was drawn on the
+ * board instead of only landing in the phase banner. The matcher follows the *shape*, not the frame count: it
+ * used to be a three-frame yoyo along the attacker→defender vector and is now a multi-swing shake.
  */
 export async function installCardLungeCounter(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -615,19 +617,18 @@ export async function installCardLungeCounter(page: Page): Promise<void> {
       options?: number | KeyframeAnimationOptions,
     ): Animation {
       const frames = Array.isArray(keyframes) ? keyframes : null
-      if (frames && frames.length === 3) {
-        const firstTransform = String((frames[0] as Keyframe).transform ?? '')
-        const middleTransform = String((frames[1] as Keyframe).transform ?? '')
-        const lastTransform = String((frames[2] as Keyframe).transform ?? '')
-
-        if (
-          firstTransform === 'translate(0px, 0px)'
-          && lastTransform === 'translate(0px, 0px)'
-          && middleTransform.startsWith('translate(')
-        ) {
-          const currentCount = typeof state.__phvCardLungeCount === 'number' ? state.__phvCardLungeCount : 0
-          state.__phvCardLungeCount = currentCount + 1
-        }
+      const swingTransform = /^translate\(-?[\d.]+px, 0px\)$/
+      if (
+        frames
+        && frames.length >= 3
+        && String((frames[0] as Keyframe).transform ?? '') === 'translate(0px, 0px)'
+        && String((frames[frames.length - 1] as Keyframe).transform ?? '') === 'translate(0px, 0px)'
+        && frames
+          .slice(1, -1)
+          .every((frame) => swingTransform.test(String((frame as Keyframe).transform ?? '')))
+      ) {
+        const currentCount = typeof state.__phvCardLungeCount === 'number' ? state.__phvCardLungeCount : 0
+        state.__phvCardLungeCount = currentCount + 1
       }
 
       return originalAnimate.call(this, keyframes, options)

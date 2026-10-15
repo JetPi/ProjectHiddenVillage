@@ -408,6 +408,42 @@ covered by the bottom trash pile (`elementFromPoint` at the card's centre return
   horizontally — the dashes then travel *out* of the card. When neither side is
   approachable the **sweeping path** is used (same idiom as stacked cards), which always
   hooks into its anchor from outside.
+- **The tail is always an arc, never a straight chord.** The flat case is the arc it is specified as: a
+  quadratic with one control point placed perpendicular off the chord's **midpoint**, written out in
+  `resolveAttackLinkCubic` as the equivalent cubic (control points two thirds of the way from each end) so the
+  head derivation still reads one handle's direction. Because it is symmetric the tail leaves the source and
+  arrives at the target at the same angle; do **not** go back to bending a single handle, which put all the
+  curvature next to the source (the tail left the attacker at ~40° and straightened into the target) and read as
+  a kinked hook rather than an arc.
+- **Arc depth is responsive and clamped**: `ATTACK_LINK_ARC_DEPTH_FACTOR` (0.25) × the chord, clamped to
+  `ATTACK_LINK_ARC_MIN_DEPTH_PX`..`ATTACK_LINK_ARC_MAX_DEPTH_PX` (40..120) — a fraction of the chord so the bow
+  scales with the layout, and a pixel band so a short cross-column link is not pinched while a long leader link
+  does not balloon. Half of it is the visible belly.
+- **The arc lobs towards the card it is aimed at**: the perpendicular is multiplied by a sign derived from
+  **both** ends of the link (`(deltaX > 0) === (deltaY <= 0) ? -1 : 1`), so a link that climbs the board bows
+  *above* the chord (every attack the viewer declares — their own half is always at the bottom) and a link that
+  descends bows *below* it (the opponent's attack, or a leader striking down into the battlefield). Taking the
+  sign from the target's side alone is not enough: a perpendicular to an up-left chord points up-right or
+  down-left, so the side *and* the travel direction together decide which one is "towards the target"; keying off
+  one of them gave an arc that sagged below the chord on a bottom→top leader attack and rose above it on
+  top→bottom. Reversing a link mirrors its arc across the chord, so an attack and its counter-attack read as the
+  same shot from opposite ends of the table, and bowing towards the target is also what turns the arrival tangent
+  into the card (the opposite sign added ~27° of lean and pushed the head 34.8° off its aim). Stable under the
+  settle re-samples because the flat case is only chosen when the cards are far enough apart horizontally for a
+  side edge to be approachable (`resolveAttackAnchorSides`), so `deltaX` cannot hover at zero while the attacker's
+  rested tilt animates. Before any of this, both handles sat on the chord and the tail was a dead straight line
+  that sliced diagonally through the board's middle chrome (the phase action row is a full-width row between the
+  two halves, so every attack crosses it — the "Opponent Support Cut-In" banner).
+- The **sweep keeps its hook** (`ATTACK_SWEEP_SIDE_BEND_PX` on the first handle, second on the chord): it has to
+  clear a whole stacked card, and its fixed 110px bend as a symmetric arc would arrive ~40° off the chord.
+- **The head is clear of the stroke by dash *phase*, not by a `refX` or a shortened path.** There is no SVG
+  `<marker>` anywhere in the arrow (and `react-xarrows` is gone). The head's tip *is* the path's end, so the two
+  can never disagree — but a dash pattern painted from the path's start drops its last dash right under the head,
+  where the head's silhouette is narrower than the 4.5px stroke (it tapers to a point), so dashes poked out on
+  both sides of it. `resolveAttackLinkDashOffset` anchors the pattern so it *ends* in a gap one gap length before
+  the path's end, i.e. the tail's last dash stops at the head's base. Never "fix" this by trimming the terminal
+  coordinates instead: that moves the path's end off the head's tip and breaks the `tipToTailEnd` and anchor-band
+  invariants the battle-visuals spec measures off the drawn path.
 - Head coordinates are **board-local** (`svgRect + pathPoint - boardRect`), because the
   board box is the offset parent. `x/y` is the head's **base**, one head length behind the
   path's end along the end direction, so the head's **tip lands on the end of the dashed
@@ -438,7 +474,9 @@ covered by the bottom trash pile (`elementFromPoint` at the card's centre return
   off-target). Inline styles win.
 - `e2e/gameview.multiplayer.battle-visuals.spec.ts` asserts the head's tip lands on the
   tail's end, the head follows the tail's direction, the tail travels *into* the target,
-  the head points at the target (< 25°, loose now that the head follows the tail), and
+  the head points at the target (< 40°, loose because the head follows the tail's end
+  tangent and the tail is a swooping arc — the arc's lean is deliberate, the relationship
+  between head and tail is not), and
   that **both ends sit the gap away from the rotated card surface** (source ≤ 11px vs
   ~15-17 at the bbox corner; target 13-19px vs ~28 when the bbox edge is used), so keep
   `data-testid="attack-link-head"` on it.

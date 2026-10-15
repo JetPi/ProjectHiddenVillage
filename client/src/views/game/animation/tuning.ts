@@ -24,13 +24,21 @@ const RESTED_CARD_TILT_DEG = 14
 const RESTED_CARD_TILT_DURATION_MS = 300
 
 /**
- * The attacker's lunge when an attack resolves: a yoyo out towards the defender and back, as a visual
- * indicator of the attack. The travel is a fraction of the gap between the two cards, clamped so a
- * neighbouring defender does not send the attacker across the board.
+ * The attacker's hit beat when an attack resolves: a decaying left-right shake that settles back into the card's
+ * slot. It was a single yoyo along the attacker→defender vector, which read as a stutter - one eased excursion
+ * looks like it is about to go somewhere and then thinks better of it.
+ *
+ * The amplitude is a fraction of the card's own width, clamped so a small card still shows the shake and a wide
+ * one cannot swing into its neighbours. The softness is the point: the swing distances decay by
+ * `ATTACK_LUNGE_SHAKE_DECAY` and every swing carries its own eased segment (`ATTACK_LUNGE_SHAKE_EASING`), so the
+ * card eases in and out of each side rather than snapping between them.
  */
-const ATTACK_LUNGE_DURATION_MS = 520
-const ATTACK_LUNGE_TRAVEL_RATIO = 0.34
-const ATTACK_LUNGE_MAX_TRAVEL_PX = 120
+const ATTACK_LUNGE_DURATION_MS = 700
+const ATTACK_LUNGE_SHAKE_AMPLITUDE_RATIO = 0.22
+const ATTACK_LUNGE_SHAKE_MAX_AMPLITUDE_PX = 26
+const ATTACK_LUNGE_SHAKE_SWINGS = 4
+const ATTACK_LUNGE_SHAKE_DECAY = 0.62
+const ATTACK_LUNGE_SHAKE_EASING = 'ease-in-out'
 
 /** How long to wait for a destination element to render before giving up on a flight. */
 const DEFAULT_DYNAMIC_TARGET_TIMEOUT_MS = 700
@@ -63,8 +71,11 @@ export {
   RESTED_CARD_TILT_DEG,
   RESTED_CARD_TILT_DURATION_MS,
   ATTACK_LUNGE_DURATION_MS,
-  ATTACK_LUNGE_TRAVEL_RATIO,
-  ATTACK_LUNGE_MAX_TRAVEL_PX,
+  ATTACK_LUNGE_SHAKE_AMPLITUDE_RATIO,
+  ATTACK_LUNGE_SHAKE_MAX_AMPLITUDE_PX,
+  ATTACK_LUNGE_SHAKE_SWINGS,
+  ATTACK_LUNGE_SHAKE_DECAY,
+  ATTACK_LUNGE_SHAKE_EASING,
   DEFAULT_DYNAMIC_TARGET_TIMEOUT_MS,
   DEFAULT_DYNAMIC_TARGET_MAX_FRAMES,
   DRAW_TO_HAND_STAGGER_MS,

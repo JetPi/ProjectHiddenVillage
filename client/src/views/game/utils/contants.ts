@@ -16,6 +16,13 @@ const ATTACK_ARROW_HEAD_LENGTH_PX = 2.25 * ATTACK_ARROW_STROKE_WIDTH_PX
 // The dashed tail's own dash pattern (the board draws the tail itself now).
 const ATTACK_LINK_DASH_LENGTH_PX = 12
 const ATTACK_LINK_DASH_GAP_PX = 10
+// The flat case's arc depth: a fraction of the chord, clamped into a fixed pixel band so a short cross-column
+// attack and a long leader attack both get a clean, visible bow instead of one being pinched and the other
+// ballooning. This is the arc's *control point* offset off the chord's midpoint, perpendicular to it (half of it
+// is the visible belly).
+const ATTACK_LINK_ARC_DEPTH_FACTOR = 0.25
+const ATTACK_LINK_ARC_MIN_DEPTH_PX = 40
+const ATTACK_LINK_ARC_MAX_DEPTH_PX = 120
 const ATTACK_ARROW_HEAD_PATH = 'M 0 0 L 1 0.5 L 0 1 L 0.25 0.5 z'
 // Shared by the dashed tail and the custom arrowhead so both carry the same dark glow.
 const ATTACK_ARROW_LINE_FILTER = 'drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 5px rgba(0, 0, 0, 0.42))'
@@ -42,5 +49,8 @@ export {
   ATTACK_ARROW_HEAD_PATH,
   ATTACK_LINK_DASH_LENGTH_PX,
   ATTACK_LINK_DASH_GAP_PX,
+  ATTACK_LINK_ARC_DEPTH_FACTOR,
+  ATTACK_LINK_ARC_MIN_DEPTH_PX,
+  ATTACK_LINK_ARC_MAX_DEPTH_PX,
   ATTACK_ARROW_LINE_FILTER,
 }

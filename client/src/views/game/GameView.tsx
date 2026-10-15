@@ -132,6 +132,13 @@ export function GameView() {
   const shouldShowPromptOverlay =
     gameOutcome === null
     && promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
+  // The fading "pick a card" nudge is only for picks with **no box of their own**. An effect selection whose
+  // candidates live in a pile (a summon out of a zone, a search, a deck/trash pick) is answered in the prompt
+  // overlay, and that panel already states the question in its title and lists the candidates - a banner on top
+  // of it only repeats what the box says. A board pick (a card's own Select button) has no such box, so there
+  // the nudge is still the only thing that says what is being asked.
+  const shouldShowPromptSelectionBanner =
+    promptPresentation?.promptType === 'Effect' && promptPresentation.renderAsOverlay === false
   const canResolvePrompt = gameState.pendingPrompt?.isAwaitingRequestingPlayer ?? false
 
   // A pending prompt is answered by its own UI - the prompt overlay for a deck pick, the cards' Select buttons
@@ -376,9 +383,9 @@ export function GameView() {
         />
 
         <PromptSelectionBanner
-          key={promptPresentation?.promptType === 'Effect' ? gameState.pendingPrompt?.promptId ?? 'none' : 'none'}
-          promptKey={promptPresentation?.promptType === 'Effect' ? gameState.pendingPrompt?.promptId ?? null : null}
-          title={promptPresentation?.promptType === 'Effect' ? promptPresentation.title : null}
+          key={shouldShowPromptSelectionBanner ? gameState.pendingPrompt?.promptId ?? 'none' : 'none'}
+          promptKey={shouldShowPromptSelectionBanner ? gameState.pendingPrompt?.promptId ?? null : null}
+          title={shouldShowPromptSelectionBanner ? promptPresentation?.title ?? null : null}
         />
 
         <SupportChainBubble gameInstance={gameState} authUserId={authUserId} />
