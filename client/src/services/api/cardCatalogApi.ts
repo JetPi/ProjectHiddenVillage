@@ -1,7 +1,11 @@
 import { api } from '@/services/api/httpClient'
 import type { ICardCatalogItemResponse, IPagedResponse } from '@/types/cardCatalog'
 import { appQueryClient, DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '@/services/queryClient'
-import type { ICardCatalogPageQuery, IUpdateCardCatalogEffectsRequest } from '@/services/api/types/cardCatalog'
+import type {
+  ICardCatalogPageQuery,
+  ICreateCardRequest,
+  IUpdateCardCatalogEffectsRequest,
+} from '@/services/api/types/cardCatalog'
 
 const CARD_CATALOG_CACHE_TTL_MS = DEFAULT_CARD_CATALOG_STALE_TIME_MS
 
@@ -95,6 +99,28 @@ export async function fetchCardCatalogByIds(cardIds: string[]): Promise<ICardCat
 
 export async function fetchCardCatalogEffectConditionKeywords(): Promise<string[]> {
   const { data } = await api.get<string[]>('/api/card/catalog/effect-condition-keywords')
+  return data
+}
+
+export async function createCardCatalogEntry(
+  request: ICreateCardRequest,
+): Promise<ICardCatalogItemResponse> {
+  const { data } = await api.post<ICardCatalogItemResponse>('/api/card/catalog', request)
+
+  appQueryClient.setQueryData(getCardCatalogByIdQueryKey(data.id), data)
+  return data
+}
+
+export async function updateCardCatalogImage(
+  cardId: string,
+  image: string,
+): Promise<ICardCatalogItemResponse> {
+  const { data } = await api.put<ICardCatalogItemResponse>(
+    `/api/card/catalog/${encodeURIComponent(cardId)}/image`,
+    { image },
+  )
+
+  appQueryClient.setQueryData(getCardCatalogByIdQueryKey(cardId), data)
   return data
 }
 
@@ -210,5 +236,6 @@ export async function fetchCardCatalogByIdsSparseCached(
 
 export type {
   ICardCatalogPageQuery,
+  ICreateCardRequest,
   IUpdateCardCatalogEffectsRequest,
 }

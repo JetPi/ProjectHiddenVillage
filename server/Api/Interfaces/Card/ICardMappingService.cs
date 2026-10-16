@@ -13,4 +13,10 @@ public interface ICardMappingService
     Task<ErrorOr<List<string>>> GetEffectConditionKeywords();
 
     Task<ErrorOr<CardCatalogItemResponse>> UpdateCardEffectsByCardId(string cardId, UpdateCardEffectsRequest request);
+
+    /// <summary>Replaces (or clears) a card's art after the fact.</summary>
+    Task<ErrorOr<CardCatalogItemResponse>> UpdateCardImageByCardId(string cardId, UpdateCardImageRequest request);
+
+    /// <summary>Authoring a brand new catalogue card, as opposed to the seeding path that maps source records.</summary>
+    Task<ErrorOr<CardCatalogItemResponse>> CreateCardAsync(CreateCardRequest request);
 }

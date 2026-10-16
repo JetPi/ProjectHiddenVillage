@@ -166,9 +166,19 @@ export function CardAdminView() {
           <Panel className="themed-scrollbar m-3 h-[calc(100%-1.5rem)] min-h-0 overflow-y-auto">
             <div className="flex items-center justify-between gap-3">
               <h1 className="text-xl font-bold text-[var(--text-primary)]">{t('admin.view.title')}</h1>
-              <Link to="/" className="text-sm text-[var(--text-secondary)] underline-offset-2 hover:underline">
-                {t('admin.view.backToLogin')}
-              </Link>
+              <div className="flex items-center gap-3">
+                {/* A navigation, so it stays a link and keeps middle-click and open-in-new-tab working. */}
+                <Link
+                  to="/admin/cards/new"
+                  data-testid="admin-add-card"
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-semibold text-[var(--button-primary-text)] transition-colors duration-200 hover:bg-[var(--button-primary-hover)]"
+                >
+                  {t('admin.view.addCard')}
+                </Link>
+                <Link to="/" className="text-sm text-[var(--text-secondary)] underline-offset-2 hover:underline">
+                  {t('admin.view.backToLogin')}
+                </Link>
+              </div>
             </div>
             <CardAdminDetailPane selectedCard={selectedCard} />
           </Panel>

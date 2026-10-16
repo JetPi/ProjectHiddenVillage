@@ -5,9 +5,13 @@ import type { IPagedResponse } from '@/types/cardCatalog'
 import { fetchCardCatalogByIdsSparseCached } from '@/services/api/cardCatalogApi'
 import { fetchCardCatalogPage } from '@/services/api/cardCatalogApi'
 import { fetchGameCards } from '@/services/api/gameApi'
+import { createCardCatalogEntry } from '@/services/api/cardCatalogApi'
 import { updateCardCatalogEffects } from '@/services/api/cardCatalogApi'
+import { updateCardCatalogImage } from '@/services/api/cardCatalogApi'
 import { DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '@/services/queryClient'
 import type {
+  ICreateCardCatalogEntryMutationVariables,
+  IUpdateCardCatalogImageMutationVariables,
   IUseCardCatalogByIdsQueryOptions,
   IUseInfiniteCardCatalogQueryOptions,
   IUseInfiniteCardCatalogQueryParams,
@@ -193,6 +197,42 @@ export function useGameCardMapById(
     cardsById,
     getCardById,
   }
+}
+
+/**
+ * Creating a card only has to refresh the catalogue listing: the created card is already written into the by-id
+ * cache by `createCardCatalogEntry`, so the new row renders without a refetch of its own.
+ */
+export function useCreateCardCatalogEntryMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation<ICardCatalogItemResponse, Error, ICreateCardCatalogEntryMutationVariables>({
+    mutationFn: ({ payload }) => createCardCatalogEntry(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['cards', 'catalog-infinite'],
+        exact: false,
+      })
+    },
+  })
+}
+
+/**
+ * Replacing a card's art. The catalogue listing has to refresh because the response's image version - which is
+ * what `<img src>` puts in its URL - comes from the card's updated timestamp, and that moves with the art.
+ */
+export function useUpdateCardCatalogImageMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation<ICardCatalogItemResponse, Error, IUpdateCardCatalogImageMutationVariables>({
+    mutationFn: ({ cardId, image }) => updateCardCatalogImage(cardId, image),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['cards', 'catalog-infinite'],
+        exact: false,
+      })
+    },
+  })
 }
 
 export function useUpdateCardCatalogEffectsMutation() {

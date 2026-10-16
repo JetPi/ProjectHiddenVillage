@@ -217,3 +217,31 @@ export type IUpdateCardCatalogEffectsRequest = {
   life?: number
   health?: number
 }
+
+/**
+ * A brand new card. The authoring fields mirror `IUpdateCardCatalogEffectsRequest` because the create screen
+ * reuses the edit screen's editor; the identity fields are the ones the edit screen never edits.
+ */
+export type ICreateCardRequest = {
+  cardId: string
+  displayName: string
+  /** An external http(s) URL, or the `local:` reference the art upload returned for this card id. */
+  image?: string
+  name?: string[]
+  originalId?: string
+  mainAlternate?: boolean
+  attribute?: string
+  traits?: string[]
+  type?: string
+  color?: string
+  description?: string
+  supportEffect?: string
+  supportName?: string
+  cannotBeNormalSummoned?: boolean
+  conditions?: string[]
+  effects?: ICardCatalogEffectRequest[]
+  power?: number
+  damage?: number
+  life?: number
+  health?: number
+}

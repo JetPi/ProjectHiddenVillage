@@ -89,6 +89,7 @@ This branch added a datasource-to-domain mapping flow for card imports and an up
 - Endpoint: `POST /api/card/seed`
 - Input: `List<CardDataSourceRecord>`
 - Output: mapped `List<Card>`
+- Requires the `CardCatalogAdmin` claim, like every other write into the catalogue.
 
 ### Implemented
 

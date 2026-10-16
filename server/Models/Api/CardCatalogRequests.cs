@@ -194,3 +194,35 @@ public sealed record UpdateCardEffectsRequest(
     int? Damage = null,
     int? Life = null,
     int? Health = null);
+
+/// <summary>
+/// Replaces a card's art after the fact. An empty value clears it.
+/// </summary>
+public sealed record UpdateCardImageRequest(string? Image);
+
+/// <summary>
+/// A brand new card. The authoring fields are deliberately the same shape as
+/// <see cref="UpdateCardEffectsRequest"/> so the create screen can reuse the effects editor wholesale; the
+/// identity fields are the ones the update flow never edits.
+/// </summary>
+public sealed record CreateCardRequest(
+    string CardId,
+    string DisplayName,
+    string? Image = null,
+    IReadOnlyList<string>? Name = null,
+    string? OriginalId = null,
+    bool? MainAlternate = null,
+    string? Attribute = null,
+    IReadOnlyList<string>? Traits = null,
+    string? Type = null,
+    string? Color = null,
+    string? Description = null,
+    string? SupportEffect = null,
+    string? SupportName = null,
+    bool? CannotBeNormalSummoned = null,
+    IReadOnlyList<string>? Conditions = null,
+    IReadOnlyList<EffectSpec>? Effects = null,
+    int? Power = null,
+    int? Damage = null,
+    int? Life = null,
+    int? Health = null);

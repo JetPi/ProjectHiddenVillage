@@ -1,5 +1,6 @@
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import type { ICardCatalogPageQuery } from '@/services/api/types/cardCatalog'
+import type { ICreateCardRequest } from '@/services/api/types/cardCatalog'
 import type { IUpdateCardCatalogEffectsRequest } from '@/services/api/types/cardCatalog'
 
 export type IUseCardCatalogByIdsQueryOptions = {
@@ -35,4 +36,14 @@ export type IUseGameCardMapByIdResult = {
 export type IUpdateCardCatalogEffectsMutationVariables = {
   cardId: string
   payload: IUpdateCardCatalogEffectsRequest
+}
+
+export type ICreateCardCatalogEntryMutationVariables = {
+  payload: ICreateCardRequest
+}
+
+export type IUpdateCardCatalogImageMutationVariables = {
+  cardId: string
+  /** An external URL, a local art reference, or an empty string to clear the art. */
+  image: string
 }

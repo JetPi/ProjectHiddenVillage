@@ -367,7 +367,52 @@
   "admin": {
     "view": {
       "title": "Card Admin",
-      "backToLogin": "Back to Login"
+      "backToLogin": "Back to Login",
+      "addCard": "Add Card",
+      "backToCatalog": "Back to Catalog"
+    },
+    "create": {
+      "title": "Add a New Card",
+      "identity": {
+        "title": "Card Identity",
+        "name": "Names",
+        "nameHelp": "One per line or comma separated. Shown by clients that support card names.",
+        "originalId": "Original ID",
+        "attribute": "Attribute",
+        "traits": "Traits",
+        "traitsHelp": "One per line or comma separated.",
+        "mainAlternate": "Main Alternate"
+      },
+      "image": {
+        "clear": "Clear Image",
+        "uploaded": "Image uploaded. It will be stored with the card when you create it.",
+        "cardIdRequired": "Enter the card id before uploading an image.",
+        "cardIdChanged": "The card id changed, so the uploaded image no longer applies. Upload it again for the new id."
+      },
+      "validation": {
+        "cardIdRequired": "A card id is required.",
+        "displayNameRequired": "A display name is required."
+      },
+      "submit": "Create Card",
+      "submitting": "Creating...",
+      "created": "Card created.",
+      "createFailed": "The card could not be created."
+    },
+    "art": {
+      "title": "Card Art",
+      "upload": "Upload Image",
+      "uploadHelp": "PNG, JPEG or WebP, up to 10 MB.",
+      "uploading": "Uploading...",
+      "externalUrl": "Or use an image URL",
+      "externalUrlPlaceholder": "https://...",
+      "previewAlt": "Card art preview",
+      "apply": "Apply Art",
+      "applying": "Applying...",
+      "applied": "Card art updated.",
+      "remove": "Remove Art",
+      "removing": "Removing...",
+      "removed": "Card art removed.",
+      "failed": "The card art could not be updated."
     },
     "catalog": {
       "loadingCards": "Loading cards...",

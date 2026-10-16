@@ -39,6 +39,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddHttpClient();
 builder.Services.Configure<CardArtOptions>(builder.Configuration.GetSection(CardArtOptions.SectionName));
 builder.Services.AddScoped<ICardArtService, CardArtService>();
+builder.Services.AddScoped<ICardArtWriteService, CardArtWriteService>();
+builder.Services.AddScoped<ICardArtOrphanSweeper, CardArtOrphanSweeper>();
 
 builder.Services.AddSingleton(_ => new GameInstanceFactory());
 builder.Services.AddSingleton<ProjectHiddenVillage.Server.Engine.Interfaces.IGamePhaseStateService, ProjectHiddenVillage.Server.Engine.GamePhaseStateService>();

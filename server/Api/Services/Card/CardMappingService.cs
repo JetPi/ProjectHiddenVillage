@@ -4,6 +4,7 @@ using ErrorOr;
 using Microsoft.EntityFrameworkCore;
 using ProjectHiddenVillage.Server.Api.Serialization;
 using ProjectHiddenVillage.Server.Api.Interfaces.Card;
+using ProjectHiddenVillage.Server.Api.Services.CardArt;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Entities;
 
@@ -12,6 +13,9 @@ namespace ProjectHiddenVillage.Server;
 public sealed class CardMappingService : ICardMappingService
 {
     private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
+    /// <summary>Mirrors the <c>CardCatalogEntry.Image</c> column.</summary>
+    private const int MaxImageReferenceLength = 1024;
+
     private static readonly HashSet<string> AllowedCatalogSortFields =
     [
         "cardId",
@@ -298,6 +302,269 @@ public sealed class CardMappingService : ICardMappingService
         }
 
         return ToCatalogResponse(entry);
+    }
+
+    public async Task<ErrorOr<CardCatalogItemResponse>> CreateCardAsync(CreateCardRequest request)
+    {
+        if (request is null)
+        {
+            return Error.Validation(
+                code: "Card.Create.RequestRequired",
+                description: "Request payload is required.");
+        }
+
+        var cardId = request.CardId?.Trim() ?? string.Empty;
+        if (cardId.Length == 0)
+        {
+            return Error.Validation(
+                code: "Card.Create.CardIdRequired",
+                description: "Card id is required.");
+        }
+
+        if (!CardArtSourceReference.IsSafeSegment(cardId))
+        {
+            return Error.Validation(
+                code: "Card.Create.InvalidCardId",
+                description: "Card id can only contain letters, digits, dot, dash and underscore.");
+        }
+
+        if (!TryValidateImageReference(request.Image, cardId, out var imageError))
+        {
+            return imageError;
+        }
+
+        var image = request.Image?.Trim() ?? string.Empty;
+
+        if (!TryParsePatchCardType(request.Type ?? nameof(CardType.Character), out var cardType))
+        {
+            return Error.Validation(
+                code: "Card.Create.InvalidType",
+                description: $"Card type '{request.Type}' is not valid.");
+        }
+
+        if (!TryParsePatchCardColor(request.Color ?? nameof(CardColor.NotApplicable), out var cardColor))
+        {
+            return Error.Validation(
+                code: "Card.Create.InvalidColor",
+                description: $"Card color '{request.Color}' is not valid.");
+        }
+
+        // The unique index on CardId is case-sensitive, so a differently-cased duplicate has to be caught here or
+        // it reaches the database and surfaces as a failure rather than a conflict.
+        var normalizedCardIdUpper = cardId.ToUpperInvariant();
+        var alreadyExists = await dbContext.CardCatalogEntries
+            .AnyAsync(entry => entry.CardId.ToUpper() == normalizedCardIdUpper);
+
+        if (alreadyExists)
+        {
+            return Error.Conflict(
+                code: "Card.Create.Duplicate",
+                description: $"Card '{cardId}' already exists.");
+        }
+
+        var entry = ToNewEntry(BuildCardModel(request, cardId, cardType, cardColor, image));
+
+        // The same life/health arbitration the effects patch uses, so a create and an update agree on which of
+        // the two columns a card type is allowed to carry.
+        NormalizeLifeAndHealthByType(entry);
+
+        dbContext.CardCatalogEntries.Add(entry);
+
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return Error.Failure(
+                code: "Card.Create.PersistFailed",
+                description: "The card could not be created.");
+        }
+
+        return ToCatalogResponse(entry);
+    }
+
+    public async Task<ErrorOr<CardCatalogItemResponse>> UpdateCardImageByCardId(
+        string cardId,
+        UpdateCardImageRequest request)
+    {
+        if (request is null)
+        {
+            return Error.Validation(
+                code: "Card.Image.RequestRequired",
+                description: "Request payload is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(cardId))
+        {
+            return Error.Validation(
+                code: "Card.Image.CardIdRequired",
+                description: "Card id is required.");
+        }
+
+        var normalizedCardId = cardId.Trim();
+        var normalizedCardIdUpper = normalizedCardId.ToUpperInvariant();
+
+        var entry = await dbContext.CardCatalogEntries
+            .SingleOrDefaultAsync(existing => existing.CardId.ToUpper() == normalizedCardIdUpper);
+
+        if (entry is null)
+        {
+            return Error.NotFound(
+                code: "Card.Image.NotFound",
+                description: $"Card '{normalizedCardId}' was not found.");
+        }
+
+        // Ownership is checked against the stored id rather than the one in the route, so a reference is accepted
+        // for the card it actually belongs to and for no other.
+        if (!TryValidateImageReference(request.Image, entry.CardId, out var imageError))
+        {
+            return imageError;
+        }
+
+        var nextImage = request.Image?.Trim() ?? string.Empty;
+        if (string.Equals(entry.Image, nextImage, StringComparison.Ordinal))
+        {
+            return ToCatalogResponse(entry);
+        }
+
+        entry.Image = nextImage;
+
+        // The response's image version is derived from this timestamp, so it has to move when the art does -
+        // otherwise every client keeps painting the previous image from cache.
+        entry.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return Error.Failure(
+                code: "Card.Image.PersistFailed",
+                description: "The card image could not be updated.");
+        }
+
+        return ToCatalogResponse(entry);
+    }
+
+    /// <summary>
+    /// Art is optional, but a stored reference has to be either a fetchable URL or a local master this card owns:
+    /// accepting another card's reference would let one card claim another card's file.
+    /// </summary>
+    private static bool TryValidateImageReference(string? image, string cardId, out Error error)
+    {
+        error = default!;
+
+        var trimmed = image?.Trim() ?? string.Empty;
+        if (trimmed.Length == 0)
+        {
+            return true;
+        }
+
+        if (trimmed.Length > MaxImageReferenceLength)
+        {
+            error = Error.Validation(
+                code: "Card.Image.TooLong",
+                description: $"Image reference cannot exceed {MaxImageReferenceLength} characters.");
+            return false;
+        }
+
+        if (CardArtSourceReference.IsLocal(trimmed))
+        {
+            if (!string.Equals(
+                    trimmed,
+                    CardArtSourceReference.BuildLocalReference(cardId),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                error = Error.Validation(
+                    code: "Card.Image.BelongsToAnotherCard",
+                    description: "The image reference belongs to a different card id.");
+                return false;
+            }
+
+            return true;
+        }
+
+        if (!CreateCardRequestValidator.IsWellFormedExternalArtSource(trimmed))
+        {
+            error = Error.Validation(
+                code: "Card.Image.InvalidSource",
+                description: "Image must be an http(s) URL or a local card art reference.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private static Card BuildCardModel(
+        CreateCardRequest request,
+        string cardId,
+        CardType cardType,
+        CardColor cardColor,
+        string image)
+    {
+        var displayName = request.DisplayName?.Trim();
+        if (string.IsNullOrEmpty(displayName))
+        {
+            displayName = cardId;
+        }
+
+        Card card = cardType switch
+        {
+            CardType.Leader => new LeaderCard
+            {
+                Life = request.Life ?? request.Health ?? 0,
+            },
+            CardType.Character => new CharacterCard
+            {
+                Health = request.Health ?? request.Life ?? 0,
+                SupportName = request.SupportName?.Trim() ?? string.Empty,
+                SupportEffect = request.SupportEffect?.Trim() ?? string.Empty,
+            },
+            _ => new Card(),
+        };
+
+        card.Id = cardId;
+        card.Image = image;
+        card.OriginalId = request.OriginalId?.Trim() ?? string.Empty;
+        card.MainAlternate = request.MainAlternate ?? false;
+        card.Attribute = string.IsNullOrWhiteSpace(request.Attribute) ? null : request.Attribute.Trim();
+        card.Name = NormalizeEntries(request.Name);
+        card.DisplayName = displayName;
+        card.Type = cardType;
+        card.Traits = NormalizeEntries(request.Traits);
+        card.Color = cardColor;
+        card.Description = request.Description?.Trim() ?? string.Empty;
+        card.Damage = request.Damage ?? 0;
+        card.Power = request.Power ?? 0;
+        card.CannotBeNormalSummoned = request.CannotBeNormalSummoned ?? false;
+        card.Conditions = NormalizeEntries(request.Conditions);
+        card.Effects = request.Effects?.ToList() ?? [];
+
+        return card;
+    }
+
+    private static List<string> NormalizeEntries(IReadOnlyList<string>? entries)
+    {
+        if (entries is null || entries.Count == 0)
+        {
+            return [];
+        }
+
+        var normalized = new List<string>(entries.Count);
+        foreach (var entry in entries)
+        {
+            var trimmed = entry?.Trim();
+            if (string.IsNullOrEmpty(trimmed) || normalized.Contains(trimmed, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            normalized.Add(trimmed);
+        }
+
+        return normalized;
     }
 
     private static CardCatalogEntry ToNewEntry(Card card)

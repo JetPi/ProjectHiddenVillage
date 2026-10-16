@@ -1,6 +1,10 @@
 bin/
 obj/
 
+# Generated card art: masters uploaded by authors and the width variants built from them
+card-art-cache/
+card-art-uploads/
+
 # Local environment files
 .env
 .env.*
