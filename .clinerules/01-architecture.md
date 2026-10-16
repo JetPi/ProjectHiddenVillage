@@ -119,6 +119,26 @@ paths:
   Anything writing a new art path should use it rather than re-testing `IsLocal`.
 - `/api/card/seed` carries the same `CardCatalogAdmin` claim as every other catalogue write: it writes
   the same table, so it is not exempt for having predated the authoring endpoints.
+- **A master's path is derived from its reference, never guessed.** A reference is
+  `local:card-art/<cardId>.webp` and `TryResolveLocalPath` resolves that *whole* relative path under the art
+  root, so the `card-art/` segment is part of the contract: `BuildMasterPath` adds it, and the writer and the
+  reader both go through it. Writing one level above it is silent - the upload succeeds, the row points at a
+  file nothing can find, and `/api/card-art/{id}` just 404s into the placeholder. That is exactly what happened
+  until `CardArtServiceTests` compared the two, so any new art path should go through these helpers rather than
+  combining a root with `BuildFileName` by hand.
+- **The master serves its own width.** A master is stored capped at `CardArtOptions.ResolveMasterWidth()` (the
+  widest configured variant), so a request at or above that width is answered with the master itself instead of a
+  derived cache file: the derivation had nothing to rescale, so it cost a duplicate file *and* a second q85 pass
+  over the only bytes a browser ever sees at that width. `ResolveMasterWidth` lives on the options precisely so
+  the write side and the read side cannot disagree about where the cap is - if they drifted, the read side would
+  start dictating variants the write side had already stored.
+- **A variant is collected once a newer version supersedes it.** The version in a variant's file name is the
+  card's updated timestamp, so *any* card edit mints a new set of names; without this rule the previous sets were
+  never read again and never removed either, which is an unbounded cache leak. `CardArtOrphanPolicy` collects a
+  variant whose version parses as an older timestamp than the card's current one, and deliberately keeps a newer
+  or unparseable version: a client pinned to a version this server does not recognise would otherwise have its
+  art deleted and rebuilt on every sweep. Variants of deleted cards and unreferenced masters still need
+  `OrphanGraceMinutes` to pass, which is what protects an upload whose create request has not landed.
 - The admin create screen reuses the update screen rather than copying it:
   `useCardAdminEffectDraft` owns the editing state, `cardAdminEffectPayload` owns the
   validation rules, and `CardAdminEffectEditorBody` + `CardAdminEditorFooter` render them;

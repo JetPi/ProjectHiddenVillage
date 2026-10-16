@@ -1,7 +1,7 @@
 import {
   fetchCardCatalogByIdsSparseCached,
 } from '@/services/api/cardCatalogApi'
-import { cardArtUrl } from '@/services/api/cardArt'
+import { CARD_ART_WIDTHS, cardArtUrl } from '@/services/api/cardArt'
 import { preloadImageSources } from '@/services/imagePreloadCache'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 
@@ -70,7 +70,10 @@ export async function preloadCardsByIds(cardIds: string[]): Promise<void> {
     return
   }
 
-  const cardImageSources = extractUniqueImageSources(cards.map((card) => card.image))
+  // The card's stored `image` is not a fetchable URL: since uploaded art landed it can be a `local:` reference
+  // the browser cannot resolve, so the art has to be addressed through the card-art endpoint like everywhere
+  // else. That is what this helper builds.
+  const cardImageSources = extractUniqueCardArtSources(cards, CARD_ART_WIDTHS.board)
   if (cardImageSources.length === 0) {
     return
   }

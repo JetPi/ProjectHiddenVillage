@@ -63,6 +63,7 @@ public sealed class CardArtService : ICardArtService
         // already owns, anything else has to be a fetchable URL on an allowlisted host.
         string? localMasterPath = null;
         Uri? sourceUrl = null;
+        var serveMasterDirectly = false;
 
         if (CardArtSourceReference.IsLocal(source.Image))
         {
@@ -78,6 +79,12 @@ public sealed class CardArtService : ICardArtService
             }
 
             localMasterPath = resolvedMasterPath;
+
+            // A master is already stored at the widest width we can serve, so a request at or above that width has
+            // nothing to derive: the master *is* the variant, minus a re-encode that cost a second file and a
+            // second lossy pass. A master narrower than the cap behaves the same way through the variant path
+            // (which refuses to upscale), so this is safe for small uploads too.
+            serveMasterDirectly = width >= options.ResolveMasterWidth();
         }
         else if (!TryParseSourceUrl(source.Image, out sourceUrl))
         {
@@ -89,8 +96,31 @@ public sealed class CardArtService : ICardArtService
             ? source.UpdatedAtUtc.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)
             : version!;
 
-        var safeVersion = CardArtSourceReference.SafeSegment(effectiveVersion);
         var safeCardId = CardArtSourceReference.SafeSegment(trimmedCardId);
+
+        if (serveMasterDirectly)
+        {
+            if (localMasterPath is null || !File.Exists(localMasterPath))
+            {
+                logger.LogWarning("Card '{CardId}' references art whose master is missing.", trimmedCardId);
+                return null;
+            }
+
+            // No variant lock: nothing is written. A re-upload replaces the directory entry while this stream
+            // holds the previous one, so the reader still finishes with a whole image.
+            return new CardArtPayload
+            {
+                Stream = new FileStream(localMasterPath, FileMode.Open, FileAccess.Read, FileShare.Read),
+                ContentType = "image/webp",
+
+                // A master is overwritten in place, so its identity has to come from the version rather than from
+                // its path - that is what tells a client the bytes changed.
+                ETag = $"\"{safeCardId}|master|{CardArtSourceReference.SafeSegment(effectiveVersion)}\"",
+                IsImmutable = !string.IsNullOrWhiteSpace(version),
+            };
+        }
+
+        var safeVersion = CardArtSourceReference.SafeSegment(effectiveVersion);
         var cacheFilePath = Path.Combine(
             environment.ContentRootPath,
             options.CacheDirectory,

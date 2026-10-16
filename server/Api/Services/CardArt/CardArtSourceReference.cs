@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace ProjectHiddenVillage.Server.Api.Services.CardArt;
@@ -22,8 +23,11 @@ public static partial class CardArtSourceReference
     /// <summary>Uploaded masters are always re-encoded, so the stored file is always a WebP.</summary>
     public const string MasterExtension = ".webp";
 
-    /// <summary>Separates the card id from the width and version in a cached variant's file name.</summary>
-    public const string VariantSeparator = "__w";
+    /// <summary>Separates the card id from the width in a cached variant's file name.</summary>
+    public const string WidthSeparator = "__w";
+
+    /// <summary>Separates the width from the version in a cached variant's file name.</summary>
+    public const string VersionSeparator = "__v";
 
     /// <summary>Matches the <c>CardCatalogEntry.CardId</c> column length.</summary>
     public const int MaxSegmentLength = 64;
@@ -69,6 +73,21 @@ public static partial class CardArtSourceReference
     }
 
     /// <summary>
+    /// The absolute path of a card's stored master under an art root: the reader and the writer both go through
+    /// here so they cannot disagree about where a master lives.
+    /// </summary>
+    /// <remarks>
+    /// The <see cref="LocalFolder"/> segment is not decoration. A reference is
+    /// <c>local:card-art/<cardId>.webp</c>, and <see cref="TryResolveLocalPath"/> resolves that *whole*
+    /// relative path under the art root - so a master written without the folder would sit one level above where
+    /// every reader looks for it.
+    /// </remarks>
+    public static string BuildMasterPath(string artRoot, string cardId)
+    {
+        return Path.Combine(artRoot, LocalFolder, BuildFileName(cardId));
+    }
+
+    /// <summary>
     /// The reference a stored master's file name belongs to. The sweep works from files on disk back to
     /// references, so it needs the inverse of <see cref="BuildFileName"/>.
     /// </summary>
@@ -99,31 +118,58 @@ public static partial class CardArtSourceReference
     }
 
     /// <summary>
-    /// Recovers the card id a cached variant belongs to. Variant names are
-    /// <c><cardId>__w<width>__v<version>.webp</c>; anything else is not ours and is left alone.
+    /// Splits a cached variant's file name back into the three things it encodes, so a caller can decide what to
+    /// do with the file: <c><cardId>__w<width>__v<version>.webp</c>. Anything that does not match
+    /// that shape is not ours and is left alone.
     /// </summary>
-    public static bool TryGetVariantCardId(string fileName, out string cardId)
+    public static bool TryParseVariantFileName(
+        string? fileName,
+        out string cardId,
+        out int width,
+        out string version)
     {
         cardId = string.Empty;
+        width = 0;
+        version = string.Empty;
 
-        if (string.IsNullOrWhiteSpace(fileName))
+        if (string.IsNullOrWhiteSpace(fileName)
+            || !fileName.EndsWith(MasterExtension, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        var separatorIndex = fileName.IndexOf(VariantSeparator, StringComparison.Ordinal);
-        if (separatorIndex <= 0)
+        var withoutExtension = fileName[..^MasterExtension.Length];
+        var cardIdSeparatorIndex = withoutExtension.IndexOf(WidthSeparator, StringComparison.Ordinal);
+        if (cardIdSeparatorIndex <= 0)
         {
             return false;
         }
 
-        var candidate = fileName[..separatorIndex];
-        if (!IsSafeSegment(candidate))
+        var candidateCardId = withoutExtension[..cardIdSeparatorIndex];
+        if (!IsSafeSegment(candidateCardId))
         {
             return false;
         }
 
-        cardId = candidate;
+        var remainder = withoutExtension[(cardIdSeparatorIndex + WidthSeparator.Length)..];
+        var versionSeparatorIndex = remainder.IndexOf(VersionSeparator, StringComparison.Ordinal);
+        if (versionSeparatorIndex <= 0)
+        {
+            return false;
+        }
+
+        var widthSegment = remainder[..versionSeparatorIndex];
+        var versionSegment = remainder[(versionSeparatorIndex + VersionSeparator.Length)..];
+
+        if (versionSegment.Length == 0
+            || !int.TryParse(widthSegment, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedWidth))
+        {
+            return false;
+        }
+
+        cardId = candidateCardId;
+        width = parsedWidth;
+        version = versionSegment;
         return true;
     }
 

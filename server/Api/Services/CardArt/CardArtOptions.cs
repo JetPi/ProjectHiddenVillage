@@ -28,6 +28,19 @@ public sealed class CardArtOptions
     /// <summary>Accepted upload content types. Anything else is refused before the body is read.</summary>
     public List<string> AllowedUploadContentTypes { get; set; } = ["image/png", "image/jpeg", "image/webp"];
 
+    /// <summary>Fallback master width when no variant widths are configured.</summary>
+    public const int DefaultMasterWidth = 600;
+
+    /// <summary>
+    /// The width a stored master is capped at. Both halves of the art path have to agree on this: the write side
+    /// stores the master at this width, and the read side serves a request at or above it straight from the
+    /// master rather than deriving a variant that would only re-encode it into a second, identical file.
+    /// </summary>
+    public int ResolveMasterWidth()
+    {
+        return AllowedWidths.Count > 0 ? AllowedWidths.Max() : DefaultMasterWidth;
+    }
+
     /// <summary>
     /// Whether abandoned masters are collected. Sweeps run opportunistically on a write rather than from a
     /// background service, so this being on costs nothing on an idle server.

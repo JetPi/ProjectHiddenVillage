@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectHiddenVillage.Server.Api.Interfaces.CardArt;
@@ -48,7 +49,7 @@ public sealed class CardArtOrphanSweeper : ICardArtOrphanSweeper
             var grace = TimeSpan.FromMinutes(Math.Max(0, options.OrphanGraceMinutes));
 
             CollectOrphanedMasters(await LoadReferencedImagesAsync(cancellationToken), now, grace);
-            CollectStaleVariants(await LoadCardIdsAsync(cancellationToken), now, grace);
+            CollectStaleVariants(await LoadCardVersionsAsync(cancellationToken), now, grace);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -83,14 +84,26 @@ public sealed class CardArtOrphanSweeper : ICardArtOrphanSweeper
             StringComparer.OrdinalIgnoreCase);
     }
 
-    private async Task<HashSet<string>> LoadCardIdsAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// The version each card currently serves, encoded exactly the way a variant's file name encodes it (the
+    /// card's updated timestamp in milliseconds), so the two can be compared as strings-to-numbers.
+    /// </summary>
+    private async Task<Dictionary<string, string>> LoadCardVersionsAsync(CancellationToken cancellationToken)
     {
-        var cardIds = await dbContext.CardCatalogEntries
+        var cards = await dbContext.CardCatalogEntries
             .AsNoTracking()
-            .Select(entry => entry.CardId)
+            .Select(entry => new { entry.CardId, entry.UpdatedAtUtc })
             .ToListAsync(cancellationToken);
 
-        return new HashSet<string>(cardIds, StringComparer.OrdinalIgnoreCase);
+        var versionsByCardId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var card in cards)
+        {
+            versionsByCardId[card.CardId] = card.UpdatedAtUtc
+                .ToUnixTimeMilliseconds()
+                .ToString(CultureInfo.InvariantCulture);
+        }
+
+        return versionsByCardId;
     }
 
     private void CollectOrphanedMasters(
@@ -137,7 +150,7 @@ public sealed class CardArtOrphanSweeper : ICardArtOrphanSweeper
     }
 
     private void CollectStaleVariants(
-        IReadOnlySet<string> existingCardIds,
+        IReadOnlyDictionary<string, string> versionsByCardId,
         DateTimeOffset now,
         TimeSpan grace)
     {
@@ -155,14 +168,15 @@ public sealed class CardArtOrphanSweeper : ICardArtOrphanSweeper
         foreach (var variantPath in Directory.EnumerateFiles(cacheRoot, $"*{CardArtSourceReference.MasterExtension}"))
         {
             var fileName = Path.GetFileName(variantPath);
-            if (!CardArtSourceReference.TryGetVariantCardId(fileName, out var cardId))
+            if (!CardArtSourceReference.TryParseVariantFileName(fileName, out var cardId, out _, out var version))
             {
                 continue;
             }
 
             if (!CardArtOrphanPolicy.IsCollectableVariant(
                     cardId,
-                    existingCardIds,
+                    versionsByCardId,
+                    version,
                     ReadLastWriteUtc(variantPath),
                     now,
                     grace))
@@ -189,7 +203,7 @@ public sealed class CardArtOrphanSweeper : ICardArtOrphanSweeper
 
         foreach (var variantPath in Directory.EnumerateFiles(
                      cacheRoot,
-                     $"{CardArtSourceReference.SafeSegment(cardId)}{CardArtSourceReference.VariantSeparator}*{CardArtSourceReference.MasterExtension}"))
+                     $"{CardArtSourceReference.SafeSegment(cardId)}{CardArtSourceReference.WidthSeparator}*{CardArtSourceReference.MasterExtension}"))
         {
             DeleteFile(variantPath);
         }

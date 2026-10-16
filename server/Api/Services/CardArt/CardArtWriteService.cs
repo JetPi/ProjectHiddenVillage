@@ -6,9 +6,6 @@ namespace ProjectHiddenVillage.Server.Api.Services.CardArt;
 
 public sealed class CardArtWriteService : ICardArtWriteService
 {
-    /// <summary>Fallback master width when no variant widths are configured.</summary>
-    private const int DefaultMasterWidth = 600;
-
     private readonly CardArtOptions options;
     private readonly IWebHostEnvironment environment;
     private readonly ICardArtOrphanSweeper orphanSweeper;
@@ -91,7 +88,7 @@ public sealed class CardArtWriteService : ICardArtWriteService
         {
             // Every stored master is re-encoded, so what the read path later decodes is always a validated WebP
             // rather than whatever the author uploaded. The master is capped at the widest servable variant.
-            masterBytes = await CardArtImageProcessor.ResizeToWebpAsync(rawBytes, ResolveMasterWidth(), cancellationToken);
+            masterBytes = await CardArtImageProcessor.ResizeToWebpAsync(rawBytes, options.ResolveMasterWidth(), cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -104,13 +101,13 @@ public sealed class CardArtWriteService : ICardArtWriteService
         var trimmedCardId = cardId.Trim();
         var safeCardId = CardArtSourceReference.SafeSegment(trimmedCardId);
         var artRoot = ResolveUploadRoot();
-        var masterPath = Path.Combine(artRoot, CardArtSourceReference.BuildFileName(trimmedCardId));
+        var masterPath = CardArtSourceReference.BuildMasterPath(artRoot, trimmedCardId);
 
         var writeLock = CardArtWriteLocks.ForCard(safeCardId);
         await writeLock.WaitAsync(cancellationToken);
         try
         {
-            Directory.CreateDirectory(artRoot);
+            Directory.CreateDirectory(Path.GetDirectoryName(masterPath) ?? artRoot);
 
             var tempPath = masterPath + ".tmp";
             await File.WriteAllBytesAsync(tempPath, masterBytes, cancellationToken);
@@ -188,10 +185,6 @@ public sealed class CardArtWriteService : ICardArtWriteService
         return Path.Combine(environment.ContentRootPath, options.UploadDirectory);
     }
 
-    private int ResolveMasterWidth()
-    {
-        return options.AllowedWidths.Count > 0 ? options.AllowedWidths.Max() : DefaultMasterWidth;
-    }
 
     private static string NormalizeContentType(string? contentType)
     {

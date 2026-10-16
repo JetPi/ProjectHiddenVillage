@@ -196,6 +196,41 @@ rather than being left open because it predates them. Nothing in the repository 
 
 The sweep cannot throw: a failed sweep logs and returns, so housekeeping never takes a write down with it.
 
+### A bug the tests found, after those follow-ups
+
+Writing the first real test of [`CardArtService`](server/Api/Services/CardArt/CardArtService.cs) against temp
+directories turned up something none of the unit tests could have: the upload wrote its master to
+`<uploadRoot>/<cardId>.webp` while every reader resolved the reference
+`local:card-art/<cardId>.webp` to `<uploadRoot>/card-art/<cardId>.webp`. Uploaded art could therefore never be
+found - the upload succeeded, the row pointed at a file nothing could resolve, and `/api/card-art/{id}` fell
+through to the placeholder. The orphan sweep looked in the reader's location too, so it could not have collected
+those files either.
+
+Both sides now go through `CardArtSourceReference.BuildMasterPath`, which includes the folder segment the
+reference contract implies. The lesson is recorded in the architecture rules: a master's path is derived from its
+reference, never assembled by hand.
+
+### The duplicate, removed
+
+A request at or above `CardArtOptions.ResolveMasterWidth()` is now answered with the stored master itself rather
+than with a `__w600__v<version>` cache file derived from it. That derivation never rescaled anything - the master
+is capped at exactly that width - so it cost a duplicate file plus a second q85 pass over the only bytes a
+browser sees at 600. `ResolveMasterWidth` moved onto the options so the write path and the read path share one
+definition of where the cap is.
+
+### The unbounded leak, closed
+
+The version in a variant's file name is the card's updated timestamp, so any card edit - including an effects
+patch that never touches art - minted a new set of variant names, and the old ones were never read again and
+never removed: the cache grew with (cards edited × widths viewed), forever. The sweep is now version-aware and
+collects a variant whose version is an older parseable timestamp than the card's current one, while deliberately
+keeping a newer or unparseable version so a client pinned to a version the server does not recognise cannot cause
+a generate/delete loop. Variants of deleted cards and unreferenced masters still wait out `OrphanGraceMinutes`.
+
+One residual, bounded and self-healing: a variant sitting at a card's *live* version for a width that is now
+served from the master is kept, because the sweep cannot tell which widths a card serves from its master without
+knowing its art source. Those files are wiped by the card's next upload and superseded by its next edit.
+
 ### A hole the follow-up tests found
 
 `local:` alone, `local:card-art/`, `local:card-art/nested/N-001.webp` and `local:other/N-001.webp` all passed a
