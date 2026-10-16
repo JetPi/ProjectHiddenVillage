@@ -83,9 +83,10 @@ paths:
 
 ## Card art delivery (`/api/card-art`) and `ImageVersion`
 
-- `CardCatalogEntry.Image` stores the **raw external art URL** (imported from the
-  external DB). It is an ingestion source only — clients should not render it
-  directly for small slots.
+- `CardCatalogEntry.Image` holds either the **raw external art URL** (imported from the
+  external DB) or a `local:card-art/<cardId>.webp` reference to a master uploaded through the admin
+  (see `01-architecture.md`). Either way it is an ingestion source only — clients should not render it
+  directly for small slots; they ask `/api/card-art/{cardId}` for a width-capped variant.
 - `GET /api/card-art/{cardId}?w=&v=` (allow-anonymous, `CardArtController`)
   lazily fetches the raw URL on cache-miss, downscales with ImageSharp/Lanczos
   (never upscales), re-encodes WebP q85 and writes
@@ -126,9 +127,12 @@ paths:
   manifest stays reproducible. Only `catalogEntries` is generated — `profiles`/`decks` are
   hand-authored, so preserve them, and sanity-diff the regenerated entries against the current ones
   (`grep -c 'Is Rested' test-data/seed-profiles.json` should stay 2, deck card ids unchanged)
-  instead of overwriting blind. **`T-120` is the only non-real fixture** (Character, power 10, no
-  effects) because Gamabunta's `Power >= 10` rule needs a normally-summonable ≥10-power character and
-  the real catalogue has none (N-003/N-005/N-014 are EX + `cannotBeNormalSummoned`).
+  instead of overwriting blind. **No fabricated card lives in the manifest.** Gamabunta's `Power >= 10`
+  rule needs a normally-summonable ≥10-power character and the real catalogue has none (N-003/N-005/N-014
+  are EX + `cannotBeNormalSummoned`), so the summon-requirement specs mint theirs at run time through the
+  admin create endpoint and delete them again (`e2e/helpers/multiplayer/fixtures.ts`). Seeding them would
+  put a fabricated card in every developer's catalogue for the sake of a handful of specs, and nothing
+  would ever remove it.
 - **The test-only decks are deliberately padded (six copies of their own cards, ~18-24 cards).** They are
   far smaller than a legal deck, and the e2e helpers advance whole turns while searching a hand for a
   specific card — which is exactly the window in which a small deck now runs dry. Since a player who has to
@@ -221,6 +225,14 @@ paths:
 - **`CardAdminToggleSwitch` must stay a `<label>` wrapper**: the visible track/thumb draw *on top of* the
   `sr-only` checkbox, so with a plain `<span>` wrapper the switch surface swallowed every click and the
   control could not be toggled at all.
+- **Stored art is displayed read-only, apart from the field that replaces it.** `CardAdminArtPicker` prints the
+  card's stored `image` verbatim (mono, `break-all select-all`) with a link to its source, above the editable URL
+  field — so checking where an image came from cannot overwrite it by accident. An external URL links to the
+  source page; a `local:<folder>/<cardId>.webp` reference links to the served art, because it is a path on our
+  own disk with no page of its own. `isExternalCardArtReference` / `isLocalCardArtReference` /
+  `resolveCardArtSourceHref` in `services/api/cardArt.ts` mirror the server's contract
+  (`Api/Services/CardArt/CardArtSourceReference.cs`). The block is a divider row, never a bordered panel: the
+  sections around it are already filled surfaces.
 
 ## Testing notes
 

@@ -201,6 +201,15 @@ public sealed record UpdateCardEffectsRequest(
 public sealed record UpdateCardImageRequest(string? Image);
 
 /// <summary>
+/// What deleting a card touches: the decks that list it (<c>deck_cards</c> has a restricting FK, so those rows
+/// have to go) and the saved decks that name its id (a plain column, so they would otherwise dangle).
+/// </summary>
+public sealed record CardDeletionImpactResponse(
+    string CardId,
+    int DeckCount,
+    int SavedDeckCount);
+
+/// <summary>
 /// A brand new card. The authoring fields are deliberately the same shape as
 /// <see cref="UpdateCardEffectsRequest"/> so the create screen can reuse the effects editor wholesale; the
 /// identity fields are the ones the update flow never edits.

@@ -185,7 +185,7 @@ rather than being left open because it predates them. Nothing in the repository 
 - `PUT /api/card/catalog/{cardId}/image` (admin-only) takes `UpdateCardImageRequest(string? Image)`; an empty value clears the art. The art master itself is still uploaded through `POST /api/card-art/{cardId}` - this endpoint only points the card at it.
 - [`UpdateCardImageByCardId`](server/Api/Services/Card/CardMappingService.cs:395) moves `UpdatedAtUtc`, which is what the response's image version is derived from. Without that move every client would keep painting the previous image from its cache for as long as the version matched.
 - Ownership is checked against the **stored** card id, not the one in the route: the replacement request cannot see the card id it will be applied to, so that rule lives in the service rather than in the validator.
-- The edit screen gained a [`CardAdminCardArtSection`](client/src/views/admin/components/detail/CardAdminCardArtSection.tsx:14) that applies art immediately (art is not part of the effects patch), and both screens now share one presentational [`CardAdminArtPicker`](client/src/views/admin/components/detail/CardAdminArtPicker.tsx:32). Removing art clears the reference *first* and deletes the master second, so a failure between the two leaves a card with no art rather than a card pointing at a file that is gone.
+- The edit screen gained a [`CardAdminCardArtSection`](client/src/views/admin/components/detail/CardAdminCardArtSection.tsx:14), and both screens now share one presentational [`CardAdminArtPicker`](client/src/views/admin/components/detail/CardAdminArtPicker.tsx:32). Removing art clears the reference *first* and deletes the master second, so a failure between the two leaves a card with no art rather than a card pointing at a file that is gone. (That section applied art immediately at the time; it now stages it - see below.)
 
 ### Orphaned uploads are swept
 
@@ -230,6 +230,26 @@ a generate/delete loop. Variants of deleted cards and unreferenced masters still
 One residual, bounded and self-healing: a variant sitting at a card's *live* version for a width that is now
 served from the master is kept, because the sweep cannot tell which widths a card serves from its master without
 knowing its art source. Those files are wiped by the card's next upload and superseded by its next edit.
+
+### Art is staged until the card is saved
+
+The replacement section above, as first built, sent art the moment it was touched: picking a file uploaded it and
+pointed the card at it in the same breath, and a pasted URL did the same on a click. That made an upload *a save* -
+browsing for the right file, or pasting a URL to check it, changed a card that is already in the catalogue. Art is
+now a draft like the effects are.
+
+- [`useCardAdminArtDraft`](client/src/views/admin/model/useCardAdminArtDraft.ts:33) holds exactly one pending
+  change: a picked file (previewed from an object URL, revoked on replace and unmount), a typed URL, or a removal.
+  It sends nothing; `commit` is the only request path.
+- [`CardAdminDetailPane`](client/src/views/admin/components/detail/CardAdminDetailPane.tsx:29) owns that draft next
+  to the effects model, so the floating save button - and the "unsaved changes" pill - count both. The save runs
+  the effects patch **first**, and only a card that passed validation gets its staged art committed. That ordering
+  is the point: a rejected card must not leave a freshly uploaded master behind on the server.
+- `commit` uploads a staged file (which needs a card id, so this is the moment it happens), then `PUT`s the image
+  reference. A removal still clears the reference first and deletes the master second, best effort.
+- The section reports what is staged with its own line, offers a **Discard** for it, and Removes art as an
+  intention rather than an action. The create screen keeps uploading on pick, because there the card does not exist
+  yet and a master can only be stored under a card id that has been chosen - its reference rides the create request.
 
 ### A hole the follow-up tests found
 

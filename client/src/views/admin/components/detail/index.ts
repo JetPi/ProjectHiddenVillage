@@ -1,5 +1,6 @@
 export { CardAdminArtPicker } from './CardAdminArtPicker'
 export { CardAdminCardArtSection } from './CardAdminCardArtSection'
+export { CardAdminDeleteCardSection } from './CardAdminDeleteCardSection'
 export { CardAdminDetailPane } from './CardAdminDetailPane'
 export { CardAdminEditorFooter } from './CardAdminEditorFooter'
 export { CardAdminEffectEditorBody } from './CardAdminEffectEditorBody'

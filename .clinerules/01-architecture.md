@@ -102,8 +102,11 @@ paths:
   timestamp, so without the move every client keeps painting the previous art from cache. Ownership
   is checked against the stored card id - the replacement request cannot see the id it will be applied
   to - which is why that rule lives in `CardMappingService` and not in the validator. The edit screen
-  applies art immediately rather than with the effects save, and removing art clears the reference
-  first and deletes the master second, so a half-failure never leaves a card pointing at a missing file.
+  **stages** art rather than applying it: `useCardAdminArtDraft` holds one pending change - a picked file
+  (previewed from an object URL), a typed URL, or a removal - and the editor's save flushes it *after* the
+  effects patch is accepted, so art never lands for a card that fails validation and an upload is no
+  longer a save of its own. Removing art clears the reference first and deletes the master second, so a
+  half-failure never leaves a card pointing at a missing file.
 - **Orphaned art is swept lazily, and the sweep rules are pure.** `CardArtOrphanSweeper` runs from a
   write, rate-limited by `CardArt:OrphanSweepIntervalMinutes` through a process-wide timestamp (a
   per-request field would sweep on every write, since the service is scoped). It collects masters no

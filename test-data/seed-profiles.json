@@ -45,8 +45,8 @@
           "cards": [
             { "cardId": "N-001", "quantity": 1 },
             { "cardId": "N-021", "quantity": 6 },
-            { "cardId": "T-120", "quantity": 6 },
-            { "cardId": "N-005", "quantity": 6 }
+            { "cardId": "N-005", "quantity": 6 },
+            { "cardId": "N-003", "quantity": 6 }
           ]
         },
         "two": {
@@ -74,7 +74,6 @@
           "cards": [
             { "cardId": "N-001", "quantity": 1 },
             { "cardId": "N-021", "quantity": 6 },
-            { "cardId": "T-120", "quantity": 6 },
             { "cardId": "N-005", "quantity": 6 }
           ]
         },
@@ -126,7 +125,6 @@
           "deckId": "10000000-0000-0000-0000-000000000401",
           "cards": [
             { "cardId": "N-001", "quantity": 1 },
-            { "cardId": "T-121", "quantity": 6 },
             { "cardId": "N-005", "quantity": 6 },
             { "cardId": "N-021", "quantity": 6 }
           ]
@@ -3742,56 +3740,6 @@
       "supportEffect": "",
       "mainAlternate": true,
       "cannotBeNormalSummoned": true
-    },
-    {
-      "cardId": "T-120",
-      "originalId": "T-120",
-      "displayName": "Veteran Adept",
-      "image": "https://example.com/cards/T-120.webp",
-      "type": "Character",
-      "color": "Blue",
-      "description": "Development high-power tribute material for summon requirement suites.",
-      "name": [
-        "Veteran Adept"
-      ],
-      "traits": [
-        "Shinobi"
-      ],
-      "conditions": [],
-      "effects": [],
-      "damage": 2,
-      "power": 10,
-      "life": null,
-      "health": 4,
-      "supportName": "",
-      "supportEffect": "",
-      "mainAlternate": false,
-      "cannotBeNormalSummoned": false
-    },
-    {
-      "cardId": "T-121",
-      "originalId": "T-121",
-      "displayName": "Naruto Uzumaki",
-      "image": "https://example.com/cards/T-121.webp",
-      "type": "Character",
-      "color": "Red",
-      "description": "Development fixture: a normally summonable [Naruto Uzumaki] with 10 or more power, so it can serve as a Gamabunta tribute material and as a valid [On Summon] trash recall target.",
-      "name": [
-        "Naruto Uzumaki"
-      ],
-      "traits": [
-        "Shinobi"
-      ],
-      "conditions": [],
-      "effects": [],
-      "damage": 2,
-      "power": 10,
-      "life": null,
-      "health": 4,
-      "supportName": "",
-      "supportEffect": "",
-      "mainAlternate": false,
-      "cannotBeNormalSummoned": false
     }
   ]
 }

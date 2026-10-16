@@ -9,10 +9,14 @@ namespace ProjectHiddenVillage.Server;
 public sealed class CardController : ApiControllerBase
 {
     private readonly ICardMappingService cardMappingService;
+    private readonly ICardDeletionService cardDeletionService;
 
-    public CardController(ICardMappingService cardMappingService)
+    public CardController(
+        ICardMappingService cardMappingService,
+        ICardDeletionService cardDeletionService)
     {
         this.cardMappingService = cardMappingService;
+        this.cardDeletionService = cardDeletionService;
     }
 
     /// <summary>
@@ -122,6 +126,32 @@ public sealed class CardController : ApiControllerBase
         if (result.IsError)
         {
             return ProblemFromErrors<CardCatalogItemResponse>(result.Errors);
+        }
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
+    /// Removes a card from the catalogue, along with its stored art and every deck row that references it.
+    /// Without <paramref name="force"/> a card that is still in use is refused with a conflict, so the caller can
+    /// confirm what it is about to change.
+    /// </summary>
+    [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
+    [HttpDelete("catalog/{cardId}")]
+    [ProducesResponseType(typeof(CardDeletionImpactResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<CardDeletionImpactResponse>> DeleteCard(
+        string cardId,
+        [FromQuery] bool force = false)
+    {
+        var result = await cardDeletionService.DeleteCardAsync(cardId, force);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<CardDeletionImpactResponse>(result.Errors);
         }
 
         return Ok(result.Value);

@@ -398,6 +398,21 @@
       "created": "Card created.",
       "createFailed": "The card could not be created."
     },
+    "delete": {
+      "button": "Delete Card",
+      "description": "Remove this card, its art and its deck references from the catalogue.",
+      "dialogTitle": "Delete this card?",
+      "dialogBody": "This removes {{name}} ({{id}}) from the catalogue, deletes its stored art and takes it out of any deck that lists it. This cannot be undone.",
+      "confirmLabel": "Type {{word}} to confirm",
+      "confirmWord": "delete",
+      "cancel": "Cancel",
+      "submit": "Delete Card",
+      "submitting": "Deleting...",
+      "forceSubmit": "Delete and remove from decks",
+      "deleted": "Card deleted.",
+      "deletedFromDecks": "Card deleted and removed from {{count}} deck(s).",
+      "failed": "The card could not be deleted."
+    },
     "art": {
       "title": "Card Art",
       "upload": "Upload Image",
@@ -406,13 +421,16 @@
       "externalUrl": "Or use an image URL",
       "externalUrlPlaceholder": "https://...",
       "previewAlt": "Card art preview",
-      "apply": "Apply Art",
-      "applying": "Applying...",
-      "applied": "Card art updated.",
+      "currentImage": "Current image",
+      "currentImageHelp": "Read-only. Staged changes are saved with the card.",
+      "openSource": "Open source",
+      "openStoredImage": "View stored image",
+      "stagedFile": "Staged: {{name}}. Uploaded when you save the card.",
+      "stagedUrl": "Staged. The card points at this URL once you save.",
+      "stagedRemoval": "Staged. The art is removed when you save the card.",
       "remove": "Remove Art",
-      "removing": "Removing...",
-      "removed": "Card art removed.",
-      "failed": "The card art could not be updated."
+      "discard": "Discard",
+      "failed": "The card art could not be saved."
     },
     "catalog": {
       "loadingCards": "Loading cards...",

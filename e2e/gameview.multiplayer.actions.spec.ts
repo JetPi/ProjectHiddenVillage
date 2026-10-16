@@ -19,6 +19,12 @@ import {
   resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
+import {
+  FIXTURE_CARD_IDS,
+  createFixtureDeck,
+  deleteFixtureCards,
+  ensureFixtureCards,
+} from './helpers/multiplayer/fixtures'
 
 test.describe('GameView multiplayer actions', () => {
   test.describe.configure({ timeout: 120_000 })
@@ -26,11 +32,39 @@ test.describe('GameView multiplayer actions', () => {
   // `test-data/seed-profiles.json` seeds the real N-005 (Gamabunta) card: a 10-power EX character that
   // can only be summoned by placing one of your characters with 10 or more power into the trash.
   const GAMABUNTA_CARD_DEFINITION_ID = 'N-005'
-  // Dev fixture material for the summon-requirement suites: T-120 satisfies `Power >= 10`, N-021 does not.
-  const POWER_MATERIAL_CARD_DEFINITION_ID = 'T-120'
+  // The tribute material for those suites is minted at run time: no real card is a normally summonable
+  // 10-power character, and seeding a fabricated one would put it in every developer's catalogue. N-021 is a
+  // real card and stays the low-power control.
+  const POWER_MATERIAL_CARD_DEFINITION_ID = FIXTURE_CARD_IDS.powerMaterial
   const LOW_POWER_MATERIAL_CARD_DEFINITION_ID = 'N-021'
   // Short label the server derives for N-005's `Power >= 10` tribute material rule.
   const POWER_MATERIAL_REQUIREMENT_LABEL = 'Power ≥ 10'
+
+  // Decks built from those fixtures, each mirroring the seeded profile's deck plus the fixture it lacks.
+  let powerMaterialDeckId = ''
+  let recallDeckId = ''
+
+  test.beforeAll(async ({ request }) => {
+    await ensureFixtureCards(request)
+
+    powerMaterialDeckId = await createFixtureDeck(request, [
+      '1x N-001',
+      '6x N-021',
+      `6x ${FIXTURE_CARD_IDS.powerMaterial}`,
+      '6x N-005',
+    ])
+
+    recallDeckId = await createFixtureDeck(request, [
+      '1x N-001',
+      `6x ${FIXTURE_CARD_IDS.recallTarget}`,
+      '6x N-005',
+      '6x N-021',
+    ])
+  })
+
+  test.afterAll(async ({ request }) => {
+    await deleteFixtureCards(request)
+  })
 
   test('summon transition animates and appends to rightmost battlefield slot', async ({ browser, request }) => {
     const setup = await setupMultiplayerGame(request)
@@ -171,7 +205,9 @@ test.describe('GameView multiplayer actions', () => {
   })
 
   test('Gamabunta summon requirement requires tribute selection before summoning', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request, 'summon-requirements')
+    const setup = await setupMultiplayerGame(request, 'summon-requirements', {
+      one: { deckId: powerMaterialDeckId },
+    })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
@@ -293,16 +329,19 @@ test.describe('GameView multiplayer actions', () => {
     }
   })
 
-  // T-121 is the recall fixture: a normally summonable [Naruto Uzumaki] with 10+ power, so it is both a legal
+  // The recall fixture is a normally summonable [Naruto Uzumaki] with 10+ power, so it is both a legal
   // Gamabunta tribute material and a valid "[On Summon] Summon 1 ... [Naruto Uzumaki] from your trash" target.
-  const RECALL_MATERIAL_CARD_DEFINITION_ID = 'T-121'
+  // It is minted in `beforeAll`, not seeded.
+  const RECALL_MATERIAL_CARD_DEFINITION_ID = FIXTURE_CARD_IDS.recallTarget
 
   // N-005's "[On Summon] Summon 1 non-EX [Naruto Uzumaki], [Jiraiya], or [Minato Namikaze] Character from your
   // trash" is the authored prompted zone selection: its candidate pool only exists once the chain reaches the
   // step. Normal-summon the fixture, hand it over as the tribute material, and the chain must ask instead of
   // silently summoning nothing.
   test('Gamabunta on-summon effect asks for the trash card and summons the answer', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request, 'on-summon-trash-recall')
+    const setup = await setupMultiplayerGame(request, 'on-summon-trash-recall', {
+      one: { deckId: recallDeckId },
+    })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
@@ -387,11 +426,14 @@ test.describe('GameView multiplayer actions', () => {
     }
   })
 
-  // The other half of the same card: with a trash the recall filter cannot match (only the T-120 tribute
-  // material), there is nothing to pick. The engine must not strand the chain on an empty prompt - it records a
+  // The other half of the same card: with a trash the recall filter cannot match (only the power tribute
+  // material, which is not a [Naruto Uzumaki]), there is nothing to pick. The engine must not strand the chain
+  // on an empty prompt - it records a
   // notice the board shows as a transient toast while every other action stays usable.
   test('Gamabunta on-summon effect without a matching trash card shows a notice and keeps the board playable', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request, 'summon-requirements')
+    const setup = await setupMultiplayerGame(request, 'summon-requirements', {
+      one: { deckId: powerMaterialDeckId },
+    })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
@@ -439,7 +481,8 @@ test.describe('GameView multiplayer actions', () => {
       await expect(ownerPage.getByTestId('phase-indicator')).toContainText('Fulfilled tribute requirements', { timeout: 5_000 })
       await ownerPage.getByRole('button', { name: /confirm tribute selection/i }).click()
 
-      // T-120 is not one of the recall names, so the triggered summon has no candidate: the board says so
+      // The power material is not one of the recall names, so the triggered summon has no candidate: the board
+      // says so
       // instead of looking like nothing happened.
       const notice = ownerPage.getByTestId('effect-notice-banner')
       await expect(notice).toBeVisible({ timeout: 12_000 })
@@ -470,7 +513,9 @@ test.describe('GameView multiplayer actions', () => {
   })
 
   test('Gamabunta summon requirement only allows tribute targets with 10 or more power', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request, 'summon-requirements-strict')
+    const setup = await setupMultiplayerGame(request, 'summon-requirements-strict', {
+      one: { deckId: powerMaterialDeckId },
+    })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {

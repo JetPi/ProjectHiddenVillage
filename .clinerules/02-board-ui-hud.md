@@ -92,8 +92,8 @@ paths:
   dropped from the copy, so never assert a `· most recent first` suffix (the pile order itself is still
   newest-first, see the pile bullet above).
   `e2e/gameview.multiplayer.actions.spec.ts` covers it on the tribute-summon flow (one card in the trash
-  → open → `1 card` + one `T-120` tile → Escape closes; the spec also pins the absence of the dropped
-  ordering suffix).
+  → open → `1 card` + one tribute-material tile → Escape closes; the spec also pins the absence of the
+  dropped ordering suffix).
 
 ## Card art vs pointer interception (real art in tests)
 

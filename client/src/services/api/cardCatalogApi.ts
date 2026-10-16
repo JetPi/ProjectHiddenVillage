@@ -1,5 +1,9 @@
 import { api } from '@/services/api/httpClient'
-import type { ICardCatalogItemResponse, IPagedResponse } from '@/types/cardCatalog'
+import type {
+  ICardCatalogItemResponse,
+  ICardDeletionImpactResponse,
+  IPagedResponse,
+} from '@/types/cardCatalog'
 import { appQueryClient, DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '@/services/queryClient'
 import type {
   ICardCatalogPageQuery,
@@ -108,6 +112,29 @@ export async function createCardCatalogEntry(
   const { data } = await api.post<ICardCatalogItemResponse>('/api/card/catalog', request)
 
   appQueryClient.setQueryData(getCardCatalogByIdQueryKey(data.id), data)
+  return data
+}
+
+/**
+ * Removes a card from the catalogue. Without `force` the server refuses while anything still references the card,
+ * so the caller can show what is in the way before agreeing.
+ */
+export async function deleteCardCatalogEntry(
+  cardId: string,
+  force = false,
+): Promise<ICardDeletionImpactResponse> {
+  const { data } = await api.delete<ICardDeletionImpactResponse>(
+    `/api/card/catalog/${encodeURIComponent(cardId)}`,
+    { params: { force } },
+  )
+
+  // The card is gone, so its cached copy must go too: anything still asking for it by id would otherwise be
+  // served a card that no longer exists.
+  appQueryClient.removeQueries({
+    queryKey: getCardCatalogByIdQueryKey(cardId),
+    exact: true,
+  })
+
   return data
 }
 

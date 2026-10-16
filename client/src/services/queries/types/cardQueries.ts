@@ -42,6 +42,12 @@ export type ICreateCardCatalogEntryMutationVariables = {
   payload: ICreateCardRequest
 }
 
+export type IDeleteCardCatalogEntryMutationVariables = {
+  cardId: string
+  /** True also removes the card from the decks that list it; the server refuses otherwise. */
+  force: boolean
+}
+
 export type IUpdateCardCatalogImageMutationVariables = {
   cardId: string
   /** An external URL, a local art reference, or an empty string to clear the art. */

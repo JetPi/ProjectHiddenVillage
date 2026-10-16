@@ -265,7 +265,8 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   `canConfirmSummonTargetSelection` passes. Both literals come from `PhaseValues` in
   `client/src/views/game/components/constants/gamePhaseActionRow.ts`; the composer lives in
   `views/game/utils/functions/helpers/index.ts` (`getTributeSelectionPhaseValue`).
-- Summon-rule fixtures: N-005/Gamabunta = one `Power ≥ 10` material (satisfied by the T-120 fixture);
+- Summon-rule fixtures: N-005/Gamabunta = one `Power ≥ 10` material (satisfied by the run-time minted
+  `E2E-POWER-10` fixture, `e2e/helpers/multiplayer/fixtures.ts`);
   N-014 = `any x1` + `The Taka x1` (paid with N-011 + N-019); N-003 = `Power ≥ 10` + `any`.
 - Covered in `e2e/gameview.multiplayer.support.spec.ts` after the seeded real cards landed: a hand
   support resolving after the opponent's single decline, the N-006/N-017 range flow (support set into the

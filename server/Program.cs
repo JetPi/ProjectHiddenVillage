@@ -95,6 +95,7 @@ builder.Services.AddScoped<IGamePhaseHandlingService, GamePhaseHandlingService>(
 builder.Services.AddScoped<IGameInstanceService, GameInstanceService>();
 builder.Services.AddScoped<IGameReadService, GamesReadService>();
 builder.Services.AddScoped<ICardMappingService, CardMappingService>();
+builder.Services.AddScoped<ICardDeletionService, CardDeletionService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IDeckService, DeckService>();
 builder.Services.AddScoped<DevelopmentDeckSeeder>();

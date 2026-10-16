@@ -1,16 +1,19 @@
 import { useMemo } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
+import type { ICardDeletionImpactResponse } from '@/types/cardCatalog'
 import type { IPagedResponse } from '@/types/cardCatalog'
 import { fetchCardCatalogByIdsSparseCached } from '@/services/api/cardCatalogApi'
 import { fetchCardCatalogPage } from '@/services/api/cardCatalogApi'
 import { fetchGameCards } from '@/services/api/gameApi'
 import { createCardCatalogEntry } from '@/services/api/cardCatalogApi'
+import { deleteCardCatalogEntry } from '@/services/api/cardCatalogApi'
 import { updateCardCatalogEffects } from '@/services/api/cardCatalogApi'
 import { updateCardCatalogImage } from '@/services/api/cardCatalogApi'
 import { DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '@/services/queryClient'
 import type {
   ICreateCardCatalogEntryMutationVariables,
+  IDeleteCardCatalogEntryMutationVariables,
   IUpdateCardCatalogImageMutationVariables,
   IUseCardCatalogByIdsQueryOptions,
   IUseInfiniteCardCatalogQueryOptions,
@@ -231,6 +234,24 @@ export function useUpdateCardCatalogImageMutation() {
         queryKey: ['cards', 'catalog-infinite'],
         exact: false,
       })
+    },
+  })
+}
+
+/**
+ * Removing a card. The by-id cache entry is dropped by `deleteCardCatalogEntry` itself; what is left is anything
+ * holding a list that still contains the card - the catalogue pages and the by-ids cache the game view fills.
+ */
+export function useDeleteCardCatalogEntryMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation<ICardDeletionImpactResponse, Error, IDeleteCardCatalogEntryMutationVariables>({
+    mutationFn: ({ cardId, force }) => deleteCardCatalogEntry(cardId, force),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['cards', 'catalog-infinite'], exact: false }),
+        queryClient.invalidateQueries({ queryKey: ['card-catalog'], exact: false }),
+      ])
     },
   })
 }

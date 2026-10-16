@@ -8,6 +8,13 @@ export type IPagedResponse<TItem> = {
   items: TItem[]
 }
 
+/** What deleting a card touched: the decks that listed it, and the saved decks that named its id. */
+export type ICardDeletionImpactResponse = {
+  cardId: string
+  deckCount: number
+  savedDeckCount: number
+}
+
 export type ICardCatalogEffectExecutionConditionResponse = {
   argumentKey: ICardCatalogEffectExecutionConditionArgumentKey
   expectedValue: string
