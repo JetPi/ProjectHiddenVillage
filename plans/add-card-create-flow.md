@@ -256,3 +256,54 @@ now a draft like the effects are.
 `local:` alone, `local:card-art/`, `local:card-art/nested/N-001.webp` and `local:other/N-001.webp` all passed a
 prefix-only check. [`IsWellFormedLocalReference`](server/Api/Services/CardArt/CardArtSourceReference.cs:56) now pins the exact shape the server writes, and the replacement validator uses it. The create path was already safe
 because it compares against the reference it would have built, but it was safe by accident rather than by rule.
+
+### Choosing the art: clipboard, file or address
+
+Art could only arrive as a file the author had already downloaded. [`CardAdminArtSourceDialog`](client/src/views/admin/components/detail/CardAdminArtSourceDialog.tsx:33) now offers
+the ways a browser can hand over an image, all of them landing on the same `onSelectFile` the file picker used:
+
+- **Paste.** The paste area takes the focus the moment the dialog opens, so Ctrl+V works with no click and without
+  a page-wide listener that would also have hijacked pastes aimed at the catalogue search. Chromium's copy of an
+  image is a nameless `image/png`, so a file without a name gets one - otherwise the staged line would read
+  "Staged: .". The clipboard's text flavour is used too: pasting an image *address* fills the URL field instead,
+  because that is the one path where the bytes are never touched.
+- **File or drop.** The `#card-admin-art-file` input stays where the e2e spec drives it, now inside the dialog,
+  plus a drop target for an image dragged out of another page. A Safari copy of an image can arrive as a flavour no
+  browser decodes, so the file path has to stay a first-class way in rather than a fallback.
+
+The dialog measures what it was given and refuses what would be stored wrong, before any request:
+
+- **Narrower than 600 px** (`CARD_ART_MIN_SOURCE_WIDTH`, mirroring `CardArtOptions.ResolveMasterWidth`) is blocked.
+  Nothing is ever upscaled, so a 400 px image is stored 400 px wide and shows soft at the 600 px preview size - and
+  the clipboard makes that easy to do by accident: a copy of an image on a `srcset` page is the variant the browser
+  chose, not the full-size file, and a screenshot is screen resolution.
+- **Over 10 MB** (`CARD_ART_MAX_UPLOAD_BYTES`) is blocked for the same reason: the server's byte cap would refuse
+  the upload anyway, so saying it at choose time is better than at save time.
+- A bitmap nothing can decode is blocked too, which is what a non-image file now hits on the create screen instead
+  of a round trip to the server's content-type check.
+
+Both constants mirror server configuration, so they move with it. Given a bitmap at least as wide as the master,
+paste is quality-neutral: the upload decodes once and writes WebP q85 exactly as it does for a picked file.
+
+### The editor warns before it loses a draft
+
+The pane is keyed by card id, and that key is what makes a draft disappear silently: selecting another card
+unmounts it, navigating to the create screen unmounts it, and reloading the tab takes it with everything else.
+
+[`CardAdminDetailPane`](client/src/views/admin/components/detail/CardAdminDetailPane.tsx:14) now reports whether its draft has anything in it
+(effects *and* staged art, since the same save would flush both), and [`CardAdminView`](client/src/views/admin/CardAdminView.tsx:16) is the only thing that acts on
+that:
+
+- Another tile in the rail opens [`CardAdminUnsavedChangesDialog`](client/src/views/admin/components/detail/CardAdminUnsavedChangesDialog.tsx:23) instead of switching, and only the dialog
+  discards.
+- `useBlocker` holds a router navigation - the Add Card link included - until the dialog says to proceed.
+- `useBeforeUnload` covers what the router cannot see: a reload or a closed tab gets the browser's own prompt.
+
+The dialog offers the three honest answers: **Keep Editing** (the default and the focused button), **Save &
+Continue**, and **Discard Changes**. Save is why the dialog is rendered by the *pane* rather than by the screen -
+the pane is the only thing that can save - so the screen only says that an exit is pending and what the answer was.
+A save the server refuses therefore keeps the author on the card, draft intact and the error readable, instead of
+letting the exit through on a failed write. Two smaller holes were closed with it: while the draft is dirty the
+selected card is resolved from everything loaded rather than from the filtered list, and the clear-selection effect
+stands down, so a search keystroke cannot throw the draft away. Both of those only hold *while dirty* - a clean
+editor still empties when its card is filtered out.

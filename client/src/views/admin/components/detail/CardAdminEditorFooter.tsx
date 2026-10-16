@@ -24,7 +24,10 @@ export function CardAdminEditorFooter({
   return createPortal(
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
       {isDirty ? (
-        <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+        <span
+          data-testid="admin-unsaved-pill"
+          className="rounded-full border border-amber-500/35 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700"
+        >
           {t('admin.detail.unsavedChanges')}
         </span>
       ) : null}

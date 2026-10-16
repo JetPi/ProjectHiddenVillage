@@ -418,6 +418,8 @@
       "upload": "Upload Image",
       "uploadHelp": "PNG, JPEG or WebP, up to 10 MB.",
       "uploading": "Uploading...",
+      "addImage": "Add Image",
+      "changeImage": "Change Image",
       "externalUrl": "Or use an image URL",
       "externalUrlPlaceholder": "https://...",
       "previewAlt": "Card art preview",
@@ -430,7 +432,24 @@
       "stagedRemoval": "Staged. The art is removed when you save the card.",
       "remove": "Remove Art",
       "discard": "Discard",
-      "failed": "The card art could not be saved."
+      "failed": "The card art could not be saved.",
+      "sourceDialog": {
+        "title": "Card Art Source",
+        "storesAs": "Stored as WebP, capped at {{width}} px wide. Nothing is ever upscaled.",
+        "pasteTitle": "Paste an image",
+        "pasteHint": "Copy an image from another page, then press Ctrl+V (Cmd+V on macOS) anywhere in this area.",
+        "emptyPreview": "Nothing chosen yet",
+        "chooseFile": "Choose a File",
+        "dropHint": "You can also drop an image file onto this area.",
+        "measured": "{{width}} × {{height}} px · {{type}} · {{size}}",
+        "nothingOnClipboard": "The clipboard held no image. Copy an image, choose a file, or paste the image address instead.",
+        "undecodable": "That file could not be decoded as an image. Use a PNG, JPEG or WebP.",
+        "tooNarrow": "Card art has to be at least {{min}} px wide, and this image is {{width}} px, so it would be stored soft. Use the original file, or the image address, which keeps the source resolution.",
+        "tooLarge": "This file is {{size}}; uploads are capped at {{max}}.",
+        "addressHint": "Pasting an image address fills the URL field below instead of uploading a copy, which keeps the source resolution.",
+        "cancel": "Cancel",
+        "confirm": "Use This Image"
+      }
     },
     "catalog": {
       "loadingCards": "Loading cards...",
@@ -492,6 +511,14 @@
       "unsavedChanges": "Unsaved Changes",
       "saving": "Saving...",
       "saveCard": "Save Card",
+      "unsavedDialog": {
+        "title": "Discard unsaved changes?",
+        "bodyWithName": "{{name}} has changes that have not been saved. Leaving now discards them.",
+        "bodyGeneric": "This card has changes that have not been saved. Leaving now discards them.",
+        "keepEditing": "Keep Editing",
+        "discard": "Discard Changes",
+        "saveAndContinue": "Save & Continue"
+      },
       "summary": {
         "name": "Name",
         "supportCost": "Support Cost",

@@ -1,7 +1,8 @@
-import { useRef } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppButton, CardImage } from '@/components/ui'
+import { CardAdminArtSourceDialog } from './CardAdminArtSourceDialog'
 import type { ICardAdminStoredArt } from '@/views/admin/types/cardAdminDetailTypes'
 
 const INPUT_CLASS =
@@ -9,9 +10,9 @@ const INPUT_CLASS =
 const LABEL_CLASS = 'text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]'
 
 export type ICardAdminArtPickerProps = {
-  /** What the preview paints: an object URL for a just-picked file, or the art the card currently resolves. */
+  /** What the preview paints: an object URL for a just-chosen file, or the art the card currently resolves. */
   previewSrc: string
-  /** Only for screens where picking a file sends it at once, which is what labels the button "Uploading...". */
+  /** Only for screens where choosing a file sends it at once, which is what labels the button "Uploading...". */
   isUploading?: boolean
   error: string | null
   /** A line under the controls, for what the screen wants to say about the current art. */
@@ -26,14 +27,18 @@ export type ICardAdminArtPickerProps = {
   onUrlChange: (value: string) => void
   onSelectFile: (file: File) => void
   disabled: boolean
-  /** Screen-specific actions: the create screen discards a pending upload, the edit screen applies or removes. */
+  /** Screen-specific actions: the create screen discards a pending upload, the update screen applies or removes. */
   children?: ReactNode
 }
 
 /**
- * The art controls both card screens use. Deliberately presentational: what an upload *means* differs between
+ * The art controls both card screens use. Deliberately presentational: what a chosen image *means* differs between
  * them - on a new card it is held in the draft until the card exists, on an existing one it is applied at once -
  * so this renders the controls and the parent owns the behaviour.
+ *
+ * Choosing the image itself happens in `CardAdminArtSourceDialog`, because a paste needs a focused target and a
+ * modal is an honest place for one. This keeps the result of that choice - the preview, the current image, the URL
+ * alternative - and nothing else.
  */
 export function CardAdminArtPicker({
   previewSrc,
@@ -48,9 +53,10 @@ export function CardAdminArtPicker({
   children,
 }: ICardAdminArtPickerProps) {
   const { t } = useTranslation()
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [isSourceDialogOpen, setIsSourceDialogOpen] = useState(false)
 
   const isUploadDisabled = disabled || isUploading
+  const hasImage = (storedArt?.reference.length ?? 0) > 0
 
   return (
     <div>
@@ -67,41 +73,19 @@ export function CardAdminArtPicker({
           <div className="flex flex-wrap items-center gap-2">
             <AppButton
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setIsSourceDialogOpen(true)}
               disabled={isUploadDisabled}
+              data-testid="admin-art-source-open"
             >
-              {isUploading ? t('admin.art.uploading') : t('admin.art.upload')}
+              {isUploading
+                ? t('admin.art.uploading')
+                : hasImage
+                  ? t('admin.art.changeImage')
+                  : t('admin.art.addImage')}
             </AppButton>
 
             <span className="text-[11px] text-[var(--text-muted)]">{t('admin.art.uploadHelp')}</span>
           </div>
-
-          {/*
-            Driven by the button above. A file input cannot be styled - the browser draws its own "no file
-            chosen" chrome, which is what this replaces - so it is kept out of sight and out of the tab order,
-            leaving the button as the single control. It stays in the layout (rather than `display: none`) so it
-            keeps a box, and it keeps its id because the e2e spec uploads through it.
-          */}
-          <input
-            id="card-admin-art-file"
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-
-              // Cleared before the callback so picking the same file again - the retry after a rejected upload -
-              // still counts as a change.
-              event.target.value = ''
-
-              if (file) {
-                onSelectFile(file)
-              }
-            }}
-            disabled={isUploadDisabled}
-            tabIndex={-1}
-            className="sr-only"
-          />
 
           {statusMessage ? (
             <p className="text-xs text-[var(--text-secondary)]">{statusMessage}</p>
@@ -155,6 +139,16 @@ export function CardAdminArtPicker({
           {children ? <div className="flex flex-wrap items-center gap-2">{children}</div> : null}
         </div>
       </div>
+
+      {isSourceDialogOpen ? (
+        <CardAdminArtSourceDialog
+          onSelectFile={onSelectFile}
+          // A pasted address is not an upload: it belongs in the URL field, which keeps the source resolution.
+          onSelectUrl={onUrlChange}
+          onClose={() => setIsSourceDialogOpen(false)}
+          disabled={disabled}
+        />
+      ) : null}
     </div>
   )
 }

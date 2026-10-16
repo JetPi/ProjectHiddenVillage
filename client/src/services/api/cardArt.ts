@@ -7,6 +7,19 @@ export const CARD_ART_WIDTHS = {
   preview: 600,
 } as const
 
+/**
+ * The width a stored master is written at, which is also the widest variant we serve - it mirrors
+ * `CardArtOptions.ResolveMasterWidth()` on the server. Nothing is ever upscaled, so an image narrower than this is
+ * stored at its own width and shows soft at preview size, which is why the art source dialog refuses one.
+ */
+export const CARD_ART_MIN_SOURCE_WIDTH = CARD_ART_WIDTHS.preview
+
+/**
+ * Mirrors `CardArt:MaxUploadBytes`. The server is still the authority - this only lets the dialog say so before a
+ * request that would be refused anyway.
+ */
+export const CARD_ART_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
 export function cardArtUrl(cardId: string, width: number, imageVersion?: number | null): string {
   const query = new URLSearchParams({ w: String(width) })
   if (typeof imageVersion === 'number') {

@@ -6,10 +6,19 @@ import type {
 
 export type ICardAdminDetailPaneProps = {
   selectedCard: ICardCatalogItemResponse | null
+  /** Reports whether the open draft has anything in it, for the screen's unsaved-changes guard. */
+  onUnsavedChangesChange?: (hasUnsavedChanges: boolean) => void
+  /** True while an exit is waiting on the author's answer, which is when the dialog is shown. */
+  isExitPending?: boolean
+  /** What the author answered: leave, or stay. */
+  onExitResolved?: (shouldProceed: boolean) => void
 }
 
 export type ICardAdminDetailEditorProps = {
   selectedCard: ICardCatalogItemResponse
+  onUnsavedChangesChange?: (hasUnsavedChanges: boolean) => void
+  isExitPending?: boolean
+  onExitResolved?: (shouldProceed: boolean) => void
 }
 
 /**

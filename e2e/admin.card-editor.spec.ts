@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import type { Browser, BrowserContext, Page } from '@playwright/test'
 
 const AUTH_STORAGE_KEY = 'phv-auth-session'
 const API_HOST = '127.0.0.1:3101'
@@ -14,15 +15,14 @@ const adminSession = {
 }
 
 /**
- * The card editor is where the authoring UI gets dense: a scrollable pane, reorderable effect cards and a
- * form panel per concern. These are the invariants that used to break - the pane clipped dropdown lists,
- * the effect header sliced its own controls with `overflow-hidden`, and every level drew another card
- * box. Measured against the real DOM because the symptoms are purely geometric.
+ * Signs in as the seeded admin and waits for the catalogue. The dotnet API (migrations + seeding) comes up after
+ * the Vite dev server Playwright pings, so the first fetches have to be retried rather than asserted on.
  */
-test('admin card editor keeps dropdowns, headers and sections inside their containers', async ({ browser }) => {
-  // A desktop-width rail (the seeded admin runs ~1920 wide) must keep the header on a single line; at
-  // narrower widths the groups wrap instead of being sliced, which the overflow checks below still pin.
-  const context = await browser.newContext({ viewport: { width: 1600, height: 900 } })
+async function openAdminCatalogue(
+  browser: Browser,
+  viewport: { width: number; height: number },
+): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext({ viewport })
 
   // The development auth bypass identifies the caller by header, and the session keeps the client signed in.
   await context.route('**/*', (route) => {
@@ -42,8 +42,6 @@ test('admin card editor keeps dropdowns, headers and sections inside their conta
   )
 
   const page = await context.newPage()
-  const viewport = page.viewportSize()
-  expect(viewport).not.toBeNull()
 
   await page.goto('/admin/cards')
 
@@ -58,6 +56,22 @@ test('admin card editor keeps dropdowns, headers and sections inside their conta
     }
   }
   expect(tileCount, 'card list never loaded (API not reachable)').toBeGreaterThan(0)
+
+  return { context, page }
+}
+
+/**
+ * The card editor is where the authoring UI gets dense: a scrollable pane, reorderable effect cards and a
+ * form panel per concern. These are the invariants that used to break - the pane clipped dropdown lists,
+ * the effect header sliced its own controls with `overflow-hidden`, and every level drew another card
+ * box. Measured against the real DOM because the symptoms are purely geometric.
+ */
+test('admin card editor keeps dropdowns, headers and sections inside their containers', async ({ browser }) => {
+  // A desktop-width rail (the seeded admin runs ~1920 wide) must keep the header on a single line; at
+  // narrower widths the groups wrap instead of being sliced, which the overflow checks below still pin.
+  const { context, page } = await openAdminCatalogue(browser, { width: 1600, height: 900 })
+  const viewport = page.viewportSize()
+  expect(viewport).not.toBeNull()
 
   await page.locator('#card-admin-search').fill('Shisui')
   const firstTile = page.locator('li button').first()
@@ -236,6 +250,68 @@ test('admin card editor keeps dropdowns, headers and sections inside their conta
 
   const previewNodes = await page.evaluate(() => document.querySelectorAll('body > div[style*="top: -1000px"]').length)
   expect(previewNodes, 'the drag ghost node must not be left behind in the DOM').toBe(0)
+
+  await context.close()
+})
+
+/**
+ * Unsaved changes are the one thing this editor can lose silently: the pane is keyed by card id, so selecting
+ * another card - or leaving the view - unmounts the draft with it. Each of those exits asks first instead.
+ */
+test('admin card editor warns before leaving a card with unsaved changes', async ({ browser }) => {
+  const { context, page } = await openAdminCatalogue(browser, { width: 1600, height: 900 })
+
+  const tiles = page.locator('li button')
+  const firstTile = tiles.first()
+  const secondTile = tiles.nth(1)
+  await expect(firstTile).toBeVisible({ timeout: 15_000 })
+  await firstTile.click()
+
+  const artUrlField = page.locator('#card-admin-art-url')
+  await expect(artUrlField).toBeVisible({ timeout: 15_000 })
+
+  // Staging an art URL is the cheapest way to dirty the draft: it is always on screen, and on the update screen
+  // nothing is sent while it is only staged.
+  const stagedUrl = 'https://example.invalid/staged.png'
+  await artUrlField.fill(stagedUrl)
+
+  const unsavedPill = page.getByTestId('admin-unsaved-pill')
+  const unsavedDialog = page.getByTestId('admin-unsaved-changes')
+  await expect(unsavedPill).toBeVisible()
+
+  // 1. Selecting another card asks first, and staying keeps both the card and its draft.
+  await secondTile.click()
+  await expect(unsavedDialog).toBeVisible()
+  await page.getByRole('button', { name: 'Keep Editing' }).click()
+  await expect(unsavedDialog).toBeHidden()
+  await expect(artUrlField, 'staying must not remount the editor').toHaveValue(stagedUrl)
+
+  // 2. Leaving the view is the same loss, and the router asks the same question before it navigates.
+  await page.getByTestId('admin-add-card').click()
+  await expect(unsavedDialog).toBeVisible()
+  await page.getByRole('button', { name: 'Keep Editing' }).click()
+  await expect(unsavedDialog).toBeHidden()
+  await expect(page).toHaveURL(/\/admin\/cards$/)
+
+  // 3. Saving is the third answer, and it has to be *the card's* save: a draft the server refuses must not let
+  //    the exit through. A staged URL past the image column's limit is rejected server-side, which has to leave
+  //    the author on the card with the draft still there and still unsaved.
+  const refusedUrl = `https://example.invalid/${'a'.repeat(1200)}`
+  await artUrlField.fill(refusedUrl)
+  await secondTile.click()
+  await expect(unsavedDialog).toBeVisible()
+  await page.getByTestId('admin-unsaved-save').click()
+  await expect(unsavedDialog).toBeHidden()
+  await expect(artUrlField, 'a refused save must leave the draft alone').toHaveValue(refusedUrl)
+  await expect(unsavedPill, 'a refused save is not a save').toBeVisible()
+
+  // 4. Discarding goes through with it: the second card opens with a clean draft.
+  await secondTile.click()
+  await expect(unsavedDialog).toBeVisible()
+  await page.getByTestId('admin-unsaved-discard').click()
+  await expect(unsavedDialog).toBeHidden()
+  await expect(artUrlField).toHaveValue('')
+  await expect(unsavedPill).toBeHidden()
 
   await context.close()
 })

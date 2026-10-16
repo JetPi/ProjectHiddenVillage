@@ -233,6 +233,29 @@ paths:
   `resolveCardArtSourceHref` in `services/api/cardArt.ts` mirror the server's contract
   (`Api/Services/CardArt/CardArtSourceReference.cs`). The block is a divider row, never a bordered panel: the
   sections around it are already filled surfaces.
+- **Art is chosen through a dialog, and measured before it is used.** `CardAdminArtSourceDialog` is where the bytes
+  come from: a paste area that takes the focus when the dialog opens (so Ctrl+V needs no click, and there is no
+  page-wide paste listener that would swallow pastes meant for the catalogue search), the `#card-admin-art-file`
+  input the e2e drives, and a drop target. Whatever arrives is previewed **and measured** before it can be used:
+  `CARD_ART_MIN_SOURCE_WIDTH` (600, the width a master is written at — `CardArtOptions.ResolveMasterWidth`) is a
+  hard gate, because a narrower bitmap is stored at its own width and never upscaled, so it renders soft at preview
+  size. That gate is the whole reason the dialog exists: the paste path makes a soft image easy to pick by accident
+  — Chromium's clipboard copy of an image on a `srcset` page is the variant the layout chose, and a screenshot is
+  screen resolution. `CARD_ART_MAX_UPLOAD_BYTES` gates the other way, for the size the server would refuse anyway.
+  A pasted image *address* is not an upload: it fills the URL field, which is the only path that keeps the source
+  resolution. Both constants mirror server config, so they move together with it.
+- **Leaving a dirty editor asks first, and the card stays pinned while it is dirty.** `CardAdminDetailPane` reports
+  its own draft upward (`onUnsavedChangesChange`), and `CardAdminView` is the only thing that acts on it: another
+  tile opens `CardAdminUnsavedChangesDialog` instead of switching, `useBlocker` holds a router navigation (the Add
+  Card link, anything else), and `useBeforeUnload` makes the browser show its own prompt for a reload or a closed
+  tab. The dialog offers the three honest answers - stay, save and then leave, or leave and lose it - and staying
+  is the default and the focused button, because the pane is keyed by card id: the draft dies with the mount, so a
+  warning that let it go anyway would be decoration. It is rendered by the *pane* rather than by the screen, since
+  saving is one of its answers and only the pane can save; the screen only says that an exit is pending and what
+  the answer was. `Save & Continue` resolves the exit with what the save answered, so a save the server refuses
+  leaves the author on the card with the errors readable instead of behind the dialog. While the draft is dirty the
+  selected card is also resolved from everything loaded rather than from what the filters left on screen, and the
+  clear-selection effect stands down: a search keystroke is not a decision to discard anything either.
 
 ## Testing notes
 

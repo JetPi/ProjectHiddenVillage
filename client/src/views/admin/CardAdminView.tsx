@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useBeforeUnload, useBlocker } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { PageShell } from '@/components/layout/PageShell'
 import { Panel } from '@/components/ui'
@@ -79,16 +79,37 @@ export function CardAdminView() {
     })
   }, [viewModel.searchText, viewModel.type, viewModel.color, allLoadedItems])
 
+  /**
+   * The pane reports its own draft, so this screen knows whether leaving would throw work away. It is what the
+   * dialogs below and the router blocker are driven by - nothing else decides that here.
+   */
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [pendingCardId, setPendingCardId] = useState<string | null>(null)
+
+  // A filter that hides the card being edited must not take its draft with it - searching for something else is
+  // not a decision to discard anything - so while the draft is dirty the card is resolved from everything that is
+  // loaded rather than from what the filters left on screen. The clear-selection effect below is held back for the
+  // same reason.
+  const selectedCard = useMemo(() => {
+    const visibleCard = filteredCards.find((card) => card.id === viewModel.selectedCardId)
+
+    if (visibleCard || !hasUnsavedChanges) {
+      return visibleCard ?? null
+    }
+
+    return allLoadedItems.find((card) => card.id === viewModel.selectedCardId) ?? null
+  }, [filteredCards, allLoadedItems, viewModel.selectedCardId, hasUnsavedChanges])
+
   useEffect(() => {
     if (!viewModel.selectedCardId) {
       return
     }
 
     const hasSelectedCard = filteredCards.some((card) => card.id === viewModel.selectedCardId)
-    if (!hasSelectedCard) {
+    if (!hasSelectedCard && !hasUnsavedChanges) {
       viewModel.clearSelection()
     }
-  }, [filteredCards, viewModel])
+  }, [filteredCards, viewModel, hasUnsavedChanges])
 
   useEffect(() => {
     const sentinelElement = loadMoreSentinelRef.current
@@ -120,10 +141,63 @@ export function CardAdminView() {
     }
   }, [fetchNextPage, hasNextPage, isFetchingNextPage])
 
-  const selectedCard = useMemo(
-    () => filteredCards.find((card) => card.id === viewModel.selectedCardId) ?? null,
-    [filteredCards, viewModel.selectedCardId],
+  // Leaving the route is the same loss as switching cards, so the router asks first and the dialog decides.
+  const blocker = useBlocker(hasUnsavedChanges)
+
+  useBeforeUnload(
+    useCallback(
+      (event: BeforeUnloadEvent) => {
+        // A reload or a closed tab is outside the router's reach; preventing it is what makes the browser show
+        // its own generic prompt.
+        if (hasUnsavedChanges) {
+          event.preventDefault()
+        }
+      },
+      [hasUnsavedChanges],
+    ),
   )
+
+  const handleSelectCard = (cardId: string) => {
+    if (cardId === viewModel.selectedCardId) {
+      return
+    }
+
+    if (hasUnsavedChanges) {
+      // Held rather than navigated: the dialog decides whether the draft is thrown away.
+      setPendingCardId(cardId)
+      return
+    }
+
+    viewModel.selectCard(cardId)
+  }
+
+  /**
+   * Either an exit is held here (another card was clicked) or the router is holding one of its own. The dialog
+   * lives in the detail pane because saving is one of its answers, and only the pane can save.
+   */
+  const isExitPending = pendingCardId !== null || blocker.state === 'blocked'
+
+  const handleExitResolved = (shouldProceed: boolean) => {
+    const cardId = pendingCardId
+
+    // The router only exposes these while it is the thing holding the navigation.
+    const blockedNavigation = blocker.state === 'blocked' ? blocker : null
+
+    if (!shouldProceed) {
+      // Staying has to release the router too, otherwise the next navigation would still be held.
+      blockedNavigation?.reset()
+      setPendingCardId(null)
+      return
+    }
+
+    if (cardId !== null) {
+      setPendingCardId(null)
+      viewModel.selectCard(cardId)
+      return
+    }
+
+    blockedNavigation?.proceed()
+  }
 
   return (
     <PageShell
@@ -156,7 +230,7 @@ export function CardAdminView() {
               isError={isError}
               isFetchingNextPage={isFetchingNextPage}
               hasNextPage={hasNextPage ?? false}
-              onSelectCard={viewModel.selectCard}
+              onSelectCard={handleSelectCard}
               onFetchNextPage={fetchNextPage}
               listScrollContainerRef={listScrollContainerRef}
               loadMoreSentinelRef={loadMoreSentinelRef}
@@ -180,7 +254,12 @@ export function CardAdminView() {
                 </Link>
               </div>
             </div>
-            <CardAdminDetailPane selectedCard={selectedCard} />
+            <CardAdminDetailPane
+              selectedCard={selectedCard}
+              onUnsavedChangesChange={setHasUnsavedChanges}
+              isExitPending={isExitPending}
+              onExitResolved={handleExitResolved}
+            />
           </Panel>
         </div>
       </div>
