@@ -31,6 +31,12 @@ dotnet ef database update \
 # network call, so `CardImage` deterministically falls back instead of slowing the suite down.
 export CardArt__SourceHostAllowlist__0="e2e.invalid"
 
+# Its own art stores, because dev and e2e share the server content root: with one directory the e2e database's
+# orphan sweep sees every master the dev database references as unreferenced (and the other way round), and
+# deletes it once the grace window passes.
+export CardArt__UploadDirectory="card-art-uploads-e2e"
+export CardArt__CacheDirectory="card-art-cache-e2e"
+
 ASPNETCORE_ENVIRONMENT=Development \
 DOTNET_ENVIRONMENT=Development \
 PHV_INCLUDE_TEST_SEED_PROFILES=true \

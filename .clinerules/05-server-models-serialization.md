@@ -274,6 +274,18 @@ paths:
 
 ## Testing notes
 
+- **An e2e session must be a real login, not a fabricated token.** The Development authentication policy forwards
+  *any* request carrying `Authorization: Bearer …` to the JWT handler, and a token it cannot validate fails the
+  request with 401 - the development bypass never gets a say. Anonymous reads keep working, so an admin spec looks
+  fine until its first authorised write (the multipart art upload) answers 401 for no visible reason. Log in through
+  `POST /api/user/login` (`e2e/helpers/adminSession.ts`) and seed that session; the admin claim travels in the token.
+- **Fixture payloads must omit empty lists rather than send `[]`.** `CreateCardRequestValidator` delegates to the
+  effects validator, which rejects an empty `conditions` array ("at least one entry when provided"), so a raw
+  `conditions: []` is a 400 while an absent key means "none" - which is what the admin client sends. An empty
+  `effects: []` is fine, but omitting both is the honest payload (`e2e/helpers/multiplayer/fixtures.ts`).
+- **`POST /api/deck` answers with a plain-text GUID, not JSON.** `Created` with a `string` payload goes through
+  ASP.NET's `StringOutputFormatter`, so `response.json()` throws `Unexpected token 'a'`. Read `response.text()`.
+
 - `dotnet build server/…` and targeted tests (`GameStateResponseMapper*`,
   `CardRuntimeEffectDuration*`, `EffectTargetResolverTests`) are the quick server gates.
 - **The full server suite is green** (no known failures as of the N-008/N-012 pass). It used to carry a
