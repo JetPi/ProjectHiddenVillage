@@ -1,15 +1,11 @@
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   fetchGameState,
   openMultiplayerPages,
   resolveActorWithBottomHandAction,
-  resolveAllMulliganPrompts,
   resolvePlayerState,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
   waitForActorMainPhaseNumber,
 } from './helpers/gameviewMultiplayerHelpers'
@@ -33,30 +29,22 @@ const ALL_CHAKRA_FACE_UP_REASON = 'All chakra cards are already face up.'
 const FULL_CHAKRA_POOL = 5
 const CHAKRA_POOL_AFTER_ONE_COST = FULL_CHAKRA_POOL - 1
 
-// A character has to be drawn to have something for the leader's targeted power-up to spend chakra on.
-const SCENARIO_ATTEMPT_COUNT = 3
 
 test.describe('GameView multiplayer leader recovery', () => {
   test.describe.configure({ timeout: 300_000 })
 
   test('Recovery is refused on the first turn, becomes available from the second, and chakra never comes back on its own', async ({ browser, request }) => {
-    let lastFailure: unknown = null
-
-    for (let attempt = 0; attempt < SCENARIO_ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
+    // Keeps the seeded deck on purpose: the leader's targeted power-up has a target restriction this spec does
+    // not spell out, and the seeded deck is the only composition known to satisfy it. The scenario draws a
+    // character before it spends chakra, so it is not a fresh-game retry any more - just one game.
+    const setup = await setupMultiplayerGame(request)
       const pages = await openMultiplayerPages(browser, setup)
 
       try {
         await playLeaderRecoveryScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
       } finally {
         await closeMultiplayerPages(pages)
       }
-    }
-
-    throw lastFailure
   })
 })
 
@@ -65,13 +53,6 @@ async function playLeaderRecoveryScenario(
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
 ): Promise<void> {
-  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-  await advanceToMulliganPromptIfNeeded(request, setup)
-  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
   // 1. The first turn: the mapper's `player.TurnCount < 2` gate refuses the activation outright, so the
   //    chip must publish disabled with that reason (and the board must render it disabled).
   await waitForActorMainPhaseNumber(request, setup, setup.playerOne, 1)

@@ -1,14 +1,10 @@
 import { expect, test } from '@playwright/test'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   fetchGameState,
   openMultiplayerPages,
   resolveActorWithLeaderBattleAction,
-  resolveAllMulliganPrompts,
   resolvePlayerState,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 
@@ -26,12 +22,6 @@ test.describe('GameView multiplayer leader battle actions', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       const battleActor = await resolveActorWithLeaderBattleAction(request, setup, pages)
 
       const leaderCard = battleActor.actorPage.locator('[data-zone="leader-card"][data-slot-side="bottom"]')

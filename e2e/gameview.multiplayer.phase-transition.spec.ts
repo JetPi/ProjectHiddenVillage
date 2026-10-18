@@ -2,16 +2,12 @@ import { expect, test } from '@playwright/test'
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { MultiplayerPages, MultiplayerSetup } from './helpers/gameviewMultiplayerHelpers'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   fetchGameState,
   getPhaseRowSamples,
   installPhaseRowSampler,
   markPhaseRowSampleTime,
   openMultiplayerPages,
-  resolveAllMulliganPrompts,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 
@@ -88,13 +84,6 @@ test.describe('GameView multiplayer phase transitions', () => {
       // chain (StartOfMainPhase -> DrawPhase -> RefreshPhase -> MainPhase) and every sample of the run below.
       await installPhaseRowSampler(pages.playerOnePage)
       await installPhaseRowSampler(pages.playerTwoPage)
-
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
 
       const activePage = await waitForActiveMainPhase(request, setup, pages)
 

@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   declarePassInActionStepViaHub,
   executeBattleActionViaHub,
@@ -10,9 +9,6 @@ import {
   openMultiplayerPages,
   resolveActorWithBottomBattleAction,
   resolveActorWithBottomHandAction,
-  resolveAllMulliganPrompts,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 
@@ -108,13 +104,10 @@ test.describe('GameView multiplayer attack sequence', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      const otherPlayer = startingOwner.userId === setup.playerOne.userId ? setup.playerTwo : setup.playerOne
-
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+      // Warm start makes player one the starting player, so turn order is part of the setup instead of a coin
+      // flip: this scenario summons one attacker per turn and then asserts which of them attacks when.
+      const startingOwner = setup.playerOne
+      const otherPlayer = setup.playerTwo
 
       const summonFor = async (actorUserId: string): Promise<string> => {
         const actor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', { actorUserId })
@@ -132,7 +125,21 @@ test.describe('GameView multiplayer attack sequence', () => {
           || activeUserId === setup.playerOne.normalizedUserId.toLowerCase()
         const activePage = isPlayerOneActive ? pages.playerOnePage : pages.playerTwoPage
 
-        await activePage.getByTestId('pass-turn-button').click()
+        // The button can be mid-relayout when the click lands, and a swallowed press leaves the turn where it was
+        // for the whole 45 s below. Press again while the engine still reports the same active player: a press
+        // that did take effect changes that state immediately, so this can never end two turns.
+        for (let press = 0; press < 3; press += 1) {
+          await activePage.getByTestId('pass-turn-button').click()
+
+          const turnChanged = await expect.poll(async () => {
+            const nextState = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)
+            return nextState.activePlayerId.toLowerCase() !== state.activePlayerId.toLowerCase()
+          }, { timeout: 8_000 }).toBe(true).then(() => true).catch(() => false)
+
+          if (turnChanged) {
+            break
+          }
+        }
         // This waits on an infrastructure round trip (two clients acking an engine-driven turn hand-over), not
         // on an animation: on a loaded machine the EndStep -> Draw -> Ready chain plus the REST polls can take
         // well past 25 s even though nothing is wrong. The condition asserted below is unchanged - only the

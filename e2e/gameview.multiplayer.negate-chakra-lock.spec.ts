@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
+import { createFixtureDeck } from './helpers/multiplayer/fixtures'
 import type { APIRequestContext, Page } from '@playwright/test'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   declarePassInActionStepViaHub,
   fetchGameState,
@@ -9,10 +9,7 @@ import {
   openMultiplayerPages,
   progressToNextDecisionWindow,
   resolveActorWithBottomHandAction,
-  resolveAllMulliganPrompts,
   resolvePlayerState,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
   waitForActorMainPhaseNumber,
 } from './helpers/gameviewMultiplayerHelpers'
@@ -47,30 +44,29 @@ const RECOVERY_EFFECT_SUFFIX = ':recovery'
 // means something while both are distinguishable.
 const CHAKRA_LOCK_REASON = 'Your chakra is locked and cannot be turned face-up.'
 
-const SCENARIO_ATTEMPT_COUNT = 3
 const ROLE_SEARCH_CYCLE_COUNT = 30
+
+let openerDeckId = ''
+let negaterDeckId = ''
 
 test.describe('GameView multiplayer negate support and chakra lock', () => {
   test.describe.configure({ timeout: 300_000 })
 
-  test('N-016 negates the queued K.O. and locks only its own activator out of chakra recovery', async ({ browser, request }) => {
-    let lastFailure: unknown = null
+  test.beforeAll(async ({ request }) => {
+    // The K.O. support on one side and the negate support on the other, with plain characters around them.
+    openerDeckId = await createFixtureDeck(request, ['1x N-001', '10x N-004', '8x N-007'])
+    negaterDeckId = await createFixtureDeck(request, ['1x N-012', '12x N-016', '6x N-015'])
+  })
 
-    for (let attempt = 0; attempt < SCENARIO_ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
+  test('N-016 negates the queued K.O. and locks only its own activator out of chakra recovery', async ({ browser, request }) => {
+          const setup = await setupMultiplayerGame(request, 'default', { one: { deckId: openerDeckId }, two: { deckId: negaterDeckId } })
       const pages = await openMultiplayerPages(browser, setup)
 
       try {
         await playNegateChakraLockScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
       } finally {
         await closeMultiplayerPages(pages)
       }
-    }
-
-    throw lastFailure
   })
 })
 async function playNegateChakraLockScenario(
@@ -78,13 +74,6 @@ async function playNegateChakraLockScenario(
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
 ): Promise<void> {
-  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-  await advanceToMulliganPromptIfNeeded(request, setup)
-  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
   const opener = setup.playerOne
   const negater = setup.playerTwo
   const openerPage = pages.playerOnePage

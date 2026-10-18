@@ -1,16 +1,12 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   countTravelingCardElements,
   fetchGameState,
   getBottomHandInstanceOrder,
   openMultiplayerPages,
-  resolveAllMulliganPrompts,
   resolveHandCardDragPressPoint,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
   waitForBottomHandToSettle,
 } from './helpers/gameviewMultiplayerHelpers'
@@ -28,25 +24,12 @@ test.describe('GameView', () => {
       setup = await setupMultiplayerGame(request)
       pages = await openMultiplayerPages(browser, setup)
 
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       page = pages.playerOnePage
       await expect(page.getByTestId('game-board')).toBeVisible()
 
-      // The board is only usable once the engine has walked the opening into a MainPhase and the last draw has
-      // landed: before that the deal/draw batch keeps changing the hand, which races any measured gesture (that
-      // race is what made the drag test intermittently fail to arm).
-      await expect.poll(async () => {
-        const state = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)
-        return state.phase
-      }, { timeout: 60_000 }).toBe('MainPhase')
-
-      // Nothing may still be mid-flight: a card left marked as travelling would be stuck transformed, or stuck
+      // The setup already warm-starts into the MainPhase, so the hand is dealt and the draw has landed before
+      // this test measures anything. Only the flights matter here: a card left marked as travelling would be
+      // stuck transformed, or stuck
       // hidden behind the frame the flight uses before it starts.
       await expect.poll(async () => await countTravelingCardElements(page), { timeout: 30_000 }).toBe(0)
     })

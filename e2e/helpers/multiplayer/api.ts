@@ -75,6 +75,39 @@ export async function login(request: APIRequestContext, email: string, password:
   return await response.json() as LoginResponse
 }
 
+export type WarmStartResponse = {
+  id: string
+  phase: string
+  activePlayerId: string
+  turnNumber: number
+}
+
+/**
+ * Walks a freshly created, joined game through its opening on the server: the starting-player choice, both
+ * mulligans (answered "keep the hand") and the engine-owned phases, down to the first MainPhase.
+ *
+ * It exists so a scenario starts where it wants to assert instead of replaying the opening in every test. It is
+ * only available on a Development server with `PHV_INCLUDE_TEST_SEED_PROFILES` set (the e2e start script sets
+ * it); `globalSetup` guarantees the API is up, so a failure here is a real one.
+ */
+export async function warmStartGame(
+  request: APIRequestContext,
+  gameCode: string,
+  startingPlayerPosition = 0,
+): Promise<WarmStartResponse> {
+  const response = await request.post(
+    `${API_BASE_URL}/api/test/games/${encodeURIComponent(gameCode)}/warm-start`,
+    { data: { startingPlayerPosition } },
+  )
+
+  if (!response.ok()) {
+    const failureBody = await response.text()
+    throw new Error(`Warming game '${gameCode}' failed with ${response.status()}: ${failureBody}`)
+  }
+
+  return await response.json() as WarmStartResponse
+}
+
 export async function createGame(request: APIRequestContext, userId: string, deckId: string, accessToken: string): Promise<string> {
   const response = await request.post(`${API_BASE_URL}/api/games`, {
     headers: {

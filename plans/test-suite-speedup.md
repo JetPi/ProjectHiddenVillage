@@ -277,3 +277,135 @@ pin the summoned card by `cardDefinitionId` where the scenario asserts *which* c
 A durable alternative for the whole suite: let the e2e create-game path accept a fixed shuffle seed
 (`GameInstanceFactory` currently always draws its own via `RandomNumberGenerator`), which would make every
 scenario reproducible instead of shuffle-dependent.
+
+---
+
+## 12. Next phase — warm start, then delete the retry wrappers
+
+Two changes, in this order. Condensing tests is explicitly out of scope.
+
+### 12.1 Warm-start endpoint (removes ~2 s of prologue from every test)
+
+**Why it is safe.** `TryMintPresentation` short-circuits when nobody is watching
+([`InMemoryGameInstanceRegistry.cs:2752`](../../server/Engine/Services/InMemoryGameInstanceRegistry.cs:2752)):
+with zero connected clients it mints no presentation and the drain keeps walking. So a game can be walked to
+`MainPhase` **server-side, before any page connects**, with no acknowledgement round-trips at all. The
+reference implementation of that walk already exists:
+[`GamePhaseAutomationDrainTests.AdvanceToMainPhase`](../../server/tests/ProjectHiddenVillage.Server.Tests/GamePhaseAutomationDrainTests.cs:288).
+
+**Server**
+
+1. `IGameWarmStartService` + `GameWarmStartService` (`server/Api/Services/Games/`), unit-testable against a real
+   `InMemoryGameInstanceRegistry` the way the drain tests are:
+   ```text
+   WarmStart(gameCode, startingPlayerPosition = 0) -> ErrorOr<GameWarmStartResult>
+   loop (bounded, 16 steps):
+     pending ChooseStartingPlayer prompt -> resolve it so the requested position starts
+         (option is goFirst when the prompt's requester is that player, otherwise goSecond -
+         see ResolveStartingPlayerFromPromptOption, GameInstance.cs:495)
+     pending Mulligan prompt              -> resolve noMulligan
+     pending presentation                 -> acknowledge for every RequiredAckPlayerId
+     phase == MainPhase && active == wanted -> return
+     nothing pending and not MainPhase    -> error: phase automation is off (clear message)
+   ```
+   It must refuse (not loop) when `GamePhaseAutomationOptions.Enabled` is false, so a configuration mistake
+   reads as a configuration mistake.
+2. `TestGamesController` (`server/Api/Controllers/`): `POST /api/test/games/{gameCode}/warm-start`,
+   `[ApiExplorerSettings(IgnoreApi = true)]`, body `{ startingPlayerPosition?: 0 | 1 }`, response
+   `{ id, phase, activePlayerId, turnNumber }`. Guard inside the action: `NotFound()` unless the environment is
+   Development **and** `PHV_INCLUDE_TEST_SEED_PROFILES` is set (the e2e start script already sets it), so a
+   normal dev server never exposes it.
+3. New server test: warm start reaches `MainPhase` with the requested player active, both hands dealt with the
+   mulligans answered `noMulligan`, and no pending presentation left behind.
+
+**E2E**
+
+4. [`api.ts`](../../e2e/helpers/multiplayer/api.ts:1): `warmStartGame(request, gameCode, startingPlayerPosition)`.
+5. [`setup.ts`](../../e2e/helpers/multiplayer/setup.ts:44): `setupMultiplayerGame` grows a fourth, optional
+   `options: { warmStart?: boolean }`; after `joinGame` it warms the game and asserts the returned phase is
+   `MainPhase`. Default on, so every existing call site benefits without a signature change.
+6. Every spec that currently walks the opening drops the prologue: delete
+   `resolveStartingPromptOwner`, the `resolvePromptViaHub(..., 'goFirst')` call,
+   `advanceToMulliganPromptIfNeeded` and `resolveAllMulliganPrompts` (about 16 files), plus the now-redundant
+   `waitFor MainPhase` poll in [`gameview.spec.ts`](../../e2e/gameview.spec.ts:82).
+7. [`prompts.spec.ts`](../../e2e/gameview.multiplayer.prompts.spec.ts:24) keeps the prologue: its four tests are
+   *about* the starting-player prompt and the mulligan. They pass `{ warmStart: false }`.
+
+**Risk notes**
+
+- Player one now always starts. Every helper that acts as a specific player already walks to that player's
+  MainPhase, so this is not a behavioural change for the scenarios — it removes one source of variation.
+- A page that connects after the walk sees no pending presentation (none was minted); that is the same path a
+  mid-game reload already takes, which the suite covers.
+- First-turn rules still apply, so tests that need a later turn keep their `waitForActorMainPhaseNumber` walks.
+
+### 12.2 Delete the 13 retry-with-a-fresh-game wrappers
+
+**Principle.** A scenario that needs a card should play a deck made of *only* that card (plus its leader), so
+the card is certain in the opening hand or reachable within one or two draws. Then the `for (attempt < 3)` loop
+around a full `setupMultiplayerGame` + `openMultiplayerPages` goes away, and with it up to two extra bootstraps
+and two full scenario replays per test — and the case where a real bug has to fail three times before it is
+visible.
+
+Uniform recipe per file:
+
+1. `beforeAll`: `createFixtureDeck` for each player side with a composition that holds nothing but the leader
+   and the cards the scenario needs (12–24 cards; keep the "not needed" pool **under 5** when a single card must
+   be in the opening hand).
+2. `setupMultiplayerGame(request, 'default', { one: { deckId }, two: { deckId } })`.
+3. Pin the cards the scenario asserts on: pass `cardDefinitionId` to `resolveActorWithBottomHandAction` and
+   friends instead of taking "whatever is first in hand".
+4. Remove the `for`/`lastFailure` wrapper, keep the scenario body and its `try/finally` untouched.
+5. Verify with `npx playwright test <file> --repeat-each=5 --workers=1` (must be 5/5) before moving on.
+
+| File | Tests | Cards the scenario needs |
+|---|---|---|
+| [`support.spec.ts`](../../e2e/gameview.multiplayer.support.spec.ts:320) | 4 | N-006/N-017 (range), N-020 (bounce), N-008 (interrupt), N-010 + N-018 (life gain), plus one plain summoner |
+| [`quick-support.spec.ts`](../../e2e/gameview.multiplayer.quick-support.spec.ts:84) | 2 | N-002 (answerer quick support), N-021 + N-004 (opener), plus plain summoners |
+| [`reveal-presentation.spec.ts`](../../e2e/gameview.multiplayer.reveal-presentation.spec.ts:70) | 3 | N-019, N-013, leader N-012 (its `draw-n-place-card` stacks the deck top) |
+| [`support-target-visuals.spec.ts`](../../e2e/gameview.multiplayer.support-target-visuals.spec.ts:57) | 1 | N-009 (negate), N-015 (K.O. support), N-019/N-020 (plain summons) |
+| [`leader-recovery.spec.ts`](../../e2e/gameview.multiplayer.leader-recovery.spec.ts:45) | 1 | leader N-001 (the actor) + any characters to spend chakra on |
+| [`conditional-rush.spec.ts`](../../e2e/gameview.multiplayer.conditional-rush.spec.ts:45) | 1 | N-007; the +3 power comes from leader N-001's `power-up-card`, so no second card is needed |
+| [`negate-chakra-lock.spec.ts`](../../e2e/gameview.multiplayer.negate-chakra-lock.spec.ts:59) | 1 | N-004 (K.O. support), N-016 (negate) |
+| [`character-ability.spec.ts`](../../e2e/gameview.multiplayer.character-ability.spec.ts:53) | 1 | N-011, N-008, N-002 (a deck of exactly these three, so all three arrive within a few draws) |
+
+`RANGE_SUPPORT_ATTEMPT_COUNT`, `SCENARIO_ATTEMPT_COUNT` and `ATTEMPT_COUNT` disappear from those files; the
+explanatory comments that justified them go with them.
+
+### 12.3 Order and acceptance
+
+1. §12.1 (server service + endpoint + test), then the helper, then the spec cleanup in one pass.
+2. §12.2 one file at a time, each validated by 5× repetition before the next.
+3. Acceptance: 47 tests still present, no skipped tests, no assertion removed; `--workers=1 --repeat-each=2`
+   green; record the new single-worker total against the current 11.6 min baseline.
+
+### 12.4 Outcome (implemented and measured)
+
+**Warm start.** `IGameWarmStartService`/`GameWarmStartService` walk the opening with a 16-step guard: the
+starting-player prompt is answered so the requested join position starts, both mulligans with `noMulligan`, any
+presentation acknowledged defensively. `TestGamesController` exposes
+`POST /api/test/games/{gameCode}/warm-start`, 404 unless Development **and** `PHV_INCLUDE_TEST_SEED_PROFILES`.
+`setupMultiplayerGame` takes a fourth optional `{ warmStart }` (default on) and asserts the returned phase.
+Six server tests cover the walk (732 server tests total, 1 s).
+
+**Specs.** The prologue is gone from 17 files. Five tests opt out because the opening *is* their subject:
+`prompts.spec.ts` (4), `game-over.spec.ts` (the `deck-out` hand empties before the first draw, so the game over
+is the opening), and the two `board-animation.spec.ts` tests that watch the initial deal and the engine-walked
+opening phases.
+
+**Retry wrappers.** All 13 removed: nine unwrapped mechanically, `support.spec.ts`'s four rewritten. Each now
+runs one game on a deck composed of only its leader and the cards it needs (11 new fixture decks across seven
+files, plus the Rush deck from §11.5). `SCENARIO_ATTEMPT_COUNT`, `RANGE_SUPPORT_ATTEMPT_COUNT` and
+`ATTEMPT_COUNT` no longer exist. `leader-recovery` keeps the seeded deck: its leader power-up has a target
+restriction the spec does not spell out, so the seeded composition is the only known-good one.
+
+**`attack-sequence`.** `endTurnViaUi` now presses pass-turn again while the engine still reports the same active
+player (bounded, three presses). A press that took effect changes the active player immediately, so this cannot
+end two turns; it fixes the swallowed click behind that test's 1-in-2 failures.
+
+| Run | Result |
+|---|---|
+| `--workers=4` (47 tests) | **47/47 in 1.4 m** |
+| `--workers=1 --repeat-each=2` (shipped CI profile, 94 runs) | **94/94 in 6.6 m** (baseline 11.6 m) |
+| Server suite | 732/732 in 1 s |
+| Test count | 47, no skips, no assertions removed |

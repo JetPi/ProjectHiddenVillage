@@ -1,17 +1,13 @@
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext, Page } from '@playwright/test'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   fetchGameState,
   getCardActionTargetsViaHub,
   normalizeUserId,
   openMultiplayerPages,
   resolveActorWithBottomHandAction,
-  resolveAllMulliganPrompts,
   resolvePlayerState,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 import type { MultiplayerPages, MultiplayerSetup, PlayerAuth } from './helpers/gameviewMultiplayerHelpers'
@@ -110,12 +106,6 @@ test.describe('GameView multiplayer leader effects', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       // The leader effect selects a character in a character field, so one has to reach the board.
       const summon = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
         cardDefinitionId: SUMMONABLE_CARD_DEFINITION_ID,

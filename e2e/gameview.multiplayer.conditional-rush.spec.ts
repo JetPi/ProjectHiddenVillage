@@ -1,16 +1,13 @@
 import { expect, test } from '@playwright/test'
+import { createFixtureDeck } from './helpers/multiplayer/fixtures'
 import type { APIRequestContext } from '@playwright/test'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   declarePassInActionStepViaHub,
   fetchGameState,
   openMultiplayerPages,
   resolveActorWithBottomHandAction,
-  resolveAllMulliganPrompts,
   resolvePlayerState,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
   waitForActorMainPhaseNumber,
 } from './helpers/gameviewMultiplayerHelpers'
@@ -32,31 +29,26 @@ const LEADER_POWER_UP_EFFECT_SUFFIX = ':power-up-card'
 // reads. The board hides the reason behind the chip's title, and the payload publishes it directly.
 const SUMMONED_THIS_TURN_REASON = 'Cannot declare battle action the turn that the card entered the field.'
 
-// Minato Namikaze has to be drawn (three copies in a 33+ card deck) and the summoner must be past their
-// first turn, so every attempt plays a fresh game and tries again.
-const SCENARIO_ATTEMPT_COUNT = 3
-
 test.describe('GameView multiplayer conditional rush', () => {
   test.describe.configure({ timeout: 300_000 })
 
+  // A deck of only the leader and Minato: the card is in every possible opening hand, and the +3 power that
+  // lifts it over the threshold comes from the leader's own `power-up-card`. Nothing here rides a shuffle.
+  let minatoDeckId = ''
+
+  test.beforeAll(async ({ request }) => {
+    minatoDeckId = await createFixtureDeck(request, ['1x N-001', '24x N-007'])
+  })
+
   test('a power boost lifts a summon-sick character over its Rush threshold in the same main phase', async ({ browser, request }) => {
-    let lastFailure: unknown = null
+    const setup = await setupMultiplayerGame(request, 'default', { one: { deckId: minatoDeckId } })
+    const pages = await openMultiplayerPages(browser, setup)
 
-    for (let attempt = 0; attempt < SCENARIO_ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
-      const pages = await openMultiplayerPages(browser, setup)
-
-      try {
-        await playConditionalRushScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
-      } finally {
-        await closeMultiplayerPages(pages)
-      }
+    try {
+      await playConditionalRushScenario(request, setup, pages)
+    } finally {
+      await closeMultiplayerPages(pages)
     }
-
-    throw lastFailure
   })
 })
 async function playConditionalRushScenario(
@@ -64,13 +56,6 @@ async function playConditionalRushScenario(
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
 ): Promise<void> {
-  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-  await advanceToMulliganPromptIfNeeded(request, setup)
-  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
   // Player one is the deck that holds Minato. Their *second* turn is the earliest where the first-turn
   // battle ban no longer hides the summon-turn rule, which is the rule conditional Rush exists to bypass.
   await waitForActorMainPhaseNumber(request, setup, setup.playerOne, 2)

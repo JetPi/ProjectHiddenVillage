@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
+import { createFixtureDeck } from './helpers/multiplayer/fixtures'
 import type { APIRequestContext } from '@playwright/test'
 import type { MultiplayerPages, MultiplayerSetup } from './helpers/gameviewMultiplayerHelpers'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   declarePassInActionStepViaHub,
   executeBattleActionViaHub,
@@ -19,10 +19,7 @@ import {
   progressToNextDecisionWindow,
   resolveActorWithBottomBattleAction,
   resolveActorWithBottomHandAction,
-  resolveAllMulliganPrompts,
   resolvePlayerState,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 
@@ -67,13 +64,37 @@ const GAIN_LIFE_ATTACKER_DEFINITION_ID_BY_DECK = {
   playerOne: 'N-018',
 } as const
 
-// Neither opening hand is guaranteed to hold a range support (three copies in a 31-card deck), and a game
-// where nobody draws one ends in a deck-out before the scenario can play out. Each attempt plays a fresh
-// game, so the spec stays reliable instead of riding a single shuffle.
-const RANGE_SUPPORT_ATTEMPT_COUNT = 3
-
 test.describe('GameView multiplayer support activation', () => {
   test.describe.configure({ timeout: 240_000 })
+
+  // Each scenario plays a deck composed of only the cards it needs (plus its leader), so the required support
+  // card is in hand - or reachable within a draw or two - instead of being a three-in-thirty-one bet. That is
+  // what lets each test run once instead of replaying the whole scenario in a fresh game up to three times.
+  let rangeDeckOne = ''
+  let rangeDeckTwo = ''
+  let interruptDeckOne = ''
+  let interruptDeckTwo = ''
+  let returnToHandDeckOne = ''
+  let returnToHandDeckTwo = ''
+  let gainLifeDeckOne = ''
+  let gainLifeDeckTwo = ''
+
+  test.beforeAll(async ({ request }) => {
+    rangeDeckOne = await createFixtureDeck(request, ['1x N-001', '10x N-006', '8x N-007'])
+    rangeDeckTwo = await createFixtureDeck(request, ['1x N-012', '10x N-017', '8x N-015'])
+
+    // Player one defends with N-008 while player two attacks with a plain character of deck two.
+    interruptDeckOne = await createFixtureDeck(request, ['1x N-001', '10x N-008', '8x N-007'])
+    interruptDeckTwo = await createFixtureDeck(request, ['1x N-012', '10x N-015', '8x N-020'])
+
+    // Player two defends with N-020 while player one attacks with a plain character of deck one.
+    returnToHandDeckOne = await createFixtureDeck(request, ['1x N-001', '10x N-007', '8x N-018'])
+    returnToHandDeckTwo = await createFixtureDeck(request, ['1x N-012', '10x N-020', '8x N-015'])
+
+    // Player two defends with N-010 while player one attacks with the 1-damage N-018.
+    gainLifeDeckOne = await createFixtureDeck(request, ['1x N-001', '10x N-018', '8x N-007'])
+    gainLifeDeckTwo = await createFixtureDeck(request, ['1x N-012', '10x N-010', '8x N-015'])
+  })
 
   // Seed profile `default` deck "one" (leader N-001) contains the real support cards:
   //  - N-007 (Minato) is a plain summonable Character, used to put a card on the field.
@@ -87,13 +108,6 @@ test.describe('GameView multiplayer support activation', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       // 1. Put a character on the field so "K.O. all Characters" has something to destroy.
       const summonActor = await resolveActorWithBottomHandAction(
         request,
@@ -221,12 +235,6 @@ test.describe('GameView multiplayer support activation', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       // The reported path: "it is like they are going beneath the UI when going from hand to support zone. From
       // hand to field looks fine however." `set-support:` puts the card *into* the support row, and the element
       // that flies is the slot the player will look at from then on - a board card, inside the half's `z-20`
@@ -315,83 +323,59 @@ test.describe('GameView multiplayer support activation', () => {
   })
 
   test('range support picks its targets with the multi-select board and K.O.s them', async ({ browser, request }) => {
-    let lastFailure: unknown = null
+    const setup = await setupMultiplayerGame(request, 'default', {
+      one: { deckId: rangeDeckOne },
+      two: { deckId: rangeDeckTwo },
+    })
+    const pages = await openMultiplayerPages(browser, setup)
 
-    for (let attempt = 0; attempt < RANGE_SUPPORT_ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
-      const pages = await openMultiplayerPages(browser, setup)
-
-      try {
-        await playRangeSupportScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
-      } finally {
-        await closeMultiplayerPages(pages)
-      }
+    try {
+      await playRangeSupportScenario(request, setup, pages)
+    } finally {
+      await closeMultiplayerPages(pages)
     }
-
-    throw lastFailure
   })
 
   test('a character bounced by N-020 animates back into its owner hand', async ({ browser, request }) => {
-    let lastFailure: unknown = null
+    const setup = await setupMultiplayerGame(request, 'default', {
+      one: { deckId: returnToHandDeckOne },
+      two: { deckId: returnToHandDeckTwo },
+    })
+    const pages = await openMultiplayerPages(browser, setup)
 
-    for (let attempt = 0; attempt < RANGE_SUPPORT_ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
-      const pages = await openMultiplayerPages(browser, setup)
-
-      try {
-        await playReturnToHandScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
-      } finally {
-        await closeMultiplayerPages(pages)
-      }
+    try {
+      await playReturnToHandScenario(request, setup, pages)
+    } finally {
+      await closeMultiplayerPages(pages)
     }
-
-    throw lastFailure
   })
 
   test('an interrupting N-008 cancels the attack and summons itself', async ({ browser, request }) => {
-    let lastFailure: unknown = null
+    const setup = await setupMultiplayerGame(request, 'default', {
+      one: { deckId: interruptDeckOne },
+      two: { deckId: interruptDeckTwo },
+    })
+    const pages = await openMultiplayerPages(browser, setup)
 
-    for (let attempt = 0; attempt < RANGE_SUPPORT_ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
-      const pages = await openMultiplayerPages(browser, setup)
-
-      try {
-        await playInterruptAttackScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
-      } finally {
-        await closeMultiplayerPages(pages)
-      }
+    try {
+      await playInterruptAttackScenario(request, setup, pages)
+    } finally {
+      await closeMultiplayerPages(pages)
     }
-
-    throw lastFailure
   })
 
   test('a life gain above the printed maximum renders on the leader badge', async ({ browser, request }) => {
-    let lastFailure: unknown = null
+    const setup = await setupMultiplayerGame(request, 'default', {
+      one: { deckId: gainLifeDeckOne },
+      two: { deckId: gainLifeDeckTwo },
+    })
+    const pages = await openMultiplayerPages(browser, setup)
 
-    for (let attempt = 0; attempt < RANGE_SUPPORT_ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
-      const pages = await openMultiplayerPages(browser, setup)
-
-      try {
-        await playGainLifeAboveMaximumScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
-      } finally {
-        await closeMultiplayerPages(pages)
-      }
+    try {
+      await playGainLifeAboveMaximumScenario(request, setup, pages)
+    } finally {
+      await closeMultiplayerPages(pages)
     }
-
-    throw lastFailure
   })
 })
 
@@ -411,13 +395,6 @@ async function playGainLifeAboveMaximumScenario(
 ): Promise<void> {
   const attacker = setup.playerOne
   const defender = setup.playerTwo
-
-  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-  await advanceToMulliganPromptIfNeeded(request, setup)
-  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
 
   // 1. The attacker summons the 1-damage character outside any attack window, so it is ready to attack later.
   const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
@@ -544,13 +521,6 @@ async function playInterruptAttackScenario(
 ): Promise<void> {
   const attacker = setup.playerTwo
   const defender = setup.playerOne
-
-  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-  await advanceToMulliganPromptIfNeeded(request, setup)
-  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
 
   // 1. The attacker summons a plain character: the attack it declares is what N-008 interrupts.
   const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
@@ -810,13 +780,6 @@ async function playReturnToHandScenario(
   const attacker = setup.playerOne
   const defender = setup.playerTwo
 
-  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-  await advanceToMulliganPromptIfNeeded(request, setup)
-  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
   // 1. The attacker summons a plain character so there is something to bounce.
   const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
     actorUserId: attacker.userId,
@@ -901,13 +864,6 @@ async function playRangeSupportScenario(
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
 ): Promise<void> {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       // Neither opening hand is guaranteed to hold a range support, so the roles follow the hands:
       // whoever holds theirs defends, the other player attacks.
       const { attacker, defender, rangeCardDefinitionId } = await resolveRangeSupportRoles(request, setup)

@@ -1,17 +1,13 @@
 import { expect, test } from '@playwright/test'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   executeBattleActionViaHub,
   fetchGameState,
   openMultiplayerPages,
   resolveActorWithBottomBattleAction,
   resolveActorWithBottomHandAction,
-  resolveAllMulliganPrompts,
   resolveBattleActionForSpecificCard,
   resolvePlayerState,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 import {
@@ -48,13 +44,6 @@ test.describe('GameView multiplayer battle visuals', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       // Same reason as the refresh scenario below: the Battle action has to be available on the turn the card is
       // summoned, which only the Rush fixture provides.
       const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
@@ -110,13 +99,6 @@ test.describe('GameView multiplayer battle visuals', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       // Summon the Rush fixture specifically: the attack below has to happen on the turn this card arrives, so
       // leaving the choice to the shuffle is what made this test fail intermittently.
       const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {

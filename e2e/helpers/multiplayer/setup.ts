@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import type { APIRequestContext, Browser, BrowserContext, Page } from '@playwright/test'
-import { createGame, fetchGameState, joinGame, login, SEEDED_PLAYER_PROFILES } from './api'
+import { createGame, fetchGameState, joinGame, login, SEEDED_PLAYER_PROFILES, warmStartGame } from './api'
 import { normalizeUserId } from './core'
 import { closeHelperConnections } from './hub'
 import type { AuthSession, MultiplayerPages, MultiplayerSeedProfileName, MultiplayerSetup } from './types'
@@ -45,10 +45,19 @@ export type MultiplayerDeckOverrides = {
   two?: { deckId: string }
 }
 
+export type MultiplayerSetupOptions = {
+  /**
+   * Walk the opening on the server and start in the first MainPhase (the default). Only a spec that asserts the
+   * starting-player prompt or the mulligan itself passes `false`.
+   */
+  warmStart?: boolean
+}
+
 export async function setupMultiplayerGame(
   request: APIRequestContext,
   seedProfileName: MultiplayerSeedProfileName = 'default',
   deckOverrides: MultiplayerDeckOverrides = {},
+  options: MultiplayerSetupOptions = {},
 ): Promise<MultiplayerSetup> {
   const seededPlayers = SEEDED_PLAYER_PROFILES[seedProfileName]
 
@@ -87,6 +96,15 @@ export async function setupMultiplayerGame(
     selectedPlayers.two.deckId,
     playerTwoLogin.accessToken,
   )
+
+  if (options.warmStart !== false) {
+    // Starting player, both mulligans and the engine-owned phases, all before a page connects: with no watcher
+    // registered the engine mints no phase presentation, so there is nothing to acknowledge.
+    const warmed = await warmStartGame(request, gameCode)
+    if (warmed.phase !== 'MainPhase') {
+      throw new Error(`Warm start left game '${gameCode}' in ${warmed.phase}, expected MainPhase.`)
+    }
+  }
 
   return {
     gameCode,

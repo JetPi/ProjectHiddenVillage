@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { createFixtureDeck } from './helpers/multiplayer/fixtures'
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type {
   GameStateResponse,
@@ -7,7 +8,6 @@ import type {
   PlayerAuth,
 } from './helpers/gameviewMultiplayerHelpers'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   declarePassInActionStepViaHub,
   fetchGameState,
@@ -15,10 +15,7 @@ import {
   openMultiplayerPages,
   progressToNextDecisionWindow,
   resolveActorWithBottomHandAction,
-  resolveAllMulliganPrompts,
   resolvePlayerState,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
   waitForActorMainPhaseNumber,
 } from './helpers/gameviewMultiplayerHelpers'
@@ -71,51 +68,41 @@ const RESPONDER_PLAIN_SUMMON_CARD_DEFINITION_IDS = [
 ] as const
 
 // Neither player is guaranteed to hold their half (three copies in a 30+ card deck), and a game whose draw
-// never cooperates decks out before the scenario can play. Every attempt plays a fresh game.
-const SCENARIO_ATTEMPT_COUNT = 3
 const ROLE_SEARCH_CYCLE_COUNT = 30
+
+let answererDeckId = ''
+let openerDeckId = ''
 
 test.describe('GameView multiplayer quick support cut-in', () => {
   test.describe.configure({ timeout: 300_000 })
 
-  test('a [Quick] support answers a queued MainPhase activation from the support area', async ({ browser, request }) => {
-    let lastFailure: unknown = null
+  test.beforeAll(async ({ request }) => {
+    // The quick support (N-002) on one side and the opener's quick support (N-021) on the other, with plain
+    // summonable characters so the role search always finds both halves.
+    answererDeckId = await createFixtureDeck(request, ['1x N-001', '10x N-002', '8x N-007'])
+    openerDeckId = await createFixtureDeck(request, ['1x N-012', '10x N-021', '8x N-015'])
+  })
 
-    for (let attempt = 0; attempt < SCENARIO_ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
+  test('a [Quick] support answers a queued MainPhase activation from the support area', async ({ browser, request }) => {
+          const setup = await setupMultiplayerGame(request, 'default', { one: { deckId: answererDeckId }, two: { deckId: openerDeckId } })
       const pages = await openMultiplayerPages(browser, setup)
 
       try {
         await playQuickSupportCutInScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
       } finally {
         await closeMultiplayerPages(pages)
       }
-    }
-
-    throw lastFailure
   })
 
   test('a [Quick] support answered from the support area shields its target from the queued effect', async ({ browser, request }) => {
-    let lastFailure: unknown = null
-
-    for (let attempt = 0; attempt < SCENARIO_ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
+          const setup = await setupMultiplayerGame(request)
       const pages = await openMultiplayerPages(browser, setup)
 
       try {
         await playQuickSupportResponseScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
       } finally {
         await closeMultiplayerPages(pages)
       }
-    }
-
-    throw lastFailure
   })
 })
 
@@ -124,13 +111,6 @@ async function playQuickSupportCutInScenario(
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
 ): Promise<void> {
-  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-  await advanceToMulliganPromptIfNeeded(request, setup)
-  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
   const answerer = setup.playerOne
   const opener = setup.playerTwo
   const answererPage = pages.playerOnePage
@@ -465,13 +445,6 @@ async function playQuickSupportResponseScenario(
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
 ): Promise<void> {
-  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-  await advanceToMulliganPromptIfNeeded(request, setup)
-  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
   const opener = setup.playerOne
   const responder = setup.playerTwo
   const responderPage = pages.playerTwoPage

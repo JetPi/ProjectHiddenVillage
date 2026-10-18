@@ -23,7 +23,8 @@ test.describe('GameView multiplayer prompts', () => {
   test.describe.configure({ timeout: 120_000 })
 
   test('assigns one player the starting-player prompt and reflects the selected decision', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    // This spec is about the opening prompts themselves, so it must not warm-start past them.
+    const setup = await setupMultiplayerGame(request, 'default', {}, { warmStart: false })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
@@ -56,7 +57,7 @@ test.describe('GameView multiplayer prompts', () => {
   })
 
   test('prompts the player going second for mulligan and handles Keep Hand', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    const setup = await setupMultiplayerGame(request, 'default', {}, { warmStart: false })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
@@ -124,7 +125,7 @@ test.describe('GameView multiplayer prompts', () => {
   })
 
   test('prompts the player going second for mulligan and handles Take Mulligan', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    const setup = await setupMultiplayerGame(request, 'default', {}, { warmStart: false })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
@@ -160,7 +161,7 @@ test.describe('GameView multiplayer prompts', () => {
   })
 
   test('mulligan resolution triggers transfer animations on the prompt owner view', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    const setup = await setupMultiplayerGame(request, 'default', {}, { warmStart: false })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
