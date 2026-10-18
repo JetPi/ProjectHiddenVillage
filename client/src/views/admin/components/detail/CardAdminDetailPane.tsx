@@ -1,31 +1,47 @@
-import { useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AppButton } from '@/components/ui'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
-import { CardAdminSelectedCardSummary } from './CardAdminSelectedCardSummary'
-import { CardAdminConditionsSection, CardAdminEffectsSection } from '@/views/admin/components/detailSections'
+import { CardAdminCardArtSection } from './CardAdminCardArtSection'
+import { CardAdminDeleteCardSection } from './CardAdminDeleteCardSection'
+import { CardAdminEditorFooter } from './CardAdminEditorFooter'
+import { CardAdminEffectEditorBody } from './CardAdminEffectEditorBody'
+import { CardAdminUnsavedChangesDialog } from './CardAdminUnsavedChangesDialog'
+import { useCardAdminArtDraft } from '@/views/admin/model/useCardAdminArtDraft'
 import { useCardAdminEffectEditorModel } from '@/views/admin/model/useCardAdminEffectEditorModel'
-import {
-  createDefaultEffect,
-  normalizeEffectId,
-  renderEmptySelectionState,
-} from '@/views/admin/utils'
-import { fetchCardCatalogEffectConditionKeywords } from '@/services/api/cardCatalogApi'
-import {
-  CONDITION_OPTIONS,
-  EFFECT_CONDITION_KEYWORD_OPTIONS_FALLBACK,
-} from '@/views/admin/constants'
+import { renderEmptySelectionState } from '@/views/admin/utils'
 import type { ICardAdminDetailEditorProps, ICardAdminDetailPaneProps } from '@/views/admin/types/cardAdminDetailTypes'
-import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog'
 
-export function CardAdminDetailPane({ selectedCard }: ICardAdminDetailPaneProps) {
+export function CardAdminDetailPane({
+  selectedCard,
+  isLoading,
+  onUnsavedChangesChange,
+  isExitPending,
+  onExitResolved,
+}: ICardAdminDetailPaneProps) {
   const { t } = useTranslation()
+
+  // A dropped selection takes the draft with it, so the screen must stop being marked as dirty - otherwise the
+  // next card clicked would be met by a warning about changes that are already gone.
+  useEffect(() => {
+    if (!selectedCard) {
+      onUnsavedChangesChange?.(false)
+    }
+  }, [selectedCard, onUnsavedChangesChange])
 
   return (
     <div className="mt-4 mb-16 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3">
       {selectedCard ? (
-        <CardAdminDetailEditor key={selectedCard.id} selectedCard={selectedCard} />
+        <CardAdminDetailEditor
+          key={selectedCard.id}
+          selectedCard={selectedCard}
+          onUnsavedChangesChange={onUnsavedChangesChange}
+          isExitPending={isExitPending}
+          onExitResolved={onExitResolved}
+        />
+      ) : isLoading ? (
+        // The listing is lean, so the editor's card arrives on its own fetch. Saying so is better than the
+        // "select a card" empty state flashing on every click.
+        <p className="mt-3 text-sm text-[var(--text-secondary)]">{t('admin.detail.loadingCard')}</p>
       ) : (
         renderEmptySelectionState(t('admin.detail.emptySelection'))
       )}
@@ -33,313 +49,117 @@ export function CardAdminDetailPane({ selectedCard }: ICardAdminDetailPaneProps)
   )
 }
 
-function CardAdminDetailEditor({ selectedCard }: ICardAdminDetailEditorProps) {
+/**
+ * The update side of the card editor: the shared editing body driven by the patch submit, plus the art draft the
+ * same save flushes. The create screen renders the same body with its own submit and its own identity fields.
+ *
+ * The exit dialog is rendered from here rather than from the screen because saving is the third answer to it, and
+ * only this component can save.
+ */
+function CardAdminDetailEditor({
+  selectedCard,
+  onUnsavedChangesChange,
+  isExitPending,
+  onExitResolved,
+}: ICardAdminDetailEditorProps) {
   const { t } = useTranslation()
   const editorModel = useCardAdminEffectEditorModel(selectedCard)
-  const [conditionToAdd, setConditionToAdd] = useState('')
-  const [effectConditionKeywordOptions, setEffectConditionKeywordOptions] = useState<string[]>(
-    () => [...EFFECT_CONDITION_KEYWORD_OPTIONS_FALLBACK],
-  )
-  const [collapsedEffects, setCollapsedEffects] = useState<Set<number>>(
-    () => new Set(selectedCard.effects.map((_, index) => index)),
-  )
+  const artModel = useCardAdminArtDraft(selectedCard)
 
+  const isBusy = editorModel.isSaving || artModel.isCommitting
+  const hasUnsavedChanges = editorModel.isDirty || artModel.isDirty
+
+  // Both halves of the draft count as one thing to the screen: the effects patch and whatever the art section has
+  // staged would go in the same save.
   useEffect(() => {
-    let isDisposed = false
+    onUnsavedChangesChange?.(hasUnsavedChanges)
+  }, [hasUnsavedChanges, onUnsavedChangesChange])
 
-    async function loadEffectConditionKeywords() {
-      try {
-        const serverKeywords = await fetchCardCatalogEffectConditionKeywords()
-        if (isDisposed) {
-          return
-        }
+  const saveDraft = async (): Promise<boolean> => {
+    const hasEffectChanges = editorModel.isDirty
+    const hasArtChanges = artModel.isDirty
 
-        const normalizedKeywords = serverKeywords
-          .map((keyword) => keyword.trim())
-          .filter((keyword) => keyword.length > 0)
-          .filter((keyword) => {
-            const normalized = keyword.toLowerCase()
-            return normalized === 'rush'
-              || normalized.includes('not affected')
-              || normalized.includes('immune')
-          })
+    // The effects go first: that patch is what validates the card as a whole, and a rejected card must not leave
+    // freshly uploaded art behind on the server. Only once the card itself saved does the staged art follow.
+    if (hasEffectChanges) {
+      const result = await editorModel.save()
 
-        if (normalizedKeywords.length > 0) {
-          setEffectConditionKeywordOptions(Array.from(new Set(normalizedKeywords)))
-        }
-      } catch {
-        // Keep fallback list when metadata fetch fails.
+      if (!result.ok) {
+        showAppInfoToast(result.message ?? t('admin.toasts.saveFailed'), {
+          id: 'card-admin-save-status',
+          position: 'top-right',
+        })
+        return false
       }
     }
 
-    void loadEffectConditionKeywords()
+    if (hasArtChanges) {
+      const artResult = await artModel.commit()
 
-    return () => {
-      isDisposed = true
+      if (!artResult.ok) {
+        showAppInfoToast(artResult.message ?? t('admin.art.failed'), {
+          id: 'card-admin-save-status',
+          position: 'top-right',
+        })
+        return false
+      }
     }
-  }, [])
 
-  const isSaveDisabled = editorModel.isSaving
-  const parsedEffects = editorModel.draft.effects
-  const allConditionOptions = useMemo(
-    () => Array.from(new Set([...CONDITION_OPTIONS, ...editorModel.draft.conditions])),
-    [editorModel.draft.conditions],
-  )
-  const availableConditionOptions = useMemo(
-    () => allConditionOptions.filter((condition) => !editorModel.draft.conditions.includes(condition)),
-    [allConditionOptions, editorModel.draft.conditions],
-  )
-  const effectIdOptions = useMemo(
-    () => Array.from(new Set(parsedEffects.map((effect) => normalizeEffectId(effect.id)).filter((id) => id.length > 0))),
-    [parsedEffects],
-  )
-  const linkedEffectGroups = useMemo(() => {
-    const effectIdSet = new Set(effectIdOptions)
-
-    return parsedEffects.flatMap((effect) => {
-      const sourceId = normalizeEffectId(effect.id)
-      if (!sourceId) {
-        return []
-      }
-
-      const onSuccessTarget = normalizeEffectId(effect.onSuccessEffectId)
-      const onFailureTarget = normalizeEffectId(effect.onFailureEffectId)
-      const nextGroup = {
-        sourceId,
-        onSuccessTarget: onSuccessTarget && effectIdSet.has(onSuccessTarget)
-          ? onSuccessTarget
-          : null,
-        onFailureTarget: onFailureTarget && effectIdSet.has(onFailureTarget)
-          ? onFailureTarget
-          : null,
-      }
-
-      if (!nextGroup.onSuccessTarget && !nextGroup.onFailureTarget) {
-        return []
-      }
-
-      return [nextGroup]
+    showAppSuccessToast(t('admin.toasts.cardSaved'), {
+      id: 'card-admin-save-status',
+      position: 'top-right',
     })
-  }, [effectIdOptions, parsedEffects])
-  const updateEffects = (nextEffects: ICardCatalogEffectRequest[]) => {
-    editorModel.setEffects(nextEffects)
+
+    return true
   }
 
-  const updateEffectAt = (effectIndex: number, updater: (effect: ICardCatalogEffectRequest) => ICardCatalogEffectRequest) => {
-    const nextEffects = parsedEffects.map((effect, index) => (index === effectIndex ? updater(effect) : effect))
-    updateEffects(nextEffects)
-  }
-
-  const removeEffectAt = (effectIndex: number) => {
-    const nextEffects = parsedEffects.filter((_, index) => index !== effectIndex)
-    updateEffects(nextEffects)
-
-    setCollapsedEffects((current) => {
-      const next = new Set<number>()
-      current.forEach((index) => {
-        if (index < effectIndex) {
-          next.add(index)
-          return
-        }
-
-        if (index > effectIndex) {
-          next.add(index - 1)
-        }
+  const handleSave = async () => {
+    if (!hasUnsavedChanges) {
+      showAppInfoToast(t('admin.toasts.noChanges'), {
+        id: 'card-admin-save-status',
+        position: 'top-right',
       })
-
-      return next
-    })
-  }
-
-  const addEffect = () => {
-    const nextEffects = [createDefaultEffect(), ...parsedEffects]
-    updateEffects(nextEffects)
-
-    setCollapsedEffects((current) => {
-      const next = new Set<number>()
-      next.add(0)
-      current.forEach((index) => {
-        next.add(index + 1)
-      })
-
-      return next
-    })
-  }
-
-  const reorderEffect = (fromIndex: number, toIndex: number) => {
-    if (
-      fromIndex === toIndex
-      || fromIndex < 0
-      || toIndex < 0
-      || fromIndex >= parsedEffects.length
-      || toIndex >= parsedEffects.length
-    ) {
       return
     }
 
-    const nextEffects = [...parsedEffects]
-    const [movedEffect] = nextEffects.splice(fromIndex, 1)
-    nextEffects.splice(toIndex, 0, movedEffect)
-    updateEffects(nextEffects)
-
-    setCollapsedEffects((current) => {
-      const next = new Set<number>()
-
-      current.forEach((index) => {
-        if (index === fromIndex) {
-          next.add(toIndex)
-          return
-        }
-
-        if (fromIndex < toIndex && index > fromIndex && index <= toIndex) {
-          next.add(index - 1)
-          return
-        }
-
-        if (fromIndex > toIndex && index >= toIndex && index < fromIndex) {
-          next.add(index + 1)
-          return
-        }
-
-        next.add(index)
-      })
-
-      return next
-    })
-  }
-
-  const toggleEffectCollapsedAt = (effectIndex: number) => {
-    setCollapsedEffects((current) => {
-      const next = new Set(current)
-      if (next.has(effectIndex)) {
-        next.delete(effectIndex)
-      } else {
-        next.add(effectIndex)
-      }
-
-      return next
-    })
+    await saveDraft()
   }
 
   return (
-    <div className="mt-3 space-y-4">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="h-full">
-          <CardAdminSelectedCardSummary
-            card={selectedCard}
-            draft={editorModel.draft}
-            onTypeChange={editorModel.setType}
-            onColorChange={editorModel.setColor}
-            onPowerChange={editorModel.setPower}
-            onDamageChange={editorModel.setDamage}
-            onLifeChange={editorModel.setLife}
-            onHealthChange={editorModel.setHealth}
-          />
-        </div>
-
-        <div className="flex h-full flex-col gap-3">
-          <div className="grid grid-cols-1 gap-3">
-            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]" htmlFor="card-description">
-              {t('admin.detail.description')}
-            </label>
-            <textarea
-              id="card-description"
-              value={editorModel.draft.description}
-              onChange={(event) => editorModel.setDescription(event.target.value)}
-              className="min-h-[96px] w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-            />
-          </div>
-
-          <div className="flex min-h-0 flex-1 flex-col gap-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]" htmlFor="support-effect">
-              {t('admin.detail.supportEffect')}
-            </label>
-            <textarea
-              id="support-effect"
-              value={editorModel.draft.supportEffect}
-              onChange={(event) => editorModel.setSupportEffect(event.target.value)}
-              className="min-h-[96px] flex-1 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
-            />
-          </div>
-        </div>
+    <>
+      <div className="mt-3">
+        <CardAdminCardArtSection art={artModel} />
       </div>
 
-      <CardAdminConditionsSection
+      <CardAdminEffectEditorBody
         editorModel={editorModel}
-        conditionToAdd={conditionToAdd}
-        setConditionToAdd={setConditionToAdd}
-        availableConditionOptions={availableConditionOptions}
+        card={selectedCard}
+        isBusy={isBusy}
       />
 
-      <CardAdminEffectsSection
-        parsedEffects={parsedEffects}
-        collapsedEffects={collapsedEffects}
-        toggleEffectCollapsedAt={toggleEffectCollapsedAt}
-        reorderEffect={reorderEffect}
-        removeEffectAt={removeEffectAt}
-        addEffect={addEffect}
-        updateEffectAt={updateEffectAt}
-        effectIdOptions={effectIdOptions}
-        linkedEffectGroups={linkedEffectGroups}
-        effectConditionKeywordOptions={effectConditionKeywordOptions}
-        effectsError={editorModel.errors.effects}
-        effectBranchErrors={editorModel.errors.effectBranches}
+      <CardAdminDeleteCardSection card={selectedCard} />
+
+      <CardAdminEditorFooter
+        isDirty={hasUnsavedChanges}
+        isSaving={isBusy}
+        submitLabel={t('admin.detail.saveCard')}
+        savingLabel={t('admin.detail.saving')}
+        onSubmit={handleSave}
       />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <AppButton
-          type="button"
-          variant="ghost"
-          onClick={editorModel.reset}
-          disabled={!editorModel.isDirty || editorModel.isSaving}
-        >
-          {t('admin.detail.reset')}
-        </AppButton>
-      </div>
-
-      {typeof document !== 'undefined'
-        ? createPortal(
-          <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
-            {editorModel.isDirty ? (
-              <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
-                {t('admin.detail.unsavedChanges')}
-              </span>
-            ) : null}
-
-            <AppButton
-              type="button"
-              onClick={async () => {
-                if (!editorModel.isDirty) {
-                  showAppInfoToast(t('admin.toasts.noChanges'), {
-                    id: 'card-admin-save-status',
-                    position: 'top-right',
-                  })
-                  return
-                }
-
-                const result = await editorModel.save()
-                if (result.ok) {
-                  showAppSuccessToast(t('admin.toasts.cardSaved'), {
-                    id: 'card-admin-save-status',
-                    position: 'top-right',
-                  })
-                  return
-                }
-
-                showAppInfoToast(result.message ?? t('admin.toasts.saveFailed'), {
-                  id: 'card-admin-save-status',
-                  position: 'top-right',
-                })
-              }}
-              disabled={isSaveDisabled}
-              className="shadow-lg"
-            >
-              {editorModel.isSaving ? t('admin.detail.saving') : t('admin.detail.saveCard')}
-            </AppButton>
-          </div>,
-          document.body,
-        )
-        : null}
-    </div>
+      {isExitPending ? (
+        <CardAdminUnsavedChangesDialog
+          cardName={selectedCard.displayName}
+          isSaving={isBusy}
+          onKeepEditing={() => onExitResolved?.(false)}
+          onSave={async () => {
+            // Saving is the third answer to "you are about to leave": commit the draft, then go where the author
+            // was going. A save that fails stays put, so the errors are readable instead of behind this dialog.
+            onExitResolved?.(await saveDraft())
+          }}
+          onDiscard={() => onExitResolved?.(true)}
+        />
+      ) : null}
+    </>
   )
 }

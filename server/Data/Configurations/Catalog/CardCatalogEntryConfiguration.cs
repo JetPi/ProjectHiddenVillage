@@ -66,5 +66,16 @@ public sealed class CardCatalogEntryConfiguration : IEntityTypeConfiguration<Car
 
         entity.HasIndex(record => record.CardId)
             .IsUnique();
+
+        // The listing filters and sorts on these, and each is a page-level operation rather than a row lookup.
+        entity.HasIndex(record => record.DisplayName);
+        entity.HasIndex(record => record.Type);
+        entity.HasIndex(record => record.Color);
+        entity.HasIndex(record => record.UpdatedAtUtc);
+
+        // The index the art endpoint depends on is NOT modelled here on purpose: it is a covering expression index,
+        // `upper("CardId") INCLUDE ("Image", "UpdatedAtUtc")`, which EF cannot express. It lives in the
+        // AddCardCatalogIndexes migration only, so do not "clean up" the model snapshot to match it, and do not go
+        // back to looking cards up without it - see `CardArtService.ResolveAsync`.
     }
 }

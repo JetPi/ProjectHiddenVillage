@@ -1,7 +1,16 @@
 import { api } from '@/services/api/httpClient'
-import type { ICardCatalogItemResponse, IPagedResponse } from '@/types/cardCatalog'
+import type {
+  ICardCatalogItemResponse,
+  ICardCatalogListItemResponse,
+  ICardDeletionImpactResponse,
+  IPagedResponse,
+} from '@/types/cardCatalog'
 import { appQueryClient, DEFAULT_CARD_CATALOG_STALE_TIME_MS } from '@/services/queryClient'
-import type { ICardCatalogPageQuery, IUpdateCardCatalogEffectsRequest } from '@/services/api/types/cardCatalog'
+import type {
+  ICardCatalogPageQuery,
+  ICreateCardRequest,
+  IUpdateCardCatalogEffectsRequest,
+} from '@/services/api/types/cardCatalog'
 
 const CARD_CATALOG_CACHE_TTL_MS = DEFAULT_CARD_CATALOG_STALE_TIME_MS
 
@@ -46,6 +55,14 @@ function getCardCatalogByIdQueryKey(cardId: string): readonly [string, string, s
   return ['card-catalog', 'by-id', toNormalizedCardId(cardId)] as const
 }
 
+/**
+ * Seeds the shared card-item cache from a card a write just returned, so a by-ids read - the editor's detail
+ * fetch - does not answer with the pre-edit copy.
+ */
+export function seedCardCatalogItemCache(cards: ICardCatalogItemResponse[]): void {
+  setCardItemQueryCache(cards)
+}
+
 function setCardItemQueryCache(cards: ICardCatalogItemResponse[]): void {
   for (const card of cards) {
     const normalizedId = toNormalizedCardId(card.id)
@@ -79,9 +96,37 @@ function getFreshCardItemFromCache(cardId: string, ttlMs: number): ICardCatalogI
 
 export async function fetchCardCatalogPage(
   query: ICardCatalogPageQuery = {},
-): Promise<IPagedResponse<ICardCatalogItemResponse>> {
-  const { data } = await api.get<IPagedResponse<ICardCatalogItemResponse>>('/api/card/catalog', {
-    params: query,
+): Promise<IPagedResponse<ICardCatalogListItemResponse>> {
+  const params = new URLSearchParams()
+
+  if (typeof query.page === 'number') {
+    params.set('page', String(query.page))
+  }
+
+  if (typeof query.pageSize === 'number') {
+    params.set('pageSize', String(query.pageSize))
+  }
+
+  if (query.sort) {
+    params.set('sort', query.sort)
+  }
+
+  const search = query.search?.trim()
+  if (search) {
+    params.set('search', search)
+  }
+
+  // Repeated keys, not `types[]=`: the action binds `List<string> types` from `types=a&types=b`.
+  for (const type of query.types ?? []) {
+    params.append('types', type)
+  }
+
+  for (const color of query.colors ?? []) {
+    params.append('colors', color)
+  }
+
+  const { data } = await api.get<IPagedResponse<ICardCatalogListItemResponse>>('/api/card/catalog', {
+    params,
   })
 
   return data
@@ -95,6 +140,51 @@ export async function fetchCardCatalogByIds(cardIds: string[]): Promise<ICardCat
 
 export async function fetchCardCatalogEffectConditionKeywords(): Promise<string[]> {
   const { data } = await api.get<string[]>('/api/card/catalog/effect-condition-keywords')
+  return data
+}
+
+export async function createCardCatalogEntry(
+  request: ICreateCardRequest,
+): Promise<ICardCatalogItemResponse> {
+  const { data } = await api.post<ICardCatalogItemResponse>('/api/card/catalog', request)
+
+  appQueryClient.setQueryData(getCardCatalogByIdQueryKey(data.id), data)
+  return data
+}
+
+/**
+ * Removes a card from the catalogue. Without `force` the server refuses while anything still references the card,
+ * so the caller can show what is in the way before agreeing.
+ */
+export async function deleteCardCatalogEntry(
+  cardId: string,
+  force = false,
+): Promise<ICardDeletionImpactResponse> {
+  const { data } = await api.delete<ICardDeletionImpactResponse>(
+    `/api/card/catalog/${encodeURIComponent(cardId)}`,
+    { params: { force } },
+  )
+
+  // The card is gone, so its cached copy must go too: anything still asking for it by id would otherwise be
+  // served a card that no longer exists.
+  appQueryClient.removeQueries({
+    queryKey: getCardCatalogByIdQueryKey(cardId),
+    exact: true,
+  })
+
+  return data
+}
+
+export async function updateCardCatalogImage(
+  cardId: string,
+  image: string,
+): Promise<ICardCatalogItemResponse> {
+  const { data } = await api.put<ICardCatalogItemResponse>(
+    `/api/card/catalog/${encodeURIComponent(cardId)}/image`,
+    { image },
+  )
+
+  appQueryClient.setQueryData(getCardCatalogByIdQueryKey(cardId), data)
   return data
 }
 
@@ -210,5 +300,6 @@ export async function fetchCardCatalogByIdsSparseCached(
 
 export type {
   ICardCatalogPageQuery,
+  ICreateCardRequest,
   IUpdateCardCatalogEffectsRequest,
 }

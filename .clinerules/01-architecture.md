@@ -78,6 +78,77 @@ paths:
 - Keep domain-to-DTO separation (`Card` vs `CardDataSourceRecord`), and response
   DTOs separate from engine state. See `05-server-models-serialization.md` for the
   wire-format gotchas.
+- **Card art has two sources, and `CardCatalogEntry.Image` says which.** An absolute
+  http(s) URL is fetched and host-allowlisted as before; a `local:` reference
+  (`CardArtSourceReference`, `local:card-art/<cardId>.webp`) names a master this server
+  owns under `CardArt:UploadDirectory`, which `CardArtService` reads from disk instead of
+  fetching. `TryResolveLocalPath` is the traversal guard - every segment is checked, the
+  root must contain the result - and it has unit tests, because the value comes out of the
+  database and is joined into a filesystem path.
+- Writing art is admin-only and separate from reading it: `POST/DELETE /api/card-art/{cardId}`
+  are `CardCatalogAdmin`, while `GET /api/card-art/{cardId}` stays anonymous because it is
+  fetched by `<img src>`. `CardArtWriteService` streams a byte cap, refuses a content type it
+  does not accept, identifies dimensions *before* decoding (a decompression bomb never
+  allocates), re-encodes the master to WebP, writes it atomically, and clears the cached
+  variants. Card id and art share one identity: an upload names its card id, and
+  `CreateCardRequestValidator` refuses a `local:` reference that names a different card.
+- `CardArtWriteLocks.ForCard` serialises a card's writers, and both the upload path and the
+  variant build take it: the variant cache file names carry the card's updated timestamp,
+  not the master's, so a build racing an upload could otherwise cache a variant decoded from
+  the replaced master under a name that never expires.
+- **Art is replaced, not re-uploaded in place.** `PUT /api/card/catalog/{cardId}/image`
+  (admin-only, empty value clears) points the card at a master that `POST /api/card-art/{cardId}`
+  already stored, and it *must* move `UpdatedAtUtc`: the response's image version comes from that
+  timestamp, so without the move every client keeps painting the previous art from cache. Ownership
+  is checked against the stored card id - the replacement request cannot see the id it will be applied
+  to - which is why that rule lives in `CardMappingService` and not in the validator. The edit screen
+  **stages** art rather than applying it: `useCardAdminArtDraft` holds one pending change - a picked file
+  (previewed from an object URL), a typed URL, or a removal - and the editor's save flushes it *after* the
+  effects patch is accepted, so art never lands for a card that fails validation and an upload is no
+  longer a save of its own. Removing art clears the reference first and deletes the master second, so a
+  half-failure never leaves a card pointing at a missing file.
+- **Orphaned art is swept lazily, and the sweep rules are pure.** `CardArtOrphanSweeper` runs from a
+  write, rate-limited by `CardArt:OrphanSweepIntervalMinutes` through a process-wide timestamp (a
+  per-request field would sweep on every write, since the service is scoped). It collects masters no
+  card references and cached variants of cards that no longer exist, both only past
+  `CardArt:OrphanGraceMinutes` - the grace window is what stops it deleting the upload of a create
+  request that has not landed yet. The decision logic is `CardArtOrphanPolicy` precisely so the rules
+  are testable without a database or a filesystem, and the sweep cannot throw: housekeeping never takes
+  a write down with it. There is still no hosted service in this codebase; a multi-instance deployment
+  would need a real scheduler, which the interface says.
+- **A `local:` reference is validated by shape, not by prefix.** `IsWellFormedLocalReference` pins
+  `local:card-art/<safe card id>.webp` exactly, because a validator that only asked "does it start with
+  `local:`" accepted `local:`, `local:card-art/` and `local:other/<id>.webp` (`CardImageUpdateTests`).
+  Anything writing a new art path should use it rather than re-testing `IsLocal`.
+- `/api/card/seed` carries the same `CardCatalogAdmin` claim as every other catalogue write: it writes
+  the same table, so it is not exempt for having predated the authoring endpoints.
+- **A master's path is derived from its reference, never guessed.** A reference is
+  `local:card-art/<cardId>.webp` and `TryResolveLocalPath` resolves that *whole* relative path under the art
+  root, so the `card-art/` segment is part of the contract: `BuildMasterPath` adds it, and the writer and the
+  reader both go through it. Writing one level above it is silent - the upload succeeds, the row points at a
+  file nothing can find, and `/api/card-art/{id}` just 404s into the placeholder. That is exactly what happened
+  until `CardArtServiceTests` compared the two, so any new art path should go through these helpers rather than
+  combining a root with `BuildFileName` by hand.
+- **The master serves its own width.** A master is stored capped at `CardArtOptions.ResolveMasterWidth()` (the
+  widest configured variant), so a request at or above that width is answered with the master itself instead of a
+  derived cache file: the derivation had nothing to rescale, so it cost a duplicate file *and* a second q85 pass
+  over the only bytes a browser ever sees at that width. `ResolveMasterWidth` lives on the options precisely so
+  the write side and the read side cannot disagree about where the cap is - if they drifted, the read side would
+  start dictating variants the write side had already stored.
+- **A variant is collected once a newer version supersedes it.** The version in a variant's file name is the
+  card's updated timestamp, so *any* card edit mints a new set of names; without this rule the previous sets were
+  never read again and never removed either, which is an unbounded cache leak. `CardArtOrphanPolicy` collects a
+  variant whose version parses as an older timestamp than the card's current one, and deliberately keeps a newer
+  or unparseable version: a client pinned to a version this server does not recognise would otherwise have its
+  art deleted and rebuilt on every sweep. Variants of deleted cards and unreferenced masters still need
+  `OrphanGraceMinutes` to pass, which is what protects an upload whose create request has not landed.
+- The admin create screen reuses the update screen rather than copying it:
+  `useCardAdminEffectDraft` owns the editing state, `cardAdminEffectPayload` owns the
+  validation rules, and `CardAdminEffectEditorBody` + `CardAdminEditorFooter` render them;
+  the update screen adds the effects patch submit, the create screen adds identity and an
+  image upload. `CreateCardRequestValidator` delegates the authoring half of a create to
+  `UpdateCardEffectsRequestValidator`, so an effect rule cannot hold on an edit and be
+  forgotten on a create.
 
 ## Component refactoring patterns
 

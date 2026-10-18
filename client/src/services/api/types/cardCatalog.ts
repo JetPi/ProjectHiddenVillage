@@ -4,6 +4,12 @@ export type ICardCatalogPageQuery = {
   page?: number
   pageSize?: number
   sort?: string
+  /** Matched against the card id and the display name, in SQL. */
+  search?: string
+  /** The readable type values the listing returns ("EX Character"); the server rejects what it cannot map. */
+  types?: string[]
+  /** The readable colour values ("Red", "N/A"), same contract as `types`. */
+  colors?: string[]
 }
 
 export type ICardCatalogEffectExecutionConditionRequest = {
@@ -212,6 +218,34 @@ export type IUpdateCardCatalogEffectsRequest = {
   cannotBeNormalSummoned?: boolean
   type?: string
   color?: string
+  power?: number
+  damage?: number
+  life?: number
+  health?: number
+}
+
+/**
+ * A brand new card. The authoring fields mirror `IUpdateCardCatalogEffectsRequest` because the create screen
+ * reuses the edit screen's editor; the identity fields are the ones the edit screen never edits.
+ */
+export type ICreateCardRequest = {
+  cardId: string
+  displayName: string
+  /** An external http(s) URL, or the `local:` reference the art upload returned for this card id. */
+  image?: string
+  name?: string[]
+  originalId?: string
+  mainAlternate?: boolean
+  attribute?: string
+  traits?: string[]
+  type?: string
+  color?: string
+  description?: string
+  supportEffect?: string
+  supportName?: string
+  cannotBeNormalSummoned?: boolean
+  conditions?: string[]
+  effects?: ICardCatalogEffectRequest[]
   power?: number
   damage?: number
   life?: number

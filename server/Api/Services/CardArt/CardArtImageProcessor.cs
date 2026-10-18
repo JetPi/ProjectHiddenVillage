@@ -6,6 +6,27 @@ namespace ProjectHiddenVillage.Server.Api.Services.CardArt;
 
 public static class CardArtImageProcessor
 {
+    /// <summary>
+    /// Reads an image's dimensions without decoding its pixels, so a caller can refuse an upload on its pixel
+    /// budget before any full decode allocates. Returns null when the bytes are not a supported image.
+    /// </summary>
+    public static async Task<ImageDimensions?> TryIdentifyAsync(
+        byte[] sourceBytes,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var input = new MemoryStream(sourceBytes);
+            var info = await Image.IdentifyAsync(input, cancellationToken);
+
+            return new ImageDimensions(info.Width, info.Height);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
     public static async Task<byte[]> ResizeToWebpAsync(
         byte[] sourceBytes,
         int requestedWidth,
@@ -36,4 +57,6 @@ public static class CardArtImageProcessor
         await image.SaveAsync(output, new WebpEncoder { Quality = 85 });
         return output.ToArray();
     }
+
+    public readonly record struct ImageDimensions(int Width, int Height);
 }

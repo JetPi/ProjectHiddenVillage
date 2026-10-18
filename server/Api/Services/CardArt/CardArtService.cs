@@ -1,6 +1,4 @@
-using System.Collections.Concurrent;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectHiddenVillage.Server.Api.Interfaces.CardArt;
@@ -8,15 +6,19 @@ using ProjectHiddenVillage.Server.Data;
 
 namespace ProjectHiddenVillage.Server.Api.Services.CardArt;
 
-public sealed partial class CardArtService : ICardArtService
+public sealed class CardArtService : ICardArtService
 {
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> WriteLocks = new();
-
     private readonly ApplicationDbContext dbContext;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly CardArtOptions options;
     private readonly IWebHostEnvironment environment;
     private readonly ILogger<CardArtService> logger;
+
+    /// <summary>
+    /// A stored master is server-owned, but this read still caps it: a config change between the write and this
+    /// read must not let an unbounded file into memory.
+    /// </summary>
+    private long LocalMasterByteLimit => Math.Max(options.MaxSourceBytes, options.MaxUploadBytes);
 
     public CardArtService(
         ApplicationDbContext dbContext,
@@ -57,7 +59,34 @@ public sealed partial class CardArtService : ICardArtService
             return null;
         }
 
-        if (!TryParseSourceUrl(source.Image, out var sourceUrl))
+        // The stored reference decides where the master comes from: a local: reference names art this server
+        // already owns, anything else has to be a fetchable URL on an allowlisted host.
+        string? localMasterPath = null;
+        Uri? sourceUrl = null;
+        var serveMasterDirectly = false;
+
+        if (CardArtSourceReference.IsLocal(source.Image))
+        {
+            if (!CardArtSourceReference.TryResolveLocalPath(
+                    source.Image,
+                    Path.Combine(environment.ContentRootPath, options.UploadDirectory),
+                    out var resolvedMasterPath))
+            {
+                logger.LogWarning(
+                    "Card '{CardId}' has a local art reference that does not resolve inside the upload root.",
+                    trimmedCardId);
+                return null;
+            }
+
+            localMasterPath = resolvedMasterPath;
+
+            // A master is already stored at the widest width we can serve, so a request at or above that width has
+            // nothing to derive: the master *is* the variant, minus a re-encode that cost a second file and a
+            // second lossy pass. A master narrower than the cap behaves the same way through the variant path
+            // (which refuses to upscale), so this is safe for small uploads too.
+            serveMasterDirectly = width >= options.ResolveMasterWidth();
+        }
+        else if (!TryParseSourceUrl(source.Image, out sourceUrl))
         {
             logger.LogWarning("Card '{CardId}' has an unsupported art source URL.", trimmedCardId);
             return null;
@@ -67,22 +96,53 @@ public sealed partial class CardArtService : ICardArtService
             ? source.UpdatedAtUtc.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)
             : version!;
 
-        var safeVersion = SafeSegment(effectiveVersion);
-        var safeCardId = SafeSegment(trimmedCardId);
+        var safeCardId = CardArtSourceReference.SafeSegment(trimmedCardId);
+
+        if (serveMasterDirectly)
+        {
+            if (localMasterPath is null || !File.Exists(localMasterPath))
+            {
+                logger.LogWarning("Card '{CardId}' references art whose master is missing.", trimmedCardId);
+                return null;
+            }
+
+            // No variant lock: nothing is written. A re-upload replaces the directory entry while this stream
+            // holds the previous one, so the reader still finishes with a whole image.
+            return new CardArtPayload
+            {
+                Stream = new FileStream(localMasterPath, FileMode.Open, FileAccess.Read, FileShare.Read),
+                ContentType = "image/webp",
+
+                // A master is overwritten in place, so its identity has to come from the version rather than from
+                // its path - that is what tells a client the bytes changed.
+                ETag = $"\"{safeCardId}|master|{CardArtSourceReference.SafeSegment(effectiveVersion)}\"",
+                IsImmutable = !string.IsNullOrWhiteSpace(version),
+            };
+        }
+
+        var safeVersion = CardArtSourceReference.SafeSegment(effectiveVersion);
         var cacheFilePath = Path.Combine(
             environment.ContentRootPath,
             options.CacheDirectory,
             $"{safeCardId}__w{width}__v{safeVersion}.webp");
 
-        var lockKey = $"{safeCardId}|{width}|{safeVersion}";
-        var writeLock = WriteLocks.GetOrAdd(lockKey, static _ => new SemaphoreSlim(1, 1));
+        // Still the identity of one variant, which is what the ETag has to describe: the lock below is coarser
+        // than this key on purpose.
+        var variantKey = $"{safeCardId}|{width}|{safeVersion}";
+
+        // One writer per card: the variant cache and the uploaded master are both keyed by the card id, so a
+        // build racing an upload would cache a variant decoded from the previous master.
+        var writeLock = CardArtWriteLocks.ForCard(safeCardId);
 
         await writeLock.WaitAsync(cancellationToken);
         try
         {
             if (!File.Exists(cacheFilePath))
             {
-                var generated = await GenerateVariantAsync(sourceUrl, width, cacheFilePath, cancellationToken);
+                var generated = localMasterPath is not null
+                    ? await GenerateVariantFromLocalAsync(localMasterPath, width, cacheFilePath, cancellationToken)
+                    : await GenerateVariantAsync(sourceUrl!, width, cacheFilePath, cancellationToken);
+
                 if (!generated)
                 {
                     return null;
@@ -99,7 +159,7 @@ public sealed partial class CardArtService : ICardArtService
         {
             Stream = payloadStream,
             ContentType = "image/webp",
-            ETag = $"\"{lockKey}\"",
+            ETag = $"\"{variantKey}\"",
             IsImmutable = !string.IsNullOrWhiteSpace(version),
         };
     }
@@ -139,6 +199,56 @@ public sealed partial class CardArtService : ICardArtService
             return false;
         }
 
+        return await WriteVariantAsync(rawBytes, width, cacheFilePath, sourceUrl.ToString(), cancellationToken);
+    }
+
+    /// <summary>
+    /// Builds a variant from a master this server owns. The bytes go through the same image processor as the
+    /// remote path, so a master that was replaced on disk cannot ship as art without being decodable.
+    /// </summary>
+    private async Task<bool> GenerateVariantFromLocalAsync(
+        string localMasterPath,
+        int width,
+        string cacheFilePath,
+        CancellationToken cancellationToken)
+    {
+        byte[] rawBytes;
+        try
+        {
+            await using var masterStream = new FileStream(
+                localMasterPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read);
+
+            var limited = await ReadWithLimitAsync(masterStream, LocalMasterByteLimit, cancellationToken);
+            if (limited is null)
+            {
+                logger.LogWarning(
+                    "Local art master '{Path}' exceeded the {MaxBytes} byte limit.",
+                    localMasterPath,
+                    LocalMasterByteLimit);
+                return false;
+            }
+
+            rawBytes = limited;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(exception, "Failed to read local art master '{Path}'.", localMasterPath);
+            return false;
+        }
+
+        return await WriteVariantAsync(rawBytes, width, cacheFilePath, localMasterPath, cancellationToken);
+    }
+
+    private async Task<bool> WriteVariantAsync(
+        byte[] rawBytes,
+        int width,
+        string cacheFilePath,
+        string sourceLabel,
+        CancellationToken cancellationToken)
+    {
         byte[] webpBytes;
         try
         {
@@ -146,7 +256,7 @@ public sealed partial class CardArtService : ICardArtService
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            logger.LogWarning(exception, "Failed to decode/resize art source '{Url}'.", sourceUrl);
+            logger.LogWarning(exception, "Failed to decode/resize art source '{Url}'.", sourceLabel);
             return false;
         }
 
@@ -204,11 +314,4 @@ public sealed partial class CardArtService : ICardArtService
         return buffer.ToArray();
     }
 
-    private static string SafeSegment(string value)
-    {
-        return InvalidPathSegmentChars().Replace(value, "_");
-    }
-
-    [GeneratedRegex(@"[^a-zA-Z0-9._-]", RegexOptions.CultureInvariant)]
-    private static partial Regex InvalidPathSegmentChars();
 }

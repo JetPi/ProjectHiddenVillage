@@ -72,6 +72,16 @@ export const router = createBrowserRouter([
         },
       },
       {
+        path: '/admin/cards/new',
+        lazy: async () => {
+          const { CardAdminCreateView } = await import('@/views/admin/CardAdminCreateView')
+
+          return {
+            Component: CardAdminCreateView,
+          }
+        },
+      },
+      {
         path: '*',
         lazy: async () => {
           const { NotFoundView } = await import('@/views/NotFoundView')

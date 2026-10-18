@@ -1,11 +1,34 @@
 import type { ICardCatalogEffectExecutionConditionArgumentKey } from './cardCatalogExecutionCondition'
 
+/**
+ * One row of the catalogue listing: exactly what a rail tile renders.
+ *
+ * The full card - effects, traits, conditions, the editor's hydration source - comes from `by-ids` when a card is
+ * selected. Keeping the listing this narrow is what stops a page of the catalogue from carrying every effect spec
+ * it lists; do not widen it to save the detail fetch.
+ */
+export type ICardCatalogListItemResponse = {
+  id: string
+  displayName: string
+  type: string
+  color: string
+  image: string
+  imageVersion: number
+}
+
 export type IPagedResponse<TItem> = {
   page: number
   pageSize: number
   totalCount: number
   totalPages: number
   items: TItem[]
+}
+
+/** What deleting a card touched: the decks that listed it, and the saved decks that named its id. */
+export type ICardDeletionImpactResponse = {
+  cardId: string
+  deckCount: number
+  savedDeckCount: number
 }
 
 export type ICardCatalogEffectExecutionConditionResponse = {

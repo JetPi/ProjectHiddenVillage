@@ -83,9 +83,10 @@ paths:
 
 ## Card art delivery (`/api/card-art`) and `ImageVersion`
 
-- `CardCatalogEntry.Image` stores the **raw external art URL** (imported from the
-  external DB). It is an ingestion source only — clients should not render it
-  directly for small slots.
+- `CardCatalogEntry.Image` holds either the **raw external art URL** (imported from the
+  external DB) or a `local:card-art/<cardId>.webp` reference to a master uploaded through the admin
+  (see `01-architecture.md`). Either way it is an ingestion source only — clients should not render it
+  directly for small slots; they ask `/api/card-art/{cardId}` for a width-capped variant.
 - `GET /api/card-art/{cardId}?w=&v=` (allow-anonymous, `CardArtController`)
   lazily fetches the raw URL on cache-miss, downscales with ImageSharp/Lanczos
   (never upscales), re-encodes WebP q85 and writes
@@ -107,6 +108,19 @@ paths:
   `width`/`height`. Helper `cardArtUrl`/`resolveCardArtUrl` in `cardArt.ts`
   remains available for view-model resolvers
   (`utils/functions/cards/index.ts`) that bake the board-width URL into `image`.
+- **Every card lookup is `upper("CardId") = @id`, and only an expression index serves it.** `ResolveAsync`,
+  `GetCardCatalogByIds`, the create duplicate check and the update/delete lookups all compare `upper("CardId")`,
+  which the plain unique index on `CardId` cannot use - so each was a sequential scan, and the art endpoint ran one
+  per image request against a table whose rows are wide with `jsonb` effect specs. The fix is the hand-written
+  `upper("CardId") INCLUDE ("Image","UpdatedAtUtc")` index in the `AddCardCatalogIndexes` migration, deliberately
+  outside the EF model: it makes the art lookup index-only and case-insensitive uniqueness a database invariant.
+  If a lookup is ever rewritten, keep it in the shape that index can serve (`EXPLAIN` it, do not assume).
+- **The catalogue listing is lean and filtered in SQL.** `CardCatalogListItemResponse` is six fields (id, display
+  name, type, colour, image, image version) projected in the query, so a page never deserialises effects; the
+  editor's card comes from `by-ids` on selection. `search`/`types`/`colors` are query parameters applied in SQL -
+  the admin rail used to filter the pages it had already loaded, which stopped finding cards at all once the
+  catalogue outgrew one page. Filter values are the readable strings the listing returns, parsed with the same
+  helpers the PATCH path uses; anything unmappable is a 400.
 - **Eager per-game preload** (`useCardCatalogPreload` in
   `hooks/GameView/effects/useGameViewEffects.ts`) fetches art for every catalog
   card in the game through the resize endpoint, in priority batches: visible
@@ -126,9 +140,12 @@ paths:
   manifest stays reproducible. Only `catalogEntries` is generated — `profiles`/`decks` are
   hand-authored, so preserve them, and sanity-diff the regenerated entries against the current ones
   (`grep -c 'Is Rested' test-data/seed-profiles.json` should stay 2, deck card ids unchanged)
-  instead of overwriting blind. **`T-120` is the only non-real fixture** (Character, power 10, no
-  effects) because Gamabunta's `Power >= 10` rule needs a normally-summonable ≥10-power character and
-  the real catalogue has none (N-003/N-005/N-014 are EX + `cannotBeNormalSummoned`).
+  instead of overwriting blind. **No fabricated card lives in the manifest.** Gamabunta's `Power >= 10`
+  rule needs a normally-summonable ≥10-power character and the real catalogue has none (N-003/N-005/N-014
+  are EX + `cannotBeNormalSummoned`), so the summon-requirement specs mint theirs at run time through the
+  admin create endpoint and delete them again (`e2e/helpers/multiplayer/fixtures.ts`). Seeding them would
+  put a fabricated card in every developer's catalogue for the sake of a handful of specs, and nothing
+  would ever remove it.
 - **The test-only decks are deliberately padded (six copies of their own cards, ~18-24 cards).** They are
   far smaller than a legal deck, and the e2e helpers advance whole turns while searching a hand for a
   specific card — which is exactly the window in which a small deck now runs dry. Since a player who has to
@@ -144,14 +161,16 @@ paths:
   prompted nodes (N-003/N-005/N-014 and N-013's `freeze-target`) and N-012's split `draw-n-place-card` +
   `Prompted` `place-one-on-deck`, and for N-009's `reduce-self-life` (a branch target that must carry
   `isSubordinate: true`) — `SeedManifestAuthoringTests` now fails when the two sources disagree.
-- `DevelopmentDeckSeeder` **upserts** those definitions for referenced ids (the manifest wins over
-  existing rows) and only fabricates placeholders for ids that are still missing —
-  `SeedPlaceholderCatalogEntriesAsync` skips ids already present, so real imported rows are never
-  overwritten. `PlaceholderLeaderCardIds`/`PlaceholderSupportCapableCardIds` are that fallback only and
-  are dormant now:
-  `DevelopmentDeckSeederTests.SeedAsync_SeedsSupportMetadata_ForN008AndN015_FromTheManifest`
-  (renamed from the stale `…CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing`) asserts the
-  manifest-seeded support metadata for both ids.
+- `DevelopmentDeckSeeder` **creates the missing cards and never modifies an existing one.** It used to upsert
+  the manifest over every referenced id — "the manifest wins over existing rows" — and that is exactly what
+  silently reverted authored work on every Development start: an uploaded image went back to the catalogue URL,
+  an effects patch back to the file's copy, because authoring and seeding write the same table. The split has to
+  be create-only, with `PHV_RESEED_OVERWRITES_EXISTING=1` as the deliberate override and the only path that
+  writes over stored content. A regenerated manifest therefore does **not** reach a card that already exists.
+  Placeholders are still fabricated for ids that are missing (`SeedPlaceholderCatalogEntriesAsync` skips ids
+  already present), and `DevelopmentDeckSeederTests` pins the rule: the manifest's support metadata for N-008 and
+  N-015 still lands on insert, stored rows survive a re-seed (both the edited kind and the one that still looks
+  freshly seeded), and the override replaces them.
 - e2e/CI must not depend on the external art host: `scripts/e2e-start-server.sh` exports
   `CardArt__SourceHostAllowlist__0="e2e.invalid"`, which makes `/api/card-art` refuse the real host
   **without any network call** (verified: 404 in ~0.1 s) so `CardImage` falls back deterministically.
@@ -221,8 +240,51 @@ paths:
 - **`CardAdminToggleSwitch` must stay a `<label>` wrapper**: the visible track/thumb draw *on top of* the
   `sr-only` checkbox, so with a plain `<span>` wrapper the switch surface swallowed every click and the
   control could not be toggled at all.
+- **Stored art is displayed read-only, apart from the field that replaces it.** `CardAdminArtPicker` prints the
+  card's stored `image` verbatim (mono, `break-all select-all`) with a link to its source, above the editable URL
+  field — so checking where an image came from cannot overwrite it by accident. An external URL links to the
+  source page; a `local:<folder>/<cardId>.webp` reference links to the served art, because it is a path on our
+  own disk with no page of its own. `isExternalCardArtReference` / `isLocalCardArtReference` /
+  `resolveCardArtSourceHref` in `services/api/cardArt.ts` mirror the server's contract
+  (`Api/Services/CardArt/CardArtSourceReference.cs`). The block is a divider row, never a bordered panel: the
+  sections around it are already filled surfaces.
+- **Art is chosen through a dialog, and measured before it is used.** `CardAdminArtSourceDialog` is where the bytes
+  come from: a paste area that takes the focus when the dialog opens (so Ctrl+V needs no click, and there is no
+  page-wide paste listener that would swallow pastes meant for the catalogue search), the `#card-admin-art-file`
+  input the e2e drives, and a drop target. Whatever arrives is previewed **and measured** before it can be used:
+  `CARD_ART_MIN_SOURCE_WIDTH` (600, the width a master is written at — `CardArtOptions.ResolveMasterWidth`) is a
+  hard gate, because a narrower bitmap is stored at its own width and never upscaled, so it renders soft at preview
+  size. That gate is the whole reason the dialog exists: the paste path makes a soft image easy to pick by accident
+  — Chromium's clipboard copy of an image on a `srcset` page is the variant the layout chose, and a screenshot is
+  screen resolution. `CARD_ART_MAX_UPLOAD_BYTES` gates the other way, for the size the server would refuse anyway.
+  A pasted image *address* is not an upload: it fills the URL field, which is the only path that keeps the source
+  resolution. Both constants mirror server config, so they move together with it.
+- **Leaving a dirty editor asks first, and the card stays pinned while it is dirty.** `CardAdminDetailPane` reports
+  its own draft upward (`onUnsavedChangesChange`), and `CardAdminView` is the only thing that acts on it: another
+  tile opens `CardAdminUnsavedChangesDialog` instead of switching, `useBlocker` holds a router navigation (the Add
+  Card link, anything else), and `useBeforeUnload` makes the browser show its own prompt for a reload or a closed
+  tab. The dialog offers the three honest answers - stay, save and then leave, or leave and lose it - and staying
+  is the default and the focused button, because the pane is keyed by card id: the draft dies with the mount, so a
+  warning that let it go anyway would be decoration. It is rendered by the *pane* rather than by the screen, since
+  saving is one of its answers and only the pane can save; the screen only says that an exit is pending and what
+  the answer was. `Save & Continue` resolves the exit with what the save answered, so a save the server refuses
+  leaves the author on the card with the errors readable instead of behind the dialog. While the draft is dirty the
+  selected card is also resolved from everything loaded rather than from what the filters left on screen, and the
+  clear-selection effect stands down: a search keystroke is not a decision to discard anything either.
 
 ## Testing notes
+
+- **An e2e session must be a real login, not a fabricated token.** The Development authentication policy forwards
+  *any* request carrying `Authorization: Bearer …` to the JWT handler, and a token it cannot validate fails the
+  request with 401 - the development bypass never gets a say. Anonymous reads keep working, so an admin spec looks
+  fine until its first authorised write (the multipart art upload) answers 401 for no visible reason. Log in through
+  `POST /api/user/login` (`e2e/helpers/adminSession.ts`) and seed that session; the admin claim travels in the token.
+- **Fixture payloads must omit empty lists rather than send `[]`.** `CreateCardRequestValidator` delegates to the
+  effects validator, which rejects an empty `conditions` array ("at least one entry when provided"), so a raw
+  `conditions: []` is a 400 while an absent key means "none" - which is what the admin client sends. An empty
+  `effects: []` is fine, but omitting both is the honest payload (`e2e/helpers/multiplayer/fixtures.ts`).
+- **`POST /api/deck` answers with a plain-text GUID, not JSON.** `Created` with a `string` payload goes through
+  ASP.NET's `StringOutputFormatter`, so `response.json()` throws `Unexpected token 'a'`. Read `response.text()`.
 
 - `dotnet build server/…` and targeted tests (`GameStateResponseMapper*`,
   `CardRuntimeEffectDuration*`, `EffectTargetResolverTests`) are the quick server gates.

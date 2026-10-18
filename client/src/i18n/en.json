@@ -367,7 +367,89 @@
   "admin": {
     "view": {
       "title": "Card Admin",
-      "backToLogin": "Back to Login"
+      "backToLogin": "Back to Login",
+      "addCard": "Add Card",
+      "backToCatalog": "Back to Catalog"
+    },
+    "create": {
+      "title": "Add a New Card",
+      "identity": {
+        "title": "Card Identity",
+        "name": "Names",
+        "nameHelp": "One per line or comma separated. Shown by clients that support card names.",
+        "originalId": "Original ID",
+        "attribute": "Attribute",
+        "traits": "Traits",
+        "traitsHelp": "One per line or comma separated.",
+        "mainAlternate": "Main Alternate"
+      },
+      "image": {
+        "clear": "Clear Image",
+        "uploaded": "Image uploaded. It will be stored with the card when you create it.",
+        "cardIdRequired": "Enter the card id before uploading an image.",
+        "cardIdChanged": "The card id changed, so the uploaded image no longer applies. Upload it again for the new id."
+      },
+      "validation": {
+        "cardIdRequired": "A card id is required.",
+        "displayNameRequired": "A display name is required."
+      },
+      "submit": "Create Card",
+      "submitting": "Creating...",
+      "created": "Card created.",
+      "createFailed": "The card could not be created."
+    },
+    "delete": {
+      "button": "Delete Card",
+      "description": "Remove this card, its art and its deck references from the catalogue.",
+      "dialogTitle": "Delete this card?",
+      "dialogBody": "This removes {{name}} ({{id}}) from the catalogue, deletes its stored art and takes it out of any deck that lists it. This cannot be undone.",
+      "confirmLabel": "Type {{word}} to confirm",
+      "confirmWord": "delete",
+      "cancel": "Cancel",
+      "submit": "Delete Card",
+      "submitting": "Deleting...",
+      "forceSubmit": "Delete and remove from decks",
+      "deleted": "Card deleted.",
+      "deletedFromDecks": "Card deleted and removed from {{count}} deck(s).",
+      "failed": "The card could not be deleted."
+    },
+    "art": {
+      "title": "Card Art",
+      "upload": "Upload Image",
+      "uploadHelp": "PNG, JPEG or WebP, up to 10 MB.",
+      "uploading": "Uploading...",
+      "addImage": "Add Image",
+      "changeImage": "Change Image",
+      "externalUrl": "Or use an image URL",
+      "externalUrlPlaceholder": "https://...",
+      "previewAlt": "Card art preview",
+      "currentImage": "Current image",
+      "currentImageHelp": "Read-only. Staged changes are saved with the card.",
+      "openSource": "Open source",
+      "openStoredImage": "View stored image",
+      "stagedFile": "Staged: {{name}}. Uploaded when you save the card.",
+      "stagedUrl": "Staged. The card points at this URL once you save.",
+      "stagedRemoval": "Staged. The art is removed when you save the card.",
+      "remove": "Remove Art",
+      "discard": "Discard",
+      "failed": "The card art could not be saved.",
+      "sourceDialog": {
+        "title": "Card Art Source",
+        "storesAs": "Stored as WebP, capped at {{width}} px wide. Nothing is ever upscaled.",
+        "pasteTitle": "Paste an image",
+        "pasteHint": "Copy an image from another page, then press Ctrl+V (Cmd+V on macOS) anywhere in this area.",
+        "emptyPreview": "Nothing chosen yet",
+        "chooseFile": "Choose a File",
+        "dropHint": "You can also drop an image file onto this area.",
+        "measured": "{{width}} × {{height}} px · {{type}} · {{size}}",
+        "nothingOnClipboard": "The clipboard held no image. Copy an image, choose a file, or paste the image address instead.",
+        "undecodable": "That file could not be decoded as an image. Use a PNG, JPEG or WebP.",
+        "tooNarrow": "Card art has to be at least {{min}} px wide, and this image is {{width}} px, so it would be stored soft. Use the original file, or the image address, which keeps the source resolution.",
+        "tooLarge": "This file is {{size}}; uploads are capped at {{max}}.",
+        "addressHint": "Pasting an image address fills the URL field below instead of uploading a copy, which keeps the source resolution.",
+        "cancel": "Cancel",
+        "confirm": "Use This Image"
+      }
     },
     "catalog": {
       "loadingCards": "Loading cards...",
@@ -422,6 +504,7 @@
     },
     "detail": {
       "emptySelection": "Select a card from the left rail to prepare editing.",
+      "loadingCard": "Loading card...",
       "emptySelectionHint": "Select a card to edit effect fields and generate a full PATCH payload.",
       "description": "Description",
       "supportEffect": "Support Effect",
@@ -429,6 +512,14 @@
       "unsavedChanges": "Unsaved Changes",
       "saving": "Saving...",
       "saveCard": "Save Card",
+      "unsavedDialog": {
+        "title": "Discard unsaved changes?",
+        "bodyWithName": "{{name}} has changes that have not been saved. Leaving now discards them.",
+        "bodyGeneric": "This card has changes that have not been saved. Leaving now discards them.",
+        "keepEditing": "Keep Editing",
+        "discard": "Discard Changes",
+        "saveAndContinue": "Save & Continue"
+      },
       "summary": {
         "name": "Name",
         "supportCost": "Support Cost",

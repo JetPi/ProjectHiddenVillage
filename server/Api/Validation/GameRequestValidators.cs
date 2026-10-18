@@ -843,13 +843,15 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
     private static bool HasValidBranchTargets(IReadOnlyList<EffectSpec> effects)
     {
+        // Ids are trimmed defensively: a null id is the uniqueness rule's business to report, and this check must
+        // not turn that report into an exception.
         var validIds = effects
-            .Select(effect => effect.Id.Trim())
+            .Select(effect => effect.Id?.Trim() ?? string.Empty)
             .ToHashSet(StringComparer.Ordinal);
 
         foreach (var effect in effects)
         {
-            var sourceId = effect.Id.Trim();
+            var sourceId = effect.Id?.Trim() ?? string.Empty;
             var onSuccess = effect.OnSuccessEffectId?.Trim();
             var onFailure = effect.OnFailureEffectId?.Trim();
 
@@ -875,17 +877,21 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
     private static bool HasBranchCycle(IReadOnlyList<EffectSpec> effects)
     {
-        var branchEdgesById = effects.ToDictionary(
-            effect => effect.Id.Trim(),
-            effect => new[]
+        var branchEdgesById = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+        foreach (var effect in effects)
+        {
+            // A duplicate id is the uniqueness rule's business. Building the edge map by index keeps this check
+            // from throwing on the very input another rule is already rejecting.
+            branchEdgesById[effect.Id?.Trim() ?? string.Empty] = new[]
             {
                 effect.OnSuccessEffectId?.Trim(),
                 effect.OnFailureEffectId?.Trim(),
             }
                 .Where(target => !string.IsNullOrWhiteSpace(target))
                 .Cast<string>()
-                .ToArray(),
-            StringComparer.Ordinal);
+                .ToArray();
+        }
 
         var visited = new HashSet<string>(StringComparer.Ordinal);
         var recursionStack = new HashSet<string>(StringComparer.Ordinal);
@@ -903,10 +909,13 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
 
     private static bool BranchTargetsMustReferenceEntryEffects(IReadOnlyList<EffectSpec> effects)
     {
-        var effectById = effects.ToDictionary(
-            effect => effect.Id.Trim(),
-            effect => effect,
-            StringComparer.Ordinal);
+        // Built by index for the same reason as the cycle check: duplicate or missing ids are another rule's
+        // report, and this check must not convert that report into an exception.
+        var effectById = new Dictionary<string, EffectSpec>(StringComparer.Ordinal);
+        foreach (var effect in effects)
+        {
+            effectById[effect.Id?.Trim() ?? string.Empty] = effect;
+        }
 
         foreach (var effect in effects)
         {

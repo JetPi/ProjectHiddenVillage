@@ -6,8 +6,8 @@ catalogue); `profiles` is hand-authored and is preserved byte-for-byte. Only the
 entries a profile actually references are emitted, in their existing manifest
 order, so a dump edit produces a minimal, reviewable diff.
 
-Ids that no dump record exists for (for example the hand-authored `T-120`
-fixture) are left exactly as they are in the manifest.
+Ids that no dump record exists for are left exactly as they are in the manifest,
+so a hand-authored entry survives a regeneration.
 
 Usage:
   python3 scripts/generate-seed-catalog.py            # rewrite the manifest

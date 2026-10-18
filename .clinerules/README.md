@@ -206,10 +206,12 @@ task touches that area).
   `GameSequentialEffectExecutorTests` (suspend with `CandidateZone: Trash` + resume; a zero-candidate prompt
   records a notice), `InMemoryGameInstanceRegistryOnSummonTests` (summon → prompt → `ResolvePrompt` → the answer
   reaches the resumed effect), `GameStateResponseMapperEffectNoticesTests` and — end-to-end —
-  `e2e/gameview.multiplayer.actions.spec.ts` with the new `on-summon-trash-recall` profile (its `T-121`
-  manifest fixture is a normally summonable [Naruto Uzumaki] with 10 power, so it is both a legal tribute
-  material and a legal recall target: summon it, tribute it, answer the picker, watch it land again). The same
-  spec's second scenario covers the **no-candidate** half: with only T-120 in the trash the board shows the
+  `e2e/gameview.multiplayer.actions.spec.ts` with the `on-summon-trash-recall` profile. Its recall fixture is a
+  normally summonable [Naruto Uzumaki] with 10 power - both a legal tribute material and a legal recall target:
+  summon it, tribute it, answer the picker, watch it land again. That fixture is **minted at run time** through
+  the admin create endpoint (`e2e/helpers/multiplayer/fixtures.ts`) and deleted afterwards, not seeded, so no
+  fabricated card sits in a developer's catalogue. The same spec's second scenario covers the **no-candidate**
+  half: with only the run-time power material in the trash the board shows the
   transient `effect-notice-banner` ("Gamabunta's effect had no valid targets.") and stays fully playable.
   **N-013's freeze is fixed**: its `freeze-target` node is authored `Per Step` + `Prompted` with
   `selectionPromptKind: FreezeFromZone` in the seed **and** `rawCardCatalogDump.txt`, the freeze can target a

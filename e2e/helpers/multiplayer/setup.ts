@@ -29,11 +29,33 @@ async function openReadyGameView(page: Page, gameCode: string): Promise<void> {
   throw new Error('GameView route stayed in 400 Route Error state after retries.')
 }
 
+/**
+ * Per-player deck overrides.
+ *
+ * A spec that needs a deck composition the seed manifest cannot contain (because it would mean seeding a
+ * fabricated card into every developer's catalogue) builds its own deck from runtime-minted fixture cards and
+ * passes its id here; the other player keeps their seeded deck.
+ */
+export type MultiplayerDeckOverrides = {
+  one?: { deckId: string }
+  two?: { deckId: string }
+}
+
 export async function setupMultiplayerGame(
   request: APIRequestContext,
   seedProfileName: MultiplayerSeedProfileName = 'default',
+  deckOverrides: MultiplayerDeckOverrides = {},
 ): Promise<MultiplayerSetup> {
-  const selectedPlayers = SEEDED_PLAYER_PROFILES[seedProfileName]
+  const seededPlayers = SEEDED_PLAYER_PROFILES[seedProfileName]
+
+  const selectedPlayers = {
+    one: deckOverrides.one
+      ? { ...seededPlayers.one, deckId: deckOverrides.one.deckId }
+      : seededPlayers.one,
+    two: deckOverrides.two
+      ? { ...seededPlayers.two, deckId: deckOverrides.two.deckId }
+      : seededPlayers.two,
+  }
 
   const [playerOneLogin, playerTwoLogin] = await Promise.all([
     login(request, selectedPlayers.one.email, selectedPlayers.one.password),

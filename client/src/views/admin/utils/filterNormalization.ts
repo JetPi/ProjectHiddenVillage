@@ -1,7 +1,3 @@
-import i18n from '@/i18n'
-import { ALL_FILTER_OPTION } from '@/views/admin/constants'
-import type { ICardAdminFilterOption } from '@/views/admin/types/cardAdminViewTypes'
-
 export function normalizeFilterValue(value: string | null | undefined): string {
   const normalizedValue = value?.trim().toLowerCase() ?? ''
   return normalizedValue || 'unknown'
@@ -15,15 +11,3 @@ export function toTitleCaseLabel(value: string): string {
     .join(' ')
 }
 
-export function buildUniqueFilterOptions(values: string[]): ICardAdminFilterOption[] {
-  const normalizedValues = Array.from(new Set(values.map((value) => normalizeFilterValue(value))))
-    .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }))
-
-  return [
-    ALL_FILTER_OPTION,
-    ...normalizedValues.map((value) => ({
-      value,
-      label: value === 'unknown' ? i18n.t('admin.filters.unknown') : toTitleCaseLabel(value),
-    })),
-  ]
-}

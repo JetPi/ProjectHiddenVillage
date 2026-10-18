@@ -34,6 +34,7 @@ function parseStatInteger(value: string, fallback: number): number {
 export function CardAdminSelectedCardSummary({
   card,
   draft,
+  identity,
   onTypeChange,
   onColorChange,
   onPowerChange,
@@ -57,16 +58,34 @@ export function CardAdminSelectedCardSummary({
 
   const isLeaderType = draft.type.trim().toLowerCase() === 'leader'
 
+  // A new card has no stored row yet, so while creating these two come from the draft being authored instead.
+  const resolvedCardId = identity ? identity.cardId : formatValue(card.id)
+  const resolvedDisplayName = identity ? identity.displayName : formatValue(card.displayName)
+
   const statRows = [
-    [t('admin.detail.summary.id'), formatValue(card.id)],
+    [t('admin.detail.summary.id'), resolvedCardId],
   ]
 
   return (
     <div className="flex h-full flex-col rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-3 text-sm text-[var(--text-secondary)]">
       <div className="flex items-stretch gap-2">
         <div className="min-w-0 flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">{t('admin.detail.summary.name')}</p>
-          <p className="truncate text-sm font-semibold text-[var(--text-primary)]" title={card.displayName}>{card.displayName}</p>
+          <label
+            className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+            htmlFor={identity ? 'card-admin-create-display-name' : undefined}
+          >
+            {t('admin.detail.summary.name')}
+          </label>
+          {identity ? (
+            <input
+              id="card-admin-create-display-name"
+              value={identity.displayName}
+              onChange={(event) => identity.onDisplayNameChange(event.target.value)}
+              className="mt-1 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-sm font-semibold text-[var(--text-primary)]"
+            />
+          ) : (
+            <p className="truncate text-sm font-semibold text-[var(--text-primary)]" title={resolvedDisplayName}>{resolvedDisplayName}</p>
+          )}
         </div>
 
         <div className="w-fit shrink-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2">
@@ -76,15 +95,32 @@ export function CardAdminSelectedCardSummary({
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-2">
-        {statRows.map(([label, value]) => (
-          <div
-            key={label}
-            className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2"
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{label}</p>
-            <p className="mt-0.5 text-sm font-medium text-[var(--text-primary)]">{value}</p>
+        {identity ? (
+          <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2">
+            <label
+              className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+              htmlFor="card-admin-create-card-id"
+            >
+              {t('admin.detail.summary.id')}
+            </label>
+            <input
+              id="card-admin-create-card-id"
+              value={identity.cardId}
+              onChange={(event) => identity.onCardIdChange(event.target.value)}
+              className="mt-1 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
+            />
           </div>
-        ))}
+        ) : (
+          statRows.map(([label, value]) => (
+            <div
+              key={label}
+              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{label}</p>
+              <p className="mt-0.5 text-sm font-medium text-[var(--text-primary)]">{value}</p>
+            </div>
+          ))
+        )}
 
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{t('admin.detail.summary.type')}</p>

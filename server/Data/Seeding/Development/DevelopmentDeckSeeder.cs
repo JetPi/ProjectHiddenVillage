@@ -10,6 +10,13 @@ public sealed class DevelopmentDeckSeeder
     private const string IncludeTestSeedProfilesEnvironmentVariable = "PHV_INCLUDE_TEST_SEED_PROFILES";
     private const string DefaultSeedProfileName = "default";
 
+    /// <summary>
+    /// The deliberate override for the rule below: startup seeding creates missing cards and never modifies an
+    /// existing one, so a regenerated seed file cannot reach a card that is already in the database. Setting this
+    /// replaces them - it is the only path that writes over stored content, and only when it is asked for.
+    /// </summary>
+    private const string OverwriteExistingCatalogEntriesEnvironmentVariable = "PHV_RESEED_OVERWRITES_EXISTING";
+
     private static readonly HashSet<string> PlaceholderLeaderCardIds =
     [
         "N-001",
@@ -86,7 +93,15 @@ public sealed class DevelopmentDeckSeeder
             .Where(entry => selectedProfileCardIds.Contains(entry.CardId.Trim().ToUpperInvariant()))
             .ToList();
 
-        await EnsureSuiteSpecificCatalogEntriesAsync(catalogEntriesToSeed, cancellationToken);
+        var overwriteExistingEntries = ShouldEnable(OverwriteExistingCatalogEntriesEnvironmentVariable);
+        if (overwriteExistingEntries)
+        {
+            logger.LogWarning(
+                "Replacing existing catalogue entries from the seed manifest because {EnvironmentVariable} is set.",
+                OverwriteExistingCatalogEntriesEnvironmentVariable);
+        }
+
+        await EnsureSuiteSpecificCatalogEntriesAsync(catalogEntriesToSeed, overwriteExistingEntries, cancellationToken);
 
         foreach (var seedDeck in profilesToSeed.SelectMany(profile => new[]
                  {
@@ -226,6 +241,7 @@ public sealed class DevelopmentDeckSeeder
 
     private async Task EnsureSuiteSpecificCatalogEntriesAsync(
         IReadOnlyList<SeedCatalogEntryDefinition> entries,
+        bool overwriteExistingEntries,
         CancellationToken cancellationToken)
     {
         foreach (var entry in entries)
@@ -239,6 +255,22 @@ public sealed class DevelopmentDeckSeeder
             if (existingEntry is null)
             {
                 dbContext.CardCatalogEntries.Add(mappedEntry);
+                continue;
+            }
+
+            // Startup seeding creates missing cards and does nothing else. It used to rewrite every column of an
+            // existing entry from the manifest, which is what silently reverted authored work at the next cold
+            // start: an uploaded image came back as the source URL, an effects patch came back as the file's
+            // copy, because the seed file was applied unconditionally on every boot.
+            //
+            // So there is no heuristic here about which rows "look edited" - an existing card is simply not this
+            // seeder's business. The cost is deliberate: a regenerated manifest does not reach a database that
+            // already has these cards on its own. Replacing them is what the override is for.
+            if (!overwriteExistingEntries)
+            {
+                logger.LogInformation(
+                    "Keeping the stored copy of card {CardId}; seeding only creates cards that are missing.",
+                    existingEntry.CardId);
                 continue;
             }
 
@@ -261,6 +293,9 @@ public sealed class DevelopmentDeckSeeder
             existingEntry.CannotBeNormalSummoned = mappedEntry.CannotBeNormalSummoned;
             existingEntry.SupportName = mappedEntry.SupportName;
             existingEntry.SupportEffect = mappedEntry.SupportEffect;
+
+            // Only reached through the override: the content came from the file, so the version moves with it and
+            // every client drops the art it had cached for the old row.
             existingEntry.UpdatedAtUtc = mappedEntry.UpdatedAtUtc;
         }
 
@@ -294,7 +329,12 @@ public sealed class DevelopmentDeckSeeder
 
     private static bool ShouldIncludeTestProfiles()
     {
-        var rawValue = Environment.GetEnvironmentVariable(IncludeTestSeedProfilesEnvironmentVariable);
+        return ShouldEnable(IncludeTestSeedProfilesEnvironmentVariable);
+    }
+
+    private static bool ShouldEnable(string environmentVariableName)
+    {
+        var rawValue = Environment.GetEnvironmentVariable(environmentVariableName);
         if (string.IsNullOrWhiteSpace(rawValue))
         {
             return false;

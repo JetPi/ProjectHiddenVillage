@@ -6,10 +6,65 @@ import type {
 
 export type ICardAdminDetailPaneProps = {
   selectedCard: ICardCatalogItemResponse | null
+  /** A card is selected and its detail is still in flight; the pane says so instead of showing the empty state. */
+  isLoading?: boolean
+  /** Reports whether the open draft has anything in it, for the screen's unsaved-changes guard. */
+  onUnsavedChangesChange?: (hasUnsavedChanges: boolean) => void
+  /** True while an exit is waiting on the author's answer, which is when the dialog is shown. */
+  isExitPending?: boolean
+  /** What the author answered: leave, or stay. */
+  onExitResolved?: (shouldProceed: boolean) => void
 }
 
 export type ICardAdminDetailEditorProps = {
   selectedCard: ICardCatalogItemResponse
+  onUnsavedChangesChange?: (hasUnsavedChanges: boolean) => void
+  isExitPending?: boolean
+  onExitResolved?: (shouldProceed: boolean) => void
+}
+
+/**
+ * The art a card stores right now, shown read-only so reading it cannot turn into editing it by accident.
+ */
+export type ICardAdminStoredArt = {
+  /** The stored value verbatim: an external URL, or a `local:` reference to a master on this server. */
+  reference: string
+  /** Where the source can be opened; null when there is nowhere useful to send the author. */
+  href: string | null
+  /** True for an external URL, which is what the link points at; false for a master we host ourselves. */
+  isExternal: boolean
+}
+
+/** The art change an author has made but not saved yet. One of these is pending at a time, never a mix. */
+export type ICardAdminPendingArt =
+  | { kind: 'file'; fileName: string }
+  | { kind: 'url'; url: string }
+  | { kind: 'remove' }
+
+export type ICardAdminArtCommitResult = {
+  ok: boolean
+  message: string | null
+}
+
+export type ICardAdminArtDraftModel = {
+  /** What the preview paints: the staged change, or the art the card currently resolves. */
+  previewSrc: string
+  /** The art the card stores now, read-only. Null while it has none. */
+  storedArt: ICardAdminStoredArt | null
+  /** The staged change, or null while the art matches what is saved. */
+  pending: ICardAdminPendingArt | null
+  isDirty: boolean
+  isCommitting: boolean
+  error: string | null
+  /** The external-URL alternative: what the field holds, staged for the next save. */
+  urlValue: string
+  setUrlValue: (value: string) => void
+  selectFile: (file: File) => void
+  stageRemoval: () => void
+  /** Drops the staged change and paints the art the card actually has again. */
+  discard: () => void
+  /** Sends the staged change. The only thing in this model that talks to the server. */
+  commit: () => Promise<ICardAdminArtCommitResult>
 }
 
 export type ICardAdminSelectedCardSummaryDraft = {
@@ -21,9 +76,27 @@ export type ICardAdminSelectedCardSummaryDraft = {
   health: number | null
 }
 
+/**
+ * The identity fields a summary can render. A new card has no stored row to read them from, which is why the
+ * create flow supplies them separately from the card.
+ */
+export type ICardAdminSummaryIdentitySource = Pick<
+  ICardCatalogItemResponse,
+  'id' | 'displayName' | 'supportCost'
+>
+
+/** Present only in create mode, where the card id and display name are still being chosen. */
+export type ICardAdminSummaryIdentityDraft = {
+  cardId: string
+  displayName: string
+  onCardIdChange: (value: string) => void
+  onDisplayNameChange: (value: string) => void
+}
+
 export type ICardAdminSelectedCardSummaryProps = {
-  card: ICardCatalogItemResponse
+  card: ICardAdminSummaryIdentitySource
   draft: ICardAdminSelectedCardSummaryDraft
+  identity?: ICardAdminSummaryIdentityDraft
   onTypeChange: (value: string) => void
   onColorChange: (value: string) => void
   onPowerChange: (value: number) => void
@@ -33,7 +106,7 @@ export type ICardAdminSelectedCardSummaryProps = {
 }
 
 export type ICardAdminConditionsSectionProps = {
-  editorModel: ICardAdminEffectEditorModel
+  editorModel: ICardAdminEffectEditorFieldsModel
   conditionToAdd: string
   setConditionToAdd: (value: string) => void
   availableConditionOptions: string[]
@@ -88,11 +161,14 @@ export type ICardAdminEffectEditorSaveResult = {
   message: string | null
 }
 
-export type ICardAdminEffectEditorModel = {
+/**
+ * Everything the editor sections need: the draft and the ways to change it. The submit differs per screen (a
+ * patch on the update screen, a create on the new-card screen), so it is added on top rather than shared.
+ */
+export type ICardAdminEffectEditorFieldsModel = {
   draft: ICardAdminEffectEditorDraft
   errors: ICardAdminEffectEditorValidationErrors
   isDirty: boolean
-  isSaving: boolean
   statusMessage: string | null
   setDescription: (value: string) => void
   setSupportEffect: (value: string) => void
@@ -108,8 +184,31 @@ export type ICardAdminEffectEditorModel = {
   removeCondition: (value: string) => void
   setEffects: (value: ICardCatalogEffectRequest[]) => void
   reset: () => void
+}
+
+export type ICardAdminEffectEditorModel = ICardAdminEffectEditorFieldsModel & {
+  isSaving: boolean
   save: () => Promise<ICardAdminEffectEditorSaveResult>
 }
+
+export type ICardAdminEffectEditorBodyProps = {
+  editorModel: ICardAdminEffectEditorFieldsModel
+  card: ICardAdminSummaryIdentitySource
+  identity?: ICardAdminSummaryIdentityDraft
+  /** True while a submit is in flight; the body only uses it to hold its own controls still. */
+  isBusy?: boolean
+}
+
+export type ICardAdminEditorFooterProps = {
+  isDirty: boolean
+  isSaving: boolean
+  submitLabel: string
+  savingLabel: string
+  disabled?: boolean
+  onSubmit: () => void | Promise<void>
+}
+
+export type ICardAdminEditorDraftCommit = (nextDraft: ICardAdminEffectEditorDraft) => void
 
 export type ICardAdminEffectEditorHydrationSource = Pick<
   ICardCatalogItemResponse,

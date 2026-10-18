@@ -1,5 +1,18 @@
 namespace ProjectHiddenVillage.Server;
 
+/// <summary>
+/// What the catalogue *listing* needs and nothing more. The admin rail renders a tile from exactly these fields,
+/// and the editor fetches the whole card by id when one is selected - which is what keeps a page of the catalogue
+/// from deserialising every effect spec it lists.
+/// </summary>
+public sealed record CardCatalogListItemResponse(
+    string Id,
+    string DisplayName,
+    string Type,
+    string Color,
+    string Image,
+    long ImageVersion);
+
 public sealed record CardCatalogItemResponse(
     string Id,
     string Image,
@@ -190,6 +203,47 @@ public sealed record UpdateCardEffectsRequest(
     bool? CannotBeNormalSummoned = null,
     string? Type = null,
     string? Color = null,
+    int? Power = null,
+    int? Damage = null,
+    int? Life = null,
+    int? Health = null);
+
+/// <summary>
+/// Replaces a card's art after the fact. An empty value clears it.
+/// </summary>
+public sealed record UpdateCardImageRequest(string? Image);
+
+/// <summary>
+/// What deleting a card touches: the decks that list it (<c>deck_cards</c> has a restricting FK, so those rows
+/// have to go) and the saved decks that name its id (a plain column, so they would otherwise dangle).
+/// </summary>
+public sealed record CardDeletionImpactResponse(
+    string CardId,
+    int DeckCount,
+    int SavedDeckCount);
+
+/// <summary>
+/// A brand new card. The authoring fields are deliberately the same shape as
+/// <see cref="UpdateCardEffectsRequest"/> so the create screen can reuse the effects editor wholesale; the
+/// identity fields are the ones the update flow never edits.
+/// </summary>
+public sealed record CreateCardRequest(
+    string CardId,
+    string DisplayName,
+    string? Image = null,
+    IReadOnlyList<string>? Name = null,
+    string? OriginalId = null,
+    bool? MainAlternate = null,
+    string? Attribute = null,
+    IReadOnlyList<string>? Traits = null,
+    string? Type = null,
+    string? Color = null,
+    string? Description = null,
+    string? SupportEffect = null,
+    string? SupportName = null,
+    bool? CannotBeNormalSummoned = null,
+    IReadOnlyList<string>? Conditions = null,
+    IReadOnlyList<EffectSpec>? Effects = null,
     int? Power = null,
     int? Damage = null,
     int? Life = null,

@@ -1,6 +1,13 @@
 bin/
 obj/
 
+# Generated card art: masters uploaded by authors and the width variants built from them. The `-e2e` pair is the
+# same thing for the e2e server, which keeps its own stores so its orphan sweep cannot collect a dev master.
+card-art-cache/
+card-art-uploads/
+card-art-cache-e2e/
+card-art-uploads-e2e/
+
 # Local environment files
 .env
 .env.*
