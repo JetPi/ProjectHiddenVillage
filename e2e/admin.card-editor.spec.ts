@@ -1,39 +1,22 @@
 import { expect, test } from '@playwright/test'
-import type { Browser, BrowserContext, Page } from '@playwright/test'
+import type { APIRequestContext, Browser, BrowserContext, Page } from '@playwright/test'
+import { createAdminSession } from './helpers/adminSession'
 
 const AUTH_STORAGE_KEY = 'phv-auth-session'
-const API_HOST = '127.0.0.1:3101'
-/** Seeded development admin (`DevelopmentUserSeeder.SeedUserOneId`, IsCardCatalogAdmin: true). */
-const ADMIN_USER_ID = '20000000-0000-0000-0000-000000000001'
-
-const adminSession = {
-  userId: ADMIN_USER_ID,
-  username: 'test-user-1',
-  email: 'test-user-1@hiddenvillage.local',
-  accessToken: 'dev-bypass-token',
-  expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-}
 
 /**
- * Signs in as the seeded admin and waits for the catalogue. The dotnet API (migrations + seeding) comes up after
- * the Vite dev server Playwright pings, so the first fetches have to be retried rather than asserted on.
+ * Signs in as the seeded admin (a real login, so authorised calls carry a token the server can validate - see
+ * `createAdminSession`) and waits for the catalogue. The dotnet API (migrations + seeding) comes up after the Vite
+ * dev server Playwright pings, so the first fetches have to be retried rather than asserted on.
  */
 async function openAdminCatalogue(
   browser: Browser,
+  request: APIRequestContext,
   viewport: { width: number; height: number },
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ viewport })
+  const adminSession = await createAdminSession(request)
 
-  // The development auth bypass identifies the caller by header, and the session keeps the client signed in.
-  await context.route('**/*', (route) => {
-    if (route.request().url().includes(API_HOST)) {
-      return route.continue({
-        headers: { ...route.request().headers(), 'X-Dev-User-Id': ADMIN_USER_ID },
-      })
-    }
-
-    return route.continue()
-  })
   await context.addInitScript(
     ({ key, session }) => {
       window.localStorage.setItem(key, JSON.stringify(session))
@@ -66,10 +49,10 @@ async function openAdminCatalogue(
  * the effect header sliced its own controls with `overflow-hidden`, and every level drew another card
  * box. Measured against the real DOM because the symptoms are purely geometric.
  */
-test('admin card editor keeps dropdowns, headers and sections inside their containers', async ({ browser }) => {
+test('admin card editor keeps dropdowns, headers and sections inside their containers', async ({ browser, request }) => {
   // A desktop-width rail (the seeded admin runs ~1920 wide) must keep the header on a single line; at
   // narrower widths the groups wrap instead of being sliced, which the overflow checks below still pin.
-  const { context, page } = await openAdminCatalogue(browser, { width: 1600, height: 900 })
+  const { context, page } = await openAdminCatalogue(browser, request, { width: 1600, height: 900 })
   const viewport = page.viewportSize()
   expect(viewport).not.toBeNull()
 
@@ -262,8 +245,8 @@ test('admin card editor keeps dropdowns, headers and sections inside their conta
  * Unsaved changes are the one thing this editor can lose silently: the pane is keyed by card id, so selecting
  * another card - or leaving the view - unmounts the draft with it. Each of those exits asks first instead.
  */
-test('admin card editor warns before leaving a card with unsaved changes', async ({ browser }) => {
-  const { context, page } = await openAdminCatalogue(browser, { width: 1600, height: 900 })
+test('admin card editor warns before leaving a card with unsaved changes', async ({ browser, request }) => {
+  const { context, page } = await openAdminCatalogue(browser, request, { width: 1600, height: 900 })
 
   const tiles = page.locator('li button')
   const firstTile = tiles.first()

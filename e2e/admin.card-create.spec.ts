@@ -2,19 +2,10 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { createAdminSession } from './helpers/adminSession'
 
 const AUTH_STORAGE_KEY = 'phv-auth-session'
 const API_HOST = '127.0.0.1:3101'
-/** Seeded development admin (`DevelopmentUserSeeder.SeedUserOneId`, IsCardCatalogAdmin: true). */
-const ADMIN_USER_ID = '20000000-0000-0000-0000-000000000001'
-
-const adminSession = {
-  userId: ADMIN_USER_ID,
-  username: 'test-user-1',
-  email: 'test-user-1@hiddenvillage.local',
-  accessToken: 'dev-bypass-token',
-  expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-}
 
 /**
  * Pastes PNG bytes into the art source dialog the way a browser would: a real `ClipboardEvent` carrying a
@@ -49,18 +40,12 @@ async function pasteImage(page: Page, base64Png: string, fileName: string): Prom
  * authentication bypass grants `card_catalog_admin` to every request it sees (see
  * `DevelopmentAuthenticationHandler`), so in this environment there is no unauthenticated caller to test with.
  */
-test('admin can create a card from a pasted image and see it in the catalogue', async ({ browser }) => {
+test('admin can create a card from a pasted image and see it in the catalogue', async ({ browser, request }) => {
   const context = await browser.newContext({ viewport: { width: 1600, height: 900 } })
 
-  await context.route('**/*', (route) => {
-    if (route.request().url().includes(API_HOST)) {
-      return route.continue({
-        headers: { ...route.request().headers(), 'X-Dev-User-Id': ADMIN_USER_ID },
-      })
-    }
-
-    return route.continue()
-  })
+  // A real session: this screen makes authorised requests from the browser (the multipart art upload), and a
+  // fabricated token routes those to the JWT handler, which rejects it - see `createAdminSession`.
+  const adminSession = await createAdminSession(request)
   await context.addInitScript(
     ({ key, session }) => {
       window.localStorage.setItem(key, JSON.stringify(session))

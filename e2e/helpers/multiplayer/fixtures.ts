@@ -101,8 +101,9 @@ async function createOrResetFixtureCard(
           health: card.health,
           traits: card.traits,
           description: card.description,
-          conditions: [],
-          effects: [],
+          // Neither key is sent when it would be empty: the validator rejects an *empty* `conditions` array
+          // ("at least one entry when provided"), and an absent list is how the admin client expresses "none".
+          // Sending `[]` here is what made the create answer 400 instead of 201/409.
         },
       })
     } catch {
@@ -114,7 +115,11 @@ async function createOrResetFixtureCard(
       return
     }
 
-    expect(response.status(), `creating fixture card ${card.cardId}`).toBe(409)
+    // The body carries the validation message, which is the difference between "the row already exists" and
+    // "this fixture is malformed" - without it a 400 here just looks like a broken suite.
+    const failureBody = await response.text()
+
+    expect(response.status(), `creating fixture card ${card.cardId}: ${failureBody}`).toBe(409)
 
     // A left-over row from an earlier run: reset the fields that are patchable and carry on. Display name and
     // name are not patchable, which is why this helper's definitions must stay stable.
@@ -155,10 +160,13 @@ export async function createFixtureDeck(request: APIRequestContext, deckLines: s
 
   expect(response.ok(), `creating a fixture deck (${deckLines.join(', ')})`).toBeTruthy()
 
-  const payload = await response.json() as unknown
-  const deckId = typeof payload === 'string' ? payload : String(payload)
+  // The endpoint answers with a plain-text body (`Created` with a string payload goes through ASP.NET's
+  // StringOutputFormatter), so this is not JSON and `response.json()` throws on it. Quotes are stripped
+  // defensively in case that formatter ever changes to the JSON one.
+  const rawDeckId = (await response.text()).trim()
+  const deckId = rawDeckId.replace(/^"|"$/g, '')
 
-  expect(deckId.length, 'the deck endpoint should return the id it created').toBeGreaterThan(0)
+  expect(deckId.length, `the deck endpoint should return the id it created, got "${rawDeckId}"`).toBeGreaterThan(0)
 
   return deckId
 }
