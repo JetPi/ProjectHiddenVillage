@@ -10,7 +10,11 @@ namespace ProjectHiddenVillage.Server;
 public sealed class InMemoryGameInstanceRegistry
 {
     private const int GameCodeLength = 5;
-    private const string GameCodeAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    // Upper case only, deliberately. The hub normalizes every incoming game id with
+    // ToUpperInvariant (see GamesHub.NormalizeGameId) while this registry's dictionary uses
+    // StringComparer.Ordinal, so a generated code containing a lower-case letter produces a game
+    // that can never be reached through the hub - i.e. one that is unplayable in the client.
+    private const string GameCodeAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private const string ActivateSupportActionPrefix = "activate-support:";
     private const string SummonToFieldActionPrefix = "summon-to-field:";
     private const string SetSupportActionPrefix = "set-support:";

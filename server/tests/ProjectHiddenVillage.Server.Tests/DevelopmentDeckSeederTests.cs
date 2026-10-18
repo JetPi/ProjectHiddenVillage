@@ -9,7 +9,14 @@ using ProjectHiddenVillage.Server.Data.Seeding.Development;
 
 namespace ProjectHiddenVillage.Server.Tests;
 
+/// <summary>
+/// Opted out of the assembly-level method parallelism: the override test flips a *process-wide* environment
+/// variable (<c>PHV_RESEED_OVERWRITES_EXISTING</c>), and a sibling test running at the same time reads it through
+/// <c>ShouldEnable</c>. Under <see cref="ParallelizeAttribute"/> that made the "keep the stored card" assertion see
+/// the manifest value the override test had just enabled - which is exactly the behaviour it regresses.
+/// </summary>
 [TestClass]
+[DoNotParallelize]
 public sealed class DevelopmentDeckSeederTests
 {
     private const string OverwriteExistingEntriesEnvironmentVariable = "PHV_RESEED_OVERWRITES_EXISTING";

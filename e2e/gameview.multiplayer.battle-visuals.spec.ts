@@ -1,36 +1,55 @@
 import { expect, test } from '@playwright/test'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   executeBattleActionViaHub,
   fetchGameState,
   openMultiplayerPages,
   resolveActorWithBottomBattleAction,
   resolveActorWithBottomHandAction,
-  resolveAllMulliganPrompts,
   resolveBattleActionForSpecificCard,
   resolvePlayerState,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
+import {
+  FIXTURE_CARD_IDS,
+  createFixtureDeck,
+  ensureFixtureCards,
+} from './helpers/multiplayer/fixtures'
 
 test.describe('GameView multiplayer battle visuals', () => {
   test.describe.configure({ timeout: 120_000 })
 
+  // Both scenarios have to summon a character and battle with it on the same turn. No seeded card can do that
+  // (N-007 needs 10+ power, N-011 needs two specific allies), so they play a deck built almost entirely from a
+  // fixture card whose own passive grants [Rush].
+  //
+  // The card is created-or-reset here and deliberately *not* deleted afterwards: `ensureFixtureCards` brings a
+  // leftover row back to the right shape, and deleting it in `afterAll` would remove it from under a concurrent
+  // run of this same file (`--repeat-each` with more than one worker).
+  const THIS_SPEC_FIXTURE_IDS = [FIXTURE_CARD_IDS.rushCharacter]
+  let rushDeckId = ''
+
+  test.beforeAll(async ({ request }) => {
+    await ensureFixtureCards(request, THIS_SPEC_FIXTURE_IDS)
+
+    // 24 copies in a 25-card deck makes a rush card in the opening hand a certainty rather than a shuffle bet.
+    rushDeckId = await createFixtureDeck(request, [
+      '1x N-001',
+      `24x ${FIXTURE_CARD_IDS.rushCharacter}`,
+    ])
+  })
+
   test('battle action click enters target selection mode with highlight classes', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    const setup = await setupMultiplayerGame(request, 'default', { one: { deckId: rushDeckId } })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
-      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon')
+      // Same reason as the refresh scenario below: the Battle action has to be available on the turn the card is
+      // summoned, which only the Rush fixture provides.
+      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
+        actorUserId: setup.playerOne.userId,
+        cardDefinitionId: FIXTURE_CARD_IDS.rushCharacter,
+      })
       const summonCard = summonActor.actorPage.locator(`[data-testid="bottom-hand-card-${summonActor.cardInstanceId}"]`)
       await summonCard.hover()
       await summonCard.getByRole('button', { name: /^summon$/i }).click()
@@ -76,18 +95,16 @@ test.describe('GameView multiplayer battle visuals', () => {
   })
 
   test('refresh during pending attack keeps attacker rested from backend state', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    const setup = await setupMultiplayerGame(request, 'default', { one: { deckId: rushDeckId } })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
-      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon')
+      // Summon the Rush fixture specifically: the attack below has to happen on the turn this card arrives, so
+      // leaving the choice to the shuffle is what made this test fail intermittently.
+      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
+        actorUserId: setup.playerOne.userId,
+        cardDefinitionId: FIXTURE_CARD_IDS.rushCharacter,
+      })
       const summonCard = summonActor.actorPage.locator(`[data-testid="bottom-hand-card-${summonActor.cardInstanceId}"]`)
       await summonCard.hover()
       await summonCard.getByRole('button', { name: /^summon$/i }).click()

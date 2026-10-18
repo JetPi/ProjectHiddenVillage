@@ -1,58 +1,16 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   countTravelingCardElements,
   fetchGameState,
+  getBottomHandInstanceOrder,
   openMultiplayerPages,
-  resolveAllMulliganPrompts,
   resolveHandCardDragPressPoint,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
+  waitForBottomHandToSettle,
 } from './helpers/gameviewMultiplayerHelpers'
 import type { MultiplayerPages, MultiplayerSetup } from './helpers/gameviewMultiplayerHelpers'
-
-async function getBottomHandInstanceOrder(page: Page): Promise<string[]> {
-  const order = await page
-    .locator('[data-testid="bottom-hand-row"] [data-hand-instance-id]')
-    .evaluateAll((nodes) => {
-      return nodes
-        .map((node) => node.getAttribute('data-hand-instance-id'))
-        .filter((value): value is string => Boolean(value))
-    })
-
-  return order
-}
-
-// The hand keeps changing while the initial deal / mulligan re-draw animation runs: cards arrive, the
-// row re-lays out and card rects move. Measuring a card before the row settles makes the press land
-// between cards (or on a stale rect), which silently drops the drag - so wait for two identical
-// samples of the row order and of the first card's rect before starting the gesture.
-async function waitForBottomHandToSettle(page: Page): Promise<string[]> {
-  let previousSample = ''
-
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    const order = await getBottomHandInstanceOrder(page)
-    const firstInstanceId = order[0]
-    const firstBox = firstInstanceId
-      ? await page.locator(`[data-testid="bottom-hand-card-${firstInstanceId}"]`).boundingBox()
-      : null
-    const sample = `${order.join(',')}|${
-      firstBox ? `${Math.round(firstBox.x)}:${Math.round(firstBox.y)}:${Math.round(firstBox.width)}` : 'none'
-    }`
-
-    if (order.length >= 2 && firstBox !== null && sample === previousSample) {
-      return order
-    }
-
-    previousSample = sample
-    await page.waitForTimeout(200)
-  }
-
-  return getBottomHandInstanceOrder(page)
-}
 
 test.describe('GameView', () => {
   test.describe.configure({ timeout: 120_000 })
@@ -66,25 +24,12 @@ test.describe('GameView', () => {
       setup = await setupMultiplayerGame(request)
       pages = await openMultiplayerPages(browser, setup)
 
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       page = pages.playerOnePage
       await expect(page.getByTestId('game-board')).toBeVisible()
 
-      // The board is only usable once the engine has walked the opening into a MainPhase and the last draw has
-      // landed: before that the deal/draw batch keeps changing the hand, which races any measured gesture (that
-      // race is what made the drag test intermittently fail to arm).
-      await expect.poll(async () => {
-        const state = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)
-        return state.phase
-      }, { timeout: 60_000 }).toBe('MainPhase')
-
-      // Nothing may still be mid-flight: a card left marked as travelling would be stuck transformed, or stuck
+      // The setup already warm-starts into the MainPhase, so the hand is dealt and the draw has landed before
+      // this test measures anything. Only the flights matter here: a card left marked as travelling would be
+      // stuck transformed, or stuck
       // hidden behind the frame the flight uses before it starts.
       await expect.poll(async () => await countTravelingCardElements(page), { timeout: 30_000 }).toBe(0)
     })

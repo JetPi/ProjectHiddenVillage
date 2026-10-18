@@ -1,16 +1,13 @@
 import { expect, test } from '@playwright/test'
+import { createFixtureDeck } from './helpers/multiplayer/fixtures'
 import type { APIRequestContext } from '@playwright/test'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   declarePassInActionStepViaHub,
   fetchGameState,
   openMultiplayerPages,
   resolveActorWithBottomHandAction,
-  resolveAllMulliganPrompts,
   resolvePlayerState,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 import type { MultiplayerPages, MultiplayerSetup } from './helpers/gameviewMultiplayerHelpers'
@@ -40,31 +37,26 @@ const DAMAGE_BONUS = 1
 const SUMMONED_THIS_TURN_REASON = 'Cannot declare battle action the turn that the card entered the field.'
 
 // The context rules need two other named characters on the field, and each normal summon is once per turn,
-// so the scenario plays at least three of the actor's turns. Every attempt plays a fresh game (and the
-// helpers drive the turns forward until the requested card is drawn), so a bad shuffle only costs a retry.
-const SCENARIO_ATTEMPT_COUNT = 3
+
+let inoTrioDeckId = ''
 
 test.describe('GameView multiplayer character ability', () => {
   test.describe.configure({ timeout: 300_000 })
 
-  test('a battlefield card\'s [Activate: Main] ability grants Rush and boosted stats to the team', async ({ browser, request }) => {
-    let lastFailure: unknown = null
+  test.beforeAll(async ({ request }) => {
+    // Leader + the three cards the ability needs: all of them cycle into hand within a few draws.
+    inoTrioDeckId = await createFixtureDeck(request, ['1x N-001', '8x N-011', '8x N-008', '8x N-002'])
+  })
 
-    for (let attempt = 0; attempt < SCENARIO_ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
+  test('a battlefield card\'s [Activate: Main] ability grants Rush and boosted stats to the team', async ({ browser, request }) => {
+          const setup = await setupMultiplayerGame(request, 'default', { one: { deckId: inoTrioDeckId } })
       const pages = await openMultiplayerPages(browser, setup)
 
       try {
         await playCharacterAbilityScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
       } finally {
         await closeMultiplayerPages(pages)
       }
-    }
-
-    throw lastFailure
   })
 })
 async function playCharacterAbilityScenario(
@@ -72,13 +64,6 @@ async function playCharacterAbilityScenario(
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
 ): Promise<void> {
-  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-  await advanceToMulliganPromptIfNeeded(request, setup)
-  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
   // The ability's context rules need both [Shikamaru Nara] and [Choji Akimichi] on the field, so the team is
   // summoned first. Each call drives the game forward (two draws a turn) until the requested card is in hand
   // with an enabled Summon action, then clicks that chip.

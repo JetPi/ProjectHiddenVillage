@@ -6,8 +6,7 @@ const AUTH_STORAGE_KEY = 'phv-auth-session'
 
 /**
  * Signs in as the seeded admin (a real login, so authorised calls carry a token the server can validate - see
- * `createAdminSession`) and waits for the catalogue. The dotnet API (migrations + seeding) comes up after the Vite
- * dev server Playwright pings, so the first fetches have to be retried rather than asserted on.
+ * `createAdminSession`) and waits for the catalogue to render.
  */
 async function openAdminCatalogue(
   browser: Browser,
@@ -28,17 +27,11 @@ async function openAdminCatalogue(
 
   await page.goto('/admin/cards')
 
-  // The dotnet API (migrations + seeding) comes up after the Vite dev server Playwright pings, so retry
-  // until the catalogue loads instead of asserting on the first fetch.
-  let tileCount = 0
-  for (let attempt = 0; attempt < 20 && tileCount === 0; attempt += 1) {
-    await page.waitForTimeout(3000)
-    tileCount = await page.locator('li button').count()
-    if (tileCount === 0) {
-      await page.reload()
-    }
-  }
-  expect(tileCount, 'card list never loaded (API not reachable)').toBeGreaterThan(0)
+  // `globalSetup` has already waited for /api/health, so this is only about the client rendering the
+  // catalogue: an auto-retrying assertion instead of 20 x 3 s of sleeping and reloading.
+  await expect
+    .poll(async () => await page.locator('li button').count(), { timeout: 30_000 })
+    .toBeGreaterThan(0)
 
   return { context, page }
 }

@@ -1,18 +1,15 @@
 import { expect, test } from '@playwright/test'
+import { createFixtureDeck } from './helpers/multiplayer/fixtures'
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { MultiplayerPages, MultiplayerSetup } from './helpers/gameviewMultiplayerHelpers'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   declarePassInActionStepViaHub,
   fetchGameState,
   openMultiplayerPages,
   progressToNextDecisionWindow,
   resolveActorWithBottomHandAction,
-  resolveAllMulliganPrompts,
   resolvePlayerState,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 
@@ -32,9 +29,6 @@ const ACTIVATOR_KO_SUPPORT_CARD_DEFINITION_ID = 'N-015'
 const ACTIVATOR_PLAIN_SUMMON_CARD_DEFINITION_IDS = ['N-019', 'N-020'] as const
 
 // Neither player is guaranteed to hold their half of the play (three copies in a 31-card deck), and a game
-// where the draw never cooperates ends in a deck-out before the scenario can play out. Each attempt plays a
-// fresh game, so the spec stays reliable instead of riding a single shuffle.
-const SCENARIO_ATTEMPT_COUNT = 3
 
 // Decision windows the role search walks before giving up on an attempt. Both players draw two cards per
 // turn from turn two on, so the window has to cover enough turns to dig for a specific three-of.
@@ -48,27 +42,27 @@ type SlotGeometry = {
   height: number
 }
 
+let negatorDeckId = ''
+let activatorDeckId = ''
+
 test.describe('GameView support targeting keeps support slots in place', () => {
   test.describe.configure({ timeout: 240_000 })
 
-  test('negate targeting a support-zone card does not move or resize the support row', async ({ browser, request }) => {
-    let lastFailure: unknown = null
+  test.beforeAll(async ({ request }) => {
+    // The negate support on one side and the K.O. support on the other, plus plain summonable characters.
+    negatorDeckId = await createFixtureDeck(request, ['1x N-001', '12x N-009', '6x N-007'])
+    activatorDeckId = await createFixtureDeck(request, ['1x N-012', '10x N-015', '8x N-019'])
+  })
 
-    for (let attempt = 0; attempt < SCENARIO_ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
+  test('negate targeting a support-zone card does not move or resize the support row', async ({ browser, request }) => {
+          const setup = await setupMultiplayerGame(request, 'default', { one: { deckId: negatorDeckId }, two: { deckId: activatorDeckId } })
       const pages = await openMultiplayerPages(browser, setup)
 
       try {
         await playSupportNegateTargetingScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
       } finally {
         await closeMultiplayerPages(pages)
       }
-    }
-
-    throw lastFailure
   })
 })
 
@@ -77,13 +71,6 @@ async function playSupportNegateTargetingScenario(
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
 ): Promise<void> {
-  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-  await advanceToMulliganPromptIfNeeded(request, setup)
-  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
   const { negator, activator, plainSummonCardDefinitionId } = await resolveNegateRoles(request, setup)
   const negatorPage = negator.userId === setup.playerOne.userId ? pages.playerOnePage : pages.playerTwoPage
   const activatorPage = activator.userId === setup.playerOne.userId ? pages.playerOnePage : pages.playerTwoPage

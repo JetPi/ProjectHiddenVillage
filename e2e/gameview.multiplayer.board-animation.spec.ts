@@ -1,8 +1,13 @@
 import { expect, test } from '@playwright/test'
+import {
+  advanceToMulliganPromptIfNeeded,
+  resolveAllMulliganPrompts,
+  resolvePromptViaHub,
+  resolveStartingPromptOwner,
+} from './helpers/gameviewMultiplayerHelpers'
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { MultiplayerPages, MultiplayerSetup } from './helpers/gameviewMultiplayerHelpers'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   countHeldArrivalCardElements,
   countTravelingCardElements,
@@ -12,9 +17,6 @@ import {
   installCardFlightCounter,
   installHandArrivalFlickerObserver,
   openMultiplayerPages,
-  resolveAllMulliganPrompts,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 
@@ -36,28 +38,6 @@ function isPlayerOneActive(state: { activePlayerId: string }, setup: Multiplayer
     || activeUserId === setup.playerOne.userId.replace(/-/g, '').toLowerCase()
 }
 
-/**
- * Drives the opening (starting player + mulligan) and waits for the engine-driven phase walk to settle into a
- * MainPhase. Reaching it through the chain is itself the acknowledgement proof: the engine parks on every
- * transition until every connected client acknowledges it.
- */
-async function playOpeningIntoMainPhase(
-  request: APIRequestContext,
-  setup: MultiplayerSetup,
-): Promise<void> {
-  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-
-  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-  await advanceToMulliganPromptIfNeeded(request, setup)
-  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
-  await expect.poll(async () => {
-    const state = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)
-    return state.phase
-  }, { timeout: 45_000 }).toBe('MainPhase')
-}
-
 function bothPages(pages: MultiplayerPages): Page[] {
   return [pages.playerOnePage, pages.playerTwoPage]
 }
@@ -76,7 +56,6 @@ test.describe('GameView multiplayer board animation hygiene', () => {
         await installCardFlightCounter(page)
       }
 
-      await playOpeningIntoMainPhase(request, setup)
 
       // A draw is an entity-based flight: the arriving hand card itself travels from the deck. The counter sees
       // whichever marker moved, so this proves the opening animated rather than teleported.
@@ -123,7 +102,9 @@ test.describe('GameView multiplayer board animation hygiene', () => {
   })
 
   test('a dealt hand is revealed by its own flight, never by a second animation', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    // Opted out of the warm start on purpose: the opening deal *is* the animation under test, so the pages have
+    // to be watching before it happens. Warming the game would deal the hand before any observer exists.
+    const setup = await setupMultiplayerGame(request, 'default', {}, { warmStart: false })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
@@ -134,8 +115,12 @@ test.describe('GameView multiplayer board animation hygiene', () => {
         await installCardFlightCounter(page)
       }
 
-      await playOpeningIntoMainPhase(request, setup)
+      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
 
+      await advanceToMulliganPromptIfNeeded(request, setup)
+      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
       for (const page of bothPages(pages)) {
         // A hold has to have happened at all, otherwise the two counts below would be vacuously true.
         await expect.poll(async () => (await getHandArrivalFlickerReport(page)).heldCards, {
@@ -190,7 +175,9 @@ test.describe('GameView multiplayer board animation hygiene', () => {
   })
 
   test('reduced motion skips every flight while the engine still walks its phases', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    // Also opted out: the subject is the *opening phase walk*, so the engine has to walk those transitions while
+    // the pages are watching. A warm-started game is already parked in the MainPhase.
+    const setup = await setupMultiplayerGame(request, 'default', {}, { warmStart: false })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
@@ -201,8 +188,17 @@ test.describe('GameView multiplayer board animation hygiene', () => {
         await installCardFlightCounter(page)
       }
 
-      await playOpeningIntoMainPhase(request, setup)
+      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
+      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
+      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
 
+      await advanceToMulliganPromptIfNeeded(request, setup)
+      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)
+        return state.phase
+      }, { timeout: 45_000 }).toBe('MainPhase')
       // The walk is the acknowledgement proof: the engine parks on each transition until every connected
       // client acknowledges it, so a flight that registered but never played would leave it parked forever.
       const settledState = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)

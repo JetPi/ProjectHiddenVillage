@@ -93,6 +93,9 @@ builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGame
 builder.Services.AddScoped<IGameRuntimeDeckService, GameRuntimeDeckService>();
 builder.Services.AddScoped<IGamePhaseHandlingService, GamePhaseHandlingService>();
 builder.Services.AddScoped<IGameInstanceService, GameInstanceService>();
+// Test-only: walks a fresh game to the first MainPhase for the e2e suite. Reachable only through
+// TestGamesController, which is itself gated on Development + PHV_INCLUDE_TEST_SEED_PROFILES.
+builder.Services.AddScoped<IGameWarmStartService, GameWarmStartService>();
 builder.Services.AddScoped<IGameReadService, GamesReadService>();
 builder.Services.AddScoped<ICardMappingService, CardMappingService>();
 builder.Services.AddScoped<ICardDeletionService, CardDeletionService>();

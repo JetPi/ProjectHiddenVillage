@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { createFixtureDeck } from './helpers/multiplayer/fixtures'
 import type { APIRequestContext, Page } from '@playwright/test'
 import type {
   GamePlayerStateResponse,
@@ -7,8 +8,8 @@ import type {
   PlayerAuth,
 } from './helpers/gameviewMultiplayerHelpers'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
+  createDeadline,
   executeBattleActionViaHub,
   executeCardActionViaHub,
   fetchGameState,
@@ -20,10 +21,8 @@ import {
   openMultiplayerPages,
   progressToNextDecisionWindow,
   resolveActorWithLeaderEffectAction,
-  resolveAllMulliganPrompts,
   resolvePlayerState,
   resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 
@@ -49,9 +48,6 @@ const ON_SUMMON_REVEAL_CARD_DEFINITION_ID = 'N-013'
 // another Jugo). N-014 is [The Taka] too but an EX Character, so the reveal must never summon it.
 const REVEAL_SUMMON_MATCH_DEFINITION_IDS = ['N-010', 'N-015', 'N-019', 'N-021']
 
-// Every scenario needs a specific card in an opening/drawn hand (three copies in a 33-card deck), so - like the
-// range-support spec - each attempt plays a fresh game instead of riding a single shuffle.
-const ATTEMPT_COUNT = 3
 
 const OWN_DECK_PILE_SELECTOR = '[data-side="bottom"] [data-testid="deck-pile-card"]'
 
@@ -60,80 +56,50 @@ const OWN_DECK_PILE_SELECTOR = '[data-side="bottom"] [data-testid="deck-pile-car
 // `BattleActionRules`/`BattleActionRules.DescribeRestriction`.
 const CANNOT_ATTACK_REASON = 'Cannot declare battle action because the card is under an effect that restricts it.'
 
+let revealDeckId = ''
+
 test.describe('GameView multiplayer reveal presentation', () => {
   test.describe.configure({ timeout: 240_000 })
 
-  test('a [When Attacking] reveal presents the deck card, then flies the summoned card onto the field', async ({ browser, request }) => {
-    let lastFailure: unknown = null
+  test.beforeAll(async ({ request }) => {
+    // Player two acts: their leader stacks the deck top, N-019 carries the reveal and N-013 is the card the
+    // reveal either refuses (non-match) or turns over for the freeze prompt.
+    revealDeckId = await createFixtureDeck(request, ['1x N-012', '10x N-019', '10x N-013'])
+  })
 
-    for (let attempt = 0; attempt < ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
+  test('a [When Attacking] reveal presents the deck card, then flies the summoned card onto the field', async ({ browser, request }) => {
+          const setup = await setupMultiplayerGame(request, 'default', { two: { deckId: revealDeckId } })
       const pages = await openMultiplayerPages(browser, setup)
 
       try {
         await playRevealSummonScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
       } finally {
         await closeMultiplayerPages(pages)
       }
-    }
-
-    throw lastFailure
   })
 
   test('a reveal that does not summon turns the deck card back face down', async ({ browser, request }) => {
-    let lastFailure: unknown = null
-
-    for (let attempt = 0; attempt < ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
+          const setup = await setupMultiplayerGame(request)
       const pages = await openMultiplayerPages(browser, setup)
 
       try {
         await playRevealFlipBackScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
       } finally {
         await closeMultiplayerPages(pages)
       }
-    }
-
-    throw lastFailure
   })
 
   test('an [On Summon] reveal presents the deck card, then asks for the freeze target', async ({ browser, request }) => {
-    let lastFailure: unknown = null
-
-    for (let attempt = 0; attempt < ATTEMPT_COUNT; attempt += 1) {
-      const setup = await setupMultiplayerGame(request)
+          const setup = await setupMultiplayerGame(request)
       const pages = await openMultiplayerPages(browser, setup)
 
       try {
         await playOnSummonRevealScenario(request, setup, pages)
-        return
-      } catch (error) {
-        lastFailure = error
       } finally {
         await closeMultiplayerPages(pages)
       }
-    }
-
-    throw lastFailure
   })
 })
-
-/** Plays the shared opening: someone decides who starts, then both players keep their opening hand. */
-async function playOpening(request: APIRequestContext, setup: MultiplayerSetup): Promise<void> {
-  const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-  const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-  await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-  await advanceToMulliganPromptIfNeeded(request, setup)
-  await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-}
-
 
 /**
  * Summons N-019 Jugo, waits for the turn it may attack, stacks the deck top with a card its reveal will summon
@@ -149,7 +115,6 @@ async function playRevealSummonScenario(
   const actor = setup.playerTwo
   const actorPage = pages.playerTwoPage
 
-  await playOpening(request, setup)
 
   // 1. Put Jugo on the field. Its reveal only fires when it attacks, and a character cannot attack the turn it
   //    is summoned, so the flow below waits for the following turn to attack with it.
@@ -285,7 +250,6 @@ async function playRevealFlipBackScenario(
   const actor = setup.playerTwo
   const actorPage = pages.playerTwoPage
 
-  await playOpening(request, setup)
 
   const jugoSummon = await resolveActorMainPhaseWindow(request, setup, actor, (actorState) => {
     const jugo = findHandCardWithAction(actorState, REVEAL_ON_ATTACK_CARD_DEFINITION_ID, 'summon')
@@ -400,7 +364,6 @@ async function playOnSummonRevealScenario(
   const actor = setup.playerTwo
   const actorPage = pages.playerTwoPage
 
-  await playOpening(request, setup)
 
   const itachiSummon = await resolveActorMainPhaseWindow(request, setup, actor, (actorState) => {
     const itachi = findHandCardWithAction(actorState, ON_SUMMON_REVEAL_CARD_DEFINITION_ID, 'summon')
@@ -537,9 +500,12 @@ async function resolveActorMainPhaseWindow<T>(
   actor: PlayerAuth,
   resolveWindow: (actorState: GamePlayerStateResponse) => T | null,
 ): Promise<T> {
-  const maxCycles = 180
+  // Wall-clock budget rather than a cycle count, for the same reason as the shared resolvers: a cycle is a
+  // no-op while the engine is parked behind an unacknowledged phase presentation, so counting cycles made the
+  // search depend on how fast the machine happened to be. ~75 s matches the old nominal worst case.
+  const deadline = createDeadline(75_000)
 
-  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+  while (!deadline.expired) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -560,7 +526,10 @@ async function resolveActorMainPhaseWindow<T>(
     await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
   }
 
-  throw new Error('The requested MainPhase window did not arrive within the retry limit.')
+  throw new Error(
+    `The requested MainPhase window did not arrive within the ${deadline.budgetMs} ms search budget `
+    + `(spent ${deadline.elapsedMs} ms).`,
+  )
 }
 
 /** The hand card with that definition id that currently offers the given enabled action label. */

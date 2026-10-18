@@ -1,5 +1,6 @@
 export * from './multiplayer/types'
 export * from './multiplayer/core'
+export * from './multiplayer/deadline'
 export * from './multiplayer/api'
 export * from './multiplayer/hub'
 export * from './multiplayer/setup'

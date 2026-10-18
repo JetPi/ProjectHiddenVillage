@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test'
 import {
-  advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
   fetchGameState,
   getCardActionTargetsViaHub,
@@ -12,11 +11,8 @@ import {
   installPileSlotGeometryObserver,
   openMultiplayerPages,
   resolveActorWithBottomHandAction,
-  resolveAllMulliganPrompts,
   resolvePlayerHandActionWithoutReload,
   resolvePlayerState,
-  resolvePromptViaHub,
-  resolveStartingPromptOwner,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 import {
@@ -44,8 +40,12 @@ test.describe('GameView multiplayer actions', () => {
   let powerMaterialDeckId = ''
   let recallDeckId = ''
 
+  // Scoped to the cards this file uses: files run in parallel, so cleaning up every fixture here would delete a
+  // card another spec is mid-scenario with.
+  const THIS_SPEC_FIXTURE_IDS = [FIXTURE_CARD_IDS.powerMaterial, FIXTURE_CARD_IDS.recallTarget]
+
   test.beforeAll(async ({ request }) => {
-    await ensureFixtureCards(request)
+    await ensureFixtureCards(request, THIS_SPEC_FIXTURE_IDS)
 
     powerMaterialDeckId = await createFixtureDeck(request, [
       '1x N-001',
@@ -63,7 +63,7 @@ test.describe('GameView multiplayer actions', () => {
   })
 
   test.afterAll(async ({ request }) => {
-    await deleteFixtureCards(request)
+    await deleteFixtureCards(request, THIS_SPEC_FIXTURE_IDS)
   })
 
   test('summon transition animates and appends to rightmost battlefield slot', async ({ browser, request }) => {
@@ -71,13 +71,6 @@ test.describe('GameView multiplayer actions', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon')
       const ownerPage = summonActor.actorPage
       const summonCardInstanceId = summonActor.cardInstanceId
@@ -122,13 +115,6 @@ test.describe('GameView multiplayer actions', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       const supportActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Set Support')
       const ownerPage = supportActor.actorPage
       const supportCardInstanceId = supportActor.cardInstanceId
@@ -184,13 +170,6 @@ test.describe('GameView multiplayer actions', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       const playerTwoAction = await resolvePlayerHandActionWithoutReload(request, setup, setup.playerTwo)
       const playerTwoCard = pages.playerTwoPage.locator(`[data-testid="bottom-hand-card-${playerTwoAction.cardInstanceId}"]`)
 
@@ -211,13 +190,6 @@ test.describe('GameView multiplayer actions', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       const tributeSetupActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
         actorUserId: setup.playerOne.userId,
         cardDefinitionId: POWER_MATERIAL_CARD_DEFINITION_ID,
@@ -345,13 +317,6 @@ test.describe('GameView multiplayer actions', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       const materialActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
         actorUserId: setup.playerOne.userId,
         cardDefinitionId: RECALL_MATERIAL_CARD_DEFINITION_ID,
@@ -437,13 +402,6 @@ test.describe('GameView multiplayer actions', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       const materialActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
         actorUserId: setup.playerOne.userId,
         cardDefinitionId: POWER_MATERIAL_CARD_DEFINITION_ID,
@@ -492,7 +450,15 @@ test.describe('GameView multiplayer actions', () => {
       await expect(ownerPage.getByTestId('prompt-overlay')).toBeHidden()
       await expect(ownerPage.getByTestId('game-action-error-banner')).toBeHidden()
       await expect(notice).toHaveCSS('pointer-events', 'none')
-      await expect(ownerPage.getByTestId('phase-indicator')).toContainText('Your turn', { timeout: 10_000 })
+      // The board has recovered from the tribute state and is back on a normal turn. Which side holds that turn
+      // is not what this test is about, and the engine legitimately auto-ends a MainPhase with no legal action,
+      // so assert the settled turn label instead of assuming it is still the summoner's. The old `'Your turn'`
+      // check only passed when the label was observed before the phase drain moved on - a transient window that
+      // a busy machine could close first.
+      await expect(ownerPage.getByTestId('phase-indicator')).toHaveText(
+        /^(Your turn|Opponent's turn)$/,
+        { timeout: 10_000 },
+      )
 
       await expect.poll(async () => {
         const state = await fetchGameState(request, setup.gameCode, summonActor.actor.session.accessToken)
@@ -519,13 +485,6 @@ test.describe('GameView multiplayer actions', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       const powerMaterialActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
         actorUserId: setup.playerOne.userId,
         cardDefinitionId: POWER_MATERIAL_CARD_DEFINITION_ID,
@@ -620,13 +579,6 @@ test.describe('GameView multiplayer actions', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
-      const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
-      await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
-
-      await advanceToMulliganPromptIfNeeded(request, setup)
-      await resolveAllMulliganPrompts(request, setup, 'noMulligan')
-
       // The two materials have to reach the field first: N-011 satisfies the unrestricted material
       // rule and N-019 (Jugo) carries the `The Taka` trait the second material rule demands.
       const summonMaterial = async (cardDefinitionId: string): Promise<string> => {

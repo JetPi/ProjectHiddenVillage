@@ -15,6 +15,7 @@ import {
   resolvePromptViaHub,
   resolveStartingPromptOwner,
   setupMultiplayerGame,
+  waitForBottomHandToSettle,
   waitUntilMulliganPromptOwner,
 } from './helpers/gameviewMultiplayerHelpers'
 
@@ -22,7 +23,8 @@ test.describe('GameView multiplayer prompts', () => {
   test.describe.configure({ timeout: 120_000 })
 
   test('assigns one player the starting-player prompt and reflects the selected decision', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    // This spec is about the opening prompts themselves, so it must not warm-start past them.
+    const setup = await setupMultiplayerGame(request, 'default', {}, { warmStart: false })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
@@ -55,7 +57,7 @@ test.describe('GameView multiplayer prompts', () => {
   })
 
   test('prompts the player going second for mulligan and handles Keep Hand', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    const setup = await setupMultiplayerGame(request, 'default', {}, { warmStart: false })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
@@ -87,6 +89,11 @@ test.describe('GameView multiplayer prompts', () => {
       // inspectable: the player can hover a hand card, reveal its eye and read the details before answering.
       const mulliganHandCards = mulliganOwnerPage.locator('[data-testid="bottom-hand-row"] [data-hand-instance-id]')
       await expect(mulliganHandCards.first()).toBeVisible()
+
+      // The deal can still be re-laying the row out after the prompt appears. Hovering a card measured against
+      // a stale rect drops the hover, so the revealed "Open card details" button is gone by the time it is
+      // clicked - which is how this check failed on a busy machine. Let the row settle first.
+      await waitForBottomHandToSettle(mulliganOwnerPage)
       await mulliganHandCards.first().hover()
 
       const openDetailsButton = mulliganHandCards.first().getByRole('button', { name: 'Open card details' })
@@ -118,7 +125,7 @@ test.describe('GameView multiplayer prompts', () => {
   })
 
   test('prompts the player going second for mulligan and handles Take Mulligan', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    const setup = await setupMultiplayerGame(request, 'default', {}, { warmStart: false })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
@@ -154,7 +161,7 @@ test.describe('GameView multiplayer prompts', () => {
   })
 
   test('mulligan resolution triggers transfer animations on the prompt owner view', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    const setup = await setupMultiplayerGame(request, 'default', {}, { warmStart: false })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {

@@ -27,7 +27,9 @@ test.describe('GameView multiplayer game over', () => {
   test.describe.configure({ timeout: 120_000 })
 
   test('both players see the result overlay and can return to the main page', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request, 'deck-out')
+    // Opted out of the warm start on purpose: the deck-out profile's opening hand takes the whole deck, so the
+    // game over this test asserts *is* the opening. Warming past it would have nothing left to observe.
+    const setup = await setupMultiplayerGame(request, 'deck-out', {}, { warmStart: false })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
