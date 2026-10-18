@@ -407,5 +407,19 @@ end two turns; it fixes the swallowed click behind that test's 1-in-2 failures.
 |---|---|
 | `--workers=4` (47 tests) | **47/47 in 1.4 m** |
 | `--workers=1 --repeat-each=2` (shipped CI profile, 94 runs) | **94/94 in 6.6 m** (baseline 11.6 m) |
-| Server suite | 732/732 in 1 s |
+| Server suite | 732/732 in 1 s, green over 15 consecutive full-suite runs |
 | Test count | 47, no skips, no assertions removed |
+
+### 12.5 One parallelisation opt-out, found by CI
+
+The first CI run on a fresh runner failed `DevelopmentDeckSeederTests.SeedAsync_KeepsStoredEntries_InsteadOfApplyingTheManifestAgain`
+— a test that passed locally. The class flips the **process-wide** environment variable
+`PHV_RESEED_OVERWRITES_EXISTING` in its override test; with `[assembly: Parallelize(MethodLevel)]` a sibling
+method read that variable through `ShouldEnable` and seeded with overwrite semantics, so the "an existing card
+must keep the art it points at" assertion saw the manifest URL. It is the exact failure mode §11.1 called out as
+the risk of enabling parallelism: shared mutable state, not a timing issue.
+
+The class now carries `[DoNotParallelize]` with that explanation, and it is the **only** opt-out: a scan for other
+process-global mutation (`SetEnvironmentVariable`, `SetCurrentDirectory`, culture assignment, `AppContext.SetData`)
+found none. This is the "fix the root cause rather than reverting parallelism" path — the unit suite still runs
+732 tests in ~1 s, it just no longer runs the one class that mutates the process environment alongside others.
