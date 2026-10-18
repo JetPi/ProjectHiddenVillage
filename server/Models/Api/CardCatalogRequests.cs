@@ -1,5 +1,18 @@
 namespace ProjectHiddenVillage.Server;
 
+/// <summary>
+/// What the catalogue *listing* needs and nothing more. The admin rail renders a tile from exactly these fields,
+/// and the editor fetches the whole card by id when one is selected - which is what keeps a page of the catalogue
+/// from deserialising every effect spec it lists.
+/// </summary>
+public sealed record CardCatalogListItemResponse(
+    string Id,
+    string DisplayName,
+    string Type,
+    string Color,
+    string Image,
+    long ImageVersion);
+
 public sealed record CardCatalogItemResponse(
     string Id,
     string Image,

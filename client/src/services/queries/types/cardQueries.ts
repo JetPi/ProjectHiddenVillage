@@ -8,19 +8,16 @@ export type IUseCardCatalogByIdsQueryOptions = {
   staleTimeMs?: number
 }
 
-export type IUseCardCatalogPageQueryOptions = {
-  enabled?: boolean
-  staleTimeMs?: number
-}
-
-export type IUseCardCatalogPageQueryParams = ICardCatalogPageQuery
-
 export type IUseInfiniteCardCatalogQueryOptions = {
   enabled?: boolean
   staleTimeMs?: number
 }
 
-export type IUseInfiniteCardCatalogQueryParams = Pick<ICardCatalogPageQuery, 'pageSize' | 'sort'>
+/** The listing query: paging plus the filters, all of which are part of the cache key. */
+export type IUseInfiniteCardCatalogQueryParams = Pick<
+  ICardCatalogPageQuery,
+  'pageSize' | 'sort' | 'search' | 'types' | 'colors'
+>
 
 export type IUseGameCardsQueryOptions = {
   enabled?: boolean

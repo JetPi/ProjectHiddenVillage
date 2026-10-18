@@ -28,3 +28,24 @@ export const SORT_OPTION_LABEL_KEYS: Readonly<Record<string, string>> = {
 }
 
 export const ALL_FILTER_OPTION_LABEL_KEY = 'admin.filters.all'
+
+/**
+ * The domains the catalogue can contain, listed once instead of derived from whatever pages have been loaded.
+ * The values are the lowercased readable forms the listing returns, which is what the API filters on.
+ */
+export const TYPE_FILTER_OPTIONS: readonly ICardAdminFilterOption[] = [
+  ALL_FILTER_OPTION,
+  { value: 'leader', label: 'Leader' },
+  { value: 'character', label: 'Character' },
+  { value: 'ex character', label: 'EX Character' },
+  { value: 'chakra', label: 'Chakra' },
+  { value: 'summon', label: 'Summon' },
+]
+
+export const COLOR_FILTER_OPTIONS: readonly ICardAdminFilterOption[] = [
+  ALL_FILTER_OPTION,
+  { value: 'red', label: 'Red' },
+  { value: 'blue', label: 'Blue' },
+  { value: 'green', label: 'Green' },
+  { value: 'n/a', label: 'N/A' },
+]

@@ -307,3 +307,81 @@ letting the exit through on a failed write. Two smaller holes were closed with i
 selected card is resolved from everything loaded rather than from the filtered list, and the clear-selection effect
 stands down, so a search keystroke cannot throw the draft away. Both of those only hold *while dirty* - a clean
 editor still empties when its card is filtered out.
+
+### A cold start reverted every upload
+
+The seeder ran on every Development start and rewrote **every column** of every card that appears in a seeded
+deck from `test-data/seed-profiles.json` — `Image` included. So the uploaded art a card pointed at
+(`local:card-art/N-00X.webp`) was replaced by the catalogue URL at the next boot, and the master on disk became an
+orphan the sweep would eventually collect.
+
+Nothing was wrong with the art pipeline. The ten masters were still on disk
+(`server/card-art-uploads/card-art/N-001.webp` … `N-010.webp`); the database was the only thing that had forgotten
+them, and one statement put the references back:
+
+```sql
+UPDATE card_catalog_entries
+SET "Image" = 'local:card-art/' || "CardId" || '.webp',
+    "UpdatedAtUtc" = now()
+WHERE "CardId" IN (…);
+```
+
+That is what `PUT /api/card/catalog/{cardId}/image` does, including the version bump that makes every client drop
+the cached URL art. It was run before any art write could trigger a sweep over masters that were, at that moment,
+unreferenced.
+
+What changed:
+
+- `DevelopmentDeckSeeder` is **create-only**. It inserts a card that is missing and never touches one that exists:
+  no timestamp heuristic, no "looks untouched" rule. Authoring and seeding write the same table, so the seed file
+  cannot be allowed to write there once a card exists.
+- `PHV_RESEED_OVERWRITES_EXISTING=true` is the deliberate override for a regenerated manifest — the only path that
+  writes over stored content — and the startup log says so when it is on.
+- `DevelopmentDeckSeederTests` pins all three: the manifest still seeds a missing card, stored rows survive a
+  re-seed (both the edited kind and the one still carrying the seeded timestamps), and the override replaces them.
+
+The lesson has the same shape as the master-path bug: two writers of one table need an explicit ownership rule, and
+"the manifest always wins" is a rule that eats the author's work.
+
+### Scaling the catalogue: the lookup and the rail
+
+Two things did not scale with the catalogue, and both were measured rather than guessed. The seeder was excluded
+deliberately: it creates only what is missing, and its input is a fixture file rather than the catalogue.
+
+**The lookup.** Every card lookup is written as `upper("CardId") = @id` — the art endpoint, `by-ids`, the create
+duplicate check, the update and delete lookups — and a plain index on `CardId` cannot serve an expression. So each
+was a sequential scan, and the art endpoint ran one per image request against a table whose rows are wide with
+`jsonb` effect specs. `EXPLAIN (ANALYZE, BUFFERS)` on the dev database:
+
+| query | before | after |
+| --- | --- | --- |
+| art lookup (`Image`, `UpdatedAtUtc` by id) | `Seq Scan`, `Rows Removed by Filter: 36`, 20 shared buffers | `Index Scan using IX_card_catalog_entries_CardId_upper`, 2 |
+| `by-ids` (`IN` list) | `Seq Scan`, 20 shared buffers | `Bitmap Index Scan` on the same index, 3 |
+
+The index is `upper("CardId") INCLUDE ("Image","UpdatedAtUtc")`, hand-written in the `AddCardCatalogIndexes`
+migration because EF cannot express it, and deliberately absent from the model snapshot. The `INCLUDE` is the point:
+the art lookup needs exactly those two columns, so it never touches the heap — which is where the `jsonb` lives. It
+also turns case-insensitive uniqueness into a database invariant instead of the `AnyAsync` race in the create path.
+The other route — dropping `upper()` so the plain unique index works — was rejected: nothing enforces canonical case
+on write, so a lowercase id would miss `=` and turn a clean 409 into a unique-violation 500.
+
+**The rail.** The listing returned whole cards — every effect spec deserialised — and the admin filtered them in the
+browser, over whatever pages it had scrolled. At a few thousand cards the search simply stops finding things. Now:
+
+- `CardCatalogListItemResponse` is six fields projected in SQL; the editor's card comes from `by-ids` on selection
+  (`useCardCatalogByIdsQuery`). That also removed the workaround that pinned the selected card while a draft was
+  dirty: a card no longer has to be on a loaded page to be edited.
+- `search`, `types` and `colors` are query parameters applied in SQL; the type and colour menus come from the fixed
+  enum domain instead of from loaded data; the search box is debounced before it becomes a query key.
+- The listing's total describes the filtered set, and duplicates across pages are collapsed with a `Map` instead of
+  `findIndex` inside `filter`.
+- Card mutations seed the shared card-item cache from what the write returned, so the detail read never answers
+  with the pre-edit card.
+
+One deliberate simplification against the plan: `withTotal` was dropped. The count is one query over an indexed,
+projected set, and keeping `PagedResponse` non-nullable kept the client contract unchanged — it is now a
+measurement, not an assumption, if it ever needs revisiting.
+
+Deferred, each with its trigger: keyset paging (~10k rows), a `pg_trgm` index for substring search (measure at
+~10k — the lean query may never need it), an in-memory card cache, sharded art directories (~100k files), a
+scheduled paginated sweep once it exceeds ~1 s, and an upload queue for bulk imports.

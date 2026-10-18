@@ -6,6 +6,8 @@ import type {
 
 export type ICardAdminDetailPaneProps = {
   selectedCard: ICardCatalogItemResponse | null
+  /** A card is selected and its detail is still in flight; the pane says so instead of showing the empty state. */
+  isLoading?: boolean
   /** Reports whether the open draft has anything in it, for the screen's unsaved-changes guard. */
   onUnsavedChangesChange?: (hasUnsavedChanges: boolean) => void
   /** True while an exit is waiting on the author's answer, which is when the dialog is shown. */

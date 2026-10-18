@@ -40,18 +40,25 @@ public sealed class CardController : ApiControllerBase
         return Ok(result.Value);
     }
 
+    /// <summary>
+    /// The catalogue listing. Deliberately lean: `search` and the type/colour filters are applied in SQL, and each
+    /// item carries only what a tile renders - the full card comes from `by-ids` when one is selected.
+    /// </summary>
     [HttpGet("catalog")]
-    [ProducesResponseType(typeof(PagedResponse<CardCatalogItemResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResponse<CardCatalogListItemResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<PagedResponse<CardCatalogItemResponse>>> GetCardCatalog(
+    public async Task<ActionResult<PagedResponse<CardCatalogListItemResponse>>> GetCardCatalog(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 100,
-        [FromQuery] string? sort = null)
+        [FromQuery] string? sort = null,
+        [FromQuery] string? search = null,
+        [FromQuery] List<string>? types = null,
+        [FromQuery] List<string>? colors = null)
     {
-        var result = await cardMappingService.GetCardCatalog(page, pageSize, sort);
+        var result = await cardMappingService.GetCardCatalog(page, pageSize, sort, search, types, colors);
         if (result.IsError)
         {
-            return ProblemFromErrors<PagedResponse<CardCatalogItemResponse>>(result.Errors);
+            return ProblemFromErrors<PagedResponse<CardCatalogListItemResponse>>(result.Errors);
         }
 
         return Ok(result.Value);

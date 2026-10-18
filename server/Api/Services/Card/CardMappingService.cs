@@ -98,10 +98,13 @@ public sealed class CardMappingService : ICardMappingService
         return mappedCards;
     }
 
-    public async Task<ErrorOr<PagedResponse<CardCatalogItemResponse>>> GetCardCatalog(
+    public async Task<ErrorOr<PagedResponse<CardCatalogListItemResponse>>> GetCardCatalog(
         int page = 1,
         int pageSize = 100,
-        string? sort = null)
+        string? sort = null,
+        string? search = null,
+        IReadOnlyList<string>? types = null,
+        IReadOnlyList<string>? colors = null)
     {
         var normalizedPage = page <= 0 ? 1 : page;
         var normalizedPageSize = pageSize <= 0 ? 100 : Math.Min(pageSize, 100);
@@ -112,23 +115,67 @@ public sealed class CardMappingService : ICardMappingService
             return sortResult.Errors;
         }
 
-        var totalCount = await dbContext.CardCatalogEntries.CountAsync();
+        var filterResult = ParseCatalogFilters(types, colors);
+        if (filterResult.IsError)
+        {
+            return filterResult.Errors;
+        }
+
+        var filters = filterResult.Value;
+        var query = dbContext.CardCatalogEntries.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            // Applied in SQL, not over the pages the caller happens to hold: the admin rail filtered what it had
+            // already loaded, which stopped finding cards at all once the catalogue outgrew one page.
+            var term = search.Trim().ToLowerInvariant();
+
+            query = query.Where(entry =>
+                entry.CardId.ToLower().Contains(term) ||
+                entry.DisplayName.ToLower().Contains(term));
+        }
+
+        if (filters.Types.Count > 0)
+        {
+            query = query.Where(entry => filters.Types.Contains(entry.Type));
+        }
+
+        if (filters.Colors.Count > 0)
+        {
+            query = query.Where(entry => filters.Colors.Contains(entry.Color));
+        }
+
+        var totalCount = await query.CountAsync();
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)normalizedPageSize);
 
-        var orderedQuery = ApplySort(
-            dbContext.CardCatalogEntries.AsNoTracking(),
-            sortResult.Value.Field,
-            sortResult.Value.Descending)
-            .ThenBy(entry => entry.CardId);
-
-        var entries = await orderedQuery
+        // Projected rather than materialised: the listing needs six columns, and selecting only those is what keeps
+        // the effects/conditions jsonb out of the query and out of the response.
+        var rows = await ApplySort(query, sortResult.Value.Field, sortResult.Value.Descending)
+            .ThenBy(entry => entry.CardId)
             .Skip((normalizedPage - 1) * normalizedPageSize)
             .Take(normalizedPageSize)
+            .Select(entry => new
+            {
+                entry.CardId,
+                entry.DisplayName,
+                entry.Type,
+                entry.Color,
+                entry.Image,
+                entry.UpdatedAtUtc,
+            })
             .ToListAsync();
 
-        var items = entries.Select(ToCatalogResponse).ToList();
+        var items = rows
+            .Select(row => new CardCatalogListItemResponse(
+                Id: row.CardId,
+                DisplayName: row.DisplayName,
+                Type: ToReadableCardType(row.Type),
+                Color: ToReadableCardColor(row.Color),
+                Image: row.Image,
+                ImageVersion: row.UpdatedAtUtc.ToUnixTimeMilliseconds()))
+            .ToList();
 
-        return new PagedResponse<CardCatalogItemResponse>(
+        return new PagedResponse<CardCatalogListItemResponse>(
             Page: normalizedPage,
             PageSize: normalizedPageSize,
             TotalCount: totalCount,
@@ -791,6 +838,64 @@ public sealed class CardMappingService : ICardMappingService
     private static bool HasParsableInt(string? value)
     {
         return int.TryParse(value, out _);
+    }
+
+    /// <summary>The listing's filters, parsed once so the query never re-parses them per clause.</summary>
+    private sealed record CatalogFilters(IReadOnlyList<CardType> Types, IReadOnlyList<CardColor> Colors);
+
+    /// <summary>
+    /// The filter values arrive in the same readable shape the listing returns ("EX Character", "N/A"), so the
+    /// client can send back what it displayed. Anything unrecognised is a 400 rather than a silently empty page.
+    /// </summary>
+    private static ErrorOr<CatalogFilters> ParseCatalogFilters(
+        IReadOnlyList<string>? types,
+        IReadOnlyList<string>? colors)
+    {
+        var parsedTypes = new List<CardType>();
+
+        foreach (var rawType in types ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(rawType))
+            {
+                continue;
+            }
+
+            if (!TryParsePatchCardType(rawType, out var parsedType))
+            {
+                return Error.Validation(
+                    code: "Card.Catalog.InvalidType",
+                    description: $"Unsupported card type filter '{rawType.Trim()}'.");
+            }
+
+            if (!parsedTypes.Contains(parsedType))
+            {
+                parsedTypes.Add(parsedType);
+            }
+        }
+
+        var parsedColors = new List<CardColor>();
+
+        foreach (var rawColor in colors ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(rawColor))
+            {
+                continue;
+            }
+
+            if (!TryParsePatchCardColor(rawColor, out var parsedColor))
+            {
+                return Error.Validation(
+                    code: "Card.Catalog.InvalidColor",
+                    description: $"Unsupported card colour filter '{rawColor.Trim()}'.");
+            }
+
+            if (!parsedColors.Contains(parsedColor))
+            {
+                parsedColors.Add(parsedColor);
+            }
+        }
+
+        return new CatalogFilters(parsedTypes, parsedColors);
     }
 
     private static ErrorOr<CatalogSortSpec> ParseSort(string? sort)

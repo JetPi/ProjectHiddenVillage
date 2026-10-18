@@ -59,6 +59,12 @@ dotnet build ProjectHiddenVillage.Server.csproj
 - Normal development startup seeds only the `default` profile from `test-data/seed-profiles.json`.
 - This preserves the manual-testing baseline decks (the original two 31-card decks).
 - Test-only profiles are excluded unless explicitly enabled with `PHV_INCLUDE_TEST_SEED_PROFILES=true`.
+- **Startup seeding never modifies a card that already exists** — it creates the ones that are missing and
+  leaves the rest alone. The admin editor writes the same table, so applying the seed file over authored rows
+  is what once reverted every uploaded image to its catalogue URL on the next cold start.
+- A regenerated `test-data/seed-profiles.json` therefore does not reach a database that already has those
+  cards. Set `PHV_RESEED_OVERWRITES_EXISTING=true` when replacing them is what you want — it is the only path
+  that writes over stored cards.
 
 ## E2E Dedicated Database
 
@@ -125,6 +131,26 @@ dotnet test server/tests/ProjectHiddenVillage.Server.Tests/ProjectHiddenVillage.
 - Enum JSON response serialization as strings (currently deferred).
 - Additional normalization rules for optional upstream fields may still be needed.
 - Review lingering EF Core relational package version warning in test output (`10.0.4` vs `10.0.9`).
+
+## Card Catalogue Listing (2026-10)
+
+- `GET /api/card/catalog` is the listing, and it is deliberately lean: `CardCatalogListItemResponse` carries
+  `id`, `displayName`, `type`, `color`, `image` and `imageVersion` - exactly what a rail tile renders. The whole
+  card (effects, traits, conditions) comes from `POST /api/card/catalog/by-ids` when one is selected, which is
+  the editor's detail fetch. Do not widen the listing to save that fetch: the row is wide with `jsonb`.
+- Filtering happens in SQL: `search` (card id and display name, case-insensitive substring), `types` and `colors`
+  (repeatable; the readable values the listing returns, e.g. `types=EX Character&colors=N/A`), plus `sort`,
+  `page` and `pageSize` (capped at 100). An unmappable type or colour is a 400, not a silently empty page.
+  `totalCount`/`totalPages` describe the filtered set.
+- The table carries the indexes those paths need (`DisplayName`, `Type`, `Color`, `UpdatedAtUtc`, and the unique
+  `CardId`). The expression index `upper("CardId") INCLUDE ("Image","UpdatedAtUtc")` is hand-written in the
+  `AddCardCatalogIndexes` migration and is deliberately absent from the EF model: every card lookup is written as
+  `upper("CardId") = @id`, which a plain index cannot serve, and the `INCLUDE` is what keeps `/api/card-art/{id}`
+  from scanning a table full of `jsonb` on every image request. Measured on the dev database with
+  `EXPLAIN (ANALYZE, BUFFERS)`: seq scan with 20 shared buffers before, index scan with 2 after.
+- Deferred with triggers rather than built: keyset paging (~10k rows), `pg_trgm` for substring search (measure at
+  ~10k), an in-memory card cache, sharded art directories (~100k files), a scheduled paginated sweep and an upload
+  queue for bulk imports.
 
 ## Game State Action Options Contract (2026-08)
 

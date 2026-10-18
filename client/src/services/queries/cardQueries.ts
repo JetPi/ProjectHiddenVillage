@@ -1,9 +1,13 @@
 import { useMemo } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
+import type { ICardCatalogListItemResponse } from '@/types/cardCatalog'
 import type { ICardDeletionImpactResponse } from '@/types/cardCatalog'
 import type { IPagedResponse } from '@/types/cardCatalog'
-import { fetchCardCatalogByIdsSparseCached } from '@/services/api/cardCatalogApi'
+import {
+  fetchCardCatalogByIdsSparseCached,
+  seedCardCatalogItemCache,
+} from '@/services/api/cardCatalogApi'
 import { fetchCardCatalogPage } from '@/services/api/cardCatalogApi'
 import { fetchGameCards } from '@/services/api/gameApi'
 import { createCardCatalogEntry } from '@/services/api/cardCatalogApi'
@@ -19,8 +23,6 @@ import type {
   IUseInfiniteCardCatalogQueryOptions,
   IUseInfiniteCardCatalogQueryParams,
   IUpdateCardCatalogEffectsMutationVariables,
-  IUseCardCatalogPageQueryOptions,
-  IUseCardCatalogPageQueryParams,
   IUseGameCardMapByIdResult,
   IUseGameCardsQueryOptions,
 } from '@/services/queries/types/cardQueries'
@@ -51,17 +53,18 @@ function buildCardIdsKey(cardIds: string[]): string {
     .join('|')
 }
 
-function normalizeCardCatalogPageParams(params: IUseCardCatalogPageQueryParams): Required<IUseCardCatalogPageQueryParams> {
-  const normalizedPage = Number.isFinite(params.page) ? Math.max(1, Math.floor(params.page ?? 1)) : 1
-  const normalizedPageSizeRaw = Number.isFinite(params.pageSize) ? Math.floor(params.pageSize ?? 100) : 100
-  const normalizedPageSize = Math.min(100, Math.max(1, normalizedPageSizeRaw))
-  const normalizedSort = params.sort?.trim() || 'cardId'
+function normalizeFilterValues(values: readonly string[] | undefined): string[] {
+  const uniqueValues = new Map<string, string>()
 
-  return {
-    page: normalizedPage,
-    pageSize: normalizedPageSize,
-    sort: normalizedSort,
+  for (const value of values ?? []) {
+    const normalizedValue = value.trim().toLowerCase()
+    if (normalizedValue) {
+      uniqueValues.set(normalizedValue, normalizedValue)
+    }
   }
+
+  // Sorted so the cache key is the same for `[Red, Blue]` and `[Blue, Red]`.
+  return Array.from(uniqueValues.values()).sort((left, right) => left.localeCompare(right))
 }
 
 function normalizeInfiniteCardCatalogParams(
@@ -74,17 +77,27 @@ function normalizeInfiniteCardCatalogParams(
   return {
     pageSize: normalizedPageSize,
     sort: normalizedSort,
+    search: params.search?.trim() ?? '',
+    types: normalizeFilterValues(params.types),
+    colors: normalizeFilterValues(params.colors),
   }
 }
 
 export const cardQueryKeys = {
   all: ['cards'] as const,
   byIds: (cardIds: string[]) => ['cards', 'by-ids', buildCardIdsKey(cardIds)] as const,
+  byIdsRoot: ['cards', 'by-ids'] as const,
   gameCards: (joinCode: string) => ['cards', 'game', joinCode.trim().toLowerCase()] as const,
-  catalogPage: (params: Required<IUseCardCatalogPageQueryParams>) =>
-    ['cards', 'catalog', params.page, params.pageSize, params.sort] as const,
   catalogInfinite: (params: Required<IUseInfiniteCardCatalogQueryParams>) =>
-    ['cards', 'catalog-infinite', params.pageSize, params.sort] as const,
+    [
+      'cards',
+      'catalog-infinite',
+      params.pageSize,
+      params.sort,
+      params.search,
+      params.types.join(','),
+      params.colors.join(','),
+    ] as const,
 }
 
 export function useCardCatalogByIdsQuery(
@@ -118,21 +131,6 @@ export function useGameCardsQuery(
   })
 }
 
-export function useCardCatalogPageQuery(
-  params: IUseCardCatalogPageQueryParams,
-  options: IUseCardCatalogPageQueryOptions = {},
-) {
-  const normalizedParams = useMemo(() => normalizeCardCatalogPageParams(params), [params])
-  const staleTimeMs = options.staleTimeMs ?? DEFAULT_CARD_CATALOG_STALE_TIME_MS
-
-  return useQuery<IPagedResponse<ICardCatalogItemResponse>>({
-    queryKey: cardQueryKeys.catalogPage(normalizedParams),
-    queryFn: () => fetchCardCatalogPage(normalizedParams),
-    enabled: options.enabled ?? true,
-    staleTime: staleTimeMs,
-  })
-}
-
 export function useInfiniteCardCatalogQuery(
   params: IUseInfiniteCardCatalogQueryParams,
   options: IUseInfiniteCardCatalogQueryOptions = {},
@@ -140,7 +138,7 @@ export function useInfiniteCardCatalogQuery(
   const normalizedParams = useMemo(() => normalizeInfiniteCardCatalogParams(params), [params])
   const staleTimeMs = options.staleTimeMs ?? DEFAULT_CARD_CATALOG_STALE_TIME_MS
 
-  return useInfiniteQuery<IPagedResponse<ICardCatalogItemResponse>>({
+  return useInfiniteQuery<IPagedResponse<ICardCatalogListItemResponse>>({
     queryKey: cardQueryKeys.catalogInfinite(normalizedParams),
     queryFn: ({ pageParam }) => {
       const normalizedPageParam = typeof pageParam === 'number' && Number.isFinite(pageParam)
@@ -151,6 +149,9 @@ export function useInfiniteCardCatalogQuery(
         page: normalizedPageParam,
         pageSize: normalizedParams.pageSize,
         sort: normalizedParams.sort,
+        search: normalizedParams.search,
+        types: normalizedParams.types,
+        colors: normalizedParams.colors,
       })
     },
     enabled: options.enabled ?? true,
@@ -211,11 +212,18 @@ export function useCreateCardCatalogEntryMutation() {
 
   return useMutation<ICardCatalogItemResponse, Error, ICreateCardCatalogEntryMutationVariables>({
     mutationFn: ({ payload }) => createCardCatalogEntry(payload),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ['cards', 'catalog-infinite'],
-        exact: false,
-      })
+    onSuccess: async (createdCard) => {
+      // The listing no longer carries a card's effects, so the editor's detail read needs the written card
+      // seeded here rather than inferred from the refreshed page.
+      seedCardCatalogItemCache([createdCard])
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: cardQueryKeys.byIdsRoot, exact: false }),
+        queryClient.invalidateQueries({
+          queryKey: ['cards', 'catalog-infinite'],
+          exact: false,
+        }),
+      ])
     },
   })
 }
@@ -229,11 +237,16 @@ export function useUpdateCardCatalogImageMutation() {
 
   return useMutation<ICardCatalogItemResponse, Error, IUpdateCardCatalogImageMutationVariables>({
     mutationFn: ({ cardId, image }) => updateCardCatalogImage(cardId, image),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ['cards', 'catalog-infinite'],
-        exact: false,
-      })
+    onSuccess: async (updatedCard) => {
+      seedCardCatalogItemCache([updatedCard])
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: cardQueryKeys.byIdsRoot, exact: false }),
+        queryClient.invalidateQueries({
+          queryKey: ['cards', 'catalog-infinite'],
+          exact: false,
+        }),
+      ])
     },
   })
 }
@@ -250,6 +263,7 @@ export function useDeleteCardCatalogEntryMutation() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['cards', 'catalog-infinite'], exact: false }),
+        queryClient.invalidateQueries({ queryKey: cardQueryKeys.byIdsRoot, exact: false }),
         queryClient.invalidateQueries({ queryKey: ['card-catalog'], exact: false }),
       ])
     },
@@ -262,13 +276,16 @@ export function useUpdateCardCatalogEffectsMutation() {
   return useMutation<ICardCatalogItemResponse, Error, IUpdateCardCatalogEffectsMutationVariables>({
     mutationFn: ({ cardId, payload }) => updateCardCatalogEffects(cardId, payload),
     onSuccess: async (updatedCard) => {
-      const normalizedId = updatedCard.id.trim().toLowerCase()
-      queryClient.setQueryData(['card-catalog', 'by-id', normalizedId], updatedCard)
+      // One cache for card details: the by-ids entry the editor reads, seeded from what the write returned.
+      seedCardCatalogItemCache([updatedCard])
 
-      await queryClient.invalidateQueries({
-        queryKey: ['cards', 'catalog-infinite'],
-        exact: false,
-      })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: cardQueryKeys.byIdsRoot, exact: false }),
+        queryClient.invalidateQueries({
+          queryKey: ['cards', 'catalog-infinite'],
+          exact: false,
+        }),
+      ])
     },
   })
 }

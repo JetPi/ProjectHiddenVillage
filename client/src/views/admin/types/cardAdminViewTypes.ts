@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode, RefObject } from 'react'
 import type { ICardCatalogPredicateProperty } from '@/services/api/types/cardCatalog'
-import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
+import type { ICardCatalogListItemResponse } from '@/types/cardCatalog'
 
 export type ICardAdminSortOption = {
   value: string
@@ -140,19 +140,20 @@ export type ICardAdminFilterPanelProps = {
 }
 
 export type ICardAdminCardGridProps = {
-  cards: ICardCatalogItemResponse[]
+  cards: ICardCatalogListItemResponse[]
   selectedCardId: string | null
   onSelectCard: (cardId: string) => void
 }
 
 export type ICardAdminCardTileProps = {
-  card: ICardCatalogItemResponse
+  /** The lean listing row: a tile renders the name, id, type, colour and art, and nothing else. */
+  card: ICardCatalogListItemResponse
   isSelected: boolean
   onSelect: (cardId: string) => void
 }
 
 export type ICardAdminCatalogPaneProps = {
-  cards: ICardCatalogItemResponse[]
+  cards: ICardCatalogListItemResponse[]
   selectedCardId: string | null
   isLoading: boolean
   isError: boolean

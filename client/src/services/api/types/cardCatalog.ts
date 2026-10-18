@@ -4,6 +4,12 @@ export type ICardCatalogPageQuery = {
   page?: number
   pageSize?: number
   sort?: string
+  /** Matched against the card id and the display name, in SQL. */
+  search?: string
+  /** The readable type values the listing returns ("EX Character"); the server rejects what it cannot map. */
+  types?: string[]
+  /** The readable colour values ("Red", "N/A"), same contract as `types`. */
+  colors?: string[]
 }
 
 export type ICardCatalogEffectExecutionConditionRequest = {

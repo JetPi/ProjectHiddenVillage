@@ -108,6 +108,19 @@ paths:
   `width`/`height`. Helper `cardArtUrl`/`resolveCardArtUrl` in `cardArt.ts`
   remains available for view-model resolvers
   (`utils/functions/cards/index.ts`) that bake the board-width URL into `image`.
+- **Every card lookup is `upper("CardId") = @id`, and only an expression index serves it.** `ResolveAsync`,
+  `GetCardCatalogByIds`, the create duplicate check and the update/delete lookups all compare `upper("CardId")`,
+  which the plain unique index on `CardId` cannot use - so each was a sequential scan, and the art endpoint ran one
+  per image request against a table whose rows are wide with `jsonb` effect specs. The fix is the hand-written
+  `upper("CardId") INCLUDE ("Image","UpdatedAtUtc")` index in the `AddCardCatalogIndexes` migration, deliberately
+  outside the EF model: it makes the art lookup index-only and case-insensitive uniqueness a database invariant.
+  If a lookup is ever rewritten, keep it in the shape that index can serve (`EXPLAIN` it, do not assume).
+- **The catalogue listing is lean and filtered in SQL.** `CardCatalogListItemResponse` is six fields (id, display
+  name, type, colour, image, image version) projected in the query, so a page never deserialises effects; the
+  editor's card comes from `by-ids` on selection. `search`/`types`/`colors` are query parameters applied in SQL -
+  the admin rail used to filter the pages it had already loaded, which stopped finding cards at all once the
+  catalogue outgrew one page. Filter values are the readable strings the listing returns, parsed with the same
+  helpers the PATCH path uses; anything unmappable is a 400.
 - **Eager per-game preload** (`useCardCatalogPreload` in
   `hooks/GameView/effects/useGameViewEffects.ts`) fetches art for every catalog
   card in the game through the resize endpoint, in priority batches: visible
@@ -148,14 +161,16 @@ paths:
   prompted nodes (N-003/N-005/N-014 and N-013's `freeze-target`) and N-012's split `draw-n-place-card` +
   `Prompted` `place-one-on-deck`, and for N-009's `reduce-self-life` (a branch target that must carry
   `isSubordinate: true`) — `SeedManifestAuthoringTests` now fails when the two sources disagree.
-- `DevelopmentDeckSeeder` **upserts** those definitions for referenced ids (the manifest wins over
-  existing rows) and only fabricates placeholders for ids that are still missing —
-  `SeedPlaceholderCatalogEntriesAsync` skips ids already present, so real imported rows are never
-  overwritten. `PlaceholderLeaderCardIds`/`PlaceholderSupportCapableCardIds` are that fallback only and
-  are dormant now:
-  `DevelopmentDeckSeederTests.SeedAsync_SeedsSupportMetadata_ForN008AndN015_FromTheManifest`
-  (renamed from the stale `…CreatesSupportCapablePlaceholder_ForN008_WhenCatalogIsMissing`) asserts the
-  manifest-seeded support metadata for both ids.
+- `DevelopmentDeckSeeder` **creates the missing cards and never modifies an existing one.** It used to upsert
+  the manifest over every referenced id — "the manifest wins over existing rows" — and that is exactly what
+  silently reverted authored work on every Development start: an uploaded image went back to the catalogue URL,
+  an effects patch back to the file's copy, because authoring and seeding write the same table. The split has to
+  be create-only, with `PHV_RESEED_OVERWRITES_EXISTING=1` as the deliberate override and the only path that
+  writes over stored content. A regenerated manifest therefore does **not** reach a card that already exists.
+  Placeholders are still fabricated for ids that are missing (`SeedPlaceholderCatalogEntriesAsync` skips ids
+  already present), and `DevelopmentDeckSeederTests` pins the rule: the manifest's support metadata for N-008 and
+  N-015 still lands on insert, stored rows survive a re-seed (both the edited kind and the one that still looks
+  freshly seeded), and the override replaces them.
 - e2e/CI must not depend on the external art host: `scripts/e2e-start-server.sh` exports
   `CardArt__SourceHostAllowlist__0="e2e.invalid"`, which makes `/api/card-art` refuse the real host
   **without any network call** (verified: 404 in ~0.1 s) so `CardImage` falls back deterministically.

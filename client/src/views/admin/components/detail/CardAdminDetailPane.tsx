@@ -13,6 +13,7 @@ import type { ICardAdminDetailEditorProps, ICardAdminDetailPaneProps } from '@/v
 
 export function CardAdminDetailPane({
   selectedCard,
+  isLoading,
   onUnsavedChangesChange,
   isExitPending,
   onExitResolved,
@@ -37,6 +38,10 @@ export function CardAdminDetailPane({
           isExitPending={isExitPending}
           onExitResolved={onExitResolved}
         />
+      ) : isLoading ? (
+        // The listing is lean, so the editor's card arrives on its own fetch. Saying so is better than the
+        // "select a card" empty state flashing on every click.
+        <p className="mt-3 text-sm text-[var(--text-secondary)]">{t('admin.detail.loadingCard')}</p>
       ) : (
         renderEmptySelectionState(t('admin.detail.emptySelection'))
       )}

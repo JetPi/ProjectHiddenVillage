@@ -79,15 +79,81 @@ public sealed class CardCatalogQueryTests
         Assert.AreEqual(2, result.Value.TotalPages);
         Assert.AreEqual(1, result.Value.Items.Count);
 
+        // The listing is a projection: the six fields a tile renders, and nothing that has to be deserialised. The
+        // seeded entry carries an effect on purpose - it must not reach the response.
         var item = result.Value.Items[0];
         Assert.AreEqual("A-001", item.Id);
+        Assert.AreEqual("Alpha Card", item.DisplayName);
         Assert.AreEqual("EX Character", item.Type);
         Assert.AreEqual("Blue", item.Color);
-        Assert.AreEqual(1, item.Effects.Count);
-        Assert.AreEqual("Support", item.Effects[0].EffectType);
-        Assert.AreEqual("Activate Main", item.Effects[0].Timing);
-        Assert.AreEqual(1, item.SupportCost);
-        Assert.IsFalse(item.CannotBeNormalSummoned);
+        Assert.AreEqual("https://example.com/a-001.webp", item.Image);
+        Assert.IsTrue(item.ImageVersion > 0, "the listing carries the version the tile's art URL is built from");
+    }
+
+    [TestMethod]
+    public async Task GetCardCatalog_SearchesIdAndDisplayName_InSql()
+    {
+        await using var dbContext = CreateDbContext();
+        await SeedListingCardsAsync(dbContext);
+
+        var service = new CardMappingService(dbContext);
+
+        var byName = await service.GetCardCatalog(page: 1, pageSize: 10, search: "  ALPHA  ");
+        var byId = await service.GetCardCatalog(page: 1, pageSize: 10, search: "b-00");
+        var noMatch = await service.GetCardCatalog(page: 1, pageSize: 10, search: "no-such-card");
+
+        Assert.IsFalse(byName.IsError);
+        Assert.AreEqual(1, byName.Value.Items.Count);
+        Assert.AreEqual("A-001", byName.Value.Items[0].Id);
+        Assert.AreEqual(1, byName.Value.TotalCount, "the total has to describe the filtered set, not the table");
+
+        Assert.IsFalse(byId.IsError);
+        Assert.AreEqual(1, byId.Value.Items.Count);
+        Assert.AreEqual("B-001", byId.Value.Items[0].Id);
+
+        Assert.IsFalse(noMatch.IsError);
+        Assert.AreEqual(0, noMatch.Value.Items.Count);
+        Assert.AreEqual(0, noMatch.Value.TotalCount);
+    }
+
+    [TestMethod]
+    public async Task GetCardCatalog_FiltersByReadableTypeAndColorValues()
+    {
+        await using var dbContext = CreateDbContext();
+        await SeedListingCardsAsync(dbContext);
+
+        var service = new CardMappingService(dbContext);
+
+        var exCharacters = await service.GetCardCatalog(page: 1, pageSize: 10, types: ["ex character"]);
+        var blueOnly = await service.GetCardCatalog(page: 1, pageSize: 10, colors: ["Blue"]);
+        var mismatched = await service.GetCardCatalog(page: 1, pageSize: 10, types: ["Leader"], colors: ["Blue"]);
+
+        Assert.IsFalse(exCharacters.IsError);
+        Assert.AreEqual(1, exCharacters.Value.Items.Count);
+        Assert.AreEqual("A-001", exCharacters.Value.Items[0].Id);
+
+        Assert.IsFalse(blueOnly.IsError);
+        Assert.AreEqual(1, blueOnly.Value.Items.Count);
+        Assert.AreEqual("A-001", blueOnly.Value.Items[0].Id);
+
+        Assert.IsFalse(mismatched.IsError);
+        Assert.AreEqual(0, mismatched.Value.Items.Count);
+    }
+
+    [TestMethod]
+    public async Task GetCardCatalog_ReturnsValidationError_ForUnsupportedFilterValues()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new CardMappingService(dbContext);
+
+        var badType = await service.GetCardCatalog(page: 1, pageSize: 10, types: ["rarity"]);
+        var badColor = await service.GetCardCatalog(page: 1, pageSize: 10, colors: ["Plaid"]);
+
+        Assert.IsTrue(badType.IsError);
+        Assert.AreEqual("Card.Catalog.InvalidType", badType.FirstError.Code);
+
+        Assert.IsTrue(badColor.IsError);
+        Assert.AreEqual("Card.Catalog.InvalidColor", badColor.FirstError.Code);
     }
 
     [TestMethod]
@@ -301,6 +367,46 @@ public sealed class CardCatalogQueryTests
 
         Assert.IsTrue(blankOnlyPayloadResult.IsError);
         Assert.AreEqual("Card.CatalogByIds.Empty", blankOnlyPayloadResult.FirstError.Code);
+    }
+
+    /// <summary>Two cards that differ in every field the listing filters on.</summary>
+    private static async Task SeedListingCardsAsync(ApplicationDbContext dbContext)
+    {
+        dbContext.CardCatalogEntries.AddRange(
+            new CardCatalogEntry
+            {
+                CardId = "A-001",
+                Image = "https://example.com/a-001.webp",
+                OriginalId = "A-001",
+                DisplayName = "Alpha Card",
+                Type = CardType.ExCharacter,
+                Color = CardColor.Blue,
+                Description = "desc",
+                NameJson = "[\"Alpha Card\"]",
+                TraitsJson = "[]",
+                ConditionsJson = "[]",
+                EffectsJson = "[]",
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            },
+            new CardCatalogEntry
+            {
+                CardId = "B-001",
+                Image = "https://example.com/b-001.webp",
+                OriginalId = "B-001",
+                DisplayName = "Beta Card",
+                Type = CardType.Leader,
+                Color = CardColor.Red,
+                Description = "desc",
+                NameJson = "[\"Beta Card\"]",
+                TraitsJson = "[]",
+                ConditionsJson = "[]",
+                EffectsJson = "[]",
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            });
+
+        await dbContext.SaveChangesAsync();
     }
 
     private static ApplicationDbContext CreateDbContext()

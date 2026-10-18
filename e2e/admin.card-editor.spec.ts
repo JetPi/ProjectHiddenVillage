@@ -75,7 +75,11 @@ test('admin card editor keeps dropdowns, headers and sections inside their conta
 
   await page.locator('#card-admin-search').fill('Shisui')
   const firstTile = page.locator('li button').first()
-  await expect(firstTile).toBeVisible({ timeout: 15_000 })
+
+  // The search is a server query now (debounced), so the first tile is visible before the filtered page arrives:
+  // waiting for it to actually carry the term is what proves the rail re-queried instead of clicking whatever the
+  // unfiltered list happened to show first.
+  await expect(firstTile).toContainText('Shisui', { timeout: 15_000 })
   await firstTile.click()
 
   // Effects start collapsed; expand one so the panels render.

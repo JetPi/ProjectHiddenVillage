@@ -1,6 +1,7 @@
 import { api } from '@/services/api/httpClient'
 import type {
   ICardCatalogItemResponse,
+  ICardCatalogListItemResponse,
   ICardDeletionImpactResponse,
   IPagedResponse,
 } from '@/types/cardCatalog'
@@ -54,6 +55,14 @@ function getCardCatalogByIdQueryKey(cardId: string): readonly [string, string, s
   return ['card-catalog', 'by-id', toNormalizedCardId(cardId)] as const
 }
 
+/**
+ * Seeds the shared card-item cache from a card a write just returned, so a by-ids read - the editor's detail
+ * fetch - does not answer with the pre-edit copy.
+ */
+export function seedCardCatalogItemCache(cards: ICardCatalogItemResponse[]): void {
+  setCardItemQueryCache(cards)
+}
+
 function setCardItemQueryCache(cards: ICardCatalogItemResponse[]): void {
   for (const card of cards) {
     const normalizedId = toNormalizedCardId(card.id)
@@ -87,9 +96,37 @@ function getFreshCardItemFromCache(cardId: string, ttlMs: number): ICardCatalogI
 
 export async function fetchCardCatalogPage(
   query: ICardCatalogPageQuery = {},
-): Promise<IPagedResponse<ICardCatalogItemResponse>> {
-  const { data } = await api.get<IPagedResponse<ICardCatalogItemResponse>>('/api/card/catalog', {
-    params: query,
+): Promise<IPagedResponse<ICardCatalogListItemResponse>> {
+  const params = new URLSearchParams()
+
+  if (typeof query.page === 'number') {
+    params.set('page', String(query.page))
+  }
+
+  if (typeof query.pageSize === 'number') {
+    params.set('pageSize', String(query.pageSize))
+  }
+
+  if (query.sort) {
+    params.set('sort', query.sort)
+  }
+
+  const search = query.search?.trim()
+  if (search) {
+    params.set('search', search)
+  }
+
+  // Repeated keys, not `types[]=`: the action binds `List<string> types` from `types=a&types=b`.
+  for (const type of query.types ?? []) {
+    params.append('types', type)
+  }
+
+  for (const color of query.colors ?? []) {
+    params.append('colors', color)
+  }
+
+  const { data } = await api.get<IPagedResponse<ICardCatalogListItemResponse>>('/api/card/catalog', {
+    params,
   })
 
   return data

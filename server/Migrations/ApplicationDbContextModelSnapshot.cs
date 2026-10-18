@@ -116,6 +116,14 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.HasIndex("CardId")
                         .IsUnique();
 
+                    b.HasIndex("Color");
+
+                    b.HasIndex("DisplayName");
+
+                    b.HasIndex("Type");
+
+                    b.HasIndex("UpdatedAtUtc");
+
                     b.ToTable("card_catalog_entries", (string)null);
                 });
 

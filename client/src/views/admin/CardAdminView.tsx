@@ -3,29 +3,47 @@ import { Link, useBeforeUnload, useBlocker } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { PageShell } from '@/components/layout/PageShell'
 import { Panel } from '@/components/ui'
-import { useInfiniteCardCatalogQuery } from '@/services/queries/cardQueries'
+import { useCardCatalogByIdsQuery, useInfiniteCardCatalogQuery } from '@/services/queries/cardQueries'
 import {
   CardAdminCatalogPane,
   CardAdminDetailPane,
   CardAdminFilterPanel,
 } from '@/views/admin/components'
 import { useCardAdminViewModel } from '@/views/admin/model/useCardAdminViewModel'
-import { SORT_OPTIONS } from '@/views/admin/constants'
-import { buildUniqueFilterOptions, normalizeFilterValue } from '@/views/admin/utils/filterNormalization'
+import { COLOR_FILTER_OPTIONS, SORT_OPTIONS, TYPE_FILTER_OPTIONS } from '@/views/admin/constants'
+import type { ICardCatalogListItemResponse } from '@/types/cardCatalog'
+
+/** How long the search box waits before it becomes a request; one keystroke is not one query. */
+const SEARCH_DEBOUNCE_MS = 250
 
 export function CardAdminView() {
   const { t } = useTranslation()
   const viewModel = useCardAdminViewModel()
 
-  const catalogPageQuery = useInfiniteCardCatalogQuery(
-    {
+  const [debouncedSearch, setDebouncedSearch] = useState(viewModel.searchText)
+
+  useEffect(() => {
+    const timeoutHandle = window.setTimeout(() => {
+      setDebouncedSearch(viewModel.searchText)
+    }, SEARCH_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timeoutHandle)
+  }, [viewModel.searchText])
+
+  // The filters and the search are the server's job now: they go into the query, and therefore into the cache
+  // key, so the rail never filters a subset of what it happened to have loaded.
+  const catalogParams = useMemo(
+    () => ({
       pageSize: viewModel.pageSize,
       sort: viewModel.sort,
-    },
-    {
-      enabled: true,
-    },
+      search: debouncedSearch,
+      types: viewModel.type,
+      colors: viewModel.color,
+    }),
+    [viewModel.pageSize, viewModel.sort, debouncedSearch, viewModel.type, viewModel.color],
   )
+
+  const catalogPageQuery = useInfiniteCardCatalogQuery(catalogParams, { enabled: true })
 
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
   const listScrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -37,47 +55,29 @@ export function CardAdminView() {
     isError,
   } = catalogPageQuery
 
-  const allLoadedItems = useMemo(
-    () =>
-      (catalogPageQuery.data?.pages ?? [])
-        .flatMap((pageResult) => pageResult.items)
-        .filter((card, index, cards) => cards.findIndex((entry) => entry.id === card.id) === index),
-    [catalogPageQuery.data?.pages],
+  const catalogCards = useMemo(() => {
+    // A page can repeat a row when the catalogue shifts under the scroll; one entry per id, in one pass.
+    const cardsById = new Map<string, ICardCatalogListItemResponse>()
+
+    for (const page of catalogPageQuery.data?.pages ?? []) {
+      for (const card of page.items) {
+        cardsById.set(card.id, card)
+      }
+    }
+
+    return Array.from(cardsById.values())
+  }, [catalogPageQuery.data?.pages])
+
+  const selectedCardId = viewModel.selectedCardId
+  const selectedCardIds = useMemo(
+    () => (selectedCardId ? [selectedCardId] : []),
+    [selectedCardId],
   )
 
-  const typeOptions = useMemo(
-    () => buildUniqueFilterOptions(allLoadedItems.map((card) => card.type)),
-    [allLoadedItems],
-  )
-  const colorOptions = useMemo(
-    () => buildUniqueFilterOptions(allLoadedItems.map((card) => card.color)),
-    [allLoadedItems],
-  )
-
-  const filteredCards = useMemo(() => {
-    const searchTerm = viewModel.searchText.trim().toLowerCase()
-    const typeFilters = viewModel.type
-    const colorFilters = viewModel.color
-
-    return allLoadedItems.filter((card) => {
-      const normalizedType = normalizeFilterValue(card.type)
-      if (typeFilters.length > 0 && !typeFilters.includes(normalizedType)) {
-        return false
-      }
-
-      const normalizedColor = normalizeFilterValue(card.color)
-      if (colorFilters.length > 0 && !colorFilters.includes(normalizedColor)) {
-        return false
-      }
-
-      if (!searchTerm) {
-        return true
-      }
-
-      const searchFields = [card.id, card.displayName, card.type, card.color]
-      return searchFields.some((field) => field.toLowerCase().includes(searchTerm))
-    })
-  }, [viewModel.searchText, viewModel.type, viewModel.color, allLoadedItems])
+  // The listing is lean on purpose, so the editor's card - effects and all - is fetched by id. That also means a
+  // selected card does not have to be sitting on a loaded page for the pane to show it.
+  const selectedCardQuery = useCardCatalogByIdsQuery(selectedCardIds)
+  const selectedCard = selectedCardQuery.data?.[0] ?? null
 
   /**
    * The pane reports its own draft, so this screen knows whether leaving would throw work away. It is what the
@@ -85,31 +85,6 @@ export function CardAdminView() {
    */
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [pendingCardId, setPendingCardId] = useState<string | null>(null)
-
-  // A filter that hides the card being edited must not take its draft with it - searching for something else is
-  // not a decision to discard anything - so while the draft is dirty the card is resolved from everything that is
-  // loaded rather than from what the filters left on screen. The clear-selection effect below is held back for the
-  // same reason.
-  const selectedCard = useMemo(() => {
-    const visibleCard = filteredCards.find((card) => card.id === viewModel.selectedCardId)
-
-    if (visibleCard || !hasUnsavedChanges) {
-      return visibleCard ?? null
-    }
-
-    return allLoadedItems.find((card) => card.id === viewModel.selectedCardId) ?? null
-  }, [filteredCards, allLoadedItems, viewModel.selectedCardId, hasUnsavedChanges])
-
-  useEffect(() => {
-    if (!viewModel.selectedCardId) {
-      return
-    }
-
-    const hasSelectedCard = filteredCards.some((card) => card.id === viewModel.selectedCardId)
-    if (!hasSelectedCard && !hasUnsavedChanges) {
-      viewModel.clearSelection()
-    }
-  }, [filteredCards, viewModel, hasUnsavedChanges])
 
   useEffect(() => {
     const sentinelElement = loadMoreSentinelRef.current
@@ -158,7 +133,7 @@ export function CardAdminView() {
   )
 
   const handleSelectCard = (cardId: string) => {
-    if (cardId === viewModel.selectedCardId) {
+    if (cardId === selectedCardId) {
       return
     }
 
@@ -214,8 +189,8 @@ export function CardAdminView() {
               typeValues={viewModel.type}
               colorValues={viewModel.color}
               sortValue={viewModel.sort}
-              typeOptions={typeOptions}
-              colorOptions={colorOptions}
+              typeOptions={[...TYPE_FILTER_OPTIONS]}
+              colorOptions={[...COLOR_FILTER_OPTIONS]}
               sortOptions={SORT_OPTIONS}
               onSearchTextChange={viewModel.setSearchText}
               onTypeChange={viewModel.setTypeFilter}
@@ -224,8 +199,8 @@ export function CardAdminView() {
             />
 
             <CardAdminCatalogPane
-              cards={filteredCards}
-              selectedCardId={viewModel.selectedCardId}
+              cards={catalogCards}
+              selectedCardId={selectedCardId}
               isLoading={isLoading}
               isError={isError}
               isFetchingNextPage={isFetchingNextPage}
@@ -256,6 +231,7 @@ export function CardAdminView() {
             </div>
             <CardAdminDetailPane
               selectedCard={selectedCard}
+              isLoading={selectedCardId !== null && selectedCardQuery.isLoading}
               onUnsavedChangesChange={setHasUnsavedChanges}
               isExitPending={isExitPending}
               onExitResolved={handleExitResolved}
