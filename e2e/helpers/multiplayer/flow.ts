@@ -2,8 +2,21 @@ import { expect } from '@playwright/test'
 import type { APIRequestContext, Page } from '@playwright/test'
 import { fetchGameState } from './api'
 import { normalizeUserId, resolvePlayerState } from './core'
+import { createDeadline } from './deadline'
 import { ADVANCE_PHASE_INVALID_STATE_ERROR_CODE, COMPLETE_END_STEP_INVALID_STATE_ERROR_CODE, DECLARE_END_STEP_INVALID_STATE_ERROR_CODE, PHASE_PRESENTATION_PENDING_ERROR_CODE, declarePassInActionStepViaHub, describeHubFailure, tryAdvancePhaseViaHub, tryCompleteEndStepViaHub, tryDeclareEndStepViaHub, waitForNoPendingPresentation } from './hub'
 import type { GameStateResponse, MultiplayerPages, MultiplayerSetup, PlayerAuth } from './types'
+
+/**
+ * Wall-clock budget for the "advance until the state offers what I need" resolvers below.
+ *
+ * Those resolvers used to count cycles (`for (let cycle = 0; cycle < 180; ...)`). A cycle can be a pure
+ * no-op - the engine is parked behind a phase presentation the pages have not acknowledged yet, or behind a
+ * prompt the caller still has to answer - so an attempt budget can expire without the state ever having had
+ * a chance to offer the action. On a busy machine that surfaced as intermittent "within retry limit"
+ * failures in unrelated specs. ~75 s matches the old nominal worst case (180 cycles x ~350-450 ms) while no
+ * longer depending on how fast an individual cycle happens to run.
+ */
+const RESOLVE_BUDGET_MS = 75_000
 
 export async function installAnimationCounter(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -717,6 +730,49 @@ export async function getBottomSupportCardsBySlot(page: Page): Promise<Array<{ s
     })
 }
 
+export async function getBottomHandInstanceOrder(page: Page): Promise<string[]> {
+  return await page
+    .locator('[data-testid="bottom-hand-row"] [data-hand-instance-id]')
+    .evaluateAll((nodes) => {
+      return nodes
+        .map((node) => node.getAttribute('data-hand-instance-id'))
+        .filter((value): value is string => Boolean(value))
+    })
+}
+
+/**
+ * Waits until the hand row stops moving, then returns its instance order.
+ *
+ * The hand keeps changing while the initial deal / mulligan re-draw animation runs: cards arrive, the row
+ * re-lays out and card rects move. Hovering or clicking a card measured against a stale rect silently does
+ * nothing (or lands on the neighbouring card) - which is what made a mulligan-time card-details check fail on
+ * a busy machine. Two identical samples of both the order and the first card's rect mean the row has settled.
+ */
+export async function waitForBottomHandToSettle(page: Page): Promise<string[]> {
+  const deadline = createDeadline(15_000)
+  let previousSample = ''
+
+  while (!deadline.expired) {
+    const order = await getBottomHandInstanceOrder(page)
+    const firstInstanceId = order[0]
+    const firstBox = firstInstanceId
+      ? await page.locator(`[data-testid="bottom-hand-card-${firstInstanceId}"]`).boundingBox()
+      : null
+    const sample = `${order.join(',')}|${
+      firstBox ? `${Math.round(firstBox.x)}:${Math.round(firstBox.y)}:${Math.round(firstBox.width)}` : 'none'
+    }`
+
+    if (order.length >= 2 && firstBox !== null && sample === previousSample) {
+      return order
+    }
+
+    previousSample = sample
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  }
+
+  return await getBottomHandInstanceOrder(page)
+}
+
 function resolveActivePlayerFromStates(setup: MultiplayerSetup, playerOneState: GameStateResponse): PlayerAuth {
   return normalizeUserId(playerOneState.activePlayerId) === setup.playerOne.normalizedUserId
     ? setup.playerOne
@@ -812,7 +868,7 @@ export async function resolveActorWithBottomHandAction(
     cardDefinitionId?: string
   },
 ): Promise<{ actor: PlayerAuth; actorPage: Page; cardInstanceId: string; actionId: string }> {
-  const maxCycles = 180
+  const deadline = createDeadline(RESOLVE_BUDGET_MS)
   const actionPrefix = actionLabel === 'Summon'
     ? 'summon-to-field:'
     : actionLabel === 'Support'
@@ -822,7 +878,7 @@ export async function resolveActorWithBottomHandAction(
   const normalizedRequestedActorUserId = options?.actorUserId?.trim().toLowerCase() ?? ''
   const normalizedRequestedCardDefinitionId = options?.cardDefinitionId?.trim().toLowerCase() ?? ''
 
-  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+  while (!deadline.expired) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -913,7 +969,7 @@ export async function resolvePlayerHandActionWithoutReload(
   setup: MultiplayerSetup,
   player: PlayerAuth,
 ): Promise<{ cardInstanceId: string; actionLabel: string }> {
-  const maxCycles = 180
+  const deadline = createDeadline(RESOLVE_BUDGET_MS)
 
   const resolveHandActionFromState = (state: GameStateResponse, actor: PlayerAuth) => {
     const actorState = resolvePlayerState(state, actor)
@@ -936,7 +992,7 @@ export async function resolvePlayerHandActionWithoutReload(
     return null
   }
 
-  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+  while (!deadline.expired) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -958,7 +1014,10 @@ export async function resolvePlayerHandActionWithoutReload(
     await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
   }
 
-  throw new Error(`No enabled bottom-hand Summon/Set Support action found for player '${player.userId}' within retry limit.`)
+  throw new Error(
+    `No enabled bottom-hand Summon/Set Support action found for player '${player.userId}' within the `
+    + `${deadline.budgetMs} ms resolve budget (spent ${deadline.elapsedMs} ms).`,
+  )
 }
 
 export async function resolveActorWithBottomBattleAction(
@@ -966,7 +1025,7 @@ export async function resolveActorWithBottomBattleAction(
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
 ): Promise<{ actor: PlayerAuth; actorPage: Page; cardInstanceId: string; actionLabel: string; actionId: string }> {
-  const maxCycles = 180
+  const deadline = createDeadline(RESOLVE_BUDGET_MS)
 
   const resolveBattleActionFromState = (state: GameStateResponse, actor: PlayerAuth) => {
     const actorState = resolvePlayerState(state, actor)
@@ -988,7 +1047,7 @@ export async function resolveActorWithBottomBattleAction(
     return null
   }
 
-  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+  while (!deadline.expired) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -1016,7 +1075,10 @@ export async function resolveActorWithBottomBattleAction(
     await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
   }
 
-  throw new Error('No enabled battlefield Battle action was found within retry limit.')
+  throw new Error(
+    `No enabled battlefield Battle action was found within the ${deadline.budgetMs} ms resolve budget `
+    + `(spent ${deadline.elapsedMs} ms).`,
+  )
 }
 
 export async function resolveActorWithLeaderBattleAction(
@@ -1024,7 +1086,7 @@ export async function resolveActorWithLeaderBattleAction(
   setup: MultiplayerSetup,
   pages: MultiplayerPages,
 ): Promise<{ actor: PlayerAuth; actorPage: Page; leaderInstanceId: string; actionLabel: string; actionId: string }> {
-  const maxCycles = 180
+  const deadline = createDeadline(RESOLVE_BUDGET_MS)
 
   const resolveLeaderBattleActionFromState = (state: GameStateResponse, actor: PlayerAuth) => {
     const actorState = resolvePlayerState(state, actor)
@@ -1044,7 +1106,7 @@ export async function resolveActorWithLeaderBattleAction(
     }
   }
 
-  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+  while (!deadline.expired) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -1069,7 +1131,10 @@ export async function resolveActorWithLeaderBattleAction(
     await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
   }
 
-  throw new Error('No enabled leader Battle action was found within retry limit.')
+  throw new Error(
+    `No enabled leader Battle action was found within the ${deadline.budgetMs} ms resolve budget `
+    + `(spent ${deadline.elapsedMs} ms).`,
+  )
 }
 
 export type DeckRevealObservation = {
@@ -1275,7 +1340,7 @@ export async function resolveActorWithLeaderEffectAction(
   pages: MultiplayerPages,
   options: { actorUserId?: string; effectKey: string },
 ): Promise<{ actor: PlayerAuth; actorPage: Page; leaderInstanceId: string; actionId: string }> {
-  const maxCycles = 180
+  const deadline = createDeadline(RESOLVE_BUDGET_MS)
   const normalizedRequestedActorUserId = options.actorUserId?.trim().toLowerCase() ?? ''
   const actionSuffix = `:${options.effectKey}`
 
@@ -1295,7 +1360,7 @@ export async function resolveActorWithLeaderEffectAction(
     return { leaderInstanceId, actionId: matchedAction.actionId }
   }
 
-  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+  while (!deadline.expired) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -1331,7 +1396,10 @@ export async function resolveActorWithLeaderEffectAction(
     await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
   }
 
-  throw new Error(`No enabled leader effect '${options.effectKey}' action was found within retry limit.`)
+  throw new Error(
+    `No enabled leader effect '${options.effectKey}' action was found within the `
+    + `${deadline.budgetMs} ms resolve budget (spent ${deadline.elapsedMs} ms).`,
+  )
 }
 
 export async function resolveBattleActionForSpecificCard(
@@ -1341,7 +1409,7 @@ export async function resolveBattleActionForSpecificCard(
   actor: PlayerAuth,
   cardInstanceId: string,
 ): Promise<{ actor: PlayerAuth; actorPage: Page; cardInstanceId: string; actionLabel: string; actionId: string }> {
-  const maxCycles = 180
+  const deadline = createDeadline(RESOLVE_BUDGET_MS)
 
   const resolveSpecificBattleActionFromState = (state: GameStateResponse) => {
     const actorState = resolvePlayerState(state, actor)
@@ -1365,7 +1433,7 @@ export async function resolveBattleActionForSpecificCard(
     }
   }
 
-  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+  while (!deadline.expired) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -1386,7 +1454,10 @@ export async function resolveBattleActionForSpecificCard(
     await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
   }
 
-  throw new Error(`No enabled Battle action was found for card '${cardInstanceId}' within retry limit.`)
+  throw new Error(
+    `No enabled Battle action was found for card '${cardInstanceId}' within the `
+    + `${deadline.budgetMs} ms resolve budget (spent ${deadline.elapsedMs} ms).`,
+  )
 }
 
 export type PhaseRowSample = {
@@ -1486,8 +1557,11 @@ export async function waitForActorMainPhaseNumber(
 ): Promise<void> {
   let observedEntryCount = 0
   let isInsideMainPhase = false
+  // Same reasoning as RESOLVE_BUDGET_MS: reaching the Nth main-phase entry must not depend on how many
+  // no-op cycles happen to fit inside a fixed count. ~100 s matches the old nominal 240-cycle worst case.
+  const deadline = createDeadline(100_000)
 
-  for (let cycle = 0; cycle < 240; cycle += 1) {
+  while (!deadline.expired) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -1510,5 +1584,8 @@ export async function waitForActorMainPhaseNumber(
     await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
   }
 
-  throw new Error(`The actor never reached main phase entry ${turnIndex} within the search window.`)
+  throw new Error(
+    `The actor never reached main phase entry ${turnIndex} within the ${deadline.budgetMs} ms search budget `
+    + `(spent ${deadline.elapsedMs} ms).`,
+  )
 }

@@ -2,6 +2,7 @@ import { expect } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
 import { fetchGameState } from './api'
 import { normalizeUserId } from './core'
+import { createDeadline } from './deadline'
 import {
   ADVANCE_PHASE_INVALID_STATE_ERROR_CODE,
   PHASE_PRESENTATION_PENDING_ERROR_CODE,
@@ -98,10 +99,13 @@ export async function advanceToMulliganPromptIfNeeded(
   request: APIRequestContext,
   setup: MultiplayerSetup,
 ): Promise<void> {
-  const maxAttempts = 20
+  // Wall-clock budget rather than an attempt count: 20 attempts x (two state reads + 250 ms) could expire
+  // under load before the engine had finished walking the opening, while the same scenario passed unloaded.
+  // 15 s is the old nominal worst case.
+  const deadline = createDeadline(15_000)
   let lastRejectedAdvance: string | null = null
 
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+  while (!deadline.expired) {
     const mulliganOwner = await getPromptOwnerByType(request, setup, 'Mulligan')
     if (mulliganOwner !== 'none') {
       return
@@ -137,5 +141,8 @@ export async function advanceToMulliganPromptIfNeeded(
   }
 
   const rejectedSuffix = lastRejectedAdvance === null ? '' : ` (last rejected advance: ${lastRejectedAdvance})`
-  throw new Error(`Failed to reach Mulligan prompt after advancing phases${rejectedSuffix}`)
+  throw new Error(
+    `Failed to reach the Mulligan prompt after advancing phases within the ${deadline.budgetMs} ms budget `
+    + `(spent ${deadline.elapsedMs} ms)${rejectedSuffix}`,
+  )
 }

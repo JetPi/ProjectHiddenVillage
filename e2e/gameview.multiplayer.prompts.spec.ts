@@ -15,6 +15,7 @@ import {
   resolvePromptViaHub,
   resolveStartingPromptOwner,
   setupMultiplayerGame,
+  waitForBottomHandToSettle,
   waitUntilMulliganPromptOwner,
 } from './helpers/gameviewMultiplayerHelpers'
 
@@ -87,6 +88,11 @@ test.describe('GameView multiplayer prompts', () => {
       // inspectable: the player can hover a hand card, reveal its eye and read the details before answering.
       const mulliganHandCards = mulliganOwnerPage.locator('[data-testid="bottom-hand-row"] [data-hand-instance-id]')
       await expect(mulliganHandCards.first()).toBeVisible()
+
+      // The deal can still be re-laying the row out after the prompt appears. Hovering a card measured against
+      // a stale rect drops the hover, so the revealed "Open card details" button is gone by the time it is
+      // clicked - which is how this check failed on a busy machine. Let the row settle first.
+      await waitForBottomHandToSettle(mulliganOwnerPage)
       await mulliganHandCards.first().hover()
 
       const openDetailsButton = mulliganHandCards.first().getByRole('button', { name: 'Open card details' })

@@ -5,54 +5,16 @@ import {
   closeMultiplayerPages,
   countTravelingCardElements,
   fetchGameState,
+  getBottomHandInstanceOrder,
   openMultiplayerPages,
   resolveAllMulliganPrompts,
   resolveHandCardDragPressPoint,
   resolvePromptViaHub,
   resolveStartingPromptOwner,
   setupMultiplayerGame,
+  waitForBottomHandToSettle,
 } from './helpers/gameviewMultiplayerHelpers'
 import type { MultiplayerPages, MultiplayerSetup } from './helpers/gameviewMultiplayerHelpers'
-
-async function getBottomHandInstanceOrder(page: Page): Promise<string[]> {
-  const order = await page
-    .locator('[data-testid="bottom-hand-row"] [data-hand-instance-id]')
-    .evaluateAll((nodes) => {
-      return nodes
-        .map((node) => node.getAttribute('data-hand-instance-id'))
-        .filter((value): value is string => Boolean(value))
-    })
-
-  return order
-}
-
-// The hand keeps changing while the initial deal / mulligan re-draw animation runs: cards arrive, the
-// row re-lays out and card rects move. Measuring a card before the row settles makes the press land
-// between cards (or on a stale rect), which silently drops the drag - so wait for two identical
-// samples of the row order and of the first card's rect before starting the gesture.
-async function waitForBottomHandToSettle(page: Page): Promise<string[]> {
-  let previousSample = ''
-
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    const order = await getBottomHandInstanceOrder(page)
-    const firstInstanceId = order[0]
-    const firstBox = firstInstanceId
-      ? await page.locator(`[data-testid="bottom-hand-card-${firstInstanceId}"]`).boundingBox()
-      : null
-    const sample = `${order.join(',')}|${
-      firstBox ? `${Math.round(firstBox.x)}:${Math.round(firstBox.y)}:${Math.round(firstBox.width)}` : 'none'
-    }`
-
-    if (order.length >= 2 && firstBox !== null && sample === previousSample) {
-      return order
-    }
-
-    previousSample = sample
-    await page.waitForTimeout(200)
-  }
-
-  return getBottomHandInstanceOrder(page)
-}
 
 test.describe('GameView', () => {
   test.describe.configure({ timeout: 120_000 })

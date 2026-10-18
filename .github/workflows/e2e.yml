@@ -17,9 +17,123 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: npm --prefix client ci
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run typecheck
+        run: npm run typecheck
+
+  server-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Runs with [assembly: Parallelize] - see the test project's AssemblyInfo.cs.
+      - name: Run server unit tests
+        run: npm run test:server
+
+  # The seed-metadata invariant is checked once, not once per shard: it boots its own server on 3101,
+  # which would otherwise be paid three times over.
+  seed-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Host=localhost;Port=5432;Database=project_hidden_village_ci;Username=postgres;Password=postgres
+      Jwt__Key: local-dev-e2e-ci-key-for-github-actions-only
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: project_hidden_village_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d project_hidden_village_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef --version 10.0.*
+
+      - name: Add .NET tools to PATH
+        run: echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      - name: Restore server dependencies
+        run: dotnet restore server/ProjectHiddenVillage.Server.csproj
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Apply database migrations
+        run: npm run db:migrate
+
+      - name: Preflight support metadata (N-008)
+        run: npm run e2e:preflight
+
   playwright:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      # One shard failing must not cancel the others: the reports are what tell you whether the failure
+      # is shard-specific (a real isolation bug) or global.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     env:
       ASPNETCORE_ENVIRONMENT: Development
       DOTNET_ENVIRONMENT: Development
@@ -80,26 +194,18 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      - name: Run lint
-        run: npm run lint
-
-      - name: Run typecheck
-        run: npm run typecheck
-
-      - name: Preflight support metadata (N-008)
-        run: npm run e2e:preflight
-
       - name: Reset ports before Playwright webServer
         run: npm run dev:prepare
 
-      - name: Run Playwright e2e
-        run: npm run test:e2e
+      # The webServer command builds the client once and serves the production bundle via `vite preview`.
+      - name: Run Playwright e2e (shard ${{ matrix.shard }}/3)
+        run: npx playwright test --shard=${{ matrix.shard }}/3
 
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-shard-${{ matrix.shard }}
           path: playwright-report/
           if-no-files-found: ignore
 
@@ -107,6 +213,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-test-results
+          name: playwright-test-results-shard-${{ matrix.shard }}
           path: test-results/
           if-no-files-found: ignore

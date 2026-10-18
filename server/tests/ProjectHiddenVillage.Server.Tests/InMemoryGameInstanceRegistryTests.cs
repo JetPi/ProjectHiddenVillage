@@ -1501,18 +1501,30 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.IsTrue(loaded.State.Player2SummonCard);
     }
 
+    /// <summary>
+    /// The generated code must be upper case: the hub normalizes incoming ids with
+    /// <c>ToUpperInvariant</c> while the registry looks them up ordinally, so a lower-case code
+    /// would be unreachable through the hub (an unplayable game).
+    /// </summary>
     [TestMethod]
-    public void Create_AssignsFiveCharacterAlphanumericGameCode()
+    public void Create_AssignsFiveCharacterUppercaseAlphanumericGameCode()
     {
-        var game = registry.Create(
-            players:
-            [
-                new Player { Id = "p1", Deck = ["card-1"] }
-            ],
-            cardDefinitions: BuildDefinitions("card-1"));
+        // 50 samples: with the old mixed-case alphabet any given code had a ~10.5% chance of being
+        // all-upper-case, so this loop catches a regression with ~99.6% probability while staying cheap.
+        for (var run = 0; run < 50; run++)
+        {
+            var game = registry.Create(
+                players:
+                [
+                    new Player { Id = "p1", Deck = ["card-1"] }
+                ],
+                cardDefinitions: BuildDefinitions("card-1"));
 
-        Assert.AreEqual(5, game.Id.Length);
-        Assert.IsTrue(Regex.IsMatch(game.Id, "^[A-Za-z0-9]{5}$"));
+            Assert.AreEqual(5, game.Id.Length);
+            Assert.IsTrue(
+                Regex.IsMatch(game.Id, "^[A-Z0-9]{5}$"),
+                $"Game code '{game.Id}' is not reachable through the hub, which upper-cases ids.");
+        }
     }
 
     [TestMethod]

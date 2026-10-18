@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test'
-import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
+import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr'
+import type { HubConnection } from '@microsoft/signalr'
 import { API_BASE_URL } from './api'
 import type { PlayerAuth } from './types'
 
@@ -16,8 +17,11 @@ function buildHubConnection(accessToken: string, userId: string) {
     .configureLogging(LogLevel.Warning)
     .build()
 
-  // These helper connections invoke hub mutations but do not otherwise subscribe
-  // to gameplay updates; attach no-op handlers to avoid unhandled method warnings.
+  // These helper connections invoke hub mutations but never call SubscribeToGame, so they are not
+  // registered as watchers: presence is recorded by that subscription, not by connecting. That is
+  // what makes it safe to keep a helper connection open for a whole test - it cannot join the
+  // phase-presentation acknowledgement set and park the engine. Attach no-op handlers so the
+  // broadcasts these connections never asked for cannot surface as unhandled method warnings.
   connection.on('GameStateInvalidated', () => {})
   connection.on('GameParticipantJoined', () => {})
 
@@ -31,19 +35,85 @@ export type HubInvocationResult<TValue = unknown> = {
   errorDescription?: string | null
 }
 
+type CachedConnection = {
+  connection: HubConnection
+  /** In-flight `start()`, shared so two concurrent calls cannot start the same connection twice. */
+  starting: Promise<void> | null
+}
+
+/**
+ * One connection per player, reused for every hub call in a test.
+ *
+ * Each call used to build, start and stop its own connection, so a scenario issuing a few dozen
+ * mutations paid a full SignalR handshake for each one. The cache lives until
+ * `closeHelperConnections()` runs (from `closeMultiplayerPages`, i.e. once per test).
+ *
+ * Deliberately no retry around `invoke`: a mutation that fails after the server processed it must
+ * surface as a failure, not be replayed and applied twice.
+ */
+const cachedConnections = new Map<string, CachedConnection>()
+
+function connectionKey(player: PlayerAuth): string {
+  return `${player.userId}:${player.session.accessToken}`
+}
+
+async function getHubConnection(player: PlayerAuth): Promise<HubConnection> {
+  const key = connectionKey(player)
+  let cached = cachedConnections.get(key)
+
+  if (!cached) {
+    cached = {
+      connection: buildHubConnection(player.session.accessToken, player.userId),
+      starting: null,
+    }
+    cachedConnections.set(key, cached)
+  }
+
+  const entry = cached
+
+  if (entry.connection.state === HubConnectionState.Disconnected) {
+    entry.starting = entry.connection.start()
+  }
+
+  if (entry.starting) {
+    try {
+      await entry.starting
+    } finally {
+      entry.starting = null
+    }
+  }
+
+  return entry.connection
+}
+
+/**
+ * Stops and forgets every cached helper connection. Called once per test, after the browser contexts
+ * close, so a dropped socket can never outlive the scenario that opened it.
+ */
+export async function closeHelperConnections(): Promise<void> {
+  const entries = Array.from(cachedConnections.values())
+  cachedConnections.clear()
+
+  await Promise.all(entries.map(async ({ connection }) => {
+    if (connection.state === HubConnectionState.Disconnected) {
+      return
+    }
+
+    try {
+      await connection.stop()
+    } catch {
+      // A connection the server already dropped is already closed; nothing left to release.
+    }
+  }))
+}
+
 async function invokeGameHubMethod<TValue>(
   player: PlayerAuth,
   methodName: string,
   args: unknown[] = [],
 ): Promise<HubInvocationResult<TValue>> {
-  const connection = buildHubConnection(player.session.accessToken, player.userId)
-
-  try {
-    await connection.start()
-    return await connection.invoke<HubInvocationResult<TValue>>(methodName, ...args)
-  } finally {
-    await connection.stop()
-  }
+  const connection = await getHubConnection(player)
+  return await connection.invoke<HubInvocationResult<TValue>>(methodName, ...args)
 }
 
 export function describeHubFailure(methodLabel: string, result: HubInvocationResult): string {
@@ -190,55 +260,49 @@ export async function executeBattleActionViaHub(
   actionId: string,
   sourceCardInstanceId: string,
 ): Promise<{ targetCardInstanceId: string; targetZone: string; targetPlayerId: string }> {
-  const connection = buildHubConnection(player.session.accessToken, player.userId)
+  const connection = await getHubConnection(player)
 
-  try {
-    await connection.start()
-
-    const targetsResult = await connection.invoke<{
-      succeeded: boolean
-      value?: {
-        validTargets: Array<{
-          playerId: string
-          zone: string
-          cardInstanceId: string
-        }>
-      }
-      errorCode?: string | null
-      errorDescription?: string | null
-    }>('GetCardActionTargets', gameCode.toUpperCase(), {
-      playerId: player.normalizedUserId,
-      actionId,
-      sourceCardInstanceId,
-    })
-
-    expect(targetsResult.succeeded, `${targetsResult.errorCode ?? 'Hub.GetCardActionTargets'}: ${targetsResult.errorDescription ?? 'Unknown error'}`).toBeTruthy()
-
-    const validTargets = targetsResult.value?.validTargets ?? []
-    expect(validTargets.length).toBeGreaterThan(0)
-
-    const selectedTarget = validTargets.find((target) => target.zone === 'Leader') ?? validTargets[0]
-
-    const result = await connection.invoke<{
-      succeeded: boolean
-      errorCode?: string | null
-      errorDescription?: string | null
-    }>('ExecuteCardAction', gameCode.toUpperCase(), {
-      playerId: player.normalizedUserId,
-      actionId,
-      sourceCardInstanceId,
-      selectedTargets: [selectedTarget],
-    })
-
-    expect(result.succeeded, `${result.errorCode ?? 'Hub.ExecuteCardAction'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
-
-    return {
-      targetCardInstanceId: selectedTarget.cardInstanceId,
-      targetZone: selectedTarget.zone,
-      targetPlayerId: selectedTarget.playerId,
+  const targetsResult = await connection.invoke<{
+    succeeded: boolean
+    value?: {
+      validTargets: Array<{
+        playerId: string
+        zone: string
+        cardInstanceId: string
+      }>
     }
-  } finally {
-    await connection.stop()
+    errorCode?: string | null
+    errorDescription?: string | null
+  }>('GetCardActionTargets', gameCode.toUpperCase(), {
+    playerId: player.normalizedUserId,
+    actionId,
+    sourceCardInstanceId,
+  })
+
+  expect(targetsResult.succeeded, `${targetsResult.errorCode ?? 'Hub.GetCardActionTargets'}: ${targetsResult.errorDescription ?? 'Unknown error'}`).toBeTruthy()
+
+  const validTargets = targetsResult.value?.validTargets ?? []
+  expect(validTargets.length).toBeGreaterThan(0)
+
+  const selectedTarget = validTargets.find((target) => target.zone === 'Leader') ?? validTargets[0]
+
+  const result = await connection.invoke<{
+    succeeded: boolean
+    errorCode?: string | null
+    errorDescription?: string | null
+  }>('ExecuteCardAction', gameCode.toUpperCase(), {
+    playerId: player.normalizedUserId,
+    actionId,
+    sourceCardInstanceId,
+    selectedTargets: [selectedTarget],
+  })
+
+  expect(result.succeeded, `${result.errorCode ?? 'Hub.ExecuteCardAction'}: ${result.errorDescription ?? 'Unknown error'}`).toBeTruthy()
+
+  return {
+    targetCardInstanceId: selectedTarget.cardInstanceId,
+    targetZone: selectedTarget.zone,
+    targetPlayerId: selectedTarget.playerId,
   }
 }
 
@@ -248,32 +312,26 @@ export async function getCardActionTargetsViaHub(
   actionId: string,
   sourceCardInstanceId: string,
 ): Promise<Array<{ playerId: string; zone: string; cardInstanceId: string }>> {
-  const connection = buildHubConnection(player.session.accessToken, player.userId)
+  const connection = await getHubConnection(player)
 
-  try {
-    await connection.start()
+  const targetsResult = await connection.invoke<{
+    succeeded: boolean
+    value?: {
+      validTargets: Array<{
+        playerId: string
+        zone: string
+        cardInstanceId: string
+      }>
+    }
+    errorCode?: string | null
+    errorDescription?: string | null
+  }>('GetCardActionTargets', gameCode.toUpperCase(), {
+    playerId: player.normalizedUserId,
+    actionId,
+    sourceCardInstanceId,
+  })
 
-    const targetsResult = await connection.invoke<{
-      succeeded: boolean
-      value?: {
-        validTargets: Array<{
-          playerId: string
-          zone: string
-          cardInstanceId: string
-        }>
-      }
-      errorCode?: string | null
-      errorDescription?: string | null
-    }>('GetCardActionTargets', gameCode.toUpperCase(), {
-      playerId: player.normalizedUserId,
-      actionId,
-      sourceCardInstanceId,
-    })
+  expect(targetsResult.succeeded, `${targetsResult.errorCode ?? 'Hub.GetCardActionTargets'}: ${targetsResult.errorDescription ?? 'Unknown error'}`).toBeTruthy()
 
-    expect(targetsResult.succeeded, `${targetsResult.errorCode ?? 'Hub.GetCardActionTargets'}: ${targetsResult.errorDescription ?? 'Unknown error'}`).toBeTruthy()
-
-    return targetsResult.value?.validTargets ?? []
-  } finally {
-    await connection.stop()
-  }
+  return targetsResult.value?.validTargets ?? []
 }

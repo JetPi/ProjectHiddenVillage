@@ -19,6 +19,12 @@ export const FIXTURE_CARD_IDS = {
   powerMaterial: 'E2E-POWER-10',
   /** A normally summonable [Naruto Uzumaki] with `Power >= 10`: tribute material *and* a legal recall target. */
   recallTarget: 'E2E-RECALL-NARUTO',
+  /**
+   * A normally summonable 10-power Character whose own continuous passive grants it [Rush] on its controller's
+   * turn. A scenario that has to *attack with the card it just summoned* needs one, and no seeded card can do
+   * that: `N-007` only gains [Rush] at 10+ power (it prints 8) and `N-011` needs two specific allies on the field.
+   */
+  rushCharacter: 'E2E-RUSH-10',
 } as const
 
 /** The seeded development admin, whose `card_catalog_admin` claim the dev auth bypass honours. */
@@ -34,7 +40,107 @@ type FixtureCardDefinition = {
   health: number
   traits: string[]
   description: string
+  /** Effect specs, in the catalogue's authoring shape. Omitted when the card needs none. */
+  effects?: Record<string, unknown>[]
 }
+
+/**
+ * `N-007`'s `gain-rush` passive, copied verbatim from the seed catalogue.
+ *
+ * A continuous, self-targeted [Rush] grant while the source card's power is 10 or more, on its controller's turn.
+ * Reusing the real card's authored effect (rather than inventing an interaction) keeps the fixture behaving
+ * exactly like the conditional-Rush card the rules already cover.
+ */
+const RUSH_ON_TEN_POWER_EFFECTS: Record<string, unknown>[] = [
+  {
+    id: 'gain-rush',
+    isSubordinate: false,
+    onSuccessEffectId: null,
+    onFailureEffectId: null,
+    runtimeEffectType: 'Gain Effect',
+    effectType: 'Activated',
+    timing: 'Your Turn',
+    durationMode: 'Instant',
+    passiveMode: 'Continuous',
+    passiveReevaluation: {
+      triggerKinds: ['Any'],
+      scope: 'Source Card Only',
+    },
+    passiveConsequences: [
+      {
+        consequenceEffectTypeKey: 'GainKeyword',
+        targetPolicy: 'Source Card',
+        consequenceArguments: {},
+      },
+    ],
+    keywordModifications: [
+      {
+        targetType: 'Source Card',
+        operation: 'Add',
+        keyword: 'Rush',
+      },
+    ],
+    targetRange: 'Self',
+    isOptional: false,
+    chakraCost: null,
+    globalRestrictions: 'None',
+    executionTargetSource: 'Selected Targets',
+    executionFlowMode: 'Per Step',
+    suppressSummonedTargetsEffectsWhileOnField: false,
+    revealTimingMode: 'Reveal Last',
+    revealPostConditionRuleSet: null,
+    revealPostConditionRestriction: null,
+    revealPostConditionPredicate: null,
+    executionCondition: null,
+    attributeModifications: [],
+    chakraAdjustments: [],
+    summonCardFlips: [],
+    faceStateLocks: [],
+    moveCardActions: [],
+    contextRules: [],
+    targetRules: {
+      operator: 'All',
+      exactTargetCount: 1,
+      minimumTargetCount: null,
+      maximumTargetCount: null,
+      autoSelectAllValidTargets: false,
+      tributeComposition: null,
+      rules: [
+        {
+          scope: 'Self',
+          inZone: 'Character Field',
+          locationSelector: {
+            kind: 'Any',
+            supportSlotIndex: null,
+          },
+          tributeRole: null,
+          exactSelectedTargetCount: 1,
+          minimumSelectedTargetCount: null,
+          maximumSelectedTargetCount: null,
+          restriction: {
+            predicates: [
+              {
+                property: 'Power',
+                operator: 'Greater Than Or Equal',
+                value: '10',
+                values: [],
+                ignoreCase: true,
+              },
+              {
+                property: 'Self',
+                operator: 'Equals',
+                value: '',
+                values: [],
+                ignoreCase: true,
+              },
+            ],
+            matchMode: 'All',
+          },
+        },
+      ],
+    },
+  },
+]
 
 const FIXTURE_CARDS: FixtureCardDefinition[] = [
   {
@@ -60,6 +166,18 @@ const FIXTURE_CARDS: FixtureCardDefinition[] = [
     traits: ['Shinobi'],
     description: 'End-to-end fixture: a normally summonable [Naruto Uzumaki] with 10 power, so it is both a Gamabunta tribute material and a legal trash recall target.',
   },
+  {
+    cardId: FIXTURE_CARD_IDS.rushCharacter,
+    displayName: 'E2E Rush Character',
+    name: ['E2E Rush Character'],
+    color: 'Blue',
+    power: 10,
+    damage: 2,
+    health: 4,
+    traits: ['Shinobi'],
+    description: 'End-to-end fixture: a normally summonable 10-power character that gains [Rush] on its controller\'s turn.',
+    effects: RUSH_ON_TEN_POWER_EFFECTS,
+  },
 ]
 
 function adminHeaders(): Record<string, string> {
@@ -67,82 +185,111 @@ function adminHeaders(): Record<string, string> {
 }
 
 /**
- * Creates the fixture cards, or brings an existing row back to the shape above (a re-run reuses the same ids).
+ * Creates the chosen fixture cards, or brings an existing row back to the shape above (a re-run reuses the same
+ * ids).
+ *
+ * Specs pass the ids they actually use. Files run in parallel, so a spec that cleaned up *every* fixture would
+ * delete a card another file is mid-scenario with.
  */
-export async function ensureFixtureCards(request: APIRequestContext): Promise<void> {
+export async function ensureFixtureCards(
+  request: APIRequestContext,
+  cardIds: string[] = Object.values(FIXTURE_CARD_IDS),
+): Promise<void> {
   for (const card of FIXTURE_CARDS) {
-    await createOrResetFixtureCard(request, card)
+    if (!cardIds.includes(card.cardId)) {
+      continue
+    }
+
+    await resetFixtureCardWithRetry(request, card)
   }
 }
 
 /**
- * The dotnet API is still running migrations and seeding when the first spec starts, so the create is retried
- * until the API answers - the same reason `login` retries.
+ * Provisions one fixture card, retrying the create-or-reset a couple of times.
+ *
+ * This is the only retry left in the fixture helpers, and it is safe because the operation is idempotent: it writes
+ * a fixed shape. Two workers can legitimately run the same spec file at once (`--repeat-each`), and the loser of the
+ * create race then patches a row the winner may still be writing. Retrying a *game* mutation on the other hand
+ * could apply it twice, which is why nothing else here retries.
+ */
+async function resetFixtureCardWithRetry(
+  request: APIRequestContext,
+  card: FixtureCardDefinition,
+  maxAttempts = 3,
+): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await createOrResetFixtureCard(request, card)
+      return
+    } catch (error) {
+      if (attempt >= maxAttempts) {
+        throw error
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  }
+}
+
+/**
+ * Creates the fixture card, or resets an existing row.
+ *
+ * The retry loop that used to wrap this (twenty attempts, one second apart) only absorbed server warm-up;
+ * `globalSetup` now guarantees the API is answering before any spec runs, so a failure here is a real one.
  */
 async function createOrResetFixtureCard(
   request: APIRequestContext,
   card: FixtureCardDefinition,
-  maxAttempts = 20,
 ): Promise<void> {
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    let response
+  const response = await request.post(`${API_BASE_URL}/api/card/catalog`, {
+    headers: adminHeaders(),
+    data: {
+      cardId: card.cardId,
+      displayName: card.displayName,
+      name: card.name,
+      type: 'Character',
+      color: card.color,
+      power: card.power,
+      damage: card.damage,
+      health: card.health,
+      traits: card.traits,
+      description: card.description,
+      // Neither key is sent when it would be empty: the validator rejects an *empty* `conditions` array
+      // ("at least one entry when provided"), and an absent list is how the admin client expresses "none".
+      // Sending `[]` here is what made the create answer 400 instead of 201/409.
+      ...(card.effects ? { effects: card.effects } : {}),
+    },
+  })
 
-    try {
-      response = await request.post(`${API_BASE_URL}/api/card/catalog`, {
-        headers: adminHeaders(),
-        data: {
-          cardId: card.cardId,
-          displayName: card.displayName,
-          name: card.name,
-          type: 'Character',
-          color: card.color,
-          power: card.power,
-          damage: card.damage,
-          health: card.health,
-          traits: card.traits,
-          description: card.description,
-          // Neither key is sent when it would be empty: the validator rejects an *empty* `conditions` array
-          // ("at least one entry when provided"), and an absent list is how the admin client expresses "none".
-          // Sending `[]` here is what made the create answer 400 instead of 201/409.
-        },
-      })
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      continue
-    }
-
-    if (response.ok()) {
-      return
-    }
-
-    // The body carries the validation message, which is the difference between "the row already exists" and
-    // "this fixture is malformed" - without it a 400 here just looks like a broken suite.
-    const failureBody = await response.text()
-
-    expect(response.status(), `creating fixture card ${card.cardId}: ${failureBody}`).toBe(409)
-
-    // A left-over row from an earlier run: reset the fields that are patchable and carry on. Display name and
-    // name are not patchable, which is why this helper's definitions must stay stable.
-    const patch = await request.patch(
-      `${API_BASE_URL}/api/card/catalog/${encodeURIComponent(card.cardId)}/effects`,
-      {
-        headers: adminHeaders(),
-        data: {
-          type: 'Character',
-          color: card.color,
-          power: card.power,
-          damage: card.damage,
-          health: card.health,
-          description: card.description,
-        },
-      },
-    )
-
-    expect(patch.ok(), `resetting fixture card ${card.cardId}`).toBeTruthy()
+  if (response.ok()) {
     return
   }
 
-  throw new Error(`The card API never answered while creating fixture card ${card.cardId}.`)
+  // The body carries the validation message, which is the difference between "the row already exists" and
+  // "this fixture is malformed" - without it a 400 here just looks like a broken suite.
+  const failureBody = await response.text()
+
+  expect(response.status(), `creating fixture card ${card.cardId}: ${failureBody}`).toBe(409)
+
+  // A left-over row from an earlier run: reset the fields that are patchable and carry on. Display name and
+  // name are not patchable, which is why this helper's definitions must stay stable.
+  const patch = await request.patch(
+    `${API_BASE_URL}/api/card/catalog/${encodeURIComponent(card.cardId)}/effects`,
+    {
+      headers: adminHeaders(),
+      data: {
+        type: 'Character',
+        color: card.color,
+        power: card.power,
+        damage: card.damage,
+        health: card.health,
+        description: card.description,
+        ...(card.effects ? { effects: card.effects } : {}),
+      },
+    },
+  )
+
+  expect(patch.ok(), `resetting fixture card ${card.cardId}`).toBeTruthy()
 }
 
 /**
@@ -177,8 +324,11 @@ export async function createFixtureDeck(request: APIRequestContext, deckLines: s
  * Best effort: a failure here leaves two fabricated cards in the throwaway e2e database, which is untidy but not
  * a broken run, and the next run reuses them.
  */
-export async function deleteFixtureCards(request: APIRequestContext): Promise<void> {
-  for (const cardId of Object.values(FIXTURE_CARD_IDS)) {
+export async function deleteFixtureCards(
+  request: APIRequestContext,
+  cardIds: string[] = Object.values(FIXTURE_CARD_IDS),
+): Promise<void> {
+  for (const cardId of cardIds) {
     try {
       await request.delete(
         `${API_BASE_URL}/api/card/catalog/${encodeURIComponent(cardId)}?force=true`,

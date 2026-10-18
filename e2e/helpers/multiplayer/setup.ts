@@ -2,31 +2,35 @@ import { expect } from '@playwright/test'
 import type { APIRequestContext, Browser, BrowserContext, Page } from '@playwright/test'
 import { createGame, fetchGameState, joinGame, login, SEEDED_PLAYER_PROFILES } from './api'
 import { normalizeUserId } from './core'
+import { closeHelperConnections } from './hub'
 import type { AuthSession, MultiplayerPages, MultiplayerSeedProfileName, MultiplayerSetup } from './types'
 
 const AUTH_STORAGE_KEY = 'phv-auth-session'
 
+/**
+ * Generated join codes are upper case by construction (`InMemoryGameInstanceRegistry.GameCodeAlphabet`).
+ *
+ * That is not cosmetic: the hub upper-cases every incoming game id (`GamesHub.NormalizeGameId`) while the
+ * registry looks ids up ordinally, so a mixed-case code produces a game that cannot be addressed through
+ * the hub at all. This assertion keeps the suite honest about that contract instead of retrying the
+ * allocation until a playable code happens to appear (which used to mean ~9 wasted games per test).
+ */
 function isUppercaseGameCode(gameCode: string): boolean {
   return /^[A-Z0-9]{5}$/.test(gameCode)
 }
 
+/**
+ * Opens the game route and waits for the board to mount.
+ *
+ * This used to reload the page up to eight times with a one-second sleep between attempts, because
+ * the API could still be seeding. `globalSetup` now blocks until `/api/health` answers (the server
+ * only starts listening once migrations and seeding are finished), so there is nothing transient
+ * left to reload for: Playwright's own retrying assertion waits for the board, and a genuine
+ * failure surfaces once instead of after eight reloads.
+ */
 async function openReadyGameView(page: Page, gameCode: string): Promise<void> {
-  const maxAttempts = 8
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    await page.goto(`/game/${gameCode}`)
-
-    try {
-      await expect(page.getByTestId('game-board')).toBeVisible({ timeout: 5_000 })
-      return
-    } catch {
-      // Route can transiently show error/loading while backend seed/runtime initializes.
-    }
-
-    await page.waitForTimeout(1000)
-  }
-
-  throw new Error('GameView route stayed in 400 Route Error state after retries.')
+  await page.goto(`/game/${gameCode}`)
+  await expect(page.getByTestId('game-board')).toBeVisible({ timeout: 30_000 })
 }
 
 /**
@@ -62,35 +66,27 @@ export async function setupMultiplayerGame(
     login(request, selectedPlayers.two.email, selectedPlayers.two.password),
   ])
 
-  let gameCode = ''
+  const gameCode = await createGame(
+    request,
+    selectedPlayers.one.id,
+    selectedPlayers.one.deckId,
+    playerOneLogin.accessToken,
+  )
 
-  for (let attempt = 0; attempt < 250; attempt += 1) {
-    const candidateCode = await createGame(
-      request,
-      selectedPlayers.one.id,
-      selectedPlayers.one.deckId,
-      playerOneLogin.accessToken,
+  if (!isUppercaseGameCode(gameCode)) {
+    throw new Error(
+      `Game code '${gameCode}' is not upper-case, so hub-driven test actions cannot address it. `
+      + 'InMemoryGameInstanceRegistry must only generate upper-case codes.',
     )
-
-    if (!isUppercaseGameCode(candidateCode)) {
-      continue
-    }
-
-    await joinGame(
-      request,
-      candidateCode,
-      selectedPlayers.two.id,
-      selectedPlayers.two.deckId,
-      playerTwoLogin.accessToken,
-    )
-
-    gameCode = candidateCode
-    break
   }
 
-  if (!gameCode) {
-    throw new Error('Failed to allocate an uppercase-only game code for hub-driven test actions.')
-  }
+  await joinGame(
+    request,
+    gameCode,
+    selectedPlayers.two.id,
+    selectedPlayers.two.deckId,
+    playerTwoLogin.accessToken,
+  )
 
   return {
     gameCode,
@@ -193,6 +189,10 @@ export async function closeMultiplayerPages(pages: MultiplayerPages): Promise<vo
     pages.playerOneContext.close(),
     pages.playerTwoContext.close(),
   ])
+
+  // Every spec closes its pages in teardown, so this is the one place that bounds the lifetime of the
+  // helper hub connections cached in `hub.ts` to a single test.
+  await closeHelperConnections()
 }
 
 export async function waitUntilBothPlayersPresent(request: APIRequestContext, gameCode: string, accessToken: string): Promise<void> {

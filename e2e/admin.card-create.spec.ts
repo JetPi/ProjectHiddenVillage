@@ -57,17 +57,11 @@ test('admin can create a card from a pasted image and see it in the catalogue', 
 
   await page.goto('/admin/cards')
 
-  // The dotnet API (migrations + seeding) comes up after the Vite dev server Playwright pings, so retry until
-  // the catalogue loads instead of asserting on the first fetch.
-  let tileCount = 0
-  for (let attempt = 0; attempt < 20 && tileCount === 0; attempt += 1) {
-    await page.waitForTimeout(3000)
-    tileCount = await page.locator('li button').count()
-    if (tileCount === 0) {
-      await page.reload()
-    }
-  }
-  expect(tileCount, 'card list never loaded (API not reachable)').toBeGreaterThan(0)
+  // `globalSetup` has already waited for /api/health, so this is only about the client rendering the
+  // catalogue: an auto-retrying assertion instead of 20 x 3 s of sleeping and reloading.
+  await expect
+    .poll(async () => await page.locator('li button').count(), { timeout: 30_000 })
+    .toBeGreaterThan(0)
 
   // A card id nothing else owns, so a rerun of this spec does not collide with the previous run's card.
   const cardId = `E2E-CREATE-${Date.now()}`

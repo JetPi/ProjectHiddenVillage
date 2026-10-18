@@ -51,29 +51,28 @@ function loadSeedProfiles(): Record<MultiplayerSeedProfileName, { one: Multiplay
 
 export const SEEDED_PLAYER_PROFILES = loadSeedProfiles()
 
+/**
+ * Logs a seeded user in.
+ *
+ * The retry loop that used to live here (twenty attempts, one second apart) existed only because the
+ * API could still be migrating and seeding when the first spec started. `globalSetup` now blocks
+ * until `/api/health` answers, and the server does not listen until seeding is done, so a refused
+ * login is a real failure: surface it immediately instead of spending up to twenty seconds on it.
+ */
 export async function login(request: APIRequestContext, email: string, password: string): Promise<LoginResponse> {
-  const maxAttempts = 20
+  const response = await request.post(`${API_BASE_URL}/api/user/login`, {
+    data: {
+      email,
+      password,
+    },
+  })
 
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    try {
-      const response = await request.post(`${API_BASE_URL}/api/user/login`, {
-        data: {
-          email,
-          password,
-        },
-      })
-
-      if (response.ok()) {
-        return await response.json() as LoginResponse
-      }
-    } catch {
-      // Backend can still be warming up when this test starts.
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+  if (!response.ok()) {
+    const failureBody = await response.text()
+    throw new Error(`Login for seeded user '${email}' failed with ${response.status()}: ${failureBody}`)
   }
 
-  throw new Error(`Failed to login seeded user '${email}' after retries.`)
+  return await response.json() as LoginResponse
 }
 
 export async function createGame(request: APIRequestContext, userId: string, deckId: string, accessToken: string): Promise<string> {

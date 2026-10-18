@@ -9,6 +9,7 @@ import type {
 import {
   advanceToMulliganPromptIfNeeded,
   closeMultiplayerPages,
+  createDeadline,
   executeBattleActionViaHub,
   executeCardActionViaHub,
   fetchGameState,
@@ -537,9 +538,12 @@ async function resolveActorMainPhaseWindow<T>(
   actor: PlayerAuth,
   resolveWindow: (actorState: GamePlayerStateResponse) => T | null,
 ): Promise<T> {
-  const maxCycles = 180
+  // Wall-clock budget rather than a cycle count, for the same reason as the shared resolvers: a cycle is a
+  // no-op while the engine is parked behind an unacknowledged phase presentation, so counting cycles made the
+  // search depend on how fast the machine happened to be. ~75 s matches the old nominal worst case.
+  const deadline = createDeadline(75_000)
 
-  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+  while (!deadline.expired) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -560,7 +564,10 @@ async function resolveActorMainPhaseWindow<T>(
     await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
   }
 
-  throw new Error('The requested MainPhase window did not arrive within the retry limit.')
+  throw new Error(
+    `The requested MainPhase window did not arrive within the ${deadline.budgetMs} ms search budget `
+    + `(spent ${deadline.elapsedMs} ms).`,
+  )
 }
 
 /** The hand card with that definition id that currently offers the given enabled action label. */
