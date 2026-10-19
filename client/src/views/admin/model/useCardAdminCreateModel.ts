@@ -25,7 +25,6 @@ const EMPTY_IDENTITY: ICardAdminIdentityDraft = {
   displayName: '',
   name: [],
   traits: [],
-  mainAlternate: false,
   imageUrl: '',
 }
 
@@ -206,7 +205,6 @@ export function useCardAdminCreateModel(): ICardAdminCreateModel {
       displayName,
       image: trimmedOrUndefined(identity.imageUrl) ?? uploadedReference ?? undefined,
       name: optionalList(identity.name),
-      mainAlternate: identity.mainAlternate,
       traits: optionalList(identity.traits),
       type: draft.type,
       color: draft.color,

@@ -14,7 +14,6 @@ export type ICardAdminIdentityDraft = {
   name: string[]
   /** Added one at a time with Enter, with existing catalogue values offered as suggestions. */
   traits: string[]
-  mainAlternate: boolean
   /** An external image URL, used when the author does not upload a file. */
   imageUrl: string
 }

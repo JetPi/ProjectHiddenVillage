@@ -21,7 +21,6 @@ public sealed class CardDataSourceMapperTests
             Effect = "[Activate: Main] Example.<br>[Recovery] If it is the second turn or later.",
             Series = "TBA",
             SeriesName = "NARUTO CARD GAME 2027",
-            MainAlternate = true,
             Abbreviation = null,
             CreatedAt = new DateTimeOffset(2026, 7, 29, 14, 31, 38, TimeSpan.Zero),
             Damage = 1,
@@ -34,7 +33,6 @@ public sealed class CardDataSourceMapperTests
 
         Assert.AreEqual("N-001", result.Id);
         Assert.AreEqual("https://example.com/N-001.webp", result.Image);
-        Assert.IsTrue(result.MainAlternate);
         Assert.AreEqual("Naruto Uzumaki", result.DisplayName);
         CollectionAssert.AreEqual(new List<string> { "Naruto Uzumaki" }, result.Name);
         CollectionAssert.AreEqual(new List<string> { "Wind", "Jinchuriki", "Hidden Leaf Village", "Team 7" }, result.Traits);
@@ -73,7 +71,6 @@ public sealed class CardDataSourceMapperTests
 
         Assert.AreEqual("C-007", result.Id);
         Assert.AreEqual("https://example.com/C-007.webp", result.Image);
-        Assert.IsFalse(result.MainAlternate);
         Assert.AreEqual(CardType.Character, result.Type);
         Assert.AreEqual(CardColor.Blue, result.Color);
         Assert.AreEqual(0, result.Power);

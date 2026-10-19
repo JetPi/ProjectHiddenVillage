@@ -592,7 +592,6 @@ public sealed class CardMappingService : ICardMappingService
 
         card.Id = cardId;
         card.Image = image;
-        card.MainAlternate = request.MainAlternate ?? false;
         card.Name = NormalizeEntries(request.Name);
         card.DisplayName = displayName;
         card.Type = cardType;
@@ -637,7 +636,6 @@ public sealed class CardMappingService : ICardMappingService
         {
             CardId = card.Id,
             Image = card.Image,
-            MainAlternate = card.MainAlternate,
             DisplayName = card.DisplayName,
             Type = card.Type,
             Color = card.Color,
@@ -679,7 +677,6 @@ public sealed class CardMappingService : ICardMappingService
         return new CardCatalogItemResponse(
             Id: entry.CardId,
             Image: entry.Image,
-            MainAlternate: entry.MainAlternate,
             Name: names,
             DisplayName: entry.DisplayName,
             Type: ToReadableCardType(entry.Type),
@@ -765,11 +762,6 @@ public sealed class CardMappingService : ICardMappingService
         if (HasText(source.Image))
         {
             existing.Image = mapped.Image;
-        }
-
-        if (source.MainAlternate.HasValue)
-        {
-            existing.MainAlternate = mapped.MainAlternate;
         }
 
         if (HasText(source.Name))

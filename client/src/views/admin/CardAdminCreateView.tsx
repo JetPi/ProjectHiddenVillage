@@ -29,7 +29,6 @@ export function CardAdminCreateView() {
     || identity.name.length > 0
     || identity.traits.length > 0
     || identity.imageUrl.length > 0
-    || identity.mainAlternate
 
   const handleSubmit = async () => {
     const result = await model.submit()

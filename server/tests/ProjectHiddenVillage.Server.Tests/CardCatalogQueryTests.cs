@@ -18,7 +18,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "A-001",
                 Image = "https://example.com/a-001.webp",
-                MainAlternate = false,
                 DisplayName = "Alpha Card",
                 Type = CardType.ExCharacter,
                 Color = CardColor.Blue,
@@ -49,7 +48,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "B-001",
                 Image = "https://example.com/b-001.webp",
-                MainAlternate = true,
                 DisplayName = "Beta Card",
                 Type = CardType.Leader,
                 Color = CardColor.Red,

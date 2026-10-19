@@ -8,8 +8,6 @@ public sealed class CardCatalogEntry
 
     public string Image { get; set; } = string.Empty;
 
-    public bool MainAlternate { get; set; }
-
     public string DisplayName { get; set; } = string.Empty;
 
     public CardType Type { get; set; }

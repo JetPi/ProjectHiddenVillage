@@ -209,7 +209,6 @@ public sealed class CreateCardRequestValidatorTests
             DisplayName: displayName,
             Image: image,
             Name: name,
-            MainAlternate: null,
             Traits: null,
             Type: type,
             Color: color,

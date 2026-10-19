@@ -38,9 +38,6 @@ public sealed record CardDataSourceRecord
     [JsonPropertyName("seriesname")]
     public string? SeriesName { get; init; }
 
-    [JsonPropertyName("mainalternate")]
-    public bool? MainAlternate { get; init; }
-
     [JsonPropertyName("abbreviation")]
     public string? Abbreviation { get; init; }
 

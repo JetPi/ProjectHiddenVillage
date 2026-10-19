@@ -75,9 +75,6 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.Property<int?>("Life")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("MainAlternate")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("NameJson")
                         .IsRequired()
                         .HasColumnType("jsonb");

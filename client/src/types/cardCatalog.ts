@@ -232,7 +232,6 @@ export type ICardCatalogItemResponse = {
   id: string
   image: string
   imageVersion?: number | null
-  mainAlternate: boolean
   name: string[]
   displayName: string
   type: string

@@ -24,7 +24,6 @@ public sealed class CardMappingServiceTests
                 Image = "https://example.com/n-001.webp",
                 Color = "Red",
                 CategoryData = "LEADER",
-                MainAlternate = true,
                 Damage = 1,
                 Power = "3",
                 Effect = "[Activate: Main] Text.<br>[Recovery] Recovery text",
@@ -39,7 +38,6 @@ public sealed class CardMappingServiceTests
         var persisted = await dbContext.CardCatalogEntries.SingleAsync(entry => entry.CardId == "N-001");
         Assert.AreEqual("Naruto Uzumaki", persisted.DisplayName);
         Assert.AreEqual("https://example.com/n-001.webp", persisted.Image);
-        Assert.AreEqual(true, persisted.MainAlternate);
     }
 
     [TestMethod]
@@ -50,7 +48,6 @@ public sealed class CardMappingServiceTests
         {
             CardId = "N-001",
             Image = "https://old.example.com/n-001.webp",
-            MainAlternate = true,
             DisplayName = "Old Name",
             Type = CardType.Leader,
             Color = CardColor.Red,
@@ -77,7 +74,6 @@ public sealed class CardMappingServiceTests
                 Image = "",
                 Color = "Red",
                 CategoryData = "LEADER",
-                MainAlternate = null,
                 Damage = null,
                 Power = null,
                 Effect = null,
@@ -92,7 +88,6 @@ public sealed class CardMappingServiceTests
         var persisted = await dbContext.CardCatalogEntries.SingleAsync(entry => entry.CardId == "N-001");
         Assert.AreEqual("Naruto Uzumaki", persisted.DisplayName);
         Assert.AreEqual("https://old.example.com/n-001.webp", persisted.Image);
-        Assert.AreEqual(true, persisted.MainAlternate);
         Assert.AreEqual(9, persisted.Damage);
         Assert.AreEqual(9, persisted.Power);
         Assert.AreEqual("Old description", persisted.Description);

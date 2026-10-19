@@ -233,7 +233,6 @@ export type ICreateCardRequest = {
   /** An external http(s) URL, or the `local:` reference the art upload returned for this card id. */
   image?: string
   name?: string[]
-  mainAlternate?: boolean
   traits?: string[]
   type?: string
   color?: string

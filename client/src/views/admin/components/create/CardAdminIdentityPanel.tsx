@@ -48,7 +48,7 @@ export function CardAdminIdentityPanel({
         </div>
 
         <div className="min-w-0 lg:border-l lg:border-[var(--border-subtle)] lg:pl-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3">
             <div>
               <label className={LABEL_CLASS} htmlFor="card-admin-create-names">
                 {t('admin.create.identity.name')}
@@ -65,17 +65,7 @@ export function CardAdminIdentityPanel({
               <p className="mt-1 text-[11px] text-[var(--text-muted)]">{t('admin.create.identity.nameHelp')}</p>
             </div>
 
-            <label className="flex items-center gap-2 self-start text-sm text-[var(--text-secondary)] sm:mt-5">
-              <input
-                type="checkbox"
-                checked={draft.mainAlternate}
-                onChange={(event) => onChange({ mainAlternate: event.target.checked })}
-                disabled={disabled}
-              />
-              {t('admin.create.identity.mainAlternate')}
-            </label>
-
-            <div className="sm:col-span-2">
+            <div>
               <label className={LABEL_CLASS} htmlFor="card-admin-create-traits">
                 {t('admin.create.identity.traits')}
               </label>

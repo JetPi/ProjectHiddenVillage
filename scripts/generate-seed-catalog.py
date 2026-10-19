@@ -32,7 +32,6 @@ CATALOG_MARKER = '"catalogEntries": ['
 # `supportCost`) are not projected.
 FIELD_PROJECTION: tuple[tuple[str, str], ...] = (
     ("cardId", "id"),
-    ("originalId", "originalId"),
     ("displayName", "displayName"),
     ("image", "image"),
     ("type", "type"),
@@ -48,7 +47,6 @@ FIELD_PROJECTION: tuple[tuple[str, str], ...] = (
     ("health", "health"),
     ("supportName", "supportName"),
     ("supportEffect", "supportEffect"),
-    ("mainAlternate", "mainAlternate"),
     ("cannotBeNormalSummoned", "cannotBeNormalSummoned"),
 )
 

@@ -172,7 +172,6 @@
   "catalogEntries": [
     {
       "cardId": "N-001",
-      "originalId": "N-001",
       "displayName": "Naruto Uzumaki",
       "image": "https://exburst.dev/nrtb/cards/hd/N-001.webp?r1785504619",
       "type": "Leader",
@@ -319,12 +318,10 @@
       "health": null,
       "supportName": "",
       "supportEffect": "",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-002",
-      "originalId": "N-002",
       "displayName": "Choji Akimichi",
       "image": "https://exburst.dev/nrtb/cards/hd/N-002.webp?rfix1785510630",
       "type": "Character",
@@ -484,12 +481,10 @@
       "health": 3,
       "supportName": "Expansion Jutsu",
       "supportEffect": "[Quick] Choose 1 Character: Summon this card, and the chosen card's power is doubled during this turn.",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-003",
-      "originalId": "N-003",
       "displayName": "Naruto Uzumaki",
       "image": "https://exburst.dev/nrtb/cards/hd/N-003.webp?r1785504619",
       "type": "EX Character",
@@ -721,12 +716,10 @@
       "health": 10,
       "supportName": "",
       "supportEffect": "",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": true
     },
     {
       "cardId": "N-004",
-      "originalId": "N-004",
       "displayName": "Naruto Uzumaki",
       "image": "https://exburst.dev/nrtb/cards/hd/N-004.webp?r1785504619",
       "type": "Character",
@@ -811,12 +804,10 @@
       "health": 4,
       "supportName": "Rasengan",
       "supportEffect": "[During Your Main] K.O. all Characters.",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-005",
-      "originalId": "N-005",
       "displayName": "Gamabunta",
       "image": "https://exburst.dev/nrtb/cards/hd/N-005.webp?r1785504619",
       "type": "EX Character",
@@ -1011,12 +1002,10 @@
       "health": 8,
       "supportName": "",
       "supportEffect": "",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": true
     },
     {
       "cardId": "N-006",
-      "originalId": "N-006",
       "displayName": "Jiraiya",
       "image": "https://exburst.dev/nrtb/cards/hd/N-006.webp?r1785504619",
       "type": "Character",
@@ -1108,12 +1097,10 @@
       "health": 4,
       "supportName": "Fire Style: Toad Flame Bombs",
       "supportEffect": "[During Your Opponent's Attack] Choose up to 2 rested Characters: K.O. the chosen cards.",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-007",
-      "originalId": "N-007",
       "displayName": "Minato Namikaze",
       "image": "https://exburst.dev/nrtb/cards/hd/N-007.webp?r1785504619",
       "type": "Character",
@@ -1319,12 +1306,10 @@
       "health": 8,
       "supportName": "",
       "supportEffect": "",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-008",
-      "originalId": "N-008",
       "displayName": "Shikamaru Nara",
       "image": "https://exburst.dev/nrtb/cards/hd/N-008.webp?r1785504619",
       "type": "Character",
@@ -1457,12 +1442,10 @@
       "health": 4,
       "supportName": "Shadow Possession Jutsu",
       "supportEffect": "[During Your Opponent's Attack] Summon this card and interrupt that attack.",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-009",
-      "originalId": "N-009",
       "displayName": "Kakashi Hatake",
       "image": "https://exburst.dev/nrtb/cards/hd/N-009.webp?r1785504619",
       "type": "Character",
@@ -1614,12 +1597,10 @@
       "health": 4,
       "supportName": "Lightning Blade",
       "supportEffect": "[Support Activated] Negate that card. Then, reduce your life by 2.",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-011",
-      "originalId": "N-011",
       "displayName": "Ino Yamanaka",
       "image": "https://exburst.dev/nrtb/cards/hd/N-011.webp?r1785504619",
       "type": "Character",
@@ -1901,12 +1882,10 @@
       "health": 8,
       "supportName": "",
       "supportEffect": "",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-018",
-      "originalId": "N-018",
       "displayName": "Hinata Hyuga",
       "image": "https://exburst.dev/nrtb/cards/hd/N-018.webp?rfix1785510630",
       "type": "Character",
@@ -1998,12 +1977,10 @@
       "health": 5,
       "supportName": "[8-Trigram] Air Palm",
       "supportEffect": "[During Your Opponent's Attack] Choose 1 non-EX Character: K.O. the chosen card.",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-010",
-      "originalId": "N-010",
       "displayName": "Karin",
       "image": "https://exburst.dev/nrtb/cards/hd/N-010.webp?rfix1785510630",
       "type": "Character",
@@ -2154,12 +2131,10 @@
       "health": 6,
       "supportName": "Hurry up and bite me!",
       "supportEffect": "[During Your Opponent's Attack] Summon this card and you gain 2 Life.",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-012",
-      "originalId": "N-012",
       "displayName": "Sasuke Uchiha",
       "image": "https://exburst.dev/nrtb/cards/hd/N-012.webp?r1785504619",
       "type": "Leader",
@@ -2349,12 +2324,10 @@
       "health": null,
       "supportName": "",
       "supportEffect": "",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-013",
-      "originalId": "N-013",
       "displayName": "Itachi Uchiha",
       "image": "https://exburst.dev/nrtb/cards/hd/N-013.webp?r1785504619",
       "type": "Character",
@@ -2548,12 +2521,10 @@
       "health": 8,
       "supportName": "",
       "supportEffect": "",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-014",
-      "originalId": "N-014",
       "displayName": "Sasuke Uchiha",
       "image": "https://exburst.dev/nrtb/cards/hd/N-014.webp?r1785504619",
       "type": "EX Character",
@@ -2754,12 +2725,10 @@
       "health": 11,
       "supportName": "",
       "supportEffect": "",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": true
     },
     {
       "cardId": "N-015",
-      "originalId": "N-015",
       "displayName": "Sasuke Uchiha",
       "image": "https://exburst.dev/nrtb/cards/hd/N-015.webp?r1785504619",
       "type": "Character",
@@ -2842,12 +2811,10 @@
       "health": 5,
       "supportName": "Chidori: One Thousand Birds",
       "supportEffect": "[During Your Main] K.O. all Characters.",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-016",
-      "originalId": "N-016",
       "displayName": "Shisui Uchiha",
       "image": "https://exburst.dev/nrtb/cards/hd/N-016.webp?r1785504619",
       "type": "Character",
@@ -2972,12 +2939,10 @@
       "health": 6,
       "supportName": "Koto Amatsukami",
       "supportEffect": "[Support Activated] Negate that card. Then, from this turn until the end of your next turn's End Phase, you cannot turn your CHAKRA face-up.",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-017",
-      "originalId": "N-017",
       "displayName": "Orochimaru",
       "image": "https://exburst.dev/nrtb/cards/hd/N-017.webp?r1785504619",
       "type": "Character",
@@ -3069,12 +3034,10 @@
       "health": 7,
       "supportName": "Striking Shadow Snake",
       "supportEffect": "[During Your Opponent's Attack] Choose up to 2 rested Characters: K.O. the chosen cards.",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-019",
-      "originalId": "N-019",
       "displayName": "Jugo",
       "image": "https://exburst.dev/nrtb/cards/hd/N-019.webp?rfix1785510630",
       "type": "Character",
@@ -3251,12 +3214,10 @@
       "health": 7,
       "supportName": "",
       "supportEffect": "",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-020",
-      "originalId": "N-020",
       "displayName": "Sakura Haruno",
       "image": "https://exburst.dev/nrtb/cards/hd/N-020.webp?rfix1785510630",
       "type": "Character",
@@ -3336,12 +3297,10 @@
       "health": 4,
       "supportName": "Cha!",
       "supportEffect": "[During Your Opponent's Attack] Choose 1 Character: Return the chosen card to the owner's hand.",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-021",
-      "originalId": "N-021",
       "displayName": "Suigetsu Hozuki",
       "image": "https://exburst.dev/nrtb/cards/hd/N-021.webp?r1785504619",
       "type": "Character",
@@ -3471,12 +3430,10 @@
       "health": 5,
       "supportName": "Water Transformation Jutsu",
       "supportEffect": "[Quick] Choose 1 Character: Summon this card, and the chosen card will not be affected by your opponent's Support effects during this turn.",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": false
     },
     {
       "cardId": "N-022",
-      "originalId": "N-022",
       "displayName": "Manda",
       "image": "https://exburst.dev/nrtb/cards/hd/N-022.webp?r1785504619",
       "type": "EX Character",
@@ -3738,7 +3695,6 @@
       "health": 10,
       "supportName": "",
       "supportEffect": "",
-      "mainAlternate": true,
       "cannotBeNormalSummoned": true
     }
   ]

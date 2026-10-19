@@ -275,7 +275,6 @@ public sealed class DevelopmentDeckSeeder
             }
 
             existingEntry.Image = mappedEntry.Image;
-            existingEntry.MainAlternate = mappedEntry.MainAlternate;
             existingEntry.DisplayName = mappedEntry.DisplayName;
             existingEntry.Type = mappedEntry.Type;
             existingEntry.Color = mappedEntry.Color;
@@ -373,7 +372,6 @@ public sealed class DevelopmentDeckSeeder
             Health = definition.Health,
             SupportName = definition.SupportName,
             SupportEffect = definition.SupportEffect,
-            MainAlternate = definition.MainAlternate,
             CannotBeNormalSummoned = definition.CannotBeNormalSummoned,
             CreatedAtUtc = utcNow,
             UpdatedAtUtc = utcNow,
@@ -429,7 +427,6 @@ public sealed class DevelopmentDeckSeeder
                 SupportEffect = isSupportCapablePlaceholder
                     ? "Development seed support effect placeholder for deterministic CI and local tests."
                     : string.Empty,
-                MainAlternate = false,
                 CannotBeNormalSummoned = false,
                 CreatedAtUtc = utcNow,
                 UpdatedAtUtc = utcNow,
@@ -485,7 +482,6 @@ public sealed class DevelopmentDeckSeeder
         int? Health,
         string SupportName,
         string SupportEffect,
-        bool MainAlternate,
         bool CannotBeNormalSummoned);
 
     private static CardNormalizationResult NormalizeCards(IReadOnlyList<SeedDeckCardDefinition> cards)

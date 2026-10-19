@@ -295,7 +295,6 @@ public sealed class DeckServiceTests
         {
             CardId = "N-200",
             Image = "https://example.com/n-200.webp",
-            MainAlternate = true,
             DisplayName = "Naruto",
             Type = CardType.ExCharacter,
             Color = CardColor.Blue,
