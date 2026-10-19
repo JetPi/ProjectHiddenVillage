@@ -138,6 +138,59 @@ public sealed partial class DeckService : IDeckService
         return deck.Id.ToString();
     }
 
+    public async Task<ErrorOr<bool>> DeleteDeck(string deckId)
+    {
+        if (!Guid.TryParse(deckId, out var parsedDeckId))
+        {
+            return Error.Validation(
+                    code: "Deck.Delete.InvalidId",
+                    description: "Deck id must be a valid GUID.");
+        }
+
+        var deck = await dbContext.Decks
+                .Include(record => record.Cards)
+                .SingleOrDefaultAsync(record => record.Id == parsedDeckId);
+
+        if (deck is null)
+        {
+            return Error.NotFound(
+                    code: "Deck.Delete.NotFound",
+                    description: $"Deck '{deckId}' was not found.");
+        }
+
+        // A game instance keeps a restricting FK to both deck slots, so deleting a deck out from under a game
+        // would fail in the database. Reporting it first turns that into a clear conflict instead of a 500.
+        var assignedToGame = await dbContext.GameInstances
+                .AnyAsync(game => game.Player1DeckId == parsedDeckId || game.Player2DeckId == parsedDeckId);
+
+        if (assignedToGame)
+        {
+            return Error.Conflict(
+                    code: "Deck.Delete.InUse",
+                    description: $"Deck '{deckId}' is assigned to a game instance.");
+        }
+
+        if (deck.Cards.Count > 0)
+        {
+            dbContext.DeckCards.RemoveRange(deck.Cards);
+        }
+
+        dbContext.Decks.Remove(deck);
+
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return Error.Failure(
+                    code: "Deck.Delete.PersistFailed",
+                    description: "The deck could not be deleted.");
+        }
+
+        return true;
+    }
+
     public async Task<ErrorOr<DeckResponse>> GetDeck(string deckId, bool populate = false)
     {
         if (!Guid.TryParse(deckId, out var parsedDeckId))

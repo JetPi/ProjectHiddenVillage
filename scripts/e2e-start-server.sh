@@ -18,6 +18,14 @@ else
   fi
 fi
 
+# `dotnet ef` needs `server/obj/project.assets.json` and does not restore on its own: on a fresh checkout it
+# fails with NETSDK1004 before the API ever starts, which surfaces as "the API never became ready". A warm
+# restore costs about a second, so doing it here makes the script self-sufficient.
+ASPNETCORE_ENVIRONMENT=Development \
+DOTNET_ENVIRONMENT=Development \
+ConnectionStrings__DefaultConnection="${CONNECTION_STRING}" \
+dotnet restore server/ProjectHiddenVillage.Server.csproj
+
 ASPNETCORE_ENVIRONMENT=Development \
 DOTNET_ENVIRONMENT=Development \
 PHV_INCLUDE_TEST_SEED_PROFILES=true \

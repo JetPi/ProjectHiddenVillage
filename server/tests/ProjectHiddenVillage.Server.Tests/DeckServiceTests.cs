@@ -3,6 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.DTOs;
 using ProjectHiddenVillage.Server.Data.Entities;
+using GameInstanceEntity = ProjectHiddenVillage.Server.Data.Entities.GameInstance;
 
 namespace ProjectHiddenVillage.Server.Tests;
 
@@ -402,6 +403,105 @@ public sealed class DeckServiceTests
         Assert.IsFalse(result.IsError);
         Assert.AreEqual(2, result.Value.Count);
         Assert.IsTrue(result.Value.All(deck => deck.Cards.All(card => card.Card is not null)));
+    }
+
+    [TestMethod]
+    public async Task DeleteDeck_RemovesTheDeckAndItsCardRows()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var deck = new Deck
+        {
+            Type = DeckType.Public,
+            Cards =
+            [
+                new DeckCard
+                {
+                    CardCatalogEntry = CreateCatalogEntry("N-400"),
+                    Quantity = 2
+                }
+            ]
+        };
+
+        dbContext.Decks.Add(deck);
+        await dbContext.SaveChangesAsync();
+
+        var service = new DeckService(dbContext);
+        var result = await service.DeleteDeck(deck.Id.ToString());
+
+        Assert.IsFalse(result.IsError);
+        Assert.IsTrue(result.Value);
+        Assert.AreEqual(0, await dbContext.Decks.CountAsync());
+        Assert.AreEqual(0, await dbContext.DeckCards.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task DeleteDeck_WhenDeckIsAssignedToAGame_ReturnsConflict()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var deck = new Deck
+        {
+            Type = DeckType.Public,
+            Cards =
+            [
+                new DeckCard
+                {
+                    CardCatalogEntry = CreateCatalogEntry("N-401"),
+                    Quantity = 1
+                }
+            ]
+        };
+
+        var otherDeck = new Deck { Type = DeckType.Public };
+
+        dbContext.Decks.AddRange(deck, otherDeck);
+        dbContext.GameInstances.Add(new GameInstanceEntity
+        {
+            JoinCode = "TEST1",
+            Player1UserId = Guid.NewGuid(),
+            Player2UserId = Guid.NewGuid(),
+            Player1DeckId = deck.Id,
+            Player2DeckId = otherDeck.Id
+        });
+        await dbContext.SaveChangesAsync();
+
+        var service = new DeckService(dbContext);
+        var result = await service.DeleteDeck(deck.Id.ToString());
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Deck.Delete.InUse", result.FirstError.Code);
+        Assert.AreEqual(2, await dbContext.Decks.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task DeleteDeck_WhenDeckIsUnknown_ReturnsNotFound()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new DeckService(dbContext);
+
+        var result = await service.DeleteDeck(Guid.NewGuid().ToString());
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Deck.Delete.NotFound", result.FirstError.Code);
+    }
+
+    private static CardCatalogEntry CreateCatalogEntry(string cardId)
+    {
+        return new CardCatalogEntry
+        {
+            CardId = cardId,
+            DisplayName = cardId,
+            Type = CardType.Character,
+            Color = CardColor.Red,
+            Description = "desc",
+            NameJson = "[]",
+            TraitsJson = "[]",
+            ConditionsJson = "[]",
+            EffectsJson = "[]",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        };
     }
 
     private static ApplicationDbContext CreateDbContext()

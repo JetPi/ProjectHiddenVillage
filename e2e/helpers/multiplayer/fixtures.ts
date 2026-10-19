@@ -1,5 +1,7 @@
 import { expect } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
+import { appendFileSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { API_BASE_URL } from './api'
 
 /**
@@ -293,8 +295,48 @@ async function createOrResetFixtureCard(
 }
 
 /**
+ * Ledger of the decks the fixture specs mint, so suite-level cleanup can delete exactly those and nothing else.
+ *
+ * Lives at the repo root rather than under `test-results/`: Playwright wipes its output directory before global
+ * setup runs, which is precisely when the startup sweep needs the list a killed run left behind.
+ */
+const FIXTURE_DECK_LEDGER_PATH = resolve(process.cwd(), '.e2e-fixture-decks.jsonl')
+
+function recordFixtureDeck(deckId: string): void {
+  // One short append per deck; `O_APPEND` keeps the lines intact even when several workers mint decks at once.
+  appendFileSync(FIXTURE_DECK_LEDGER_PATH, `${deckId}\n`, 'utf8')
+}
+
+function readFixtureDeckLedger(): string[] {
+  if (!existsSync(FIXTURE_DECK_LEDGER_PATH)) {
+    return []
+  }
+
+  return [
+    ...new Set(
+      readFileSync(FIXTURE_DECK_LEDGER_PATH, 'utf8')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0),
+    ),
+  ]
+}
+
+function writeFixtureDeckLedger(deckIds: string[]): void {
+  if (deckIds.length === 0) {
+    rmSync(FIXTURE_DECK_LEDGER_PATH, { force: true })
+    return
+  }
+
+  writeFileSync(FIXTURE_DECK_LEDGER_PATH, `${deckIds.join('\n')}\n`, 'utf8')
+}
+
+/**
  * Builds a public deck from the given `"<quantity>x <cardId>"` lines and returns its id, so a spec can use a deck
  * composition the seed manifest does not (and must not) contain.
+ *
+ * The id is recorded in the fixture ledger, because the deck outlives the spec that made it: global teardown
+ * deletes it after every worker exits, which is what keeps fabricated decks out of the database.
  */
 export async function createFixtureDeck(request: APIRequestContext, deckLines: string[]): Promise<string> {
   const response = await request.post(`${API_BASE_URL}/api/deck`, {
@@ -315,14 +357,86 @@ export async function createFixtureDeck(request: APIRequestContext, deckLines: s
 
   expect(deckId.length, `the deck endpoint should return the id it created, got "${rawDeckId}"`).toBeGreaterThan(0)
 
+  recordFixtureDeck(deckId)
+
   return deckId
+}
+
+/**
+ * Deletes every deck the fixture ledger lists, leaving only the seeded decks a fresh checkout starts with.
+ *
+ * Runs in the same suite-level hooks as {@link reapFixtureCards} - after all workers exit, and once more at
+ * startup to catch a run that was killed before teardown. Only decks this suite created are touched: the ledger
+ * is the authority, so a developer deck that happens to live in the same database is never deleted.
+ *
+ * Decks still referenced by a game instance answer 409 and stay in the ledger, so a later run retries them.
+ */
+export async function reapFixtureDecks(request: APIRequestContext): Promise<string[]> {
+  const failures: string[] = []
+  const stillPending: string[] = []
+
+  for (const deckId of readFixtureDeckLedger()) {
+    try {
+      const response = await request.delete(`${API_BASE_URL}/api/deck/${encodeURIComponent(deckId)}`)
+
+      if (!response.ok() && response.status() !== 404) {
+        const body = await response.text()
+        failures.push(`${deckId}: HTTP ${response.status()} ${body}`.trim())
+        stillPending.push(deckId)
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      failures.push(`${deckId}: ${message}`)
+      stillPending.push(deckId)
+    }
+  }
+
+  writeFixtureDeckLedger(stillPending)
+
+  return failures
+}
+
+/**
+ * Deletes every fixture card the suite knows about, leaving the e2e catalogue as a fresh checkout starts it.
+ *
+ * This is the suite-scoped counterpart to {@link deleteFixtureCards}: it runs once in Playwright's global
+ * teardown, after every worker has exited, so it cannot delete a card from under a spec the way a per-file
+ * `afterAll` can (`--repeat-each` with more than one worker). `force=true` is what makes it unconditional - it
+ * also drops the `deck_cards` lines that reference the card, so the restricting FK never blocks the delete.
+ *
+ * Unlike `deleteFixtureCards` this reports failures instead of swallowing them: the caller is the whole run's
+ * last chance to keep a fabricated card out of the database, and a silently skipped delete is exactly the bug
+ * this helper exists to prevent. A 404 counts as success (the card was never minted, or is already gone).
+ */
+export async function reapFixtureCards(request: APIRequestContext): Promise<string[]> {
+  const failures: string[] = []
+
+  for (const cardId of Object.values(FIXTURE_CARD_IDS)) {
+    try {
+      const response = await request.delete(
+        `${API_BASE_URL}/api/card/catalog/${encodeURIComponent(cardId)}?force=true`,
+        { headers: adminHeaders() },
+      )
+
+      if (!response.ok() && response.status() !== 404) {
+        const body = await response.text()
+        failures.push(`${cardId}: HTTP ${response.status()} ${body}`.trim())
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      failures.push(`${cardId}: ${message}`)
+    }
+  }
+
+  return failures
 }
 
 /**
  * Removes the fixture cards again, taking them out of any deck that still lists them.
  *
  * Best effort: a failure here leaves two fabricated cards in the throwaway e2e database, which is untidy but not
- * a broken run, and the next run reuses them.
+ * a broken run, and the next run reuses them. Suite-level cleanup does not depend on this: see
+ * {@link reapFixtureCards}, which runs from global teardown whether or not a spec cleaned up after itself.
  */
 export async function deleteFixtureCards(
   request: APIRequestContext,

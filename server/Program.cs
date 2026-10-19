@@ -25,6 +25,12 @@ using ProjectHiddenVillage.Server.Data.Entities;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddUserSecrets<Program>(optional: true);
+// AddUserSecrets appends a provider, and the last added provider wins. Without re-declaring these two sources a
+// developer's secrets file silently overrides both `ConnectionStrings__DefaultConnection` and command-line
+// arguments, which is how the e2e server ended up opening the development database instead of the e2e one: the
+// start script set the variable correctly and the secrets file won anyway.
+builder.Configuration.AddEnvironmentVariables();
+builder.Configuration.AddCommandLine(args);
 
 var configurationRoot = (IConfigurationRoot)builder.Configuration;
 var jwtKeyProvider = configurationRoot.Providers
