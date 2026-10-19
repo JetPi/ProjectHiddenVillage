@@ -168,6 +168,30 @@ public sealed class CreateCardRequestValidatorTests
         Assert.IsFalse(result.IsValid);
     }
 
+    [TestMethod]
+    public void Validate_AcceptsKnownConditionKeywords()
+    {
+        var result = Validate(CreateRequest(conditions:
+        [
+            EffectConditionKeywords.Rush,
+            EffectConditionKeywords.SummonRequirements,
+        ]));
+
+        Assert.IsTrue(result.IsValid, Describe(result));
+    }
+
+    [TestMethod]
+    public void Validate_RejectsUnknownConditionKeywords()
+    {
+        // The old UI offered engine flags such as this one; they are not card keywords and must not be stored.
+        var result = Validate(CreateRequest(conditions: ["isSecondTurnOrLater"]));
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(
+            result.Errors.Any(failure => failure.ErrorMessage.Contains("Condition entries must be one of", StringComparison.Ordinal)),
+            Describe(result));
+    }
+
     private static CreateCardRequest CreateRequest(
         string cardId = CardId,
         string displayName = "Hidden Village Striker",
@@ -177,6 +201,7 @@ public sealed class CreateCardRequestValidatorTests
         int? life = null,
         int? health = 4,
         IReadOnlyList<string>? name = null,
+        IReadOnlyList<string>? conditions = null,
         IReadOnlyList<EffectSpec>? effects = null)
     {
         return new CreateCardRequest(
@@ -192,7 +217,7 @@ public sealed class CreateCardRequestValidatorTests
             SupportEffect: null,
             SupportName: null,
             CannotBeNormalSummoned: null,
-            Conditions: null,
+            Conditions: conditions,
             Effects: effects,
             Power: 3,
             Damage: 2,

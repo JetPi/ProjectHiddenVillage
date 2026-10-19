@@ -952,17 +952,6 @@
       "keywordOperation": {
         "add": "Add",
         "remove": "Remove"
-      },
-      "condition": {
-        "isSecondTurnOrLater": "isSecondTurnOrLater",
-        "isFirstTurn": "isFirstTurn",
-        "isYourTurn": "isYourTurn",
-        "isOpponentTurn": "isOpponentTurn",
-        "hasAttackedThisTurn": "hasAttackedThisTurn",
-        "hasAvailableChakra": "hasAvailableChakra",
-        "canNormalSummon": "canNormalSummon",
-        "hasSummonTarget": "hasSummonTarget",
-        "hasTributeTargets": "hasTributeTargets"
       }
     },
     "toasts": {

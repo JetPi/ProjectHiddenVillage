@@ -78,6 +78,14 @@ test('admin card editor keeps dropdowns, headers and sections inside their conta
   const predicateTopSpread = Math.max(...predicateControlTops) - Math.min(...predicateControlTops)
   expect(predicateTopSpread, 'predicate controls should share one line').toBeLessThanOrEqual(8)
 
+  // 0b. The conditions picker offers the catalogue's keyword conditions, not the old engine flag list.
+  const conditionSelect = page.getByRole('combobox', { name: 'Select a condition to add...' })
+  await conditionSelect.click()
+  await expect(page.getByRole('option', { name: 'Rush' })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Summon Requirements' })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Named Card Reference' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
   // 1. Sections are not cards: only the effect card itself draws a rounded, filled surface.
   const sectionClassNames = await page.evaluate(() =>
     Array.from(document.querySelectorAll('details')).map((element) => element.className),

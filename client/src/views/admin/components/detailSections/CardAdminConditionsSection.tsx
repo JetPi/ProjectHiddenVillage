@@ -4,7 +4,6 @@ import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import type { ICardAdminConditionsSectionProps } from '@/views/admin/types/cardAdminDetailTypes'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
-import { CONDITION_LABEL_KEYS, optionLabel } from '@/views/admin/constants'
 
 export function CardAdminConditionsSection({
   editorModel,
@@ -34,11 +33,12 @@ export function CardAdminConditionsSection({
             editorModel.addCondition(nextCondition)
             setConditionToAdd('')
           }}
+          aria-label={t('admin.detail.sections.selectCondition')}
           className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)]"
         >
           <option value="">{t('admin.detail.sections.selectCondition')}</option>
           {availableConditionOptions.map((conditionOption) => (
-            <option key={conditionOption} value={conditionOption}>{optionLabel(t, CONDITION_LABEL_KEYS, conditionOption)}</option>
+            <option key={conditionOption} value={conditionOption}>{conditionOption}</option>
           ))}
         </CardAdminSelect>
 
@@ -59,7 +59,7 @@ export function CardAdminConditionsSection({
               key={condition}
               className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--text-primary)]"
             >
-              <span>{optionLabel(t, CONDITION_LABEL_KEYS, condition)}</span>
+              <span>{condition}</span>
               <CardAdminRemoveButton
                 variant="chip"
                 onClick={() => editorModel.removeCondition(condition)}

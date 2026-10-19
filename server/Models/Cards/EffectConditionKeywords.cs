@@ -28,6 +28,7 @@ public static class EffectConditionKeywords
         Rush,
         SummonRequirements,
         OnSummon,
+        NamedCardReference,
         DuringYourMain,
         YourTurn,
         SupportActivated,
