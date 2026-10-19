@@ -15,6 +15,9 @@ export default defineConfig({
   // Blocks until the API answers /api/health, which it only does once migrations and seeding are finished.
   // That removes the warm-up retry loops the specs used to carry (see e2e/global-setup.ts).
   globalSetup: './e2e/global-setup.ts',
+  // Deletes the fixture cards the multiplayer specs mint, after every worker has exited but while the API is
+  // still running. See e2e/global-teardown.ts.
+  globalTeardown: './e2e/global-teardown.ts',
   // File-level parallelism only, deliberately. Tests within a file are not mutually isolated: a spec's
   // `beforeAll`/`afterAll` owns a catalogue-level fixture lifecycle (see `ensureFixtureCards` in
   // gameview.multiplayer.actions.spec.ts) and two workers running tests from that file concurrently race

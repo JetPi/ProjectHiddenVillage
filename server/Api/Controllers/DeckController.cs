@@ -30,6 +30,22 @@ public sealed class DeckController : ApiControllerBase
         return Created($"/api/deck/{result.Value}", result.Value);
     }
 
+    [HttpDelete("{deckId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<bool>> DeleteDeck(string deckId)
+    {
+        var result = await deckService.DeleteDeck(deckId);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<bool>(result.Errors);
+        }
+
+        return NoContent();
+    }
+
     [HttpGet("{deckId}")]
     [ProducesResponseType(typeof(DeckResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]

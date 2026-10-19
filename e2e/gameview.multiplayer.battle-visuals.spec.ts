@@ -23,9 +23,10 @@ test.describe('GameView multiplayer battle visuals', () => {
   // (N-007 needs 10+ power, N-011 needs two specific allies), so they play a deck built almost entirely from a
   // fixture card whose own passive grants [Rush].
   //
-  // The card is created-or-reset here and deliberately *not* deleted afterwards: `ensureFixtureCards` brings a
-  // leftover row back to the right shape, and deleting it in `afterAll` would remove it from under a concurrent
-  // run of this same file (`--repeat-each` with more than one worker).
+  // The card is created-or-reset here but not deleted in `afterAll`: that would remove it from under a concurrent
+  // run of this same file (`--repeat-each` with more than one worker). Suite-level cleanup owns it instead - the
+  // global teardown deletes every fixture card after all workers exit, and `globalSetup` sweeps any left by a run
+  // that was killed before teardown could run.
   const THIS_SPEC_FIXTURE_IDS = [FIXTURE_CARD_IDS.rushCharacter]
   let rushDeckId = ''
 
