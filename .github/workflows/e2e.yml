@@ -119,6 +119,12 @@ jobs:
       - name: Add .NET tools to PATH
         run: echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
+      # Required, not redundant: `e2e-start-server.sh` runs `dotnet ef database update` before any build, and
+      # `dotnet ef` fails with NETSDK1004 without `server/obj/project.assets.json`. The cache above makes this
+      # a re-resolve against a warm global-packages folder rather than a download.
+      - name: Restore server dependencies
+        run: dotnet restore server/ProjectHiddenVillage.Server.csproj
+
       - name: Install root dependencies
         run: npm ci --prefer-offline --no-audit --no-fund
 
@@ -182,6 +188,12 @@ jobs:
 
       - name: Add .NET tools to PATH
         run: echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      # Required, not redundant: `e2e-start-server.sh` runs `dotnet ef database update` before any build, and
+      # `dotnet ef` fails with NETSDK1004 without `server/obj/project.assets.json`. The cache above makes this
+      # a re-resolve against a warm global-packages folder rather than a download.
+      - name: Restore server dependencies
+        run: dotnet restore server/ProjectHiddenVillage.Server.csproj
 
       - name: Install root dependencies
         run: npm ci --prefer-offline --no-audit --no-fund

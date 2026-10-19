@@ -1,4 +1,5 @@
 import { request } from '@playwright/test'
+import { API_BASE_URL } from './helpers/multiplayer/api'
 import { reapFixtureCards, reapFixtureDecks } from './helpers/multiplayer/fixtures'
 
 /**
@@ -18,6 +19,14 @@ export default async function globalTeardown(): Promise<void> {
   const context = await request.newContext()
 
   try {
+    // A run that never raised the API (a failed boot, a broken build) has nothing to clean up. Probing first
+    // keeps that failure readable instead of burying it under one connection error per fixture.
+    const health = await context.get(`${API_BASE_URL}/api/health`, { timeout: 5_000 }).catch(() => null)
+    if (!health?.ok()) {
+      console.warn('[global-teardown] API is not reachable; skipping fixture cleanup, the next startup sweep retries.')
+      return
+    }
+
     const failures = [...await reapFixtureCards(context), ...await reapFixtureDecks(context)]
     if (failures.length > 0) {
       console.warn(
