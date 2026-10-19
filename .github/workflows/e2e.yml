@@ -35,10 +35,10 @@ jobs:
             client/package-lock.json
 
       - name: Install root dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Install client dependencies
-        run: npm --prefix client ci
+        run: npm --prefix client ci --prefer-offline --no-audit --no-fund
 
       - name: Run lint
         run: npm run lint
@@ -58,6 +58,10 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+          # Caches the NuGet global-packages folder. Keyed on the project files because this repo has no
+          # packages.lock.json.
+          cache: true
+          cache-dependency-path: server/**/*.csproj
 
       # Runs with [assembly: Parallelize] - see the test project's AssemblyInfo.cs.
       - name: Run server unit tests
@@ -106,6 +110,8 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: server/**/*.csproj
 
       - name: Install dotnet-ef
         run: dotnet tool install --global dotnet-ef --version 10.0.*
@@ -113,15 +119,11 @@ jobs:
       - name: Add .NET tools to PATH
         run: echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
-      - name: Restore server dependencies
-        run: dotnet restore server/ProjectHiddenVillage.Server.csproj
-
       - name: Install root dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
 
-      - name: Apply database migrations
-        run: npm run db:migrate
-
+      # No migrate step here: `e2e:preflight` boots the server through `e2e-start-server.sh`, which runs
+      # `dotnet ef database update` before `dotnet run`. Running it separately only paid for a second build.
       - name: Preflight support metadata (N-008)
         run: npm run e2e:preflight
 
@@ -172,6 +174,8 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: server/**/*.csproj
 
       - name: Install dotnet-ef
         run: dotnet tool install --global dotnet-ef --version 10.0.*
@@ -179,28 +183,31 @@ jobs:
       - name: Add .NET tools to PATH
         run: echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
-      - name: Restore server dependencies
-        run: dotnet restore server/ProjectHiddenVillage.Server.csproj
-
       - name: Install root dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Install client dependencies
-        run: npm --prefix client ci
+        run: npm --prefix client ci --prefer-offline --no-audit --no-fund
 
-      - name: Apply database migrations
-        run: npm run db:migrate
+      # No migrate step here: the Playwright webServer boots the server through `e2e-start-server.sh`, which
+      # migrates the database itself. The old explicit step bought a second full build for nothing.
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-browsers-${{ runner.os }}-
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
-
-      - name: Reset ports before Playwright webServer
-        run: npm run dev:prepare
 
       # The webServer command builds the client once and serves the production bundle via `vite preview`.
       - name: Run Playwright e2e (shard ${{ matrix.shard }}/3)
         run: npx playwright test --shard=${{ matrix.shard }}/3
 
+      # The HTML report carries the per-test durations, so it is uploaded even when the shard passes.
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
@@ -209,8 +216,9 @@ jobs:
           path: playwright-report/
           if-no-files-found: ignore
 
+      # Traces and videos only exist for failures, so a green shard has nothing worth uploading.
       - name: Upload Playwright test results
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-test-results-shard-${{ matrix.shard }}
