@@ -62,7 +62,6 @@ internal static class LeaderTargetRestrictionMatcher
         {
             ZoneCardProperty.Self => [bool.TrueString],
             ZoneCardProperty.Id => [leader.CardDefinitionId],
-            ZoneCardProperty.OriginalId => [leader.CardDefinitionId],
             ZoneCardProperty.DisplayName => [leader.Name],
             ZoneCardProperty.Name => [leader.Name],
             ZoneCardProperty.Trait => leader.Traits,

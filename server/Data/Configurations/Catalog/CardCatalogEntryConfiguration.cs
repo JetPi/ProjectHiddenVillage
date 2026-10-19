@@ -19,10 +19,6 @@ public sealed class CardCatalogEntryConfiguration : IEntityTypeConfiguration<Car
             .IsRequired()
             .HasMaxLength(1024);
 
-        entity.Property(record => record.OriginalId)
-            .IsRequired()
-            .HasMaxLength(64);
-
         entity.Property(record => record.DisplayName)
             .IsRequired()
             .HasMaxLength(256);

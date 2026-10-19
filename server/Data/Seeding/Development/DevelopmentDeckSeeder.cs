@@ -275,7 +275,6 @@ public sealed class DevelopmentDeckSeeder
             }
 
             existingEntry.Image = mappedEntry.Image;
-            existingEntry.OriginalId = mappedEntry.OriginalId;
             existingEntry.MainAlternate = mappedEntry.MainAlternate;
             existingEntry.DisplayName = mappedEntry.DisplayName;
             existingEntry.Type = mappedEntry.Type;
@@ -359,7 +358,6 @@ public sealed class DevelopmentDeckSeeder
         return new CardCatalogEntry
         {
             CardId = definition.CardId,
-            OriginalId = definition.OriginalId,
             DisplayName = definition.DisplayName,
             Image = definition.Image,
             Type = definition.Type,
@@ -414,7 +412,6 @@ public sealed class DevelopmentDeckSeeder
             dbContext.CardCatalogEntries.Add(new CardCatalogEntry
             {
                 CardId = normalizedCardId,
-                OriginalId = normalizedCardId,
                 DisplayName = normalizedCardId,
                 Image = $"https://example.com/cards/{normalizedCardId}.webp",
                 Type = isLeader ? CardType.Leader : CardType.Character,
@@ -473,7 +470,6 @@ public sealed class DevelopmentDeckSeeder
 
     private sealed record SeedCatalogEntryDefinition(
         string CardId,
-        string OriginalId,
         string DisplayName,
         string Image,
         CardType Type,

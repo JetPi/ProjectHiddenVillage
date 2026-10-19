@@ -16,7 +16,6 @@ public sealed record CardCatalogListItemResponse(
 public sealed record CardCatalogItemResponse(
     string Id,
     string Image,
-    string OriginalId,
     bool MainAlternate,
     IReadOnlyList<string> Name,
     string DisplayName,
@@ -231,7 +230,6 @@ public sealed record CreateCardRequest(
     string DisplayName,
     string? Image = null,
     IReadOnlyList<string>? Name = null,
-    string? OriginalId = null,
     bool? MainAlternate = null,
     IReadOnlyList<string>? Traits = null,
     string? Type = null,

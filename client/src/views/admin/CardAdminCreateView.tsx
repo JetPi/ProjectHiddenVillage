@@ -27,7 +27,6 @@ export function CardAdminCreateView() {
     || identity.cardId.length > 0
     || identity.displayName.length > 0
     || identity.name.length > 0
-    || identity.originalId.length > 0
     || identity.traits.length > 0
     || identity.imageUrl.length > 0
     || identity.mainAlternate

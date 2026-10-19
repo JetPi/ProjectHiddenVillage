@@ -398,7 +398,6 @@ public sealed class GamesServiceGetCardsForGameTests
         {
             CardId = cardId,
             Image = $"https://example.com/{cardId.ToLowerInvariant()}.webp",
-            OriginalId = cardId,
             DisplayName = displayName,
             Type = CardType.Character,
             Color = CardColor.Red,

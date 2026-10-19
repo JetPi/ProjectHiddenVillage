@@ -148,7 +148,6 @@ public sealed class CardImageUpdateTests
         {
             CardId = CardId,
             Image = image,
-            OriginalId = CardId,
             DisplayName = "Test Card",
             Type = CardType.Character,
             Color = CardColor.Red,

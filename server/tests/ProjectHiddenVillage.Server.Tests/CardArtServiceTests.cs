@@ -180,7 +180,6 @@ public sealed class CardArtServiceTests
             {
                 CardId = CardId,
                 Image = image ?? CardArtSourceReference.BuildLocalReference(CardId),
-                OriginalId = CardId,
                 DisplayName = "Test Card",
                 Type = CardType.Character,
                 Color = CardColor.Red,

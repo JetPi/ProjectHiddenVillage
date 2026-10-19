@@ -19,7 +19,6 @@ public sealed class CardDataSourceMapperTests
             Cost = null,
             Power = "3",
             Effect = "[Activate: Main] Example.<br>[Recovery] If it is the second turn or later.",
-            OriginalId = "N-001",
             Series = "TBA",
             SeriesName = "NARUTO CARD GAME 2027",
             MainAlternate = true,
@@ -35,7 +34,6 @@ public sealed class CardDataSourceMapperTests
 
         Assert.AreEqual("N-001", result.Id);
         Assert.AreEqual("https://example.com/N-001.webp", result.Image);
-        Assert.AreEqual("N-001", result.OriginalId);
         Assert.IsTrue(result.MainAlternate);
         Assert.AreEqual("Naruto Uzumaki", result.DisplayName);
         CollectionAssert.AreEqual(new List<string> { "Naruto Uzumaki" }, result.Name);
@@ -66,7 +64,6 @@ public sealed class CardDataSourceMapperTests
             Rarity = "R",
             Cost = 2,
             Power = "not-an-int",
-            OriginalId = "C-007",
             Series = "TBA",
             SeriesName = "NARUTO CARD GAME 2027"
         };
@@ -76,7 +73,6 @@ public sealed class CardDataSourceMapperTests
 
         Assert.AreEqual("C-007", result.Id);
         Assert.AreEqual("https://example.com/C-007.webp", result.Image);
-        Assert.AreEqual("C-007", result.OriginalId);
         Assert.IsFalse(result.MainAlternate);
         Assert.AreEqual(CardType.Character, result.Type);
         Assert.AreEqual(CardColor.Blue, result.Color);
@@ -98,7 +94,6 @@ public sealed class CardDataSourceMapperTests
             Rarity = "R",
             Cost = 3,
             Power = "2",
-            OriginalId = "C-015",
             Series = "TBA",
             SeriesName = "NARUTO CARD GAME 2027",
             Effect = "[Support] [8-Trigram] Air Palm<br>Choose 1 of your [Naruto Uzumaki]: It gets +2 power this turn."
@@ -126,7 +121,6 @@ public sealed class CardDataSourceMapperTests
             Color = "Red",
             CategoryData = "CHARACTER",
             Cost = 3,
-            OriginalId = "C-099",
             Effect = "[Support] Fire Style: Toad Flame Bombs<br>[During Your Opponent's Attack] Choose up to 2 rested Characters: K.O. the chosen cards.<br>[Flavor] text"
         };
 
@@ -149,7 +143,6 @@ public sealed class CardDataSourceMapperTests
             Image = "https://example.com/L-010.webp",
             Color = "Green",
             CategoryData = "LEADER",
-            OriginalId = "L-010",
             Effect = "[Activate: Main] Flip 1 of your CHAKRA face-down and choose 1 Character: The chosen card gets +3 power during this turn.<br>[Recovery] If it is the second turn or later, rest this card and flip all of your CHAKRA face-up."
         };
 
@@ -170,7 +163,6 @@ public sealed class CardDataSourceMapperTests
             Image = "https://example.com/C-321.webp",
             Color = "Red",
             CategoryData = "CHARACTER",
-            OriginalId = "C-321",
             Effect = "[Summon Requirements] This card cannot be summoned normally."
         };
 
@@ -189,7 +181,6 @@ public sealed class CardDataSourceMapperTests
             Image = "https://example.com/ch-001.webp",
             Color = "N/A",
             CategoryData = "CHAKRA",
-            OriginalId = "CH-001",
         };
 
         var result = CardDataSourceMapper.ToCard(source);
@@ -208,7 +199,6 @@ public sealed class CardDataSourceMapperTests
             Image = "https://example.com/sm-001.webp",
             Color = "UnlistedColor",
             CategoryData = "SUMMON",
-            OriginalId = "SM-001",
         };
 
         var result = CardDataSourceMapper.ToCard(source);

@@ -82,11 +82,6 @@ namespace ProjectHiddenVillage.Server.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb");
 
-                    b.Property<string>("OriginalId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
                     b.Property<int>("Power")
                         .HasColumnType("integer");
 

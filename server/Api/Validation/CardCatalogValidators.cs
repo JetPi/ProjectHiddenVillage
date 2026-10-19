@@ -16,9 +16,6 @@ public sealed class CreateCardRequestValidator : AbstractValidator<CreateCardReq
     /// <summary>Mirrors the <c>CardCatalogEntry.DisplayName</c> column.</summary>
     private const int MaxDisplayNameLength = 256;
 
-    /// <summary>Mirrors the <c>CardCatalogEntry.OriginalId</c> column.</summary>
-    private const int MaxOriginalIdLength = 64;
-
     /// <summary>Mirrors the <c>CardCatalogEntry.Image</c> column.</summary>
     private const int MaxImageLength = 1024;
 
@@ -41,11 +38,6 @@ public sealed class CreateCardRequestValidator : AbstractValidator<CreateCardReq
             .WithMessage("Display name is required.")
             .MaximumLength(MaxDisplayNameLength)
             .WithMessage($"Display name cannot exceed {MaxDisplayNameLength} characters.");
-
-        RuleFor(request => request.OriginalId)
-            .MaximumLength(MaxOriginalIdLength)
-            .WithMessage($"Original id cannot exceed {MaxOriginalIdLength} characters.")
-            .When(request => request.OriginalId is not null);
 
         RuleFor(request => request.Name)
             .Must(entries => entries is null || entries.Count <= MaxListEntries)

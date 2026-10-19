@@ -15,7 +15,6 @@ type CreateCardPayload = {
   displayName: string
   image?: string
   name?: string[]
-  originalId?: string
   mainAlternate?: boolean
   traits?: string[]
   type?: string
@@ -34,7 +33,6 @@ type CatalogCard = {
   id: string
   image: string
   imageVersion: number
-  originalId: string
   mainAlternate: boolean
   name: string[]
   displayName: string
@@ -89,7 +87,6 @@ function buildCatalogCard(payload: CreateCardPayload): CatalogCard {
     id: payload.cardId,
     image,
     imageVersion: 1,
-    originalId: payload.originalId ?? '',
     mainAlternate: payload.mainAlternate ?? false,
     name: payload.name ?? [],
     displayName: payload.displayName,

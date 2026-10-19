@@ -18,7 +18,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "A-001",
                 Image = "https://example.com/a-001.webp",
-                OriginalId = "A-001",
                 MainAlternate = false,
                 DisplayName = "Alpha Card",
                 Type = CardType.ExCharacter,
@@ -50,7 +49,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "B-001",
                 Image = "https://example.com/b-001.webp",
-                OriginalId = "B-001",
                 MainAlternate = true,
                 DisplayName = "Beta Card",
                 Type = CardType.Leader,
@@ -97,7 +95,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "A-001",
                 Image = "https://example.com/a-001.webp",
-                OriginalId = "A-001",
                 DisplayName = "Alpha Card",
                 Type = CardType.Character,
                 Color = CardColor.Blue,
@@ -113,7 +110,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "B-001",
                 Image = "https://example.com/b-001.webp",
-                OriginalId = "B-001",
                 DisplayName = "Beta Card",
                 Type = CardType.Character,
                 Color = CardColor.Blue,
@@ -208,7 +204,6 @@ public sealed class CardCatalogQueryTests
         {
             CardId = "N-001",
             Image = "https://example.com/n-001.webp",
-            OriginalId = "N-001",
             DisplayName = "Naruto",
             Type = CardType.Leader,
             Color = CardColor.Red,
@@ -242,7 +237,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "A-001",
                 Image = "https://example.com/a-001.webp",
-                OriginalId = "A-001",
                 DisplayName = "Alpha",
                 Type = CardType.Character,
                 Color = CardColor.Red,
@@ -259,7 +253,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "B-001",
                 Image = "https://example.com/b-001.webp",
-                OriginalId = "B-001",
                 DisplayName = "Beta",
                 Type = CardType.Character,
                 Color = CardColor.Blue,
@@ -304,7 +297,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "A-001",
                 Image = "https://example.com/a-001.webp",
-                OriginalId = "A-001",
                 DisplayName = "Alpha",
                 Type = CardType.Character,
                 Color = CardColor.Red,
@@ -320,7 +312,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "B-001",
                 Image = "https://example.com/b-001.webp",
-                OriginalId = "B-001",
                 DisplayName = "Beta",
                 Type = CardType.ExCharacter,
                 Color = CardColor.Blue,
@@ -354,7 +345,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "N-001",
                 Image = "https://example.com/n-001.webp",
-                OriginalId = "N-001",
                 DisplayName = "Naruto",
                 Type = CardType.Leader,
                 Color = CardColor.Red,
@@ -370,7 +360,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "S-001",
                 Image = "https://example.com/s-001.webp",
-                OriginalId = "S-001",
                 DisplayName = "Sasuke",
                 Type = CardType.Character,
                 Color = CardColor.Blue,
@@ -421,7 +410,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "A-001",
                 Image = "https://example.com/a-001.webp",
-                OriginalId = "A-001",
                 DisplayName = "Alpha Card",
                 Type = CardType.ExCharacter,
                 Color = CardColor.Blue,
@@ -437,7 +425,6 @@ public sealed class CardCatalogQueryTests
             {
                 CardId = "B-001",
                 Image = "https://example.com/b-001.webp",
-                OriginalId = "B-001",
                 DisplayName = "Beta Card",
                 Type = CardType.Leader,
                 Color = CardColor.Red,

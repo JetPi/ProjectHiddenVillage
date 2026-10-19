@@ -24,7 +24,6 @@ public sealed class CardMappingServiceTests
                 Image = "https://example.com/n-001.webp",
                 Color = "Red",
                 CategoryData = "LEADER",
-                OriginalId = "N-001",
                 MainAlternate = true,
                 Damage = 1,
                 Power = "3",
@@ -40,7 +39,6 @@ public sealed class CardMappingServiceTests
         var persisted = await dbContext.CardCatalogEntries.SingleAsync(entry => entry.CardId == "N-001");
         Assert.AreEqual("Naruto Uzumaki", persisted.DisplayName);
         Assert.AreEqual("https://example.com/n-001.webp", persisted.Image);
-        Assert.AreEqual("N-001", persisted.OriginalId);
         Assert.AreEqual(true, persisted.MainAlternate);
     }
 
@@ -52,7 +50,6 @@ public sealed class CardMappingServiceTests
         {
             CardId = "N-001",
             Image = "https://old.example.com/n-001.webp",
-            OriginalId = "OLD-001",
             MainAlternate = true,
             DisplayName = "Old Name",
             Type = CardType.Leader,
@@ -80,7 +77,6 @@ public sealed class CardMappingServiceTests
                 Image = "",
                 Color = "Red",
                 CategoryData = "LEADER",
-                OriginalId = "",
                 MainAlternate = null,
                 Damage = null,
                 Power = null,
@@ -96,7 +92,6 @@ public sealed class CardMappingServiceTests
         var persisted = await dbContext.CardCatalogEntries.SingleAsync(entry => entry.CardId == "N-001");
         Assert.AreEqual("Naruto Uzumaki", persisted.DisplayName);
         Assert.AreEqual("https://old.example.com/n-001.webp", persisted.Image);
-        Assert.AreEqual("OLD-001", persisted.OriginalId);
         Assert.AreEqual(true, persisted.MainAlternate);
         Assert.AreEqual(9, persisted.Damage);
         Assert.AreEqual(9, persisted.Power);
@@ -113,7 +108,6 @@ public sealed class CardMappingServiceTests
         {
             CardId = "N-001",
             Image = "https://example.com/n-001.webp",
-            OriginalId = "N-001",
             DisplayName = "Naruto",
             Type = CardType.Leader,
             Color = CardColor.Red,
@@ -230,7 +224,6 @@ public sealed class CardMappingServiceTests
         {
             CardId = "N-777",
             Image = "https://example.com/n-777.webp",
-            OriginalId = "N-777",
             DisplayName = "Restricted",
             Type = CardType.Character,
             Color = CardColor.Red,
@@ -270,7 +263,6 @@ public sealed class CardMappingServiceTests
         {
             CardId = "N-808",
             Image = "https://example.com/n-808.webp",
-            OriginalId = "N-808",
             DisplayName = "Editable",
             Type = CardType.Character,
             Color = CardColor.Red,

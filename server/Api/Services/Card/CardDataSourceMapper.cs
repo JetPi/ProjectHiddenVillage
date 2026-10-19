@@ -35,7 +35,6 @@ public static partial class CardDataSourceMapper
 
         mapped.Id = NormalizeRequired(source.CardNo);
         mapped.Image = NormalizeRequired(source.Image);
-        mapped.OriginalId = NormalizeRequired(source.OriginalId);
         mapped.MainAlternate = source.MainAlternate ?? false;
         mapped.DisplayName = NormalizeRequired(source.Name);
         mapped.Name = BuildNameEntries(source.Name);

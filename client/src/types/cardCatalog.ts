@@ -58,7 +58,6 @@ export type ICardCatalogKeywordModificationResponse = {
 export type ICardCatalogPredicateProperty =
   | 'Self'
   | 'Id'
-  | 'Original Id'
   | 'Display Name'
   | 'Name'
   | 'Trait'
@@ -233,7 +232,6 @@ export type ICardCatalogItemResponse = {
   id: string
   image: string
   imageVersion?: number | null
-  originalId: string
   mainAlternate: boolean
   name: string[]
   displayName: string

@@ -378,7 +378,6 @@
         "name": "Names",
         "namePlaceholder": "Type a name and press Enter",
         "nameHelp": "Press Enter to add each name. Shown by clients that support card names.",
-        "originalId": "Original ID",
         "traits": "Traits",
         "traitsPlaceholder": "Type a trait and press Enter",
         "traitsHelp": "Press Enter to add each trait. Pick an existing one or type a new one.",

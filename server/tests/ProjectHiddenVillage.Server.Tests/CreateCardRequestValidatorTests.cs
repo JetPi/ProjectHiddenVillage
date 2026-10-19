@@ -184,7 +184,6 @@ public sealed class CreateCardRequestValidatorTests
             DisplayName: displayName,
             Image: image,
             Name: name,
-            OriginalId: null,
             MainAlternate: null,
             Traits: null,
             Type: type,

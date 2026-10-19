@@ -12,7 +12,6 @@ export type ICardAdminIdentityDraft = {
   displayName: string
   /** Added one at a time with Enter; each entry is a name clients can match on. */
   name: string[]
-  originalId: string
   /** Added one at a time with Enter, with existing catalogue values offered as suggestions. */
   traits: string[]
   mainAlternate: boolean

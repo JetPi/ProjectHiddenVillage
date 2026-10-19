@@ -32,9 +32,6 @@ public sealed record CardDataSourceRecord
     [JsonPropertyName("effect")]
     public string? Effect { get; init; }
 
-    [JsonPropertyName("originalid")]
-    public string? OriginalId { get; init; }
-
     [JsonPropertyName("series")]
     public string? Series { get; init; }
 

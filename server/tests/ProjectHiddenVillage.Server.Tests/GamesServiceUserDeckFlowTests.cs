@@ -304,7 +304,6 @@ public sealed class GamesServiceUserDeckFlowTests
         {
             CardId = cardId,
             Image = $"https://example.com/{cardId.ToLowerInvariant()}.webp",
-            OriginalId = cardId,
             DisplayName = displayName,
             Type = CardType.Character,
             Color = CardColor.Red,
@@ -324,7 +323,6 @@ public sealed class GamesServiceUserDeckFlowTests
         {
             CardId = cardId,
             Image = $"https://example.com/{cardId.ToLowerInvariant()}.webp",
-            OriginalId = cardId,
             DisplayName = displayName,
             Type = CardType.Character,
             Color = CardColor.Red,
@@ -346,7 +344,6 @@ public sealed class GamesServiceUserDeckFlowTests
         {
             CardId = cardId,
             Image = $"https://example.com/{cardId.ToLowerInvariant()}.webp",
-            OriginalId = cardId,
             DisplayName = displayName,
             Type = CardType.Leader,
             Color = CardColor.Red,
