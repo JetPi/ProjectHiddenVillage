@@ -87,6 +87,20 @@ export interface ICardAdminRemoveButtonProps extends Omit<ButtonHTMLAttributes<H
   children?: ReactNode
 }
 
+export type ICardAdminTokenFieldProps = {
+  id: string
+  values: string[]
+  onChange: (values: string[]) => void
+  placeholder: string
+  /** Values the catalogue already knows; typing ranks them and shows the closest matches under the input. */
+  suggestions?: string[]
+  disabled?: boolean
+  ariaLabel?: string
+  /** Lets an e2e test count the committed chips without matching on their text. */
+  chipTestId?: string
+  maxEntries?: number
+}
+
 export interface ICardAdminPredicateControlsProps {
   predicateProperty: ICardCatalogPredicateProperty
   predicateOperator: string

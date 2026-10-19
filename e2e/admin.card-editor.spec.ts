@@ -64,6 +64,20 @@ test('admin card editor keeps dropdowns, headers and sections inside their conta
   await expandButton.click()
   await expect(page.getByText('Runtime Effect Type').first()).toBeVisible({ timeout: 10_000 })
 
+  // 0. Predicate controls are a single inline row at desktop width. `CardAdminSelect` owns a full-width
+  //    wrapper, so putting the width classes on its trigger left every control claiming a whole line.
+  await page.getByRole('button', { name: 'Add Target Rule' }).first().click()
+  await page.getByRole('button', { name: 'Add Predicate' }).first().click()
+
+  const predicateControls = page.getByTestId('predicate-controls').first()
+  await expect(predicateControls).toBeVisible()
+  const predicateControlTops = await predicateControls.evaluate((element) =>
+    Array.from(element.children).map((child) => Math.round(child.getBoundingClientRect().top)),
+  )
+  expect(predicateControlTops.length, 'a predicate should have property, operator and value controls').toBe(3)
+  const predicateTopSpread = Math.max(...predicateControlTops) - Math.min(...predicateControlTops)
+  expect(predicateTopSpread, 'predicate controls should share one line').toBeLessThanOrEqual(8)
+
   // 1. Sections are not cards: only the effect card itself draws a rounded, filled surface.
   const sectionClassNames = await page.evaluate(() =>
     Array.from(document.querySelectorAll('details')).map((element) => element.className),

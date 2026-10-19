@@ -19,13 +19,10 @@ public sealed class CreateCardRequestValidator : AbstractValidator<CreateCardReq
     /// <summary>Mirrors the <c>CardCatalogEntry.OriginalId</c> column.</summary>
     private const int MaxOriginalIdLength = 64;
 
-    /// <summary>Mirrors the <c>CardCatalogEntry.Attribute</c> column.</summary>
-    private const int MaxAttributeLength = 128;
-
     /// <summary>Mirrors the <c>CardCatalogEntry.Image</c> column.</summary>
     private const int MaxImageLength = 1024;
 
-    /// <summary>The name/trait lists are stored as jsonb, so these caps are about sane authoring, not schema.</summary>
+    /// <summary>The identity lists are stored as jsonb, so these caps are about sane authoring, not schema.</summary>
     private const int MaxListEntries = 32;
     private const int MaxListEntryLength = 128;
 
@@ -49,11 +46,6 @@ public sealed class CreateCardRequestValidator : AbstractValidator<CreateCardReq
             .MaximumLength(MaxOriginalIdLength)
             .WithMessage($"Original id cannot exceed {MaxOriginalIdLength} characters.")
             .When(request => request.OriginalId is not null);
-
-        RuleFor(request => request.Attribute)
-            .MaximumLength(MaxAttributeLength)
-            .WithMessage($"Attribute cannot exceed {MaxAttributeLength} characters.")
-            .When(request => request.Attribute is not null);
 
         RuleFor(request => request.Name)
             .Must(entries => entries is null || entries.Count <= MaxListEntries)

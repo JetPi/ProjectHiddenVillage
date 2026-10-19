@@ -143,6 +143,11 @@ export async function fetchCardCatalogEffectConditionKeywords(): Promise<string[
   return data
 }
 
+export async function fetchCardCatalogTraits(): Promise<string[]> {
+  const { data } = await api.get<string[]>('/api/card/catalog/traits')
+  return data
+}
+
 export async function createCardCatalogEntry(
   request: ICreateCardRequest,
 ): Promise<ICardCatalogItemResponse> {

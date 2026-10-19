@@ -236,7 +236,6 @@ export type ICreateCardRequest = {
   name?: string[]
   originalId?: string
   mainAlternate?: boolean
-  attribute?: string
   traits?: string[]
   type?: string
   color?: string

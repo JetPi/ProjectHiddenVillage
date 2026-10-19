@@ -26,7 +26,6 @@ public sealed class CardMappingServiceTests
                 CategoryData = "LEADER",
                 OriginalId = "N-001",
                 MainAlternate = true,
-                Attribute = "Wind",
                 Damage = 1,
                 Power = "3",
                 Effect = "[Activate: Main] Text.<br>[Recovery] Recovery text",
@@ -43,7 +42,6 @@ public sealed class CardMappingServiceTests
         Assert.AreEqual("https://example.com/n-001.webp", persisted.Image);
         Assert.AreEqual("N-001", persisted.OriginalId);
         Assert.AreEqual(true, persisted.MainAlternate);
-        Assert.AreEqual("Wind", persisted.Attribute);
     }
 
     [TestMethod]
@@ -56,7 +54,6 @@ public sealed class CardMappingServiceTests
             Image = "https://old.example.com/n-001.webp",
             OriginalId = "OLD-001",
             MainAlternate = true,
-            Attribute = "Old Attribute",
             DisplayName = "Old Name",
             Type = CardType.Leader,
             Color = CardColor.Red,
@@ -85,7 +82,6 @@ public sealed class CardMappingServiceTests
                 CategoryData = "LEADER",
                 OriginalId = "",
                 MainAlternate = null,
-                Attribute = null,
                 Damage = null,
                 Power = null,
                 Effect = null,
@@ -102,7 +98,6 @@ public sealed class CardMappingServiceTests
         Assert.AreEqual("https://old.example.com/n-001.webp", persisted.Image);
         Assert.AreEqual("OLD-001", persisted.OriginalId);
         Assert.AreEqual(true, persisted.MainAlternate);
-        Assert.AreEqual("Old Attribute", persisted.Attribute);
         Assert.AreEqual(9, persisted.Damage);
         Assert.AreEqual(9, persisted.Power);
         Assert.AreEqual("Old description", persisted.Description);

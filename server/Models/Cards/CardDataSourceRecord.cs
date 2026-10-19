@@ -29,9 +29,6 @@ public sealed record CardDataSourceRecord
     [JsonPropertyName("power")]
     public string? Power { get; init; }
 
-    [JsonPropertyName("attribute")]
-    public string? Attribute { get; init; }
-
     [JsonPropertyName("effect")]
     public string? Effect { get; init; }
 

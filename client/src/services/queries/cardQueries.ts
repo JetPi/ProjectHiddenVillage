@@ -6,6 +6,7 @@ import type { ICardDeletionImpactResponse } from '@/types/cardCatalog'
 import type { IPagedResponse } from '@/types/cardCatalog'
 import {
   fetchCardCatalogByIdsSparseCached,
+  fetchCardCatalogTraits,
   seedCardCatalogItemCache,
 } from '@/services/api/cardCatalogApi'
 import { fetchCardCatalogPage } from '@/services/api/cardCatalogApi'
@@ -85,6 +86,7 @@ function normalizeInfiniteCardCatalogParams(
 
 export const cardQueryKeys = {
   all: ['cards'] as const,
+  traits: ['card-catalog', 'traits'] as const,
   byIds: (cardIds: string[]) => ['cards', 'by-ids', buildCardIdsKey(cardIds)] as const,
   byIdsRoot: ['cards', 'by-ids'] as const,
   gameCards: (joinCode: string) => ['cards', 'game', joinCode.trim().toLowerCase()] as const,
@@ -98,6 +100,19 @@ export const cardQueryKeys = {
       params.types.join(','),
       params.colors.join(','),
     ] as const,
+}
+
+/**
+ * The traits already present in the catalogue, used as authoring suggestions. This is metadata about the
+ * catalogue, not a card read, so it can sit for as long as the listing does and never blocks free-text entry.
+ */
+export function useCardCatalogTraitsQuery(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: cardQueryKeys.traits,
+    queryFn: fetchCardCatalogTraits,
+    enabled: options.enabled ?? true,
+    staleTime: DEFAULT_CARD_CATALOG_STALE_TIME_MS,
+  })
 }
 
 export function useCardCatalogByIdsQuery(
@@ -219,6 +234,7 @@ export function useCreateCardCatalogEntryMutation() {
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: cardQueryKeys.byIdsRoot, exact: false }),
+        queryClient.invalidateQueries({ queryKey: cardQueryKeys.traits, exact: true }),
         queryClient.invalidateQueries({
           queryKey: ['cards', 'catalog-infinite'],
           exact: false,

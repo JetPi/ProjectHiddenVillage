@@ -12,8 +12,6 @@ public sealed class CardCatalogEntry
 
     public bool MainAlternate { get; set; }
 
-    public string? Attribute { get; set; }
-
     public string DisplayName { get; set; } = string.Empty;
 
     public CardType Type { get; set; }

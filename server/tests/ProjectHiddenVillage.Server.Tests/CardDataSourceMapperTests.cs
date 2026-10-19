@@ -18,7 +18,6 @@ public sealed class CardDataSourceMapperTests
             Rarity = "L",
             Cost = null,
             Power = "3",
-            Attribute = " ",
             Effect = "[Activate: Main] Example.<br>[Recovery] If it is the second turn or later.",
             OriginalId = "N-001",
             Series = "TBA",
@@ -38,7 +37,6 @@ public sealed class CardDataSourceMapperTests
         Assert.AreEqual("https://example.com/N-001.webp", result.Image);
         Assert.AreEqual("N-001", result.OriginalId);
         Assert.IsTrue(result.MainAlternate);
-        Assert.IsNull(result.Attribute);
         Assert.AreEqual("Naruto Uzumaki", result.DisplayName);
         CollectionAssert.AreEqual(new List<string> { "Naruto Uzumaki" }, result.Name);
         CollectionAssert.AreEqual(new List<string> { "Wind", "Jinchuriki", "Hidden Leaf Village", "Team 7" }, result.Traits);
@@ -80,7 +78,6 @@ public sealed class CardDataSourceMapperTests
         Assert.AreEqual("https://example.com/C-007.webp", result.Image);
         Assert.AreEqual("C-007", result.OriginalId);
         Assert.IsFalse(result.MainAlternate);
-        Assert.IsNull(result.Attribute);
         Assert.AreEqual(CardType.Character, result.Type);
         Assert.AreEqual(CardColor.Blue, result.Color);
         Assert.AreEqual(0, result.Power);

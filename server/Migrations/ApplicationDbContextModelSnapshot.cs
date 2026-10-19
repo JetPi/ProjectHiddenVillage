@@ -28,10 +28,6 @@ namespace ProjectHiddenVillage.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Attribute")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
                     b.Property<bool>("CannotBeNormalSummoned")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")

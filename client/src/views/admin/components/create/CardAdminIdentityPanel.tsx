@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import { CardAdminArtPicker } from '@/views/admin/components/detail'
+import { CardAdminTokenField } from '@/views/admin/components/controls'
 import type { ICardAdminIdentityPanelProps } from '@/views/admin/types/cardAdminCreateTypes'
 
 const INPUT_CLASS =
@@ -15,6 +16,7 @@ const LABEL_CLASS = 'text-xs font-semibold uppercase tracking-wide text-[var(--t
 export function CardAdminIdentityPanel({
   draft,
   onChange,
+  traitOptions,
   image,
   onUploadFile,
   onClearUpload,
@@ -31,12 +33,14 @@ export function CardAdminIdentityPanel({
           <label className={LABEL_CLASS} htmlFor="card-admin-create-names">
             {t('admin.create.identity.name')}
           </label>
-          <textarea
+          <CardAdminTokenField
             id="card-admin-create-names"
-            value={draft.name}
-            onChange={(event) => onChange({ name: event.target.value })}
+            values={draft.name}
+            onChange={(name) => onChange({ name })}
+            placeholder={t('admin.create.identity.namePlaceholder')}
             disabled={disabled}
-            className={`${INPUT_CLASS} min-h-[64px]`}
+            ariaLabel={t('admin.create.identity.name')}
+            chipTestId="admin-identity-name-chip"
           />
           <p className="mt-1 text-[11px] text-[var(--text-muted)]">{t('admin.create.identity.nameHelp')}</p>
         </div>
@@ -49,17 +53,6 @@ export function CardAdminIdentityPanel({
             id="card-admin-create-original-id"
             value={draft.originalId}
             onChange={(event) => onChange({ originalId: event.target.value })}
-            disabled={disabled}
-            className={INPUT_CLASS}
-          />
-
-          <label className={`${LABEL_CLASS} mt-3 block`} htmlFor="card-admin-create-attribute">
-            {t('admin.create.identity.attribute')}
-          </label>
-          <input
-            id="card-admin-create-attribute"
-            value={draft.attribute}
-            onChange={(event) => onChange({ attribute: event.target.value })}
             disabled={disabled}
             className={INPUT_CLASS}
           />
@@ -79,12 +72,15 @@ export function CardAdminIdentityPanel({
           <label className={LABEL_CLASS} htmlFor="card-admin-create-traits">
             {t('admin.create.identity.traits')}
           </label>
-          <textarea
+          <CardAdminTokenField
             id="card-admin-create-traits"
-            value={draft.traits}
-            onChange={(event) => onChange({ traits: event.target.value })}
+            values={draft.traits}
+            onChange={(traits) => onChange({ traits })}
+            suggestions={traitOptions}
+            placeholder={t('admin.create.identity.traitsPlaceholder')}
             disabled={disabled}
-            className={`${INPUT_CLASS} min-h-[64px]`}
+            ariaLabel={t('admin.create.identity.traits')}
+            chipTestId="admin-identity-trait-chip"
           />
           <p className="mt-1 text-[11px] text-[var(--text-muted)]">{t('admin.create.identity.traitsHelp')}</p>
         </div>

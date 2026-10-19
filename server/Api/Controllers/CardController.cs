@@ -115,6 +115,23 @@ public sealed class CardController : ApiControllerBase
     }
 
     /// <summary>
+    /// The traits already present in the catalogue, so the create screen can offer them as suggestions while
+    /// still accepting values the author invents.
+    /// </summary>
+    [HttpGet("catalog/traits")]
+    [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<string>>> GetTraits()
+    {
+        var result = await cardMappingService.GetTraits();
+        if (result.IsError)
+        {
+            return ProblemFromErrors<List<string>>(result.Errors);
+        }
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
     /// Replaces a card's art, or clears it when the image is empty. The art master itself is uploaded separately
     /// through <c>POST /api/card-art/{cardId}</c>; this only points the card at it.
     /// </summary>

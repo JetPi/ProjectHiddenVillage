@@ -20,7 +20,6 @@ public sealed class CardCatalogQueryTests
                 Image = "https://example.com/a-001.webp",
                 OriginalId = "A-001",
                 MainAlternate = false,
-                Attribute = "Wind",
                 DisplayName = "Alpha Card",
                 Type = CardType.ExCharacter,
                 Color = CardColor.Blue,
@@ -53,7 +52,6 @@ public sealed class CardCatalogQueryTests
                 Image = "https://example.com/b-001.webp",
                 OriginalId = "B-001",
                 MainAlternate = true,
-                Attribute = "Fire",
                 DisplayName = "Beta Card",
                 Type = CardType.Leader,
                 Color = CardColor.Red,
@@ -88,6 +86,52 @@ public sealed class CardCatalogQueryTests
         Assert.AreEqual("Blue", item.Color);
         Assert.AreEqual("https://example.com/a-001.webp", item.Image);
         Assert.IsTrue(item.ImageVersion > 0, "the listing carries the version the tile's art URL is built from");
+    }
+
+    [TestMethod]
+    public async Task GetTraits_ReturnsDistinctTrimmedTraits()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.CardCatalogEntries.AddRange(
+            new CardCatalogEntry
+            {
+                CardId = "A-001",
+                Image = "https://example.com/a-001.webp",
+                OriginalId = "A-001",
+                DisplayName = "Alpha Card",
+                Type = CardType.Character,
+                Color = CardColor.Blue,
+                Description = "",
+                NameJson = "[]",
+                TraitsJson = "[\"Ninja\", \"Uchiha Clan\"]",
+                ConditionsJson = "[]",
+                EffectsJson = "[]",
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            },
+            new CardCatalogEntry
+            {
+                CardId = "B-001",
+                Image = "https://example.com/b-001.webp",
+                OriginalId = "B-001",
+                DisplayName = "Beta Card",
+                Type = CardType.Character,
+                Color = CardColor.Blue,
+                Description = "",
+                NameJson = "[]",
+                TraitsJson = "[\"ninja\", \" Leaf \"]",
+                ConditionsJson = "[]",
+                EffectsJson = "[]",
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            });
+        await dbContext.SaveChangesAsync();
+
+        var service = new CardMappingService(dbContext);
+        var result = await service.GetTraits();
+
+        Assert.IsFalse(result.IsError);
+        CollectionAssert.AreEqual(new[] { "Leaf", "Ninja", "Uchiha Clan" }, result.Value.ToArray());
     }
 
     [TestMethod]

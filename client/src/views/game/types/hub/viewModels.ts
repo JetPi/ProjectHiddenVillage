@@ -13,7 +13,6 @@ export type ILeaderCardViewModel = {
   isExhausted: boolean
   id: string
   image: string
-  attribute: string | null
   name: string[]
   displayName: string
   type: string

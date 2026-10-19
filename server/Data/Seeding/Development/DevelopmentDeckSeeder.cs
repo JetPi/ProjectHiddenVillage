@@ -277,7 +277,6 @@ public sealed class DevelopmentDeckSeeder
             existingEntry.Image = mappedEntry.Image;
             existingEntry.OriginalId = mappedEntry.OriginalId;
             existingEntry.MainAlternate = mappedEntry.MainAlternate;
-            existingEntry.Attribute = mappedEntry.Attribute;
             existingEntry.DisplayName = mappedEntry.DisplayName;
             existingEntry.Type = mappedEntry.Type;
             existingEntry.Color = mappedEntry.Color;

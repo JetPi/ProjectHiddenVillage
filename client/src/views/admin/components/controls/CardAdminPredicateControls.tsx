@@ -60,29 +60,36 @@ export function CardAdminPredicateControls({
   }
 
   return (
-    <div className="flex flex-wrap items-start gap-2">
-      <CardAdminSelect
-        value={predicateProperty}
-        onValueChange={(value) => {
-          onPropertyChange(value as ICardCatalogPredicateProperty)
-          setPendingEnumValue('')
-        }}
-        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[11rem]"
-      >
-        {PREDICATE_PROPERTY_OPTIONS.map((option) => (
-          <option key={option} value={option}>{optionLabel(t, PREDICATE_PROPERTY_LABEL_KEYS, option)}</option>
-        ))}
-      </CardAdminSelect>
+    // The select control owns a full-width wrapper, so the desktop width constraints belong on an element
+    // *around* each select. Putting them on the trigger only moved the button inside a wrapper that still
+    // claimed the whole row, which is what made the three controls stack vertically.
+    <div className="flex flex-wrap items-start gap-2" data-testid="predicate-controls">
+      <div className="w-full sm:w-auto sm:min-w-[11rem]">
+        <CardAdminSelect
+          value={predicateProperty}
+          onValueChange={(value) => {
+            onPropertyChange(value as ICardCatalogPredicateProperty)
+            setPendingEnumValue('')
+          }}
+          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+        >
+          {PREDICATE_PROPERTY_OPTIONS.map((option) => (
+            <option key={option} value={option}>{optionLabel(t, PREDICATE_PROPERTY_LABEL_KEYS, option)}</option>
+          ))}
+        </CardAdminSelect>
+      </div>
 
-      <CardAdminSelect
-        value={predicateOperator}
-        onValueChange={(value) => onOperatorChange(value)}
-        className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] sm:w-auto sm:min-w-[10rem]"
-      >
-        {PREDICATE_OPERATOR_OPTIONS.map((option) => (
-          <option key={option} value={option}>{optionLabel(t, PREDICATE_OPERATOR_LABEL_KEYS, option)}</option>
-        ))}
-      </CardAdminSelect>
+      <div className="w-full sm:w-auto sm:min-w-[10rem]">
+        <CardAdminSelect
+          value={predicateOperator}
+          onValueChange={(value) => onOperatorChange(value)}
+          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+        >
+          {PREDICATE_OPERATOR_OPTIONS.map((option) => (
+            <option key={option} value={option}>{optionLabel(t, PREDICATE_OPERATOR_LABEL_KEYS, option)}</option>
+          ))}
+        </CardAdminSelect>
+      </div>
 
       {enumOptions ? (
         <div className="min-w-[14rem] flex-1">
@@ -107,7 +114,7 @@ export function CardAdminPredicateControls({
           </CardAdminSelect>
         </div>
       ) : (
-        <div className="min-w-[14rem] flex-1">
+        <div className="w-full min-w-[14rem] flex-1">
           <input
             type="text"
             inputMode={isNumericProperty ? 'decimal' : undefined}

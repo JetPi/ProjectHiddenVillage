@@ -44,7 +44,6 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 		card.Image = entry.Image;
 		card.OriginalId = entry.OriginalId;
 		card.MainAlternate = entry.MainAlternate;
-		card.Attribute = entry.Attribute;
 		card.Name = names;
 		card.DisplayName = entry.DisplayName;
 		card.Type = entry.Type;

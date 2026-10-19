@@ -79,7 +79,6 @@ function resolveLeaderCard(
     isExhausted: player?.leader?.isExhausted ?? false,
     id: leaderId,
     image: resolveCardArtUrl(catalogCard, CARD_ART_WIDTHS.board),
-    attribute: catalogCard.attribute ?? null,
     name: catalogCard.name,
     displayName: catalogCard.displayName,
     type: catalogCard.type,

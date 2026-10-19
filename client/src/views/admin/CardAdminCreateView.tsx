@@ -28,7 +28,6 @@ export function CardAdminCreateView() {
     || identity.displayName.length > 0
     || identity.name.length > 0
     || identity.originalId.length > 0
-    || identity.attribute.length > 0
     || identity.traits.length > 0
     || identity.imageUrl.length > 0
     || identity.mainAlternate
@@ -81,6 +80,7 @@ export function CardAdminCreateView() {
           <CardAdminIdentityPanel
             draft={identity}
             onChange={model.setIdentityField}
+            traitOptions={model.traitOptions}
             image={model.image}
             onUploadFile={model.uploadImage}
             onClearUpload={model.clearImage}
