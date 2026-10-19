@@ -35,11 +35,6 @@ export const KEYWORD_TARGET_TYPE_OPTIONS = ['Source Card', 'Selected Targets'] a
 
 export const KEYWORD_OPERATION_OPTIONS = ['Add', 'Remove'] as const
 
-export const EFFECT_CONDITION_KEYWORD_OPTIONS_FALLBACK = [
-  'Rush',
-  'Not Affected By Opponent Support Effects',
-] as const
-
 /** Display labels for the passive/keyword `value`s above; the values are never translated. */
 export const PASSIVE_MODE_LABEL_KEYS: Readonly<Record<string, string>> = {
   'None': 'admin.options.passiveMode.none',

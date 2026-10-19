@@ -10,13 +10,10 @@ import type {
 export type ICardAdminIdentityDraft = {
   cardId: string
   displayName: string
-  /** Free text, one entry per line or comma separated. */
-  name: string
-  originalId: string
-  attribute: string
-  /** Free text, one entry per line or comma separated. */
-  traits: string
-  mainAlternate: boolean
+  /** Added one at a time with Enter; each entry is a name clients can match on. */
+  name: string[]
+  /** Added one at a time with Enter, with existing catalogue values offered as suggestions. */
+  traits: string[]
   /** An external image URL, used when the author does not upload a file. */
   imageUrl: string
 }
@@ -33,6 +30,8 @@ export type ICardAdminCreateImageState = {
 export type ICardAdminIdentityPanelProps = {
   draft: ICardAdminIdentityDraft
   onChange: (patch: Partial<ICardAdminIdentityDraft>) => void
+  /** Existing catalogue values offered as suggestions; free-text entry is still allowed. */
+  traitOptions: string[]
   image: ICardAdminCreateImageState
   onUploadFile: (file: File) => void
   onClearUpload: () => void
@@ -49,6 +48,8 @@ export type ICardAdminCreateModel = {
   /** The editable identity slice the shared summary renders. */
   summaryIdentity: ICardAdminSummaryIdentityDraft
   setIdentityField: (patch: Partial<ICardAdminIdentityDraft>) => void
+  /** Existing traits for the token field; empty when the metadata read fails. */
+  traitOptions: string[]
   editorModel: ICardAdminEffectEditorFieldsModel
   image: ICardAdminCreateImageState
   uploadImage: (file: File) => void

@@ -250,6 +250,8 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
         RuleForEach(request => request.Conditions)
             .Must(condition => !string.IsNullOrWhiteSpace(condition))
             .WithMessage("Condition entries must be non-empty strings.")
+            .Must(condition => EffectConditionKeywords.All.Contains(condition, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"Condition entries must be one of: {string.Join(", ", EffectConditionKeywords.All)}.")
             .When(request => request.Conditions is not null);
 
         RuleForEach(request => request.Effects)

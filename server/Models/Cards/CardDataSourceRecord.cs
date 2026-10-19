@@ -29,23 +29,14 @@ public sealed record CardDataSourceRecord
     [JsonPropertyName("power")]
     public string? Power { get; init; }
 
-    [JsonPropertyName("attribute")]
-    public string? Attribute { get; init; }
-
     [JsonPropertyName("effect")]
     public string? Effect { get; init; }
-
-    [JsonPropertyName("originalid")]
-    public string? OriginalId { get; init; }
 
     [JsonPropertyName("series")]
     public string? Series { get; init; }
 
     [JsonPropertyName("seriesname")]
     public string? SeriesName { get; init; }
-
-    [JsonPropertyName("mainalternate")]
-    public bool? MainAlternate { get; init; }
 
     [JsonPropertyName("abbreviation")]
     public string? Abbreviation { get; init; }

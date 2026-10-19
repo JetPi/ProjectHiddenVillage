@@ -1,28 +1,22 @@
-export const CONDITION_OPTIONS = [
-  'isSecondTurnOrLater',
-  'isFirstTurn',
-  'isYourTurn',
-  'isOpponentTurn',
-  'hasAttackedThisTurn',
-  'hasAvailableChakra',
-  'canNormalSummon',
-  'hasSummonTarget',
-  'hasTributeTargets',
-] as const
-
 /**
- * Condition identifiers are server wire values *and* the current display copy, so
- * each label resolves through i18n with an identical English value (translating a
- * future locale must never alter the submitted condition string).
+ * The card-condition keywords the catalogue understands. This mirrors the server's
+ * `EffectConditionKeywords.All` and is only a fallback for the metadata request; the live list comes from
+ * `GET /api/card/catalog/effect-condition-keywords`.
  */
-export const CONDITION_LABEL_KEYS: Readonly<Record<string, string>> = {
-  'isSecondTurnOrLater': 'admin.options.condition.isSecondTurnOrLater',
-  'isFirstTurn': 'admin.options.condition.isFirstTurn',
-  'isYourTurn': 'admin.options.condition.isYourTurn',
-  'isOpponentTurn': 'admin.options.condition.isOpponentTurn',
-  'hasAttackedThisTurn': 'admin.options.condition.hasAttackedThisTurn',
-  'hasAvailableChakra': 'admin.options.condition.hasAvailableChakra',
-  'canNormalSummon': 'admin.options.condition.canNormalSummon',
-  'hasSummonTarget': 'admin.options.condition.hasSummonTarget',
-  'hasTributeTargets': 'admin.options.condition.hasTributeTargets',
-}
+export const CARD_CONDITION_OPTIONS_FALLBACK = [
+  'Activate: Main',
+  'Recovery',
+  "During Your Opponent's Attack",
+  'Support',
+  'Quick',
+  'Rush',
+  'Summon Requirements',
+  'On Summon',
+  'Named Card Reference',
+  'During Your Main',
+  'Your Turn',
+  'Support Activated',
+  'Once Per Turn',
+  'When Attacking',
+  'Not Affected By Opponent Support Effects',
+] as const

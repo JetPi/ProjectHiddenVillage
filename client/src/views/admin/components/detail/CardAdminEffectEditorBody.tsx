@@ -5,10 +5,7 @@ import { fetchCardCatalogEffectConditionKeywords } from '@/services/api/cardCata
 import { CardAdminSelectedCardSummary } from './CardAdminSelectedCardSummary'
 import { CardAdminConditionsSection, CardAdminEffectsSection } from '@/views/admin/components/detailSections'
 import { createDefaultEffect, normalizeEffectId } from '@/views/admin/utils'
-import {
-  CONDITION_OPTIONS,
-  EFFECT_CONDITION_KEYWORD_OPTIONS_FALLBACK,
-} from '@/views/admin/constants'
+import { CARD_CONDITION_OPTIONS_FALLBACK } from '@/views/admin/constants'
 import type { ICardAdminEffectEditorBodyProps } from '@/views/admin/types/cardAdminDetailTypes'
 import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog'
 
@@ -25,8 +22,8 @@ export function CardAdminEffectEditorBody({
 }: ICardAdminEffectEditorBodyProps) {
   const { t } = useTranslation()
   const [conditionToAdd, setConditionToAdd] = useState('')
-  const [effectConditionKeywordOptions, setEffectConditionKeywordOptions] = useState<string[]>(
-    () => [...EFFECT_CONDITION_KEYWORD_OPTIONS_FALLBACK],
+  const [conditionKeywordOptions, setConditionKeywordOptions] = useState<string[]>(
+    () => [...CARD_CONDITION_OPTIONS_FALLBACK],
   )
   const [collapsedEffects, setCollapsedEffects] = useState<Set<number>>(
     () => new Set(editorModel.draft.effects.map((_, index) => index)),
@@ -35,7 +32,7 @@ export function CardAdminEffectEditorBody({
   useEffect(() => {
     let isDisposed = false
 
-    async function loadEffectConditionKeywords() {
+    async function loadConditionKeywords() {
       try {
         const serverKeywords = await fetchCardCatalogEffectConditionKeywords()
         if (isDisposed) {
@@ -45,22 +42,16 @@ export function CardAdminEffectEditorBody({
         const normalizedKeywords = serverKeywords
           .map((keyword) => keyword.trim())
           .filter((keyword) => keyword.length > 0)
-          .filter((keyword) => {
-            const normalized = keyword.toLowerCase()
-            return normalized === 'rush'
-              || normalized.includes('not affected')
-              || normalized.includes('immune')
-          })
 
         if (normalizedKeywords.length > 0) {
-          setEffectConditionKeywordOptions(Array.from(new Set(normalizedKeywords)))
+          setConditionKeywordOptions(Array.from(new Set(normalizedKeywords)))
         }
       } catch {
-        // Keep fallback list when metadata fetch fails.
+        // Keep the fallback keyword list when the metadata fetch fails.
       }
     }
 
-    void loadEffectConditionKeywords()
+    void loadConditionKeywords()
 
     return () => {
       isDisposed = true
@@ -68,9 +59,19 @@ export function CardAdminEffectEditorBody({
   }, [])
 
   const parsedEffects = editorModel.draft.effects
+  const effectConditionKeywordOptions = useMemo(
+    () =>
+      conditionKeywordOptions.filter((keyword) => {
+        const normalized = keyword.toLowerCase()
+        return normalized === 'rush'
+          || normalized.includes('not affected')
+          || normalized.includes('immune')
+      }),
+    [conditionKeywordOptions],
+  )
   const allConditionOptions = useMemo(
-    () => Array.from(new Set([...CONDITION_OPTIONS, ...editorModel.draft.conditions])),
-    [editorModel.draft.conditions],
+    () => Array.from(new Set([...conditionKeywordOptions, ...editorModel.draft.conditions])),
+    [conditionKeywordOptions, editorModel.draft.conditions],
   )
   const availableConditionOptions = useMemo(
     () => allConditionOptions.filter((condition) => !editorModel.draft.conditions.includes(condition)),

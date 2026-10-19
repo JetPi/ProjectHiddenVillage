@@ -1,10 +1,9 @@
 import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import { CardAdminArtPicker } from '@/views/admin/components/detail'
+import { CardAdminTokenField } from '@/views/admin/components/controls'
 import type { ICardAdminIdentityPanelProps } from '@/views/admin/types/cardAdminCreateTypes'
 
-const INPUT_CLASS =
-  'mt-1 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-2 py-1.5 text-sm text-[var(--text-primary)]'
 const LABEL_CLASS = 'text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]'
 
 /**
@@ -15,6 +14,7 @@ const LABEL_CLASS = 'text-xs font-semibold uppercase tracking-wide text-[var(--t
 export function CardAdminIdentityPanel({
   draft,
   onChange,
+  traitOptions,
   image,
   onUploadFile,
   onClearUpload,
@@ -26,88 +26,63 @@ export function CardAdminIdentityPanel({
     <section className="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-3">
       <h2 className="text-sm font-semibold text-[var(--text-primary)]">{t('admin.create.identity.title')}</h2>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div>
-          <label className={LABEL_CLASS} htmlFor="card-admin-create-names">
-            {t('admin.create.identity.name')}
-          </label>
-          <textarea
-            id="card-admin-create-names"
-            value={draft.name}
-            onChange={(event) => onChange({ name: event.target.value })}
+      <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="min-w-0">
+          <CardAdminArtPicker
+            previewSrc={image.previewSrc ?? ''}
+            isUploading={image.isUploading}
+            error={image.error}
+            // The art is not attached to anything yet, so say what will happen to it rather than implying it landed.
+            statusMessage={image.uploadedReference && !image.isUploading ? t('admin.create.image.uploaded') : null}
+            urlValue={draft.imageUrl}
+            onUrlChange={(value) => onChange({ imageUrl: value })}
+            onSelectFile={onUploadFile}
             disabled={disabled}
-            className={`${INPUT_CLASS} min-h-[64px]`}
-          />
-          <p className="mt-1 text-[11px] text-[var(--text-muted)]">{t('admin.create.identity.nameHelp')}</p>
+          >
+            {image.uploadedReference ? (
+              <AppButton type="button" variant="ghost" onClick={onClearUpload} disabled={disabled}>
+                {t('admin.create.image.clear')}
+              </AppButton>
+            ) : null}
+          </CardAdminArtPicker>
         </div>
 
-        <div>
-          <label className={LABEL_CLASS} htmlFor="card-admin-create-original-id">
-            {t('admin.create.identity.originalId')}
-          </label>
-          <input
-            id="card-admin-create-original-id"
-            value={draft.originalId}
-            onChange={(event) => onChange({ originalId: event.target.value })}
-            disabled={disabled}
-            className={INPUT_CLASS}
-          />
+        <div className="min-w-0 lg:border-l lg:border-[var(--border-subtle)] lg:pl-4">
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <label className={LABEL_CLASS} htmlFor="card-admin-create-names">
+                {t('admin.create.identity.name')}
+              </label>
+              <CardAdminTokenField
+                id="card-admin-create-names"
+                values={draft.name}
+                onChange={(name) => onChange({ name })}
+                placeholder={t('admin.create.identity.namePlaceholder')}
+                disabled={disabled}
+                ariaLabel={t('admin.create.identity.name')}
+                chipTestId="admin-identity-name-chip"
+              />
+              <p className="mt-1 text-[11px] text-[var(--text-muted)]">{t('admin.create.identity.nameHelp')}</p>
+            </div>
 
-          <label className={`${LABEL_CLASS} mt-3 block`} htmlFor="card-admin-create-attribute">
-            {t('admin.create.identity.attribute')}
-          </label>
-          <input
-            id="card-admin-create-attribute"
-            value={draft.attribute}
-            onChange={(event) => onChange({ attribute: event.target.value })}
-            disabled={disabled}
-            className={INPUT_CLASS}
-          />
-
-          <label className="mt-3 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-            <input
-              type="checkbox"
-              checked={draft.mainAlternate}
-              onChange={(event) => onChange({ mainAlternate: event.target.checked })}
-              disabled={disabled}
-            />
-            {t('admin.create.identity.mainAlternate')}
-          </label>
+            <div>
+              <label className={LABEL_CLASS} htmlFor="card-admin-create-traits">
+                {t('admin.create.identity.traits')}
+              </label>
+              <CardAdminTokenField
+                id="card-admin-create-traits"
+                values={draft.traits}
+                onChange={(traits) => onChange({ traits })}
+                suggestions={traitOptions}
+                placeholder={t('admin.create.identity.traitsPlaceholder')}
+                disabled={disabled}
+                ariaLabel={t('admin.create.identity.traits')}
+                chipTestId="admin-identity-trait-chip"
+              />
+              <p className="mt-1 text-[11px] text-[var(--text-muted)]">{t('admin.create.identity.traitsHelp')}</p>
+            </div>
+          </div>
         </div>
-
-        <div className="lg:col-span-2">
-          <label className={LABEL_CLASS} htmlFor="card-admin-create-traits">
-            {t('admin.create.identity.traits')}
-          </label>
-          <textarea
-            id="card-admin-create-traits"
-            value={draft.traits}
-            onChange={(event) => onChange({ traits: event.target.value })}
-            disabled={disabled}
-            className={`${INPUT_CLASS} min-h-[64px]`}
-          />
-          <p className="mt-1 text-[11px] text-[var(--text-muted)]">{t('admin.create.identity.traitsHelp')}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
-        <CardAdminArtPicker
-          previewSrc={image.previewSrc ?? ''}
-          isUploading={image.isUploading}
-          error={image.error}
-          // The art is not attached to anything yet, so say what will happen to it rather than implying it landed.
-          statusMessage={image.uploadedReference && !image.isUploading ? t('admin.create.image.uploaded') : null}
-          urlValue={draft.imageUrl}
-          onUrlChange={(value) => onChange({ imageUrl: value })}
-          onSelectFile={onUploadFile}
-          disabled={disabled}
-        >
-          {image.uploadedReference ? (
-            <AppButton type="button" variant="ghost" onClick={onClearUpload} disabled={disabled}>
-              {t('admin.create.image.clear')}
-            </AppButton>
-          ) : null}
-        </CardAdminArtPicker>
       </div>
     </section>
   )

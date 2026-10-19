@@ -229,6 +229,24 @@ public sealed class CardMappingService : ICardMappingService
         return orderedItems;
     }
 
+    public async Task<ErrorOr<List<string>>> GetTraits()
+    {
+        var traitJsonValues = await dbContext.CardCatalogEntries
+            .AsNoTracking()
+            .Select(entry => entry.TraitsJson)
+            .ToListAsync();
+
+        var traits = traitJsonValues
+            .SelectMany(json => DeserializeOrDefault<List<string>>(json, []))
+            .Select(entry => entry.Trim())
+            .Where(entry => entry.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(entry => entry, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return traits;
+    }
+
     public Task<ErrorOr<List<string>>> GetEffectConditionKeywords()
     {
         var keywords = EffectConditionKeywords.All.ToList();
@@ -574,9 +592,6 @@ public sealed class CardMappingService : ICardMappingService
 
         card.Id = cardId;
         card.Image = image;
-        card.OriginalId = request.OriginalId?.Trim() ?? string.Empty;
-        card.MainAlternate = request.MainAlternate ?? false;
-        card.Attribute = string.IsNullOrWhiteSpace(request.Attribute) ? null : request.Attribute.Trim();
         card.Name = NormalizeEntries(request.Name);
         card.DisplayName = displayName;
         card.Type = cardType;
@@ -621,9 +636,6 @@ public sealed class CardMappingService : ICardMappingService
         {
             CardId = card.Id,
             Image = card.Image,
-            OriginalId = card.OriginalId,
-            MainAlternate = card.MainAlternate,
-            Attribute = card.Attribute,
             DisplayName = card.DisplayName,
             Type = card.Type,
             Color = card.Color,
@@ -665,9 +677,6 @@ public sealed class CardMappingService : ICardMappingService
         return new CardCatalogItemResponse(
             Id: entry.CardId,
             Image: entry.Image,
-            OriginalId: entry.OriginalId,
-            MainAlternate: entry.MainAlternate,
-            Attribute: entry.Attribute,
             Name: names,
             DisplayName: entry.DisplayName,
             Type: ToReadableCardType(entry.Type),
@@ -753,21 +762,6 @@ public sealed class CardMappingService : ICardMappingService
         if (HasText(source.Image))
         {
             existing.Image = mapped.Image;
-        }
-
-        if (HasText(source.OriginalId))
-        {
-            existing.OriginalId = mapped.OriginalId;
-        }
-
-        if (source.MainAlternate.HasValue)
-        {
-            existing.MainAlternate = mapped.MainAlternate;
-        }
-
-        if (HasText(source.Attribute))
-        {
-            existing.Attribute = mapped.Attribute;
         }
 
         if (HasText(source.Name))

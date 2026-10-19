@@ -275,9 +275,6 @@ public sealed class DevelopmentDeckSeeder
             }
 
             existingEntry.Image = mappedEntry.Image;
-            existingEntry.OriginalId = mappedEntry.OriginalId;
-            existingEntry.MainAlternate = mappedEntry.MainAlternate;
-            existingEntry.Attribute = mappedEntry.Attribute;
             existingEntry.DisplayName = mappedEntry.DisplayName;
             existingEntry.Type = mappedEntry.Type;
             existingEntry.Color = mappedEntry.Color;
@@ -360,7 +357,6 @@ public sealed class DevelopmentDeckSeeder
         return new CardCatalogEntry
         {
             CardId = definition.CardId,
-            OriginalId = definition.OriginalId,
             DisplayName = definition.DisplayName,
             Image = definition.Image,
             Type = definition.Type,
@@ -376,7 +372,6 @@ public sealed class DevelopmentDeckSeeder
             Health = definition.Health,
             SupportName = definition.SupportName,
             SupportEffect = definition.SupportEffect,
-            MainAlternate = definition.MainAlternate,
             CannotBeNormalSummoned = definition.CannotBeNormalSummoned,
             CreatedAtUtc = utcNow,
             UpdatedAtUtc = utcNow,
@@ -415,7 +410,6 @@ public sealed class DevelopmentDeckSeeder
             dbContext.CardCatalogEntries.Add(new CardCatalogEntry
             {
                 CardId = normalizedCardId,
-                OriginalId = normalizedCardId,
                 DisplayName = normalizedCardId,
                 Image = $"https://example.com/cards/{normalizedCardId}.webp",
                 Type = isLeader ? CardType.Leader : CardType.Character,
@@ -433,7 +427,6 @@ public sealed class DevelopmentDeckSeeder
                 SupportEffect = isSupportCapablePlaceholder
                     ? "Development seed support effect placeholder for deterministic CI and local tests."
                     : string.Empty,
-                MainAlternate = false,
                 CannotBeNormalSummoned = false,
                 CreatedAtUtc = utcNow,
                 UpdatedAtUtc = utcNow,
@@ -474,7 +467,6 @@ public sealed class DevelopmentDeckSeeder
 
     private sealed record SeedCatalogEntryDefinition(
         string CardId,
-        string OriginalId,
         string DisplayName,
         string Image,
         CardType Type,
@@ -490,7 +482,6 @@ public sealed class DevelopmentDeckSeeder
         int? Health,
         string SupportName,
         string SupportEffect,
-        bool MainAlternate,
         bool CannotBeNormalSummoned);
 
     private static CardNormalizationResult NormalizeCards(IReadOnlyList<SeedDeckCardDefinition> cards)

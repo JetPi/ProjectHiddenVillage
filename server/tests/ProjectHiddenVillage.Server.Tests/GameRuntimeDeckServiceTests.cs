@@ -385,7 +385,6 @@ public sealed class GameRuntimeDeckServiceTests
         {
             CardId = "CH-001",
             Image = "https://example.com/ch-001.webp",
-            OriginalId = "CH-001",
             DisplayName = "Chakra",
             Type = CardType.Chakra,
             Color = CardColor.NotApplicable,

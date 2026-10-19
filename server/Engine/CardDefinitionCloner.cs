@@ -30,9 +30,6 @@ public static class CardDefinitionCloner
 
         clonedDefinition.Id = sourceCardDefinition.Id;
         clonedDefinition.Image = sourceCardDefinition.Image;
-        clonedDefinition.OriginalId = sourceCardDefinition.OriginalId;
-        clonedDefinition.MainAlternate = sourceCardDefinition.MainAlternate;
-        clonedDefinition.Attribute = sourceCardDefinition.Attribute;
         clonedDefinition.Name = sourceCardDefinition.Name.ToList();
         clonedDefinition.DisplayName = sourceCardDefinition.DisplayName;
         clonedDefinition.Type = sourceCardDefinition.Type;

@@ -376,12 +376,11 @@
       "identity": {
         "title": "Card Identity",
         "name": "Names",
-        "nameHelp": "One per line or comma separated. Shown by clients that support card names.",
-        "originalId": "Original ID",
-        "attribute": "Attribute",
+        "namePlaceholder": "Type a name and press Enter",
+        "nameHelp": "Press Enter to add each name. Shown by clients that support card names.",
         "traits": "Traits",
-        "traitsHelp": "One per line or comma separated.",
-        "mainAlternate": "Main Alternate"
+        "traitsPlaceholder": "Type a trait and press Enter",
+        "traitsHelp": "Press Enter to add each trait. Pick an existing one or type a new one."
       },
       "image": {
         "clear": "Clear Image",
@@ -500,6 +499,10 @@
         "ignoreCase": "Ignore Case",
         "removeEntry": "Remove {{entry}}",
         "removePredicate": "Remove Predicate"
+      },
+      "tokenField": {
+        "limitReached": "Limit reached",
+        "removeEntry": "Remove {{entry}}"
       }
     },
     "detail": {
@@ -948,17 +951,6 @@
       "keywordOperation": {
         "add": "Add",
         "remove": "Remove"
-      },
-      "condition": {
-        "isSecondTurnOrLater": "isSecondTurnOrLater",
-        "isFirstTurn": "isFirstTurn",
-        "isYourTurn": "isYourTurn",
-        "isOpponentTurn": "isOpponentTurn",
-        "hasAttackedThisTurn": "hasAttackedThisTurn",
-        "hasAvailableChakra": "hasAvailableChakra",
-        "canNormalSummon": "canNormalSummon",
-        "hasSummonTarget": "hasSummonTarget",
-        "hasTributeTargets": "hasTributeTargets"
       }
     },
     "toasts": {

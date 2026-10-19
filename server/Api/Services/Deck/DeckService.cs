@@ -251,9 +251,6 @@ public sealed partial class DeckService : IDeckService
         return new CardCatalogItemResponse(
                 Id: entry.CardId,
                 Image: entry.Image,
-                OriginalId: entry.OriginalId,
-                MainAlternate: entry.MainAlternate,
-                Attribute: entry.Attribute,
                 Name: names,
                 DisplayName: entry.DisplayName,
                 Type: ToReadableCardType(entry.Type),

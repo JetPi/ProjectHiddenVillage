@@ -28,10 +28,6 @@ namespace ProjectHiddenVillage.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Attribute")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
                     b.Property<bool>("CannotBeNormalSummoned")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -79,17 +75,9 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.Property<int?>("Life")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("MainAlternate")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("NameJson")
                         .IsRequired()
                         .HasColumnType("jsonb");
-
-                    b.Property<string>("OriginalId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
 
                     b.Property<int>("Power")
                         .HasColumnType("integer");

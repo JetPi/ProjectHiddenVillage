@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import i18n from '@/i18n'
-import { useCreateCardCatalogEntryMutation } from '@/services/queries/cardQueries'
+import {
+  useCardCatalogTraitsQuery,
+  useCreateCardCatalogEntryMutation,
+} from '@/services/queries/cardQueries'
 import { useUploadCardArtMutation } from '@/services/queries/cardArtQueries'
 import { deleteCardArt } from '@/services/api/cardArtApi'
 import {
@@ -20,21 +23,13 @@ import type { ICreateCardRequest } from '@/services/api/types/cardCatalog'
 const EMPTY_IDENTITY: ICardAdminIdentityDraft = {
   cardId: '',
   displayName: '',
-  name: '',
-  originalId: '',
-  attribute: '',
-  traits: '',
-  mainAlternate: false,
+  name: [],
+  traits: [],
   imageUrl: '',
 }
 
-function splitList(value: string): string[] | undefined {
-  const entries = value
-    .split(/[\n,]/)
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0)
-
-  return entries.length > 0 ? Array.from(new Set(entries)) : undefined
+function optionalList(values: string[]): string[] | undefined {
+  return values.length > 0 ? values : undefined
 }
 
 function trimmedOrUndefined(value: string): string | undefined {
@@ -59,6 +54,7 @@ type UploadCleanupState = {
 export function useCardAdminCreateModel(): ICardAdminCreateModel {
   const createMutation = useCreateCardCatalogEntryMutation()
   const uploadMutation = useUploadCardArtMutation()
+  const traitsQuery = useCardCatalogTraitsQuery()
   const editorModel = useCardAdminEffectDraft(null)
 
   const [identity, setIdentity] = useState<ICardAdminIdentityDraft>(EMPTY_IDENTITY)
@@ -208,11 +204,8 @@ export function useCardAdminCreateModel(): ICardAdminCreateModel {
       cardId,
       displayName,
       image: trimmedOrUndefined(identity.imageUrl) ?? uploadedReference ?? undefined,
-      name: splitList(identity.name),
-      originalId: trimmedOrUndefined(identity.originalId),
-      mainAlternate: identity.mainAlternate,
-      attribute: trimmedOrUndefined(identity.attribute),
-      traits: splitList(identity.traits),
+      name: optionalList(identity.name),
+      traits: optionalList(identity.traits),
       type: draft.type,
       color: draft.color,
       power: draft.power,
@@ -252,6 +245,7 @@ export function useCardAdminCreateModel(): ICardAdminCreateModel {
     identity,
     summaryIdentity,
     setIdentityField,
+    traitOptions: traitsQuery.data ?? [],
     editorModel,
     image,
     uploadImage,

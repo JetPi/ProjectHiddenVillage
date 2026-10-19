@@ -102,7 +102,7 @@ This branch added a datasource-to-domain mapping flow for card imports and an up
 - Added raw datasource DTO `CardDataSourceRecord` (separate from runtime `Card`).
 - Added mapper `CardDataSourceMapper`:
   - Maps datasource cards into `Card`, `LeaderCard`, or `CharacterCard`.
-  - Copies `Image`, `OriginalId`, `MainAlternate`, and `Attribute` into `Card`.
+  - Copies `Image` into `Card`.
   - Extracts effect condition keywords from bracket tags (for example `[Activate: Main]`).
   - Extracts support names from support headers (for example `[Support] [8-Trigram] Air Palm<br>` -> `SupportName = [8-Trigram] Air Palm`).
   - Adds generic named card reference condition (`Named Card Reference`) for bracketed card names like `[Naruto Uzumaki]`.

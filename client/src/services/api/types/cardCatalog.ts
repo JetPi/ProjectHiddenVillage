@@ -39,7 +39,6 @@ export type ICardCatalogKeywordModificationRequest = {
 export type ICardCatalogPredicateProperty =
   | 'Self'
   | 'Id'
-  | 'Original Id'
   | 'Display Name'
   | 'Name'
   | 'Trait'
@@ -234,9 +233,6 @@ export type ICreateCardRequest = {
   /** An external http(s) URL, or the `local:` reference the art upload returned for this card id. */
   image?: string
   name?: string[]
-  originalId?: string
-  mainAlternate?: boolean
-  attribute?: string
   traits?: string[]
   type?: string
   color?: string

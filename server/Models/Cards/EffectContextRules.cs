@@ -100,7 +100,6 @@ public enum ZoneCardProperty
 {
     Self,
     Id,
-    OriginalId,
     DisplayName,
     Name,
     Trait,

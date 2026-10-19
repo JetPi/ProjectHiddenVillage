@@ -94,7 +94,6 @@ internal static class ZoneCardRestrictionMatcher
                     ? bool.TrueString
                     : bool.FalseString],
             ZoneCardProperty.Id => [cardDefinition.Id],
-            ZoneCardProperty.OriginalId => [cardDefinition.OriginalId],
             ZoneCardProperty.DisplayName => [cardDefinition.DisplayName],
             ZoneCardProperty.Name => [cardDefinition.DisplayName, ..cardDefinition.Name],
             ZoneCardProperty.Trait => cardDefinition.Traits,

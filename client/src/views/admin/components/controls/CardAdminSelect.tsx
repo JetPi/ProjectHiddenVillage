@@ -17,7 +17,7 @@ const OPTION_CLASSNAME =
  * clip, which is what used to cut dropdowns off at a container boundary).
  */
 const LISTBOX_CLASSNAME =
-  'fixed z-50 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--dropdown-bg)] p-1 text-sm shadow-[var(--panel-shadow)]'
+  'themed-scrollbar fixed z-50 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--dropdown-bg)] p-1 text-sm shadow-[var(--panel-shadow)]'
 
 /** Preferred height of the list plus the room it needs; it shrinks when the viewport has less to give. */
 const LIST_MAX_HEIGHT_PX = 256

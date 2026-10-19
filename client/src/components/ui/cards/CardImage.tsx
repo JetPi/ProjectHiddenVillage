@@ -106,12 +106,15 @@ export function CardImage({
     return (
       <div
         aria-label={resolvedFallbackLabel}
+        data-testid="card-image-fallback"
         className={twMerge(
-          'grid place-items-center rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)] text-center text-xs tracking-[0.08em] text-[var(--text-muted)]',
+          'relative grid min-h-0 min-w-0 place-items-center overflow-hidden rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)] text-center text-xs tracking-[0.08em] text-[var(--text-muted)]',
           className,
         )}
         style={{ width, height }}
       >
+        {/* The generated SVG carries its own intrinsic 360x500 size. Pinning it to the padded box is what
+            keeps it from spilling past the dotted outline when the caller supplies a smaller card size. */}
         <img
           src={fallbackImageSrc}
           alt={resolvedFallbackLabel}
@@ -121,7 +124,7 @@ export function CardImage({
           }}
           loading="lazy"
           decoding="async"
-          className="h-full w-full rounded-xl object-cover"
+          className="absolute inset-0 block h-full w-full rounded-xl object-cover"
         />
       </div>
     )
