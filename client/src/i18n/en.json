@@ -137,7 +137,8 @@
       "failedPublic": "Failed to load public decks.",
       "noSaved": "No saved decks found for this user.",
       "failedSaved": "Failed to load your decks.",
-      "deckLabel": "Deck {{number}} ({{shortId}}) - {{totalCards}} cards"
+      "deckLabel": "Deck {{number}} ({{shortId}}) - {{totalCards}} cards",
+      "namedDeckLabel": "{{name}} - {{totalCards}} cards"
     },
     "deckMode": {
       "saved": "saved deck",
@@ -369,6 +370,7 @@
       "title": "Card Admin",
       "backToLogin": "Back to Login",
       "addCard": "Add Card",
+      "manageDecks": "Manage Decks",
       "backToCatalog": "Back to Catalog"
     },
     "create": {
@@ -459,6 +461,85 @@
       "endOfCatalog": "You reached the end of the catalog.",
       "cardArtPreviewAlt": "{{name}} card art preview",
       "cardArtAlt": "{{name}} card art"
+    },
+    "decks": {
+      "rail": {
+        "title": "Public Decks",
+        "newDeck": "New Deck",
+        "loading": "Loading decks...",
+        "loadFailed": "Failed to load decks.",
+        "empty": "No public decks yet. Create one to get started.",
+        "unnamed": "Unnamed deck",
+        "cardCount": "{{count}} cards",
+        "backToCards": "Back to Card Admin"
+      },
+      "catalog": {
+        "title": "Card Catalog",
+        "cardAdmin": "Open card admin"
+      },
+      "editor": {
+        "newTitle": "New Deck",
+        "editTitle": "Edit Deck",
+        "nameLabel": "Deck Name",
+        "namePlaceholder": "e.g. Red Starter Deck",
+        "leaderTitle": "Leader",
+        "noLeader": "No leader selected",
+        "totalCopies": "{{count}} cards in the deck",
+        "cardsTitle": "Cards",
+        "emptyCards": "Click a card in the catalog to add a copy.",
+        "noChanges": "No unsaved changes.",
+        "loadingDeck": "Loading deck...",
+        "loadFailed": "Failed to load this deck.",
+        "save": "Save Deck",
+        "saving": "Saving...",
+        "saveDisabledHint": "Fix the deck issues below before saving.",
+        "import": "Import List",
+        "delete": "Delete Deck"
+      },
+      "cards": {
+        "leaderBadge": "Leader",
+        "unknownCard": "Card details unavailable",
+        "copyLimitHint": "Up to {{max}} copies of a non-leader card",
+        "addCopyOf": "Add a copy of {{name}}",
+        "removeCopyOf": "Remove a copy of {{name}}",
+        "removeAllOf": "Remove {{name}} from the deck",
+        "clear": "Clear"
+      },
+      "validation": {
+        "ok": "This deck can be saved.",
+        "nameRequired": "A deck name is required.",
+        "nameTooLong": "The deck name cannot exceed {{max}} characters.",
+        "deckEmpty": "Add at least one card to the deck.",
+        "unknownCards": "These cards no longer exist in the catalog: {{cardIds}}.",
+        "unsupportedCardType": "Chakra and Summon cards cannot go in a deck: {{cardIds}}.",
+        "leaderCount": "A deck needs exactly one leader card; this deck has {{count}}.",
+        "leaderCopies": "The leader {{cardId}} needs exactly one copy, not {{quantity}}.",
+        "tooManyCopies": "At most {{max}} copies of a non-leader card: {{cardIds}}.",
+        "colorMismatch": "Every card must match the leader's colour ({{color}}): {{cardIds}}."
+      },
+      "import": {
+        "title": "Import a Deck List",
+        "body": "Paste one card per line using the format 1x N-001. The lines are added to the cards already in the draft.",
+        "label": "Deck list",
+        "placeholder": "1x N-001\n2x N-045",
+        "confirm": "Add Cards",
+        "cancel": "Cancel"
+      },
+      "delete": {
+        "title": "Delete this deck?",
+        "body": "{{name}} and all of its card lines will be removed. This cannot be undone.",
+        "confirm": "Delete Deck",
+        "cancel": "Cancel",
+        "deleting": "Deleting..."
+      },
+      "toasts": {
+        "created": "Deck \"{{name}}\" created.",
+        "updated": "Deck \"{{name}}\" saved.",
+        "deleted": "Deck deleted.",
+        "imported": "Added {{count}} card lines to the draft.",
+        "saveFailed": "The deck could not be saved.",
+        "deleteFailed": "The deck could not be deleted."
+      }
     },
     "filters": {
       "search": "Search",

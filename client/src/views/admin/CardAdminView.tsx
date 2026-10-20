@@ -216,7 +216,14 @@ export function CardAdminView() {
             <div className="flex items-center justify-between gap-3">
               <h1 className="text-xl font-bold text-[var(--text-primary)]">{t('admin.view.title')}</h1>
               <div className="flex items-center gap-3">
-                {/* A navigation, so it stays a link and keeps middle-click and open-in-new-tab working. */}
+                {/* Navigations, so they stay links and keep middle-click and open-in-new-tab working. */}
+                <Link
+                  to="/admin/decks"
+                  data-testid="admin-manage-decks"
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-transparent px-4 py-2 text-sm font-semibold text-[var(--text-primary)] transition-colors duration-200 hover:bg-[var(--surface-hover)]"
+                >
+                  {t('admin.view.manageDecks')}
+                </Link>
                 <Link
                   to="/admin/cards/new"
                   data-testid="admin-add-card"

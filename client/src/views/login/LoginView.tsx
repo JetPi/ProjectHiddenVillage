@@ -793,12 +793,24 @@ function toDeckChoices(decks: IDeckResponse[], emptyStateLabel: string): { value
 
   return decks.map((deck, index) => {
     const totalCards = deck.cards.reduce((sum, card) => sum + card.quantity, 0)
-    const shortId = deck.id.slice(0, 8)
-    const deckNumber = index + 1
+    const deckName = deck.name.trim()
+
+    // An authored deck is referred to by its name. The id-based label stays as the fallback for decks the
+    // legacy text import created before names existed, which is what a player's pasted list still produces.
+    if (deckName) {
+      return {
+        value: deck.id,
+        label: i18n.t('auth.deckChoice.namedDeckLabel', { name: deckName, totalCards }),
+      }
+    }
 
     return {
       value: deck.id,
-      label: i18n.t('auth.deckChoice.deckLabel', { number: deckNumber, shortId, totalCards }),
+      label: i18n.t('auth.deckChoice.deckLabel', {
+        number: index + 1,
+        shortId: deck.id.slice(0, 8),
+        totalCards,
+      }),
     }
   })
 }

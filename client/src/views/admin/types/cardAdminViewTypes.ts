@@ -153,10 +153,21 @@ export type ICardAdminFilterPanelProps = {
   onSortChange: (value: string) => void
 }
 
+/**
+ * Quantity selection is opt-in. The card editor keeps its single selection (clicking selects a card for the detail
+ * pane); the deck builder passes `selectedCountByCardId` and gets a tile that adds a copy per click and shows a
+ * count with a remove control. Deliberately no `maxCopies` enforcement in the UI: a click always adds, and the
+ * draft's validation list is what says the deck has gone over the limit.
+ */
 export type ICardAdminCardGridProps = {
   cards: ICardCatalogListItemResponse[]
   selectedCardId: string | null
   onSelectCard: (cardId: string) => void
+  selectedCountByCardId?: ReadonlyMap<string, number>
+  /** Only used to tone the count chip; the click is never refused. */
+  maxCopies?: number
+  onAddCard?: (cardId: string) => void
+  onRemoveCard?: (cardId: string) => void
 }
 
 export type ICardAdminCardTileProps = {
@@ -164,6 +175,11 @@ export type ICardAdminCardTileProps = {
   card: ICardCatalogListItemResponse
   isSelected: boolean
   onSelect: (cardId: string) => void
+  /** How many copies the draft holds; in quantity mode the tile body adds one and a chip removes one. */
+  selectedCount?: number
+  maxCopies?: number
+  onAdd?: (cardId: string) => void
+  onRemove?: (cardId: string) => void
 }
 
 export type ICardAdminCatalogPaneProps = {
@@ -177,6 +193,10 @@ export type ICardAdminCatalogPaneProps = {
   onFetchNextPage: () => void | Promise<unknown>
   listScrollContainerRef: RefObject<HTMLDivElement | null>
   loadMoreSentinelRef: RefObject<HTMLDivElement | null>
+  selectedCountByCardId?: ReadonlyMap<string, number>
+  maxCopies?: number
+  onAddCard?: (cardId: string) => void
+  onRemoveCard?: (cardId: string) => void
 }
 
 export type ICardAdminPaginationFooterProps = {

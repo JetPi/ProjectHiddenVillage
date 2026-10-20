@@ -82,6 +82,26 @@ export const router = createBrowserRouter([
         },
       },
       {
+        path: '/admin/decks',
+        lazy: async () => {
+          const { DeckAdminView } = await import('@/views/admin/DeckAdminView')
+
+          return {
+            Component: DeckAdminView,
+          }
+        },
+      },
+      {
+        path: '/admin/decks/:deckId',
+        lazy: async () => {
+          const { DeckAdminView } = await import('@/views/admin/DeckAdminView')
+
+          return {
+            Component: DeckAdminView,
+          }
+        },
+      },
+      {
         path: '*',
         lazy: async () => {
           const { NotFoundView } = await import('@/views/NotFoundView')
