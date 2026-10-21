@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import { useGameCardsQuery } from '@/services/queries/cardQueries'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -383,9 +384,9 @@ export function GameView() {
               type="button"
               aria-label={t('game.view.dismissErrorAria')}
               onClick={() => setActionError(null)}
-              className="shrink-0 rounded border border-white/30 px-1.5 leading-none text-white/85 transition-[filter] hover:brightness-125"
+              className="inline-flex shrink-0 items-center justify-center rounded border border-white/30 px-1.5 leading-none text-white/85 transition-[filter] hover:brightness-125"
             >
-              ×
+              <X size={12} strokeWidth={2.5} />
             </button>
           </div>
         ) : null}

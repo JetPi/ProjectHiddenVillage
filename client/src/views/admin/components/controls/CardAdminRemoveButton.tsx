@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import { twMerge } from 'tailwind-merge'
 import type { ICardAdminRemoveButtonProps } from '@/views/admin/types/cardAdminViewTypes'
 
@@ -15,12 +16,8 @@ export function CardAdminRemoveButton({
   ...buttonProps
 }: ICardAdminRemoveButtonProps) {
   const resolvedChildren = children ?? (variant === 'chip'
-    ? <span aria-hidden="true" className="leading-none">X</span>
-    : (
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-        <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      </svg>
-    ))
+    ? <X size={12} strokeWidth={2.5} />
+    : <X size={16} strokeWidth={2} />)
 
   return (
     <button

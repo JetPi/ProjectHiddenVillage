@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Check, X } from 'lucide-react'
 import { twMerge } from 'tailwind-merge'
 import { translateKey } from '@/i18n'
 import { AppButton } from '@/components/ui'
@@ -204,7 +205,7 @@ export function CardAdminEffectsSection({
               />
 
               <div className="flex min-w-[4.5rem] flex-1 items-center gap-1">
-                <span className="text-xs text-emerald-600" aria-hidden="true">✓</span>
+                <Check size={12} strokeWidth={2.5} className="text-emerald-600" />
                 <CardAdminSelect
                   value={effect.onSuccessEffectId ?? ''}
                   onValueChange={(value) =>
@@ -224,7 +225,7 @@ export function CardAdminEffectsSection({
               </div>
 
               <div className="flex min-w-[4.5rem] flex-1 items-center gap-1">
-                <span className="text-xs text-rose-600" aria-hidden="true">✕</span>
+                <X size={12} strokeWidth={2.5} className="text-rose-600" />
                 <CardAdminSelect
                   value={effect.onFailureEffectId ?? ''}
                   onValueChange={(value) =>
