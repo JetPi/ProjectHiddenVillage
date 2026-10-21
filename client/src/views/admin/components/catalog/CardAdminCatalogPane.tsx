@@ -18,6 +18,10 @@ export function CardAdminCatalogPane({
   onFetchNextPage,
   listScrollContainerRef,
   loadMoreSentinelRef,
+  selectedCountByCardId,
+  maxCopies,
+  onAddCard,
+  onRemoveCard,
 }: ICardAdminCatalogPaneProps) {
   const { t } = useTranslation()
 
@@ -34,7 +38,15 @@ export function CardAdminCatalogPane({
         cards.length === 0 ? (
           renderStateMessage(t('admin.catalog.noMatches'))
         ) : (
-          <CardAdminCardGrid cards={cards} selectedCardId={selectedCardId} onSelectCard={onSelectCard} />
+          <CardAdminCardGrid
+            cards={cards}
+            selectedCardId={selectedCardId}
+            onSelectCard={onSelectCard}
+            selectedCountByCardId={selectedCountByCardId}
+            maxCopies={maxCopies}
+            onAddCard={onAddCard}
+            onRemoveCard={onRemoveCard}
+          />
         )
       ) : null}
 

@@ -24,10 +24,6 @@ import { useBackendAttackLink } from '@/views/game/hooks/GameView/memos/useBacke
 const ATTACK_OUTLINE_WIDTH_PX = 4.5
 const ATTACK_OUTLINE_OFFSET_PX = 4
 const ATTACK_OUTLINE_OUTER_REACH_PX = ATTACK_OUTLINE_WIDTH_PX + ATTACK_OUTLINE_OFFSET_PX
-// The tail's end anchor (which is also the head's tip) deliberately stops this far outside the target's
-// outline, so the arrowhead sits clear of the highlight ring rather than overlapping it. It used to be a
-// compensation for the library stopping the dashes short of the anchor; the value now just means "leave a
-// visible gap", so it is kept (moving it would move the target anchor, which the geometry spec band pins).
 const ATTACK_LINK_TARGET_CLEARANCE_PX = 7.5
 const ATTACK_LINK_SOURCE_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX
 const ATTACK_LINK_TARGET_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX + ATTACK_LINK_TARGET_CLEARANCE_PX
@@ -35,7 +31,6 @@ const ATTACK_VERTICAL_DIRECTION_BIAS_PX = 2
 const ATTACK_VERTICAL_TARGET_GAP_PX = ATTACK_OUTLINE_OUTER_REACH_PX + 2
 const ATTACK_SWEEP_SIDE_BEND_PX = 110
 
-/** Which side's trash pile the reader overlay currently lists ('top' = the opponent's rail). */
 type OpenTrashPileSide = 'top' | 'bottom'
 
 function GameZones(props: IGameZonesProps) {
@@ -51,7 +46,6 @@ function GameZones(props: IGameZonesProps) {
   const isEffectActionTargeting = pendingCardTargeting?.kind === 'effect'
   const isEffectMultiTargeting =
     pendingEffectTargeting !== null
-    // A board-answerable prompt puts the board into the same selection mode: the cards offer Select buttons.
     || resolveBoardPromptCandidateInstanceIds(props.gameState.pendingPrompt).length > 0
   const backendAttackLink = useBackendAttackLink({ gameState: props.gameState })
   const renderedAttackLink = optimisticActiveAttackLink ?? backendAttackLink
@@ -64,8 +58,6 @@ function GameZones(props: IGameZonesProps) {
   } = props
   const cardOptions = getCardsAndOptions(props, renderedAttackLink)
 
-  // The trash viewer is fed straight from the owning player's pile (newest first) plus the catalog, so the
-  // modal stays a dumb list of `ICardListOverlayEntry` and never reaches into the game state itself.
   const trashListEntries = useMemo(
     () => {
       if (openTrashPile === null) {
@@ -118,9 +110,6 @@ function GameZones(props: IGameZonesProps) {
   const attackLinkRenderConfig = useMemo<IAttackLinkRenderConfig | null>(() => {
     if (!renderedAttackLink) return null;
 
-    // Only the ids + tuning constants travel with the config: the geometry is re-derived from the live
-    // elements inside `AttackLinkArrow` on every layout sample, because the attacker's rested tilt is a Motion
-    // animation on the card's wrapper that keeps moving the cards' boxes after this render.
     return {
       startId: toAnchorId(renderedAttackLink.sourceCardInstanceId),
       endId: toAnchorId(renderedAttackLink.targetCardInstanceId),
@@ -152,8 +141,6 @@ function GameZones(props: IGameZonesProps) {
   const validEffectTargetsByCardId = useMemo(() => {
     const targets = extractTargetIds(pendingEffectTargeting?.validTargets)
 
-    // A board-answerable effect selection prompt adds its own candidates (the cards the effect declared
-    // selectable) to the same "Select" affordance, so clicking one answers the prompt.
     for (const instanceId of resolveBoardPromptCandidateInstanceIds(props.gameState.pendingPrompt)) {
       targets.add(instanceId.trim().toLowerCase())
     }
@@ -196,8 +183,6 @@ function GameZones(props: IGameZonesProps) {
     [bottomLeaderCard, validBattleTargetsByCardId]
   );
 
-  // A leader is a valid candidate of an effect selection prompt too (N-013's freeze offers a Leader or a
-  // Character), so it publishes the same Select chip the battlefield/hand/support cards do.
   const isTopLeaderEffectTargetCandidate = useMemo(
     () => isCardInstanceInTargetSet(topLeaderCard, validEffectTargetsByCardId),
     [topLeaderCard, validEffectTargetsByCardId]
@@ -278,10 +263,6 @@ function GameZones(props: IGameZonesProps) {
           <AttackLinkArrow config={attackLinkRenderConfig} />
         ) : null}
 
-        {/* `data-board-half`: a card can be flown *out of this half* (a summon, a support set from hand, a discard),
-            and while it travels it must be above the hand rows - which the half's own `z-20` stacking context
-            prevents, because the flying card's `z-index: 260` is local to it. See the `[data-board-half]:has(...)`
-            rule in `index.css`, which promotes the half that owns a flight. */}
         <div
           data-board-half="true"
           className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5"

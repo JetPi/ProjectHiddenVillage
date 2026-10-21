@@ -14,10 +14,6 @@ import type {
   ICardAdminEffectEditorSaveResult,
 } from '@/views/admin/types/cardAdminDetailTypes'
 
-/**
- * The update screen's submit: the shared draft plus a patch of that card id. The create screen composes the same
- * draft hook with a create submit instead, which is why the validation lives in the draft module.
- */
 export function useCardAdminEffectEditorModel(
   selectedCard: ICardAdminEffectEditorHydrationSource,
 ): ICardAdminEffectEditorModel {

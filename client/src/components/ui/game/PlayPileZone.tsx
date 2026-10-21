@@ -39,7 +39,6 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
   }
 
   const trashOwner = side === 'bottom' ? currentPlayer : opponentPlayer
-  // The trash pile is ordered newest-first, so the most recently discarded card is the first entry.
   const latestTrashInstance = trashOwner && trashOwner.trash.length > 0
     ? trashOwner.trash[0]
     : null
@@ -47,8 +46,6 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
     ? (gameState?.cardById.get(latestTrashInstance.cardDefinitionId.trim().toLowerCase()) ?? null)
     : null
 
-  // A reveal turns one deck card face up for both players (the owner's deck list carries every card, the
-  // opponent only receives their revealed ones), so the deck slot flips it over while the reveal lasts.
   const deckOwner = side === 'bottom' ? currentPlayer : opponentPlayer
   const revealedDeckInstance = deckOwner?.deck.find((card) => card.isRevealed === true) ?? null
   const revealedDeckCard = revealedDeckInstance
@@ -58,15 +55,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
   return (
     <div
       data-side={side}
-      // `min-w-0 min-h-0` is load-bearing: the pile slots size themselves from the rail lane (`h-full` +
-      // `aspect-[200/277]`), so without the guard freshly rendered card art can inflate the whole pile grid to
-      // its min-content box (the slots grow to ~2.5x their height). A flight moves the card's own element and
-      // never un-clips an ancestor, so this guard is now purely about the pile's own layout. Same idiom as the
-      // support-slot guard in `ZoneCardSlots`.
       className={twMerge(
-        // `card-drop-zone`: cards are flown into the pile, and the pile's clip would cut them in half as they cross
-        // its edge - see the `body:has([data-card-traveling])` rule in `index.css`, which lifts it while a card is
-        // in the air. The clip is still what keeps the resting layout honest (with `min-w-0 min-h-0`).
         'card-drop-zone h-full min-h-0 w-full min-w-0 max-w-[var(--resource-rail-max-width)] justify-self-center overflow-hidden px-1',
         side === 'top' ? 'play-pile-zone-top' : 'play-pile-zone-bottom',
         className,
@@ -91,7 +80,6 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
               className={
                 isDeckLabel(label)
                   ? deckPileCardClassName
-                  // `group` drives the trash slot's hover "eye" (same reveal pattern as a card's controls).
                   : twMerge(labeledPileCardClassName, isTrashLabel(label) ? 'group' : '')
               }
               data-testid={isTrashLabel(label) ? 'trash-pile-card' : isDeckLabel(label) ? 'deck-pile-card' : undefined}

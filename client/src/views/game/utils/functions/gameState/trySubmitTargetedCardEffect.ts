@@ -35,9 +35,6 @@ async function trySubmitTargetedCardEffect({
   const maximumTargetCount = targetsResponse.maximumTargetCount
   const autoSelectAll = targetsResponse.autoSelectAllValidTargets && validTargets.length > 0
 
-  // When the player must pick a single target, always enter target selection —
-  // even when only one legal candidate exists — so activating a leader/support
-  // effect never resolves (and spends chakra) without an explicit target click.
   const requiresSingleTargetPick =
     validTargets.length > 0
     && (exactTargetCount === null || exactTargetCount === 1)
@@ -54,9 +51,6 @@ async function trySubmitTargetedCardEffect({
     return
   }
 
-  // Some effects declare their targets implicitly ("draw 1 card, then place 1 card from your hand on top
-  // of your deck"): the server reports the effect as enabled with no candidates to pick up front and
-  // supplies the card itself while resolving. Submit without a selection and let the engine resolve it.
   if (validTargets.length === 0) {
     await submitHubIntent({
       intent: 'execute-card-action',
@@ -75,8 +69,6 @@ async function trySubmitTargetedCardEffect({
     return
   }
 
-  // A range ("choose up to 2 rested Characters") cannot be expressed with the single-pick "Choose" flow:
-  // open the multi-toggle selection so the player can pick, deselect and confirm on the board.
   beginEffectMultiTargeting({
     actionId: intentRequest.actionId,
     sourceCardInstanceId: intentRequest.sourceCardInstanceId,

@@ -55,10 +55,6 @@ function getFontFaceSet(): FontFaceSet | null {
   return fontSet
 }
 
-/**
- * Field configs store translation keys in `placeholder`/`choices[].label`; resolve them here so
- * the LoginView keeps its plain `IAdaptiveFieldConfig` contract while the copy lives in en.json.
- */
 function translateAdaptiveFieldConfig(config: IAdaptiveFieldConfig, t: TFunction): IAdaptiveFieldConfig {
   if (config.type === 'select') {
     return {
@@ -297,7 +293,6 @@ export function LoginView() {
     }
 
     void preloadCardsByIds(deckCardIds).catch(() => {
-      // Deck image warm-up should never block the login flow.
     })
   }, [
     activeDeckOption,
@@ -406,7 +401,6 @@ export function LoginView() {
 
           const importedDeckCardIds = parseDeckCardIdsFromPayload(deckCardsPayload)
           void preloadCardsByIds(importedDeckCardIds).catch(() => {
-            // Import preloading is best effort and should not block submit.
           })
 
           deckId = await createUserDeck(deckCardsPayload, authUser.userId)
@@ -793,12 +787,22 @@ function toDeckChoices(decks: IDeckResponse[], emptyStateLabel: string): { value
 
   return decks.map((deck, index) => {
     const totalCards = deck.cards.reduce((sum, card) => sum + card.quantity, 0)
-    const shortId = deck.id.slice(0, 8)
-    const deckNumber = index + 1
+    const deckName = deck.name.trim()
+
+    if (deckName) {
+      return {
+        value: deck.id,
+        label: i18n.t('auth.deckChoice.namedDeckLabel', { name: deckName, totalCards }),
+      }
+    }
 
     return {
       value: deck.id,
-      label: i18n.t('auth.deckChoice.deckLabel', { number: deckNumber, shortId, totalCards }),
+      label: i18n.t('auth.deckChoice.deckLabel', {
+        number: index + 1,
+        shortId: deck.id.slice(0, 8),
+        totalCards,
+      }),
     }
   })
 }

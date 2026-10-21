@@ -56,10 +56,6 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
   }, [cardOptions.topSupportCards])
 
     return (
-      // `card-drop-zone`: a card can be flown *into* this row (a support set from hand), and it crosses the row's
-      // edge on the way - see the `body:has([data-card-traveling])` rule in `index.css`, which lifts the clip for
-      // the length of any flight. The clip itself is load-bearing for the resting layout (with `min-w-0 min-h-0`
-      // it keeps the art's min-content box out of the grid tracks).
       <div className="card-drop-zone grid min-h-0 w-full overflow-hidden grid-cols-5 justify-items-center gap-1.5">
         {Array.from({ length: 5 }).map((_, index) => {
           const card = zone === 'support'
@@ -118,8 +114,6 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
           const cardStateFlags = {
             isRested: isCardRestedState(card, optimisticRestedByInstanceId),
             shouldDelayRestedDimming: Boolean(props.gameState.isAttackSequencePending) && targetFlags.isAttackLinkSource,
-            // A revealed support card (a "Reveal First" effect turned it over) shows its face even though the
-            // server still reports it as face down, so it counts as not concealed for both players.
             isConcealedSupportCard: zone === 'support' && !isCurrentPlayerZone && !isShownFaceUp,
           };
 
@@ -141,10 +135,6 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               data-card-instance-id={card.instanceId}
               data-slot-card="true"
               className={twMerge(
-                // `min-w-0 min-h-0` keep the slot's size out of reach of the targeting highlight: the
-                // `.battle-target-*` rules force `overflow: visible` on the card, which would otherwise
-                // restore this grid item's automatic minimum size (the art's min-content box) and blow the
-                // row's `1fr` tracks out - cards grew, got clipped and left their slots.
                 'group relative h-full min-h-0 w-auto min-w-0 max-w-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
                 zone === 'support' ? 'border-transparent' : 'border border-[var(--border-subtle)]',
                 visibilityFlags.shouldDimRestedCard ? 'opacity-80 saturate-75' : '',

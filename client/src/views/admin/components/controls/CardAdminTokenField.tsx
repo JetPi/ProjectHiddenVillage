@@ -18,10 +18,6 @@ const SUGGESTION_MIN_HEIGHT_PX = 72
 const VIEWPORT_PADDING_PX = 8
 const MAX_TYPEAHEAD_SUGGESTIONS = 6
 
-/**
- * How close an existing value is to what the author has typed. Prefix matches come first, then word-prefix
- * matches, then substrings, and finally a small edit-distance fallback so a typo still finds its trait.
- */
 function scoreSuggestion(suggestion: string, query: string): number {
   const normalizedSuggestion = suggestion.toLowerCase()
   const normalizedQuery = query.toLowerCase()
@@ -99,15 +95,6 @@ function resolveSuggestionListBox(input: HTMLInputElement | null): SuggestionLis
   return { left, top, width, maxHeight }
 }
 
-/**
- * An identity list the author builds one entry at a time.
- *
- * Names and traits are stored as lists, but typing a comma/newline separated blob invites a typo that only
- * surfaces much later. This keeps each committed value visible as a chip and accepts new values with Enter.
- * When suggestions exist, typing ranks them against the current text and shows the closest matches under the
- * input; arrowing to one and pressing Enter selects it, while Enter with nothing highlighted commits exactly
- * what was typed.
- */
 export function CardAdminTokenField({
   id,
   values,
@@ -188,7 +175,6 @@ export function CardAdminTokenField({
       return
     }
 
-    // If the author typed a value that already exists with different casing, prefer the catalogue's spelling.
     const canonicalValue =
       suggestions.find((suggestion) => suggestion.trim().toLowerCase() === trimmed.toLowerCase())?.trim()
       ?? trimmed
@@ -239,8 +225,6 @@ export function CardAdminTokenField({
           }
         }}
         onBlur={() => {
-          // The option list is portalled, so a click on it does not keep the input focused. Options prevent
-          // the default mousedown specifically so the click lands before this closes the list.
           closeSuggestionList()
         }}
         onKeyDown={(event) => {

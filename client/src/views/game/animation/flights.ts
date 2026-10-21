@@ -1,19 +1,3 @@
-/**
- * The flight primitives: everything the board uses to move a card from one box to another.
- *
- * This file is part of the animation home (`views/game/animation/`), beside the tuning, the reduced-motion
- * policy, the flight registry and the flight layer itself. It used to live under `utils/functions/animations`,
- * which split "how a flight is tuned / owned / drawn" away from the primitives that used them.
- *
- * The rule is entity flight: **the card that travels is the card itself**, either the real card leaving a zone
- * (`runElementToRectAnimation`) or the real card arriving in one (`runElementFromRectAnimation`,
- * `runElementArrivalFromRectAnimation`). A fabricated overlay copy cannot be that card - it cannot even show a
- * face-down card's back, and its cover-fit/rounded-8 styling never matched the card it landed on.
- *
- * `animateOverlayCopy` and the flight layer survive only for the one path with no live element to move (a card
- * the client never rendered, such as a snapshot taken before a state update). That path is what the entity
- * primitives below are replacing, and it is retired with them.
- */
 
 import type {
   IDeckToHandAnimationArgs,
@@ -33,17 +17,6 @@ import {
 } from './flightRegistry'
 import { prefersReducedMotion, resolveFlightDurationMs } from './reducedMotion'
 
-/**
- * Puts a card that is in the air above the siblings of its own stacking context - the card *and* the slot it lives
- * in, because the card alone is not enough.
- *
- * `z-index` needs a positioned element and only orders it *inside* the stacking context it belongs to. A hand card's
- * slot is a `Reorder.Item`, i.e. a Motion element carrying a transform, so it is a stacking context of its own at
- * `z-index: auto` - which means a card flying out of an earlier slot painted *under* a later one (measured: the
- * point at a flying card's centre resolved to another hand card's slot while the deal was running). The card is the
- * element with the id (`data-hand-instance-id`), so raising it can never win that contest; the slot travels with
- * it. The returned function restores both.
- */
 function promoteAirborneLayer(element: HTMLElement): () => void {
   const slot = element.parentElement
   const previousElementPosition = element.style.position
@@ -52,7 +25,6 @@ function promoteAirborneLayer(element: HTMLElement): () => void {
   const previousSlotZIndex = slot?.style.zIndex ?? ''
   const promoteSlot = slot !== null && slot !== document.body
 
-  // `position: relative` with no offsets moves nothing - it is what makes `z-index` apply at all.
   element.style.position = 'relative'
   element.style.zIndex = '260'
   if (promoteSlot) {
@@ -70,16 +42,6 @@ function promoteAirborneLayer(element: HTMLElement): () => void {
   }
 }
 
-/**
- * Flies the real card element from `sourceRect` to its own, already laid out position.
- *
- * This is the entity-based flight: the element that stays on the board is the thing that travels, so there is
- * never a second card at either end of the motion, and the art, the face and the styling are the card's own -
- * a fabricated copy cannot reproduce those (a face-down card has no `<img>` to copy, and the copy's own
- * cover-fit/rounded-8/drop-shadow never matched the card it landed on).
- *
- * The element keeps its slot, which keeps its size, so nothing in the layout moves while the card flies.
- */
 export function runElementFromRectAnimation({
   element,
   sourceRect,
@@ -89,7 +51,6 @@ export function runElementFromRectAnimation({
   element: HTMLElement
   sourceRect: DOMRect
   durationMs: number
-  /** Ownership key; defaults to the element's card identity. */
   key?: string
 }): Promise<void> {
   const resolvedDurationMs = resolveFlightDurationMs(durationMs)
@@ -106,17 +67,8 @@ export function runElementFromRectAnimation({
 
   const offsetX = sourceRect.left + sourceRect.width / 2 - (destinationRect.left + destinationRect.width / 2)
   const offsetY = sourceRect.top + sourceRect.height / 2 - (destinationRect.top + destinationRect.height / 2)
-  // Deliberately **no scale**: an arrival is a move, not a resize. The card is drawn at the size it is going to
-  // keep (its own slot) for the whole flight, so nothing about it interpolates and the motion ends exactly on the
-  // card. Matching the source rect's size instead is what made a summon "scale awkwardly": a hand card is 28%
-  // wider than a battlefield card, so the card popped to hand size and deflated on its way down - measured on the
-  // summon path, where the flight started at `s=1.28` and ended at `s=1`. Shrinking into a *pile* (an exit) still
-  // scales, because there the change of size is the message.
   const startTransform = `translate(${offsetX}px, ${offsetY}px)`
 
-  // A card that is arriving is present: if it still carries the hide from a departure it made earlier in this
-  // scenario (a mulligan can deal the same instance straight back), clear it, and record the pre-flight
-  // visibility as visible - otherwise this flight would restore the card to hidden when it lands.
   if (element.hasAttribute('data-card-departed')) {
     element.removeAttribute('data-card-departed')
     element.style.visibility = ''
@@ -127,19 +79,12 @@ export function runElementFromRectAnimation({
   const previousWillChange = element.style.willChange
   let restoreAirborneLayer: (() => void) | null = null
 
-  // The element is hidden for the single frame before the flight starts, so it can never flash at its slot
-  // before appearing where it came from (the caller sees the same mount-to-flight frame gap either way).
   element.style.visibility = 'hidden'
 
   return new Promise<void>((resolve) => {
     window.requestAnimationFrame(() => {
-      // Draw it at the source for this frame, then animate the remaining distance: the first painted frame of
-      // the flight is already the offset one, so there is no jump.
       element.setAttribute('data-card-traveling', 'true')
       element.style.willChange = 'transform'
-      // Same reason as the exit flight: a card in the air is above the siblings it is flying over. Each sibling
-      // carries a Motion transform, which makes it its own stacking context, so the airborne card's position in
-      // the DOM is not enough to decide who paints last.
       restoreAirborneLayer = promoteAirborneLayer(element)
       element.style.transform = startTransform
       element.style.visibility = previousVisibility
@@ -174,18 +119,6 @@ export function runElementFromRectAnimation({
   })
 }
 
-/**
- * Flies a real card element from where it is to a destination rect, for a card that leaves a zone before the
- * state removes it (a tribute material, a discard).
- *
- * This is the exit half of entity-based flight: the card that travels is the card itself, so nothing is left
- * sitting in place while a stand-in leaves. The caller stays responsible for the element's own lifecycle - the
- * flight only borrows its transform and restores it when the animation settles or is cancelled.
- *
- * It ends with the card **hidden**, because the card has left: an untouched resting spot would paint it back into
- * the row it came from for as long as the state that removes it takes to arrive. Restoring the transform while
- * leaving the card out of sight keeps the element's own state clean for whoever renders it next.
- */
 export function runElementToRectAnimation({
   element,
   destinationRect,
@@ -195,7 +128,6 @@ export function runElementToRectAnimation({
   element: HTMLElement
   destinationRect: DOMRect
   durationMs: number
-  /** Ownership key; defaults to the element's card identity. */
   key?: string
 }): Promise<void> {
   const resolvedDurationMs = resolveFlightDurationMs(durationMs)
@@ -242,16 +174,6 @@ export function runElementToRectAnimation({
       element.style.transform = previousTransform
       restoreAirborneLayer()
       element.removeAttribute('data-card-traveling')
-      // The card has *left* the zone it was in. If the state that removes it has not arrived yet - one hub
-      // round-trip is enough - restoring its resting spot paints it back where it came from, and that is exactly
-      // what "the old cards appear in the hand for a moment before the new ones reappear" is. A card that travels
-      // away does not come back: from the moment its flight lands it stays out of sight, and the state that
-      // removes it takes the element away for good.
-      //
-      // The marker goes with it because the hide must be *healable*: a hand row keeps an exiting card mounted
-      // (presence), so if the same card instance is dealt straight back - which a mulligan does, four of five in a
-      // measured run - React reuses this very element, and the card would be laid out in the hand while invisible.
-      // `clearStaleDepartureHides` clears this on the next push, before the browser paints it.
       element.setAttribute('data-card-departed', 'true')
       element.style.visibility = 'hidden'
       resolve()
@@ -294,17 +216,6 @@ export async function waitForElement({
   return null
 }
 
-/**
- * Waits for the card a submit puts on the board, then flies *that real card* from `sourceRect` to its own slot.
- *
- * This is the arrival shape a submit needs: the hand card that was picked is already gone by the time the state
- * arrives (the submit moved it), so the card that travels is the destination - the element the player will look
- * at from now on. Nothing is fabricated, so the arriving card's own art, face and styling fly, and the motion
- * ends exactly on the card's own slot instead of on a stand-in drawn beside it.
- *
- * Reduced motion returns before the wait, so a reader who turned motion off never spins the frame loop waiting
- * for a destination that will not be animated.
- */
 export async function runElementArrivalFromRectAnimation({
   sourceRect,
   resolveDestinationElement,
@@ -317,9 +228,6 @@ export async function runElementArrivalFromRectAnimation({
     return
   }
 
-  // "Found" means found *and laid out*: a slot element that has mounted but has no box yet cannot be flown to,
-  // and treating it as the destination is how an arrival ends up skipped entirely (the card lands with no
-  // animation at all). Waiting for a box instead turns that race into a wait.
   const resolveWhenLaidOut = (resolveElement: () => HTMLElement | null) => () => {
     const element = resolveElement()
     if (!element) {
@@ -353,15 +261,6 @@ export async function runElementArrivalFromRectAnimation({
   })
 }
 
-/**
- * Flies the hand card itself to the pile it leaves for (a discard, a card put on top of the deck, the mulligan
- * sending the opening hand back).
- *
- * The card is still mounted when this runs - the caller submits only once the flight has settled - so the card
- * the player can see is the card that travels. The destination is a pile slot rather than a card (the deck shows
- * a back, the trash shows its own top card), so this is an exit flight: the card borrows its own transform, and
- * the pile is only a rectangle to fly to.
- */
 export function runHandToPileAnimation({
   side,
   destination,
@@ -398,7 +297,6 @@ export function runHandToPileAnimation({
     element: sourceCardElement,
     destinationRect,
     durationMs: 340,
-    // The card's own identity, so a second flight for the same card takes this one over instead of stacking.
     key: cardInstanceId,
   })
 }
@@ -440,9 +338,6 @@ export async function runDeckToHandAnimation({
     return
   }
 
-  // The arriving hand card is the entity that travels: no copy is drawn, so nothing has to be hidden and
-  // revealed around it. If the card is not on the board yet there is nothing to fly - better than dragging the
-  // whole row around, which is what the copy engine's row fallback did.
   const destinationElement = await waitForElement({
     resolveElement: () => {
       return destinationHandRowElement.querySelector<HTMLElement>(`[data-hand-instance-id="${cardInstanceId}"]`)

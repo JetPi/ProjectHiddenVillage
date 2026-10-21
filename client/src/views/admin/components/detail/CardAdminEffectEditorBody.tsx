@@ -9,11 +9,6 @@ import { CARD_CONDITION_OPTIONS_FALLBACK } from '@/views/admin/constants'
 import type { ICardAdminEffectEditorBodyProps } from '@/views/admin/types/cardAdminDetailTypes'
 import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog'
 
-/**
- * Everything the two card screens edit in common: the stat summary, the description/support text and the
- * conditions and effects sections. Submitting is deliberately not here - the update screen patches an existing
- * card while the create screen posts a new one - so this renders the same draft through the same validation.
- */
 export function CardAdminEffectEditorBody({
   editorModel,
   card,
@@ -32,9 +27,8 @@ export function CardAdminEffectEditorBody({
   useEffect(() => {
     let isDisposed = false
 
-    async function loadConditionKeywords() {
-      try {
-        const serverKeywords = await fetchCardCatalogEffectConditionKeywords()
+    void fetchCardCatalogEffectConditionKeywords()
+      .then((serverKeywords) => {
         if (isDisposed) {
           return
         }
@@ -46,12 +40,8 @@ export function CardAdminEffectEditorBody({
         if (normalizedKeywords.length > 0) {
           setConditionKeywordOptions(Array.from(new Set(normalizedKeywords)))
         }
-      } catch {
-        // Keep the fallback keyword list when the metadata fetch fails.
-      }
-    }
-
-    void loadConditionKeywords()
+      })
+      .catch(() => undefined)
 
     return () => {
       isDisposed = true

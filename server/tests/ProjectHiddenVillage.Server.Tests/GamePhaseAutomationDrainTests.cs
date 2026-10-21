@@ -150,8 +150,15 @@ public sealed class GamePhaseAutomationDrainTests
         Assert.IsTrue(
             game.ActionLog.Any(entry => entry.ActionType == "phase_presentation_timed_out"),
             "A timed-out presentation has to be visible in the log.");
+
+        // The watchdog clears the presentation inside its lock and notifies afterwards, so the notification is a
+        // second observable step - waiting only on the cleared presentation raced it on a loaded runner.
+        var notified = SpinWait.SpinUntil(
+            () => broadcaster.NotifiedGameIds.Contains(game.Id),
+            TimeSpan.FromSeconds(5));
+
         Assert.IsTrue(
-            broadcaster.NotifiedGameIds.Contains(game.Id),
+            notified,
             "A timeout resumes outside any hub call, so the clients have to be told to pull the state.");
     }
 

@@ -17,15 +17,6 @@ import type {
 } from '@/views/admin/types/cardAdminDetailTypes'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 
-/**
- * Replacing the art of a card that already exists, held back until the card is saved.
- *
- * Nothing here talks to the server while the author is still deciding: a picked file is previewed from an object
- * URL, a URL is staged as it is typed, and a removal is staged as an intention. `commit` is the only request path,
- * and the screen's save is what runs it - upload first for a file, then the image reference that points the card at
- * whichever won. That is the whole point of the draft: an upload is no longer a save of its own, so browsing for a
- * file or pasting a wrong URL cannot change a card that is already in the catalogue.
- */
 export function useCardAdminArtDraft(card: ICardCatalogItemResponse): ICardAdminArtDraftModel {
   const uploadMutation = useUploadCardArtMutation()
   const updateImageMutation = useUpdateCardCatalogImageMutation()
@@ -36,8 +27,6 @@ export function useCardAdminArtDraft(card: ICardCatalogItemResponse): ICardAdmin
   const [isRemovalStaged, setIsRemovalStaged] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // An object URL outlives the state that made it, so the unmount cleanup needs the one that is live when the
-  // screen goes away. Only the URL is held here - a ref is not where a rendered value belongs.
   const stagedPreviewRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -67,7 +56,6 @@ export function useCardAdminArtDraft(card: ICardCatalogItemResponse): ICardAdmin
     (value: string) => {
       setUrlValueState(value)
 
-      // A URL the author is typing supersedes a picked file, so exactly one change is ever pending.
       if (value.trim().length > 0) {
         releaseStagedFile()
         setIsRemovalStaged(false)
@@ -141,19 +129,16 @@ export function useCardAdminArtDraft(card: ICardCatalogItemResponse): ICardAdmin
         image = stagedUrl
       }
 
-      // Points the card at the change. This is what moves the card's version, so every client drops the old image.
       await updateImageMutation.mutateAsync({ cardId: card.id, image })
     } catch (commitError) {
       const message = getCardAdminRequestErrorMessage(commitError)
 
       setError(message)
 
-      // The staged change is kept, so the author can press save again instead of picking the file a second time.
       return { ok: false, message }
     }
 
     if (isRemoving) {
-      // The card points at nothing now, so an unreferenced master is the sweep's business if this call fails.
       void deleteCardArt(card.id)
         .catch(() => {})
     }

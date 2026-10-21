@@ -10,36 +10,18 @@ const INPUT_CLASS =
 const LABEL_CLASS = 'text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]'
 
 export type ICardAdminArtPickerProps = {
-  /** What the preview paints: an object URL for a just-chosen file, or the art the card currently resolves. */
   previewSrc: string
-  /** Only for screens where choosing a file sends it at once, which is what labels the button "Uploading...". */
   isUploading?: boolean
   error: string | null
-  /** A line under the controls, for what the screen wants to say about the current art. */
   statusMessage?: string | null
-  /**
-   * The art the card already stores. Rendered as read-only text with a link to its source, kept well away from
-   * the input below so reading where an image came from cannot turn into overwriting it.
-   */
   storedArt?: ICardAdminStoredArt | null
-  /** The external-URL alternative to an upload. */
   urlValue: string
   onUrlChange: (value: string) => void
   onSelectFile: (file: File) => void
   disabled: boolean
-  /** Screen-specific actions: the create screen discards a pending upload, the update screen applies or removes. */
   children?: ReactNode
 }
 
-/**
- * The art controls both card screens use. Deliberately presentational: what a chosen image *means* differs between
- * them - on a new card it is held in the draft until the card exists, on an existing one it is applied at once -
- * so this renders the controls and the parent owns the behaviour.
- *
- * Choosing the image itself happens in `CardAdminArtSourceDialog`, because a paste needs a focused target and a
- * modal is an honest place for one. This keeps the result of that choice - the preview, the current image, the URL
- * alternative - and nothing else.
- */
 export function CardAdminArtPicker({
   previewSrc,
   isUploading = false,
@@ -96,13 +78,9 @@ export function CardAdminArtPicker({
           ) : null}
 
           {storedArt ? (
-            // A divider row rather than a panel: the section around this picker is already a filled, bordered
-            // surface, and nesting another box inside it is the card-in-card the admin layout avoids.
             <div className="border-t border-[var(--border-subtle)] pt-2">
               <p className={LABEL_CLASS}>{t('admin.art.currentImage')}</p>
 
-              {/* Selectable rather than an input: it is what the card stores, so it can be read and copied,
-                  but replacing it stays a deliberate act through the field below. */}
               <p className="mt-1 font-mono text-[11px] break-all text-[var(--text-primary)] select-all">
                 {storedArt.reference}
               </p>
@@ -143,7 +121,6 @@ export function CardAdminArtPicker({
       {isSourceDialogOpen ? (
         <CardAdminArtSourceDialog
           onSelectFile={onSelectFile}
-          // A pasted address is not an upload: it belongs in the URL field, which keeps the source resolution.
           onSelectUrl={onUrlChange}
           onClose={() => setIsSourceDialogOpen(false)}
           disabled={disabled}

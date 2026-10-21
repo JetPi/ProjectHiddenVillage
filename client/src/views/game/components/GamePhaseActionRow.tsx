@@ -40,7 +40,6 @@ function GamePhaseActionRow({
   const phaseThemeClasses = getPhaseThemeClasses(gameInstance, phaseValue, authUserId)
   const payButtonThemeClasses = invertedPhaseThemeClassByPhaseTheme[phaseThemeClasses] ?? 'turn-indicator-inverted-light-gray'
 
-  // Tribute-summon material selection drives both the phase text and the "Pay" chip state.
   const tributeRequirement = getTributeRequirementSummary(pendingSummonTargeting)
 
   const isTargetingActive =
@@ -48,10 +47,6 @@ function GamePhaseActionRow({
     || pendingSummonTargeting !== null
     || pendingEffectTargeting !== null
 
-  // While the engine holds a phase presentation the row paints the chips of the last interactive phase
-  // instead of this snapshot's actions - the board is mid-transition and the engine publishes no decision for
-  // it. That is what keeps the strip - and its open/close transition - absolutely still for the whole
-  // engine-driven chain, and it is also why the system `advance-phase` action can never be drawn.
   const { phaseActions, isHolding } = useRetainedPhaseActionSource(availableActions)
   const { isActionBlocked } = useRetainedActionBlocked(!isConnected || isActionPending)
   const renderedActions = useMemo(
@@ -59,10 +54,6 @@ function GamePhaseActionRow({
     [phaseActions, isActionBlocked],
   )
   const hasOptions = renderedActions.length > 0
-  // The held chips belong to a phase that already moved, so they are shown exactly as they were but
-  // cannot be used: a click would submit a stale action against the new phase. A chip that was already
-  // unusable keeps its dimmed look, which the frozen classes have to carry themselves - the `disabled`
-  // attribute would also restyle the usable ones.
   const isFrozen = isHolding && hasOptions
 
   function resolveChipStateClassName(isUsable: boolean): string {

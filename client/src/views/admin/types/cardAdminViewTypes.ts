@@ -43,7 +43,6 @@ export type ICardAdminViewActions = {
 
 export type ICardAdminViewModel = ICardAdminViewState & ICardAdminViewActions
 
-// Shared admin controls
 
 export type ICardAdminSelectOption = {
   value: string
@@ -51,13 +50,6 @@ export type ICardAdminSelectOption = {
   disabled: boolean
 }
 
-/**
- * Props of the admin dropdown.
- *
- * The option list is declared as `<option>` children exactly like a native `<select>`, but the control is a
- * custom listbox (see `CardAdminSelect`), so the handler receives the chosen value directly instead of a
- * change event.
- */
 export type ICardAdminSelectProps = {
   value: string
   onValueChange: (value: string) => void
@@ -92,11 +84,9 @@ export type ICardAdminTokenFieldProps = {
   values: string[]
   onChange: (values: string[]) => void
   placeholder: string
-  /** Values the catalogue already knows; typing ranks them and shows the closest matches under the input. */
   suggestions?: string[]
   disabled?: boolean
   ariaLabel?: string
-  /** Lets an e2e test count the committed chips without matching on their text. */
   chipTestId?: string
   maxEntries?: number
 }
@@ -137,7 +127,6 @@ export type ICountConstraintFieldProps = {
   trailingContent?: ReactNode
 }
 
-// Catalog panes
 
 export type ICardAdminFilterPanelProps = {
   searchText: string
@@ -151,19 +140,28 @@ export type ICardAdminFilterPanelProps = {
   onTypeChange: (value: string[]) => void
   onColorChange: (value: string[]) => void
   onSortChange: (value: string) => void
+  includeNonDeckableTypes?: boolean
+  onIncludeNonDeckableTypesChange?: (value: boolean) => void
 }
 
 export type ICardAdminCardGridProps = {
   cards: ICardCatalogListItemResponse[]
   selectedCardId: string | null
   onSelectCard: (cardId: string) => void
+  selectedCountByCardId?: ReadonlyMap<string, number>
+  maxCopies?: number
+  onAddCard?: (cardId: string) => void
+  onRemoveCard?: (cardId: string) => void
 }
 
 export type ICardAdminCardTileProps = {
-  /** The lean listing row: a tile renders the name, id, type, colour and art, and nothing else. */
   card: ICardCatalogListItemResponse
   isSelected: boolean
   onSelect: (cardId: string) => void
+  selectedCount?: number
+  maxCopies?: number
+  onAdd?: (cardId: string) => void
+  onRemove?: (cardId: string) => void
 }
 
 export type ICardAdminCatalogPaneProps = {
@@ -177,6 +175,10 @@ export type ICardAdminCatalogPaneProps = {
   onFetchNextPage: () => void | Promise<unknown>
   listScrollContainerRef: RefObject<HTMLDivElement | null>
   loadMoreSentinelRef: RefObject<HTMLDivElement | null>
+  selectedCountByCardId?: ReadonlyMap<string, number>
+  maxCopies?: number
+  onAddCard?: (cardId: string) => void
+  onRemoveCard?: (cardId: string) => void
 }
 
 export type ICardAdminPaginationFooterProps = {

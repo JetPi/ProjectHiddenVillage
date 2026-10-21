@@ -105,8 +105,8 @@ public sealed class DevelopmentDeckSeeder
 
         foreach (var seedDeck in profilesToSeed.SelectMany(profile => new[]
                  {
-                     ToSeedDeckDefinition(profile.Decks.One),
-                     ToSeedDeckDefinition(profile.Decks.Two),
+                     ToSeedDeckDefinition(profile.Decks.One, $"{profile.Name} deck one"),
+                     ToSeedDeckDefinition(profile.Decks.Two, $"{profile.Name} deck two"),
                  }))
         {
             var existingDeck = await dbContext.Decks
@@ -204,6 +204,7 @@ public sealed class DevelopmentDeckSeeder
                 {
                     Id = seedDeck.DeckId,
                     Type = seedDeck.Type,
+                    Name = seedDeck.Name,
                     UserId = null,
                 };
 
@@ -213,6 +214,11 @@ public sealed class DevelopmentDeckSeeder
 
             existingDeck.Type = seedDeck.Type;
             existingDeck.UserId = null;
+
+            if (string.IsNullOrWhiteSpace(existingDeck.Name))
+            {
+                existingDeck.Name = seedDeck.Name;
+            }
 
             var existingDeckCards = await dbContext.DeckCards
                 .Where(deckCard => deckCard.DeckId == existingDeck.Id)
@@ -343,11 +349,12 @@ public sealed class DevelopmentDeckSeeder
             || rawValue.Equals("on", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static SeedDeckDefinition ToSeedDeckDefinition(SeedDeckManifest manifestDeck)
+    private static SeedDeckDefinition ToSeedDeckDefinition(SeedDeckManifest manifestDeck, string name)
     {
         return new SeedDeckDefinition(
             DeckId: Guid.Parse(manifestDeck.DeckId),
             Type: DeckType.Public,
+            Name: name,
             Cards: manifestDeck.Cards.Select(card => new SeedDeckCardDefinition(card.CardId, card.Quantity)).ToList());
     }
 
@@ -443,6 +450,7 @@ public sealed class DevelopmentDeckSeeder
     private sealed record SeedDeckDefinition(
         Guid DeckId,
         DeckType Type,
+        string Name,
         IReadOnlyList<SeedDeckCardDefinition> Cards);
 
     private sealed record SeedDeckCardDefinition(string CardId, int Quantity);

@@ -11,7 +11,6 @@ import {
 
 type ArtSourceCandidate = {
   file: File
-  /** An object URL, so the dialog can paint and measure the bytes before anything is sent anywhere. */
   previewSrc: string
   width: number | null
   height: number | null
@@ -19,9 +18,7 @@ type ArtSourceCandidate = {
 }
 
 export type ICardAdminArtSourceDialogProps = {
-  /** The bytes of the chosen image. What staging or uploading means is the screen's business, not the dialog's. */
   onSelectFile: (file: File) => void
-  /** A pasted image *address*: that belongs in the URL field, not in an upload. */
   onSelectUrl: (url: string) => void
   onClose: () => void
   disabled?: boolean
@@ -33,10 +30,6 @@ const EXTENSION_BY_TYPE: Record<string, string> = {
   'image/webp': '.webp',
 }
 
-/**
- * Chromium puts a copy of an image on the clipboard with no file name at all - a screenshot arrives as a bare
- * `image.png` - and the staged line prints the name, so one is minted for a file that has none.
- */
 function withPastedName(file: File): File {
   if (file.name.trim().length > 0) {
     return file
@@ -53,18 +46,6 @@ function formatBytes(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
-/**
- * Where card art comes from: the clipboard, a file, or a drag. Pasting needs a target that has the focus, and a
- * dialog is a far more honest place for that than a div the author has to guess about - the paste area takes the
- * focus the moment this opens, so Ctrl+V works without a click and without a page-wide listener that would also
- * swallow pastes meant for the catalogue search.
- *
- * Whatever arrives is measured here, before it is used: a master is written at `CARD_ART_MIN_SOURCE_WIDTH` and
- * never upscaled, so a thumbnail copied out of a gallery (`srcset` hands the browser the variant its layout chose)
- * or a screenshot of a card at board size would be stored soft and look it at preview size. That is refused rather
- * than accepted quietly. A pasted image *address* is not an upload at all and goes to the URL field, which is the
- * one path that keeps the source resolution.
- */
 export function CardAdminArtSourceDialog({
   onSelectFile,
   onSelectUrl,
@@ -80,7 +61,6 @@ export function CardAdminArtSourceDialog({
   const pasteAreaRef = useRef<HTMLDivElement | null>(null)
   const previewSrcRef = useRef<string | null>(null)
 
-  // The paste area holds the focus from the first frame, so the author can paste straight away.
   useEffect(() => {
     pasteAreaRef.current?.focus()
   }, [])
@@ -131,8 +111,6 @@ export function CardAdminArtSourceDialog({
       return
     }
 
-    // A Safari copy of an image can arrive as a flavour no browser can decode and no allowlist would take; the
-    // clipboard also carries the address of the image, which is the better answer anyway.
     const pastedText = event.clipboardData?.getData('text/plain')?.trim() ?? ''
 
     if (isExternalCardArtReference(pastedText)) {
@@ -196,7 +174,6 @@ export function CardAdminArtSourceDialog({
   return createPortal(
     <div
       className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4"
-      // The paste area holds focus, so a key press inside the dialog reaches this handler.
       onKeyDown={(event) => {
         if (event.key === 'Escape' && !disabled) {
           onClose()
@@ -268,10 +245,6 @@ export function CardAdminArtSourceDialog({
               <span className="text-[11px] text-[var(--text-muted)]">{t('admin.art.uploadHelp')}</span>
             </div>
 
-            {/*
-              Driven by the button above. A file input cannot be styled - the browser draws its own "no file
-              chosen" chrome - so it is kept out of sight, and it keeps its id because the e2e spec drives it.
-            */}
             <input
               id="card-admin-art-file"
               ref={fileInputRef}
@@ -280,7 +253,6 @@ export function CardAdminArtSourceDialog({
               onChange={(event) => {
                 const pickedFile = event.target.files?.[0]
 
-                // Cleared before the callback so picking the same file again still counts as a change.
                 event.target.value = ''
 
                 if (pickedFile) {

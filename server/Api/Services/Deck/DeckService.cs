@@ -138,6 +138,103 @@ public sealed partial class DeckService : IDeckService
         return deck.Id.ToString();
     }
 
+    public async Task<ErrorOr<DeckResponse>> CreatePublicDeckAsync(CreatePublicDeckRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var resolveResult = await ResolveDeckCardsAsync(request.Cards);
+        if (resolveResult.IsError)
+        {
+            return resolveResult.Errors;
+        }
+
+        var deck = new Deck
+        {
+            Type = DeckType.Public,
+            Name = request.Name.Trim(),
+            UserId = null,
+            Cards = resolveResult.Value,
+        };
+
+        dbContext.Decks.Add(deck);
+
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return Error.Failure(
+                    code: "Deck.Create.PersistFailed",
+                    description: "Deck could not be persisted.");
+        }
+
+        return await GetDeck(deck.Id.ToString(), populate: false);
+    }
+
+    public async Task<ErrorOr<DeckResponse>> UpdateDeckAsync(string deckId, UpdateDeckRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Guid.TryParse(deckId, out var parsedDeckId))
+        {
+            return Error.Validation(
+                    code: "Deck.Update.InvalidId",
+                    description: "Deck id must be a valid GUID.");
+        }
+
+        var deck = await dbContext.Decks
+                .Include(record => record.Cards)
+                .SingleOrDefaultAsync(record => record.Id == parsedDeckId);
+
+        if (deck is null)
+        {
+            return Error.NotFound(
+                    code: "Deck.Update.NotFound",
+                    description: $"Deck '{deckId}' was not found.");
+        }
+
+        var resolveResult = await ResolveDeckCardsAsync(request.Cards);
+        if (resolveResult.IsError)
+        {
+            return resolveResult.Errors;
+        }
+
+        deck.Name = request.Name.Trim();
+
+        var existingCardsByCatalogEntryId = deck.Cards.ToDictionary(card => card.CardCatalogEntryId);
+
+        foreach (var requestedCard in resolveResult.Value)
+        {
+            if (existingCardsByCatalogEntryId.Remove(requestedCard.CardCatalogEntryId, out var existingCard))
+            {
+                existingCard.Quantity = requestedCard.Quantity;
+                continue;
+            }
+
+            requestedCard.DeckId = deck.Id;
+            dbContext.DeckCards.Add(requestedCard);
+        }
+
+        if (existingCardsByCatalogEntryId.Count > 0)
+        {
+            dbContext.DeckCards.RemoveRange(existingCardsByCatalogEntryId.Values);
+        }
+
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return Error.Failure(
+                    code: "Deck.Update.PersistFailed",
+                    description: "The deck could not be updated.");
+        }
+
+        return await GetDeck(deck.Id.ToString(), populate: false);
+    }
+
     public async Task<ErrorOr<bool>> DeleteDeck(string deckId)
     {
         if (!Guid.TryParse(deckId, out var parsedDeckId))
@@ -205,12 +302,17 @@ public sealed partial class DeckService : IDeckService
             var deck = await dbContext.Decks
                     .AsNoTracking()
                     .Where(record => record.Id == parsedDeckId)
-                    .Select(ToDeckResponseExpression())
+                    .Select(ToDeckProjectionExpression())
                     .SingleOrDefaultAsync();
 
-            return deck ?? (ErrorOr<DeckResponse>)Error.NotFound(
+            if (deck is null)
+            {
+                return Error.NotFound(
                         code: "Deck.Get.NotFound",
                         description: $"Deck '{deckId}' was not found.");
+            }
+
+            return ToDeckResponse(deck);
         }
 
         var deckWithCards = await dbContext.Decks
@@ -229,7 +331,10 @@ public sealed partial class DeckService : IDeckService
         return ToDeckResponse(deckWithCards, populate: true);
     }
 
-    public async Task<ErrorOr<List<DeckResponse>>> GetDecks(Guid? userId = null, bool populate = false)
+    public async Task<ErrorOr<List<DeckResponse>>> GetDecks(
+        Guid? userId = null,
+        bool populate = false,
+        DeckType? type = null)
     {
         if (!populate)
         {
@@ -240,10 +345,17 @@ public sealed partial class DeckService : IDeckService
                 query = query.Where(record => record.UserId == userId.Value);
             }
 
-            return await query
+            if (type.HasValue)
+            {
+                query = query.Where(record => record.Type == type.Value);
+            }
+
+            var deckProjections = await query
                     .OrderBy(record => record.Id)
-                    .Select(ToDeckResponseExpression())
+                    .Select(ToDeckProjectionExpression())
                     .ToListAsync();
+
+            return deckProjections.Select(ToDeckResponse).ToList();
         }
 
         var populatedQuery = dbContext.Decks
@@ -257,6 +369,11 @@ public sealed partial class DeckService : IDeckService
             populatedQuery = populatedQuery.Where(record => record.UserId == userId.Value);
         }
 
+        if (type.HasValue)
+        {
+            populatedQuery = populatedQuery.Where(record => record.Type == type.Value);
+        }
+
         var decks = await populatedQuery
                 .OrderBy(record => record.Id)
                 .ToListAsync();
@@ -264,12 +381,19 @@ public sealed partial class DeckService : IDeckService
         return decks.Select(deck => ToDeckResponse(deck, populate: true)).ToList();
     }
 
-    private static System.Linq.Expressions.Expression<Func<Deck, DeckResponse>> ToDeckResponseExpression()
+    private static System.Linq.Expressions.Expression<Func<Deck, DeckProjection>> ToDeckProjectionExpression()
     {
-        return deck => new DeckResponse(
+        return deck => new DeckProjection(
                 Id: deck.Id,
-                Type: deck.Type.ToString(),
+                Name: deck.Name,
+                Type: deck.Type,
                 UserId: deck.UserId,
+                HasLeader: deck.Cards.Any(card => card.CardCatalogEntry.Type == CardType.Leader),
+                LeaderColor: deck.Cards
+                        .Where(card => card.CardCatalogEntry.Type == CardType.Leader)
+                        .OrderBy(card => card.CardCatalogEntry.CardId)
+                        .Select(card => card.CardCatalogEntry.Color)
+                        .FirstOrDefault(),
                 Cards: deck.Cards
                         .OrderBy(card => card.CardCatalogEntry.CardId)
                         .Select(card => new DeckCardResponse(
@@ -278,12 +402,30 @@ public sealed partial class DeckService : IDeckService
                         .ToList());
     }
 
-    private static DeckResponse ToDeckResponse(Deck deck, bool populate)
+    private static DeckResponse ToDeckResponse(DeckProjection deck)
     {
         return new DeckResponse(
                 Id: deck.Id,
+                Name: deck.Name,
                 Type: deck.Type.ToString(),
                 UserId: deck.UserId,
+                LeaderColor: deck.HasLeader ? ToReadableCardColor(deck.LeaderColor) : null,
+                Cards: deck.Cards);
+    }
+
+    private static DeckResponse ToDeckResponse(Deck deck, bool populate)
+    {
+        var leaderEntry = deck.Cards
+                .OrderBy(card => card.CardCatalogEntry.CardId)
+                .Select(card => card.CardCatalogEntry)
+                .FirstOrDefault(entry => entry.Type == CardType.Leader);
+
+        return new DeckResponse(
+                Id: deck.Id,
+                Name: deck.Name,
+                Type: deck.Type.ToString(),
+                UserId: deck.UserId,
+                LeaderColor: leaderEntry is null ? null : ToReadableCardColor(leaderEntry.Color),
                 Cards: deck.Cards
                         .OrderBy(card => card.CardCatalogEntry.CardId)
                         .Select(card => new DeckCardResponse(
@@ -292,6 +434,15 @@ public sealed partial class DeckService : IDeckService
                                 Card: populate ? ToCatalogResponse(card.CardCatalogEntry) : null))
                         .ToList());
     }
+
+    private sealed record DeckProjection(
+        Guid Id,
+        string Name,
+        DeckType Type,
+        Guid? UserId,
+        bool HasLeader,
+        CardColor LeaderColor,
+        List<DeckCardResponse> Cards);
 
     private static CardCatalogItemResponse ToCatalogResponse(CardCatalogEntry entry)
     {
@@ -803,6 +954,58 @@ public sealed partial class DeckService : IDeckService
         }
 
         return builder.ToString();
+    }
+
+    private async Task<ErrorOr<List<DeckCard>>> ResolveDeckCardsAsync(IReadOnlyList<DeckCardRequest>? requestedCards)
+    {
+        var normalizedCards = (requestedCards ?? [])
+            .Where(card => !string.IsNullOrWhiteSpace(card.CardId))
+            .GroupBy(card => card.CardId.Trim().ToUpperInvariant(), StringComparer.Ordinal)
+            .Select(group => new DeckRuleCard(group.Key, group.Sum(card => card.Quantity)))
+            .ToList();
+
+        if (normalizedCards.Count == 0)
+        {
+            return Error.Validation(
+                    code: "Deck.Cards.Empty",
+                    description: "A deck needs at least one card.");
+        }
+
+        var requestedCardIds = normalizedCards
+            .Select(card => card.CardId)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var catalogEntries = await dbContext.CardCatalogEntries
+            .AsNoTracking()
+            .Where(entry => requestedCardIds.Contains(entry.CardId.ToUpper()))
+            .Select(entry => new { entry.Id, entry.CardId, entry.Type, entry.Color })
+            .ToListAsync();
+
+        var metadataByCardId = catalogEntries.ToDictionary(
+            keySelector: entry => entry.CardId.Trim().ToUpperInvariant(),
+            elementSelector: entry => new DeckRuleCardMetadata(entry.CardId, entry.Type, entry.Color),
+            comparer: StringComparer.Ordinal);
+
+        var violations = PublicDeckRules.Evaluate(normalizedCards, metadataByCardId);
+        if (violations.Count > 0)
+        {
+            return violations
+                .Select(violation => Error.Validation(code: violation.Code, description: violation.Description))
+                .ToList();
+        }
+
+        var catalogEntryIdByCardId = catalogEntries.ToDictionary(
+            keySelector: entry => entry.CardId.Trim().ToUpperInvariant(),
+            elementSelector: entry => entry.Id,
+            comparer: StringComparer.Ordinal);
+
+        return normalizedCards
+            .Select(card => new DeckCard
+            {
+                CardCatalogEntryId = catalogEntryIdByCardId[card.CardId],
+                Quantity = card.Quantity,
+            })
+            .ToList();
     }
 
     private static ErrorOr<List<ParsedDeckCard>> ParseCards(string cardsPayload)

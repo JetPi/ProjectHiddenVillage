@@ -13,7 +13,6 @@ import { useCardAdminViewModel } from '@/views/admin/model/useCardAdminViewModel
 import { COLOR_FILTER_OPTIONS, SORT_OPTIONS, TYPE_FILTER_OPTIONS } from '@/views/admin/constants'
 import type { ICardCatalogListItemResponse } from '@/types/cardCatalog'
 
-/** How long the search box waits before it becomes a request; one keystroke is not one query. */
 const SEARCH_DEBOUNCE_MS = 250
 
 export function CardAdminView() {
@@ -30,8 +29,6 @@ export function CardAdminView() {
     return () => window.clearTimeout(timeoutHandle)
   }, [viewModel.searchText])
 
-  // The filters and the search are the server's job now: they go into the query, and therefore into the cache
-  // key, so the rail never filters a subset of what it happened to have loaded.
   const catalogParams = useMemo(
     () => ({
       pageSize: viewModel.pageSize,
@@ -56,7 +53,6 @@ export function CardAdminView() {
   } = catalogPageQuery
 
   const catalogCards = useMemo(() => {
-    // A page can repeat a row when the catalogue shifts under the scroll; one entry per id, in one pass.
     const cardsById = new Map<string, ICardCatalogListItemResponse>()
 
     for (const page of catalogPageQuery.data?.pages ?? []) {
@@ -74,15 +70,9 @@ export function CardAdminView() {
     [selectedCardId],
   )
 
-  // The listing is lean on purpose, so the editor's card - effects and all - is fetched by id. That also means a
-  // selected card does not have to be sitting on a loaded page for the pane to show it.
   const selectedCardQuery = useCardCatalogByIdsQuery(selectedCardIds)
   const selectedCard = selectedCardQuery.data?.[0] ?? null
 
-  /**
-   * The pane reports its own draft, so this screen knows whether leaving would throw work away. It is what the
-   * dialogs below and the router blocker are driven by - nothing else decides that here.
-   */
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [pendingCardId, setPendingCardId] = useState<string | null>(null)
 
@@ -116,14 +106,11 @@ export function CardAdminView() {
     }
   }, [fetchNextPage, hasNextPage, isFetchingNextPage])
 
-  // Leaving the route is the same loss as switching cards, so the router asks first and the dialog decides.
   const blocker = useBlocker(hasUnsavedChanges)
 
   useBeforeUnload(
     useCallback(
       (event: BeforeUnloadEvent) => {
-        // A reload or a closed tab is outside the router's reach; preventing it is what makes the browser show
-        // its own generic prompt.
         if (hasUnsavedChanges) {
           event.preventDefault()
         }
@@ -138,7 +125,6 @@ export function CardAdminView() {
     }
 
     if (hasUnsavedChanges) {
-      // Held rather than navigated: the dialog decides whether the draft is thrown away.
       setPendingCardId(cardId)
       return
     }
@@ -146,20 +132,14 @@ export function CardAdminView() {
     viewModel.selectCard(cardId)
   }
 
-  /**
-   * Either an exit is held here (another card was clicked) or the router is holding one of its own. The dialog
-   * lives in the detail pane because saving is one of its answers, and only the pane can save.
-   */
   const isExitPending = pendingCardId !== null || blocker.state === 'blocked'
 
   const handleExitResolved = (shouldProceed: boolean) => {
     const cardId = pendingCardId
 
-    // The router only exposes these while it is the thing holding the navigation.
     const blockedNavigation = blocker.state === 'blocked' ? blocker : null
 
     if (!shouldProceed) {
-      // Staying has to release the router too, otherwise the next navigation would still be held.
       blockedNavigation?.reset()
       setPendingCardId(null)
       return
@@ -216,7 +196,13 @@ export function CardAdminView() {
             <div className="flex items-center justify-between gap-3">
               <h1 className="text-xl font-bold text-[var(--text-primary)]">{t('admin.view.title')}</h1>
               <div className="flex items-center gap-3">
-                {/* A navigation, so it stays a link and keeps middle-click and open-in-new-tab working. */}
+                <Link
+                  to="/admin/decks"
+                  data-testid="admin-manage-decks"
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-transparent px-4 py-2 text-sm font-semibold text-[var(--text-primary)] transition-colors duration-200 hover:bg-[var(--surface-hover)]"
+                >
+                  {t('admin.view.manageDecks')}
+                </Link>
                 <Link
                   to="/admin/cards/new"
                   data-testid="admin-add-card"

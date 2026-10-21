@@ -8,15 +8,9 @@ import { CardPreviewCard } from '@/components/ui/cards/CardPreviewCard'
 import { Panel } from '@/components/ui/Panel'
 import type { ICardListOverlayEntry, ICardListOverlayProps } from '@/components/ui/types'
 
-// Same tile language as the prompt overlay's card options, so a card face reads the same wherever a list
-// of cards is offered (a pile viewer and an effect selection are the same affordance visually).
 const CARD_LIST_TILE_CLASSNAME =
   'flex flex-col items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-1 text-left transition-colors duration-150'
 
-/**
- * One card of the list. Kept as its own component so the card-details modal it can open lives and dies
- * with the tile: the whole list unmounts when the overlay closes, so no preview state has to be reset.
- */
 function CardListOverlayTile({ entry }: { entry: ICardListOverlayEntry }) {
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false)
   const canOpenPreview = entry.card !== null
@@ -64,10 +58,6 @@ function CardListOverlayTile({ entry }: { entry: ICardListOverlayEntry }) {
   )
 }
 
-/**
- * Read-only modal listing every card of one pile (the trash viewer). It carries no game state and submits
- * nothing to the hub - it is presentation only, so any pile of `ICardListOverlayEntry` can be inspected.
- */
 function CardListOverlay({
   isOpen,
   title,
@@ -113,8 +103,6 @@ function CardListOverlay({
     return null
   }
 
-  // Portalled to the body like the card-details modal: the game view's board subtree must not be able to
-  // clip or re-anchor a full-screen overlay (the board forces `position: relative` on its children).
   return createPortal(
     <div
       data-testid={testId}

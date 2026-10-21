@@ -96,10 +96,6 @@ function useGameHubState(
     [gameId, setConnectionError, setGameState],
   )
 
-  // Invalidations can arrive in bursts (for example when both players resolve their
-  // attack cut-in windows back to back). Coalescing them guarantees only one fetch is
-  // in flight and that the final applied state is the latest one, so an older response
-  // can never overwrite a newer state and leave the UI stuck until a manual refresh.
   const requestGameStateRefresh = useCallback(
     (currentConnection: HubConnection): void => {
       if (refreshInFlightRef.current) {
@@ -122,15 +118,6 @@ function useGameHubState(
     [refreshCurrentGameState],
   )
 
-  /**
-   * Tells the engine this board has finished presenting the phase transition it stopped on. The acknowledgement
-   * is the one call that has to survive while a presentation is outstanding (the server rejects every other
-   * mutation then), so it never goes through `submitHubIntent` and never touches `isActionPending`.
-   *
-   * A refusal is not a player-facing error: the server ignores an acknowledgement for a presentation it has
-   * already resumed past (or expired with its own watchdog), and the state pull below is what makes sure the
-   * board does not sit on a stale snapshot. Resolves true when the server took the acknowledgement.
-   */
   const acknowledgePhasePresentation = useCallback(
     async (presentationId: string): Promise<boolean> => {
       const currentConnection = connectionRef.current
@@ -318,11 +305,7 @@ function useGameHubState(
           })
         }
 
-        try {
-          await unsubscribeFromGame(nextConnection, gameId)
-        } catch {
-          // Best effort only; disconnect follows immediately.
-        }
+        await unsubscribeFromGame(nextConnection, gameId).catch(() => undefined)
 
         await disconnectGameHub(nextConnection)
       })()
@@ -340,9 +323,6 @@ function useGameHubState(
         return
       }
 
-      // A hub action that never settles would otherwise leave every action button
-      // permanently disabled, which looks exactly like a frozen board until the page is
-      // manually refreshed. Clear the latch and re-sync so play can continue.
       setActionError('The last action did not complete. Re-synced with the server.')
       setActionPending(false)
 

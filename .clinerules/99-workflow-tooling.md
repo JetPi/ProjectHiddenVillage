@@ -96,3 +96,11 @@
   a snapshot offers no pass. Its old early `return` fired on the pre-declaration snapshot, so the
   attack then sat in `ActionStep` until the 25 s `MainPhase` poll failed — a one-off suite flake, not a
   pass-count bug (the window always needed the double pass, and the support specs already send two).
+
+## Comments and written notes (keep them small)
+
+- Do not add explanatory comments to code. No block/JSDoc prose, no line-by-line commentary, no
+  rationale essays. One short line only when a non-obvious constraint would otherwise be lost.
+- Keep `plans/` notes short too: what changes, where, and how it was verified. No architecture
+  essays and no restating the code.
+- Never leave a comment that only explains the change you just made.

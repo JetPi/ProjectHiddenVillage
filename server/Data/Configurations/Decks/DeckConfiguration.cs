@@ -15,11 +15,17 @@ public sealed class DeckConfiguration : IEntityTypeConfiguration<Deck>
             .HasConversion<string>()
             .HasMaxLength(16);
 
+        entity.Property(record => record.Name)
+            .IsRequired()
+            .HasMaxLength(128);
+
         entity.HasOne(record => record.User)
             .WithMany(record => record.Decks)
             .HasForeignKey(record => record.UserId)
             .OnDelete(DeleteBehavior.SetNull);
 
         entity.HasIndex(record => record.UserId);
+
+        entity.HasIndex(record => new { record.Type, record.Name });
     }
 }

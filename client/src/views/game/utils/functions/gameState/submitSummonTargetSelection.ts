@@ -93,13 +93,6 @@ interface ISubmitSummonTargetSelectionArgs {
   setBottomBattlefieldDisplayOrder: Dispatch<SetStateAction<string[]>>
 }
 
-/**
- * Captures, before the summon is submitted, the live element of each tribute card.
- *
- * The card that goes to the trash is the card itself: the real element travels, so nothing is left standing in
- * its slot while a stand-in flies away from it. The submit follows immediately, and the state update that
- * removes the card lands as the travel finishes.
- */
 function captureTributeGhostSources(
   tributeTargets: ISummonTargetingState['selectedTargets'],
   boardZoneRef: RefObject<HTMLDivElement | null>,
@@ -135,8 +128,6 @@ function scheduleCardGhostAnimations({
   animControllerRef,
 }: IScheduleCardGhostAnimationsArgs): void {
   ghostSources.forEach((ghostSource, index) => {
-    // Claim the card for this explicit flight: the generic exit-to-trash effect skips ids claimed here, so
-    // the state update that removes the tribute from the field does not animate it a second time.
     animControllerRef.current.suppressedExitGhostInstanceIds.add(ghostSource.instanceId)
 
     const animationTimeoutId = window.setTimeout(() => {
@@ -159,7 +150,6 @@ function scheduleCardGhostAnimations({
 
 interface ICardGhostSource {
   instanceId: string
-  /** The live card element that travels; the flight borrows its transform and restores it. */
   element: HTMLElement
   side: 'top' | 'bottom'
 }

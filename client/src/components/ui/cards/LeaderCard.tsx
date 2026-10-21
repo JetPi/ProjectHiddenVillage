@@ -71,8 +71,6 @@ export function LeaderCard({
   const { actionOptions: leaderActionOptions, recoveryAction } = splitRecoveryAction(actionOptions)
   const isDisabled = !isConnected || isActionPending
   const isChoosingTarget = isTargetCandidate === true
-  // A targeting action (Choose / Select) is the only thing the card can do right now, so the ability list and
-  // the Recovery chip step aside while the pick is open.
   const isSoleAction = isChoosingTarget || (isEffectTargetCandidate && Boolean(onToggleEffectTarget))
   const showPreviewButton = isChoosingTarget || !hidePreviewButton
   const showOverlayControls = !disableInteractions
@@ -124,8 +122,6 @@ export function LeaderCard({
           </div>
         ) : null}
 
-        {/* N-013's freeze offers a Leader as a candidate: the pick is answered with the same "Select" chip the
-            battlefield/hand cards use (the store routes it to the pending effect selection prompt). */}
         {showOverlayControls && !isChoosingTarget && isEffectTargetCandidate && onToggleEffectTarget ? (
           <div className={LEADER_OVERLAY_CONTAINER_CLASSNAME}>
             <button

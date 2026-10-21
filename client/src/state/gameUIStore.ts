@@ -10,26 +10,13 @@ function resolveUpdate<T>(value: SetStateAction<T>, previous: T): T {
   return typeof value === 'function' ? (value as (previous: T) => T)(previous) : value
 }
 
-/**
- * Zones whose cards are drawn on the board, so a prompt asking for a card there is answered by clicking the
- * card's own Select button instead of the card-list overlay. The leader counts: it is a board card the player
- * clicks like any other (N-013's freeze offers a Leader or a Character), so it publishes the same Select
- * affordance. Kept next to the store because the store decides whether a click picks a prompt candidate or
- * toggles an effect-target selection.
- */
 const BOARD_PROMPT_SELECTION_ZONES = new Set<string>(['Hand', 'CharacterField', 'SupportZone', 'Leader'])
 
-/**
- * The instance ids a board-answerable effect selection prompt offers. The server resolves them from the
- * effect's own target rules, so this IS the effect's declared set of selectable cards - the board can never
- * offer anything else.
- */
 export function resolveBoardPromptCandidateInstanceIds(pendingPrompt: IGameStateResponse['pendingPrompt']): string[] {
   if (!pendingPrompt || pendingPrompt.type !== 'Effect' || !pendingPrompt.isAwaitingRequestingPlayer) {
     return []
   }
 
-  // A reveal presentation's single option is its acknowledgement, not a card to pick.
   if (pendingPrompt.selectionPromptKind === 'RevealPresentation') {
     return []
   }
@@ -117,9 +104,6 @@ export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
   cancelEffectTargeting: () => set({ pendingEffectTargeting: null }),
   clearPromptSelection: () => set({ pendingPromptSelection: null }),
   toggleEffectTarget: (targetCardInstanceId) => {
-    // A click on one of a prompt's candidates answers that prompt (the card's own Select button): the prompt
-    // lists exactly the cards the effect declared selectable, so nothing else can be picked. Everything else
-    // stays an effect-target toggle.
     const pendingPrompt = useGameHubStore.getState().gameState?.pendingPrompt ?? null
     if (isBoardPromptCandidate(pendingPrompt, targetCardInstanceId)) {
       set({
@@ -176,13 +160,6 @@ function pruneStaleGameUIState(): void {
   const currentHand = currentPlayer?.hand ?? []
   const availableActions = gameState.availableActions
 
-  // A finished game has no interaction left to preserve: every picker, the picked prompt candidate, the
-  // optimistic attack state and the attack link all belong to a running game, and the result overlay is the
-  // only affordance left. Clearing them here keeps the board from rendering a selection that can never be
-  // answered (no action is published to prune them the normal way).
-  //
-  // Every write is guarded: this store subscribes to itself, so an unconditional `set` re-schedules the pruner
-  // and spins forever (Zustand v5 notifies even for an unchanged value).
   if (gameState.gameOutcome) {
     if (ui.pendingCardTargeting) {
       ui.setPendingCardTargeting(null)
@@ -213,10 +190,6 @@ function pruneStaleGameUIState(): void {
     const actionId = pendingBattleTargeting.actionId
     const sourceId = pendingBattleTargeting.sourceCardInstanceId.trim().toLowerCase()
     const matchingBattleAction = availableActions.find((option) => option.actionId === actionId)
-    // Battle actions are published on the acting card (`battle-action:{instanceId}`) - battlefield cards
-    // and leaders alike - never in the global action list, so the leader must be part of the source
-    // scope. Otherwise a leader-declared battle is pruned the instant it opens and the board never
-    // prompts for a target.
     const sourceCards = [
       ...(currentPlayer?.leader ? [currentPlayer.leader] : []),
       ...(currentPlayer?.characterField ?? []),
@@ -230,16 +203,11 @@ function pruneStaleGameUIState(): void {
     }
   }
 
-  // Effect targeting (leader/support/card effects) must not outlive the action that opened it — the
-  // server turns the action disabled (once per turn, spent chakra, timing passed) or drops it entirely.
   const pendingEffectTargeting = ui.pendingCardTargeting
   if (pendingEffectTargeting && pendingEffectTargeting.kind === 'effect') {
     const actionId = pendingEffectTargeting.actionId
     const sourceId = pendingEffectTargeting.sourceCardInstanceId.trim().toLowerCase()
     const matchingAction = availableActions.find((option) => option.actionId === actionId)
-    // Leader effects are published on the leader card itself (`leader-effect:{leaderInstanceId}:{key}`),
-    // never in the global action list, so the leader must be part of the source scope - otherwise the
-    // mode is pruned the instant it is opened and the board never prompts for a target.
     const sourceCards = [
       ...(currentPlayer?.leader ? [currentPlayer.leader] : []),
       ...(currentPlayer?.characterField ?? []),
@@ -254,8 +222,6 @@ function pruneStaleGameUIState(): void {
     }
   }
 
-  // A picked prompt candidate is only meaningful while that prompt is still the pending one: the submit
-  // effect consumes it, and a prompt answered elsewhere must not leave a stale pick behind.
   const pendingPromptSelection = ui.pendingPromptSelection
   if (pendingPromptSelection && pendingPromptSelection.promptId !== (gameState.pendingPrompt?.promptId ?? '')) {
     ui.clearPromptSelection()
@@ -272,8 +238,6 @@ function pruneStaleGameUIState(): void {
     }
   }
 
-  // Multi-target effect picks (range supports) are opened by an `activate-support` action that can live on
-  // a hand card *or* in the support zone, so both scopes have to be searched before the mode is dropped.
   const pendingEffectMultiTargeting = ui.pendingEffectTargeting
   if (pendingEffectMultiTargeting) {
     const actionId = pendingEffectMultiTargeting.actionId
@@ -294,7 +258,6 @@ function pruneStaleGameUIState(): void {
 
   const actionError = useGameHubStore.getState().actionError
 
-  // Reconcile optimistic resting with the authoritative game state.
   if (Object.keys(ui.optimisticRestedByInstanceId).length > 0) {
     const characterFieldCards = gameState.players.flatMap((player) => player.characterField)
     const nextOptimisticRestedByInstanceId: Record<string, boolean> = {}
@@ -309,8 +272,6 @@ function pruneStaleGameUIState(): void {
         continue
       }
 
-      // Exhaustion means the card left play, so it never reads as rested here: an exiled card is
-      // simply absent from the field and drops out via the lookup above.
       if (matchedCard.isRested) {
         continue
       }
@@ -331,8 +292,6 @@ function pruneStaleGameUIState(): void {
     ui.setActiveAttackLink(null)
   }
 
-  // A failed action must not leave the board rendering an attack the backend never confirmed.
-  // Keep the optimistic rest only while the backend's pending-attack state names our attacker.
   const pendingAttackAttackerInstanceId =
     gameState.pendingAttackVisualState?.attackerCardInstanceId?.trim().toLowerCase() ?? ''
   const isOwnSubmittedAttackConfirmed = pendingAttackAttackerInstanceId.length > 0
@@ -366,13 +325,6 @@ function schedulePruneStaleGameUIState(): void {
   })
 }
 
-/**
- * Drops the retained interactive HUD content: a finished or replaced game must not leave the phase
- * row painting the chips of a turn nobody is playing any more.
- *
- * Every write is guarded - this store subscribes to itself, so an unconditional `set` re-schedules the
- * pruner forever.
- */
 function clearPhasePresentationHudLatch(ui: IGameUIStoreState): void {
   if (ui.isPhasePresentationPending) {
     ui.setIsPhasePresentationPending(false)
@@ -388,22 +340,6 @@ function clearPhasePresentationHudLatch(ui: IGameUIStoreState): void {
   }
 }
 
-/**
- * Keeps the HUD's phase-presentation latch in step with the pushed game state.
- *
- * The engine now performs the non-interactive transitions itself and stops on a presentation receipt
- * (`pendingPresentation`) until every connected client acknowledges it. While such a receipt is outstanding the
- * board is mid-transition: the last interactive content is deliberately left alone, so the phase row and the
- * sidebar keep painting exactly what they painted before the transition started instead of collapsing to an
- * empty strip for the hops of one engine-driven chain. Every other snapshot - an interactive phase, the
- * opponent's turn, a reconnect - re-latches, so a real decision and a legitimately empty action list both take
- * over normally.
- *
- * This runs synchronously in the hub subscription (not in a microtask): the latch is registered before
- * React's own `useSyncExternalStore` listener, so the store already holds it by the time React reads
- * the new state. A deferred write would render one frame of the unlatched list, which is the flicker
- * this exists to remove.
- */
 function syncPhasePresentationHudLatch(): void {
   const hubState = useGameHubStore.getState()
   const ui = useGameUIStore.getState()
@@ -424,11 +360,6 @@ function syncPhasePresentationHudLatch(): void {
     return
   }
 
-  // A MainPhase support reaction window is an interruption, not a phase change: while the opponent answers it,
-  // the activator has no action of their own, so the live list is empty for them. Treat that as a hold so the
-  // row keeps the chips it had (the "End Turn" chip included) instead of collapsing the strip for the round
-  // trip. The side that owns the window (the priority player) is offered `pass-turn` live, so the hold only
-  // applies while this board's own list is genuinely empty.
   const isSupportWindowHudHolding =
     gameState.isSupportResponseWindowOpen === true && gameState.availableActions.length === 0
 

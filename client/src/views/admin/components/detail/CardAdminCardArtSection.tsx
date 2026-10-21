@@ -3,12 +3,6 @@ import { AppButton } from '@/components/ui'
 import { CardAdminArtPicker } from './CardAdminArtPicker'
 import type { ICardAdminArtDraftModel } from '@/views/admin/types/cardAdminDetailTypes'
 
-/**
- * The art of a card that already exists. Nothing here is sent on its own: a picked file, a typed URL and a removal
- * are all staged in the draft, and the editor's save is what sends them. Uploading used to apply immediately -
- * which meant an upload *was* a save, and a wrong file or a pasted URL changed a shipped card before the author had
- * decided - so the section now only ever stages, and offers a discard for what it staged.
- */
 export function CardAdminCardArtSection({ art }: { art: ICardAdminArtDraftModel }) {
   const { t } = useTranslation()
 

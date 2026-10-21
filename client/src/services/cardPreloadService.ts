@@ -36,7 +36,6 @@ function extractUniqueCardArtSources(
   return extractUniqueImageSources(sources)
 }
 
-/** Preloads one width bucket for a set of catalog cards (no-op for already-cached URLs). */
 export async function preloadCardArt(
   cards: readonly ICardArtPreloadEntry[],
   width: number,
@@ -49,11 +48,6 @@ export async function preloadCardArt(
   await preloadImageSources(sources)
 }
 
-/**
- * Preloads card art in priority order. Each batch fully resolves before the next
- * one starts, so visible board art hits the network first, then previews, then
- * the remaining deck/trash art.
- */
 export async function preloadCardArtInPriorityBatches(
   batches: ReadonlyArray<{ cards: readonly ICardArtPreloadEntry[]; width: number }>,
 ): Promise<void> {
@@ -70,9 +64,6 @@ export async function preloadCardsByIds(cardIds: string[]): Promise<void> {
     return
   }
 
-  // The card's stored `image` is not a fetchable URL: since uploaded art landed it can be a `local:` reference
-  // the browser cannot resolve, so the art has to be addressed through the card-art endpoint like everywhere
-  // else. That is what this helper builds.
   const cardImageSources = extractUniqueCardArtSources(cards, CARD_ART_WIDTHS.board)
   if (cardImageSources.length === 0) {
     return
@@ -87,7 +78,6 @@ export function preloadFixedCards(): Promise<void> {
   }
 
   fixedCardsPreloadPromise = preloadCardsByIds(FIXED_CARD_IDS).catch(() => {
-    // Fixed-card preload is best effort and should not disrupt navigation.
     fixedCardsPreloadPromise = null
   })
 

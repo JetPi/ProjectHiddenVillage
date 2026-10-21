@@ -49,7 +49,6 @@ export const PREDICATE_CARD_COLOR_VALUE_OPTIONS = [
   { value: 'NotApplicable', label: 'N/A' },
 ] as const
 
-/** Display labels for the predicate `value`s above; the values are never translated. */
 export const MATCH_MODE_LABEL_KEYS: Readonly<Record<string, string>> = {
   'Any': 'admin.options.matchMode.any',
   'All': 'admin.options.matchMode.all',

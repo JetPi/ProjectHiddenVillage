@@ -2,19 +2,8 @@ import { useEffect, useState } from 'react'
 import type { IEffectNoticeBannerProps } from '@/views/game/types'
 import type { IEffectNoticeResponse } from '@/services/api/gameApi'
 
-/** How long a notice stays up before fading itself out. */
 const EFFECT_NOTICE_VISIBLE_MS = 4200
 
-/**
- * Transient toast for an effect that resolved with nothing to act on ("Gamabunta's effect had no valid
- * targets."). It is purely informational - `pointer-events-none`, never a click to dismiss - because the board
- * has to stay fully interactive: the notice can appear in the very same push as a card-play animation.
- *
- * The server republishes the notice tail on every state push, so the board treats whatever was already known
- * when it mounted as seen (that keeps a mid-game page reload from replaying old notices) and shows the newest
- * notice only while it is not that mount-time one. Each notice renders as its own keyed toast, so a second
- * notice replaces the first and restarts the fade.
- */
 function EffectNoticeBanner({ notices }: IEffectNoticeBannerProps) {
   const [mountNoticeId] = useState(() => notices?.[notices.length - 1]?.noticeId ?? null)
 
@@ -28,7 +17,6 @@ function EffectNoticeBanner({ notices }: IEffectNoticeBannerProps) {
 }
 
 function EffectNoticeToast({ notice }: { notice: IEffectNoticeResponse }) {
-  // The parent keys this component by notice id, so each notice starts un-expired.
   const [isExpired, setIsExpired] = useState(false)
 
   useEffect(() => {

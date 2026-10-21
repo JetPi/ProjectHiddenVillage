@@ -1,8 +1,3 @@
-/**
- * The card-condition keywords the catalogue understands. This mirrors the server's
- * `EffectConditionKeywords.All` and is only a fallback for the metadata request; the live list comes from
- * `GET /api/card/catalog/effect-condition-keywords`.
- */
 export const CARD_CONDITION_OPTIONS_FALLBACK = [
   'Activate: Main',
   'Recovery',

@@ -372,12 +372,14 @@ export async function createFixtureDeck(request: APIRequestContext, deckLines: s
  * Decks still referenced by a game instance answer 409 and stay in the ledger, so a later run retries them.
  */
 export async function reapFixtureDecks(request: APIRequestContext): Promise<string[]> {
-  const failures: string[] = []
-  const stillPending: string[] = []
+    const failures: string[] = []
+    const stillPending: string[] = []
 
-  for (const deckId of readFixtureDeckLedger()) {
-    try {
-      const response = await request.delete(`${API_BASE_URL}/api/deck/${encodeURIComponent(deckId)}`)
+    for (const deckId of readFixtureDeckLedger()) {
+      try {
+        const response = await request.delete(`${API_BASE_URL}/api/deck/${encodeURIComponent(deckId)}`, {
+          headers: adminHeaders(),
+        })
 
       if (!response.ok() && response.status() !== 404) {
         const body = await response.text()

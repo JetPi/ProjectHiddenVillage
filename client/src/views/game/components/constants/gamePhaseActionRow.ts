@@ -30,8 +30,6 @@ const PhaseValues = {
   'fulfilled-effect-targets': 'Fulfilled target selection',
   'support-activated-your-response': 'Support Activated · Your Response',
   'support-activated-opponent-response': 'Support Activated · Opponent Response',
-  // Effect selection prompts (GamePromptType.Effect): the middle indicator names what the player is picking,
-  // keyed by the server's EffectSelectionPromptKind.
   'select-prompt-place-on-deck-top': 'Select a card to place on deck top',
   'select-prompt-place-on-deck-bottom': 'Select a card to place on the bottom of your deck',
   'select-prompt-discard-from-hand': 'Select a card to discard',
@@ -43,10 +41,6 @@ const PhaseValues = {
   'select-prompt-generic': 'Select a card',
 }
 
-/**
- * Maps each `PhaseValues` identity token to its translation key. The tokens stay stable for comparisons
- * (theme classes, indicator switching); only the rendered text goes through `translatePhaseValue`.
- */
 const PhaseValueKeys: Record<string, string> = {
   'w-for-players': 'game.phase.waitingForPlayers',
   'w-for-opponent': 'game.phase.waitingForOpponent',
@@ -78,10 +72,6 @@ const PhaseValueKeys: Record<string, string> = {
   'select-prompt-generic': 'game.phase.selectGeneric',
 }
 
-/**
- * Renders a phase value: a static PhaseValues token is translated, while an already-composed dynamic line
- * (e.g. tribute needs, which helpers build via `i18n.t`) passes through unchanged.
- */
 function translatePhaseValue(t: TFunction, phaseValue: string): string {
   const key = PhaseValueKeys[phaseValue]
   return key ? translateKey(t, key) : phaseValue

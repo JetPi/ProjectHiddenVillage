@@ -46,12 +46,6 @@ export type IUseGameHubStateResult = {
   connectionError: string | null
   actionError: string | null
   submitHubIntent: (request: ISubmitHubIntentRequest) => Promise<void>
-  /**
-   * Confirms to the engine that this board has finished presenting its last phase transition. It deliberately
-   * does **not** go through `submitHubIntent`: an acknowledgement is not a player action, so it must never set
-   * `isActionPending` (the flag the buttons and the prompts key off) and must not be refused by the intent
-   * guards. Resolves true when the server took it.
-   */
   acknowledgePhasePresentation: (presentationId: string) => Promise<boolean>
   getCardActionTargets: (
     request: Omit<IGameCardActionTargetsRequest, 'playerId'>,

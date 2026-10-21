@@ -11,20 +11,13 @@ const TRIGGER_CLASSNAME =
 const OPTION_CLASSNAME =
   'w-full rounded-md px-3 py-2 text-left text-sm transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50'
 
-/**
- * The list is portalled to the body with a fixed position, so no scroll container, `overflow-hidden`
- * wrapper or rounded card on the way up can slice it (the admin detail pane scrolls and the effect rows
- * clip, which is what used to cut dropdowns off at a container boundary).
- */
 const LISTBOX_CLASSNAME =
   'themed-scrollbar fixed z-50 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--dropdown-bg)] p-1 text-sm shadow-[var(--panel-shadow)]'
 
-/** Preferred height of the list plus the room it needs; it shrinks when the viewport has less to give. */
 const LIST_MAX_HEIGHT_PX = 256
 const LIST_MIN_HEIGHT_PX = 120
 const LIST_GAP_PX = 4
 const VIEWPORT_PADDING_PX = 8
-/** Narrow triggers (the effect header chips) still deserve a readable list. */
 const LISTBOX_MIN_WIDTH_PX = 160
 
 type ICardAdminSelectListboxBox = {
@@ -35,18 +28,6 @@ type ICardAdminSelectListboxBox = {
   bottom?: number
 }
 
-/**
- * Admin dropdown.
- *
- * Deliberately **not** a native `<select>`: on Linux the native popup can commit whichever option ends up
- * under the cursor the moment it opens, so a single click picked a value instead of only opening the list
- * (it made the control feel like it "randomly" selected the option in the middle). This control opens on the
- * first click and only chooses on a click whose own press started inside the list, which is the same
- * behaviour as the app's other custom dropdown (`FormSelect`).
- *
- * Options are declared as `<option value="...">Label</option>` children, so call sites read like a native
- * select while the handler receives the chosen value directly.
- */
 export function CardAdminSelect({
   value,
   onValueChange,
@@ -63,8 +44,6 @@ export function CardAdminSelect({
   const listboxRef = useRef<HTMLUListElement | null>(null)
   const listboxId = `${useId()}-listbox`
 
-  // The press that opens the list must never also choose an option: only a click whose own pointer press
-  // landed inside the list is allowed to select.
   const pressStartedOnTriggerRef = useRef(false)
 
   const options = useMemo(() => readOptions(children), [children])
@@ -78,7 +57,6 @@ export function CardAdminSelect({
 
     const handleDocumentPointerDown = (event: MouseEvent) => {
       const target = event.target as Node
-      // The list lives in a portal, so "outside" means outside the trigger *and* outside the list.
       if (!containerRef.current?.contains(target) && !listboxRef.current?.contains(target)) {
         setIsOpen(false)
       }
@@ -88,7 +66,6 @@ export function CardAdminSelect({
     return () => document.removeEventListener('mousedown', handleDocumentPointerDown)
   }, [isOpen])
 
-  // Keep the portalled list pinned to the trigger while the detail pane (or the window) scrolls.
   useEffect(() => {
     if (!isOpen) {
       return
@@ -106,7 +83,6 @@ export function CardAdminSelect({
     }
   }, [isOpen])
 
-  // Arrow-key navigation can walk past the visible window: keep the highlighted option in view.
   useEffect(() => {
     if (!isOpen || activeIndex < 0) {
       return
@@ -148,7 +124,6 @@ export function CardAdminSelect({
 
   const handleOptionClick = (option: ICardAdminSelectOption) => {
     if (pressStartedOnTriggerRef.current) {
-      // Release of the click that opened the list: swallow it so the first click can only open.
       pressStartedOnTriggerRef.current = false
       return
     }
@@ -300,7 +275,6 @@ export function CardAdminSelect({
   )
 }
 
-/** The list is declared with native `<option>` children; anything else is ignored. */
 function readOptions(children: ReactNode): ICardAdminSelectOption[] {
   return Children.toArray(children).flatMap((child) => {
     if (!isValidElement(child) || child.type !== 'option') {
@@ -319,10 +293,6 @@ function readOptions(children: ReactNode): ICardAdminSelectOption[] {
   })
 }
 
-/**
- * Pins the portalled list to its trigger: flips above when there is no room below and clamps into the
- * viewport, so the list is fully visible wherever the trigger sits in the pane.
- */
 function resolveListboxBox(trigger: HTMLButtonElement | null): ICardAdminSelectListboxBox | null {
   if (!trigger) {
     return null
@@ -359,7 +329,6 @@ function resolveListboxStyle(box: ICardAdminSelectListboxBox): CSSProperties {
   }
 }
 
-/** Next enabled option, wrapping around like a native select and skipping disabled entries. */
 function findEnabledIndex(options: ICardAdminSelectOption[], from: number, direction: number): number {
   if (options.length === 0) {
     return -1

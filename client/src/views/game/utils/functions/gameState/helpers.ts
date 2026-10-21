@@ -150,7 +150,6 @@ export function mapActionToHubIntent(
       return null
     }
 
-    // The support slot is optional: without it the engine places the card in the leftmost empty slot.
     const supportSlotIndex = executionArguments?.supportSlotIndex
     return {
       intent: 'execute-card-action',
@@ -187,9 +186,6 @@ export function mapActionToHubIntent(
     return { intent: 'declare-end-step' }
   }
 
-  // The active player's `declareAttack` phase option: the engine enters the AttackDeclaration flow. It is a real
-  // decision on the board, not the system `advance-phase` hop the engine now performs on its own - so it is the
-  // only option that maps to the hub's phase-advance method.
   if (action.actionId === 'declare-attack' || action.actionId === 'declareAttack') {
     return { intent: 'declare-attack' }
   }

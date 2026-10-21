@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 using ProjectHiddenVillage.Server.Data.DTOs;
+using ProjectHiddenVillage.Server.Data.Entities;
 
 namespace ProjectHiddenVillage.Server;
 
@@ -30,9 +32,47 @@ public sealed class DeckController : ApiControllerBase
         return Created($"/api/deck/{result.Value}", result.Value);
     }
 
+    [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
+    [HttpPost("public")]
+    [ProducesResponseType(typeof(DeckResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<DeckResponse>> CreatePublicDeck([FromBody] CreatePublicDeckRequest request)
+    {
+        var result = await deckService.CreatePublicDeckAsync(request);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<DeckResponse>(result.Errors);
+        }
+
+        return Created($"/api/deck/{result.Value.Id}", result.Value);
+    }
+
+    [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
+    [HttpPut("{deckId}")]
+    [ProducesResponseType(typeof(DeckResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<DeckResponse>> UpdateDeck(string deckId, [FromBody] UpdateDeckRequest request)
+    {
+        var result = await deckService.UpdateDeckAsync(deckId, request);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<DeckResponse>(result.Errors);
+        }
+
+        return Ok(result.Value);
+    }
+
+    [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
     [HttpDelete("{deckId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(string), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<bool>> DeleteDeck(string deckId)
@@ -63,9 +103,12 @@ public sealed class DeckController : ApiControllerBase
 
     [HttpGet]
     [ProducesResponseType(typeof(List<DeckResponse>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<DeckResponse>>> GetDecks([FromQuery] Guid? userId = null, [FromQuery] bool populate = false)
+    public async Task<ActionResult<List<DeckResponse>>> GetDecks(
+        [FromQuery] Guid? userId = null,
+        [FromQuery] bool populate = false,
+        [FromQuery] DeckType? type = null)
     {
-        var result = await deckService.GetDecks(userId, populate);
+        var result = await deckService.GetDecks(userId, populate, type);
         if (result.IsError)
         {
             return ProblemFromErrors<List<DeckResponse>>(result.Errors);

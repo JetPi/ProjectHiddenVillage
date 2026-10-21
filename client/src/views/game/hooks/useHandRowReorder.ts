@@ -1,15 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { IHandReorderCard } from '@/views/game/types'
 
-/**
- * The hand row's display order, plus the bits of drag choreography Motion's `Reorder` does not own.
- *
- * Motion owns the geometry: the dragged card is moved by a transform on an element that stays in flow, and the
- * siblings are re-laid out by projection. This hook only keeps the order, lifts the active card for styling,
- * and suppresses the one click the browser synthesises at the end of a drag.
- */
 
-/** Keeps the order the player chose, drops ids that left the hand, appends ids that joined it. */
 function reconcileOrder(order: string[], cards: IHandReorderCard[]): string[] {
   const knownIds = new Set(cards.map((card) => card.instanceId))
   const preservedOrder = order.filter((instanceId) => knownIds.has(instanceId))
@@ -23,7 +15,6 @@ function reconcileOrder(order: string[], cards: IHandReorderCard[]): string[] {
 
 type IUseHandRowReorderArgs<TCard extends IHandReorderCard> = {
   cards: TCard[]
-  /** Cards that may not be picked up (defaults to every card being draggable). */
   canDragCard?: (card: TCard) => boolean
 }
 
@@ -53,8 +44,6 @@ function useHandRowReorder<TCard extends IHandReorderCard>({
       return
     }
 
-    // A real drag ends with the browser synthesising a click at the release point, which would otherwise land
-    // on whatever card action button happens to be under it.
     suppressNextClickRef.current = true
     window.setTimeout(() => {
       suppressNextClickRef.current = false
@@ -64,7 +53,6 @@ function useHandRowReorder<TCard extends IHandReorderCard>({
   useEffect(() => {
     function handleWindowClickCapture(event: MouseEvent): void {
       if (event.detail === 0) {
-        // Keyboard/assistive-tech activation is not a drag-release click.
         return
       }
 

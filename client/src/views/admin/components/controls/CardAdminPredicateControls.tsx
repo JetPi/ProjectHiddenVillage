@@ -60,9 +60,6 @@ export function CardAdminPredicateControls({
   }
 
   return (
-    // The select control owns a full-width wrapper, so the desktop width constraints belong on an element
-    // *around* each select. Putting them on the trigger only moved the button inside a wrapper that still
-    // claimed the whole row, which is what made the three controls stack vertically.
     <div className="flex flex-wrap items-start gap-2" data-testid="predicate-controls">
       <div className="w-full sm:w-auto sm:min-w-[11rem]">
         <CardAdminSelect

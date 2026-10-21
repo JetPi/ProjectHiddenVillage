@@ -64,7 +64,6 @@ function normalizeFilterValues(values: readonly string[] | undefined): string[] 
     }
   }
 
-  // Sorted so the cache key is the same for `[Red, Blue]` and `[Blue, Red]`.
   return Array.from(uniqueValues.values()).sort((left, right) => left.localeCompare(right))
 }
 
@@ -102,10 +101,6 @@ export const cardQueryKeys = {
     ] as const,
 }
 
-/**
- * The traits already present in the catalogue, used as authoring suggestions. This is metadata about the
- * catalogue, not a card read, so it can sit for as long as the listing does and never blocks free-text entry.
- */
 export function useCardCatalogTraitsQuery(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: cardQueryKeys.traits,
@@ -218,18 +213,12 @@ export function useGameCardMapById(
   }
 }
 
-/**
- * Creating a card only has to refresh the catalogue listing: the created card is already written into the by-id
- * cache by `createCardCatalogEntry`, so the new row renders without a refetch of its own.
- */
 export function useCreateCardCatalogEntryMutation() {
   const queryClient = useQueryClient()
 
   return useMutation<ICardCatalogItemResponse, Error, ICreateCardCatalogEntryMutationVariables>({
     mutationFn: ({ payload }) => createCardCatalogEntry(payload),
     onSuccess: async (createdCard) => {
-      // The listing no longer carries a card's effects, so the editor's detail read needs the written card
-      // seeded here rather than inferred from the refreshed page.
       seedCardCatalogItemCache([createdCard])
 
       await Promise.all([
@@ -244,10 +233,6 @@ export function useCreateCardCatalogEntryMutation() {
   })
 }
 
-/**
- * Replacing a card's art. The catalogue listing has to refresh because the response's image version - which is
- * what `<img src>` puts in its URL - comes from the card's updated timestamp, and that moves with the art.
- */
 export function useUpdateCardCatalogImageMutation() {
   const queryClient = useQueryClient()
 
@@ -267,10 +252,6 @@ export function useUpdateCardCatalogImageMutation() {
   })
 }
 
-/**
- * Removing a card. The by-id cache entry is dropped by `deleteCardCatalogEntry` itself; what is left is anything
- * holding a list that still contains the card - the catalogue pages and the by-ids cache the game view fills.
- */
 export function useDeleteCardCatalogEntryMutation() {
   const queryClient = useQueryClient()
 
@@ -292,7 +273,6 @@ export function useUpdateCardCatalogEffectsMutation() {
   return useMutation<ICardCatalogItemResponse, Error, IUpdateCardCatalogEffectsMutationVariables>({
     mutationFn: ({ cardId, payload }) => updateCardCatalogEffects(cardId, payload),
     onSuccess: async (updatedCard) => {
-      // One cache for card details: the by-ids entry the editor reads, seeded from what the write returned.
       seedCardCatalogItemCache([updatedCard])
 
       await Promise.all([

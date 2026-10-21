@@ -3,10 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import type { ICardAdminEditorFooterProps } from '@/views/admin/types/cardAdminDetailTypes'
 
-/**
- * The unsaved-changes pill and the submit button, portalled to the body so they float over the pane on both card
- * screens. Only the labels and the submit differ between updating and creating.
- */
 export function CardAdminEditorFooter({
   isDirty,
   isSaving,

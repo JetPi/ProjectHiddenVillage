@@ -56,7 +56,14 @@ test('admin card editor keeps dropdowns, headers and sections inside their conta
   // waiting for it to actually carry the term is what proves the rail re-queried instead of clicking whatever the
   // unfiltered list happened to show first.
   await expect(firstTile).toContainText('Shisui', { timeout: 15_000 })
+  // The same tile component carries the card's colour as its outline on this screen too. The tone lives on the
+  // tile wrapper (the remove-copy control is a sibling of the card button), not on the button itself.
+  await expect(page.locator('[data-testid="catalog-card-tile"]').first())
+    .toHaveAttribute('data-color-tone', /^(red|blue|green|neutral)$/)
   await firstTile.click()
+
+  // Selecting a card brings the primary-colour outline back; the tile's own colour stays its background.
+  await expect(page.locator('[data-testid="catalog-card-tile"][data-marked="true"]')).toHaveCount(1)
 
   // Effects start collapsed; expand one so the panels render.
   const expandButton = page.getByRole('button', { name: 'Expand effect' }).first()

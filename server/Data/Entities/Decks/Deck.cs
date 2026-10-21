@@ -12,6 +12,8 @@ public sealed class Deck
 
     public DeckType Type { get; set; }
 
+    public string Name { get; set; } = string.Empty;
+
     public Guid? UserId { get; set; }
 
     public User? User { get; set; }

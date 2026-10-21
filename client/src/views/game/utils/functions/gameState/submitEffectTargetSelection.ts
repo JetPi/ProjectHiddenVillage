@@ -2,11 +2,6 @@ import type { Dispatch, SetStateAction } from 'react'
 import type { IEffectTargetingState, ISubmitHubIntentRequest } from '@/views/game/types'
 import { canConfirmEffectTargetSelection } from './canConfirmEffectTargetSelection'
 
-/**
- * Submits a confirmed multi-target effect pick. Unlike a summon this moves no card of ours, so there is
- * no deck/hand animation to chain: the selection is cleared optimistically (an `actionError` rolls the
- * board back through the store's prune) and the engine resolves the activation on the hub.
- */
 function submitEffectTargetSelection({
   pendingEffectTargeting,
   setPendingEffectTargeting,

@@ -8,11 +8,6 @@ import type {
 } from '@/views/admin/types/cardAdminDetailTypes'
 import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog'
 
-/**
- * The payload rules for the card effects editor: how a card hydrates the draft, what a draft must satisfy before
- * it may be sent, and how a failed request reads back to the author. Kept apart from the editing state so the
- * update screen and the create screen enforce exactly the same rules.
- */
 
 export const EMPTY_VALIDATION_ERRORS: ICardAdminEffectEditorValidationErrors = {
   form: null,
@@ -231,10 +226,6 @@ export function parseEditorPayload(draft: ICardAdminEffectEditorDraft): {
   }
 }
 
-/**
- * Turns a failed card admin request into something worth showing: the API's validation problem body when there
- * is one, and the call's own message otherwise.
- */
 export function getCardAdminRequestErrorMessage(error: unknown): string {
   if (!axios.isAxiosError(error)) {
     return i18n.t('admin.validation.saveEffectFailed')

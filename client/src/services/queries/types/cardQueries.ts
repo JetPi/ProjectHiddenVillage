@@ -13,7 +13,6 @@ export type IUseInfiniteCardCatalogQueryOptions = {
   staleTimeMs?: number
 }
 
-/** The listing query: paging plus the filters, all of which are part of the cache key. */
 export type IUseInfiniteCardCatalogQueryParams = Pick<
   ICardCatalogPageQuery,
   'pageSize' | 'sort' | 'search' | 'types' | 'colors'
@@ -41,12 +40,10 @@ export type ICreateCardCatalogEntryMutationVariables = {
 
 export type IDeleteCardCatalogEntryMutationVariables = {
   cardId: string
-  /** True also removes the card from the decks that list it; the server refuses otherwise. */
   force: boolean
 }
 
 export type IUpdateCardCatalogImageMutationVariables = {
   cardId: string
-  /** An external URL, a local art reference, or an empty string to clear the art. */
   image: string
 }

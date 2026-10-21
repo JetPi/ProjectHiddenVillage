@@ -4,12 +4,6 @@ import type { ISubmitHubIntentRequest } from '@/views/game/types'
 import { mapActionToHubIntent } from './helpers'
 import { runSubmitThenZoneEntryAnimation } from './runSubmitThenZoneEntryAnimation'
 
-/**
- * Sets a support card from the hand into the support area. There is no slot selection step: the engine drops
- * the card into the leftmost empty support slot, so the client submits immediately and animates the card from
- * its hand position to wherever it landed (the destination is resolved by card instance id, so the client
- * never needs to know the slot).
- */
 function submitSetSupport({
   action,
   cardInstanceId,

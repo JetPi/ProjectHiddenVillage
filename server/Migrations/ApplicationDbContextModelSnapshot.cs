@@ -121,6 +121,11 @@ namespace ProjectHiddenVillage.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -132,6 +137,8 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("Type", "Name");
 
                     b.ToTable("decks", (string)null);
                 });

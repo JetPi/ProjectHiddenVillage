@@ -34,7 +34,6 @@ export const TARGET_LOCATION_SELECTOR_KIND_OPTIONS = [
 
 export const TARGET_TYPE_OPTIONS = ['Selected Targets', 'Leader'] as const
 
-/** Display labels for the targeting `value`s above; the values are never translated. */
 export const TARGET_RANGE_LABEL_KEYS: Readonly<Record<string, string>> = {
   'Self': 'admin.options.targetRange.self',
   'Opponent': 'admin.options.targetRange.opponent',

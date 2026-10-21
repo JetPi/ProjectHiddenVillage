@@ -6,6 +6,7 @@ import { SORT_OPTION_LABEL_KEYS } from '@/views/admin/constants'
 import type { ICardAdminFilterPanelProps } from '@/views/admin/types/cardAdminViewTypes'
 import { CardAdminSelect } from '@/views/admin/components/controls'
 import { CardAdminRemoveButton } from '@/views/admin/components/controls'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 
 export function CardAdminFilterPanel({
   searchText,
@@ -19,6 +20,8 @@ export function CardAdminFilterPanel({
   onTypeChange,
   onColorChange,
   onSortChange,
+  includeNonDeckableTypes,
+  onIncludeNonDeckableTypesChange,
 }: ICardAdminFilterPanelProps) {
   const { t } = useTranslation()
   const [pendingTypeSelection, setPendingTypeSelection] = useState('')
@@ -145,20 +148,38 @@ export function CardAdminFilterPanel({
 
       
 
-      <div className="col-span-3 space-y-1">
-        <FormLabel htmlFor="card-admin-sort" className="text-[10px] tracking-[0.12em]">
-          {t('admin.filters.sort')}
-        </FormLabel>
-        <FormSelect
-          id="card-admin-sort"
-          value={sortValue}
-          options={sortOptions.map((option) => ({
-            ...option,
-            label: translateKey(t, SORT_OPTION_LABEL_KEYS[option.value] ?? option.label),
-          }))}
-          onValueChange={onSortChange}
-          className="py-2"
-        />
+      <div className="col-span-3 flex items-end gap-3">
+        <div className="min-w-0 flex-1 space-y-1">
+          <FormLabel htmlFor="card-admin-sort" className="text-[10px] tracking-[0.12em]">
+            {t('admin.filters.sort')}
+          </FormLabel>
+          <FormSelect
+            id="card-admin-sort"
+            value={sortValue}
+            options={sortOptions.map((option) => ({
+              ...option,
+              label: translateKey(t, SORT_OPTION_LABEL_KEYS[option.value] ?? option.label),
+            }))}
+            onValueChange={onSortChange}
+            className="py-2"
+          />
+        </div>
+
+        {includeNonDeckableTypes !== undefined && onIncludeNonDeckableTypesChange ? (
+          <div
+            data-testid="deck-admin-nondeckable-toggle"
+            className="flex shrink-0 items-center gap-2 pb-2"
+          >
+            <span className="text-[10px] tracking-[0.12em] text-[var(--text-muted)]">
+              {t('admin.decks.catalog.includeNonDeckable')}
+            </span>
+            <CardAdminToggleSwitch
+              checked={includeNonDeckableTypes}
+              onChange={onIncludeNonDeckableTypesChange}
+              ariaLabel={t('admin.decks.catalog.includeNonDeckableAria')}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   )
