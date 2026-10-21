@@ -3,10 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { resolveDeckCardColorStyling } from '@/views/admin/utils/deckCardColorStyles'
 import type { IDeckAdminListRailProps } from './types'
 
-/**
- * The public decks the builder can open. Navigation is links, not click handlers: a deck has a URL
- * (`/admin/decks/:deckId`), so middle-click and open-in-new-tab keep working and a reload lands on the same deck.
- */
 export function DeckAdminListRail({ decks, selectedDeckId, isLoading, isError }: IDeckAdminListRailProps) {
   const { t } = useTranslation()
 
@@ -43,8 +39,6 @@ export function DeckAdminListRail({ decks, selectedDeckId, isLoading, isError }:
             {decks.map((deck) => {
               const totalCards = deck.cards.reduce((total, card) => total + card.quantity, 0)
               const isSelected = deck.id === selectedDeckId
-              // The rail is a list of decks, so both the surface and the outline are the deck's leader colour -
-              // the card every other line in the deck has to match. It reuses the catalogue tile's muted tones.
               const colorStyling = resolveDeckCardColorStyling(deck.leaderColor)
 
               return (
@@ -58,8 +52,6 @@ export function DeckAdminListRail({ decks, selectedDeckId, isLoading, isError }:
                     data-selected={isSelected ? 'true' : undefined}
                     aria-current={isSelected ? 'page' : undefined}
                     className={`block rounded-lg border px-2.5 py-2 transition-colors ${colorStyling.outlineClassName} ${colorStyling.surfaceClassName} ${
-                      // Selection is a thicker inner edge in the same tone; a ring in the primary colour would add
-                      // a second colour to the very outline this highlight exists to show.
                       isSelected ? colorStyling.selectedAccentClassName : colorStyling.hoverClassName
                     }`}
                   >

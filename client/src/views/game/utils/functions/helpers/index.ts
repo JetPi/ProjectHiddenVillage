@@ -33,9 +33,6 @@ function getPhaseValue(
     return effectTargetSelectionPhaseValue
   }
 
-  // An effect selection prompt ("select a card to place on deck top") shows its own message while it waits for
-  // this player's answer - the message names what to pick, and the picking itself happens on the cards' Select
-  // buttons. Nothing else is added to this line for a prompt: no counts, no confirm chip.
   const promptSelectionPhaseValue = getPromptSelectionPhaseValue(gameInstance)
   if (promptSelectionPhaseValue !== null) {
     return promptSelectionPhaseValue
@@ -94,16 +91,6 @@ function getPhaseValue(
   return isPlayerTurn ? PhaseValues['player-turn'] : PhaseValues['opponent-turn']
 }
 
-/**
- * Fallback label for the catch-all material, mirroring the server's
- * `TributeRequirementDescription.GenericMaterialLabel`. The server normally declares it explicitly
- * (and flags it with `isGeneric`), so this only backs up an incomplete payload.
- */
-/**
- * Names what an effect selection prompt is asking for, keyed by the server's EffectSelectionPromptKind /
- * {@link IPromptPresentation.selectionPromptKind}. Adding a kind means one entry here (plus the prompt copy in
- * `utils/functions/prompts`) - no server change.
- */
 function getPromptSelectionPhaseValue(gameInstance: IGameStateResponse): string | null {
   const pendingPrompt = gameInstance.pendingPrompt
   if (!pendingPrompt || promptType(pendingPrompt.type) !== 'effect' || !pendingPrompt.isAwaitingRequestingPlayer) {
@@ -177,11 +164,6 @@ function resolveTributeMaterialLabelsByCardInstanceId(
   return labelsByCardInstanceId
 }
 
-/**
- * Resolves the material groups the SERVER declared for this summon. The server derives them from the
- * effect's tribute material rules, so the sizes are authoritative and the client never has to guess
- * how many cards of each material are consumed.
- */
 function resolveServerTributeMaterialGroups(
   targeting: ISummonTargetingState,
 ): Array<{ label: string; requiredCount: number; isGeneric: boolean }> {
@@ -197,8 +179,6 @@ function resolveServerTributeMaterialGroups(
     return materialRequirements
   }
 
-  // Defensive fallback for a payload without server-declared groups: a single generic material sized
-  // by the declared target count, so the chip and the phase text still render something sane.
   const fallbackCount = targeting.exactTargetCount
     ?? targeting.minimumTargetCount
     ?? targeting.maximumTargetCount
@@ -211,11 +191,6 @@ function resolveServerTributeMaterialGroups(
   }]
 }
 
-/**
- * Turns the server-declared material groups into progress groups. Only the selection has to be
- * distributed here: a selected card pays for a named material it matches first, then for any generic
- * ("any") material that is still short.
- */
 function buildTributeMaterialRequirementGroups(
   targeting: ISummonTargetingState,
 ): ITributeMaterialRequirementGroup[] {
@@ -299,11 +274,6 @@ function getTributeRequirementSummary(
   }
 }
 
-/**
- * Phase text shown while the player is picking tribute materials, e.g.
- * "Selecting tribute materials (needs: (Toad x1, any x1))". The needs list shrinks as materials are
- * selected and switches to the fulfilled text once every requirement group is covered.
- */
 function getTributeSelectionPhaseValue(
   pendingSummonTargeting: ISummonTargetingState | null | undefined,
 ): string | null {
@@ -319,11 +289,6 @@ function getTributeSelectionPhaseValue(
   return i18n.t('game.phase.tributeNeeds', { needs: summary.materialSummary })
 }
 
-/**
- * Phase text shown while the player is picking targets for a range effect, e.g.
- * "Selecting support targets (needs: 1)". The count shrinks as candidates are toggled and switches to
- * the fulfilled text once the selection satisfies the server-declared requirement.
- */
 function getEffectTargetSelectionPhaseValue(
   pendingEffectTargeting: IEffectTargetingState | null | undefined,
 ): string | null {
@@ -341,11 +306,6 @@ function getEffectTargetSelectionPhaseValue(
   return i18n.t('game.phase.effectTargetsNeeds', { needs: remainingCount })
 }
 
-/**
- * Phase text shown while an activated support waits for responses in the MainPhase. The window belongs to
- * whoever holds priority, so each client can tell whether it is being asked to react with a
- * [Support Activated] card (or simply to let the activation resolve by passing).
- */
 function getSupportResponseWindowPhaseValue(
   gameInstance: IGameStateResponse,
   authUserId?: string,
@@ -387,12 +347,6 @@ function getPhaseThemeClasses(gameInstance: IGameStateResponse, phaseValue: stri
     : 'turn-indicator-blue turn-indicator-text-dark-theme'
 }
 
-/**
- * The support reaction chain as the board bubble shows it: every queued activation with its order, who
- * activated it, the card it targets (a board card, or another queued activation when it negates it) and
- * which activations a later negate claims. The engine publishes the raw chain on the state
- * (`supportChain`), so the labels here are pure presentation - no client-side chain bookkeeping.
- */
 function buildSupportChainView(
   gameInstance: IGameStateResponse,
   authUserId?: string,
@@ -466,8 +420,6 @@ function buildSupportChainView(
     }
   }
 
-  // The chain resolves last in, first out: the most recent activation is the one that happens next, unless
-  // a later entry has already claimed it with a negate.
   const newestEntry = resolvedEntries[resolvedEntries.length - 1]
 
   return resolvedEntries.map((entry) => ({
@@ -477,21 +429,10 @@ function buildSupportChainView(
   }))
 }
 
-/**
- * The bubble is how the board shows what is waiting to resolve, so it pops from the very first queued
- * activation - a lone activation that merely opened the reaction window included - and stays up for as long
- * as the stack has anything on it. It disappears when the chain empties, i.e. when the entries leave
- * `GameStateResponse.SupportChain`.
- */
 function shouldShowSupportChainBubble(entries: ISupportChainViewEntry[]): boolean {
   return entries.length > 0
 }
 
-/**
- * The result overlay's copy. The engine publishes the outcome once (winner, losers and why), so this is pure
- * presentation: "Victory" for the winner, "Defeat" for a loser, and "Draw" when the payload names no winner
- * (both players met a losing condition at the same instant and every tiebreak metric was tied).
- */
 function buildGameOutcomePresentation(
   outcome: IGameOutcomeResponse | null | undefined,
   authUserId?: string,

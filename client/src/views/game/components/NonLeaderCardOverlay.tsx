@@ -8,8 +8,6 @@ import type { INonLeaderCardOverlayProps } from '@/views/game/types'
 const OVERLAY_VISIBILITY_CLASSNAME =
   'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
 
-// Shared by every chip in the action list, including the "No actions" placeholder, so a card with no
-// options keeps the same footprint and visual language as one with options.
 const ACTION_CHIP_CLASSNAME =
   'w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
 
@@ -61,8 +59,6 @@ function NonLeaderCardOverlay({
           'card-overlay-controls absolute inset-0 z-20 rounded-md p-1 text-[9px] text-[var(--text-primary)] transition-opacity duration-200 ease-out',
           disableInteractions
             ? 'pointer-events-none opacity-0'
-            // A targeting action (Choose / Tribute / Select) is the only thing the card can do right now, so it
-            // is shown without waiting for a hover - the player must not have to hunt for it.
             : isChoosingTarget || isTributeTargetCandidate || isEffectTargetCandidate
               ? 'pointer-events-auto opacity-100'
               : OVERLAY_VISIBILITY_CLASSNAME,

@@ -3,10 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import type { IDeckAdminDeleteDialogProps } from './types'
 
-/**
- * Deleting a deck is irreversible, so it is asked for explicitly. The server refuses to delete a deck a game
- * instance still points at (409) and the screen reports that answer instead of pretending the delete worked.
- */
 export function DeckAdminDeleteDialog({
   isOpen,
   deckName,

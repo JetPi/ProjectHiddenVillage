@@ -37,20 +37,12 @@ function trimmedOrUndefined(value: string): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
-/**
- * The unload bookkeeping for an upload that never became a card: what is stored, under which card id, and
- * whether a card was created from it. Held in a ref because the unmount cleanup needs the latest values.
- */
 type UploadCleanupState = {
   reference: string | null
   cardId: string | null
   consumedByCreate: boolean
 }
 
-/**
- * The create screen's state: identity, the art upload, and the submit that posts the new card. The effects half
- * is the same draft hook the update screen uses, hydrated from nothing, so both screens validate identically.
- */
 export function useCardAdminCreateModel(): ICardAdminCreateModel {
   const createMutation = useCreateCardCatalogEntryMutation()
   const uploadMutation = useUploadCardArtMutation()
@@ -80,12 +72,9 @@ export function useCardAdminCreateModel(): ICardAdminCreateModel {
 
   useEffect(() => {
     return () => {
-      // Leaving the screen with an upload that never became a card would leave a master on disk that nothing
-      // refers to. Best effort: the request may not survive the unload.
       const pending = uploadCleanupRef.current
       if (pending.reference && pending.cardId && !pending.consumedByCreate) {
         void deleteCardArt(pending.cardId).catch(() => {
-          // An orphaned file is wasted disk, not a broken screen.
         })
       }
     }
@@ -146,8 +135,6 @@ export function useCardAdminCreateModel(): ICardAdminCreateModel {
     setIdentity((current) => {
       const next = { ...current, ...patch }
 
-      // A stored master is keyed by the card id, so a reference uploaded for a previous id cannot be used for
-      // the card being created now - the server refuses it, and the author has to upload again.
       if (patch.cardId !== undefined && current.cardId.trim() !== next.cardId.trim()) {
         setUploadedReference(null)
         setUploadedCardId(null)
@@ -222,9 +209,6 @@ export function useCardAdminCreateModel(): ICardAdminCreateModel {
     try {
       await createMutation.mutateAsync({ payload: request })
 
-      // Marked here rather than from state: the screen navigates away on success, so a state-driven flag would
-      // not have committed before the unmount cleanup ran, and the art of the card just created would be
-      // deleted as if it had been abandoned.
       uploadCleanupRef.current = {
         ...uploadCleanupRef.current,
         consumedByCreate: true,

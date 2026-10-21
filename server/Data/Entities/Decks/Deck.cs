@@ -12,10 +12,6 @@ public sealed class Deck
 
     public DeckType Type { get; set; }
 
-    /// <summary>
-    /// The name a deck is referred to by. Admin-authored decks carry a real name; decks minted by the legacy
-    /// text import (a player's list pasted at game creation) store an empty name and fall back to their id.
-    /// </summary>
     public string Name { get; set; } = string.Empty;
 
     public Guid? UserId { get; set; }

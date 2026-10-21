@@ -25,20 +25,8 @@ interface AttackLinkArrowProps {
   config: IAttackLinkRenderConfig;
 }
 
-// The board's Z ladder, outermost context (the arrow's overlay layer is a direct child of the board, and the
-// board is no longer an isolation context - see `.game-board-spill` in `index.css`):
-//   0   the board's own background and its dashed outer border
-//   10  board chrome (the phase action row)
-//   20  the board's two halves: piles, resources, support, battlefield
-//   30  the hand rows, which hold the cards that fly over the board
-//   35  this arrow - above every card, below every overlay
-//   40  transient banners and prompt modals   ·   50-70 card preview / game over   ·   120 route transition
 const ATTACK_LINK_OVERLAY_Z_INDEX = 35
 const ATTACK_LINK_HEAD_Z_INDEX = 36
-// The attacker's rested tilt is a Motion animation on the card's wrapper, so the anchors keep moving for a
-// moment after the attack is declared. The geometry is therefore re-sampled over a short window instead of
-// once. Samples are taken from an animation frame rather than synchronously in the effect: a setState inside a
-// layout effect is a *nested* update, which is what used to drive React into "Maximum update depth exceeded".
 const ATTACK_LINK_SETTLE_FRAMES = 30
 
 type IAttackLinkLayoutSample = {
@@ -56,11 +44,6 @@ function readAnchorSignature(element: HTMLElement): string {
   return `${rect.left.toFixed(1)},${rect.top.toFixed(1)},${rect.width.toFixed(1)},${rect.height.toFixed(1)}`
 }
 
-/**
- * One layout sample, taken entirely from the live DOM: the board box the overlay is positioned against and the
- * two anchor cards (so a resting card's tilt is already applied). The cubic and the head both come from our own
- * geometry - nothing is measured back out of a rendered path.
- */
 function sampleAttackLinkLayout(config: IAttackLinkRenderConfig): IAttackLinkLayoutSample | null {
   const board = document.querySelector<HTMLElement>('[data-testid="game-board"]')
   const sourceCard = document.getElementById(config.startId)
@@ -136,9 +119,6 @@ export const AttackLinkArrow = ({ config }: AttackLinkArrowProps) => {
       data-testid="attack-link-overlay"
       aria-hidden="true"
       style={{
-        // Must be inline: `.game-board-spill > *` in `index.css` forces `position: relative` on every direct
-        // child of the board (unlayered CSS beats Tailwind's utilities layer), which would make this overlay an
-        // in-flow grid item whose size feeds back into the board's grid.
         position: 'absolute',
         inset: 0,
         pointerEvents: 'none',
@@ -158,15 +138,6 @@ export const AttackLinkArrow = ({ config }: AttackLinkArrowProps) => {
             pointerEvents: 'none',
           }}
         >
-          {/* The dashed tail: a cubic, and always an arc (the flat case is a symmetric arc through a midpoint
-              control point, with a clamped depth and a side that follows the layout - see
-              `resolveAttackLinkCubic`). There is deliberately no SVG `<marker>` here: the head is derived from this
-              same cubic, and its tip *is* the path's end, so the two can never disagree.
-              The dash phase is what keeps them from colliding: a pattern painted from the path's start would drop
-              its last dash right under the head, where the head's silhouette is narrower than the 4.5px stroke and
-              the dashes would poke out beside it. `resolveAttackLinkDashOffset` pins the final gap to the end of
-              the path instead, so the tail stops at the head's base - while the path itself still ends on the
-              head's tip, which is what the battle-visuals spec measures. */}
           <path
             d={resolveAttackLinkPathData(cubic)}
             fill="none"
@@ -196,16 +167,10 @@ export const AttackLinkArrow = ({ config }: AttackLinkArrowProps) => {
             height: head.sizePx,
             zIndex: ATTACK_LINK_HEAD_Z_INDEX,
             pointerEvents: 'none',
-            // The glow lives on the <svg> root, not on the inner <g>: a CSS filter on an SVG child is clipped by
-            // its (tiny) filter region, so the drop shadows were cut off and the head looked flat next to the
-            // glowing dashes.
             filter: ATTACK_ARROW_LINE_FILTER,
           }}
         >
           <g
-            // `translate(0 -0.5)` first (SVG applies the rightmost transform first): the head path is a unit
-            // shape whose *tip* vertex is (1, 0.5), not (1, 0), so without this the drawn head sits half a head
-            // length to one side of the arrow's axis.
             transform={`rotate(${head.rotationDeg}) scale(${head.sizePx}) translate(0 -0.5)`}
             fill={ATTACK_ARROW_COLOR}
             stroke="rgba(0, 0, 0, 0.24)"

@@ -46,7 +46,6 @@ export async function signInAction({ request }: ActionFunctionArgs): Promise<ISi
 
     await api.post<IUserResponse>('/api/user', signUpPayload)
 
-    // Auto-login after successful signup so the user can continue immediately.
     const loginPayload: ILoginApiRequest = {
       email,
       password,

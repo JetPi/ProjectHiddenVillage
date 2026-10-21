@@ -39,8 +39,6 @@ export function useGameRefs() {
     bottomTrashCardRef.current = node
   }, [bottomTrashCardRef])
 
-  // The returned object identity must stay stable so that consumers can rely
-  // on the mount handlers (and refs) retaining their identity across renders.
   return useMemo(() => ({
     boardZoneRef,
     topDeckCardRef,
@@ -76,8 +74,6 @@ export function useGameRefs() {
 
 export function useGameAnimationController() {
   return useRef<IGameViewAnimController>({
-    // The flight registry and its idle promise are owned by the director module, not by this ref: the
-    // acknowledgement asks the director whether the board is still animating.
     whenIdle,
     handledAnimationEventIds: new Set<string>(),
     drawAnimationEndsAt: null,

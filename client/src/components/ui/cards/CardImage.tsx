@@ -59,7 +59,6 @@ export function CardImage({
   useEffect(() => {
     if (hasSource) {
       void preloadImageSource(normalizedSrc).catch(() => {
-        // CardImage should fall back visually when image loading fails.
       })
     }
   }, [hasSource, normalizedSrc])
@@ -72,7 +71,6 @@ export function CardImage({
     function handleReconnect() {
       setFailedSource((current) => (current === normalizedSrc ? null : current))
       void preloadImageSource(normalizedSrc).catch(() => {
-        // Reconnect retries are best effort; fallback remains if loading still fails.
       })
     }
 
@@ -113,8 +111,6 @@ export function CardImage({
         )}
         style={{ width, height }}
       >
-        {/* The generated SVG carries its own intrinsic 360x500 size. Pinning it to the padded box is what
-            keeps it from spilling past the dotted outline when the caller supplies a smaller card size. */}
         <img
           src={fallbackImageSrc}
           alt={resolvedFallbackLabel}

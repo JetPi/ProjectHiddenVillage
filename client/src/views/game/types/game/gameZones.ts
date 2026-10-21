@@ -35,15 +35,7 @@ export type IGameZonesProps = {
   availableActions: IGameActionOptionResponse[]
   isConnected: boolean
   isActionPending: boolean
-  /**
-   * Whether an action is currently in flight, held at its last interactive value while the engine holds a phase
-   * presentation (see `useRetainedActionBlocked`) so the sidebar does not dim and undim during a transition.
-   */
   isActionBlocked: boolean
-  /**
-   * True while the engine is holding a phase presentation this board is answering. The sidebar keeps its last
-   * interactive look but goes inert - a click would land on a phase that already moved.
-   */
   isPresentationPending: boolean
   onSelectAction: (action: IGameActionOptionResponse) => void
   onSelectAttackTarget: (targetCardInstanceId: string) => void

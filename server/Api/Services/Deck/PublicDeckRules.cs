@@ -1,29 +1,13 @@
 namespace ProjectHiddenVillage.Server;
 
-/// <summary>One requested card line: the catalogue id and how many copies the deck asks for.</summary>
 public sealed record DeckRuleCard(string CardId, int Quantity);
 
-/// <summary>The catalogue half of a rule decision. Only the fields a rule actually reads are carried.</summary>
 public sealed record DeckRuleCardMetadata(string CardId, CardType Type, CardColor Color);
 
-/// <summary>
-/// A rule the deck failed. The code is stable so tests and clients can branch on it; the description is what a
-/// person reads in a toast or an API error.
-/// </summary>
 public sealed record DeckRuleViolation(string Code, string Description);
 
-/// <summary>
-/// The rules a deck must satisfy to be saved, expressed as one pure function over the requested lines and the
-/// catalogue rows they name. Being pure is the point: the leader, copy and colour rules are the part that is easy
-/// to get subtly wrong, and here they are unit-tested without a database, a request or a mock. The same call
-/// serves a create and an update, so an edit can never be held to a rule a create is not.
-///
-/// Existence and card-type rules are repeated from the legacy text-import path on purpose: the structured admin
-/// endpoint is a second door into the same table, and it must not be the laxer one.
-/// </summary>
 public static class PublicDeckRules
 {
-    /// <summary>The hard cap on non-leader copies. Leaders are capped separately, at exactly one.</summary>
     public const int MaxNonLeaderCopies = 4;
 
     public const string UnknownCardsCode = "Deck.Public.UnknownCards";
@@ -33,12 +17,6 @@ public static class PublicDeckRules
     public const string TooManyCopiesCode = "Deck.Public.TooManyCopies";
     public const string ColorMismatchCode = "Deck.Public.ColorMismatch";
 
-    /// <summary>
-    /// Evaluates every rule and returns all violations, not just the first: the editor lists them together, and a
-    /// half-reported deck makes the author fix one problem at a time to find the next.
-    /// </summary>
-    /// <param name="cards">The requested lines, already de-duplicated by card id.</param>
-    /// <param name="catalogByCardId">Catalogue metadata keyed by card id, with a case-insensitive comparer.</param>
     public static IReadOnlyList<DeckRuleViolation> Evaluate(
         IEnumerable<DeckRuleCard> cards,
         IReadOnlyDictionary<string, DeckRuleCardMetadata> catalogByCardId)
@@ -66,7 +44,6 @@ public static class PublicDeckRules
                 $"Unknown card id(s): {string.Join(", ", unknownCardIds)}."));
         }
 
-        // Everything below is about cards that exist; an unknown id is already reported and has no type or colour.
         var knownCards = requestedCards
             .Select(card => new
             {

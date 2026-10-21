@@ -675,7 +675,6 @@ public sealed class DeckServiceTests
         Assert.AreEqual("Blue", decksByName["Leader deck"].LeaderColor);
         Assert.IsNull(decksByName["Leaderless deck"].LeaderColor);
 
-        // The populated read has to agree with the lean one: the editor and the rail describe the same deck.
         var populated = await service.GetDeck(leaderDeck.Id.ToString(), populate: true);
         Assert.IsFalse(populated.IsError);
         Assert.AreEqual("Blue", populated.Value.LeaderColor);
@@ -719,8 +718,6 @@ public sealed class DeckServiceTests
             .Where(card => card.DeckId == deck.Id)
             .ToListAsync();
 
-        // The row is updated in place, not deleted and re-inserted: the same row id survives, so the unique
-        // (DeckId, CardCatalogEntryId) index is never asked to hold two rows for one card at once.
         Assert.AreEqual(2, cardRows.Count);
         var retainedRow = cardRows.Single(card => card.CardCatalogEntryId == retained.Id);
         Assert.AreEqual(retainedRowId, retainedRow.Id);

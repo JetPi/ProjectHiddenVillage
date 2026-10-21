@@ -6,11 +6,6 @@ import type { ICardAdminIdentityPanelProps } from '@/views/admin/types/cardAdmin
 
 const LABEL_CLASS = 'text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]'
 
-/**
- * The identity an author picks before the editor has anything to show: the fields the update screen never edits,
- * plus the art. Card id and display name live in the shared summary at the top of the editor, so they are not
- * repeated here.
- */
 export function CardAdminIdentityPanel({
   draft,
   onChange,
@@ -32,7 +27,6 @@ export function CardAdminIdentityPanel({
             previewSrc={image.previewSrc ?? ''}
             isUploading={image.isUploading}
             error={image.error}
-            // The art is not attached to anything yet, so say what will happen to it rather than implying it landed.
             statusMessage={image.uploadedReference && !image.isUploading ? t('admin.create.image.uploaded') : null}
             urlValue={draft.imageUrl}
             onUrlChange={(value) => onChange({ imageUrl: value })}

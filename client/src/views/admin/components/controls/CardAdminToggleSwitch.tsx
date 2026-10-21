@@ -11,8 +11,6 @@ export function CardAdminToggleSwitch({
   thumbClassName,
 }: ICardAdminToggleSwitchProps) {
   return (
-    // `<label>` wrapper: the visible track/thumb sit on top of the (screen-reader-only) checkbox, so without
-    // a label the switch surface swallowed the clicks and the control could not be toggled at all.
     <label className={twMerge('relative inline-flex h-5 w-9 cursor-pointer items-center', className)}>
       <input
         type="checkbox"

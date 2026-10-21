@@ -120,7 +120,6 @@ function submitMappedAction({
       return
     }
 
-    // No slot pick anymore: the engine drops the card into the leftmost empty support slot.
     submitSetSupport({
       action,
       cardInstanceId: action.actionId.slice(delimiterIndex + 1),

@@ -30,18 +30,10 @@ const EMPTY_QUANTITIES: ReadonlyMap<string, number> = new Map()
 const EMPTY_DRAFT: IDeckAdminDraft = { name: '', quantitiesByCardId: EMPTY_QUANTITIES }
 
 export type IUseDeckAdminModelOptions = {
-  /** The route's deck id, or null for a brand new deck. */
   deckId: string | null
-  /** Cards currently on the catalogue pages, so a click has type and colour before the by-ids read lands. */
   catalogCards: ReadonlyArray<ICardCatalogListItemResponse>
 }
 
-/**
- * The leader is a slot, so a stored deck is normalised into "one leader at quantity one, everything else as
- * lines". The legacy text import never checked the leader rules, so a deck loaded from the database can carry two
- * leaders or two copies of one; the first leader wins and the rest disappear on the next save, which is the only
- * representation the editor has.
- */
 function toQuantitiesFromDeck(deck: IDeckResponse): Map<string, number> {
   const quantities = new Map<string, number>()
   let leaderCardId: string | null = null
@@ -69,7 +61,6 @@ function toQuantitiesFromDeck(deck: IDeckResponse): Map<string, number> {
   return quantities
 }
 
-/** Drops every leader entry, so setting a leader replaces the previous one instead of stacking beside it. */
 function withoutLeaderEntries(
   quantitiesByCardId: ReadonlyMap<string, number>,
   cardsById: ReadonlyMap<string, IDeckAdminCardMetadata>,
@@ -97,13 +88,6 @@ function toDeckCardPayload(
     }))
 }
 
-/**
- * The deck editor's state and actions.
- *
- * The draft is *derived* while untouched: `editedDraft === null` means "show the loaded deck". The first edit
- * materialises a copy, so no effect ever writes state from props or from a query result. The screen is keyed by
- * deck id (see `DeckAdminView`), which is what resets a draft when the route moves to another deck.
- */
 export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOptions) {
   const navigate = useNavigate()
 
@@ -114,7 +98,6 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
   const deleteDeckMutation = useDeleteDeckMutation()
 
   const [editedDraft, setEditedDraft] = useState<IDeckAdminDraft | null>(null)
-  /** Set after a save, so the baseline moves even before the refetch lands. */
   const [savedSignature, setSavedSignature] = useState<string | null>(null)
 
   const loadedDraft = useMemo<IDeckAdminDraft | null>(() => {
@@ -135,8 +118,6 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
 
   const selectedCardIds = useMemo(() => [...draft.quantitiesByCardId.keys()], [draft.quantitiesByCardId])
 
-  // The catalogue listing knows type and colour, and so does a populated deck read; this only fills the gaps for
-  // cards picked from a page that has since been filtered away.
   const selectedCardsQuery = useCardCatalogByIdsQuery(selectedCardIds)
 
   const metadataById = useMemo(() => {
@@ -175,8 +156,6 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
       return result
     }
 
-    // A card whose details are still in flight is not unknown yet; hold the save button (invalid) without showing
-    // an "unknown card" complaint that will disappear a moment later.
     return {
       isValid: false,
       violations: result.violations.filter((violation) => violation.code !== 'unknownCards'),
@@ -190,7 +169,6 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
 
   const leaderCard = useMemo(() => buildDeckLeaderCard(draft, metadataById), [draft, metadataById])
 
-  // The deck size includes the leader: it is one of the deck's cards even though it lives in its own slot.
   const totalCopies = useMemo(
     () => selectedCards.reduce((total, card) => total + card.quantity, 0) + (leaderCard?.quantity ?? 0),
     [selectedCards, leaderCard],
@@ -200,7 +178,6 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
   const isDirty = draftSignature !== baselineSignature
   const isSaving = createDeckMutation.isPending || updateDeckMutation.isPending
 
-  // The save gate: legal, changed, and not already on its way. The server re-checks the same rules.
   const canSave = validation.isValid && isDirty && !isSaving
 
   const setName = (value: string) => {
@@ -220,8 +197,6 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
     }
 
     if (isLeaderCard(metadataById.get(normalizedCardId))) {
-      // A leader click sets the slot. Picking a second leader replaces the first rather than adding to it, so a
-      // deck can never hold two leaders or two copies of one - there is nothing to validate or fix afterwards.
       const nextQuantities = withoutLeaderEntries(draft.quantitiesByCardId, metadataById)
       nextQuantities.set(normalizedCardId, 1)
 
@@ -284,8 +259,6 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
       importedCardLines.push(card)
     }
 
-    // A pasted list that names a leader fills or replaces the slot (last one wins); its lines never become card
-    // lines, so the paste cannot smuggle a second leader in.
     const baseQuantities = importedLeaderIds.length > 0
       ? withoutLeaderEntries(draft.quantitiesByCardId, metadataById)
       : draft.quantitiesByCardId
@@ -299,11 +272,6 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
     setEditedDraft({ name: draft.name, quantitiesByCardId: nextQuantities })
   }
 
-  /**
-   * The server persists exactly the lines it validated, so the draft that was just saved is already the new
-   * baseline. Rebuilding it from the response would also work, but the response is not populated - and losing the
-   * type metadata would blink the leader slot empty until the next catalogue read.
-   */
   const adoptSavedDeck = (savedName: string) => {
     const savedDraft: IDeckAdminDraft = { name: savedName, quantitiesByCardId: draft.quantitiesByCardId }
 

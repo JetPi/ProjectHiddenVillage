@@ -34,7 +34,6 @@ export type IDeckAdminDeleteDialogProps = {
 export type IDeckAdminImportDialogProps = {
   isOpen: boolean
   onClose: () => void
-  /** The parsed lines are merged into the draft by the caller; this dialog only parses and reports. */
   onImport: (cards: IDeckCardInput[]) => void
 }
 

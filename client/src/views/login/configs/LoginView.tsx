@@ -2,8 +2,6 @@ import type { IToggleOption } from '@/components/forms'
 import type { IAdaptiveFieldConfig } from '@/components/forms'
 import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from '@/types/login'
 
-// Labels and placeholders hold translation keys; LoginView resolves them through
-// `t()` (see translateAdaptiveFieldConfig / translateKey) so the copy lives in en.json.
 export const deckOptionsModeOptions: readonly IToggleOption<IDeckOptionsEntryMode>[] = [
   { value: 'import', label: 'auth.config.deckImport' },
   { value: 'saved_decks', label: 'auth.config.deckSaved' },

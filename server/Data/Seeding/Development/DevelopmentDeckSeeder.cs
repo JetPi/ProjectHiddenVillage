@@ -215,8 +215,6 @@ public sealed class DevelopmentDeckSeeder
             existingDeck.Type = seedDeck.Type;
             existingDeck.UserId = null;
 
-            // Only a nameless row gets the seed name: renaming a deck is authored work, and startup seeding never
-            // overwrites authored work (same rule the catalogue entries follow).
             if (string.IsNullOrWhiteSpace(existingDeck.Name))
             {
                 existingDeck.Name = seedDeck.Name;

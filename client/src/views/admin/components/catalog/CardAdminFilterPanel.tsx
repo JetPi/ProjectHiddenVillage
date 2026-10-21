@@ -165,8 +165,6 @@ export function CardAdminFilterPanel({
           />
         </div>
 
-        {/* The deck builder's catalogue toggle sits with the other list controls; the card admin screen passes
-            neither prop and never renders it. */}
         {includeNonDeckableTypes !== undefined && onIncludeNonDeckableTypesChange ? (
           <div
             data-testid="deck-admin-nondeckable-toggle"

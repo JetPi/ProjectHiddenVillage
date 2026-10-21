@@ -6,16 +6,13 @@ import type {
   IDeckAdminViolation,
 } from '@/views/admin/types/deckAdminTypes'
 
-/** Mirrors `DeckConfiguration.Name`, and the server's `DeckWriteShapeRules`. */
 export const MAX_DECK_NAME_LENGTH = 128
 
-/** Mirrors `PublicDeckRules.MaxNonLeaderCopies`. */
 export const MAX_NON_LEADER_COPIES = 4
 
 const LEADER_TYPE = 'leader'
 const NON_DECKABLE_TYPES = new Set(['chakra', 'summon'])
 
-/** One normalisation for card ids across the builder, so a tile and a loaded deck agree on identity. */
 export function normalizeDeckCardId(cardId: string): string {
   return cardId.trim().toLowerCase()
 }
@@ -28,7 +25,6 @@ export function isNonDeckableCard(card: IDeckAdminCardMetadata | null | undefine
   return NON_DECKABLE_TYPES.has((card?.type ?? '').trim().toLowerCase())
 }
 
-/** Normalises the catalogue into the lookup the rules and the editor read, keyed by lowercase card id. */
 export function buildDeckCardMetadataMap(
   cards: ReadonlyArray<IDeckAdminCardMetadata>,
 ): Map<string, IDeckAdminCardMetadata> {
@@ -44,11 +40,6 @@ export function buildDeckCardMetadataMap(
   return metadataByCardId
 }
 
-/**
- * The deck rules, evaluated over the draft exactly as the server evaluates them over the payload. A violation
- * here means the save button is disabled; the server still re-runs the same rules on save, because a card can be
- * deleted by another author between the read that filled this map and the write.
- */
 export function evaluateDeckDraft(
   draft: IDeckAdminDraft,
   cardsById: ReadonlyMap<string, IDeckAdminCardMetadata>,
@@ -87,7 +78,6 @@ export function evaluateDeckDraft(
     })
   }
 
-  // Everything below is about cards the catalogue answered for; an unknown id has no type or colour to judge.
   const knownCards = entries
     .map(([cardId, quantity]) => ({ card: cardsById.get(cardId), cardId, quantity }))
     .filter((entry): entry is { card: IDeckAdminCardMetadata; cardId: string; quantity: number } =>
@@ -158,10 +148,6 @@ export function evaluateDeckDraft(
   return { isValid: violations.length === 0, violations }
 }
 
-/**
- * The deck's card lines, by name. The leader is deliberately absent: it lives in its own slot (see
- * {@link buildDeckLeaderCard}), which is what makes a second leader impossible rather than merely invalid.
- */
 export function buildSelectedDeckCards(
   draft: IDeckAdminDraft,
   cardsById: ReadonlyMap<string, IDeckAdminCardMetadata>,
@@ -184,10 +170,6 @@ export function buildSelectedDeckCards(
     })
 }
 
-/**
- * The deck's leader, or null. A leader line that reached the draft another way (a legacy deck, a paste) still
- * renders here - the first one wins - so the slot always reflects what the deck would be saved with.
- */
 export function buildDeckLeaderCard(
   draft: IDeckAdminDraft,
   cardsById: ReadonlyMap<string, IDeckAdminCardMetadata>,
@@ -209,10 +191,6 @@ export function buildDeckLeaderCard(
   return null
 }
 
-/**
- * A stable value for dirty tracking: two drafts with the same name and card lines are the same deck, whatever
- * order a Map happens to iterate in.
- */
 export function buildDeckDraftSignature(draft: IDeckAdminDraft): string {
   const lines = [...draft.quantitiesByCardId.entries()]
     .filter(([, quantity]) => quantity > 0)

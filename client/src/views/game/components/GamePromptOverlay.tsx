@@ -15,8 +15,6 @@ function GamePromptOverlay({
     return null
   }
 
-  // An effect selection prompt ("choose a card from your hand to place on top of your deck") carries card
-  // instance ids, so the player picks by clicking the card face rather than by reading an option label.
   const optionsById = new Set(prompt.options.map((option) => option.value))
   const visibleCandidates =
     prompt.promptType === 'Effect'
@@ -25,10 +23,6 @@ function GamePromptOverlay({
 
   const columnCount = Math.min(Math.max(prompt.options.length, 1), 3)
 
-  // The mulligan decision is made while looking at the opening hand, so that prompt must not lock the board:
-  // the backdrop stays transparent to pointer events (only the panel itself is interactive), which lets the
-  // player hover a hand card, reveal its eye and open the details modal. Nothing else is submit-able during a
-  // pending prompt - the server publishes only `resolve-prompt:*` while it waits for this player's answer.
   const isBoardInspectable = prompt.promptType === 'Mulligan'
 
   return (
@@ -42,8 +36,6 @@ function GamePromptOverlay({
       <Panel
         className={twMerge(
           'w-full p-5',
-          // A card-face selection reads like the trash viewer's card list (same 5-column grid), so it gets the
-          // same wider panel; a plain option-label prompt stays narrow.
           visibleCandidates.length > 0 ? 'max-w-2xl' : 'max-w-sm',
           isBoardInspectable && 'pointer-events-auto',
         )}

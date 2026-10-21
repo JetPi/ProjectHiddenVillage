@@ -110,12 +110,6 @@ async function getCurrentGameState(
   return invokeHubStateMethod(connection, 'GetCurrentGameState', gameId)
 }
 
-/**
- * Confirms that this client has finished presenting the engine's last phase transition. It is deliberately the
- * only game mutation left while a presentation is outstanding (every other one is rejected server-side), and it
- * never takes the interaction path: an acknowledgement is not a player action, so it must not set the pending
- * flag the buttons and the prompt UI key off.
- */
 async function acknowledgePhasePresentation(
   connection: HubConnection,
   gameId: string,
@@ -130,12 +124,6 @@ async function acknowledgePhasePresentation(
   return result
 }
 
-/**
- * Takes the active player's `declareAttack` phase option, which is what moves the game into its
- * AttackDeclaration flow. This is the only player-facing use of the hub's `AdvancePhase` left: the client no
- * longer advances idle phases on its own (the engine does that and stops on a presentation this client
- * acknowledges), so nothing here is a background/system hop any more.
- */
 async function declareAttack(
   connection: HubConnection,
   gameId: string,

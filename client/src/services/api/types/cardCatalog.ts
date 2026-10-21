@@ -4,11 +4,8 @@ export type ICardCatalogPageQuery = {
   page?: number
   pageSize?: number
   sort?: string
-  /** Matched against the card id and the display name, in SQL. */
   search?: string
-  /** The readable type values the listing returns ("EX Character"); the server rejects what it cannot map. */
   types?: string[]
-  /** The readable colour values ("Red", "N/A"), same contract as `types`. */
   colors?: string[]
 }
 
@@ -188,9 +185,7 @@ export type ICardCatalogEffectRequest = {
   globalRestrictions: string
   executionTargetSource: string
   executionFlowMode: string
-  /** 'Upfront' (default) picks targets with the activation; 'Prompted' asks mid-resolution. */
   selectionTiming?: string
-  /** Copy bucket for a prompted selection ('PlaceOnDeckTop', 'SearchDeck', ...). */
   selectionPromptKind?: string
   searchRevealSelection?: boolean
   searchShuffleAfter?: boolean
@@ -223,14 +218,9 @@ export type IUpdateCardCatalogEffectsRequest = {
   health?: number
 }
 
-/**
- * A brand new card. The authoring fields mirror `IUpdateCardCatalogEffectsRequest` because the create screen
- * reuses the edit screen's editor; the identity fields are the ones the edit screen never edits.
- */
 export type ICreateCardRequest = {
   cardId: string
   displayName: string
-  /** An external http(s) URL, or the `local:` reference the art upload returned for this card id. */
   image?: string
   name?: string[]
   traits?: string[]

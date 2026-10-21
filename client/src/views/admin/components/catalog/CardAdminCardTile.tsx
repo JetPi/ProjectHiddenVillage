@@ -22,18 +22,10 @@ export function CardAdminCardTile({
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const showPreviewTimeoutRef = useRef<number | null>(null)
 
-  /**
-   * Quantity mode is driven by `onAdd`: the deck builder passes it, the card editor does not. In quantity mode a
-   * click always adds a copy - even past the limit - because the rules are enforced when the deck is saved, not
-   * while it is being built. The chip only *shows* that it has gone too far.
-   */
   const isQuantityMode = onAdd !== undefined
   const copyCount = selectedCount ?? 0
   const exceedsCopyLimit = isQuantityMode && maxCopies !== undefined && copyCount > maxCopies
 
-  // The tile is outlined in the card's own colour, so a catalogue can be read by colour before the type/colour
-  // line is read. Selection is a tint behind the tile only: a second border in the primary colour would fight
-  // the outline on both screens this tile serves (the card admin and the deck builder).
   const colorStyling = resolveDeckCardColorStyling(card.color)
   const isMarked = isSelected || (isQuantityMode && copyCount > 0)
 
@@ -127,8 +119,6 @@ export function CardAdminCardTile({
 
   return (
     <>
-      {/* The card id and count live on the wrapper: the remove control is a sibling of the card button (a button
-          cannot nest another button), so anything keyed by the tile has to own both. */}
       <div
         className="relative"
         data-testid="catalog-card-tile"

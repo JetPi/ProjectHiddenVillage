@@ -45,7 +45,6 @@ function useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId, requ
             }
 
             if (intent === 'declare-attack' && currentGameState?.pendingPrompt) {
-                // A phase option cannot be taken while a decision is owed: the prompt owns the board.
                 return
             }
 
@@ -86,8 +85,6 @@ function useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId, requ
                         result = await resolvePrompt(currentConnection, gameId, authUserId ?? '', request.selectedOption)
                         break
                     default:
-                        // Unreachable: the union covers every intent, and there is no fallback action left now
-                        // that the engine drives the non-interactive phases itself.
                         throw new Error(`Unsupported game intent '${intent}'.`)
                 }
 
@@ -101,10 +98,6 @@ function useSubmitHubIntent({ connectionRef, gameState, authUserId, gameId, requ
                     })
                     setActionError(errorMessage)
 
-                    // The server can partially apply an action before rejecting it (for example a battle
-                    // action that rests the attacker before an unsupported "On Attack" effect aborts).
-                    // Re-pull the authoritative state so the table never stays on a stale snapshot that
-                    // no button can progress.
                     requestGameStateRefresh(currentConnection)
                     return
                 }
@@ -130,7 +123,6 @@ interface ISubmitHubProps {
     gameState: IGameStateResponse | null
     authUserId?: string | null
     gameId: string
-    /** Coalesced re-sync used after a failed intent so both clients recover without a manual reload. */
     requestGameStateRefresh: (connection: HubConnection) => void
 }
 

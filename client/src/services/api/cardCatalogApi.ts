@@ -55,10 +55,6 @@ function getCardCatalogByIdQueryKey(cardId: string): readonly [string, string, s
   return ['card-catalog', 'by-id', toNormalizedCardId(cardId)] as const
 }
 
-/**
- * Seeds the shared card-item cache from a card a write just returned, so a by-ids read - the editor's detail
- * fetch - does not answer with the pre-edit copy.
- */
 export function seedCardCatalogItemCache(cards: ICardCatalogItemResponse[]): void {
   setCardItemQueryCache(cards)
 }
@@ -116,7 +112,6 @@ export async function fetchCardCatalogPage(
     params.set('search', search)
   }
 
-  // Repeated keys, not `types[]=`: the action binds `List<string> types` from `types=a&types=b`.
   for (const type of query.types ?? []) {
     params.append('types', type)
   }
@@ -157,10 +152,6 @@ export async function createCardCatalogEntry(
   return data
 }
 
-/**
- * Removes a card from the catalogue. Without `force` the server refuses while anything still references the card,
- * so the caller can show what is in the way before agreeing.
- */
 export async function deleteCardCatalogEntry(
   cardId: string,
   force = false,
@@ -170,8 +161,6 @@ export async function deleteCardCatalogEntry(
     { params: { force } },
   )
 
-  // The card is gone, so its cached copy must go too: anything still asking for it by id would otherwise be
-  // served a card that no longer exists.
   appQueryClient.removeQueries({
     queryKey: getCardCatalogByIdQueryKey(cardId),
     exact: true,

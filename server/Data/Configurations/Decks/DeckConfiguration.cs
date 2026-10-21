@@ -15,7 +15,6 @@ public sealed class DeckConfiguration : IEntityTypeConfiguration<Deck>
             .HasConversion<string>()
             .HasMaxLength(16);
 
-        // Same cap as `saved_decks.name`. Not unique: an admin may deliberately keep two decks sharing a name.
         entity.Property(record => record.Name)
             .IsRequired()
             .HasMaxLength(128);
@@ -27,7 +26,6 @@ public sealed class DeckConfiguration : IEntityTypeConfiguration<Deck>
 
         entity.HasIndex(record => record.UserId);
 
-        // The public-deck rail lists one type by name; the login picker filters the same way.
         entity.HasIndex(record => new { record.Type, record.Name });
     }
 }

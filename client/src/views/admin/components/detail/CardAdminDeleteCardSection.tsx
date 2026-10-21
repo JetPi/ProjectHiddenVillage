@@ -11,13 +11,6 @@ import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 
 const TOAST_ID = 'card-admin-delete-status'
 
-/**
- * Deleting the selected card.
- *
- * Two steps on purpose. The first attempt is the safe one: the server refuses while any deck still lists the card
- * and says what it found, which this turns into a second, explicit action ("delete and remove from decks"). Both
- * attempts need the word typed, so a stray click can never be the thing that removes a card.
- */
 export function CardAdminDeleteCardSection({ card }: { card: ICardCatalogItemResponse }) {
   const { t } = useTranslation()
   const deleteMutation = useDeleteCardCatalogEntryMutation()
@@ -44,7 +37,6 @@ export function CardAdminDeleteCardSection({ card }: { card: ICardCatalogItemRes
     try {
       const impact = await deleteMutation.mutateAsync({
         cardId: card.id,
-        // A second attempt after the server said what is in the way is the author agreeing to edit those decks.
         force: isRemovingFromDecks,
       })
 
@@ -55,7 +47,6 @@ export function CardAdminDeleteCardSection({ card }: { card: ICardCatalogItemRes
         { id: TOAST_ID, position: 'top-right' },
       )
 
-      // The card is gone, so nothing should stay selected in the rail - the pane drops back to its empty state.
       useCardAdminViewStore.getState().clearSelection()
       closeDialog()
     } catch (error) {
@@ -93,7 +84,6 @@ export function CardAdminDeleteCardSection({ card }: { card: ICardCatalogItemRes
         ? createPortal(
           <div
             className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4"
-            // The confirmation input holds focus, so Escape reaches this handler.
             onKeyDown={(event) => {
               if (event.key === 'Escape' && !deleteMutation.isPending) {
                 closeDialog()

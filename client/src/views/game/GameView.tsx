@@ -113,9 +113,6 @@ export function GameView() {
   const validEffectTargetsByCardId = useMemo(() => {
     const targets = isEffectActionTargeting ? extractTargetIds(pendingCardTargeting?.validTargets) : new Set<string>()
 
-    // A board-answerable effect selection prompt (hand/field/support) adds its own candidates, so the hand
-    // cards offer the same Select button the field rows do, and nothing outside the effect's declared set can
-    // be picked.
     for (const instanceId of resolveBoardPromptCandidateInstanceIds(gameState.pendingPrompt)) {
       targets.add(instanceId.trim().toLowerCase())
     }
@@ -125,26 +122,15 @@ export function GameView() {
 
   const promptPresentation = toPromptPresentation(gameState.pendingPrompt)
 
-  // The result of a finished game. The engine publishes no prompt and no action at all once it exists, so the
-  // board keeps rendering as the last snapshot of the game and the overlay is the only affordance.
   const gameOutcome = gameState.gameOutcome ?? null
 
   const shouldShowPromptOverlay =
     gameOutcome === null
     && promptPresentation?.renderAsOverlay === true && promptPresentation.isAwaitingRequestingPlayer
-  // The fading "pick a card" nudge is only for picks with **no box of their own**. An effect selection whose
-  // candidates live in a pile (a summon out of a zone, a search, a deck/trash pick) is answered in the prompt
-  // overlay, and that panel already states the question in its title and lists the candidates - a banner on top
-  // of it only repeats what the box says. A board pick (a card's own Select button) has no such box, so there
-  // the nudge is still the only thing that says what is being asked.
   const shouldShowPromptSelectionBanner =
     promptPresentation?.promptType === 'Effect' && promptPresentation.renderAsOverlay === false
   const canResolvePrompt = gameState.pendingPrompt?.isAwaitingRequestingPlayer ?? false
 
-  // A pending prompt is answered by its own UI - the prompt overlay for a deck pick, the cards' Select buttons
-  // for a board pick - so its options must never also render as middle-row action chips. The phase row's own
-  // resolver enforces this as well (`resolvePhaseActionChips`), which is what also keeps the prompt's options
-  // out of the frozen chips it holds across an engine-driven transition.
   const isPromptAwaitingAnswer = gameState.pendingPrompt?.isAwaitingRequestingPlayer === true
   const mappedAvailableActions = isPromptAwaitingAnswer
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith(PROMPT_RESOLVE_ACTION_ID_PREFIX))
@@ -173,9 +159,6 @@ export function GameView() {
     setBottomBattlefieldDisplayOrder,
   })
 
-  // While the engine holds a transition - or a support reaction window has this board waiting - the sidebar and
-  // the phase row hold their last interactive content (and the interaction-blocked flag that goes with it), so
-  // neither the affordance nor its enabled state flickers from hop to hop.
   const { phaseActions: retainedOrLiveAvailableActions, isHolding } = useRetainedPhaseActionSource(mappedAvailableActions)
   const { isActionBlocked } = useRetainedActionBlocked(!isConnected || isActionPending)
 
@@ -251,8 +234,6 @@ export function GameView() {
   }
 
   function handlePassLikeAction(): void {
-    // The action held through an automatic transition (or a support reaction window) belongs to a state that
-    // already moved, so the sidebar is inert until the HUD swaps its content back in.
     if (isHolding || !passLikeAction || !passLikeAction.isEnabled) {
       return
     }
@@ -287,9 +268,6 @@ export function GameView() {
               rowTestId="top-hand-row"
               rowClassName="h-[230%] -translate-y-[62%]"
               renderCard={(card) => {
-                // A revealed card in the opponent's hand is sent with its real identity and `isRevealed`, so the
-                // row can turn that one card face up (and back down when the reveal clears) instead of always
-                // drawing a back.
                 const revealedCard = card.isRevealed === true
                   ? (derivedGameState.cardById.get(card.cardDefinitionId.trim().toLowerCase()) ?? null)
                   : null

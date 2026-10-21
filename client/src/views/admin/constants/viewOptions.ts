@@ -17,7 +17,6 @@ export const ALL_FILTER_OPTION: ICardAdminFilterOption = {
   label: 'All',
 }
 
-/** Display labels for the sort/filter `value`s above; the values (what the API receives) never change. */
 export const SORT_OPTION_LABEL_KEYS: Readonly<Record<string, string>> = {
   'cardId': 'admin.filters.sortOption.cardIdAsc',
   '-cardId': 'admin.filters.sortOption.cardIdDesc',
@@ -29,10 +28,6 @@ export const SORT_OPTION_LABEL_KEYS: Readonly<Record<string, string>> = {
 
 export const ALL_FILTER_OPTION_LABEL_KEY = 'admin.filters.all'
 
-/**
- * The domains the catalogue can contain, listed once instead of derived from whatever pages have been loaded.
- * The values are the lowercased readable forms the listing returns, which is what the API filters on.
- */
 export const TYPE_FILTER_OPTIONS: readonly ICardAdminFilterOption[] = [
   ALL_FILTER_OPTION,
   { value: 'leader', label: 'Leader' },

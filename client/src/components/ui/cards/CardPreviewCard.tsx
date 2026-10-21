@@ -53,9 +53,6 @@ export function CardPreviewCard({
     }, [isOpen])
 
     if (!isOpen) {
-        // Keep the closed-state render as cheap as possible: the card-details modal is
-        // mounted (and thus rendered) for every playable card on the board, so none of
-        // the expensive preview derivation below should run unless the modal is open.
         return null
     }
 

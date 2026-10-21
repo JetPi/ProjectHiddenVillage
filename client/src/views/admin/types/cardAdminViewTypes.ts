@@ -43,7 +43,6 @@ export type ICardAdminViewActions = {
 
 export type ICardAdminViewModel = ICardAdminViewState & ICardAdminViewActions
 
-// Shared admin controls
 
 export type ICardAdminSelectOption = {
   value: string
@@ -51,13 +50,6 @@ export type ICardAdminSelectOption = {
   disabled: boolean
 }
 
-/**
- * Props of the admin dropdown.
- *
- * The option list is declared as `<option>` children exactly like a native `<select>`, but the control is a
- * custom listbox (see `CardAdminSelect`), so the handler receives the chosen value directly instead of a
- * change event.
- */
 export type ICardAdminSelectProps = {
   value: string
   onValueChange: (value: string) => void
@@ -92,11 +84,9 @@ export type ICardAdminTokenFieldProps = {
   values: string[]
   onChange: (values: string[]) => void
   placeholder: string
-  /** Values the catalogue already knows; typing ranks them and shows the closest matches under the input. */
   suggestions?: string[]
   disabled?: boolean
   ariaLabel?: string
-  /** Lets an e2e test count the committed chips without matching on their text. */
   chipTestId?: string
   maxEntries?: number
 }
@@ -137,7 +127,6 @@ export type ICountConstraintFieldProps = {
   trailingContent?: ReactNode
 }
 
-// Catalog panes
 
 export type ICardAdminFilterPanelProps = {
   searchText: string
@@ -151,37 +140,24 @@ export type ICardAdminFilterPanelProps = {
   onTypeChange: (value: string[]) => void
   onColorChange: (value: string[]) => void
   onSortChange: (value: string) => void
-  /**
-   * Optional catalogue toggle shown beside Sort. Only the deck builder passes these: its catalogue hides Chakra
-   * and Summon by default, and the switch belongs with the other list controls rather than in its own row.
-   */
   includeNonDeckableTypes?: boolean
   onIncludeNonDeckableTypesChange?: (value: boolean) => void
 }
 
-/**
- * Quantity selection is opt-in. The card editor keeps its single selection (clicking selects a card for the detail
- * pane); the deck builder passes `selectedCountByCardId` and gets a tile that adds a copy per click and shows a
- * count with a remove control. Deliberately no `maxCopies` enforcement in the UI: a click always adds, and the
- * draft's validation list is what says the deck has gone over the limit.
- */
 export type ICardAdminCardGridProps = {
   cards: ICardCatalogListItemResponse[]
   selectedCardId: string | null
   onSelectCard: (cardId: string) => void
   selectedCountByCardId?: ReadonlyMap<string, number>
-  /** Only used to tone the count chip; the click is never refused. */
   maxCopies?: number
   onAddCard?: (cardId: string) => void
   onRemoveCard?: (cardId: string) => void
 }
 
 export type ICardAdminCardTileProps = {
-  /** The lean listing row: a tile renders the name, id, type, colour and art, and nothing else. */
   card: ICardCatalogListItemResponse
   isSelected: boolean
   onSelect: (cardId: string) => void
-  /** How many copies the draft holds; in quantity mode the tile body adds one and a chip removes one. */
   selectedCount?: number
   maxCopies?: number
   onAdd?: (cardId: string) => void

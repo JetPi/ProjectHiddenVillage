@@ -8,10 +8,8 @@ public interface IDeckService
 {
     Task<ErrorOr<string>> CreateDeck(CreateDeckRequest request);
 
-    /// <summary>Creates an admin-authored public deck from structured card lines.</summary>
     Task<ErrorOr<DeckResponse>> CreatePublicDeckAsync(CreatePublicDeckRequest request);
 
-    /// <summary>Replaces an existing deck's name and card lines; its type and owner are untouched.</summary>
     Task<ErrorOr<DeckResponse>> UpdateDeckAsync(string deckId, UpdateDeckRequest request);
 
     Task<ErrorOr<bool>> DeleteDeck(string deckId);

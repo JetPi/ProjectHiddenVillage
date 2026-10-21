@@ -26,21 +26,13 @@ import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import type { IDeckCardInput } from '@/types/deck'
 import type { ICardCatalogListItemResponse } from '@/types/cardCatalog'
 
-/** How long the search box waits before it becomes a request; one keystroke is not one query. */
 const SEARCH_DEBOUNCE_MS = 250
 const TOAST_ID = 'deck-admin-status'
 
-/**
- * The public deck builder. Three columns: the decks rail, the same catalogue browser the card editor uses (in
- * quantity mode), and the drafted deck. The catalogue and the rating of the deck are deliberately separate - a
- * card click edits the draft, and saving is what the rules judge.
- */
 export function DeckAdminView() {
   const { deckId: deckIdParam } = useParams<{ deckId: string }>()
   const deckId = deckIdParam ?? null
 
-  // A draft belongs to one deck. Keying the screen remounts it when the route moves to another deck (or to the
-  // create screen), which is what makes the draft reset - no effect has to clear state afterwards.
   return <DeckAdminScreen key={deckId ?? 'new'} deckId={deckId} />
 }
 
@@ -77,15 +69,12 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
       pageSize: 25,
       sort: filters.sort,
       search: debouncedSearch,
-      // Chakra and Summon are off the list unless the toggle below is on: a deck cannot contain them, so the
-      // builder should not offer them by default.
       types: resolveDeckCatalogTypeFilter(filters.type, filters.includeNonDeckableTypes),
       colors: filters.color,
     }),
     [filters.sort, debouncedSearch, filters.type, filters.color, filters.includeNonDeckableTypes],
   )
 
-  // The type chips follow the toggle: offering a type that the query is filtering out would be a dead control.
   const catalogTypeOptions = useMemo(
     () =>
       TYPE_FILTER_OPTIONS.filter(
@@ -97,7 +86,6 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
   const catalogPageQuery = useInfiniteCardCatalogQuery(catalogParams, { enabled: true })
 
   const catalogCards = useMemo(() => {
-    // A page can repeat a row when the catalogue shifts under the scroll; one entry per id, in one pass.
     const cardsById = new Map<string, ICardCatalogListItemResponse>()
 
     for (const page of catalogPageQuery.data?.pages ?? []) {
@@ -179,7 +167,6 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
       setIsDeleteOpen(false)
       showAppSuccessToast(t('admin.decks.toasts.deleted'), { id: TOAST_ID, position: 'top-right' })
     } catch (error) {
-      // A deck a game still points at answers 409 with the reason; say it rather than closing the dialog silently.
       showAppInfoToast(getApiErrorMessage(error, t('admin.decks.toasts.deleteFailed')), {
         id: TOAST_ID,
         position: 'top-right',
@@ -232,8 +219,6 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
               onIncludeNonDeckableTypesChange={(nextValue) => {
                 filters.setIncludeNonDeckableTypes(nextValue)
 
-                // Turning them off drops any Chakra/Summon chip that is still selected, otherwise the query
-                // would ask only for types the chips no longer show.
                 if (!nextValue) {
                   filters.setTypeFilter(filters.type.filter((type) => !isNonDeckableCardTypeFilter(type)))
                 }

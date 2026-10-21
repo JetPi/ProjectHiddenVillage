@@ -18,7 +18,6 @@ export type ICardOverlayBadgeProps = {
   className?: string
   children?: ReactNode
   size?: 'sm' | 'md' | 'lg'
-  /** Stable hook for tests that have to read one specific badge (e.g. the leader's life). */
   testId?: string
 }
 
@@ -28,11 +27,8 @@ export type ICardImageProps = Omit<
 > & {
   src?: string | null
   alt: string
-  /** Catalog card used to auto-resolve a cached, width-capped local art URL. */
   card?: Pick<ICardCatalogItemResponse, 'id' | 'image' | 'imageVersion'> | null
-  /** Art width bucket for `card`-driven URLs. Keep in-game faces on 'board'. */
   variant?: 'board' | 'preview'
-  /** Always 'auto' (smooth) for painted card art unless explicitly overridden. */
   imageRendering?: 'auto' | 'pixelated' | 'crisp-edges'
   loading?: 'lazy' | 'eager'
   decoding?: 'async' | 'sync' | 'auto'
@@ -103,7 +99,6 @@ export type IPlayPileZoneProps = {
   gameState?: IDerivedGameViewState | null
   deckCardRef?: RefCallback<HTMLDivElement>
   trashCardRef?: RefCallback<HTMLDivElement>
-  /** Adds the hover "eye" on the trash slot; omit it to keep the pile read-only. */
   onOpenTrashPile?: () => void
 }
 
@@ -139,7 +134,6 @@ export type ILeaderCardProps = {
   isActionPending?: boolean
   isTargetCandidate?: boolean
   onChooseTarget?: () => void
-  /** True while this card is one of an effect selection prompt's candidates (the "Select" button). */
   isEffectTargetCandidate?: boolean
   onToggleEffectTarget?: () => void
   onSelectActionOption?: (actionId: string) => void
@@ -167,9 +161,7 @@ export type ICardPreviewCardProps = {
 
 export type ICardListOverlayEntry = {
   instanceId: string
-  /** Label for the tile; falls back to the definition id when the catalog has no entry. */
   displayName: string
-  /** Catalog card used for the art + the card-details modal. `null` keeps the tile unclickable. */
   card: ICardCatalogItemResponse | null
 }
 

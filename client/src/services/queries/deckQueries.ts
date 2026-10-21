@@ -36,10 +36,6 @@ export function useDecksQuery(query: IFetchDecksQuery = {}, options: IUseDecksQu
   })
 }
 
-/**
- * One deck, optionally populated. The builder reads populated: the editor needs each card's type and colour for
- * validation, and the leader's name for its header, without waiting for a catalogue page to contain the card.
- */
 export function useDeckQuery(deckId: string | null | undefined, options: { populate?: boolean; enabled?: boolean } = {}) {
   const normalizedDeckId = deckId?.trim() ?? ''
 
@@ -62,10 +58,6 @@ export type IUpdateDeckMutationVariables = {
   cards: IDeckCardInput[]
 }
 
-/**
- * Every deck write invalidates the whole deck root: the rail, the login pickers and any open editor all read
- * decks, and a name or a card list changing in one of them is the same fact in the others.
- */
 function invalidateDeckQueries(queryClient: ReturnType<typeof useQueryClient>): Promise<void> {
   return queryClient.invalidateQueries({ queryKey: deckQueryKeys.all, exact: false })
 }

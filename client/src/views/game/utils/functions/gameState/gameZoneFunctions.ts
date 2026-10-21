@@ -13,14 +13,8 @@ import {
 } from '@/views/game/utils/contants'
 import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions/cards'
 
-// Leaders sit in a fixed frame against the board edge, so they get a gentler rested tilt than the
-// freely-arranged battlefield characters (which use 14deg in BattleFieldRow).
 const LEADER_RESTED_ROTATION_CLASS = 'rotate-[5deg]'
 
-// The card's tilt may be applied on the element itself (a Tailwind `rotate-[…deg]` class) or, now that Motion
-// owns the board card's transform, on a wrapper element. Walk up from the card until a rotation is found so the
-// visual-edge compensation below follows the tilt wherever it is applied; a pure translate/scale ancestor
-// yields a zero angle and the walk simply continues.
 function getRotationRadians(element: HTMLElement): number {
   let current: HTMLElement | null = element
   while (current) {
@@ -37,9 +31,6 @@ function getRotationRadians(element: HTMLElement): number {
 function getOwnRotationRadians(element: HTMLElement): number {
   const style = window.getComputedStyle(element)
 
-  // Tailwind v4 emits `rotate-[14deg]` / `rotate-[5deg]` as the standalone `rotate` property, so the
-  // rested tilt of a card is invisible to a `transform`-only read. Missing this made every visual-edge
-  // anchor compensation below a no-op (the anchors stayed out at the bounding-box corner).
   const standaloneRotate = style.rotate
   if (standaloneRotate && standaloneRotate !== 'none') {
     const angleMatch = standaloneRotate.match(/(-?[\d.]+)deg/)
@@ -72,15 +63,6 @@ function getOwnRotationRadians(element: HTMLElement): number {
   return 0
 }
 
-// An anchor is the element's *bounding box* edge midpoint for its side, so for a rotated card it floats
-// off the card: the bbox edge midpoint sits out at the rotated card's corner. These two helpers return
-// the offset that maps an anchor back onto the midpoint of the card's *visual* edge (the layout edge
-// midpoint mapped through the element's rotation).
-//
-// Both components matter. The old horizontal version only nudged x (back onto the tilted edge at the
-// card's centre height), which left the anchor level with the card's centre - i.e. visibly *below* the
-// tilted edge's midpoint by (w/2)·sin(angle) (~10px on a rested 79px-wide card). That vertical half is
-// exactly the "arrow meets a tilted card slightly low" offset.
 function getHorizontalVisualEdgeOffset(element: HTMLElement, side: 'left' | 'right'): IBoardPoint {
   const layoutWidth = element.offsetWidth
   const layoutHeight = element.offsetHeight
@@ -97,8 +79,6 @@ function getHorizontalVisualEdgeOffset(element: HTMLElement, side: 'left' | 'rig
   const sin = Math.sin(angle)
   const halfWidth = layoutWidth * 0.5
   const halfHeight = layoutHeight * 0.5
-  // The bounding box of a rotated w×h box is (w·|cos| + h·|sin|) × (h·|cos| + w·|sin|), centred on the
-  // card, so its horizontal edge sits this far out from the card's centre.
   const bboxHalfWidth = halfWidth * Math.abs(cos) + halfHeight * Math.abs(sin)
   const inwardOffset = bboxHalfWidth - halfWidth * cos
   const visualEdgeMidpointY = halfWidth * sin
@@ -122,7 +102,6 @@ function getVerticalVisualEdgeOffset(element: HTMLElement, side: 'top' | 'bottom
     return { x: 0, y: 0 }
   }
 
-  // Local edge midpoint (0, -h/2) for `top` and (0, +h/2) for `bottom`, rotated about the card centre.
   const sin = Math.sin(angle)
   const sinHalfHeight = layoutHeight * 0.5 * sin
   const sinHalfWidth = layoutWidth * 0.5 * sin
@@ -134,9 +113,6 @@ function getVerticalVisualEdgeOffset(element: HTMLElement, side: 'top' | 'bottom
   return { x: -sinHalfHeight, y: -sinHalfWidth }
 }
 
-// Anchor config for a side + gap + visual-edge offset: `gap` is applied perpendicular to the side and the
-// offset slides the anchor onto the card's visual edge (zero for an untilted card, so the resting look is
-// unchanged).
 function withAnchorGap(
   anchor: IAttackAnchorPosition,
   gap: number,
@@ -185,8 +161,6 @@ function getBattleTargetHighlightClass(side: 'top' | 'bottom'): string {
   return side === 'top' ? 'battle-target-top' : 'battle-target-bottom'
 }
 
-// Applied on the leader card surface (not the frame) so the highlight rotates with the rested tilt
-// and hugs the card, exactly like battlefield rows.
 function getLeaderBattleTargetHighlightClass(side: 'top' | 'bottom'): string {
   return side === 'top' ? 'battle-target-leader-top' : 'battle-target-leader-bottom'
 }
@@ -265,7 +239,6 @@ function buildLeaderCardProps(
     hidePreviewWhenBattleTarget?: boolean
     showBadgeWhenLifeMissing?: boolean
     isRested?: boolean
-    /** True while this leader is one of an effect selection prompt's candidates (N-013's freeze). */
     isEffectTargetCandidate?: boolean
     onToggleEffectTarget?: () => void
   }
@@ -291,8 +264,6 @@ function buildLeaderCardProps(
     Boolean(normalizedInstanceId) &&
     (normalizedInstanceId === normalizedAttackLinkSourceCardId ||
       normalizedInstanceId === normalizedAttackLinkTargetCardId)
-  // Mirror the battlefield row: keep a rested attack-link source undimmed until the sequence ends
-  // so the arrow anchor does not visually change while the attack resolves.
   const shouldDimRestedCard =
     isRested && !(Boolean(props.gameState.isAttackSequencePending) && isAttackLinkSource)
 
@@ -350,10 +321,6 @@ function extractTargetIds(targets?: Array<{ cardInstanceId: string }> | null): S
   return targetIds;
 };
 
-/**
- * Whether the card's instance id is in a normalized target-id set. Shared by the leader's battle-target and
- * effect-target/prompt-candidate flags, so the two highlights can never drift apart.
- */
 function isCardInstanceInTargetSet(card: ILeaderCardViewModel | null, validTargets: Set<string>): boolean {
   if (!card) return false;
   return validTargets.has(card.instanceId.trim().toLowerCase());
@@ -394,14 +361,6 @@ function computeCardDisplayFlags(
   };
 };
 
-// The tail's horizontal end anchor can only be used when the *source* sits beyond that anchor point:
-// the end tangent follows sign(endAnchorX - startAnchorX), so an anchor picked by comparing card centres
-// can put the tail on the far side of the target, making it travel *out* of the card. The horizontal
-// anchor is the bbox's left/right edge midpoint nudged back onto the card's visual edge (see
-// `getHorizontalVisualEdgeOffset`).
-// Decides which edges the tail leaves/enters from. It deliberately returns *sides* (plus the raw anchor
-// offsets the approach test needs) rather than finished anchors: the visual-edge offsets are applied by
-// `resolveAttackLinkGeometry`, which has the elements and re-runs on every layout sample.
 function resolveAttackAnchorSides(
   sourceCard: HTMLElement,
   targetCard: HTMLElement,
@@ -413,7 +372,6 @@ function resolveAttackAnchorSides(
 
   const startAnchor: IAttackAnchorPosition = sourceSlotSide === 'top' ? 'bottom' : 'top';
 
-  // The start anchor sits on the source's vertical edge, so its x is the source's centre x.
   const sourceAnchorX = sourceCenter.x;
   const targetRect = targetCard.getBoundingClientRect();
   const targetAnchorOffsets = {
@@ -426,8 +384,6 @@ function resolveAttackAnchorSides(
   const canApproachFromRight = sourceAnchorX > rightAnchorX;
   const prefersLeft = sourceCenter.x <= targetCenter.x;
 
-  // null = the source overlaps the target horizontally, so no side is approachable: the caller falls
-  // back to the sweeping path, which always hooks into its anchor from the outside.
   const endAnchorSide: 'left' | 'right' | null = canApproachFromLeft && (prefersLeft || !canApproachFromRight)
     ? 'left'
     : canApproachFromRight
@@ -447,11 +403,6 @@ function resolveAttackAnchorSides(
   };
 };
 
-// The board's attack link geometry, re-derived from the live elements: anchors are bounding-box edge
-// midpoints, so every anchor on a tilted (rested) card - and the source is *always* tilted, because the
-// attacker rests on declaration - has to be pulled back onto the card's visual edge. A tilted card's box
-// also keeps moving while its tilt animates, so this runs on every layout sample instead of once per
-// render (see `AttackLinkArrow`).
 function resolveAttackLinkGeometry(
   sourceCard: HTMLElement,
   targetCard: HTMLElement,
@@ -462,18 +413,12 @@ function resolveAttackLinkGeometry(
   const sides = resolveAttackAnchorSides(sourceCard, targetCard, options.targetGapPx);
   const boardCenterX = boardRect.left + boardRect.width * 0.5;
 
-  // The sweeping path is used when the cards are stacked (no clear side to enter from) or when the
-  // source overlaps the target horizontally, so neither horizontal anchor can be approached from the
-  // outside. It always hooks into the target's side from beyond it, so the dashes travel into the card
-  // and the head continues them instead of fighting them.
   if (sides.isVerticallyAligned || sides.endAnchorSide === null) {
     const linkCenterX = (sides.sourceCenter.x + sides.targetCenter.x) * 0.5;
     const inwardSide: 'left' | 'right' = linkCenterX <= boardCenterX ? 'right' : 'left';
     const sideBend = inwardSide === 'right' ? options.sideBendPx : -options.sideBendPx;
 
     return {
-      // This branch anchors the source on its horizontal edge too, so the source gets exactly the same
-      // visual-edge treatment as the target (the attacker is always rested here).
       startAnchor: withAnchorGap(
         inwardSide,
         options.sweepSourceGapPx,
@@ -490,37 +435,20 @@ function resolveAttackLinkGeometry(
   }
 
   return {
-    // The attacker rests on declaration, so the source is (nearly always) tilted: anchoring on the
-    // vertical edge *midpoint* keeps the tail's start on the card instead of out at its box corner.
     startAnchor: withAnchorGap(
       sides.startAnchor,
       options.sourceGapPx,
       getVerticalVisualEdgeOffset(sourceCard, sides.startAnchor)
     ),
-    // Same for the target's horizontal edge: using only the horizontal half of this offset left the
-    // arrow level with the card's centre, i.e. visibly below the tilted edge's midpoint.
     endAnchor: withAnchorGap(
       sides.endAnchorSide,
       options.targetGapPx,
       getHorizontalVisualEdgeOffset(targetCard, sides.endAnchorSide)
     ),
     curveness: 0.68,
-    // Nothing arc-specific travels with this branch: not carrying `controlPointOffsets` is what makes it the arc,
-    // and `resolveAttackLinkCubic` derives the bow's depth and side from the chord itself. Both handles used to sit
-    // *on* the chord here, which draws a dead straight line: rigid, and it sliced diagonally across whatever
-    // occupies the board's middle - the phase action row is a full-width grid row between the two halves, so every
-    // attack crosses it (that is the banner the report saw, e.g. "Opponent Support Cut-In").
   };
 }
 
-// ---------------------------------------------------------------------------------------------
-// Rendering the link ourselves.
-//
-// These four helpers turn the geometry above into the shapes the board draws - the dashed tail as a cubic
-// Bézier and the arrowhead from that same cubic. The anchor configs keep the hard-won visual-edge maths
-// (the whole point of the code above), while the curve and the head come from those same control points,
-// so nothing has to be measured back out of a rendered path.
-// ---------------------------------------------------------------------------------------------
 
 type IAttackLinkRect = {
   left: number
@@ -529,14 +457,7 @@ type IAttackLinkRect = {
   height: number
 }
 
-/**
- * The point an anchor config names: the *bounding box* edge midpoint for its side, then the config's own
- * offset. That is the anchor contract the geometry above was tuned against.
- */
 function resolveAttackAnchorPoint(anchor: IAttackAnchorConfig, rect: IAttackLinkRect): IBoardPoint {
-  // The anchor config is a union that also accepts a bare side name. Our own geometry always builds the
-  // object form, so a bare name is normalised to it here (no offset), which keeps this the single place
-  // that knows how a side maps onto a box.
   if (typeof anchor === 'string') {
     return resolveAttackAnchorPoint({ position: anchor, offset: { x: 0, y: 0 } }, rect)
   }
@@ -556,22 +477,6 @@ function resolveAttackAnchorPoint(anchor: IAttackAnchorConfig, rect: IAttackLink
   }
 }
 
-/**
- * The tail as a cubic Bézier - the one shape both branches produce, so everything downstream (the path data and
- * the head, which reads `control2`) works off the same curve.
- *
- * The sweep keeps its hook: the first handle is pushed sideways by a fixed pixel amount (it has to clear a whole
- * card) and the second stays on the start→end chord, which is what makes the tail arrive travelling into the card
- * from beyond it.
- *
- * The flat case is the arc it is specified as: a quadratic with exactly one control point, `ATTACK_LINK_ARC_*` off
- * the chord's *midpoint* and perpendicular to it, mirrored by `sign(deltaX)` so the bow lands on the same visual
- * side whichever way the pair happens to be laid out. It is written out as the equivalent cubic (control points at
- * two thirds of the way from each end to the quadratic's control point), which is the same curve, and which keeps
- * the head derivation exact: `end - control2` is then the quadratic's own end tangent, so the head continues the
- * arc instead of fighting it. Because the arc is symmetric, the tail leaves the source and arrives at the target at
- * the same angle - the kinked, lopsided look a bow on one handle alone produces is gone.
- */
 function resolveAttackLinkCubic(
   geometry: IAttackLinkGeometry,
   sourceRect: IAttackLinkRect,
@@ -603,19 +508,10 @@ function resolveAttackLinkCubic(
     }
   }
 
-  // Responsive depth, clamped into a fixed pixel band.
   const arcDepth = Math.min(
     Math.max(chordLength * ATTACK_LINK_ARC_DEPTH_FACTOR, ATTACK_LINK_ARC_MIN_DEPTH_PX),
     ATTACK_LINK_ARC_MAX_DEPTH_PX,
   )
-  // ...and a side chosen from *both* ends of the link, because "the wide side" is not a property of the target
-  // alone: the arc lobs *towards the card it is aimed at*, so it bows above the chord when the link climbs the
-  // board (the viewer's own half is at the bottom, so that is every attack they declare) and below it when the
-  // link descends (the opponent's attack, or a leader striking down into the battlefield). Which perpendicular
-  // that is also flips with the target's side, since a perpendicular to an up-left chord points up-right or
-  // down-left - the sign below picks the one whose vertical component points the way the link travels. Reversing a
-  // link therefore mirrors its arc across the chord, so an attack and the counter-attack read as the same shot
-  // seen from opposite ends of the table, and the arc always turns *into* the card it lands on.
   const bowsUpward = deltaY <= 0
   const directionMultiplier = (deltaX > 0) === bowsUpward ? -1 : 1
   const control = {
@@ -644,15 +540,8 @@ function resolveAttackLinkPathData(cubic: IAttackLinkCubic): string {
     + `${cubic.end.x} ${cubic.end.y}`
 }
 
-// Segments used to integrate the cubic's length below. The dash pattern is 12px long, so this is orders of
-// magnitude finer than anything the result is used for.
 const ATTACK_LINK_LENGTH_SAMPLES = 32
 
-/**
- * The drawn path's length, integrated from the cubic rather than read back out of the rendered `<path>`: the
- * component must not measure its own output (the whole point of deriving the head from the same control points),
- * and the dash phase below needs the length in the same render pass that produces the path data.
- */
 function resolveAttackLinkPathLength(cubic: IAttackLinkCubic): number {
   let length = 0
   let previousX = cubic.start.x
@@ -678,15 +567,6 @@ function resolveAttackLinkPathLength(cubic: IAttackLinkCubic): number {
   return length
 }
 
-/**
- * The dash phase that keeps the dashed tail clear of the arrowhead.
- *
- * The stroke paints its pattern from the path's *start*, so whether a dash happens to land in the head's last
- * few pixels is luck - and there it pokes out on both sides of the head, because the head tapers to a point and
- * the 4.5px stroke is wider than the head's silhouette over its front half. Anchoring the pattern so it *ends*
- * in a gap one gap length before the path's end pins the tail's last dash to the head's base instead. The path
- * itself still ends on the head's tip, so every measured point of the geometry is untouched.
- */
 function resolveAttackLinkDashOffset(cubic: IAttackLinkCubic): number {
   const period = ATTACK_LINK_DASH_LENGTH_PX + ATTACK_LINK_DASH_GAP_PX
   const dashEndsAt = resolveAttackLinkPathLength(cubic) - ATTACK_LINK_DASH_GAP_PX
@@ -695,12 +575,6 @@ function resolveAttackLinkDashOffset(cubic: IAttackLinkCubic): number {
   return offset < 0 ? offset + period : offset
 }
 
-/**
- * The arrowhead, derived from the tail's own control points rather than measured off the drawn path: its tip is
- * the tail's end (so it sits on the anchor the geometry picked) and its rotation is the curve's end tangent - the
- * chord direction for the sweep, the arc's own tangent for the flat case - so the head always continues the tail
- * exactly.
- */
 function resolveAttackLinkHeadConfig(cubic: IAttackLinkCubic): IAttackLinkHeadConfig {
   const directionX = cubic.end.x - cubic.control2.x
   const directionY = cubic.end.y - cubic.control2.y

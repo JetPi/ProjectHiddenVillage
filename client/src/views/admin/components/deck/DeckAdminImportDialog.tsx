@@ -6,16 +6,11 @@ import { FormLabel, FormTextarea } from '@/components/forms'
 import { parseDeckImportPayload } from '@/views/admin/utils/deckImport'
 import type { IDeckAdminImportDialogProps } from './types'
 
-/**
- * The optional shortcut for a list that already exists as text. It uses the same `"3x N-001"` grammar the login
- * importer accepts, and it is additive: importing adds copies to the draft rather than replacing it.
- */
 export function DeckAdminImportDialog({ isOpen, onClose, onImport }: IDeckAdminImportDialogProps) {
   const { t } = useTranslation()
   const [payload, setPayload] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // The screen only mounts this dialog while it is open, so the draft text and error reset with the unmount.
   if (!isOpen || typeof document === 'undefined') {
     return null
   }
@@ -41,7 +36,6 @@ export function DeckAdminImportDialog({ isOpen, onClose, onImport }: IDeckAdminI
   return createPortal(
     <div
       className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4"
-      // The textarea holds focus, so a key press reaches this handler.
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           onClose()

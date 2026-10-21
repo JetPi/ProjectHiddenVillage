@@ -6,7 +6,6 @@ import { optionLabel, PREDICATE_CARD_COLOR_LABEL_KEYS, PREDICATE_CARD_TYPE_LABEL
 const CARD_TYPE_OPTIONS = ['Leader', 'Character', 'EX Character', 'Chakra', 'Summon'] as const
 const CARD_COLOR_OPTIONS = ['Red', 'Blue', 'Green', 'N/A'] as const
 
-/** Display labels for the card type/color `value`s above; the submitted values never change. */
 const CARD_TYPE_LABEL_KEYS: Readonly<Record<string, string>> = {
   ...PREDICATE_CARD_TYPE_LABEL_KEYS,
   'EX Character': 'admin.options.predicateCardType.exCharacter',
@@ -58,7 +57,6 @@ export function CardAdminSelectedCardSummary({
 
   const isLeaderType = draft.type.trim().toLowerCase() === 'leader'
 
-  // A new card has no stored row yet, so while creating these two come from the draft being authored instead.
   const resolvedCardId = identity ? identity.cardId : formatValue(card.id)
   const resolvedDisplayName = identity ? identity.displayName : formatValue(card.displayName)
 

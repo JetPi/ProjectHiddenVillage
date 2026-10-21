@@ -20,8 +20,6 @@ export function CardAdminDetailPane({
 }: ICardAdminDetailPaneProps) {
   const { t } = useTranslation()
 
-  // A dropped selection takes the draft with it, so the screen must stop being marked as dirty - otherwise the
-  // next card clicked would be met by a warning about changes that are already gone.
   useEffect(() => {
     if (!selectedCard) {
       onUnsavedChangesChange?.(false)
@@ -39,8 +37,6 @@ export function CardAdminDetailPane({
           onExitResolved={onExitResolved}
         />
       ) : isLoading ? (
-        // The listing is lean, so the editor's card arrives on its own fetch. Saying so is better than the
-        // "select a card" empty state flashing on every click.
         <p className="mt-3 text-sm text-[var(--text-secondary)]">{t('admin.detail.loadingCard')}</p>
       ) : (
         renderEmptySelectionState(t('admin.detail.emptySelection'))
@@ -49,13 +45,6 @@ export function CardAdminDetailPane({
   )
 }
 
-/**
- * The update side of the card editor: the shared editing body driven by the patch submit, plus the art draft the
- * same save flushes. The create screen renders the same body with its own submit and its own identity fields.
- *
- * The exit dialog is rendered from here rather than from the screen because saving is the third answer to it, and
- * only this component can save.
- */
 function CardAdminDetailEditor({
   selectedCard,
   onUnsavedChangesChange,
@@ -69,8 +58,6 @@ function CardAdminDetailEditor({
   const isBusy = editorModel.isSaving || artModel.isCommitting
   const hasUnsavedChanges = editorModel.isDirty || artModel.isDirty
 
-  // Both halves of the draft count as one thing to the screen: the effects patch and whatever the art section has
-  // staged would go in the same save.
   useEffect(() => {
     onUnsavedChangesChange?.(hasUnsavedChanges)
   }, [hasUnsavedChanges, onUnsavedChangesChange])
@@ -79,8 +66,6 @@ function CardAdminDetailEditor({
     const hasEffectChanges = editorModel.isDirty
     const hasArtChanges = artModel.isDirty
 
-    // The effects go first: that patch is what validates the card as a whole, and a rejected card must not leave
-    // freshly uploaded art behind on the server. Only once the card itself saved does the staged art follow.
     if (hasEffectChanges) {
       const result = await editorModel.save()
 
@@ -153,8 +138,6 @@ function CardAdminDetailEditor({
           isSaving={isBusy}
           onKeepEditing={() => onExitResolved?.(false)}
           onSave={async () => {
-            // Saving is the third answer to "you are about to leave": commit the draft, then go where the author
-            // was going. A save that fails stays put, so the errors are readable instead of behind this dialog.
             onExitResolved?.(await saveDraft())
           }}
           onDiscard={() => onExitResolved?.(true)}

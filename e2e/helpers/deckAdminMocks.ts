@@ -1,10 +1,5 @@
 import type { Page, Route } from '@playwright/test'
 
-/**
- * Keeps the deck-builder spec entirely inside the browser: the catalogue pages, the public deck list, deck reads
- * and every deck write are answered here. The spec therefore exercises the real screen (selection, validation,
- * save gating, import, delete) without minting decks in the database.
- */
 
 type MockCardType = 'Leader' | 'Character' | 'Chakra'
 
@@ -44,7 +39,6 @@ export type DeckAdminMockState = {
 
 export type IDeckAdminMockOptions = {
   decks?: DeckAdminMockDeck[]
-  /** A deck the server refuses to delete (a game instance still points at it), answered with 409. */
   undeletableDeckId?: string
 }
 
@@ -52,7 +46,6 @@ function findMockCard(cardId: string): MockCard {
   return findMockCardOrNull(cardId) ?? MOCK_CARDS[0]
 }
 
-/** Strict lookup: an unknown id must not inherit the first fixture card's type and turn into a leader. */
 function findMockCardOrNull(cardId: string): MockCard | null {
   return MOCK_CARDS.find((card) => card.id.toLowerCase() === cardId.trim().toLowerCase()) ?? null
 }
@@ -82,8 +75,6 @@ function toCatalogItem(card: MockCard) {
 }
 
 function toDeckResponse(deck: DeckAdminMockDeck, populate: boolean) {
-  // The rail colours each deck by its leader, so the lean list answers with the leader's colour the way the real
-  // endpoint does - without card payloads.
   const leaderLine = deck.cards
     .map((card) => ({ card, metadata: findMockCardOrNull(card.cardId) }))
     .find((entry) => entry.metadata?.type === 'Leader')
@@ -170,8 +161,6 @@ export async function installDeckAdminMocks(
     const pageNumber = Number.parseInt(url.searchParams.get('page') ?? '1', 10) || 1
     const pageSize = Number.parseInt(url.searchParams.get('pageSize') ?? '100', 10) || 100
     const search = url.searchParams.get('search')?.trim().toLowerCase() ?? ''
-    // The catalogue page is filtered by repeated `types` keys (see `fetchCardCatalogPage`), and the deck builder
-    // uses that to keep Chakra and Summon off the list. The mock has to honour it or the toggle proves nothing.
     const selectedTypes = new Set(
       url.searchParams
         .getAll('types')
@@ -189,7 +178,6 @@ export async function installDeckAdminMocks(
       page: pageNumber,
       pageSize,
       totalCount: matchingCards.length,
-      // One page is enough for the fixture set; the screen's infinite scroll then has nothing left to ask for.
       totalPages: 1,
       items: matchingCards.map((card) => toCatalogItem(card)),
     })

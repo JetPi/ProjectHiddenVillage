@@ -37,7 +37,6 @@ export const MOVE_CARD_DECK_PLACEMENT_OPTIONS = ['Top', 'Bottom', 'Index'] as co
 
 export const MOVE_CARD_MULTI_ORDERING_OPTIONS = ['Selected Order', 'Random'] as const
 
-/** Display labels for the runtime modification `value`s above; the values are never translated. */
 export const ATTRIBUTE_OPERATION_LABEL_KEYS: Readonly<Record<string, string>> = {
   'Add': 'admin.options.attributeOperation.add',
   'Subtract': 'admin.options.attributeOperation.subtract',

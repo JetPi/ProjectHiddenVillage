@@ -9,7 +9,6 @@ import { CardAdminIdentityPanel } from '@/views/admin/components/create'
 import { useCardAdminCreateModel } from '@/views/admin/model/useCardAdminCreateModel'
 import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog'
 
-/** Mirrors how the server derives the displayed support cost: the first support effect that names a chakra cost. */
 function resolveSupportCost(effects: ICardCatalogEffectRequest[]): number | null {
   const supportEffect = effects.find((effect) =>
     effect.effectType.trim().toLowerCase() === 'support' && typeof effect.chakraCost === 'number')
@@ -40,8 +39,6 @@ export function CardAdminCreateView() {
       return
     }
 
-    // The catalogue is paged and sorted, so the only way to be sure the author sees what they just made is to
-    // land on it by id.
     const createdCardId = identity.cardId.trim()
     useCardAdminViewStore.getState().setSearchText(createdCardId)
     useCardAdminViewStore.getState().selectCard(createdCardId)

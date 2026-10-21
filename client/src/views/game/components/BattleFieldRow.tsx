@@ -22,19 +22,6 @@ import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
 import { useGameUIStore } from '@/state/gameUIStore'
 import { getBattleTargetHighlightClass, getSummonTargetHighlightClass, toAnchorId, resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions'
 
-/**
- * A card leaving this row flies as itself.
- *
- * The state update that removes a card has already re-rendered the row by the time any effect could react, so a
- * removed card would have no element left to move and could only be imitated by a copy. The row therefore keeps
- * the removed card rendered for the length of its travel (`departingCards`), which is the retention
- * `AnimatePresence` performs internally - done here because the departing card must be re-rendered with *fresh*
- * props: Motion's cached exiting child would keep the destination it was given while the card was still present,
- * and the movement that names its destination arrives in the very push that removes it.
- *
- * The destination is per card: the events carry one movement per card, so a K.O. travels to its own pile while a
- * card leaving for a zone the board does not render (exile) simply goes.
- */
 type IBattlefieldCard = IBattleFieldRowProps['cards'][number]
 
 function BattlefieldCardBody({
@@ -78,8 +65,6 @@ function BattlefieldCardBody({
   return (
     <PlayCard
       id={isDeparting ? undefined : toAnchorId(card.instanceId)}
-      // A departing card keeps its own drawing but stops being a board card: it must not answer locators that
-      // count what is on the field while it flies to its pile.
       data-zone={isDeparting ? undefined : 'character-field-card'}
       data-slot-side={isDeparting ? undefined : side}
       data-slot-index={isDeparting ? undefined : index}
@@ -156,14 +141,10 @@ function BattlefieldCard({ data, card, index }: { data: IBattleFieldRowProps; ca
 
   return (
     <motion.div
-      // Motion owns the board card's transform: the rested tilt is an animated property here instead of a CSS
-      // `transition-transform` class, so nothing else writes `transform`.
       animate={{
         rotate: isCardRested ? RESTED_CARD_TILT_DEG : 0,
         transition: { duration: RESTED_CARD_TILT_DURATION_MS / 1000, ease: BOARD_MOVEMENT_EASE },
       }}
-      // `position` only: when a card leaves or joins the row the remaining cards slide into their new slots
-      // instead of snapping, and card art is never left at a fractional scale.
       layout="position"
       className="h-full w-auto shrink-0 origin-center aspect-[200/277]"
     >
@@ -198,7 +179,6 @@ function DepartingBattlefieldCard({
     }
 
     let isCancelled = false
-    // The acknowledgement waits for this travel like any other flight.
     noteFlight(`field-exit:${card.instanceId}`, Date.now() + CARD_TO_TRASH_FLY_DURATION_MS)
     void runElementToRectAnimation({
       element,
@@ -219,10 +199,7 @@ function DepartingBattlefieldCard({
   return (
     <motion.div
       ref={setElement}
-      // The travelling element carries the card's identity: it is what the flight animates, and it lets a test
-      // attribute the travel to a card instead of counting animations.
       data-departing-instance-id={card.instanceId}
-      // The card is already off the board, so it takes no part in the row's layout.
       className="pointer-events-none h-full w-auto shrink-0 origin-center aspect-[200/277] z-[250]"
     >
       <BattlefieldCardBody data={data} card={card} index={0} side={side} isDeparting />
@@ -231,8 +208,6 @@ function DepartingBattlefieldCard({
 }
 
 export function BattlefieldRow({ data }: { data: IBattleFieldRowProps }) {
-  // The comparison is on *content*, not identity: the card list is rebuilt from the state on every render, so an
-  // identity check would set state during render forever.
   const renderedCardsSignature = data.cards.map((card) => card.instanceId).join('|')
 
   const [retention, setRetention] = useState<{
@@ -241,8 +216,6 @@ export function BattlefieldRow({ data }: { data: IBattleFieldRowProps }) {
     departures: Array<{ card: IBattlefieldCard; zone: ICardDepartureZone }>
   }>(() => ({ signature: renderedCardsSignature, cards: data.cards, departures: [] }))
 
-  // Derived during render, the way AnimatePresence derives its own retained children: without it the row would
-  // commit a frame with the card already gone, and a card with no element cannot travel anywhere.
   if (retention.signature !== renderedCardsSignature) {
     const currentInstanceIds = new Set(data.cards.map((card) => card.instanceId))
     const knownDepartureInstanceIds = new Set(retention.departures.map((departure) => departure.card.instanceId))
@@ -252,7 +225,6 @@ export function BattlefieldRow({ data }: { data: IBattleFieldRowProps }) {
       }
 
       const zone = resolveCardDepartureZone(card.instanceId, data.props.gameState.animationEvents)
-      // Nothing to animate (exile, or a move the board does not render): drop it straight away.
       return zone ? [{ card, zone }] : []
     })
 

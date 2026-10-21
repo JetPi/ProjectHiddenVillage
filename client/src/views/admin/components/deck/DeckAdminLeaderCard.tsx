@@ -10,8 +10,6 @@ export function LeaderCardIndicator({leaderCard, onClearLeader, totalCopies, t} 
     ? `${leaderCard.metadata.type} · ${leaderCard.metadata.color}`
     : null
 
-  // The slot is outlined in the leader's colour: it is the deck's identity, and it is the one card whose colour
-  // every other line has to match.
   const colorStyling = resolveDeckCardColorStyling(leaderCard?.metadata?.color)
 
   return <div

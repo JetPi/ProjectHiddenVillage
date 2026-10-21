@@ -20,8 +20,6 @@ async function handlePromptResolve({
 }: IHandlePromptResolveArgs): Promise<void> {
   const isMulliganResolve = promptPresentation?.promptType === 'Mulligan' && selectedOption === 'mulligan'
 
-  // "Choose a card from your hand to place on top of your deck": fly the picked card from the hand to the
-  // deck before the server moves it, so the player sees their choice land (same idiom as the mulligan below).
   const isHandCardSelectionResolve =
     promptPresentation?.promptType === 'Effect'
     && promptPresentation.candidateZone === 'Hand'
@@ -67,10 +65,6 @@ async function handlePromptResolve({
     }
   }
 
-  // The fan-out is deliberately staggered: the hand going back one card at a time is the look we want for a
-  // mulligan. What must not happen is the old hand reappearing while the server's redraw is on its way - the exit
-  // flight leaves a departed card hidden when it lands (see `runElementToRectAnimation`), so the tail of this
-  // sequence cannot paint the old hand back into the row.
   const currentBottomHandInstanceIds = bottomHandCards.map((card) => card.instanceId)
   currentBottomHandInstanceIds.forEach((instanceId, index) => {
     const animationTimeoutId = window.setTimeout(() => {
@@ -96,8 +90,6 @@ async function handlePromptResolve({
       : 0
 
   animControllerRef.current.pendingMulliganDrawReplay = true
-  // The replay has to survive the pushes that resolve the prompt and move the phase: the hand it is meant to fly
-  // in can arrive a push later, and consuming the flag early left the redraw with nothing to animate.
   animControllerRef.current.pendingMulliganDrawReplayExpiresAtMs = Date.now() + 2_000
 
   await waitMillis(totalHandToPileMs)

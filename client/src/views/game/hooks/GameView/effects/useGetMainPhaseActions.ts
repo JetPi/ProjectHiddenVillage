@@ -38,7 +38,6 @@ function useGetMainPhaseActions(props: IGetMainPhaseActionsProps) {
 
         void refreshGameState()
             .catch(() => {
-                // Best effort only; a later hub event will refresh the state again.
             })
             .finally(() => {
                 isMissingOptionsRefreshInFlightRef.current = false

@@ -2,10 +2,6 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ProjectHiddenVillage.Server.Tests;
 
-/// <summary>
-/// Shape rules only. The semantic rules live in <see cref="PublicDeckRules"/> and are tested there; a validator
-/// test that reached for the database would be testing a different layer.
-/// </summary>
 [TestClass]
 public sealed class DeckRequestValidatorTests
 {

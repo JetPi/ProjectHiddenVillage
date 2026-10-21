@@ -2,10 +2,6 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ProjectHiddenVillage.Server.Tests;
 
-/// <summary>
-/// The deck rules as one pure function: no database, no request, no mocks. Each test names the rule it pins,
-/// because these are the rules a save is gated on.
-/// </summary>
 [TestClass]
 public sealed class PublicDeckRulesTests
 {
@@ -136,8 +132,6 @@ public sealed class PublicDeckRulesTests
 
         var codes = Codes(violations);
 
-        // No leader, too many copies and an unknown id all have to be visible in one pass: the editor lists them
-        // together, and an author should not have to fix one problem to discover the next.
         CollectionAssert.Contains(codes, PublicDeckRules.LeaderCountCode);
         CollectionAssert.Contains(codes, PublicDeckRules.TooManyCopiesCode);
         CollectionAssert.Contains(codes, PublicDeckRules.UnknownCardsCode);
@@ -146,7 +140,6 @@ public sealed class PublicDeckRulesTests
     [TestMethod]
     public void Evaluate_SkipsTheColourRuleWhenThereIsNoSingleLeader()
     {
-        // A missing leader is already its own violation; reporting every card as off-colour as well would bury it.
         var violations = PublicDeckRules.Evaluate(
             [
                 new DeckRuleCard("C-001", 1),

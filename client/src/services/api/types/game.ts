@@ -39,11 +39,7 @@ export type IGameCardInstanceResponse = {
   availableActions?: IGameActionOptionResponse[]
   isRested: boolean
   supportSlotIndex?: number | null
-  // True while a reveal shows this card's face to both players. Distinct from isFaceUp: a deck card is data-wise
-  // face up yet hidden from the opponent (and, for the owner, indistinguishable from any other deck card) until
-  // a reveal turns it over.
   isRevealed?: boolean
-  // Live (enriched) instance stats — present on battlefield/hand cards.
   displayName?: string
   type?: string
   color?: string
@@ -93,8 +89,6 @@ export type IPendingPromptResponse = {
   type: string
   isAwaitingRequestingPlayer: boolean
   options: string[]
-  // Effect selection prompts (type 'Effect'): copy bucket + where the candidate cards live, and which player
-  // owns that zone (an effect may offer the opponent's trash, not just the acting player's own zones).
   selectionPromptKind?: string | null
   candidateZone?: string | null
   candidatePlayerId?: string | null
@@ -109,14 +103,8 @@ export type IPendingAttackVisualStateResponse = {
   defenderZone: string
 }
 
-/**
- * One card movement the engine performed, published so the client animates the move instead of inferring it
- * from zone/count deltas. `eventId` is stable per movement and the server republishes a bounded tail on every
- * push, so consumers de-duplicate on it rather than tracking a cursor.
- */
 export type IAnimationEventResponse = {
   eventId: string
-  /** The movement kind, e.g. `draw` (see the server's `CardMovementKinds`). */
   kind: string
   cardInstanceId: string
   playerId: string
@@ -128,14 +116,12 @@ export type ISupportChainTargetResponse = {
   cardInstanceId: string
   displayName: string
   ownerPlayerId: string
-  // True when the target is another queued activation: the card this one answers with a negate.
   isChainEntry: boolean
   chainEntryId: string | null
 }
 
 export type ISupportChainEntryResponse = {
   entryId: string
-  // Activation order inside the chain, oldest first.
   sequence: number
   playerId: string
   sourceCardInstanceId: string
@@ -145,7 +131,6 @@ export type ISupportChainEntryResponse = {
 }
 
 export type IEffectNoticeResponse = {
-  /** Action-log entry id: the server republishes the notice list on every push, so the client de-dupes on it. */
   noticeId: string
   actionType: string
   message: string
@@ -155,14 +140,9 @@ export type IEffectNoticeResponse = {
   selectionPromptKind: string | null
 }
 
-/**
- * The terminal result of a game. The server writes it exactly once; while it is absent the game is running.
- * `winnerPlayerId` is null for a draw (both players lost at the same instant and every tiebreak tied).
- */
 export type IGameOutcomeResponse = {
   winnerPlayerId: string | null
   loserPlayerIds: string[]
-  /** `LeaderLifeDepleted` or `DeckOut`. */
   reason: string
   turnNumber: number
 }
@@ -175,18 +155,11 @@ export type IPhasePresentationKind =
   | 'BattleEnd'
   | 'TurnEnd'
 
-/**
- * A phase transition the engine performed on its own and is holding until every connected client confirms its
- * board has finished presenting it (see `plans/server-owned-phase-transitions.md`). It is **not** a prompt: the
- * only answer it accepts is `acknowledgePhasePresentation`, and while it is present the server rejects every
- * other action.
- */
 export type IPhasePresentationResponse = {
   presentationId: string
   phase: string
   kind: string
   turnNumber: number
-  /** The connected participants whose boards must finish animating before the engine resumes. */
   requiredAckPlayerIds: string[]
   acknowledgedPlayerIds: string[]
 }
@@ -199,20 +172,11 @@ export type IGameStateResponse = {
   phase: string
   attackSequenceStage: string | null
   isAttackSequencePending: boolean
-  // True while an activated support waits for responses in the MainPhase ([Support Activated] window).
   isSupportResponseWindowOpen?: boolean
-  // Support activations still waiting on the resolution stack, oldest first.
   supportChain?: ISupportChainEntryResponse[] | null
-  // Notices for the requesting player, oldest first (an effect that resolved with nothing to act on). The board
-  // shows the newest unnoticed one as a transient toast.
   effectNotices?: IEffectNoticeResponse[] | null
-  // The result of the game. When present the engine publishes no actions or prompt at all, and the board only
-  // offers the result overlay's "return to main page" button.
   gameOutcome?: IGameOutcomeResponse | null
-  // The engine's outstanding phase transition, waiting for this client's acknowledgement. While it is present
-  // the board must not act: the HUD holds its last interactive chips and the client answers with an ack.
   pendingPresentation?: IPhasePresentationResponse | null
-  /** The engine's recent card movements, oldest first, as a bounded tail (see `IAnimationEventResponse`). */
   animationEvents?: IAnimationEventResponse[] | null
   pendingAttackVisualState: IPendingAttackVisualStateResponse | null
   pendingPrompt: IPendingPromptResponse | null

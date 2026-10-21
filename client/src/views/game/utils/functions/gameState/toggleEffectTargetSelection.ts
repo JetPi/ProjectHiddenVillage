@@ -6,11 +6,6 @@ interface IToggleEffectTargetSelectionProps {
   setPendingEffectTargeting: Dispatch<SetStateAction<IEffectTargetingState | null>>
 }
 
-/**
- * Multi-pick counterpart of `toggleSummonTargetSelection`: a candidate is added on first toggle and
- * removed on the second, and selecting past the declared maximum drops the oldest pick so the
- * selection can never exceed what the server accepts (range supports are "up to N").
- */
 function toggleEffectTargetSelection({
   targetCardInstanceId,
   setPendingEffectTargeting,

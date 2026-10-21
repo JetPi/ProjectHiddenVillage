@@ -20,9 +20,6 @@ function useBackendAttackLink({ gameState }: IBackendAttackLinkProps) {
       return null
     }
 
-    // The attacker can be a battlefield character *or* the leader, so the source lookup must consider
-    // both (mirrors the engine's FindOwnedCardInstance logic). Looking only at the character field
-    // dropped the attack-link arrow for leader-declared attacks.
     const sourceCardExists = gameState.players.some((player) =>
       normalizeCardInstanceId(player.leader.instanceId) === sourceCardLookupId
       || player.characterField.some((card) =>

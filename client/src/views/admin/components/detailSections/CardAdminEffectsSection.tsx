@@ -68,7 +68,6 @@ export function CardAdminEffectsSection({
   const { t } = useTranslation()
   const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null)
   const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null)
-  // The card-sized ghost handed to the browser during a drag (`setDragImage` snapshots it immediately).
   const dragPreviewRef = useRef<HTMLDivElement | null>(null)
 
   const clearDragState = () => {
@@ -78,11 +77,6 @@ export function CardAdminEffectsSection({
     dragPreviewRef.current = null
   }
 
-  /**
-   * Only the drag handle starts a drag (the card used to be draggable as a whole, which hijacked clicks on
-   * the flag toggles). The handle is a 24px icon, so the browser's default ghost would be a speck: hand it a
-   * card-sized preview of the effect instead, which is what shows where the effect will land.
-   */
   const handleEffectDragStart = (event: DragEvent<HTMLSpanElement>, effectIndex: number, label: string) => {
     setDraggedEffectIndex(effectIndex)
     setDragOverEffectIndex(null)
@@ -194,9 +188,6 @@ export function CardAdminEffectsSection({
             }}
             onDragEnd={clearDragState}
           >
-            {/* One line, like the original layout: identity, branch wiring and the flags share the row and
-                wrap as groups only when the rail is genuinely too narrow - never slicing the way the old
-                `flex-nowrap overflow-hidden` row did. */}
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
               <CardAdminRemoveButton
                 onClick={() => removeEffectAt(effectIndex)}
@@ -371,9 +362,6 @@ export function CardAdminEffectsSection({
                           return {
                             ...current,
                             runtimeEffectType: nextRuntimeEffectType,
-                            // "Lock Chakra Recovery" locks the players in Target Range and "Interrupt Attack"
-                            // resolves the pending attack itself, so neither ever asks for a selected target -
-                            // the server rejects the combination outright.
                             executionTargetSource:
                               nextRuntimeEffectType === 'Reveal Card'
                                 ? 'Selected Targets'

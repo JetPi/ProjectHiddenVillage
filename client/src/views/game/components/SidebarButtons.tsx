@@ -9,10 +9,6 @@ export function SideBarButtons(props: IGameZonesProps){
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
     const isEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting !== null)
 
-    // While the engine holds a phase presentation the sidebar holds the state it had at the last
-    // interactive snapshot: `isActionBlocked` is that held value, and `isPresentationPending` makes the
-    // buttons inert without changing how they look. Otherwise the acknowledgement and the state it pushes
-    // would dim and undim every button, and a click could land on a phase that already moved.
     const frozenClassName = props.isPresentationPending ? ' pointer-events-none' : ''
    
     return<div className="flex flex-col items-end justify-center gap-1">

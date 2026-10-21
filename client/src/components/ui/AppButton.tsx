@@ -16,8 +16,6 @@ export function AppButton({
     <button
       {...buttonProps}
       className={twMerge(
-        // A disabled button has to look disabled: the attribute alone still paints the action colour and reads as
-        // available. Callers that disable a button for a *busy* state can override these with `disabled:opacity-*`.
         'inline-flex items-center justify-center rounded-xl border border-[var(--border-subtle)] px-4 py-2 text-sm font-semibold transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50',
         variantClass,
         className,

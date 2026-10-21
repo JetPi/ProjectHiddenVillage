@@ -11,13 +11,6 @@ const HEADLINE_CLASS: Record<IGameOutcomeStanding, string> = {
   draw: 'text-slate-200',
 }
 
-/**
- * The result of a finished game. It is deliberately modal and not dismissible: the engine publishes no
- * action, prompt or reaction window once an outcome exists, so "return to main page" is the only thing
- * left to do on this screen. The DOM is the same language as the mulligan/effect prompt overlay
- * (`GamePromptOverlay`) - a full-screen backdrop with the panel drawing on top - and it sits above the
- * board's transient banners (z-60 vs their z-40/z-50) so a stale action error can never peek through.
- */
 function GameOverOverlay({ outcome, authUserId }: IGameOverOverlayProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()

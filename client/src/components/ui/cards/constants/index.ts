@@ -12,10 +12,6 @@ export const DESCRIPTION_KEYWORDS_BY_COLOR: Record<DescriptionKeywordColor, stri
 	neutral: [],
 }
 
-/**
- * Keyword tooltips are display copy: values are translation keys resolved at render time.
- * Keys stay aligned with the server-provided keyword text used in `DESCRIPTION_KEYWORDS_BY_COLOR`.
- */
 export const KEYWORD_DESCRIPTION_KEYS = {
 	rush: 'components.ui.keywords.rush',
 } as const

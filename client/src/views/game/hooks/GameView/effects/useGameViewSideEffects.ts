@@ -146,7 +146,6 @@ function useGameViewSideEffects({
     acknowledgePhasePresentation: gameHubState.acknowledgePhasePresentation,
   })
 
-  // The attacker lunges when the engine reaches the damage stop - the moment the attack actually resolves.
   useAttackLungeEffect({
     pendingPresentation: gameState.pendingPresentation,
     attackVisualState: gameState.pendingAttackVisualState,
@@ -167,13 +166,6 @@ function useGameViewSideEffects({
   })
 }
 
-/**
- * Submits the card the player picked on a prompt's own Select button. Board clicks only record the pick (the
- * rows call the store directly, per the interaction-state boundary), so the hub submission happens here,
- * together with the flight the pick should show: a hand card on its way to the deck or the trash. A deck
- * search needs no flight here - the hand-zone effect already flies the searched card out of the deck once the
- * resolved state arrives.
- */
 function usePromptSelectionSubmitEffect({
   gameState,
   pendingPromptSelection,
@@ -198,13 +190,7 @@ function usePromptSelectionSubmitEffect({
     const pileDestination = resolveHandPileDestination(pendingPrompt.selectionPromptKind)
 
     void (async () => {
-      // Let the card visibly finish travelling to its pile BEFORE the prompt resolves. The flight animates the
-      // real hand element, so submitting first would let the pushed state unmount it mid-air and the card would
-      // simply vanish instead of landing.
       if (pendingPrompt.candidateZone === 'Hand' && pileDestination) {
-        // A trash-bound card is claimed for this flight. The recorded-discard effect would otherwise fly the same
-        // card out of the hand a second time once the resolved state lands, and by then the hand row is still
-        // holding the card in its exit window - so the player would watch one discard twice.
         if (pileDestination === 'trash') {
           animControllerRef.current.suppressedExitGhostInstanceIds.add(selection.selectedInstanceId)
         }
@@ -232,7 +218,6 @@ function usePromptSelectionSubmitEffect({
   }, [animControllerRef, clearPromptSelection, gameState.pendingPrompt, pendingPromptSelection, submitHubIntent, viewRefs])
 }
 
-/** Which pile a hand card picked by a prompt leaves for (null when the prompt's action moves no hand card). */
 function resolveHandPileDestination(selectionPromptKind: string | null | undefined): 'deck' | 'trash' | null {
   switch (selectionPromptKind) {
     case 'PlaceOnDeckTop':
@@ -245,13 +230,6 @@ function resolveHandPileDestination(selectionPromptKind: string | null | undefin
   }
 }
 
-/**
- * A reveal presentation is not a question: the server suspends a "Reveal First" chain until the player has seen
- * the card it turned over (the deck slot flips it face up meanwhile). The client therefore acknowledges it on its
- * own once the presentation window has passed, using the prompt's single option - the only option a presentation
- * prompt ever has. The ack is re-armed while that same prompt is still pending, because a failed submit would
- * otherwise strand the chain with nothing left to answer it.
- */
 function useRevealPresentationAckEffect({
   isConnected,
   gameState,

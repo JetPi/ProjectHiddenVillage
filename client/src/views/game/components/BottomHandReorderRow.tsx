@@ -20,7 +20,6 @@ export function BottomHandReorderRow({
   validEffectTargetsByCardId,
   onChooseTarget,
 }: IBottomHandReorderRowProps) {
-  // Motion's `Reorder` owns the drag; this hook owns the order and the post-drag click suppression.
   const {
     orderedCards,
     orderedIds,
@@ -94,8 +93,6 @@ export function BottomHandReorderRow({
                         ? () => onChooseTarget(card.instanceId)
                         : undefined
                     }
-                    // A hand card that an effect selection prompt lists as a candidate answers the prompt with
-                    // its own Select button - the same store branch the field/support rows use.
                     isEffectTargetCandidate={
                       validEffectTargetsByCardId?.has(card.instanceId.trim().toLowerCase()) === true
                     }

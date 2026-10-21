@@ -138,10 +138,6 @@ public sealed partial class DeckService : IDeckService
         return deck.Id.ToString();
     }
 
-    /// <summary>
-    /// Creates an admin-authored deck from structured card lines. Unlike the legacy text path this one is held to
-    /// the deck rules: exactly one leader, at most four copies of any other card, and one colour throughout.
-    /// </summary>
     public async Task<ErrorOr<DeckResponse>> CreatePublicDeckAsync(CreatePublicDeckRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -173,14 +169,9 @@ public sealed partial class DeckService : IDeckService
                     description: "Deck could not be persisted.");
         }
 
-        // Re-read: the response projection joins the catalogue, which the in-memory entity cannot answer.
         return await GetDeck(deck.Id.ToString(), populate: false);
     }
 
-    /// <summary>
-    /// Replaces a deck's name and card lines. The type and owner are left alone, so an edit cannot turn a public
-    /// deck into a player deck. Runtime game decks are their own copies, so an in-progress game is unaffected.
-    /// </summary>
     public async Task<ErrorOr<DeckResponse>> UpdateDeckAsync(string deckId, UpdateDeckRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -211,10 +202,6 @@ public sealed partial class DeckService : IDeckService
 
         deck.Name = request.Name.Trim();
 
-        // Diff by catalogue entry instead of deleting every row and re-inserting it: a card that stays in the
-        // deck while its quantity changes would otherwise be deleted and inserted under the same
-        // (DeckId, CardCatalogEntryId) unique index in one save, and the insert ordering decides whether that
-        // trips the constraint.
         var existingCardsByCatalogEntryId = deck.Cards.ToDictionary(card => card.CardCatalogEntryId);
 
         foreach (var requestedCard in resolveResult.Value)
@@ -394,11 +381,6 @@ public sealed partial class DeckService : IDeckService
         return decks.Select(deck => ToDeckResponse(deck, populate: true)).ToList();
     }
 
-    /// <summary>
-    /// The lean read, as a projection the database can answer. The leader's colour is split into "is there a
-    /// leader" plus "its colour" because <c>FirstOrDefault</c> over an enum yields the enum's default (Red) for an
-    /// empty deck, so the emptiness has to be answered separately rather than inferred from the colour.
-    /// </summary>
     private static System.Linq.Expressions.Expression<Func<Deck, DeckProjection>> ToDeckProjectionExpression()
     {
         return deck => new DeckProjection(
@@ -974,12 +956,6 @@ public sealed partial class DeckService : IDeckService
         return builder.ToString();
     }
 
-    /// <summary>
-    /// Turns structured card lines into persistable <see cref="DeckCard"/> rows, applying <see cref="PublicDeckRules"/>
-    /// on the way. Both the create and the update path go through here, so the two doors cannot drift apart.
-    /// Lines are de-duplicated by id first: the shape validator already refuses duplicates over HTTP, but a direct
-    /// caller must not be able to smuggle two lines past the four-copy rule.
-    /// </summary>
     private async Task<ErrorOr<List<DeckCard>>> ResolveDeckCardsAsync(IReadOnlyList<DeckCardRequest>? requestedCards)
     {
         var normalizedCards = (requestedCards ?? [])

@@ -2,20 +2,10 @@ using FluentValidation;
 
 namespace ProjectHiddenVillage.Server;
 
-/// <summary>
-/// One card line of a structured deck write. This is only the *shape* of a line: whether the card exists, whether
-/// it may sit in a deck, how many copies are legal and whether it matches the leader's colour all depend on the
-/// catalogue, so they live in <c>PublicDeckRules</c> where they can be unit-tested without a request pipeline.
-/// </summary>
 public sealed class DeckCardRequestValidator : AbstractValidator<DeckCardRequest>
 {
-    /// <summary>Card ids are catalogue identifiers ("N-001"), never free text.</summary>
     private const int MaxCardIdLength = 64;
 
-    /// <summary>
-    /// A sanity cap, not the deck rule. The four-copy limit applies to non-leader cards only, so it cannot be
-    /// decided from one line alone - the service reports it with the leader in view.
-    /// </summary>
     internal const int MaxQuantityPerLine = 99;
 
     public DeckCardRequestValidator()
@@ -34,10 +24,6 @@ public sealed class DeckCardRequestValidator : AbstractValidator<DeckCardRequest
     }
 }
 
-/// <summary>
-/// Validates a new admin-authored (public) deck. The semantic deck rules are deliberately absent: the payload is
-/// accepted here and evaluated against the catalogue in <c>DeckService</c>, which owns the database read.
-/// </summary>
 public sealed class CreatePublicDeckRequestValidator : AbstractValidator<CreatePublicDeckRequest>
 {
     public CreatePublicDeckRequestValidator()
@@ -47,7 +33,6 @@ public sealed class CreatePublicDeckRequestValidator : AbstractValidator<CreateP
     }
 }
 
-/// <summary>Validates an update to an existing deck. Same shape rules as a create, by construction.</summary>
 public sealed class UpdateDeckRequestValidator : AbstractValidator<UpdateDeckRequest>
 {
     public UpdateDeckRequestValidator()
@@ -57,13 +42,8 @@ public sealed class UpdateDeckRequestValidator : AbstractValidator<UpdateDeckReq
     }
 }
 
-/// <summary>
-/// The rules a create and an update must not be able to disagree about. Mirrors the split used by
-/// <c>CreateCardRequestValidator</c>, which delegates its authoring half to the update validator.
-/// </summary>
 internal static class DeckWriteShapeRules
 {
-    /// <summary>Mirrors <c>DeckConfiguration.Name</c> and <c>saved_decks.name</c>.</summary>
     internal const int MaxNameLength = 128;
 
     internal static void AddNameRule<T>(AbstractValidator<T> validator, System.Linq.Expressions.Expression<Func<T, string>> nameSelector)
@@ -105,7 +85,6 @@ internal static class DeckWriteShapeRules
             var cardId = card.CardId?.Trim();
             if (string.IsNullOrEmpty(cardId))
             {
-                // Reported by the per-card rule; a missing id must not also be reported as a duplicate.
                 continue;
             }
 

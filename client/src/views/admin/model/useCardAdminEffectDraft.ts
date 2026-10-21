@@ -16,15 +16,9 @@ import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog
 export type ICardAdminEffectDraftModel = ICardAdminEffectEditorFieldsModel & {
   setErrors: Dispatch<SetStateAction<ICardAdminEffectEditorValidationErrors>>
   setStatusMessage: Dispatch<SetStateAction<string | null>>
-  /** Re-baselines the draft after a server round-trip, so the screen stops reporting unsaved changes. */
   rebaseline: (nextDraft: ICardAdminEffectEditorDraft) => void
 }
 
-/**
- * The editing state both card screens share: what the draft holds, what changing a field does, and whether it
- * has drifted from what the server last confirmed. Hydrating from `null` is a new card, which is how the create
- * screen reuses this.
- */
 export function useCardAdminEffectDraft(
   hydrationSource: ICardAdminEffectEditorHydrationSource | null,
 ): ICardAdminEffectDraftModel {
@@ -44,8 +38,6 @@ export function useCardAdminEffectDraft(
 
   const setType = useCallback((value: string) => {
     setDraft((current) => {
-      // A leader carries Life where every other type carries Health, so switching type moves the value across
-      // rather than dropping it.
       if (isLeaderType(value)) {
         return {
           ...current,

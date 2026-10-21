@@ -377,8 +377,6 @@ export async function reapFixtureDecks(request: APIRequestContext): Promise<stri
 
     for (const deckId of readFixtureDeckLedger()) {
       try {
-        // Deleting a deck is an admin write, so the sweep identifies itself the same way the fixture create
-        // does. In the e2e environment the development handler grants the admin claim to this header.
         const response = await request.delete(`${API_BASE_URL}/api/deck/${encodeURIComponent(deckId)}`, {
           headers: adminHeaders(),
         })

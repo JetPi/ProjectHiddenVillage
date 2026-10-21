@@ -2,13 +2,6 @@ import { useTranslation } from 'react-i18next'
 import { CardAdminChevronIcon, CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import type { ICardAdminSearchCardPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 
-/**
- * "Search your deck for a card, [reveal it,] add it to your hand[, then shuffle]".
- *
- * The selection itself is prompted (the engine asks once the node runs, using the deck as the candidate
- * pool), so authoring only needs the destination move plus the two search behaviours. The move actions are
- * configured with the Move Card panel, which the effects section renders alongside this one.
- */
 export function CardAdminSearchCardPanel({
   effect,
   effectIndex,
