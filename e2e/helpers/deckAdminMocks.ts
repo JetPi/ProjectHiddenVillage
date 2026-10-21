@@ -49,7 +49,12 @@ export type IDeckAdminMockOptions = {
 }
 
 function findMockCard(cardId: string): MockCard {
-  return MOCK_CARDS.find((card) => card.id.toLowerCase() === cardId.trim().toLowerCase()) ?? MOCK_CARDS[0]
+  return findMockCardOrNull(cardId) ?? MOCK_CARDS[0]
+}
+
+/** Strict lookup: an unknown id must not inherit the first fixture card's type and turn into a leader. */
+function findMockCardOrNull(cardId: string): MockCard | null {
+  return MOCK_CARDS.find((card) => card.id.toLowerCase() === cardId.trim().toLowerCase()) ?? null
 }
 
 function toCatalogItem(card: MockCard) {
@@ -77,11 +82,18 @@ function toCatalogItem(card: MockCard) {
 }
 
 function toDeckResponse(deck: DeckAdminMockDeck, populate: boolean) {
+  // The rail colours each deck by its leader, so the lean list answers with the leader's colour the way the real
+  // endpoint does - without card payloads.
+  const leaderLine = deck.cards
+    .map((card) => ({ card, metadata: findMockCardOrNull(card.cardId) }))
+    .find((entry) => entry.metadata?.type === 'Leader')
+
   return {
     id: deck.id,
     name: deck.name,
     type: 'Public',
     userId: null,
+    leaderColor: leaderLine?.metadata?.color ?? null,
     cards: deck.cards.map((card) => ({
       cardId: card.cardId,
       quantity: card.quantity,

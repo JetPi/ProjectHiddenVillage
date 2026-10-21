@@ -640,6 +640,48 @@ public sealed class DeckServiceTests
     }
 
     [TestMethod]
+    public async Task GetDecks_ReportsTheLeaderColorForTheRail()
+    {
+        await using var dbContext = CreateDbContext();
+        var leader = CreateCatalogEntry("L-500", CardType.Leader, CardColor.Blue);
+        var character = CreateCatalogEntry("C-500", CardType.Character, CardColor.Blue);
+        dbContext.CardCatalogEntries.AddRange(leader, character);
+
+        var leaderDeck = new Deck
+        {
+            Type = DeckType.Public,
+            Name = "Leader deck",
+            Cards =
+            [
+                new DeckCard { CardCatalogEntry = leader, Quantity = 1 },
+                new DeckCard { CardCatalogEntry = character, Quantity = 2 },
+            ],
+        };
+        var leaderlessDeck = new Deck
+        {
+            Type = DeckType.Public,
+            Name = "Leaderless deck",
+            Cards = [new DeckCard { CardCatalogEntry = character, Quantity = 1 }],
+        };
+
+        dbContext.Decks.AddRange(leaderDeck, leaderlessDeck);
+        await dbContext.SaveChangesAsync();
+
+        var service = new DeckService(dbContext);
+        var result = await service.GetDecks(type: DeckType.Public);
+
+        Assert.IsFalse(result.IsError);
+        var decksByName = result.Value.ToDictionary(deck => deck.Name);
+        Assert.AreEqual("Blue", decksByName["Leader deck"].LeaderColor);
+        Assert.IsNull(decksByName["Leaderless deck"].LeaderColor);
+
+        // The populated read has to agree with the lean one: the editor and the rail describe the same deck.
+        var populated = await service.GetDeck(leaderDeck.Id.ToString(), populate: true);
+        Assert.IsFalse(populated.IsError);
+        Assert.AreEqual("Blue", populated.Value.LeaderColor);
+    }
+
+    [TestMethod]
     public async Task UpdateDeck_UpdatesARetainedCardInPlace()
     {
         await using var dbContext = CreateDbContext();

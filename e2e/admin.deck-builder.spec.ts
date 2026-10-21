@@ -71,19 +71,25 @@ test('the deck builder blocks an illegal save and creates a legal deck', async (
   await expect(violation(page, 'leaderCount')).toBeVisible()
   await expect(page.getByTestId('admin-deck-save')).toBeDisabled()
 
-  // A leader click fills the leader slot; it never becomes a card line.
+  // A leader click fills the leader slot; it never becomes a card line, and the slot is outlined in the
+  // leader's own colour.
   await cardTile(page, 'L-001').click()
   await expect(page.getByTestId('deck-admin-leader-slot')).toHaveAttribute('data-card-id', 'l-001')
+  await expect(page.getByTestId('deck-admin-leader-slot')).toHaveAttribute('data-color-tone', 'red')
   await expect(page.getByTestId('deck-admin-leader-name')).toHaveText('Red Leader')
   await expect(page.locator('[data-testid="deck-admin-card-row"][data-card-id="L-001"]')).toHaveCount(0)
   await expect(violation(page, 'leaderCount')).toHaveCount(0)
   await expect(page.getByTestId('deck-admin-validation-ok')).toBeVisible()
   await expect(page.getByTestId('admin-deck-save')).toBeEnabled()
 
+  // The card list repeats each card's colour on its own outline, not only in the type/colour text.
+  await expect(selectedRow(page, 'C-001')).toHaveAttribute('data-color-tone', 'red')
+
   // Picking another leader replaces the first: the slot is the only place a leader can live, so two leaders
   // cannot be built at all - there is nothing left for the leader count rule to catch.
   await cardTile(page, 'L-002').click()
   await expect(page.getByTestId('deck-admin-leader-name')).toHaveText('Blue Leader')
+  await expect(page.getByTestId('deck-admin-leader-slot')).toHaveAttribute('data-color-tone', 'blue')
   await expect(page.locator('[data-testid="deck-admin-card-row"][data-card-id="L-001"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="deck-admin-card-row"][data-card-id="L-002"]')).toHaveCount(0)
 
@@ -94,15 +100,29 @@ test('the deck builder blocks an illegal save and creates a legal deck', async (
   await expect(page.getByTestId('deck-admin-leader-name')).toHaveText('Red Leader')
   await expect(violation(page, 'colorMismatch')).toHaveCount(0)
 
-  // A card that does not match the leader's colour is reported, and the save is blocked again.
+  // A card that does not match the leader's colour is reported, and the save is blocked again. Its row is still
+  // outlined in its own colour - the outline says what the card is, the validation list says what is wrong.
   await cardTile(page, 'C-002').click()
   await expect(violation(page, 'colorMismatch')).toBeVisible()
+  await expect(selectedRow(page, 'C-002')).toHaveAttribute('data-color-tone', 'blue')
   await expect(page.getByTestId('admin-deck-save')).toBeDisabled()
+
+  // The blue card's controls are still the fixed neutral/danger/success tones: only the outline is blue.
+  await expect(selectedRow(page, 'C-002').getByTestId('deck-admin-card-count')).toHaveAttribute('data-tone', 'neutral')
+  await expect(selectedRow(page, 'C-002').getByTestId('deck-admin-card-remove')).toHaveAttribute('data-tone', 'danger')
+  await expect(selectedRow(page, 'C-002').getByTestId('deck-admin-card-add')).toHaveAttribute('data-tone', 'success')
 
   await cardTile(page, 'C-002')
     .getByTestId('catalog-card-remove-copy')
     .click()
   await expect(violation(page, 'colorMismatch')).toHaveCount(0)
+
+  // Quantity controls keep fixed tones so their meaning never depends on the card: the number is neutral, the
+  // minus is red and the plus is green. Only the row's outline carries the card's colour.
+  const c001Row = selectedRow(page, 'C-001')
+  await expect(c001Row.getByTestId('deck-admin-card-count')).toHaveAttribute('data-tone', 'neutral')
+  await expect(c001Row.getByTestId('deck-admin-card-remove')).toHaveAttribute('data-tone', 'danger')
+  await expect(c001Row.getByTestId('deck-admin-card-add')).toHaveAttribute('data-tone', 'success')
 
   // A fifth copy of a non-leader card is allowed into the draft, and only the save is gated.
   for (let click = 0; click < 4; click += 1) {
@@ -144,10 +164,14 @@ test('the deck builder loads, imports into and updates an existing deck', async 
 
   await expect(page.getByTestId('admin-deck-name')).toHaveValue('Seeded Red')
 
-  // The loaded leader is in the slot, not in the card list.
+  // The loaded leader is in the slot, not in the card list, and both the slot and the card row carry the
+  // colour of the card they contain. The rail's deck entry carries the leader's colour too.
   await expect(page.getByTestId('deck-admin-leader-name')).toHaveText('Red Leader')
+  await expect(page.getByTestId('deck-admin-leader-slot')).toHaveAttribute('data-color-tone', 'red')
   await expect(selectedRow(page, 'L-001')).toHaveCount(0)
   await expect(selectedRow(page, 'C-001')).toHaveAttribute('data-copy-count', '2')
+  await expect(selectedRow(page, 'C-001')).toHaveAttribute('data-color-tone', 'red')
+  await expect(page.getByTestId('admin-deck-list-item').first()).toHaveAttribute('data-color-tone', 'red')
 
   // Nothing changed yet, so there is nothing to save.
   await expect(page.getByTestId('admin-deck-save')).toBeDisabled()

@@ -214,6 +214,15 @@ so validation always has type and colour for every selected card.
   representable; `buildSelectedDeckCards` filters leaders out of the card rows and `buildDeckLeaderCard` feeds the
   slot. The client validation still checks the leader count because a stale or hand-built draft must not be
   saveable, but the builder cannot produce that state by clicking.
+- **Deck outlines carry the card's colour - and only the outlines.** `resolveDeckCardColorStyling` maps the
+  readable colour ("Red", "Blue", "Green", everything else neutral) to a border class; the leader slot, every card
+  row and their thumbnails use it, and `data-color-tone` makes it assertable. The deck rail does the same with the
+  deck's leader colour, which the lean list now carries as `DeckResponse.LeaderColor` (computed as an `Any` +
+  `FirstOrDefault` subquery in [`ToDeckProjectionExpression`](server/Api/Services/Deck/DeckService.cs:396), so the
+  rail does not need a populated read). A selected rail item is marked by a tint behind it only - a second ring in
+  the primary colour competed with the leader colour the outline exists to show. Quantity controls keep fixed tones
+  so their meaning never depends on the card: the number is neutral (it only takes the error tone for an over-limit
+  count), the minus is red and the plus is green.
 
 ## Verification (run after implementation)
 

@@ -1,6 +1,7 @@
 export * from './cardAdminDetailDefaultBuilders'
 export * from './cardAdminDetailHelpers'
 export * from './cardAdminDetailPaneView'
+export * from './deckCardColorStyles'
 export * from './deckDraftValidation'
 export * from './deckImport'
 export * from './filterNormalization'

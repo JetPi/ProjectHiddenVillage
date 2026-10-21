@@ -1,6 +1,7 @@
 import { translateKey } from '@/i18n'
 import { CARD_ART_IMAGE_CLASS, CardImage } from '@/components/ui/cards'
 import type { IDeckAdminSelectedCard } from '@/views/admin/types/deckAdminTypes'
+import { resolveDeckCardColorStyling } from '@/views/admin/utils/deckCardColorStyles'
 import type { TFunction } from 'node_modules/i18next/typescript/t'
 
 export function LeaderCardIndicator({leaderCard, onClearLeader, totalCopies, t} : {leaderCard: IDeckAdminSelectedCard | null, onClearLeader: () => void, t: TFunction<"translation", undefined>, totalCopies: number}) {
@@ -9,10 +10,16 @@ export function LeaderCardIndicator({leaderCard, onClearLeader, totalCopies, t} 
     ? `${leaderCard.metadata.type} · ${leaderCard.metadata.color}`
     : null
 
+  // The slot is outlined in the leader's colour: it is the deck's identity, and it is the one card whose colour
+  // every other line has to match.
+  const colorStyling = resolveDeckCardColorStyling(leaderCard?.metadata?.color)
+
   return <div
     data-testid="deck-admin-leader-slot"
     data-card-id={leaderCard?.cardId}
-    className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2"
+    data-card-color={leaderCard?.metadata?.color}
+    data-color-tone={colorStyling.tone}
+    className={`rounded-xl border bg-[var(--surface-muted)] px-3 py-2 ${colorStyling.outlineClassName}`}
   >
     <div className="flex items-center justify-between gap-2">
       <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
@@ -33,7 +40,7 @@ export function LeaderCardIndicator({leaderCard, onClearLeader, totalCopies, t} 
 
     {leaderCard ? (
       <div className="mt-1 flex items-center gap-2">
-        <div className="h-14 w-10 shrink-0 overflow-hidden rounded-md border border-[var(--border-subtle)] bg-[var(--surface)]">
+        <div className={`h-14 w-10 shrink-0 overflow-hidden rounded-md border bg-[var(--surface)] ${colorStyling.outlineClassName}`}>
           {leaderCard.metadata ? (
             <CardImage
               card={leaderCard.metadata}

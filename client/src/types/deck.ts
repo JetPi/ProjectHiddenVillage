@@ -16,6 +16,8 @@ export type IDeckResponse = {
   name: string
   type: string
   userId: string | null
+  /** The leader's readable colour, or null when the deck has no leader; lets a lean list colour each deck. */
+  leaderColor?: string | null
   cards: IDeckCardResponse[]
 }
 

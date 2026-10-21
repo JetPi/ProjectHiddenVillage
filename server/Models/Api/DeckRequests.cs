@@ -12,6 +12,12 @@ public sealed record DeckResponse(
     string Name,
     string Type,
     Guid? UserId,
+    /// <summary>
+    /// The leader's readable colour ("Red", "Blue", "Green", "N/A"), or null when the deck has no leader.
+    /// Listed decks are deliberately lean - they do not carry card payloads - and the deck rail colours each
+    /// deck by its leader, so this one field is what the rail needs instead of a populated read.
+    /// </summary>
+    string? LeaderColor,
     IReadOnlyList<DeckCardResponse> Cards);
 
 /// <summary>

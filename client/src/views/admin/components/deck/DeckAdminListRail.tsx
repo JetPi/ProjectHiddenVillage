@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { resolveDeckCardColorStyling } from '@/views/admin/utils/deckCardColorStyles'
 import type { IDeckAdminListRailProps } from './types'
 
 /**
@@ -42,6 +43,9 @@ export function DeckAdminListRail({ decks, selectedDeckId, isLoading, isError }:
             {decks.map((deck) => {
               const totalCards = deck.cards.reduce((total, card) => total + card.quantity, 0)
               const isSelected = deck.id === selectedDeckId
+              // The rail is a list of decks, so the outline is the deck's leader colour - the card every other
+              // line in the deck has to match.
+              const colorStyling = resolveDeckCardColorStyling(deck.leaderColor)
 
               return (
                 <li key={deck.id}>
@@ -49,11 +53,13 @@ export function DeckAdminListRail({ decks, selectedDeckId, isLoading, isError }:
                     to={`/admin/decks/${deck.id}`}
                     data-testid="admin-deck-list-item"
                     data-deck-id={deck.id}
+                    data-card-color={deck.leaderColor ?? undefined}
+                    data-color-tone={colorStyling.tone}
                     aria-current={isSelected ? 'page' : undefined}
-                    className={`block rounded-lg border px-2.5 py-2 transition-colors ${
-                      isSelected
-                        ? 'border-[var(--button-primary-bg)] bg-[var(--button-primary-bg)]/10'
-                        : 'border-transparent hover:bg-[var(--surface-hover)]'
+                    className={`block rounded-lg border px-2.5 py-2 transition-colors ${colorStyling.outlineClassName} ${
+                      // Selection is a tint behind the item only: a second ring in the primary colour would fight
+                      // the leader colour this outline exists to show.
+                      isSelected ? 'bg-[var(--button-primary-bg)]/10' : 'hover:bg-[var(--surface-hover)]'
                     }`}
                   >
                     <p className="line-clamp-1 text-sm font-semibold text-[var(--text-primary)]">

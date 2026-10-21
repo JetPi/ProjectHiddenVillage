@@ -315,12 +315,17 @@ public sealed partial class DeckService : IDeckService
             var deck = await dbContext.Decks
                     .AsNoTracking()
                     .Where(record => record.Id == parsedDeckId)
-                    .Select(ToDeckResponseExpression())
+                    .Select(ToDeckProjectionExpression())
                     .SingleOrDefaultAsync();
 
-            return deck ?? (ErrorOr<DeckResponse>)Error.NotFound(
+            if (deck is null)
+            {
+                return Error.NotFound(
                         code: "Deck.Get.NotFound",
                         description: $"Deck '{deckId}' was not found.");
+            }
+
+            return ToDeckResponse(deck);
         }
 
         var deckWithCards = await dbContext.Decks
@@ -358,10 +363,12 @@ public sealed partial class DeckService : IDeckService
                 query = query.Where(record => record.Type == type.Value);
             }
 
-            return await query
+            var deckProjections = await query
                     .OrderBy(record => record.Id)
-                    .Select(ToDeckResponseExpression())
+                    .Select(ToDeckProjectionExpression())
                     .ToListAsync();
+
+            return deckProjections.Select(ToDeckResponse).ToList();
         }
 
         var populatedQuery = dbContext.Decks
@@ -387,13 +394,24 @@ public sealed partial class DeckService : IDeckService
         return decks.Select(deck => ToDeckResponse(deck, populate: true)).ToList();
     }
 
-    private static System.Linq.Expressions.Expression<Func<Deck, DeckResponse>> ToDeckResponseExpression()
+    /// <summary>
+    /// The lean read, as a projection the database can answer. The leader's colour is split into "is there a
+    /// leader" plus "its colour" because <c>FirstOrDefault</c> over an enum yields the enum's default (Red) for an
+    /// empty deck, so the emptiness has to be answered separately rather than inferred from the colour.
+    /// </summary>
+    private static System.Linq.Expressions.Expression<Func<Deck, DeckProjection>> ToDeckProjectionExpression()
     {
-        return deck => new DeckResponse(
+        return deck => new DeckProjection(
                 Id: deck.Id,
                 Name: deck.Name,
-                Type: deck.Type.ToString(),
+                Type: deck.Type,
                 UserId: deck.UserId,
+                HasLeader: deck.Cards.Any(card => card.CardCatalogEntry.Type == CardType.Leader),
+                LeaderColor: deck.Cards
+                        .Where(card => card.CardCatalogEntry.Type == CardType.Leader)
+                        .OrderBy(card => card.CardCatalogEntry.CardId)
+                        .Select(card => card.CardCatalogEntry.Color)
+                        .FirstOrDefault(),
                 Cards: deck.Cards
                         .OrderBy(card => card.CardCatalogEntry.CardId)
                         .Select(card => new DeckCardResponse(
@@ -402,13 +420,30 @@ public sealed partial class DeckService : IDeckService
                         .ToList());
     }
 
-    private static DeckResponse ToDeckResponse(Deck deck, bool populate)
+    private static DeckResponse ToDeckResponse(DeckProjection deck)
     {
         return new DeckResponse(
                 Id: deck.Id,
                 Name: deck.Name,
                 Type: deck.Type.ToString(),
                 UserId: deck.UserId,
+                LeaderColor: deck.HasLeader ? ToReadableCardColor(deck.LeaderColor) : null,
+                Cards: deck.Cards);
+    }
+
+    private static DeckResponse ToDeckResponse(Deck deck, bool populate)
+    {
+        var leaderEntry = deck.Cards
+                .OrderBy(card => card.CardCatalogEntry.CardId)
+                .Select(card => card.CardCatalogEntry)
+                .FirstOrDefault(entry => entry.Type == CardType.Leader);
+
+        return new DeckResponse(
+                Id: deck.Id,
+                Name: deck.Name,
+                Type: deck.Type.ToString(),
+                UserId: deck.UserId,
+                LeaderColor: leaderEntry is null ? null : ToReadableCardColor(leaderEntry.Color),
                 Cards: deck.Cards
                         .OrderBy(card => card.CardCatalogEntry.CardId)
                         .Select(card => new DeckCardResponse(
@@ -417,6 +452,15 @@ public sealed partial class DeckService : IDeckService
                                 Card: populate ? ToCatalogResponse(card.CardCatalogEntry) : null))
                         .ToList());
     }
+
+    private sealed record DeckProjection(
+        Guid Id,
+        string Name,
+        DeckType Type,
+        Guid? UserId,
+        bool HasLeader,
+        CardColor LeaderColor,
+        List<DeckCardResponse> Cards);
 
     private static CardCatalogItemResponse ToCatalogResponse(CardCatalogEntry entry)
     {
