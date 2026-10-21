@@ -5,6 +5,7 @@ import { useUpdateCardCatalogImageMutation } from '@/services/queries/cardQuerie
 import { getCardAdminRequestErrorMessage } from '@/views/admin/model/cardAdminEffectPayload'
 import {
   CARD_ART_WIDTHS,
+  cardArtUrl,
   isExternalCardArtReference,
   resolveCardArtSourceHref,
   resolveCardArtUrl,
@@ -156,8 +157,16 @@ export function useCardAdminArtDraft(card: ICardCatalogItemResponse): ICardAdmin
         ? ''
         : resolveCardArtUrl(card, CARD_ART_WIDTHS.preview)
 
+  const storedPreviewSrcSet = card.id
+    ? [
+        `${cardArtUrl(card.id, CARD_ART_WIDTHS.board, card.imageVersion)} ${CARD_ART_WIDTHS.board}w`,
+        `${cardArtUrl(card.id, CARD_ART_WIDTHS.preview, card.imageVersion)} ${CARD_ART_WIDTHS.preview}w`,
+      ].join(', ')
+    : null
+
   return {
     previewSrc,
+    previewSrcSet: pending === null ? storedPreviewSrcSet : null,
     storedArt,
     pending,
     isDirty: pending !== null,

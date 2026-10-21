@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext, Browser, BrowserContext, Page } from '@playwright/test'
+import { TINY_WEBP_BASE64 } from './helpers/adminCardMocks'
 import { createAdminSession } from './helpers/adminSession'
 
 const AUTH_STORAGE_KEY = 'phv-auth-session'
@@ -376,6 +377,37 @@ test('admin card catalogue narrows to deckable types when Chakra and Summon are 
   await expect(page.getByRole('option', { name: 'Chakra', exact: true })).toBeVisible()
   await expect(page.getByRole('option', { name: 'Summon', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
+
+  await context.close()
+})
+
+/**
+ * The Card Art preview used to point at the 600px master no matter how small it was drawn, which meant a ~160px
+ * preview went through a ~4x downscale on a 1x display - the source of the blocky, pixelated look. The preview now
+ * carries a density descriptor per catalogue variant and lets the browser pick the one that matches its box.
+ */
+test('the card art preview lets the browser pick the variant that matches its rendered size', async ({ browser, request }) => {
+  const { context, page } = await openAdminCatalogue(browser, request, { width: 1600, height: 900 })
+
+  // The preview only needs to load for the browser's selection to be observable; the seeded art itself is external.
+  await page.route('**/api/card-art/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'image/webp', body: Buffer.from(TINY_WEBP_BASE64, 'base64') }))
+
+  await page.locator('#card-admin-search').fill('N-012')
+  await page.locator('[data-testid="catalog-card-tile"][data-card-id="N-012"] button').first().click()
+  await expect(page.locator('#card-admin-art-url')).toBeVisible({ timeout: 15_000 })
+
+  const preview = page.locator('section:has(#card-admin-art-url) img').first()
+  await expect(preview).toHaveAttribute('sizes', '160px')
+  await expect(preview).toHaveAttribute('srcset', /w=240&v=\d+ 240w/)
+  await expect(preview).toHaveAttribute('srcset', /w=600&v=\d+ 600w/)
+  // Whole card, not a crop: the preview shows the art at the aspect ratio the author uploaded.
+  await expect(preview).toHaveCSS('object-fit', 'contain')
+
+  // Default Playwright context is 1x, where the 240px variant already covers the 160px box.
+  await expect
+    .poll(() => preview.evaluate((element) => (element as HTMLImageElement).currentSrc))
+    .toMatch(/\?w=240&v=\d+$/)
 
   await context.close()
 })
