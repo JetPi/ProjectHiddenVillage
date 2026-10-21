@@ -93,8 +93,11 @@ test('the deck builder blocks an illegal save and creates a legal deck', async (
 
   await page.getByTestId('admin-deck-name').fill('Red Test Deck')
 
-  // An empty deck is invalid, so the save is unavailable before a single card is picked.
+  // An empty deck is invalid, so the save is unavailable before a single card is picked - and it has to *look*
+  // unavailable, not just carry the attribute.
   await expect(page.getByTestId('admin-deck-save')).toBeDisabled()
+  await expect(page.getByTestId('admin-deck-save')).toHaveAttribute('data-save-state', 'blocked')
+  await expect(page.getByTestId('admin-deck-save')).toHaveCSS('opacity', '0.5')
 
   // Cards without a leader: the rule that needs the leader is reported immediately. The tile keeps its colour
   // background and takes the primary outline while it holds copies.
@@ -113,6 +116,8 @@ test('the deck builder blocks an illegal save and creates a legal deck', async (
   await expect(violation(page, 'leaderCount')).toHaveCount(0)
   await expect(page.getByTestId('deck-admin-validation-ok')).toBeVisible()
   await expect(page.getByTestId('admin-deck-save')).toBeEnabled()
+  await expect(page.getByTestId('admin-deck-save')).toHaveAttribute('data-save-state', 'ready')
+  await expect(page.getByTestId('admin-deck-save')).toHaveCSS('opacity', '1')
 
   // The card list repeats each card's colour on its own outline, not only in the type/colour text.
   await expect(selectedRow(page, 'C-001')).toHaveAttribute('data-color-tone', 'red')

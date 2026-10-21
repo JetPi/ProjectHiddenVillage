@@ -209,6 +209,11 @@ so validation always has type and colour for every selected card.
 - **The status/error surfaces are the existing ones**: `getApiErrorMessage` turns the server's message (400 rule
   violations, 404, 409 for an in-use deck) into a toast, and the validation list mirrors the rule codes the server
   would answer with.
+- **A disabled action looks disabled.** `AppButton` carries `disabled:cursor-not-allowed disabled:opacity-50` (with
+  per-variant disabled hover overrides), so a blocked Save no longer keeps its action colour. The deck Save opts
+  out of the faded look only for the in-flight state (`disabled:opacity-100 disabled:cursor-wait` while it says
+  "Saving..."), because a wait is not an unavailable action. `data-save-state` (`ready` / `blocked` / `saving`)
+  makes the state assertable; the e2e checks it together with the computed opacity.
 - **Leader normalisation lives in the draft, not in the rules.** `addCopy`, `importCards` and the load path all
   funnel leaders into `withoutLeaderEntries` + one entry at quantity one, so the forbidden states are never
   representable; `buildSelectedDeckCards` filters leaders out of the card rows and `buildDeckLeaderCard` feeds the

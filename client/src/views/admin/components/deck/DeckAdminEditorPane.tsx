@@ -63,11 +63,19 @@ export function DeckAdminEditorPane({
             onClick={onSave}
             disabled={!canSave}
             data-testid="admin-deck-save"
-            title={canSave ? undefined : t('admin.decks.editor.saveDisabledHint')}
+            data-save-state={isSaving ? 'saving' : canSave ? 'ready' : 'blocked'}
+            // A save in flight is a wait, not an unavailable action: it keeps full strength while it says
+            // "Saving...", while a blocked save takes the shared disabled look (faded, not-allowed cursor).
+            className={isSaving ? 'disabled:cursor-wait disabled:opacity-100' : undefined}
+            title={isSaving || canSave ? undefined : t('admin.decks.editor.saveDisabledHint')}
           >
             {isSaving ? t('admin.decks.editor.saving') : t('admin.decks.editor.save')}
           </AppButton>
         </div>
+      </div>
+      <div className='pt-1'>
+
+      <DeckAdminValidationList violations={validation.violations} />
       </div>
 
       {isLoading ? (
@@ -118,7 +126,7 @@ export function DeckAdminEditorPane({
             )}
           </div>
 
-          <DeckAdminValidationList violations={validation.violations} />
+          
 
           {validation.isValid && !isDirty ? (
             <p className="text-[11px] text-[var(--text-muted)]">{t('admin.decks.editor.noChanges')}</p>
