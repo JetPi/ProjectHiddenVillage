@@ -136,11 +136,10 @@ export function CardAdminCardTile({
           onMouseLeave={handlePointerLeave}
           onFocus={handlePointerEnter}
           onBlur={handlePointerLeave}
-          className={`w-full rounded-xl border p-2 text-left transition-colors ${
-            isMarked
+          className={`w-full rounded-xl border p-2 text-left transition-colors ${isMarked
               ? 'border-[var(--button-primary-bg)] shadow-[0_0_0_1px_var(--button-primary-bg)]'
               : colorStyling.outlineClassName
-          } ${colorStyling.surfaceClassName} ${isMarked ? '' : colorStyling.hoverClassName}`}
+            } ${colorStyling.surfaceClassName} ${isMarked ? '' : colorStyling.hoverClassName}`}
         >
           <div className="space-y-2">
             <div className={`aspect-[5/7] w-full overflow-hidden rounded-lg border bg-[var(--surface-muted)] ${colorStyling.mediaBorderClassName}`}>
@@ -159,10 +158,9 @@ export function CardAdminCardTile({
               <p className={`line-clamp-1 text-sm font-semibold ${colorStyling.primaryTextClassName}`}>
                 {card.displayName}
               </p>
-              <p className={`text-xs ${colorStyling.secondaryTextClassName}`}>{card.id}</p>
-              <div className={`flex items-center justify-between text-xs ${colorStyling.secondaryTextClassName}`}>
-                <span className="line-clamp-1">{card.type}</span>
-                <span>{card.color}</span>
+              <div className={`flex flex-row items-center justify-between text-xs ${colorStyling.secondaryTextClassName}`}>
+                <p className={`text-xs ${colorStyling.secondaryTextClassName}`}>{card.type}</p>
+                <p className={`text-xs ${colorStyling.secondaryTextClassName}`}>{card.id}</p>
               </div>
             </div>
           </div>
@@ -173,11 +171,10 @@ export function CardAdminCardTile({
             <span
               aria-hidden="true"
               data-testid="catalog-card-copy-count"
-              className={`pointer-events-none absolute left-1 top-1 inline-flex min-w-6 items-center justify-center rounded-full border px-1.5 py-0.5 text-[11px] font-semibold shadow-sm ${
-                exceedsCopyLimit
+              className={`pointer-events-none absolute left-1 top-1 inline-flex min-w-6 items-center justify-center rounded-full border px-1.5 py-0.5 text-[11px] font-semibold shadow-sm ${exceedsCopyLimit
                   ? 'border-[var(--button-primary-bg)] bg-[var(--button-primary-bg)] text-[var(--button-primary-text)]'
                   : 'border-[var(--border-subtle)] bg-[var(--surface)] text-[var(--text-primary)]'
-              }`}
+                }`}
             >
               {copyCount}
             </span>

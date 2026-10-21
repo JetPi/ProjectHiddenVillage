@@ -7,6 +7,7 @@ export type ICardAdminViewStoreState = ICardAdminViewState & {
   setSearchText: (value: string) => void
   setTypeFilter: (value: string[]) => void
   setColorFilter: (value: string[]) => void
+  setIncludeNonDeckableTypes: (value: boolean) => void
   selectCard: (cardId: string) => void
   clearSelection: () => void
 }

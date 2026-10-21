@@ -61,7 +61,7 @@ test('the deck builder blocks an illegal save and creates a legal deck', async (
 
   await expect(cardTile(page, 'K-001')).toHaveCount(0)
 
-  const includeNonDeckableSwitch = page.getByTestId('deck-admin-nondeckable-toggle').locator('label')
+  const includeNonDeckableSwitch = page.getByTestId('catalog-nondeckable-toggle').locator('label')
   const includeNonDeckableCheckbox = page.getByRole('checkbox', {
     name: 'Include Chakra and Summon cards in the catalog',
   })

@@ -167,16 +167,16 @@ export function CardAdminFilterPanel({
 
         {includeNonDeckableTypes !== undefined && onIncludeNonDeckableTypesChange ? (
           <div
-            data-testid="deck-admin-nondeckable-toggle"
+            data-testid="catalog-nondeckable-toggle"
             className="flex shrink-0 items-center gap-2 pb-2"
           >
             <span className="text-[10px] tracking-[0.12em] text-[var(--text-muted)]">
-              {t('admin.decks.catalog.includeNonDeckable')}
+              {t('admin.filters.includeNonDeckable')}
             </span>
             <CardAdminToggleSwitch
               checked={includeNonDeckableTypes}
               onChange={onIncludeNonDeckableTypesChange}
-              ariaLabel={t('admin.decks.catalog.includeNonDeckableAria')}
+              ariaLabel={t('admin.filters.includeNonDeckableAria')}
             />
           </div>
         ) : null}

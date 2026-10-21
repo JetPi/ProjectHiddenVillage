@@ -40,6 +40,8 @@ export function CardAdminCreateView() {
     }
 
     const createdCardId = identity.cardId.trim()
+    // The new card can be any type, so make sure a previously narrowed deckable-only scope cannot hide it.
+    useCardAdminViewStore.getState().setIncludeNonDeckableTypes(true)
     useCardAdminViewStore.getState().setSearchText(createdCardId)
     useCardAdminViewStore.getState().selectCard(createdCardId)
 

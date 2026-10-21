@@ -10,7 +10,8 @@ import {
   CardAdminFilterPanel,
 } from '@/views/admin/components'
 import { useCardAdminViewModel } from '@/views/admin/model/useCardAdminViewModel'
-import { COLOR_FILTER_OPTIONS, SORT_OPTIONS, TYPE_FILTER_OPTIONS } from '@/views/admin/constants'
+import { useDeckableTypeFilter } from '@/views/admin/model/useDeckableTypeFilter'
+import { COLOR_FILTER_OPTIONS, SORT_OPTIONS } from '@/views/admin/constants'
 import type { ICardCatalogListItemResponse } from '@/types/cardCatalog'
 
 const SEARCH_DEBOUNCE_MS = 250
@@ -18,6 +19,12 @@ const SEARCH_DEBOUNCE_MS = 250
 export function CardAdminView() {
   const { t } = useTranslation()
   const viewModel = useCardAdminViewModel()
+  const deckableTypes = useDeckableTypeFilter({
+    type: viewModel.type,
+    includeNonDeckableTypes: viewModel.includeNonDeckableTypes,
+    setTypeFilter: viewModel.setTypeFilter,
+    setIncludeNonDeckableTypes: viewModel.setIncludeNonDeckableTypes,
+  })
 
   const [debouncedSearch, setDebouncedSearch] = useState(viewModel.searchText)
 
@@ -34,10 +41,10 @@ export function CardAdminView() {
       pageSize: viewModel.pageSize,
       sort: viewModel.sort,
       search: debouncedSearch,
-      types: viewModel.type,
+      types: deckableTypes.catalogTypes,
       colors: viewModel.color,
     }),
-    [viewModel.pageSize, viewModel.sort, debouncedSearch, viewModel.type, viewModel.color],
+    [viewModel.pageSize, viewModel.sort, debouncedSearch, deckableTypes.catalogTypes, viewModel.color],
   )
 
   const catalogPageQuery = useInfiniteCardCatalogQuery(catalogParams, { enabled: true })
@@ -169,13 +176,15 @@ export function CardAdminView() {
               typeValues={viewModel.type}
               colorValues={viewModel.color}
               sortValue={viewModel.sort}
-              typeOptions={[...TYPE_FILTER_OPTIONS]}
+              typeOptions={[...deckableTypes.catalogTypeOptions]}
               colorOptions={[...COLOR_FILTER_OPTIONS]}
               sortOptions={SORT_OPTIONS}
               onSearchTextChange={viewModel.setSearchText}
               onTypeChange={viewModel.setTypeFilter}
               onColorChange={viewModel.setColorFilter}
               onSortChange={viewModel.setSort}
+              includeNonDeckableTypes={deckableTypes.includeNonDeckableTypes}
+              onIncludeNonDeckableTypesChange={deckableTypes.onIncludeNonDeckableTypesChange}
             />
 
             <CardAdminCatalogPane

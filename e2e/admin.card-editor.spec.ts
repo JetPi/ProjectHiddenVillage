@@ -324,3 +324,58 @@ test('admin card editor warns before leaving a card with unsaved changes', async
 
   await context.close()
 })
+
+/**
+ * The deckable-type scope is one hook shared with the deck builder (`useDeckableTypeFilter`), but the two
+ * screens default it differently: the deck builder hides Chakra and Summon because they can never be in a
+ * deck, while the card admin starts with every card visible because it manages all of them. Toggling it off
+ * must still narrow the catalogue request, not just the rendered chips.
+ */
+test('admin card catalogue narrows to deckable types when Chakra and Summon are hidden', async ({ browser, request }) => {
+  const { context, page } = await openAdminCatalogue(browser, request, { width: 1600, height: 900 })
+
+  const includeNonDeckableCheckbox = page.getByRole('checkbox', {
+    name: 'Include Chakra and Summon cards in the catalog',
+  })
+
+  await expect(includeNonDeckableCheckbox, 'the card admin manages every card, so nothing is hidden by default')
+    .toBeChecked()
+
+  // Watch the server scope instead of a seeded card: the request's type include-list is what proves the filter
+  // narrowed the query rather than just hiding chips.
+  const catalogueTypeRequests: string[][] = []
+  await page.route('**/api/card/catalog?*', async (route) => {
+    catalogueTypeRequests.push(new URL(route.request().url()).searchParams.getAll('types'))
+    await route.continue()
+  })
+
+  // The query normaliser sorts the include list, so compare the set rather than the append order.
+  const latestTypeRequest = () =>
+    [...(catalogueTypeRequests[catalogueTypeRequests.length - 1] ?? [])].sort()
+
+  const toggle = page.getByTestId('catalog-nondeckable-toggle').locator('label')
+  await toggle.click()
+  await expect(includeNonDeckableCheckbox).not.toBeChecked()
+  await expect
+    .poll(latestTypeRequest, { timeout: 15_000 })
+    .toEqual(['character', 'ex character', 'leader'])
+
+  // The type picker offers the same scope the request uses, so the hidden types cannot be selected either.
+  const typePicker = page.locator('aside').getByRole('combobox').first()
+  await expect(typePicker).toBeVisible()
+  await typePicker.click()
+  await expect(page.getByRole('option', { name: 'Character', exact: true })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Chakra', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('option', { name: 'Summon', exact: true })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  // Re-enabling puts the full type list back (the unfiltered query is still cached, so no new request is due).
+  await toggle.click()
+  await expect(includeNonDeckableCheckbox).toBeChecked()
+  await typePicker.click()
+  await expect(page.getByRole('option', { name: 'Chakra', exact: true })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Summon', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await context.close()
+})

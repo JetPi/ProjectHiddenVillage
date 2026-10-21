@@ -475,9 +475,7 @@
       },
       "catalog": {
         "title": "Card Catalog",
-        "cardAdmin": "Open card admin",
-        "includeNonDeckable": "Show Chakra & Summon",
-        "includeNonDeckableAria": "Include Chakra and Summon cards in the catalog"
+        "cardAdmin": "Open card admin"
       },
       "editor": {
         "newTitle": "New Deck",
@@ -556,6 +554,8 @@
       "colorPrefix": "Color:",
       "removeType": "Remove type {{name}}",
       "removeColor": "Remove color {{name}}",
+      "includeNonDeckable": "Show Chakra & Summon",
+      "includeNonDeckableAria": "Include Chakra and Summon cards in the catalog",
       "unknown": "Unknown",
       "all": "All",
       "sortOption": {

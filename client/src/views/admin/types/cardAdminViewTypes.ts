@@ -22,6 +22,7 @@ export type ICardAdminLocalFilters = {
   searchText: string
   type: string[]
   color: string[]
+  includeNonDeckableTypes: boolean
 }
 
 export type ICardAdminSelectionState = {
@@ -37,6 +38,7 @@ export type ICardAdminViewActions = {
   setSearchText: (value: string) => void
   setTypeFilter: (value: string[]) => void
   setColorFilter: (value: string[]) => void
+  setIncludeNonDeckableTypes: (value: boolean) => void
   selectCard: (cardId: string) => void
   clearSelection: () => void
 }

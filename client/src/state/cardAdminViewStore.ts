@@ -8,6 +8,9 @@ const initialState = {
   searchText: '',
   type: [] as string[],
   color: [] as string[],
+  // The card admin manages every card, so Chakra and Summon start visible; the deck builder defaults
+  // the other way because only deckable types can be put in a deck.
+  includeNonDeckableTypes: true,
   selectedCardId: null,
 }
 
@@ -31,6 +34,7 @@ export const useCardAdminViewStore = create<ICardAdminViewStoreState>()((set) =>
       color: Array.from(new Set(value.filter((entry) => entry && entry !== 'all'))),
       page: 1,
     }),
+  setIncludeNonDeckableTypes: (value) => set({ includeNonDeckableTypes: value, page: 1 }),
   selectCard: (cardId) => set({ selectedCardId: cardId }),
   clearSelection: () => set({ selectedCardId: null }),
 }))

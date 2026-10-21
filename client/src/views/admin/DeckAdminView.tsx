@@ -16,11 +16,8 @@ import {
   DeckAdminListRail,
 } from '@/views/admin/components'
 import { useDeckAdminModel } from '@/views/admin/model/useDeckAdminModel'
-import { COLOR_FILTER_OPTIONS, SORT_OPTIONS, TYPE_FILTER_OPTIONS } from '@/views/admin/constants'
-import {
-  isNonDeckableCardTypeFilter,
-  resolveDeckCatalogTypeFilter,
-} from '@/views/admin/utils/deckCatalogTypeFilters'
+import { useDeckableTypeFilter } from '@/views/admin/model/useDeckableTypeFilter'
+import { COLOR_FILTER_OPTIONS, SORT_OPTIONS } from '@/views/admin/constants'
 import { MAX_NON_LEADER_COPIES } from '@/views/admin/utils/deckDraftValidation'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import type { IDeckCardInput } from '@/types/deck'
@@ -54,6 +51,13 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
     })),
   )
 
+  const deckableTypes = useDeckableTypeFilter({
+    type: filters.type,
+    includeNonDeckableTypes: filters.includeNonDeckableTypes,
+    setTypeFilter: filters.setTypeFilter,
+    setIncludeNonDeckableTypes: filters.setIncludeNonDeckableTypes,
+  })
+
   const [debouncedSearch, setDebouncedSearch] = useState(filters.searchText)
 
   useEffect(() => {
@@ -69,18 +73,10 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
       pageSize: 25,
       sort: filters.sort,
       search: debouncedSearch,
-      types: resolveDeckCatalogTypeFilter(filters.type, filters.includeNonDeckableTypes),
+      types: deckableTypes.catalogTypes,
       colors: filters.color,
     }),
-    [filters.sort, debouncedSearch, filters.type, filters.color, filters.includeNonDeckableTypes],
-  )
-
-  const catalogTypeOptions = useMemo(
-    () =>
-      TYPE_FILTER_OPTIONS.filter(
-        (option) => filters.includeNonDeckableTypes || !isNonDeckableCardTypeFilter(option.value),
-      ),
-    [filters.includeNonDeckableTypes],
+    [filters.sort, debouncedSearch, deckableTypes.catalogTypes, filters.color],
   )
 
   const catalogPageQuery = useInfiniteCardCatalogQuery(catalogParams, { enabled: true })
@@ -208,21 +204,15 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
               typeValues={filters.type}
               colorValues={filters.color}
               sortValue={filters.sort}
-              typeOptions={[...catalogTypeOptions]}
+              typeOptions={[...deckableTypes.catalogTypeOptions]}
               colorOptions={[...COLOR_FILTER_OPTIONS]}
               sortOptions={SORT_OPTIONS}
               onSearchTextChange={filters.setSearchText}
               onTypeChange={filters.setTypeFilter}
               onColorChange={filters.setColorFilter}
               onSortChange={filters.setSort}
-              includeNonDeckableTypes={filters.includeNonDeckableTypes}
-              onIncludeNonDeckableTypesChange={(nextValue) => {
-                filters.setIncludeNonDeckableTypes(nextValue)
-
-                if (!nextValue) {
-                  filters.setTypeFilter(filters.type.filter((type) => !isNonDeckableCardTypeFilter(type)))
-                }
-              }}
+              includeNonDeckableTypes={deckableTypes.includeNonDeckableTypes}
+              onIncludeNonDeckableTypesChange={deckableTypes.onIncludeNonDeckableTypesChange}
             />
 
             <CardAdminCatalogPane
