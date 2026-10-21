@@ -475,7 +475,9 @@
       },
       "catalog": {
         "title": "Card Catalog",
-        "cardAdmin": "Open card admin"
+        "cardAdmin": "Open card admin",
+        "includeNonDeckable": "Show Chakra & Summon",
+        "includeNonDeckableAria": "Include Chakra and Summon cards in the catalog"
       },
       "editor": {
         "newTitle": "New Deck",

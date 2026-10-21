@@ -7,6 +7,8 @@ export type IDeckAdminFilterState = {
   type: string[]
   color: string[]
   sort: string
+  /** Chakra and Summon are deck-illegal, so the builder hides them until this is turned on. Off by default. */
+  includeNonDeckableTypes: boolean
 }
 
 export type IDeckAdminViewStoreState = IDeckAdminFilterState & {
@@ -14,5 +16,6 @@ export type IDeckAdminViewStoreState = IDeckAdminFilterState & {
   setTypeFilter: (value: string[]) => void
   setColorFilter: (value: string[]) => void
   setSort: (value: string) => void
+  setIncludeNonDeckableTypes: (value: boolean) => void
   resetFilters: () => void
 }

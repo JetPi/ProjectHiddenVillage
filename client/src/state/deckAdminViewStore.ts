@@ -6,6 +6,7 @@ const initialState = {
   type: [] as string[],
   color: [] as string[],
   sort: 'cardId',
+  includeNonDeckableTypes: false,
 }
 
 export const useDeckAdminViewStore = create<IDeckAdminViewStoreState>()((set) => ({
@@ -20,5 +21,6 @@ export const useDeckAdminViewStore = create<IDeckAdminViewStoreState>()((set) =>
       color: Array.from(new Set(value.filter((entry) => entry && entry !== 'all'))),
     }),
   setSort: (value) => set({ sort: value || 'cardId' }),
+  setIncludeNonDeckableTypes: (value) => set({ includeNonDeckableTypes: value }),
   resetFilters: () => set({ ...initialState }),
 }))

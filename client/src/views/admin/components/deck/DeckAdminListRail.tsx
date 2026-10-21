@@ -75,13 +75,6 @@ export function DeckAdminListRail({ decks, selectedDeckId, isLoading, isError }:
           </ul>
         ) : null}
       </div>
-
-      <Link
-        to="/admin/cards"
-        className="mt-3 text-xs text-[var(--text-secondary)] underline-offset-2 hover:underline"
-      >
-        {t('admin.decks.rail.backToCards')}
-      </Link>
     </aside>
   )
 }

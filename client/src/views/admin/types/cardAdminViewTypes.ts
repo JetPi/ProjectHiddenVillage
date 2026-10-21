@@ -151,6 +151,12 @@ export type ICardAdminFilterPanelProps = {
   onTypeChange: (value: string[]) => void
   onColorChange: (value: string[]) => void
   onSortChange: (value: string) => void
+  /**
+   * Optional catalogue toggle shown beside Sort. Only the deck builder passes these: its catalogue hides Chakra
+   * and Summon by default, and the switch belongs with the other list controls rather than in its own row.
+   */
+  includeNonDeckableTypes?: boolean
+  onIncludeNonDeckableTypesChange?: (value: boolean) => void
 }
 
 /**

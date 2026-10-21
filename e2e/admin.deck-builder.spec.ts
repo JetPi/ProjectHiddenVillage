@@ -61,6 +61,32 @@ function quantitiesOf(cards: Array<{ cardId: string; quantity: number }> | undef
 test('the deck builder blocks an illegal save and creates a legal deck', async ({ browser, request }) => {
   const { context, page, state } = await openDeckBuilder(browser, request, '/admin/decks')
 
+  // Chakra and Summon cannot go in a deck, so the catalogue hides them by default; the toggle shows them for the
+  // author who wants to look, and the rules still refuse to save one.
+  await expect(cardTile(page, 'K-001')).toHaveCount(0)
+
+  // The switch is a label with the real checkbox hidden under the track (the track paints the control), so the
+  // click targets the label the way a person's click would.
+  const includeNonDeckableSwitch = page.getByTestId('deck-admin-nondeckable-toggle').locator('label')
+  const includeNonDeckableCheckbox = page.getByRole('checkbox', {
+    name: 'Include Chakra and Summon cards in the catalog',
+  })
+
+  await includeNonDeckableSwitch.click()
+  await expect(includeNonDeckableCheckbox).toBeChecked()
+  await expect(cardTile(page, 'K-001')).toHaveCount(1)
+
+  await cardTile(page, 'K-001').click()
+  await expect(violation(page, 'unsupportedCardType')).toBeVisible()
+  await expect(page.getByTestId('admin-deck-save')).toBeDisabled()
+
+  await cardTile(page, 'K-001').getByTestId('catalog-card-remove-copy').click()
+  await expect(violation(page, 'unsupportedCardType')).toHaveCount(0)
+
+  await includeNonDeckableSwitch.click()
+  await expect(includeNonDeckableCheckbox).not.toBeChecked()
+  await expect(cardTile(page, 'K-001')).toHaveCount(0)
+
   await page.getByTestId('admin-deck-name').fill('Red Test Deck')
 
   // An empty deck is invalid, so the save is unavailable before a single card is picked.

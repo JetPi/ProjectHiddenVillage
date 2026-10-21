@@ -214,6 +214,14 @@ so validation always has type and colour for every selected card.
   representable; `buildSelectedDeckCards` filters leaders out of the card rows and `buildDeckLeaderCard` feeds the
   slot. The client validation still checks the leader count because a stale or hand-built draft must not be
   saveable, but the builder cannot produce that state by clicking.
+- **The builder's catalogue hides Chakra and Summon by default.** The catalogue endpoint filters by what it
+  returns, so "hide" is expressed as an include-list: `resolveDeckCatalogTypeFilter` turns an empty type
+  selection into the deckable types (`leader`, `character`, `ex character`). The toggle sits beside the Sort
+  control, rendered by the shared filter panel only when the deck screen passes its two optional props
+  (`includeNonDeckableTypes` in the deck filter store, off by default); it switches the request back to the
+  author's own selection, and turning it off again drops any Chakra/Summon chip that was selected. The cards can
+  still be shown and picked, and the `unsupportedCardType` rule then blocks the save - the toggle is for
+  inspection, not for making an illegal deck legal.
 - **Deck outlines carry the card's colour - and only the outlines.** `resolveDeckCardColorStyling` maps the
   readable colour ("Red", "Blue", "Green", everything else neutral) to a border class; the leader slot, every card
   row and their thumbnails use it, and `data-color-tone` makes it assertable. The deck rail does the same with the

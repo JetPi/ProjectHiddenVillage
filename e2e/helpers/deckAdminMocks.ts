@@ -170,10 +170,20 @@ export async function installDeckAdminMocks(
     const pageNumber = Number.parseInt(url.searchParams.get('page') ?? '1', 10) || 1
     const pageSize = Number.parseInt(url.searchParams.get('pageSize') ?? '100', 10) || 100
     const search = url.searchParams.get('search')?.trim().toLowerCase() ?? ''
+    // The catalogue page is filtered by repeated `types` keys (see `fetchCardCatalogPage`), and the deck builder
+    // uses that to keep Chakra and Summon off the list. The mock has to honour it or the toggle proves nothing.
+    const selectedTypes = new Set(
+      url.searchParams
+        .getAll('types')
+        .flatMap((value) => value.split(','))
+        .map((value) => value.trim().toLowerCase())
+        .filter((value) => value.length > 0),
+    )
     const matchingCards = MOCK_CARDS.filter((card) =>
-      search.length === 0
-      || card.id.toLowerCase().includes(search)
-      || card.displayName.toLowerCase().includes(search))
+      (selectedTypes.size === 0 || selectedTypes.has(card.type.toLowerCase()))
+      && (search.length === 0
+        || card.id.toLowerCase().includes(search)
+        || card.displayName.toLowerCase().includes(search)))
 
     await fulfillJson(route, 200, {
       page: pageNumber,

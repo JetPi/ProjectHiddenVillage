@@ -17,6 +17,10 @@ import {
 } from '@/views/admin/components'
 import { useDeckAdminModel } from '@/views/admin/model/useDeckAdminModel'
 import { COLOR_FILTER_OPTIONS, SORT_OPTIONS, TYPE_FILTER_OPTIONS } from '@/views/admin/constants'
+import {
+  isNonDeckableCardTypeFilter,
+  resolveDeckCatalogTypeFilter,
+} from '@/views/admin/utils/deckCatalogTypeFilters'
 import { MAX_NON_LEADER_COPIES } from '@/views/admin/utils/deckDraftValidation'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import type { IDeckCardInput } from '@/types/deck'
@@ -49,10 +53,12 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
       type: state.type,
       color: state.color,
       sort: state.sort,
+      includeNonDeckableTypes: state.includeNonDeckableTypes,
       setSearchText: state.setSearchText,
       setTypeFilter: state.setTypeFilter,
       setColorFilter: state.setColorFilter,
       setSort: state.setSort,
+      setIncludeNonDeckableTypes: state.setIncludeNonDeckableTypes,
     })),
   )
 
@@ -71,10 +77,21 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
       pageSize: 25,
       sort: filters.sort,
       search: debouncedSearch,
-      types: filters.type,
+      // Chakra and Summon are off the list unless the toggle below is on: a deck cannot contain them, so the
+      // builder should not offer them by default.
+      types: resolveDeckCatalogTypeFilter(filters.type, filters.includeNonDeckableTypes),
       colors: filters.color,
     }),
-    [filters.sort, debouncedSearch, filters.type, filters.color],
+    [filters.sort, debouncedSearch, filters.type, filters.color, filters.includeNonDeckableTypes],
+  )
+
+  // The type chips follow the toggle: offering a type that the query is filtering out would be a dead control.
+  const catalogTypeOptions = useMemo(
+    () =>
+      TYPE_FILTER_OPTIONS.filter(
+        (option) => filters.includeNonDeckableTypes || !isNonDeckableCardTypeFilter(option.value),
+      ),
+    [filters.includeNonDeckableTypes],
   )
 
   const catalogPageQuery = useInfiniteCardCatalogQuery(catalogParams, { enabled: true })
@@ -204,13 +221,23 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
               typeValues={filters.type}
               colorValues={filters.color}
               sortValue={filters.sort}
-              typeOptions={[...TYPE_FILTER_OPTIONS]}
+              typeOptions={[...catalogTypeOptions]}
               colorOptions={[...COLOR_FILTER_OPTIONS]}
               sortOptions={SORT_OPTIONS}
               onSearchTextChange={filters.setSearchText}
               onTypeChange={filters.setTypeFilter}
               onColorChange={filters.setColorFilter}
               onSortChange={filters.setSort}
+              includeNonDeckableTypes={filters.includeNonDeckableTypes}
+              onIncludeNonDeckableTypesChange={(nextValue) => {
+                filters.setIncludeNonDeckableTypes(nextValue)
+
+                // Turning them off drops any Chakra/Summon chip that is still selected, otherwise the query
+                // would ask only for types the chips no longer show.
+                if (!nextValue) {
+                  filters.setTypeFilter(filters.type.filter((type) => !isNonDeckableCardTypeFilter(type)))
+                }
+              }}
             />
 
             <CardAdminCatalogPane
