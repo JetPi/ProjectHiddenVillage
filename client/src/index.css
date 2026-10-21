@@ -50,6 +50,23 @@
   --stat-pill-dmg-border: #ef4444;
   --stat-pill-dmg-text: #fee2e2;
 
+  /* Muted card-colour tones for the catalogue tiles: a soft surface in the card's colour with text that keeps
+     its contrast, so a list of tiles stays calm at a glance. */
+  --card-tone-red-bg: rgba(127, 29, 29, 0.4);
+  --card-tone-red-border: rgba(248, 113, 113, 0.5);
+  --card-tone-red-text: #fecaca;
+  --card-tone-red-text-muted: rgba(254, 202, 202, 0.78);
+
+  --card-tone-blue-bg: rgba(30, 58, 138, 0.4);
+  --card-tone-blue-border: rgba(96, 165, 250, 0.5);
+  --card-tone-blue-text: #dbeafe;
+  --card-tone-blue-text-muted: rgba(219, 234, 254, 0.78);
+
+  --card-tone-green-bg: rgba(20, 83, 45, 0.4);
+  --card-tone-green-border: rgba(74, 222, 128, 0.45);
+  --card-tone-green-text: #dcfce7;
+  --card-tone-green-text-muted: rgba(220, 252, 231, 0.78);
+
   --stat-pill-life-bg: rgba(74, 222, 128, 0.2);
   --stat-pill-life-border: #4ade80;
   --stat-pill-life-text: #dcfce7;
@@ -101,6 +118,21 @@ html[data-theme='light'] {
   --scrollbar-track: color-mix(in srgb, var(--surface-muted) 90%, transparent);
   --scrollbar-thumb: color-mix(in srgb, var(--button-primary-bg) 56%, white 44%);
   --scrollbar-thumb-hover: color-mix(in srgb, var(--button-primary-hover) 62%, white 38%);
+
+  --card-tone-red-bg: rgba(254, 202, 202, 0.5);
+  --card-tone-red-border: rgba(220, 38, 38, 0.42);
+  --card-tone-red-text: #7f1d1d;
+  --card-tone-red-text-muted: rgba(127, 29, 29, 0.78);
+
+  --card-tone-blue-bg: rgba(191, 219, 254, 0.55);
+  --card-tone-blue-border: rgba(37, 99, 235, 0.38);
+  --card-tone-blue-text: #1e3a8a;
+  --card-tone-blue-text-muted: rgba(30, 58, 138, 0.78);
+
+  --card-tone-green-bg: rgba(187, 247, 208, 0.55);
+  --card-tone-green-border: rgba(22, 163, 74, 0.38);
+  --card-tone-green-text: #14532d;
+  --card-tone-green-text-muted: rgba(20, 83, 45, 0.78);
 
   --stat-pill-pow-bg: #ffe4e6;
   --stat-pill-pow-border: #fb7185;

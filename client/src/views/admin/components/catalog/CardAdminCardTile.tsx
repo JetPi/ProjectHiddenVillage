@@ -5,6 +5,7 @@ import { translateKey } from '@/i18n'
 import { CardImage } from '@/components/ui/cards'
 import type { ICardAdminCardTileProps } from '@/views/admin/types/cardAdminViewTypes'
 import { CARD_ART_IMAGE_CLASS } from '@/components/ui/cards'
+import { resolveDeckCardColorStyling } from '@/views/admin/utils/deckCardColorStyles'
 
 export function CardAdminCardTile({
   card,
@@ -29,6 +30,12 @@ export function CardAdminCardTile({
   const isQuantityMode = onAdd !== undefined
   const copyCount = selectedCount ?? 0
   const exceedsCopyLimit = isQuantityMode && maxCopies !== undefined && copyCount > maxCopies
+
+  // The tile is outlined in the card's own colour, so a catalogue can be read by colour before the type/colour
+  // line is read. Selection is a tint behind the tile only: a second border in the primary colour would fight
+  // the outline on both screens this tile serves (the card admin and the deck builder).
+  const colorStyling = resolveDeckCardColorStyling(card.color)
+  const isMarked = isSelected || (isQuantityMode && copyCount > 0)
 
   const clearPreviewTimeout = () => {
     if (showPreviewTimeoutRef.current === null) {
@@ -122,7 +129,15 @@ export function CardAdminCardTile({
     <>
       {/* The card id and count live on the wrapper: the remove control is a sibling of the card button (a button
           cannot nest another button), so anything keyed by the tile has to own both. */}
-      <div className="relative" data-testid="catalog-card-tile" data-card-id={card.id} data-copy-count={isQuantityMode ? copyCount : undefined}>
+      <div
+        className="relative"
+        data-testid="catalog-card-tile"
+        data-card-id={card.id}
+        data-card-color={card.color}
+        data-color-tone={colorStyling.tone}
+        data-marked={isMarked ? 'true' : undefined}
+        data-copy-count={isQuantityMode ? copyCount : undefined}
+      >
         <button
           ref={buttonRef}
           type="button"
@@ -132,13 +147,13 @@ export function CardAdminCardTile({
           onFocus={handlePointerEnter}
           onBlur={handlePointerLeave}
           className={`w-full rounded-xl border p-2 text-left transition-colors ${
-            isSelected || (isQuantityMode && copyCount > 0)
-              ? 'border-[var(--button-primary-bg)] bg-[var(--button-primary-bg)]/10 shadow-[0_0_0_1px_var(--button-primary-bg)]'
-              : 'border-[var(--border-subtle)] hover:bg-[var(--surface-hover)]'
-          }`}
+            isMarked
+              ? 'border-[var(--button-primary-bg)] shadow-[0_0_0_1px_var(--button-primary-bg)]'
+              : colorStyling.outlineClassName
+          } ${colorStyling.surfaceClassName} ${isMarked ? '' : colorStyling.hoverClassName}`}
         >
           <div className="space-y-2">
-            <div className="aspect-[5/7] w-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)]">
+            <div className={`aspect-[5/7] w-full overflow-hidden rounded-lg border bg-[var(--surface-muted)] ${colorStyling.mediaBorderClassName}`}>
               <CardImage
                 card={card}
                 variant="board"
@@ -151,9 +166,11 @@ export function CardAdminCardTile({
             </div>
 
             <div className="space-y-1 px-1 pb-1">
-              <p className="line-clamp-1 text-sm font-semibold text-[var(--text-primary)]">{card.displayName}</p>
-              <p className="text-xs text-[var(--text-secondary)]">{card.id}</p>
-              <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
+              <p className={`line-clamp-1 text-sm font-semibold ${colorStyling.primaryTextClassName}`}>
+                {card.displayName}
+              </p>
+              <p className={`text-xs ${colorStyling.secondaryTextClassName}`}>{card.id}</p>
+              <div className={`flex items-center justify-between text-xs ${colorStyling.secondaryTextClassName}`}>
                 <span className="line-clamp-1">{card.type}</span>
                 <span>{card.color}</span>
               </div>

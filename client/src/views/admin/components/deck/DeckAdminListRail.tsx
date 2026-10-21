@@ -43,8 +43,8 @@ export function DeckAdminListRail({ decks, selectedDeckId, isLoading, isError }:
             {decks.map((deck) => {
               const totalCards = deck.cards.reduce((total, card) => total + card.quantity, 0)
               const isSelected = deck.id === selectedDeckId
-              // The rail is a list of decks, so the outline is the deck's leader colour - the card every other
-              // line in the deck has to match.
+              // The rail is a list of decks, so both the surface and the outline are the deck's leader colour -
+              // the card every other line in the deck has to match. It reuses the catalogue tile's muted tones.
               const colorStyling = resolveDeckCardColorStyling(deck.leaderColor)
 
               return (
@@ -55,17 +55,18 @@ export function DeckAdminListRail({ decks, selectedDeckId, isLoading, isError }:
                     data-deck-id={deck.id}
                     data-card-color={deck.leaderColor ?? undefined}
                     data-color-tone={colorStyling.tone}
+                    data-selected={isSelected ? 'true' : undefined}
                     aria-current={isSelected ? 'page' : undefined}
-                    className={`block rounded-lg border px-2.5 py-2 transition-colors ${colorStyling.outlineClassName} ${
-                      // Selection is a tint behind the item only: a second ring in the primary colour would fight
-                      // the leader colour this outline exists to show.
-                      isSelected ? 'bg-[var(--button-primary-bg)]/10' : 'hover:bg-[var(--surface-hover)]'
+                    className={`block rounded-lg border px-2.5 py-2 transition-colors ${colorStyling.outlineClassName} ${colorStyling.surfaceClassName} ${
+                      // Selection is a thicker inner edge in the same tone; a ring in the primary colour would add
+                      // a second colour to the very outline this highlight exists to show.
+                      isSelected ? colorStyling.selectedAccentClassName : colorStyling.hoverClassName
                     }`}
                   >
-                    <p className="line-clamp-1 text-sm font-semibold text-[var(--text-primary)]">
+                    <p className={`line-clamp-1 text-sm font-semibold ${colorStyling.primaryTextClassName}`}>
                       {deck.name.trim() || t('admin.decks.rail.unnamed')}
                     </p>
-                    <p className="text-[11px] text-[var(--text-secondary)]">
+                    <p className={`text-[11px] ${colorStyling.secondaryTextClassName}`}>
                       {t('admin.decks.rail.cardCount', { count: totalCards })}
                     </p>
                   </Link>

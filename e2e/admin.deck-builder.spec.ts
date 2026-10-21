@@ -61,6 +61,10 @@ function quantitiesOf(cards: Array<{ cardId: string; quantity: number }> | undef
 test('the deck builder blocks an illegal save and creates a legal deck', async ({ browser, request }) => {
   const { context, page, state } = await openDeckBuilder(browser, request, '/admin/decks')
 
+  // Every catalogue tile is outlined in the colour printed on the card.
+  await expect(cardTile(page, 'L-001')).toHaveAttribute('data-color-tone', 'red')
+  await expect(cardTile(page, 'C-002')).toHaveAttribute('data-color-tone', 'blue')
+
   // Chakra and Summon cannot go in a deck, so the catalogue hides them by default; the toggle shows them for the
   // author who wants to look, and the rules still refuse to save one.
   await expect(cardTile(page, 'K-001')).toHaveCount(0)
@@ -92,8 +96,10 @@ test('the deck builder blocks an illegal save and creates a legal deck', async (
   // An empty deck is invalid, so the save is unavailable before a single card is picked.
   await expect(page.getByTestId('admin-deck-save')).toBeDisabled()
 
-  // Cards without a leader: the rule that needs the leader is reported immediately.
+  // Cards without a leader: the rule that needs the leader is reported immediately. The tile keeps its colour
+  // background and takes the primary outline while it holds copies.
   await cardTile(page, 'C-001').click()
+  await expect(cardTile(page, 'C-001')).toHaveAttribute('data-marked', 'true')
   await expect(violation(page, 'leaderCount')).toBeVisible()
   await expect(page.getByTestId('admin-deck-save')).toBeDisabled()
 
@@ -197,7 +203,11 @@ test('the deck builder loads, imports into and updates an existing deck', async 
   await expect(selectedRow(page, 'L-001')).toHaveCount(0)
   await expect(selectedRow(page, 'C-001')).toHaveAttribute('data-copy-count', '2')
   await expect(selectedRow(page, 'C-001')).toHaveAttribute('data-color-tone', 'red')
-  await expect(page.getByTestId('admin-deck-list-item').first()).toHaveAttribute('data-color-tone', 'red')
+
+  // The open deck is highlighted in its own colour: the rail item carries the tone and the selected marker.
+  const openDeckRailItem = page.getByTestId('admin-deck-list-item').first()
+  await expect(openDeckRailItem).toHaveAttribute('data-color-tone', 'red')
+  await expect(openDeckRailItem).toHaveAttribute('data-selected', 'true')
 
   // Nothing changed yet, so there is nothing to save.
   await expect(page.getByTestId('admin-deck-save')).toBeDisabled()

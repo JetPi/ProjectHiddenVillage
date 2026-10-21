@@ -227,10 +227,20 @@ so validation always has type and colour for every selected card.
   row and their thumbnails use it, and `data-color-tone` makes it assertable. The deck rail does the same with the
   deck's leader colour, which the lean list now carries as `DeckResponse.LeaderColor` (computed as an `Any` +
   `FirstOrDefault` subquery in [`ToDeckProjectionExpression`](server/Api/Services/Deck/DeckService.cs:396), so the
-  rail does not need a populated read). A selected rail item is marked by a tint behind it only - a second ring in
-  the primary colour competed with the leader colour the outline exists to show. Quantity controls keep fixed tones
-  so their meaning never depends on the card: the number is neutral (it only takes the error tone for an over-limit
+  rail does not need a populated read). Selection is marked by a tint behind the element only - a second ring in
+  the primary colour competed with the colour the outline exists to show. Quantity controls keep fixed tones so
+  their meaning never depends on the card: the number is neutral (it only takes the error tone for an over-limit
   count), the minus is red and the plus is green.
+- **Catalogue tiles and deck rail items take the card colour as a surface.** [`CardAdminCardTile`](client/src/views/admin/components/catalog/CardAdminCardTile.tsx:28)
+  paints its background with the card's colour from the listing row and switches its text to the matching
+  contrast tone, so the card admin's rail and the deck builder's catalogue change together - there is one tile
+  component, not two. The deck rail reuses the same tones with the deck's leader colour, so a deck is highlighted
+  in the colour it is built around. The tones are muted theme tokens (`--card-tone-<colour>-bg|border|text`,
+  declared for both themes in [`index.css`](client/src/index.css:53)) rather than saturated palette colours,
+  because a wall of tiles at full strength was hard on the eyes. A selected tile brings back the primary-colour
+  outline (plus a 1px ring) as the selection signal, since a background tint no longer reads against a coloured
+  surface; a selected rail item instead gets a thicker inner left edge in its own tone, which keeps the primary
+  colour out of a list that is read entirely by card colour.
 
 ## Verification (run after implementation)
 
