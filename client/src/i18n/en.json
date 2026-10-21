@@ -484,6 +484,7 @@
         "namePlaceholder": "e.g. Red Starter Deck",
         "leaderTitle": "Leader",
         "noLeader": "No leader selected",
+        "leaderEmpty": "Click a Leader card in the catalog to set it.",
         "totalCopies": "{{count}} cards in the deck",
         "cardsTitle": "Cards",
         "emptyCards": "Click a card in the catalog to add a copy.",

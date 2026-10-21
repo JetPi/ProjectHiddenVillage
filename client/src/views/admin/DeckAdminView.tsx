@@ -248,6 +248,11 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
               onAddCopy={model.addCopy}
               onRemoveCopy={model.removeCopy}
               onClearCard={model.clearCard}
+              onClearLeader={() => {
+                if (model.leaderCard) {
+                  model.clearCard(model.leaderCard.cardId)
+                }
+              }}
               onSave={() => {
                 void handleSave()
               }}

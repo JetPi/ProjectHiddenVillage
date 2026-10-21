@@ -18,8 +18,10 @@ import type {
 } from '@/views/admin/types/deckAdminTypes'
 import {
   buildDeckDraftSignature,
+  buildDeckLeaderCard,
   buildSelectedDeckCards,
   evaluateDeckDraft,
+  isLeaderCard,
   normalizeDeckCardId,
 } from '@/views/admin/utils/deckDraftValidation'
 import { mergeImportedDeckCards } from '@/views/admin/utils/deckImport'
@@ -34,8 +36,15 @@ export type IUseDeckAdminModelOptions = {
   catalogCards: ReadonlyArray<ICardCatalogListItemResponse>
 }
 
+/**
+ * The leader is a slot, so a stored deck is normalised into "one leader at quantity one, everything else as
+ * lines". The legacy text import never checked the leader rules, so a deck loaded from the database can carry two
+ * leaders or two copies of one; the first leader wins and the rest disappear on the next save, which is the only
+ * representation the editor has.
+ */
 function toQuantitiesFromDeck(deck: IDeckResponse): Map<string, number> {
   const quantities = new Map<string, number>()
+  let leaderCardId: string | null = null
 
   for (const card of deck.cards) {
     const cardId = normalizeDeckCardId(card.cardId)
@@ -43,10 +52,37 @@ function toQuantitiesFromDeck(deck: IDeckResponse): Map<string, number> {
       continue
     }
 
+    if (isLeaderCard(card.card)) {
+      if (!leaderCardId) {
+        leaderCardId = cardId
+      }
+      continue
+    }
+
     quantities.set(cardId, (quantities.get(cardId) ?? 0) + card.quantity)
   }
 
+  if (leaderCardId) {
+    quantities.set(leaderCardId, 1)
+  }
+
   return quantities
+}
+
+/** Drops every leader entry, so setting a leader replaces the previous one instead of stacking beside it. */
+function withoutLeaderEntries(
+  quantitiesByCardId: ReadonlyMap<string, number>,
+  cardsById: ReadonlyMap<string, IDeckAdminCardMetadata>,
+): Map<string, number> {
+  const withoutLeaders = new Map<string, number>()
+
+  for (const [cardId, quantity] of quantitiesByCardId) {
+    if (!isLeaderCard(cardsById.get(cardId))) {
+      withoutLeaders.set(cardId, quantity)
+    }
+  }
+
+  return withoutLeaders
 }
 
 function toDeckCardPayload(
@@ -152,12 +188,13 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
     [draft, metadataById],
   )
 
-  const totalCopies = useMemo(
-    () => selectedCards.reduce((total, card) => total + card.quantity, 0),
-    [selectedCards],
-  )
+  const leaderCard = useMemo(() => buildDeckLeaderCard(draft, metadataById), [draft, metadataById])
 
-  const leaderCard = useMemo(() => selectedCards.find((card) => card.isLeader) ?? null, [selectedCards])
+  // The deck size includes the leader: it is one of the deck's cards even though it lives in its own slot.
+  const totalCopies = useMemo(
+    () => selectedCards.reduce((total, card) => total + card.quantity, 0) + (leaderCard?.quantity ?? 0),
+    [selectedCards, leaderCard],
+  )
 
   const draftSignature = useMemo(() => buildDeckDraftSignature(draft), [draft])
   const isDirty = draftSignature !== baselineSignature
@@ -179,6 +216,16 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
   const addCopy = (cardId: string) => {
     const normalizedCardId = normalizeDeckCardId(cardId)
     if (!normalizedCardId) {
+      return
+    }
+
+    if (isLeaderCard(metadataById.get(normalizedCardId))) {
+      // A leader click sets the slot. Picking a second leader replaces the first rather than adding to it, so a
+      // deck can never hold two leaders or two copies of one - there is nothing to validate or fix afterwards.
+      const nextQuantities = withoutLeaderEntries(draft.quantitiesByCardId, metadataById)
+      nextQuantities.set(normalizedCardId, 1)
+
+      setEditedDraft({ name: draft.name, quantitiesByCardId: nextQuantities })
       return
     }
 
@@ -224,14 +271,41 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
   }
 
   const importCards = (cards: IDeckCardInput[]) => {
-    updateQuantities((quantities) => mergeImportedDeckCards(quantities, cards))
+    const importedLeaderIds: string[] = []
+    const importedCardLines: IDeckCardInput[] = []
+
+    for (const card of cards) {
+      const cardId = normalizeDeckCardId(card.cardId)
+      if (cardId && isLeaderCard(metadataById.get(cardId))) {
+        importedLeaderIds.push(cardId)
+        continue
+      }
+
+      importedCardLines.push(card)
+    }
+
+    // A pasted list that names a leader fills or replaces the slot (last one wins); its lines never become card
+    // lines, so the paste cannot smuggle a second leader in.
+    const baseQuantities = importedLeaderIds.length > 0
+      ? withoutLeaderEntries(draft.quantitiesByCardId, metadataById)
+      : draft.quantitiesByCardId
+    const nextQuantities = mergeImportedDeckCards(baseQuantities, importedCardLines)
+    const importedLeaderId = importedLeaderIds.at(-1)
+
+    if (importedLeaderId) {
+      nextQuantities.set(importedLeaderId, 1)
+    }
+
+    setEditedDraft({ name: draft.name, quantitiesByCardId: nextQuantities })
   }
 
-  const adoptSavedDeck = (savedDeck: IDeckResponse) => {
-    const savedDraft: IDeckAdminDraft = {
-      name: savedDeck.name,
-      quantitiesByCardId: toQuantitiesFromDeck(savedDeck),
-    }
+  /**
+   * The server persists exactly the lines it validated, so the draft that was just saved is already the new
+   * baseline. Rebuilding it from the response would also work, but the response is not populated - and losing the
+   * type metadata would blink the leader slot empty until the next catalogue read.
+   */
+  const adoptSavedDeck = (savedName: string) => {
+    const savedDraft: IDeckAdminDraft = { name: savedName, quantitiesByCardId: draft.quantitiesByCardId }
 
     setEditedDraft(savedDraft)
     setSavedSignature(buildDeckDraftSignature(savedDraft))
@@ -248,13 +322,13 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
         cards: payloadCards,
       })
 
-      adoptSavedDeck(savedDeck)
+      adoptSavedDeck(savedDeck.name)
       return savedDeck
     }
 
     const createdDeck = await createDeckMutation.mutateAsync({ name: trimmedName, cards: payloadCards })
 
-    adoptSavedDeck(createdDeck)
+    adoptSavedDeck(createdDeck.name)
     navigate(`/admin/decks/${createdDeck.id}`)
 
     return createdDeck
@@ -297,3 +371,4 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
 }
 
 export type IDeckAdminModel = ReturnType<typeof useDeckAdminModel>
+

@@ -22,6 +22,11 @@ card ids) keep applying.
   while the admin works. The editor shows a live validation list; **Save is disabled while any violation
   exists** (also while saving, and for an unmodified existing deck). Server-side validation is the authority and
   re-runs on save, so a stale client (a card deleted by another author) still fails loudly with a toast.
+- **The leader is a slot, not a card line.** A leader click sets the leader slot and *replaces* any leader
+  already there; leaders are excluded from the deck's card list, and the slot has its own clear control. Loading
+  a deck normalises the stored leaders to one at quantity one, and an imported leader line fills or replaces the
+  slot instead of becoming a card line. Two leaders - or two copies of one - therefore cannot be drafted at all,
+  which leaves the leader rule as a safety net rather than a correction the author has to make.
 - **Import is an option, not the workflow.** A secondary `Import list` button opens a dialog with a textarea in
   the existing `"3x N-001"` line format. Importing **merges quantities into the current selection** (it never
   replaces the deck or the name); the result is validated like any other edit.
@@ -204,6 +209,11 @@ so validation always has type and colour for every selected card.
 - **The status/error surfaces are the existing ones**: `getApiErrorMessage` turns the server's message (400 rule
   violations, 404, 409 for an in-use deck) into a toast, and the validation list mirrors the rule codes the server
   would answer with.
+- **Leader normalisation lives in the draft, not in the rules.** `addCopy`, `importCards` and the load path all
+  funnel leaders into `withoutLeaderEntries` + one entry at quantity one, so the forbidden states are never
+  representable; `buildSelectedDeckCards` filters leaders out of the card rows and `buildDeckLeaderCard` feeds the
+  slot. The client validation still checks the leader count because a stale or hand-built draft must not be
+  saveable, but the builder cannot produce that state by clicking.
 
 ## Verification (run after implementation)
 

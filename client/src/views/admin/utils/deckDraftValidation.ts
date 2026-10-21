@@ -158,34 +158,55 @@ export function evaluateDeckDraft(
   return { isValid: violations.length === 0, violations }
 }
 
-/** The draft's cards, leader first and then by name, with the flags the editor rows render. */
+/**
+ * The deck's card lines, by name. The leader is deliberately absent: it lives in its own slot (see
+ * {@link buildDeckLeaderCard}), which is what makes a second leader impossible rather than merely invalid.
+ */
 export function buildSelectedDeckCards(
   draft: IDeckAdminDraft,
   cardsById: ReadonlyMap<string, IDeckAdminCardMetadata>,
 ): IDeckAdminSelectedCard[] {
   return [...draft.quantitiesByCardId.entries()]
     .filter(([, quantity]) => quantity > 0)
-    .map(([cardId, quantity]) => {
-      const metadata = cardsById.get(cardId) ?? null
-
-      return {
-        cardId,
-        metadata,
-        quantity,
-        isLeader: isLeaderCard(metadata),
-        exceedsCopyLimit: !isLeaderCard(metadata) && quantity > MAX_NON_LEADER_COPIES,
-      }
-    })
+    .filter(([cardId]) => !isLeaderCard(cardsById.get(cardId)))
+    .map(([cardId, quantity]) => ({
+      cardId,
+      metadata: cardsById.get(cardId) ?? null,
+      quantity,
+      isLeader: false,
+      exceedsCopyLimit: quantity > MAX_NON_LEADER_COPIES,
+    }))
     .sort((left, right) => {
-      if (left.isLeader !== right.isLeader) {
-        return left.isLeader ? -1 : 1
-      }
-
       const leftName = left.metadata?.displayName ?? left.cardId
       const rightName = right.metadata?.displayName ?? right.cardId
 
       return leftName.localeCompare(rightName, undefined, { sensitivity: 'base' })
     })
+}
+
+/**
+ * The deck's leader, or null. A leader line that reached the draft another way (a legacy deck, a paste) still
+ * renders here - the first one wins - so the slot always reflects what the deck would be saved with.
+ */
+export function buildDeckLeaderCard(
+  draft: IDeckAdminDraft,
+  cardsById: ReadonlyMap<string, IDeckAdminCardMetadata>,
+): IDeckAdminSelectedCard | null {
+  for (const [cardId, quantity] of draft.quantitiesByCardId.entries()) {
+    const metadata = cardsById.get(cardId) ?? null
+
+    if (quantity > 0 && isLeaderCard(metadata)) {
+      return {
+        cardId,
+        metadata,
+        quantity,
+        isLeader: true,
+        exceedsCopyLimit: false,
+      }
+    }
+  }
+
+  return null
 }
 
 /**

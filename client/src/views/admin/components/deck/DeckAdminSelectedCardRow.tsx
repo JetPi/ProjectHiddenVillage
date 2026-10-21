@@ -1,15 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { translateKey } from '@/i18n'
 import { CARD_ART_IMAGE_CLASS, CardImage } from '@/components/ui/cards'
-import type { IDeckAdminSelectedCard } from '@/views/admin/types/deckAdminTypes'
 import { MAX_NON_LEADER_COPIES } from '@/views/admin/utils/deckDraftValidation'
-
-type IDeckAdminSelectedCardRowProps = {
-  card: IDeckAdminSelectedCard
-  onAddCopy: (cardId: string) => void
-  onRemoveCopy: (cardId: string) => void
-  onClearCard: (cardId: string) => void
-}
+import type { IDeckAdminSelectedCardRowProps } from './types'
 
 /**
  * One line of the drafted deck. The quantity control never refuses a click: the count is allowed to go past the
@@ -54,14 +47,8 @@ export function DeckAdminSelectedCardRow({
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-1 text-sm font-semibold text-[var(--text-primary)]">
-          {displayName}
-          {card.isLeader ? (
-            <span className="ml-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-              {t('admin.decks.cards.leaderBadge')}
-            </span>
-          ) : null}
-        </p>
+        {/* The leader never reaches this list: it has its own slot in the editor. */}
+        <p className="line-clamp-1 text-sm font-semibold text-[var(--text-primary)]">{displayName}</p>
         <p className="text-[11px] text-[var(--text-secondary)]">
           {cardId} · {detailText}
         </p>

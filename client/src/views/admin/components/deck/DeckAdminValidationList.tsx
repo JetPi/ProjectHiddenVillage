@@ -1,10 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { translateKey } from '@/i18n'
-import type { IDeckAdminViolation } from '@/views/admin/types/deckAdminTypes'
-
-type IDeckAdminValidationListProps = {
-  violations: IDeckAdminViolation[]
-}
+import type { IDeckAdminValidationListProps } from './types'
 
 /**
  * Why the save button is disabled. Always rendered - an invalid deck explains itself as the admin works, so the

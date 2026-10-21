@@ -1,13 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import type { IDeckResponse } from '@/types/deck'
-
-type IDeckAdminListRailProps = {
-  decks: IDeckResponse[]
-  selectedDeckId: string | null
-  isLoading: boolean
-  isError: boolean
-}
+import type { IDeckAdminListRailProps } from './types'
 
 /**
  * The public decks the builder can open. Navigation is links, not click handlers: a deck has a URL

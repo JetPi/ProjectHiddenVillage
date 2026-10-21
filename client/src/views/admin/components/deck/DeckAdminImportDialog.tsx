@@ -3,15 +3,8 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import { FormLabel, FormTextarea } from '@/components/forms'
-import type { IDeckCardInput } from '@/types/deck'
 import { parseDeckImportPayload } from '@/views/admin/utils/deckImport'
-
-type IDeckAdminImportDialogProps = {
-  isOpen: boolean
-  onClose: () => void
-  /** The parsed lines are merged into the draft by the caller; this dialog only parses and reports. */
-  onImport: (cards: IDeckCardInput[]) => void
-}
+import type { IDeckAdminImportDialogProps } from './types'
 
 /**
  * The optional shortcut for a list that already exists as text. It uses the same `"3x N-001"` grammar the login

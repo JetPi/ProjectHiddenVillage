@@ -17,6 +17,7 @@ type MockCard = {
 
 const MOCK_CARDS: MockCard[] = [
   { id: 'L-001', displayName: 'Red Leader', type: 'Leader', color: 'Red' },
+  { id: 'L-002', displayName: 'Blue Leader', type: 'Leader', color: 'Blue' },
   { id: 'C-001', displayName: 'Red Character', type: 'Character', color: 'Red' },
   { id: 'C-002', displayName: 'Blue Character', type: 'Character', color: 'Blue' },
   { id: 'C-003', displayName: 'Red Backup', type: 'Character', color: 'Red' },

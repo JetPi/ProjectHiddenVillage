@@ -1,31 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import { FormInput, FormLabel } from '@/components/forms'
-import type { IDeckAdminSelectedCard, IDeckAdminValidationResult } from '@/views/admin/types/deckAdminTypes'
 import { MAX_DECK_NAME_LENGTH } from '@/views/admin/utils/deckDraftValidation'
 import { DeckAdminSelectedCardRow } from './DeckAdminSelectedCardRow'
 import { DeckAdminValidationList } from './DeckAdminValidationList'
-
-type IDeckAdminEditorPaneProps = {
-  isNew: boolean
-  name: string
-  onNameChange: (value: string) => void
-  leaderCard: IDeckAdminSelectedCard | null
-  selectedCards: IDeckAdminSelectedCard[]
-  totalCopies: number
-  validation: IDeckAdminValidationResult
-  canSave: boolean
-  isDirty: boolean
-  isSaving: boolean
-  isLoading: boolean
-  isError: boolean
-  onAddCopy: (cardId: string) => void
-  onRemoveCopy: (cardId: string) => void
-  onClearCard: (cardId: string) => void
-  onSave: () => void
-  onOpenImport: () => void
-  onOpenDelete: () => void
-}
+import type { IDeckAdminEditorPaneProps } from './types'
+import { LeaderCardIndicator } from './DeckAdminLeaderCard'
 
 /**
  * The right-hand column: the deck itself. Everything here is a draft - the save button is the only thing the
@@ -47,12 +27,12 @@ export function DeckAdminEditorPane({
   onAddCopy,
   onRemoveCopy,
   onClearCard,
+  onClearLeader,
   onSave,
   onOpenImport,
   onOpenDelete,
 }: IDeckAdminEditorPaneProps) {
   const { t } = useTranslation()
-  const leaderName = leaderCard?.metadata?.displayName ?? leaderCard?.cardId ?? null
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -112,17 +92,7 @@ export function DeckAdminEditorPane({
             />
           </div>
 
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-              {t('admin.decks.editor.leaderTitle')}
-            </p>
-            <p className="mt-1 text-sm font-semibold text-[var(--text-primary)]">
-              {leaderName ?? t('admin.decks.editor.noLeader')}
-            </p>
-            <p className="text-[11px] text-[var(--text-secondary)]">
-              {t('admin.decks.editor.totalCopies', { count: totalCopies })}
-            </p>
-          </div>
+          <LeaderCardIndicator totalCopies={totalCopies} t={t} onClearLeader={onClearLeader} leaderCard={leaderCard}/>
 
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">

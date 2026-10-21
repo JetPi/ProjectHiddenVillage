@@ -1,14 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
-
-type IDeckAdminDeleteDialogProps = {
-  isOpen: boolean
-  deckName: string
-  isDeleting: boolean
-  onCancel: () => void
-  onConfirm: () => void
-}
+import type { IDeckAdminDeleteDialogProps } from './types'
 
 /**
  * Deleting a deck is irreversible, so it is asked for explicitly. The server refuses to delete a deck a game

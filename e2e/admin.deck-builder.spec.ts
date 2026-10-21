@@ -71,11 +71,28 @@ test('the deck builder blocks an illegal save and creates a legal deck', async (
   await expect(violation(page, 'leaderCount')).toBeVisible()
   await expect(page.getByTestId('admin-deck-save')).toBeDisabled()
 
-  // Adding the leader makes it legal (one red character is under the copy cap).
+  // A leader click fills the leader slot; it never becomes a card line.
   await cardTile(page, 'L-001').click()
+  await expect(page.getByTestId('deck-admin-leader-slot')).toHaveAttribute('data-card-id', 'l-001')
+  await expect(page.getByTestId('deck-admin-leader-name')).toHaveText('Red Leader')
+  await expect(page.locator('[data-testid="deck-admin-card-row"][data-card-id="L-001"]')).toHaveCount(0)
   await expect(violation(page, 'leaderCount')).toHaveCount(0)
   await expect(page.getByTestId('deck-admin-validation-ok')).toBeVisible()
   await expect(page.getByTestId('admin-deck-save')).toBeEnabled()
+
+  // Picking another leader replaces the first: the slot is the only place a leader can live, so two leaders
+  // cannot be built at all - there is nothing left for the leader count rule to catch.
+  await cardTile(page, 'L-002').click()
+  await expect(page.getByTestId('deck-admin-leader-name')).toHaveText('Blue Leader')
+  await expect(page.locator('[data-testid="deck-admin-card-row"][data-card-id="L-001"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="deck-admin-card-row"][data-card-id="L-002"]')).toHaveCount(0)
+
+  // The red card now clashes with the blue leader, which is exactly the colour rule following the slot.
+  await expect(violation(page, 'colorMismatch')).toBeVisible()
+
+  await cardTile(page, 'L-001').click()
+  await expect(page.getByTestId('deck-admin-leader-name')).toHaveText('Red Leader')
+  await expect(violation(page, 'colorMismatch')).toHaveCount(0)
 
   // A card that does not match the leader's colour is reported, and the save is blocked again.
   await cardTile(page, 'C-002').click()
@@ -126,11 +143,23 @@ test('the deck builder loads, imports into and updates an existing deck', async 
   })
 
   await expect(page.getByTestId('admin-deck-name')).toHaveValue('Seeded Red')
-  await expect(selectedRow(page, 'L-001')).toHaveAttribute('data-copy-count', '1')
+
+  // The loaded leader is in the slot, not in the card list.
+  await expect(page.getByTestId('deck-admin-leader-name')).toHaveText('Red Leader')
+  await expect(selectedRow(page, 'L-001')).toHaveCount(0)
   await expect(selectedRow(page, 'C-001')).toHaveAttribute('data-copy-count', '2')
 
   // Nothing changed yet, so there is nothing to save.
   await expect(page.getByTestId('admin-deck-save')).toBeDisabled()
+
+  // Clearing the slot is the only way to remove a leader, and it is immediately visible as a missing leader.
+  await page.getByTestId('deck-admin-leader-clear').click()
+  await expect(violation(page, 'leaderCount')).toBeVisible()
+  await expect(page.getByTestId('admin-deck-save')).toBeDisabled()
+
+  await cardTile(page, 'L-001').click()
+  await expect(page.getByTestId('deck-admin-leader-name')).toHaveText('Red Leader')
+  await expect(violation(page, 'leaderCount')).toHaveCount(0)
 
   // Import is additive: the pasted lines are merged into the loaded draft, not swapped for it.
   await page.getByTestId('admin-deck-import').click()
