@@ -89,6 +89,11 @@ export type IUseTrashRecallSummonFlightEffectArgs = {
   boardZoneRef: RefObject<HTMLDivElement | null>
 }
 
+export type IUseAdoptRecordedAnimationEventsOnMountArgs = {
+  animationEvents?: IAnimationEventResponse[] | null
+  animControllerRef: RefObject<IGameViewAnimController>
+}
+
 export type IUseSupportSummonFlightEffectArgs = {
   boardZoneRef: RefObject<HTMLDivElement | null>
   /**

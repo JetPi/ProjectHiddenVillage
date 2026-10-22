@@ -16,7 +16,7 @@ import type { useGameRefs } from '@/views/game/hooks/GameView/memos/useGameRefs'
 import type { IGameUIStoreState, IPendingPromptSelectionState } from '@/state/types/gameUIStore'
 import { useBattlefieldCardReorderEffect } from './useBattleFieldCards'
 import { useGetMainPhaseActions } from './useGetMainPhaseActions'
-import { useCardCatalogPreload, useCardMoveGhostAnimationEffect, useDeckSummonFlightEffect, useHandZoneAnimationEffects, usePhasePresentationAckEffect, useSupportSummonFlightEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
+import { useAdoptRecordedAnimationEventsOnMount, useCardCatalogPreload, useCardMoveGhostAnimationEffect, useDeckSummonFlightEffect, useHandZoneAnimationEffects, usePhasePresentationAckEffect, useSupportSummonFlightEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
 import { useAttackLungeEffect } from './useAttackLungeEffect'
 
 function useGameViewSideEffects({
@@ -82,6 +82,14 @@ function useGameViewSideEffects({
     ].join('|'),
     [bottomPlayerCardInstanceIds, topPlayerCardInstanceIds],
   )
+
+  // First, and before every flight effect below: the payload a board mounts with is history, not a movement to
+  // animate. Without this, a reload replays the recorded tail - summons fly out of the deck again, draws fly into
+  // a hand that already holds the card - so the board only reaches its real layout after animating towards it.
+  useAdoptRecordedAnimationEventsOnMount({
+    animationEvents: gameState.animationEvents,
+    animControllerRef,
+  })
 
   useCardCatalogPreload(liveGameCards, gameState, authUserId)
 

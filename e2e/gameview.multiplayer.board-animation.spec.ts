@@ -240,22 +240,31 @@ test.describe('GameView multiplayer board animation hygiene', () => {
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
-      // Installed before the opening settles, so the first turn's draws are observed too. The counters are
-      // cumulative, so it does not matter which of the two clients draws first.
+      // The counters are cumulative, so it does not matter which of the two clients moves first.
       for (const page of bothPages(pages)) {
         await installCardFlightCounter(page)
       }
 
+      // The movement has to happen *while the board is mounted*: the state payload's recorded-movement tail is
+      // adopted on mount (a reload is not a movement - see the reload test), so nothing from the opening is
+      // replayed here and a flight can only come from an action taken now.
+      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon')
+      const summonCard = summonActor.actorPage.locator(`[data-testid="bottom-hand-card-${summonActor.cardInstanceId}"]`)
+      await summonCard.hover()
+      await summonCard.getByRole('button', { name: /^summon$/i }).click()
 
-      // A draw is an entity-based flight: the arriving hand card itself travels from the deck. The counter sees
-      // whichever marker moved, so this proves the opening animated rather than teleported.
       await expect.poll(async () => {
-        let total = 0
-        for (const page of bothPages(pages)) {
-          total += await getCardFlightCount(page)
-        }
-        return total
-      }, { timeout: 30_000 }).toBeGreaterThan(0)
+        const state = await fetchGameState(request, setup.gameCode, summonActor.actor.session.accessToken)
+        return resolvePlayerState(state, summonActor.actor).characterField
+          .some((card) => card.instanceId === summonActor.cardInstanceId)
+      }, { timeout: 15_000 }).toBe(true)
+
+      // A play is an entity-based flight: the arriving card itself travels from where it was. The counter sees
+      // whichever marker moved, so this proves the movement animated rather than teleported.
+      await expect.poll(async () => {
+        const records = await getCardFlightRecords(summonActor.actorPage)
+        return records.some((record) => record.instanceId === summonActor.cardInstanceId)
+      }, { timeout: 15_000 }).toBe(true)
 
       // Every flight cleaned up after itself: nothing is still marked as travelling once the board has settled.
       for (const page of bothPages(pages)) {
@@ -293,6 +302,83 @@ test.describe('GameView multiplayer board animation hygiene', () => {
 
         expect(duplicatedInstanceIds, 'a card instance must never render twice').toEqual([])
       }
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  /**
+   * A reload is not a movement.
+   *
+   * The state payload carries a bounded tail of recorded card movements, and the client animates the ones it has
+   * not seen yet. On a mount that rule replays history: the last summon flew out of the deck again (one event per
+   * pass, so a *sequence* of them), draws flew into a hand that already held the cards, and the board only reached
+   * its real layout after animating towards it. The payload a board mounts with is therefore adopted as already
+   * handled, and a refreshed board paints its final layout on the first frame.
+   */
+  test('a reloaded board is painted where it belongs and animates nothing', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      // Leave real movement history in the payload: a summon moves a card out of the hand onto the field, and the
+      // draws that led to it are in the recorded-movement tail too.
+      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon')
+      const summonPage = summonActor.actorPage
+      const summonCard = summonPage.locator(`[data-testid="bottom-hand-card-${summonActor.cardInstanceId}"]`)
+      await summonCard.hover()
+      await summonCard.getByRole('button', { name: /^summon$/i }).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, summonActor.actor.session.accessToken)
+        return resolvePlayerState(state, summonActor.actor).characterField
+          .some((card) => card.instanceId === summonActor.cardInstanceId)
+      }, { timeout: 12_000 }).toBe(true)
+      await expect.poll(async () => await countTravelingCardElements(summonPage), { timeout: 10_000 }).toBe(0)
+
+      // Watch the *reloaded* document from before any app script runs. The flight primitive tags the element it
+      // moves, so any replayed movement is recorded here - by card, not as a bare count.
+      await summonPage.addInitScript(() => {
+        const state = window as unknown as { __phvReloadFlightInstanceIds?: Array<string | null> }
+        state.__phvReloadFlightInstanceIds = []
+        const originalAnimate = Element.prototype.animate
+        Element.prototype.animate = function patchedAnimate(
+          keyframes: PropertyIndexedKeyframes | Keyframe[],
+          options?: number | KeyframeAnimationOptions,
+        ): Animation {
+          if (this instanceof Element && this.getAttribute('data-card-traveling') === 'true') {
+            state.__phvReloadFlightInstanceIds?.push(
+              this.getAttribute('data-card-instance-id')
+              ?? this.getAttribute('data-hand-instance-id')
+              ?? this.getAttribute('data-departing-instance-id'),
+            )
+          }
+
+          return originalAnimate.call(this, keyframes, options)
+        }
+      })
+
+      await summonPage.reload()
+
+      // The summoned card is on the battlefield - the slot it belongs in - as soon as the board is up.
+      const landedCard = summonPage.locator(
+        `[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${summonActor.cardInstanceId}"]`,
+      )
+      await expect(landedCard).toBeVisible({ timeout: 15_000 })
+
+      // Give the old flight timings (the longest is ~420 ms, plus a per-pass replay chain) more than enough room
+      // to show up if anything replayed history.
+      await summonPage.waitForTimeout(1_500)
+
+      expect(
+        await summonPage.evaluate(
+          () => (window as unknown as { __phvReloadFlightInstanceIds?: Array<string | null> }).__phvReloadFlightInstanceIds ?? [],
+        ),
+        'a reloaded board must not animate cards into place',
+      ).toEqual([])
+      expect(await countTravelingCardElements(summonPage), 'nothing may be in the air after a reload').toBe(0)
+      expect(await countHeldArrivalCardElements(summonPage), 'no card may be left waiting for a flight').toBe(0)
+      await expect(landedCard).toBeVisible()
     } finally {
       await closeMultiplayerPages(pages)
     }

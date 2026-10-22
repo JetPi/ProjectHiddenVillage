@@ -244,6 +244,29 @@ paths:
   their cards directly; `Reorder` and `layout` do not need `AnimatePresence`.
 - A submitted play moves the **arriving** card from the source rect; there is no overlay copy and no stand-in.
   The source row owes nothing: its card is unmounted by the same state push that mounts the destination.
+- **A board that mounts adopts the movement history it was handed; it never animates it.** Every flight effect
+  gates on `IGameViewAnimController.handledAnimationEventIds`, and the state payload carries a bounded tail of
+  recorded movements - so on a reload "not handled yet" was true of the last movements of the game and the board
+  replayed them: a summon flew out of the deck again (`consumeRecordedDeckSummon` consumes **one event per
+  pass**, so it walked a *sequence* of old summons), draws flew into a hand that already held those cards. The
+  rule is `useAdoptRecordedAnimationEventsOnMount`: the mount payload's `animationEvents` ids are marked handled
+  before any consumer runs, so "unhandled" means "happened while I was watching". It is a layout effect and must
+  stay the **first** effect of `useGameViewSideEffects`; the same rule the `EffectNoticeBanner` follows for
+  `effectNotices`. A refreshed board paints its final layout on the first frame.
+  `e2e/gameview.multiplayer.board-animation.spec.ts` ("a reloaded board is painted where it belongs and animates
+  nothing") records flights from an `addInitScript` installed *before* the reload and fails with the three
+  replayed flights when the adoption is removed.
+- **The attack shake follows the same rule, and it is the harder half.** `useAttackLungeEffect` plays the shake
+  for a `Damage` presentation, so a mount must adopt two things: a presentation that was **already pending at
+  mount** (its id seeds `handledPresentationIdRef`, so it resolves without re-animating) and an attack that was
+  **already declared at mount** (`mountedDuringPendingAttackRef` - the reloaded payload still carries
+  `pendingAttackVisualState`, so the damage step would otherwise shake an attacker whose swing the page never
+  showed; a page that mounts and *then* watches the declaration still shakes). Both were reported after the flight
+  fix as "the completed attack shakes again". Guard:
+  `e2e/gameview.multiplayer.battle-visuals.spec.ts` ("a reload inside an attack window does not shake the
+  attacker when the damage step lands") - it reloads while the sequence is parked at `SupportCutIn`, closes the
+  windows after the reload so the damage step lands on the new page, and counts multi-keyframe
+  `Element.prototype.animate` calls (`{"shakes":1}` without the guard).
 - **A card that moves between two board rows has no submit helper to carry it** - the push does the move, so the
   flight has to be state-driven and the source rect has to be captured *before* that push. `support` ->
   `character-field-card` is the case that was missed (N-021/N-008/N-010 summon themselves out of the support
@@ -367,6 +390,24 @@ covered by the bottom trash pile (`elementFromPoint` at the card's centre return
 | 35 / 36 | the attack-link arrow (`ATTACK_LINK_OVERLAY_Z_INDEX` / `ATTACK_LINK_HEAD_Z_INDEX`) |
 | 40 | transient banners and prompt modals (`GamePromptOverlay`, `CardListOverlay`, `PromptSelectionBanner`, notices) |
 | 50-70 | card preview, game over · 120: route transition |
+
+- **A card mounts *in* its pose; only a state change animates.** The rested tilt lives on a Motion wrapper
+  (`BattleFieldRow`, `animate={{ rotate: isCardRested ? 14 : 0 }}`) and needs `initial={false}` - without it Motion
+  springs `0deg -> 14deg` on mount, and a rotating card's bounding box grows ~24 px in **both** axes while it turns,
+  so every rested card (i.e. every card that has attacked) expanded and rotated at once for ~400 ms on each
+  reload/re-mount. That was the reported "the board shakes", and it needs a rested card - an idle board never shows
+  it. `FlippableCard` already had `initial={false}`; hold every state-describing Motion prop (`rotate`, `rotateY`,
+  tints, scales) to the same rule. Guard: `e2e/gameview.multiplayer.battle-visuals.spec.ts` ("a rested card is
+  painted in its tilt and never animates into it") - the first sampled pose must already be 14deg and the pose must
+  never change afterwards (`rotationDeg: 0, rect 79x109` ramping to `103x125` without the fix).
+- **The route-transition scrim must never filter the page it covers.** `RouteTransitionOverlay` stays mounted for
+  the whole session (its fade-out needs it) and is `fixed inset-0`, so a `backdrop-filter` there makes every page
+  a *filtered backdrop*: the board is rasterized through the blur and re-sampled while the scrim's opacity animates
+  on navigation, which reads as the whole board jerking on the way in. The scrim carries colours + opacity only
+  (the same reason `GameView`'s `Panel` pins `backdropFilter: 'none'`), and
+  `e2e/gameview.spec.ts` ("the navigation scrim never filters the board underneath it") pins it - measured
+  `backdrop-filter: blur(2px)` at `opacity: 0` before the fix. See `plans/route-mount-jitter.md` for the frame
+  measurements that rule out the layout/CLS/Motion explanations.
 
 - A card **in the air** carries `z-index: 260` for the length of its flight, restored on settle
   (`runElementFromRectAnimation`, `runElementToRectAnimation`, `runAttackLunge`). That value is *local*: it only

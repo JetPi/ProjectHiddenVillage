@@ -144,7 +144,14 @@ function BattlefieldCard({ data, card, index }: { data: IBattleFieldRowProps; ca
     || (data.normalizedAttackLinkTargetCardId.length > 0 && data.normalizedAttackLinkTargetCardId === normalizedInstanceId)
 
   return (
+    // `initial={false}`: a card mounts *in* its pose, it never animates into it. Without it Motion springs the
+    // rested tilt from 0deg to 14deg on mount, so every rested card in the scene (i.e. every card that has
+    // attacked) rotated into place on the first ~400 ms of a reload / re-mount - and a rotating card's bounding
+    // box grows ~24px in both axes while it turns, which is the "the whole board shakes when I reload after an
+    // attack" report. `FlippableCard` (the other animated card surface) has had `initial={false}` all along; the
+    // tilt must follow the same rule. Changing `isRested` later still springs, which is what the tilt is for.
     <motion.div
+      initial={false}
       animate={{
         rotate: isCardRested ? RESTED_CARD_TILT_DEG : 0,
         transition: BOARD_ROTATE_SPRING,

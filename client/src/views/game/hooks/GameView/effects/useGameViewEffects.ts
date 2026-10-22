@@ -12,6 +12,7 @@ import type {
   IGameViewAnimController,
   IPlayerCardZoneInstanceIds,
   IRevalidatorState,
+  IUseAdoptRecordedAnimationEventsOnMountArgs,
   IUseCardMoveGhostAnimationEffectArgs,
   IUseHandZoneAnimationEffectsArgs,
   IUsePhasePresentationAckEffectArgs,
@@ -101,6 +102,42 @@ function collectCardGhostSnapshots(
       zone: resolveRenderedZone(element, fallbackZone),
     })
   }
+}
+
+/**
+ * A board that mounts must adopt the movement history it was handed, not replay it.
+ *
+ * The state payload carries a bounded tail of recorded card movements and the client animates the ones it has
+ * not seen yet. That is right for a push received while the board is mounted, and wrong for the first payload of
+ * a mount: a reload hands the client the last movements of the game, all of which already happened, so every
+ * consumer that only checks "not handled yet" replays them - a summon flies out of the deck again, a draw flies
+ * out of the deck into a hand that already holds the card, and because `consumeRecordedDeckSummon` consumes one
+ * event per pass, a refresh walked a *sequence* of old summons across the board.
+ *
+ * Adopting the mount payload's ids before any consumer runs makes "unhandled" mean "happened while I was
+ * watching". Nothing is lost: a movement that happens after mount arrives in a later payload with an id that is
+ * not in this set. This is the same rule `EffectNoticeBanner` follows for notices, and it is why the first
+ * render of a refreshed board is its final one - cards appear where they belong instead of animating there.
+ *
+ * Must stay the first effect of the side-effect hook (a layout effect, so it is in place before the flight
+ * scheduling effects of the same commit run).
+ */
+function useAdoptRecordedAnimationEventsOnMount({
+  animationEvents,
+  animControllerRef,
+}: IUseAdoptRecordedAnimationEventsOnMountArgs): void {
+  const hasAdoptedRef = useRef(false)
+
+  useLayoutEffect(() => {
+    if (hasAdoptedRef.current) {
+      return
+    }
+    hasAdoptedRef.current = true
+
+    for (const animationEvent of animationEvents ?? []) {
+      animControllerRef.current.handledAnimationEventIds.add(animationEvent.eventId)
+    }
+  }, [animationEvents, animControllerRef])
 }
 
 function snapshotRenderedCardGhosts({
@@ -1159,6 +1196,7 @@ function usePhasePresentationAckEffect({
 
 export {
   useIdleRevalidationPoll,
+  useAdoptRecordedAnimationEventsOnMount,
   useCardCatalogPreload,
   useHandZoneAnimationEffects,
   useCardMoveGhostAnimationEffect,
