@@ -17,6 +17,86 @@ import {
 } from './flightRegistry'
 import { prefersReducedMotion, resolveFlightDurationMs } from './reducedMotion'
 
+type ISuppressedInstanceVisualOwner = {
+  count: number
+  visibility: string
+}
+
+// Reference-counted so a superseded flight's cleanup cannot reveal an element the newer flight is still hiding.
+const suppressedInstanceVisuals = new Map<HTMLElement, ISuppressedInstanceVisualOwner>()
+
+function resolveElementInstanceId(element: HTMLElement): string {
+  return element.dataset.cardInstanceId
+    ?? element.dataset.handInstanceId
+    ?? element.dataset.departingInstanceId
+    ?? ''
+}
+
+/**
+ * One visual per card instance: while `flyingElement` owns the flight for `instanceId`, every other element that
+ * carries that same identity is hidden for the flight's duration.
+ *
+ * The hand row can keep a leaving card mounted for one extra commit (`AnimatePresence` renders a removed child
+ * once before dropping it, even with no exit animation). That commit can be painted after the arrival flight
+ * starts, so the played card exists in the hand row and in its destination at the same time - the reported
+ * "ghost copy stays at the starting position". Hiding the non-flying element makes the invariant independent of
+ * which render pass produced the second node.
+ */
+function suppressOtherInstanceVisuals(instanceId: string, flyingElement: HTMLElement): HTMLElement[] {
+  if (!instanceId || typeof document === 'undefined') {
+    return []
+  }
+
+  const escapedId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(instanceId) : instanceId
+  const selector = [
+    `[data-hand-instance-id="${escapedId}"]`,
+    `[data-card-instance-id="${escapedId}"]`,
+    `[data-departing-instance-id="${escapedId}"]`,
+  ].join(',')
+
+  const suppressed: HTMLElement[] = []
+  document.querySelectorAll<HTMLElement>(selector).forEach((element) => {
+    // Never hide the flying element or one that contains it: that would hide the flight itself.
+    if (element === flyingElement || element.contains(flyingElement) || flyingElement.contains(element)) {
+      return
+    }
+
+    const existingOwner = suppressedInstanceVisuals.get(element)
+    if (existingOwner) {
+      existingOwner.count += 1
+      suppressed.push(element)
+      return
+    }
+
+    if (element.style.visibility === 'hidden') {
+      return
+    }
+
+    suppressedInstanceVisuals.set(element, { count: 1, visibility: element.style.visibility })
+    element.style.visibility = 'hidden'
+    suppressed.push(element)
+  })
+
+  return suppressed
+}
+
+function restoreSuppressedInstanceVisuals(suppressed: HTMLElement[]): void {
+  for (const element of suppressed) {
+    const owner = suppressedInstanceVisuals.get(element)
+    if (!owner) {
+      continue
+    }
+
+    owner.count -= 1
+    if (owner.count > 0) {
+      continue
+    }
+
+    suppressedInstanceVisuals.delete(element)
+    element.style.visibility = owner.visibility
+  }
+}
+
 function promoteAirborneLayer(element: HTMLElement): () => void {
   const slot = element.parentElement
   const previousElementPosition = element.style.position
@@ -79,6 +159,9 @@ export function runElementFromRectAnimation({
   const previousWillChange = element.style.willChange
   let restoreAirborneLayer: (() => void) | null = null
 
+  // This flight is the only visual allowed for its instance while it is in the air.
+  const suppressedVisuals = suppressOtherInstanceVisuals(resolveElementInstanceId(element), element)
+
   element.style.visibility = 'hidden'
 
   return new Promise<void>((resolve) => {
@@ -109,6 +192,7 @@ export function runElementFromRectAnimation({
         element.style.willChange = previousWillChange
         restoreAirborneLayer?.()
         element.removeAttribute('data-card-traveling')
+        restoreSuppressedInstanceVisuals(suppressedVisuals)
         resolve()
       }
 
@@ -151,6 +235,8 @@ export function runElementToRectAnimation({
   const endScale = Math.max(destinationRect.width / sourceRect.width, 0.15)
 
   const previousTransform = element.style.transform
+  // This flight is the only visual allowed for its instance while it is in the air.
+  const suppressedVisuals = suppressOtherInstanceVisuals(resolveElementInstanceId(element), element)
   element.setAttribute('data-card-traveling', 'true')
   const restoreAirborneLayer = promoteAirborneLayer(element)
 
@@ -176,6 +262,7 @@ export function runElementToRectAnimation({
       element.removeAttribute('data-card-traveling')
       element.setAttribute('data-card-departed', 'true')
       element.style.visibility = 'hidden'
+      restoreSuppressedInstanceVisuals(suppressedVisuals)
       resolve()
     }
 

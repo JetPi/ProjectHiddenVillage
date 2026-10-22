@@ -25,11 +25,11 @@ export type IAttackLinkGeometryOptions = {
 export type IAttackLinkGeometry = {
   startAnchor: IAttackAnchorConfig
   endAnchor: IAttackAnchorConfig
-  curveness: number
-  controlPointOffsets?: {
-    cpx1: number
-    cpx2: number
-  }
+  /**
+   * Set for a sweep (both anchors on the same visual edge): the requested lateral bulge. The curve caps it by the
+   * link's own span so a short, same-column pair cannot turn the arc into a hook.
+   */
+  sweepBendPx?: number
 }
 
 export type IAttackLinkCubic = {

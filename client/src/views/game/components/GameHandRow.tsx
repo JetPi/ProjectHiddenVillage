@@ -1,4 +1,4 @@
-import { AnimatePresence, Reorder, motion } from 'motion/react'
+import { Reorder, motion } from 'motion/react'
 import { twMerge } from 'tailwind-merge'
 import { PlayRow } from '@/components/ui/game'
 import { HandCardItem } from './HandCardItem'
@@ -36,23 +36,21 @@ function GameHandRow<TCard>({
             onReorder={reorder.onReorder}
             className={cardsContainerClassNameResolved}
           >
-            <AnimatePresence initial={false}>
-              {cards.map((card, index) => {
-                const cardKey = getCardKey(card, index)
-                return (
-                  <HandCardItem
-                    key={cardKey}
-                    value={cardKey}
-                    isDraggable={reorder.isDraggableCard(card)}
-                    isActive={reorder.activeValue === cardKey}
-                    className={HAND_CARD_SLOT_CLASSNAME}
-                    onDragStateChange={reorder.onDragStateChange}
-                  >
-                    {renderCard(card, index)}
-                  </HandCardItem>
-                )
-              })}
-            </AnimatePresence>
+            {cards.map((card, index) => {
+              const cardKey = getCardKey(card, index)
+              return (
+                <HandCardItem
+                  key={cardKey}
+                  value={cardKey}
+                  isDraggable={reorder.isDraggableCard(card)}
+                  isActive={reorder.activeValue === cardKey}
+                  className={HAND_CARD_SLOT_CLASSNAME}
+                  onDragStateChange={reorder.onDragStateChange}
+                >
+                  {renderCard(card, index)}
+                </HandCardItem>
+              )
+            })}
           </Reorder.Group>
         ) : (
           <motion.div
@@ -60,17 +58,15 @@ function GameHandRow<TCard>({
             data-testid={rowTestId}
             className={cardsContainerClassNameResolved}
           >
-            <AnimatePresence initial={false}>
-              {cards.map((card, index) => (
-                <motion.div
-                  key={getCardKey(card, index)}
-                  layout="position"
-                  className={HAND_CARD_SLOT_CLASSNAME}
-                >
-                  {renderCard(card, index)}
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            {cards.map((card, index) => (
+              <motion.div
+                key={getCardKey(card, index)}
+                layout="position"
+                className={HAND_CARD_SLOT_CLASSNAME}
+              >
+                {renderCard(card, index)}
+              </motion.div>
+            ))}
           </motion.div>
         )}
 

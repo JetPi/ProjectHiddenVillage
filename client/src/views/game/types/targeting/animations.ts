@@ -21,20 +21,6 @@ export type IHandToPileAnimationArgs = {
   bottomHandRowRef: RefObject<HTMLDivElement | null>
 }
 
-export type ICardImageGhostToElementAnimationArgs = {
-  imageSrc: string
-  sourceRect: DOMRect
-  destinationElement: HTMLElement | null
-  durationMs?: number
-  key?: string
-}
-
-export type IRectToElementAnimationArgs = {
-  sourceRect: DOMRect
-  destinationElement: HTMLElement | null
-  durationMs?: number
-}
-
 export type IWaitForElementArgs = {
   resolveElement: () => HTMLElement | null
   timeoutMs?: number

@@ -24,6 +24,11 @@ paths:
   `card` view model is provided): always-visible badges —
   - top-left: `currentDamage`,
   - top-right: `currentPower` (red span) `:` `currentHealth` (green span).
+- **Exception - tribute candidates.** While a card is a tribute target candidate
+  (`isSummonTargetCandidate`), neither the stat badges nor the status rail are rendered: the TRIBUTE chip and the
+  requirement label (`tribute-requirement-label`) own the lower half of the card. With no rail, the label sits at
+  the bottom edge (`bottom-0`) instead of being pushed above it, and `e2e/gameview.multiplayer.actions.spec.ts`
+  pins the absence of `card-status-badges` and `.card-overlay-badge` on a candidate.
 - Leader card: top-left `currentDamage`, top-right `currentPower`, bottom-right
   `currentLife` (life badge), matching the same red/green chip language.
 - Source of the numbers is the view model (`currentPower`, `currentHealth`,
@@ -225,6 +230,24 @@ paths:
   invocation an explicit hand→field summon uses). The generic move-ghost effect cannot do this — a card drawn by the
   deck pile has no card-face snapshot — and because the flight is state-driven it also plays on the opponent's client.
 
+## Card movement: one visual per instance
+
+- **A card instance is painted at most once at any moment.** The flight that carries it
+  (`runElementFromRectAnimation` / `runElementToRectAnimation` in `views/game/animation/flights.ts`) hides every
+  other element carrying the same `data-hand-instance-id` / `data-card-instance-id` /
+  `data-departing-instance-id` for its whole duration and restores them on settle/cancel. Keep that guard: it is
+  what makes the invariant hold no matter which render pass produced a second node.
+- **Do not wrap a card row in `AnimatePresence` unless the leaving child really has an `exit`.** It renders a
+  removed child for one extra commit even with no exit prop, which is enough for the played card to be painted in
+  the hand row and in its destination while the arrival flight starts (measured: one frame with
+  `hand:top-hand-row` and `board:character-field-card` for the same instance). The hand rows therefore render
+  their cards directly; `Reorder` and `layout` do not need `AnimatePresence`.
+- A submitted play moves the **arriving** card from the source rect; there is no overlay copy and no stand-in.
+  The source row owes nothing: its card is unmounted by the same state push that mounts the destination.
+- Invariant tests: `e2e/gameview.multiplayer.board-animation.spec.ts` ("a set support is never painted in the
+  hand and in its slot at the same time", "a summoned card is never painted in the hand and on the field at the
+  same time") census the whole document every frame on both clients.
+
 ## Support chain bubble (`SupportChainBubble`)
 
 - Pops up in the top-right corner of the game view (`fixed right-2 top-2 z-40`, `pointer-events-none`, next to
@@ -415,10 +438,15 @@ covered by the bottom trash pile (`elementFromPoint` at the card's centre return
   arrives at the target at the same angle; do **not** go back to bending a single handle, which put all the
   curvature next to the source (the tail left the attacker at ~40° and straightened into the target) and read as
   a kinked hook rather than an arc.
+- **The curve maths is its own DOM-free module.** `resolveAttackAnchorPoint` / `resolveAttackLinkCubic` live in
+  `utils/functions/gameState/attackLinkCurve.ts` (re-exported by `gameZoneFunctions`), so
+  `e2e/gameview.attack-link-geometry.spec.ts` exercises them directly and
+  `e2e/gameview.multiplayer.battle-visuals.spec.ts` measures the rendered path. The tests pin smoothness by
+  sampling the curve: a corner concentrates the tangent turn into one tenth of its length, an arc spreads it.
 - **Arc depth is responsive and clamped**: `ATTACK_LINK_ARC_DEPTH_FACTOR` (0.25) × the chord, clamped to
   `ATTACK_LINK_ARC_MIN_DEPTH_PX`..`ATTACK_LINK_ARC_MAX_DEPTH_PX` (40..120) — a fraction of the chord so the bow
   scales with the layout, and a pixel band so a short cross-column link is not pinched while a long leader link
-  does not balloon. Half of it is the visible belly.
+  does not balloon. The visible belly is 0.75 of that depth.
 - **The arc lobs towards the card it is aimed at**: the perpendicular is multiplied by a sign derived from
   **both** ends of the link (`(deltaX > 0) === (deltaY <= 0) ? -1 : 1`), so a link that climbs the board bows
   *above* the chord (every attack the viewer declares — their own half is always at the bottom) and a link that
@@ -434,8 +462,17 @@ covered by the bottom trash pile (`elementFromPoint` at the card's centre return
   rested tilt animates. Before any of this, both handles sat on the chord and the tail was a dead straight line
   that sliced diagonally through the board's middle chrome (the phase action row is a full-width row between the
   two halves, so every attack crosses it — the "Opponent Support Cut-In" banner).
-- The **sweep keeps its hook** (`ATTACK_SWEEP_SIDE_BEND_PX` on the first handle, second on the chord): it has to
-  clear a whole stacked card, and its fixed 110px bend as a symmetric arc would arrive ~40° off the chord.
+- **The sweep is an arc too, and its bulge is capped by its own chord.** A sweep is a link whose two cards sit on
+  the same side of the board, so both anchors share one visual edge and the curve bulges away from it. It used to
+  keep a hook (`ATTACK_SWEEP_SIDE_BEND_PX`, 110px, on the first handle only, the second left on the chord), on the
+  grounds that a hook clears a stacked card. That reads fine on a long link, but on a short same-column pair - the
+  "Opponent Support Cut-In" case, a ~160px chord - the fixed bend dominates the chord: the tail leaves at 27°,
+  doubles back and slides *along* the target's edge, so it renders as a V with the head pointing up the card
+  (measured: 29.6° of turn inside a tenth of the curve, end tangent parallel to the chord). Both handles now carry
+  the same lateral bend, each sits `ATTACK_LINK_SWEEP_CONTROL_PULL` (0.43) along the chord, and the bend is capped
+  at `ATTACK_LINK_SWEEP_BEND_RATIO` (0.32) of the chord. The arc still clears a stacked card - it bulges 0.75 of
+  the bend, ~82px at the 110px cap - and now enters the target at 20-37° instead of sliding along it. Measured
+  after the fix: 12.7° of turn in the worst window, symmetric around the chord.
 - **The head is clear of the stroke by dash *phase*, not by a `refX` or a shortened path.** There is no SVG
   `<marker>` anywhere in the arrow (and `react-xarrows` is gone). The head's tip *is* the path's end, so the two
   can never disagree — but a dash pattern painted from the path's start drops its last dash right under the head,

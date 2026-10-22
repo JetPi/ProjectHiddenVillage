@@ -4,14 +4,12 @@ import type { IGameActionOptionResponse, IGameStateResponse } from '@/services/a
 import type { IGameZonesProps, IAttackAnchorPosition, IAttackAnchorConfig, IAttackLinkCubic, IAttackLinkGeometry, IAttackLinkGeometryOptions, IAttackLinkHeadConfig, IBoardPoint, IAttackFlowLinkState, INonLeaderCardViewModel, ILeaderCardViewModel } from '@/views/game/types'
 import {
   ATTACK_ARROW_HEAD_LENGTH_PX,
-  ATTACK_LINK_ARC_DEPTH_FACTOR,
-  ATTACK_LINK_ARC_MAX_DEPTH_PX,
-  ATTACK_LINK_ARC_MIN_DEPTH_PX,
   ATTACK_LINK_DASH_GAP_PX,
   ATTACK_LINK_DASH_LENGTH_PX,
   LEADER_CARD_IMAGE_CLASS,
 } from '@/views/game/utils/contants'
 import { resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions/cards'
+import { resolveAttackAnchorPoint, resolveAttackLinkCubic } from './attackLinkCurve'
 
 const LEADER_RESTED_ROTATION_CLASS = 'rotate-[5deg]'
 
@@ -429,8 +427,7 @@ function resolveAttackLinkGeometry(
         options.sweepTargetGapPx,
         getHorizontalVisualEdgeOffset(targetCard, inwardSide)
       ),
-      curveness: 0.86,
-      controlPointOffsets: { cpx1: sideBend, cpx2: sideBend * 1.25 },
+      sweepBendPx: sideBend,
     };
   }
 
@@ -445,93 +442,9 @@ function resolveAttackLinkGeometry(
       options.targetGapPx,
       getHorizontalVisualEdgeOffset(targetCard, sides.endAnchorSide)
     ),
-    curveness: 0.68,
   };
 }
 
-
-type IAttackLinkRect = {
-  left: number
-  top: number
-  width: number
-  height: number
-}
-
-function resolveAttackAnchorPoint(anchor: IAttackAnchorConfig, rect: IAttackLinkRect): IBoardPoint {
-  if (typeof anchor === 'string') {
-    return resolveAttackAnchorPoint({ position: anchor, offset: { x: 0, y: 0 } }, rect)
-  }
-
-  const centerX = rect.left + rect.width * 0.5
-  const centerY = rect.top + rect.height * 0.5
-
-  switch (anchor.position) {
-    case 'top':
-      return { x: centerX + anchor.offset.x, y: rect.top + anchor.offset.y }
-    case 'bottom':
-      return { x: centerX + anchor.offset.x, y: rect.top + rect.height + anchor.offset.y }
-    case 'left':
-      return { x: rect.left + anchor.offset.x, y: centerY + anchor.offset.y }
-    default:
-      return { x: rect.left + rect.width + anchor.offset.x, y: centerY + anchor.offset.y }
-  }
-}
-
-function resolveAttackLinkCubic(
-  geometry: IAttackLinkGeometry,
-  sourceRect: IAttackLinkRect,
-  targetRect: IAttackLinkRect,
-): IAttackLinkCubic {
-  const start = resolveAttackAnchorPoint(geometry.startAnchor, sourceRect)
-  const end = resolveAttackAnchorPoint(geometry.endAnchor, targetRect)
-  const deltaX = end.x - start.x
-  const deltaY = end.y - start.y
-  const chordLength = Math.hypot(deltaX, deltaY)
-  const normalX = chordLength > 0 ? -deltaY / chordLength : 0
-  const normalY = chordLength > 0 ? deltaX / chordLength : 0
-
-  if (geometry.controlPointOffsets) {
-    const bend = geometry.controlPointOffsets.cpx1
-    const pull = geometry.curveness
-
-    return {
-      start,
-      control1: {
-        x: start.x + deltaX * pull * 0.4 + normalX * bend,
-        y: start.y + deltaY * pull * 0.4 + normalY * bend,
-      },
-      control2: {
-        x: end.x - deltaX * pull * 0.6,
-        y: end.y - deltaY * pull * 0.6,
-      },
-      end,
-    }
-  }
-
-  const arcDepth = Math.min(
-    Math.max(chordLength * ATTACK_LINK_ARC_DEPTH_FACTOR, ATTACK_LINK_ARC_MIN_DEPTH_PX),
-    ATTACK_LINK_ARC_MAX_DEPTH_PX,
-  )
-  const bowsUpward = deltaY <= 0
-  const directionMultiplier = (deltaX > 0) === bowsUpward ? -1 : 1
-  const control = {
-    x: (start.x + end.x) * 0.5 + normalX * arcDepth * directionMultiplier,
-    y: (start.y + end.y) * 0.5 + normalY * arcDepth * directionMultiplier,
-  }
-
-  return {
-    start,
-    control1: {
-      x: start.x + (2 / 3) * (control.x - start.x),
-      y: start.y + (2 / 3) * (control.y - start.y),
-    },
-    control2: {
-      x: end.x + (2 / 3) * (control.x - end.x),
-      y: end.y + (2 / 3) * (control.y - end.y),
-    },
-    end,
-  }
-}
 
 function resolveAttackLinkPathData(cubic: IAttackLinkCubic): string {
   return `M ${cubic.start.x} ${cubic.start.y} `

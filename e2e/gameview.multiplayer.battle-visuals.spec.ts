@@ -354,6 +354,52 @@ test.describe('GameView multiplayer battle visuals', () => {
         timeout: 8_000,
       }).toEqual({ sourceOnVisualEdge: true, targetOnVisualEdge: true })
 
+      // The drawn tail is an arc, not a hook. This is the same measurement `gameview.attack-link-geometry.spec.ts`
+      // pins on the curve maths; here it runs against the rendered path, so the geometry the board actually
+      // composed (rotation offsets, gaps, the chosen anchor sides) is covered too. A corner concentrates the
+      // direction change into one window of the curve; an arc spreads it.
+      const readRenderedTailShape = async (): Promise<{ maxWindowTurn: number; endVsChord: number } | null> => (
+        await battleActor.actorPage.evaluate(() => {
+          const path = document.querySelector<SVGPathElement>('#attack-link-overlay svg path[stroke]')
+          if (!path) {
+            return null
+          }
+
+          const sampleCount = 100
+          const windowSize = 10
+          const total = path.getTotalLength()
+          const points = Array.from({ length: sampleCount + 1 }, (_, index) => {
+            const point = path.getPointAtLength((index / sampleCount) * total)
+            return { x: point.x, y: point.y }
+          })
+          const angles = points.slice(1).map((point, index) => (
+            (Math.atan2(point.y - points[index].y, point.x - points[index].x) * 180) / Math.PI
+          ))
+          const turn = (from: number, to: number): number => Math.abs(((to - from + 540) % 360) - 180)
+
+          let maxWindowTurn = 0
+          for (let index = 0; index + windowSize < angles.length; index += 1) {
+            maxWindowTurn = Math.max(maxWindowTurn, turn(angles[index], angles[index + windowSize]))
+          }
+
+          const start = points[0]
+          const end = points[points.length - 1]
+          const chordDeg = (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI
+
+          return {
+            maxWindowTurn: Math.round(maxWindowTurn),
+            endVsChord: Math.round(turn(angles[angles.length - 1], chordDeg)),
+          }
+        })
+      )
+
+      await expect.poll(async () => (await readRenderedTailShape())?.maxWindowTurn ?? 999, {
+        timeout: 8_000,
+      }).toBeLessThan(20)
+      await expect.poll(async () => (await readRenderedTailShape())?.endVsChord ?? 0, {
+        timeout: 8_000,
+      }).toBeGreaterThan(15)
+
       // The attacker is tilted from the backend's rested flag. Motion applies the rotation on the card's
       // wrapper rather than as a Tailwind class on the card, so assert the effective rotation instead.
       await expect.poll(async () => {

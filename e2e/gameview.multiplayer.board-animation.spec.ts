@@ -13,10 +13,13 @@ import {
   countTravelingCardElements,
   fetchGameState,
   getCardFlightCount,
+  getCardFlightRecords,
   getHandArrivalFlickerReport,
   installCardFlightCounter,
   installHandArrivalFlickerObserver,
   openMultiplayerPages,
+  resolveActorWithBottomHandAction,
+  resolvePlayerState,
   setupMultiplayerGame,
 } from './helpers/gameviewMultiplayerHelpers'
 
@@ -31,6 +34,193 @@ import {
  *  - reduced motion skips the flight entirely while the phase-presentation acknowledgement still resolves
  *    (the protocol half: a skipped flight must settle, never leave the engine parked).
  */
+
+const IDENTITY_SELECTOR = '[data-hand-instance-id], [data-card-instance-id], [data-departing-instance-id]'
+
+type InstanceCensusReport = {
+  framesSampled: number
+  errors: number
+  duplicateFrames: number
+  orphanFrames: number
+  finalDuplicates: string[]
+  duplicates: Array<{ at: number; instanceId: string; elements: string[] }>
+  orphans: Array<{ at: number; instanceId: string; flying: string; other: string }>
+}
+
+/**
+ * Watches the whole document, once per frame, for the one invariant the flight engine cannot express by itself:
+ * a card instance is either in a hand row or in a zone, never in both at once.
+ *
+ * It is deliberately independent of any single animation effect. The hand row used to hold a removed card for
+ * one extra render (`AnimatePresence` keeps a leaving child for a commit even when it has no exit animation), so
+ * the played card existed twice while its arrival flight started - invisible when the flight hid the
+ * destination, visible as a second card on slower frames.
+ */
+async function installInstanceIdentityCensus(page: Page): Promise<void> {
+  await page.evaluate((selector) => {
+    const state = window as unknown as Record<string, unknown>
+    if (state.__phvInstanceCensusInstalled === true) {
+      return
+    }
+
+    state.__phvInstanceCensusInstalled = true
+    state.__phvInstanceCensusFrames = 0
+    state.__phvInstanceCensusErrors = 0
+    state.__phvInstanceCensusDuplicateFrames = 0
+    state.__phvInstanceCensusOrphanFrames = 0
+    state.__phvInstanceCensusDuplicates = []
+    state.__phvInstanceCensusOrphans = []
+
+    const readInstanceId = (element: Element): string => (
+      element.getAttribute('data-hand-instance-id')
+      ?? element.getAttribute('data-card-instance-id')
+      ?? element.getAttribute('data-departing-instance-id')
+      ?? ''
+    )
+
+    const describe = (element: HTMLElement): string => {
+      const rect = element.getBoundingClientRect()
+      const zone = element.getAttribute('data-zone') ?? ''
+      const row = element.closest('[data-testid="bottom-hand-row"]')
+        ? 'bottom-hand-row'
+        : element.closest('[data-testid="top-hand-row"]') ? 'top-hand-row' : ''
+      const where = zone || row || 'unknown'
+      const kind = element.hasAttribute('data-hand-instance-id')
+        ? 'hand'
+        : element.hasAttribute('data-departing-instance-id') ? 'departing' : 'board'
+      return `${kind}:${where}@${Math.round(rect.left)},${Math.round(rect.top)}`
+    }
+
+    const isPainted = (element: HTMLElement): boolean => {
+      const rect = element.getBoundingClientRect()
+      const style = getComputedStyle(element)
+      const parentOpacity = element.parentElement ? Number(getComputedStyle(element.parentElement).opacity) : 1
+      return rect.width > 0
+        && rect.height > 0
+        && style.visibility !== 'hidden'
+        && style.display !== 'none'
+        && Number(style.opacity) > 0.02
+        && parentOpacity > 0.02
+    }
+
+    const tick = (): void => {
+      const frames = (state.__phvInstanceCensusFrames as number) + 1
+      state.__phvInstanceCensusFrames = frames
+      if (frames > 6_000) {
+        return
+      }
+
+      try {
+        const byInstance = new Map<string, HTMLElement[]>()
+        document.querySelectorAll<HTMLElement>(selector).forEach((element) => {
+          const instanceId = readInstanceId(element)
+          if (!instanceId) {
+            return
+          }
+
+          const list = byInstance.get(instanceId) ?? []
+          list.push(element)
+          byInstance.set(instanceId, list)
+        })
+
+        const at = Math.round(performance.now())
+
+        for (const [instanceId, elements] of byInstance) {
+          if (elements.length > 1) {
+            state.__phvInstanceCensusDuplicateFrames = (state.__phvInstanceCensusDuplicateFrames as number) + 1
+            const duplicates = state.__phvInstanceCensusDuplicates as unknown[]
+            if (duplicates.length < 12) {
+              duplicates.push({ at, instanceId, elements: elements.map(describe) })
+            }
+          }
+
+          // A card that is in the air is the only visual allowed for its own instance.
+          const flying = elements.filter((element) => element.getAttribute('data-card-traveling') === 'true')
+          if (flying.length === 0) {
+            continue
+          }
+
+          const alongside = elements.filter((element) => !flying.includes(element) && isPainted(element))
+          if (alongside.length > 0) {
+            state.__phvInstanceCensusOrphanFrames = (state.__phvInstanceCensusOrphanFrames as number) + 1
+            const orphans = state.__phvInstanceCensusOrphans as unknown[]
+            if (orphans.length < 12) {
+              orphans.push({
+                at,
+                instanceId,
+                flying: flying.map(describe).join(' | '),
+                other: alongside.map(describe).join(' | '),
+              })
+            }
+          }
+        }
+      } catch {
+        // An exception in a frame callback would stop the loop and make every count read zero, so the census
+        // counts its own failures: green with a dead sampler is the one outcome that must never look green.
+        state.__phvInstanceCensusErrors = ((state.__phvInstanceCensusErrors as number) ?? 0) + 1
+      }
+
+      window.requestAnimationFrame(tick)
+    }
+
+    window.requestAnimationFrame(tick)
+  }, IDENTITY_SELECTOR)
+}
+
+async function readInstanceCensus(page: Page): Promise<InstanceCensusReport> {
+  return await page.evaluate((selector) => {
+    const state = window as unknown as Record<string, unknown>
+    const readInstanceId = (element: Element): string => (
+      element.getAttribute('data-hand-instance-id')
+      ?? element.getAttribute('data-card-instance-id')
+      ?? ''
+    )
+    const counts = new Map<string, number>()
+    document.querySelectorAll<HTMLElement>(selector).forEach((element) => {
+      const instanceId = readInstanceId(element)
+      if (!instanceId) {
+        return
+      }
+
+      counts.set(instanceId, (counts.get(instanceId) ?? 0) + 1)
+    })
+
+    return {
+      framesSampled: (state.__phvInstanceCensusFrames as number) ?? 0,
+      errors: (state.__phvInstanceCensusErrors as number) ?? 0,
+      duplicateFrames: (state.__phvInstanceCensusDuplicateFrames as number) ?? 0,
+      orphanFrames: (state.__phvInstanceCensusOrphanFrames as number) ?? 0,
+      duplicates: (state.__phvInstanceCensusDuplicates as InstanceCensusReport['duplicates']) ?? [],
+      orphans: (state.__phvInstanceCensusOrphans as InstanceCensusReport['orphans']) ?? [],
+      finalDuplicates: [...counts.entries()]
+        .filter(([, count]) => count > 1)
+        .map(([instanceId]) => instanceId),
+    }
+  }, IDENTITY_SELECTOR)
+}
+
+async function expectOneVisualPerInstance(pages: MultiplayerPages): Promise<void> {
+  for (const page of bothPages(pages)) {
+    await expect.poll(async () => (await readInstanceCensus(page)).framesSampled, {
+      timeout: 10_000,
+    }).toBeGreaterThan(0)
+
+    const report = await readInstanceCensus(page)
+    expect(report.errors, `the instance census swallowed an exception: ${JSON.stringify(report)}`).toBe(0)
+    expect(
+      report.duplicateFrames,
+      `a card instance was rendered twice while it moved: ${JSON.stringify(report.duplicates)}`,
+    ).toBe(0)
+    expect(
+      report.orphanFrames,
+      `a card was painted while its own flight was in the air: ${JSON.stringify(report.orphans)}`,
+    ).toBe(0)
+    expect(
+      report.finalDuplicates,
+      'a settled board must not render one card instance twice',
+    ).toEqual([])
+  }
+}
 
 function isPlayerOneActive(state: { activePlayerId: string }, setup: MultiplayerSetup): boolean {
   const activeUserId = state.activePlayerId.replace(/-/g, '').toLowerCase()
@@ -72,13 +262,20 @@ test.describe('GameView multiplayer board animation hygiene', () => {
         await expect.poll(async () => await countTravelingCardElements(page), { timeout: 30_000 }).toBe(0)
       }
 
-      // Nothing is duplicated either - the card that flew is the card that landed, not a second element beside it.
+      // Nothing is duplicated either - across the whole document, not only inside the hand. A card instance
+      // belongs to one hand row or one zone; finding the same id twice is the duplicate the flight must never
+      // leave behind.
       for (const page of bothPages(pages)) {
         const duplicatedInstanceIds = await page.evaluate(() => {
+          const readInstanceId = (element: Element): string => (
+            element.getAttribute('data-hand-instance-id')
+            ?? element.getAttribute('data-card-instance-id')
+            ?? ''
+          )
           const seen = new Set<string>()
           const duplicates: string[] = []
-          document.querySelectorAll<HTMLElement>('[data-hand-instance-id]').forEach((element) => {
-            const instanceId = element.getAttribute('data-hand-instance-id')
+          document.querySelectorAll<HTMLElement>('[data-hand-instance-id], [data-card-instance-id]').forEach((element) => {
+            const instanceId = readInstanceId(element)
             if (!instanceId) {
               return
             }
@@ -94,7 +291,7 @@ test.describe('GameView multiplayer board animation hygiene', () => {
           return duplicates
         })
 
-        expect(duplicatedInstanceIds, 'a hand card must never render twice').toEqual([])
+        expect(duplicatedInstanceIds, 'a card instance must never render twice').toEqual([])
       }
     } finally {
       await closeMultiplayerPages(pages)
@@ -213,6 +410,78 @@ test.describe('GameView multiplayer board animation hygiene', () => {
         // A skipped flight must still release its card: a hold left behind would be an invisible card.
         expect(await countHeldArrivalCardElements(page)).toBe(0)
       }
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  test('a set support is never painted in the hand and in its slot at the same time', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      for (const page of bothPages(pages)) {
+        await installCardFlightCounter(page)
+        await installInstanceIdentityCensus(page)
+      }
+
+      const supportActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Set Support')
+      const supportCard = supportActor.actorPage.locator(`[data-testid="bottom-hand-card-${supportActor.cardInstanceId}"]`)
+      await supportCard.hover()
+      await supportCard.getByRole('button', { name: /^set support$/i }).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, supportActor.actor.session.accessToken)
+        const actorState = resolvePlayerState(state, supportActor.actor)
+        return {
+          inSupportZone: actorState.supportZone.some((card) => card.instanceId === supportActor.cardInstanceId),
+          stillInHand: actorState.hand.some((card) => card.instanceId === supportActor.cardInstanceId),
+        }
+      }, { timeout: 15_000 }).toEqual({ inSupportZone: true, stillInHand: false })
+
+      await expect.poll(async () => {
+        const records = await getCardFlightRecords(supportActor.actorPage)
+        return records.some((record) => record.instanceId === supportActor.cardInstanceId)
+      }, { timeout: 10_000 }).toBe(true)
+      await expect.poll(async () => await countTravelingCardElements(supportActor.actorPage), { timeout: 10_000 }).toBe(0)
+
+      await expectOneVisualPerInstance(pages)
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  test('a summoned card is never painted in the hand and on the field at the same time', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      for (const page of bothPages(pages)) {
+        await installCardFlightCounter(page)
+        await installInstanceIdentityCensus(page)
+      }
+
+      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon')
+      const summonCard = summonActor.actorPage.locator(`[data-testid="bottom-hand-card-${summonActor.cardInstanceId}"]`)
+      await summonCard.hover()
+      await summonCard.getByRole('button', { name: /^summon$/i }).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, summonActor.actor.session.accessToken)
+        const actorState = resolvePlayerState(state, summonActor.actor)
+        return {
+          onField: actorState.characterField.some((card) => card.instanceId === summonActor.cardInstanceId),
+          stillInHand: actorState.hand.some((card) => card.instanceId === summonActor.cardInstanceId),
+        }
+      }, { timeout: 15_000 }).toEqual({ onField: true, stillInHand: false })
+
+      await expect.poll(async () => {
+        const records = await getCardFlightRecords(summonActor.actorPage)
+        return records.some((record) => record.instanceId === summonActor.cardInstanceId)
+      }, { timeout: 10_000 }).toBe(true)
+      await expect.poll(async () => await countTravelingCardElements(summonActor.actorPage), { timeout: 10_000 }).toBe(0)
+
+      await expectOneVisualPerInstance(pages)
     } finally {
       await closeMultiplayerPages(pages)
     }

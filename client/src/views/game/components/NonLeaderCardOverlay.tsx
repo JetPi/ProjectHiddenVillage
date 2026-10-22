@@ -36,9 +36,12 @@ function NonLeaderCardOverlay({
 }: INonLeaderCardOverlayProps) {
   const { t } = useTranslation()
   const [isCardPreviewOpen, setIsCardPreviewOpen] = useState(false)
-  const showZoneHud = card !== undefined && zone === 'battlefield'
   const isChoosingTarget = isTargetCandidate === true
   const isTributeTargetCandidate = isSummonTargetCandidate === true
+  // A tribute pick owns the card's lower half: its TRIBUTE chip and the requirement label sit exactly where the
+  // stat and status HUD sits, so the HUD is dropped while the card is a tribute candidate. That also lets the
+  // label sit flush at the bottom instead of being pushed up above the status rail.
+  const showZoneHud = card !== undefined && zone === 'battlefield' && !isTributeTargetCandidate
   const showPreviewButton = isChoosingTarget || isTributeTargetCandidate || !hidePreviewButton
 
   // The Battle option is published even when the card cannot use it (the payload carries the reason), but a
@@ -49,7 +52,8 @@ function NonLeaderCardOverlay({
   const hasActions = visibleActionOptions.length > 0
   // The status rail is pinned: it used to slide up while a tribute requirement label was showing, which made the
   // badges jump the moment a target pick started. The label moves above the rail instead, so the badges never do.
-  const hasStatusRail = (card?.statusEffects.length ?? 0) > 0
+  // A tribute candidate has no rail at all, so the label drops to the bottom edge.
+  const hasStatusRail = (card?.statusEffects.length ?? 0) > 0 && !isTributeTargetCandidate
   const statusRailClassName = 'bottom-0.5 left-0.5'
   const tributeLabelClassName = hasStatusRail ? 'bottom-6' : 'bottom-0'
 
@@ -64,7 +68,7 @@ function NonLeaderCardOverlay({
 
         </>
       ) : null}
-      {zone === 'battlefield' && card ? (
+      {zone === 'battlefield' && card && !isTributeTargetCandidate ? (
         <CardStatusBadgeRail
           statusEffects={card.statusEffects}
           cannotAttackReason={battleRestrictionReason}
