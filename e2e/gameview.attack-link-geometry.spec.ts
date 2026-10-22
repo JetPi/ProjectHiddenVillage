@@ -190,6 +190,56 @@ test.describe('attack link curve', () => {
     expect(maxBulgePx(points, cubic.start, cubic.end)).toBeLessThan(90)
   })
 
+  test('the same sweep bulges to the same side from either half of the board', () => {
+    // Each client draws the attacker at its own bottom, so one pending attack travels up the board on one page
+    // and down on the other. The bend is signed in board space, so both copies must bow towards the right and
+    // enter the card - before the fix the downward copy multiplied by the chord normal, which flips with the
+    // travel direction, and mirrored the arc into the two cards.
+    const upward = resolveAttackLinkCubic(sweepGeometry(110), cardRect(280, 320), cardRect(280, 160))
+    const downward = resolveAttackLinkCubic(sweepGeometry(110), cardRect(280, 160), cardRect(280, 320))
+    const upwardTarget = cardRect(280, 160)
+    const downwardTarget = cardRect(280, 320)
+
+    for (const [label, cubic, target] of [
+      ['upward', upward, upwardTarget],
+      ['downward', downward, downwardTarget],
+    ] as const) {
+      const angles = tangentAnglesDeg(sampleCubic(cubic))
+
+      expect(maxWindowTurnDeg(angles), `${label} sweep turned into a corner`).toBeLessThan(20)
+      expect(
+        angularDistanceDeg(tangentBisectorDeg(cubic), chordDeg(cubic)),
+        `${label} sweep is not symmetric around its chord`,
+      ).toBeLessThan(8)
+
+      // Positive bend == towards the right, whichever way the arrow travels.
+      expect(cubic.control1.x, `${label} sweep bulged away from its positive bend`).toBeGreaterThan(cubic.start.x)
+      expect(cubic.control2.x, `${label} sweep bulged away from its positive bend`).toBeGreaterThan(cubic.end.x)
+
+      // The head is drawn along the end tangent: it must point into the target, not away from it.
+      const targetCenterX = target.left + target.width / 2
+      const targetCenterY = target.top + target.height / 2
+      const tangentX = cubic.end.x - cubic.control2.x
+      const tangentY = cubic.end.y - cubic.control2.y
+      expect(
+        tangentX * (targetCenterX - cubic.end.x) + tangentY * (targetCenterY - cubic.end.y),
+        `${label} sweep entered the target backwards`,
+      ).toBeGreaterThan(0)
+    }
+
+    // The other half of the board asks for the negative bend; both directions mirror to the left.
+    const mirroredUpward = resolveAttackLinkCubic(sweepGeometry(-110), cardRect(280, 320), cardRect(280, 160))
+    const mirroredDownward = resolveAttackLinkCubic(sweepGeometry(-110), cardRect(280, 160), cardRect(280, 320))
+
+    for (const [label, cubic] of [
+      ['upward', mirroredUpward],
+      ['downward', mirroredDownward],
+    ] as const) {
+      expect(cubic.control1.x, `${label} mirrored sweep ignored its negative bend`).toBeLessThan(cubic.start.x)
+      expect(cubic.control2.x, `${label} mirrored sweep ignored its negative bend`).toBeLessThan(cubic.end.x)
+    }
+  })
+
   test('a diagonal link keeps the arc it has today', () => {
     // Bottom-half attacker to a target up and to the right: top edge out, left edge in - the shape every
     // existing battle spec renders when the target is the opponent's leader.

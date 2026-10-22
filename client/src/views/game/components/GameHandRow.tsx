@@ -1,6 +1,7 @@
 import { Reorder, motion } from 'motion/react'
 import { twMerge } from 'tailwind-merge'
 import { PlayRow } from '@/components/ui/game'
+import { BOARD_LAYOUT_SPRING } from '@/views/game/animation/tuning'
 import { HandCardItem } from './HandCardItem'
 import type { IGameHandRowProps } from '@/views/game/types'
 
@@ -62,6 +63,7 @@ function GameHandRow<TCard>({
               <motion.div
                 key={getCardKey(card, index)}
                 layout="position"
+                transition={BOARD_LAYOUT_SPRING}
                 className={HAND_CARD_SLOT_CLASSNAME}
               >
                 {renderCard(card, index)}

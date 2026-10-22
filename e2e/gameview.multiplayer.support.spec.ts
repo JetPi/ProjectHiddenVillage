@@ -298,19 +298,16 @@ test.describe('GameView multiplayer support activation', () => {
       // the card in the pre-fix measurement is the hand row's *root*, which paints nothing, so a card behind it is
       // still visible - the artefact the user reported is the card crossing the row's own painted parts (the
       // dashed edge and the cards in it). The board half that owns a flight must therefore be promoted above the
-      // hand rows for the flight's duration (`[data-board-half]:has([data-card-traveling='true'])`, rung 34).
+      // hand rows for the flight's duration (`[data-board-half][data-flight-owner='true']`, rung 34).
       const promotedHalfZIndex = await supportActor.actorPage.evaluate(() => {
         const half = document.querySelector('[data-board-half]')
         if (!half) {
           return -1
         }
 
-        const marker = document.createElement('div')
-        marker.setAttribute('data-card-traveling', 'true')
-        marker.style.display = 'none'
-        half.appendChild(marker)
+        half.setAttribute('data-flight-owner', 'true')
         const zIndex = Number(getComputedStyle(half).zIndex)
-        marker.remove()
+        half.removeAttribute('data-flight-owner')
         return zIndex
       })
       expect(
@@ -587,6 +584,11 @@ async function playInterruptAttackScenario(
   await supportZoneCard.hover()
   await supportZoneCard.getByRole('button', { name: /^support$/i }).click()
 
+  // Watch the board from here: the activation is queued (the card stays in its support slot) and the summon
+  // happens on the pass that closes the window, so any flight recorded for this instance afterwards is the
+  // support-row -> battlefield arrival.
+  await installCardFlightCounter(defenderPage)
+
   // 5. The attacker declines: the window closes, the interrupt cancels the attack before the damage step and
   //    the chain summons the support card onto the defender's field.
   await passUntilAttackIsInterrupted(request, setup, attacker, defender, interruptInstanceId)
@@ -596,6 +598,21 @@ async function playInterruptAttackScenario(
   expect(finalDefender.characterField.some((card) => card.instanceId === interruptInstanceId)).toBe(true)
   expect(finalDefender.supportZone.some((card) => card.instanceId === interruptInstanceId)).toBe(false)
   expect(await resolveLeaderLife(request, setup, defender)).toBe(leaderLifeBefore)
+
+  // The card did not teleport out of the support row onto the field: the arriving *battlefield* card is the
+  // element that flew, from the rect its support slot had while the activation waited. Recorded live from the
+  // flight primitive, so a missing flight cannot be satisfied by an unrelated animation.
+  await expect.poll(async () => {
+    const records = await getCardFlightRecords(defenderPage)
+    return records
+      .filter((record) => record.instanceId === interruptInstanceId)
+      .map((record) => `${record.zone ?? 'hand'}:${record.slotSide ?? '-'}`)
+  }, {
+    timeout: 10_000,
+  }).toContain('character-field-card:bottom')
+
+  // And it settles as one card: no element left held hidden or mid-flight on the defender's board.
+  await expect.poll(async () => await countTravelingCardElements(defenderPage), { timeout: 10_000 }).toBe(0)
 
   // The attacker is still rested: the rest was paid by the declaration, not by the interrupt.
   const attackerState = await fetchGameState(request, setup.gameCode, attacker.session.accessToken)

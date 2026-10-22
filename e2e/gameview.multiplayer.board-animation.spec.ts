@@ -352,7 +352,7 @@ test.describe('GameView multiplayer board animation hygiene', () => {
 
         // A dealt card is drawn where it is at every frame of its flight - on top of the hand row and the board it
         // crosses, not under them (a board card's own `z-index` is local to its half, which is what the
-        // `[data-board-half]:has(...)` promotion in `index.css` exists for).
+        // `[data-board-half][data-flight-owner='true']` promotion in `index.css` exists for).
         expect(
           flickerReport.clippedWhileFlying,
           `a card was covered while it flew: ${JSON.stringify(flickerReport)}`,

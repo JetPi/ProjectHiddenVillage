@@ -69,6 +69,12 @@ function resolveAttackLinkCubic(
   if (geometry.sweepBendPx !== undefined) {
     // One symmetric bulge: both control points carry the same lateral offset, so the start and end tangents
     // mirror each other around the chord and the arc turns gradually instead of hooking at the target edge.
+    //
+    // The offset is applied on **screen x**, not along the chord's normal. `sweepBendPx` is already signed in
+    // board space (positive = towards the right, chosen by which half the link is on), while the chord normal
+    // flips with the direction of travel. Multiplying by the normal therefore mirrored the arc when the same
+    // attack was drawn from the top half - each client renders the attacker at its own bottom, so one page bowed
+    // into the two cards instead of into the open space between them. Absolute x keeps both perspectives identical.
     const requestedBend = geometry.sweepBendPx
     const bendMagnitude = Math.min(Math.abs(requestedBend), chordLength * ATTACK_LINK_SWEEP_BEND_RATIO)
     const bend = (requestedBend < 0 ? -1 : 1) * bendMagnitude
@@ -77,8 +83,8 @@ function resolveAttackLinkCubic(
 
     return {
       start,
-      control1: { x: start.x + alongX + normalX * bend, y: start.y + alongY + normalY * bend },
-      control2: { x: end.x - alongX + normalX * bend, y: end.y - alongY + normalY * bend },
+      control1: { x: start.x + alongX + bend, y: start.y + alongY },
+      control2: { x: end.x - alongX + bend, y: end.y - alongY },
       end,
     }
   }

@@ -244,6 +244,17 @@ paths:
   their cards directly; `Reorder` and `layout` do not need `AnimatePresence`.
 - A submitted play moves the **arriving** card from the source rect; there is no overlay copy and no stand-in.
   The source row owes nothing: its card is unmounted by the same state push that mounts the destination.
+- **A card that moves between two board rows has no submit helper to carry it** - the push does the move, so the
+  flight has to be state-driven and the source rect has to be captured *before* that push. `support` ->
+  `character-field-card` is the case that was missed (N-021/N-008/N-010 summon themselves out of the support
+  area): it is covered by `useSupportSummonFlightEffect`, a **layout effect** that remembers every support slot's
+  rect per instance and, on the commit where that instance's battlefield element appears, flies it from the
+  remembered rect. The layout phase is the point: the flight primitive hides its element synchronously, so the
+  arriving card is never painted at rest for a frame. Do not "fix" a missing arrival like this by adding a
+  `layoutId`/`layout` projection or a second transform owner - the three effects above (`useDeckSummonFlightEffect`,
+  `useTrashRecallSummonFlightEffect`, `useSupportSummonFlightEffect`) each own one source zone and none of them
+  touches a card that a submit helper already flies. `e2e/gameview.multiplayer.support.spec.ts` (N-008) pins the
+  arriving element's `data-zone`/`data-slot-side` for it, so a flight on the wrong node cannot pass.
 - Invariant tests: `e2e/gameview.multiplayer.board-animation.spec.ts` ("a set support is never painted in the
   hand and in its slot at the same time", "a summoned card is never painted in the hand and on the field at the
   same time") census the whole document every frame on both clients.
@@ -291,7 +302,8 @@ paths:
 - **`EffectNoticeBanner`** (rendered next to `SupportChainBubble`) is the non-blocking "the effect resolved but
   had nothing to act on" toast: `effect-notice-banner` / `effect-notice-message`, `role="status"`,
   `pointer-events-none`, top-left so it never fights the support-chain bubble (top-right) or the action-error
-  banner (top-centre), auto-fading after ~4.2 s (`.effect-notice-enter` is a transient entrance animation only).
+  banner (top-centre), auto-fading after ~4.2 s (the entrance/exit is a Motion fade in `EffectNoticeBanner`, no
+  persistent transform).
   It shows the newest `GameStateResponse.EffectNotices` entry that was **not** already in the payload when the
   board mounted, which is what keeps a mid-game reload from replaying old notices; the server republishes the same
   tail on every push, so the list is de-duplicated by `noticeId` (= the action-log entry id) rather than by
@@ -351,7 +363,7 @@ covered by the bottom trash pile (`elementFromPoint` at the card's centre return
 | 10 | board chrome - the phase action row |
 | 20 | the board's two halves: piles, resources, support slots, battlefield |
 | 30 | the hand rows (`GameHandRow`) - they hold the cards that fly over the board |
-| 34 | the board half that owns a **live flight** - only while a card is travelling (`[data-board-half]:has([data-card-traveling])`) |
+| 34 | the board half that owns a **live flight** - only while a card is travelling (`[data-board-half][data-flight-owner='true']`, set by `markCardTraveling` in `flights.ts`) |
 | 35 / 36 | the attack-link arrow (`ATTACK_LINK_OVERLAY_Z_INDEX` / `ATTACK_LINK_HEAD_Z_INDEX`) |
 | 40 | transient banners and prompt modals (`GamePromptOverlay`, `CardListOverlay`, `PromptSelectionBanner`, notices) |
 | 50-70 | card preview, game over · 120: route transition |
@@ -473,6 +485,12 @@ covered by the bottom trash pile (`elementFromPoint` at the card's centre return
   at `ATTACK_LINK_SWEEP_BEND_RATIO` (0.32) of the chord. The arc still clears a stacked card - it bulges 0.75 of
   the bend, ~82px at the 110px cap - and now enters the target at 20-37° instead of sliding along it. Measured
   after the fix: 12.7° of turn in the worst window, symmetric around the chord.
+- **The sweep bulge is applied on board x, never along the chord normal.** `sweepBendPx` is already signed in
+  board space (positive = towards the right, chosen from which half the link sits on), while the chord normal
+  flips with the direction of travel. Multiplying by the normal mirrored the arc when the same attack was drawn
+  from the top half: every client renders the attacker at *its own* bottom, so one page bowed into the two cards
+  and the other into the open space between them. Both now look the same, and
+  `gameview.attack-link-geometry.spec.ts` pins both directions plus the negative-bend mirror.
 - **The head is clear of the stroke by dash *phase*, not by a `refX` or a shortened path.** There is no SVG
   `<marker>` anywhere in the arrow (and `react-xarrows` is gone). The head's tip *is* the path's end, so the two
   can never disagree — but a dash pattern painted from the path's start drops its last dash right under the head,

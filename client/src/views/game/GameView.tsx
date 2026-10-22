@@ -1,4 +1,5 @@
 import { X } from 'lucide-react'
+import { MotionConfig } from 'motion/react'
 import { useGameCardsQuery } from '@/services/queries/cardQueries'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -51,20 +52,20 @@ export function GameView() {
 
   const viewRefs = useGameRefs()
   const animControllerRef = useGameAnimationController()
-  const ui = useGameUIStore()
-  const {
-    bottomHandFaceUpByInstanceId,
-    isMulliganAnimationPending,
-    setIsMulliganAnimationPending,
-    pendingCardTargeting,
-    setPendingCardTargeting,
-    pendingSummonTargeting,
-    setPendingSummonTargeting,
-    pendingEffectTargeting,
-    setPendingEffectTargeting,
-    setOptimisticRestedByInstanceId,
-    setActiveAttackLink,
-  } = ui
+  const bottomHandFaceUpByInstanceId = useGameUIStore((state) => state.bottomHandFaceUpByInstanceId)
+  const isMulliganAnimationPending = useGameUIStore((state) => state.isMulliganAnimationPending)
+  const pendingCardTargeting = useGameUIStore((state) => state.pendingCardTargeting)
+  const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
+  const pendingEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting)
+  const pendingPromptSelection = useGameUIStore((state) => state.pendingPromptSelection)
+  const clearPromptSelection = useGameUIStore((state) => state.clearPromptSelection)
+  const setBottomHandFaceUpByInstanceId = useGameUIStore((state) => state.setBottomHandFaceUpByInstanceId)
+  const setIsMulliganAnimationPending = useGameUIStore((state) => state.setIsMulliganAnimationPending)
+  const setPendingCardTargeting = useGameUIStore((state) => state.setPendingCardTargeting)
+  const setPendingSummonTargeting = useGameUIStore((state) => state.setPendingSummonTargeting)
+  const setPendingEffectTargeting = useGameUIStore((state) => state.setPendingEffectTargeting)
+  const setOptimisticRestedByInstanceId = useGameUIStore((state) => state.setOptimisticRestedByInstanceId)
+  const setActiveAttackLink = useGameUIStore((state) => state.setActiveAttackLink)
   const setLastSubmittedAttackSourceInstanceId = useGameUIStore((state) => state.setLastSubmittedAttackSourceInstanceId)
 
   const gameCardsQuery = useGameCardsQuery(joinCode)
@@ -141,7 +142,7 @@ export function GameView() {
     authUserId,
     gameState,
     gameHubState,
-    ui,
+    ui: { setBottomHandFaceUpByInstanceId, pendingPromptSelection, clearPromptSelection },
     derivedGameState,
     bottomHandCards,
     liveGameCards,
@@ -247,6 +248,7 @@ export function GameView() {
       className="pt-0 pb-0 sm:pt-0 sm:pb-0 lg:pt-0 lg:pb-0"
       overlayClassName="opacity-65"
     >
+      <MotionConfig reducedMotion="user">
       <div
         className={`mx-auto h-full min-h-0 w-full overflow-visible gap-1.5 rounded-2xl ${GAMEBOARD_MAX_WIDTH_CLASS} ${GAMEBOARD_COLUMNS_CLASS}`}
       >
@@ -354,7 +356,6 @@ export function GameView() {
         />
 
         <PromptSelectionBanner
-          key={shouldShowPromptSelectionBanner ? gameState.pendingPrompt?.promptId ?? 'none' : 'none'}
           promptKey={shouldShowPromptSelectionBanner ? gameState.pendingPrompt?.promptId ?? null : null}
           title={shouldShowPromptSelectionBanner ? promptPresentation?.title ?? null : null}
         />
@@ -384,6 +385,7 @@ export function GameView() {
         ) : null}
 
       </div>
+      </MotionConfig>
     </PageShell>
   )
 }

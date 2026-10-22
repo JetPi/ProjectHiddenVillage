@@ -16,6 +16,7 @@ import type {
   IUseHandZoneAnimationEffectsArgs,
   IUsePhasePresentationAckEffectArgs,
   IUseRevealedCardSummonFlightEffectArgs,
+  IUseSupportSummonFlightEffectArgs,
   IUseTrashRecallSummonFlightEffectArgs,
 } from '@/views/game/types'
 import {
@@ -39,6 +40,7 @@ import {
   DECK_TO_HAND_FLY_DURATION_MS,
   DRAW_ANIMATION_COMPLETE_PADDING_MS,
   REVEAL_SUMMON_FLIGHT_DURATION_MS,
+  SUPPORT_SUMMON_FLIGHT_DURATION_MS,
   TRASH_RECALL_SUMMON_FLIGHT_DURATION_MS,
 } from '@/views/game/animation/tuning'
 import { cancelAllFlights } from '@/views/game/animation/flightRegistry'
@@ -958,6 +960,98 @@ function useTrashRecallSummonFlightEffect({
   ])
 }
 
+/**
+ * How long a remembered support-slot rect stays eligible for an arrival flight after the card has left it.
+ *
+ * A push is applied in one commit, but the engine can also place the card on the battlefield one commit later
+ * (a summon that runs as a separate effect step). The rect is dropped as soon as it is used, and it expires so a
+ * card that went to the trash can never fly onto the battlefield later.
+ */
+const SUPPORT_SUMMON_RECT_RETENTION_MS = 1_500
+
+type ISupportSlotSnapshot = {
+  rect: DOMRect
+  side: 'top' | 'bottom'
+  capturedAtMs: number
+}
+
+/**
+ * A support card that leaves the support area for the battlefield arrives with its own flight.
+ *
+ * N-021/N-008/N-010 summon *themselves* out of the support area, and a move effect can do the same; the card is
+ * then re-rendered on the battlefield by the same push that unmounts its support slot. Nothing else in the engine
+ * covers that pair:
+ * - the submit helpers (`runSubmitThenZoneEntryAnimation`) only cover moves the client initiates from the hand,
+ * - `useDeckSummonFlightEffect` only reads a `summon` movement whose source is the deck,
+ * - `useCardMoveGhostAnimationEffect` resolves no battlefield destination.
+ * Without this effect the arriving battlefield card is simply painted at its final box - the reported
+ * "instant teleport from the support row to the field".
+ *
+ * The source rect therefore has to be captured while the card is still in the support row, which is why this is a
+ * layout effect: it runs after the push is committed but *before* the browser paints it, so the arriving card is
+ * hidden (the flight primitive hides its element synchronously) on its very first painted frame.
+ */
+function useSupportSummonFlightEffect({
+  boardZoneRef,
+  supportSummonSignature,
+}: IUseSupportSummonFlightEffectArgs): void {
+  const previousSupportSlotsRef = useRef<Map<string, ISupportSlotSnapshot>>(new Map())
+
+  useLayoutEffect(() => {
+    const boardElement = boardZoneRef.current
+    const previousSlots = previousSupportSlotsRef.current
+    const nowMs = Date.now()
+    const nextSlots = new Map<string, ISupportSlotSnapshot>()
+
+    boardElement
+      ?.querySelectorAll<HTMLElement>('[data-zone="support"][data-card-instance-id]')
+      .forEach((element) => {
+        const instanceId = element.dataset.cardInstanceId
+        if (!instanceId) {
+          return
+        }
+
+        const rect = element.getBoundingClientRect()
+        if (rect.width <= 0 || rect.height <= 0) {
+          return
+        }
+
+        nextSlots.set(instanceId, {
+          rect,
+          side: element.dataset.slotSide === 'top' ? 'top' : 'bottom',
+          capturedAtMs: nowMs,
+        })
+      })
+
+    if (!boardElement) {
+      previousSupportSlotsRef.current = nextSlots
+      return
+    }
+
+    for (const [instanceId, slot] of previousSlots) {
+      if (nextSlots.has(instanceId)) {
+        continue
+      }
+
+      const destinationElement = resolveBattlefieldCardElement(boardElement, { instanceId, side: slot.side })
+      if (!destinationElement) {
+        if (nowMs - slot.capturedAtMs <= SUPPORT_SUMMON_RECT_RETENTION_MS) {
+          nextSlots.set(instanceId, slot)
+        }
+        continue
+      }
+
+      void runElementFromRectAnimation({
+        element: destinationElement,
+        sourceRect: slot.rect,
+        durationMs: SUPPORT_SUMMON_FLIGHT_DURATION_MS,
+      })
+    }
+
+    previousSupportSlotsRef.current = nextSlots
+  }, [boardZoneRef, supportSummonSignature])
+}
+
 type ICardZoneLocation = {
   instanceId: string
   side: 'top' | 'bottom'
@@ -1070,5 +1164,6 @@ export {
   useCardMoveGhostAnimationEffect,
   useDeckSummonFlightEffect,
   useTrashRecallSummonFlightEffect,
+  useSupportSummonFlightEffect,
   usePhasePresentationAckEffect,
 }

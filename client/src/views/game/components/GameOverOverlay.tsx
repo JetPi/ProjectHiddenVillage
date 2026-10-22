@@ -1,7 +1,9 @@
 import { twMerge } from 'tailwind-merge'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { motion } from 'motion/react'
 import { AppButton, Panel } from '@/components/ui'
+import { OVERLAY_ENTER_SPRING } from '@/views/game/animation/tuning'
 import { buildGameOutcomePresentation } from '@/views/game/utils/functions/helpers'
 import type { IGameOutcomeStanding, IGameOverOverlayProps } from '@/views/game/types'
 
@@ -21,11 +23,14 @@ function GameOverOverlay({ outcome, authUserId }: IGameOverOverlayProps) {
   }
 
   return (
-    <div
+    <motion.div
       data-testid="game-over-overlay"
       role="dialog"
       aria-modal="true"
       aria-labelledby="game-over-headline"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={OVERLAY_ENTER_SPRING}
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4"
     >
       <Panel className="w-full max-w-sm p-6 text-center">
@@ -56,7 +61,7 @@ function GameOverOverlay({ outcome, authUserId }: IGameOverOverlayProps) {
           {t('game.outcome.returnToMainPage')}
         </AppButton>
       </Panel>
-    </div>
+    </motion.div>
   )
 }
 

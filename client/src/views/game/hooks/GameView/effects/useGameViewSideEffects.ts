@@ -16,7 +16,7 @@ import type { useGameRefs } from '@/views/game/hooks/GameView/memos/useGameRefs'
 import type { IGameUIStoreState, IPendingPromptSelectionState } from '@/state/types/gameUIStore'
 import { useBattlefieldCardReorderEffect } from './useBattleFieldCards'
 import { useGetMainPhaseActions } from './useGetMainPhaseActions'
-import { useCardCatalogPreload, useCardMoveGhostAnimationEffect, useDeckSummonFlightEffect, useHandZoneAnimationEffects, usePhasePresentationAckEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
+import { useCardCatalogPreload, useCardMoveGhostAnimationEffect, useDeckSummonFlightEffect, useHandZoneAnimationEffects, usePhasePresentationAckEffect, useSupportSummonFlightEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
 import { useAttackLungeEffect } from './useAttackLungeEffect'
 
 function useGameViewSideEffects({
@@ -68,6 +68,19 @@ function useGameViewSideEffects({
       trash: (currentPlayer?.trash ?? []).map((card) => card.instanceId),
     }),
     [currentPlayer?.characterField, currentPlayer?.supportZone, currentPlayer?.trash, bottomHandInstanceIds],
+  )
+  // The two rows a support-zone summon moves a card between, on both sides. It is the support row's own snapshot
+  // key: the arrival effect has to re-read it on every commit that can move a card out of (or into) a support slot.
+  // Every label is load-bearing: a bare list of ids reads the same whether a card sits in `bottomSupport` or in
+  // `bottomField`, which is exactly the move this key has to notice.
+  const supportSummonSignature = useMemo(
+    () => [
+      `top-support:${topPlayerCardInstanceIds.supportZone.join(',')}`,
+      `top-field:${topPlayerCardInstanceIds.characterField.join(',')}`,
+      `bottom-support:${bottomPlayerCardInstanceIds.supportZone.join(',')}`,
+      `bottom-field:${bottomPlayerCardInstanceIds.characterField.join(',')}`,
+    ].join('|'),
+    [bottomPlayerCardInstanceIds, topPlayerCardInstanceIds],
   )
 
   useCardCatalogPreload(liveGameCards, gameState, authUserId)
@@ -122,6 +135,11 @@ function useGameViewSideEffects({
     topTrashCardRef: viewRefs.topTrashCardRef,
     bottomTrashCardRef: viewRefs.bottomTrashCardRef,
     boardZoneRef: viewRefs.boardZoneRef,
+  })
+
+  useSupportSummonFlightEffect({
+    boardZoneRef: viewRefs.boardZoneRef,
+    supportSummonSignature,
   })
 
   usePromptSelectionSubmitEffect({
@@ -289,11 +307,16 @@ type IUsePromptSelectionSubmitEffectArgs = {
   animControllerRef: RefObject<IGameViewAnimController>
 }
 
+type IUseGameViewUIStoreSlice = Pick<
+  IGameUIStoreState,
+  'setBottomHandFaceUpByInstanceId' | 'pendingPromptSelection' | 'clearPromptSelection'
+>
+
 type IUseGameViewSideEffectsArgs = {
   authUserId: string | undefined
   gameState: IGameStateResponse
   gameHubState: IUseGameHubStateResult
-  ui: IGameUIStoreState
+  ui: IUseGameViewUIStoreSlice
   derivedGameState: IDerivedGameViewState
   bottomHandCards: IGameCardInstanceResponse[]
   liveGameCards: IGameLoaderData['gameCards']

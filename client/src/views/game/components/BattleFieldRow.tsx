@@ -3,10 +3,10 @@ import { motion } from 'motion/react'
 import { CardBack, CardImage } from '@/components/ui/cards'
 import { PlayCard } from '@/components/ui/game'
 import {
-  BOARD_MOVEMENT_EASE,
+  BOARD_LAYOUT_SPRING,
+  BOARD_ROTATE_SPRING,
   CARD_TO_TRASH_FLY_DURATION_MS,
   RESTED_CARD_TILT_DEG,
-  RESTED_CARD_TILT_DURATION_MS,
 } from '@/views/game/animation/tuning'
 import {
   noteFlight,
@@ -147,8 +147,9 @@ function BattlefieldCard({ data, card, index }: { data: IBattleFieldRowProps; ca
     <motion.div
       animate={{
         rotate: isCardRested ? RESTED_CARD_TILT_DEG : 0,
-        transition: { duration: RESTED_CARD_TILT_DURATION_MS / 1000, ease: BOARD_MOVEMENT_EASE },
+        transition: BOARD_ROTATE_SPRING,
       }}
+      transition={BOARD_LAYOUT_SPRING}
       layout="position"
       className={twMerge(
         'h-full w-auto shrink-0 origin-center aspect-[200/277]',

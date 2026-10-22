@@ -87,9 +87,21 @@ export async function installCardFlightCounter(page: Page): Promise<void> {
           ?? this.getAttribute('data-hand-instance-id')
         if (instanceId) {
           const records = Array.isArray(state.__phvCardFlightRecords)
-            ? state.__phvCardFlightRecords as Array<{ instanceId: string; at: number }>
+            ? state.__phvCardFlightRecords as Array<{
+              instanceId: string
+              at: number
+              zone: string | null
+              slotSide: string | null
+            }>
             : []
-          records.push({ instanceId, at: Math.round(performance.now()) })
+          records.push({
+            instanceId,
+            at: Math.round(performance.now()),
+            // Which rendered slot flew: a support card summoned onto the field must arrive *as the battlefield
+            // card*, not as its old support slot or a second copy of either.
+            zone: this.getAttribute('data-zone'),
+            slotSide: this.getAttribute('data-slot-side'),
+          })
           state.__phvCardFlightRecords = records
         }
       }
@@ -115,6 +127,10 @@ export type CardFlightRecord = {
   instanceId: string
   /** Page-clock time (`performance.now()`, rounded) at which the flight started. */
   at: number
+  /** `data-zone` of the element that flew (`character-field-card`, `support`, …); null for a hand card. */
+  zone: string | null
+  /** `data-slot-side` of the element that flew, when it carries one. */
+  slotSide: string | null
 }
 
 /** What has actually been animated since the counter was installed. */

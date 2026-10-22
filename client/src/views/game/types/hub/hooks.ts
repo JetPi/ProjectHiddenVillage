@@ -89,6 +89,17 @@ export type IUseTrashRecallSummonFlightEffectArgs = {
   boardZoneRef: RefObject<HTMLDivElement | null>
 }
 
+export type IUseSupportSummonFlightEffectArgs = {
+  boardZoneRef: RefObject<HTMLDivElement | null>
+  /**
+   * The support-zone and battlefield instance ids of both players. A support card that is summoned onto the
+   * battlefield leaves the support row in the same push that mounts its battlefield element, so the source rect
+   * has to be remembered from the commit *before* that push - the snapshot re-reads on this signature, which is
+   * exactly the set of lists whose change can move a card between those two rows.
+   */
+  supportSummonSignature: string
+}
+
 export type IUsePhasePresentationAckEffectArgs = {
   isConnected: boolean
   authUserId?: string

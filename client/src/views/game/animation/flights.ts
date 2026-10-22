@@ -97,6 +97,55 @@ function restoreSuppressedInstanceVisuals(suppressed: HTMLElement[]): void {
   }
 }
 
+const flightOwnerCounts = new Map<HTMLElement, number>()
+let travelingFlightCount = 0
+
+function acquireFlightOwner(half: HTMLElement): () => void {
+  flightOwnerCounts.set(half, (flightOwnerCounts.get(half) ?? 0) + 1)
+  half.setAttribute('data-flight-owner', 'true')
+
+  let isReleased = false
+  return () => {
+    if (isReleased) {
+      return
+    }
+    isReleased = true
+
+    const nextCount = (flightOwnerCounts.get(half) ?? 1) - 1
+    if (nextCount > 0) {
+      flightOwnerCounts.set(half, nextCount)
+      return
+    }
+
+    flightOwnerCounts.delete(half)
+    half.removeAttribute('data-flight-owner')
+  }
+}
+
+function markCardTraveling(element: HTMLElement): () => void {
+  element.setAttribute('data-card-traveling', 'true')
+  travelingFlightCount += 1
+  document.body.setAttribute('data-card-flight-active', 'true')
+
+  const half = element.closest<HTMLElement>('[data-board-half]')
+  const releaseFlightOwner = half ? acquireFlightOwner(half) : null
+
+  let isReleased = false
+  return () => {
+    if (isReleased) {
+      return
+    }
+    isReleased = true
+
+    element.removeAttribute('data-card-traveling')
+    travelingFlightCount = Math.max(0, travelingFlightCount - 1)
+    if (travelingFlightCount === 0) {
+      document.body.removeAttribute('data-card-flight-active')
+    }
+    releaseFlightOwner?.()
+  }
+}
+
 function promoteAirborneLayer(element: HTMLElement): () => void {
   const slot = element.parentElement
   const previousElementPosition = element.style.position
@@ -158,6 +207,7 @@ export function runElementFromRectAnimation({
   const previousVisibility = element.style.visibility
   const previousWillChange = element.style.willChange
   let restoreAirborneLayer: (() => void) | null = null
+  let releaseTraveling: (() => void) | null = null
 
   // This flight is the only visual allowed for its instance while it is in the air.
   const suppressedVisuals = suppressOtherInstanceVisuals(resolveElementInstanceId(element), element)
@@ -166,7 +216,7 @@ export function runElementFromRectAnimation({
 
   return new Promise<void>((resolve) => {
     window.requestAnimationFrame(() => {
-      element.setAttribute('data-card-traveling', 'true')
+      releaseTraveling = markCardTraveling(element)
       element.style.willChange = 'transform'
       restoreAirborneLayer = promoteAirborneLayer(element)
       element.style.transform = startTransform
@@ -182,19 +232,19 @@ export function runElementFromRectAnimation({
 
       let hasSettled = false
       const cleanup = () => {
-        if (hasSettled) {
-          return
-        }
-        hasSettled = true
-        unregisterFlight(resolvedKey, animation)
-        element.style.transform = previousTransform
-        element.style.visibility = previousVisibility
-        element.style.willChange = previousWillChange
-        restoreAirborneLayer?.()
-        element.removeAttribute('data-card-traveling')
-        restoreSuppressedInstanceVisuals(suppressedVisuals)
-        resolve()
+      if (hasSettled) {
+        return
       }
+      hasSettled = true
+      unregisterFlight(resolvedKey, animation)
+      element.style.transform = previousTransform
+      element.style.visibility = previousVisibility
+      element.style.willChange = previousWillChange
+      restoreAirborneLayer?.()
+      releaseTraveling?.()
+      restoreSuppressedInstanceVisuals(suppressedVisuals)
+      resolve()
+    }
 
       animation.onfinish = cleanup
       animation.oncancel = cleanup
@@ -237,7 +287,7 @@ export function runElementToRectAnimation({
   const previousTransform = element.style.transform
   // This flight is the only visual allowed for its instance while it is in the air.
   const suppressedVisuals = suppressOtherInstanceVisuals(resolveElementInstanceId(element), element)
-  element.setAttribute('data-card-traveling', 'true')
+  const releaseTraveling = markCardTraveling(element)
   const restoreAirborneLayer = promoteAirborneLayer(element)
 
   const animation = element.animate(
@@ -259,7 +309,7 @@ export function runElementToRectAnimation({
       unregisterFlight(resolvedKey, animation)
       element.style.transform = previousTransform
       restoreAirborneLayer()
-      element.removeAttribute('data-card-traveling')
+      releaseTraveling()
       element.setAttribute('data-card-departed', 'true')
       element.style.visibility = 'hidden'
       restoreSuppressedInstanceVisuals(suppressedVisuals)

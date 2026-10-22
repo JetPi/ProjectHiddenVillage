@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { motion } from 'motion/react'
+import { OVERLAY_ENTER_SPRING, OVERLAY_EXIT_TRANSITION } from '@/views/game/animation/tuning'
 import type { IEffectNoticeBannerProps } from '@/views/game/types'
 import type { IEffectNoticeResponse } from '@/services/api/gameApi'
 
@@ -28,13 +30,14 @@ function EffectNoticeToast({ notice }: { notice: IEffectNoticeResponse }) {
   }, [])
 
   return (
-    <div
+    <motion.div
       data-testid="effect-notice-banner"
       role="status"
       aria-live="polite"
-      className={`effect-notice-enter pointer-events-none fixed left-2 top-2 z-40 flex max-w-[min(60vw,24rem)] items-start gap-2 rounded-lg border border-amber-300/50 bg-slate-950/90 px-3 py-2 text-[11px] font-semibold leading-tight text-amber-50 shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-opacity duration-500 ease-out ${
-        isExpired ? 'opacity-0' : 'opacity-100'
-      }`}
+      initial={{ opacity: 0, y: -6 }}
+      animate={isExpired ? { opacity: 0, y: -6 } : { opacity: 1, y: 0 }}
+      transition={isExpired ? OVERLAY_EXIT_TRANSITION : OVERLAY_ENTER_SPRING}
+      className="pointer-events-none fixed left-2 top-2 z-40 flex max-w-[min(60vw,24rem)] items-start gap-2 rounded-lg border border-amber-300/50 bg-slate-950/90 px-3 py-2 text-[11px] font-semibold leading-tight text-amber-50 shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm"
     >
       <span aria-hidden="true" className="shrink-0 text-amber-300">
         !
@@ -42,7 +45,7 @@ function EffectNoticeToast({ notice }: { notice: IEffectNoticeResponse }) {
       <span data-testid="effect-notice-message" className="min-w-0 flex-1 break-words">
         {notice.message}
       </span>
-    </div>
+    </motion.div>
   )
 }
 
