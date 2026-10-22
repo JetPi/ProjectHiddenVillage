@@ -197,8 +197,6 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                       ? () => useGameUIStore.getState().toggleEffectTarget(card.instanceId)
                       : undefined
                   }
-                  showEmptyActionMessage={isCurrentPlayerZone}
-                  suppressActionFallback={!isCurrentPlayerZone}
                   isConnected={props.isConnected}
                   isActionPending={props.isActionPending}
                   onSelectActionOption={(actionId) => {

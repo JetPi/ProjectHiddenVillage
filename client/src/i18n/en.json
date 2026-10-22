@@ -238,6 +238,7 @@
         "effect": "Choose one of the highlighted cards.",
         "default": "Choose one of the available options."
       },
+      "reconnecting": "Reconnecting to the game... Your options unlock as soon as the connection is back.",
       "effectCopy": {
         "placeOnDeckTop": {
           "title": "Choose a card to place on deck top",
@@ -315,7 +316,6 @@
       "negated": "Negated"
     },
     "zone": {
-      "noActions": "No actions",
       "actionCountOne": "{{n}} action",
       "actionCountOther": "{{n}} actions",
       "view": "View",
@@ -323,7 +323,32 @@
       "choose": "Choose",
       "tribute": "Tribute",
       "select": "Select",
-      "selected": "Selected"
+      "selected": "Selected",
+      "status": {
+        "railAria": "Card statuses",
+        "rush": {
+          "label": "Rush",
+          "description": "This card can attack on the turn it is played."
+        },
+        "cannotAttack": {
+          "label": "Cannot attack",
+          "description": "This card cannot attack right now."
+        },
+        "cannotAttackReason": {
+          "restrictedByEffect": "It is under an effect that prevents it from attacking.",
+          "summonedThisTurn": "It cannot attack on the turn it enters the field.",
+          "rested": "It is rested, so it cannot attack again until it is refreshed.",
+          "firstTurn": "Neither player can attack on the first turn."
+        },
+        "immuneToOpponentSupportEffects": {
+          "label": "Effect immunity",
+          "description": "The opponent's support effects cannot affect this card."
+        },
+        "effectsSuppressed": {
+          "label": "Effects negated",
+          "description": "This card's own effects are negated while it stays on the field."
+        }
+      }
     },
     "trash": {
       "yourPile": "Your trash pile",

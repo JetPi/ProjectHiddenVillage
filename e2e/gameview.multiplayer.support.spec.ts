@@ -950,8 +950,16 @@ async function playRangeSupportScenario(
       await restedAttackerCard.hover()
       const targetToggle = restedAttackerCard.getByTestId('effect-target-toggle')
       await expect(targetToggle).toHaveText('Select')
+      const toggleBoxBefore = await targetToggle.boundingBox()
       await targetToggle.click()
       await expect(targetToggle).toHaveText('Selected')
+
+      // "Selected" is the longer label, and the chip used to grow (and so shift under the cursor) on the click.
+      const toggleBoxAfter = await targetToggle.boundingBox()
+      expect(toggleBoxBefore).not.toBeNull()
+      expect(toggleBoxAfter).not.toBeNull()
+      expect(toggleBoxAfter?.width).toBeCloseTo(toggleBoxBefore?.width ?? 0, 1)
+      expect(toggleBoxAfter?.x).toBeCloseTo(toggleBoxBefore?.x ?? 0, 1)
       await expect(phaseIndicator).toContainText('Fulfilled target selection', { timeout: 12_000 })
 
       await defenderPage.getByTestId('confirm-effect-target-selection-button').click()

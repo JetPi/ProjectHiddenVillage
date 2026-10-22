@@ -457,7 +457,19 @@ html[data-theme='light'] {
 .battle-target-top > .card-selection-tint,
 .battle-target-bottom > .card-selection-tint,
 .battle-target-leader-top > .card-selection-tint,
-.battle-target-leader-bottom > .card-selection-tint {
+.battle-target-leader-bottom > .card-selection-tint,
+/* The status rail is positioned against the card too. Without this it falls back to the `> *` rule above
+   (`position: relative`), which drops it into normal flow - full card width, hanging below the card - the
+   moment a card becomes a target. */
+.battle-target-top > .card-status-badges,
+.battle-target-bottom > .card-status-badges,
+.battle-target-leader-top > .card-status-badges,
+.battle-target-leader-bottom > .card-status-badges,
+/* Same reasoning for the summon-requirement label: one card can be a requirement pick and a target at once. */
+.battle-target-top > .card-overlay-requirement-label,
+.battle-target-bottom > .card-overlay-requirement-label,
+.battle-target-leader-top > .card-overlay-requirement-label,
+.battle-target-leader-bottom > .card-overlay-requirement-label {
   position: absolute;
 }
 

@@ -26,13 +26,16 @@ DOTNET_ENVIRONMENT=Development \
 ConnectionStrings__DefaultConnection="${CONNECTION_STRING}" \
 dotnet restore server/ProjectHiddenVillage.Server.csproj
 
+# Release, deliberately: the e2e stack must never build into `server/bin/Debug`, which is the output a live
+# `dotnet watch` dev server is running from. Writing there restarts or kills the developer's game server.
 ASPNETCORE_ENVIRONMENT=Development \
 DOTNET_ENVIRONMENT=Development \
 PHV_INCLUDE_TEST_SEED_PROFILES=true \
 ConnectionStrings__DefaultConnection="${CONNECTION_STRING}" \
 dotnet ef database update \
   --project server/ProjectHiddenVillage.Server.csproj \
-  --startup-project server/ProjectHiddenVillage.Server.csproj
+  --startup-project server/ProjectHiddenVillage.Server.csproj \
+  --configuration Release
 
 # The seed manifest stores the real external art URL per card, but e2e (and CI) must not depend on an
 # external image host: an unanswerable CardArt allowlist makes `/api/card-art` fail fast without any
@@ -49,4 +52,4 @@ ASPNETCORE_ENVIRONMENT=Development \
 DOTNET_ENVIRONMENT=Development \
 PHV_INCLUDE_TEST_SEED_PROFILES=true \
 ConnectionStrings__DefaultConnection="${CONNECTION_STRING}" \
-dotnet run --project server/ProjectHiddenVillage.Server.csproj --urls http://127.0.0.1:3101
+dotnet run --project server/ProjectHiddenVillage.Server.csproj --configuration Release --urls http://127.0.0.1:3101

@@ -7,7 +7,7 @@ export function PlayBottomResourceZone({ className, currentChakra = 5, isSummonC
   return (
     <ResourceTrackerShell
       className={className}
-      chakraContent={<ResourceChakraGrid currentChakra={currentChakra} cardClassName={chakraCardClassName} slotClassName="w-[2.22rem]" />}
+      chakraContent={<ResourceChakraGrid currentChakra={currentChakra} cardClassName={chakraCardClassName} />}
       summonContent={<ResourceSummonCard isSummonCardReady={isSummonCardReady} />}
     />
   )

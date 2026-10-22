@@ -158,6 +158,59 @@ public sealed class GamePassiveKeywordConditionTests
         Assert.IsTrue(GetBattleAction(game, MinatoInstanceId).IsEnabled);
     }
 
+    /// <summary>
+    /// The player-facing contract for N-007's conditional Rush, asserted on the published payload: the card
+    /// entered the field *this* turn (summon sick), the leader's power boost lifts it over the passive threshold,
+    /// and the board must then offer the attack and drop the cannot-attack badge.
+    /// </summary>
+    [TestMethod]
+    public void ToGameStateResponse_OffersBattleAndRushStatus_WhenTheBoostCrossesTheThresholdOnTheSummonTurn()
+    {
+        var game = CreateGameWithConditionalRushSource(power: 5);
+        var passiveEffectService = CreatePassiveEffectService();
+        var chainResolver = CreateChainResolver();
+
+        // The summon-turn rule is the one conditional Rush exists to bypass, so the fixture has to be summon sick
+        // for this assertion to mean anything.
+        Assert.AreEqual(3, game.State.TurnNumber);
+        Assert.AreEqual(3, GetBattlefieldCard(game, MinatoInstanceId).EnteredFieldTurnNumber);
+
+        passiveEffectService.EvaluateAndEnqueue(game, CreateMutationEvent(), new PassiveChainResolutionOptions());
+        Assert.IsFalse(chainResolver.Resolve(game, actingPlayerId: "p1", new PassiveChainResolutionOptions()).IsError);
+
+        var before = ReadCardPayload(game, MinatoInstanceId);
+        Assert.AreEqual(5, before.Power);
+        Assert.IsFalse(before.AvailableActions.Single().IsEnabled);
+        CollectionAssert.Contains(StatusKinds(before), CardStatusEffectCodes.CannotAttack);
+        CollectionAssert.DoesNotContain(StatusKinds(before), CardStatusEffectCodes.Rush);
+
+        game.State.AppliedCardEffects.Add(new AppliedCardEffectState
+        {
+            SourceCardInstanceId = WingmanInstanceId,
+            EffectSpecId = "power-boost",
+            TargetCardInstanceId = MinatoInstanceId,
+            ModifierKind = AppliedCardModifierKind.Attribute,
+            DurationMode = EffectDurationMode.DuringThisTurn,
+            AttributeType = EffectAttributeType.CardPower,
+            AttributeOperation = AttributeModificationOperation.Add,
+            AttributeValue = 5,
+            AppliedTurnNumber = game.State.TurnNumber,
+        });
+
+        Assert.IsFalse(passiveEffectService
+            .EvaluateAndEnqueue(game, CreateMutationEvent(), new PassiveChainResolutionOptions())
+            .IsError);
+        Assert.IsFalse(chainResolver.Resolve(game, actingPlayerId: "p1", new PassiveChainResolutionOptions()).IsError);
+
+        var after = ReadCardPayload(game, MinatoInstanceId);
+        Assert.AreEqual(10, after.Power);
+        Assert.IsTrue(
+            after.AvailableActions.Single().IsEnabled,
+            "A summon-sick card that reaches its conditional Rush has to be able to attack that same turn.");
+        CollectionAssert.Contains(StatusKinds(after), CardStatusEffectCodes.Rush);
+        CollectionAssert.DoesNotContain(StatusKinds(after), CardStatusEffectCodes.CannotAttack);
+    }
+
     [TestMethod]
     public void Sweep_RemovesRush_WhenATemporaryPowerBoostExpiresAtEndStep()
     {
@@ -498,6 +551,19 @@ public sealed class GamePassiveKeywordConditionTests
             .Players.Single(player => player.PlayerId == "p1")
             .CharacterField.Single(card => card.InstanceId == instanceId)
             .AvailableActions.Single();
+    }
+
+    private static EnrichedCardInstanceResponse ReadCardPayload(GameInstance game, string instanceId)
+    {
+        return GameStateResponseMapper
+            .ToGameStateResponse(game.State, "p1")
+            .Players.Single(player => player.PlayerId == "p1")
+            .CharacterField.Single(card => card.InstanceId == instanceId);
+    }
+
+    private static List<string> StatusKinds(EnrichedCardInstanceResponse card)
+    {
+        return card.StatusEffects.Select(status => status.Kind).ToList();
     }
 
     private static GameMutationEvent CreateMutationEvent()

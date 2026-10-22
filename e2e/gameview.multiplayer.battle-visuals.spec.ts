@@ -145,6 +145,28 @@ test.describe('GameView multiplayer battle visuals', () => {
         timeout: 8_000,
       }).toBeGreaterThan(0)
 
+      // The ring around the attacker has to paint over the neighbouring rows (the support row sits below the
+      // battlefield row). It lives on the card, but a rested card is rotated and a transformed wrapper is its own
+      // stacking context, so the card's own z-index can never cross into the row below - the *wrapper* must be
+      // raised. Without that the outline disappears behind the concealed support card underneath.
+      const attackerCard = battleActor.actorPage.locator(
+        `[data-zone="character-field-card"][data-card-instance-id="${battleActor.cardInstanceId}"]`,
+      )
+      await expect(attackerCard).toHaveClass(/attack-link-card-outline/)
+
+      const wrapperStacking = await attackerCard.evaluate((node) => {
+        const wrapper = node.parentElement
+        if (!wrapper) {
+          return null
+        }
+
+        const style = window.getComputedStyle(wrapper)
+        return { position: style.position, zIndex: style.zIndex }
+      })
+
+      expect(wrapperStacking?.position).toBe('relative')
+      expect(Number(wrapperStacking?.zIndex ?? 0)).toBeGreaterThanOrEqual(200)
+
       await expect.poll(async () => {
         const state = await fetchGameState(request, setup.gameCode, battleActor.actor.session.accessToken)
         const actorState = resolvePlayerState(state, battleActor.actor)

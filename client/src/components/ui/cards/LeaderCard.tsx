@@ -8,6 +8,8 @@ import { CardPreviewCard } from '@/components/ui/cards/CardPreviewCard'
 import { PlayCard } from '@/components/ui/game/PlayCard'
 import type { ILeaderCardProps } from '@/components/ui/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
+import { CardStatusBadgeRail } from '@/views/game/components/CardStatusBadgeRail'
+import { filterVisibleCardActions, resolveBattleRestrictionReason } from '@/views/game/utils/functions/cards'
 
 const RECOVERY_ACTION_LABEL = 'Recovery'
 const DISABLED_RECOVERY_CLASSNAME = "mx-2 inline-flex h-5 w-5 items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-90"
@@ -69,6 +71,10 @@ export function LeaderCard({
   const shouldRenderBadge = showBadgeWhenLifeMissing || typeof leaderCard.currentLife === 'number'
   const badgeValue = leaderCard.currentLife ?? 0
   const { actionOptions: leaderActionOptions, recoveryAction } = splitRecoveryAction(actionOptions)
+  // Battle is published even while the leader cannot attack; the chip is dropped from the board and the
+  // status rail states why, so the player never stares at a disabled button guessing at the cause.
+  const visibleLeaderActionOptions = filterVisibleCardActions(leaderActionOptions)
+  const battleRestrictionReason = resolveBattleRestrictionReason(actionOptions)
   const isDisabled = !isConnected || isActionPending
   const isChoosingTarget = isTargetCandidate === true
   const isSoleAction = isChoosingTarget || (isEffectTargetCandidate && Boolean(onToggleEffectTarget))
@@ -93,6 +99,12 @@ export function LeaderCard({
         {shouldRenderBadge ? (
           <CardOverlayBadge className='text-green-300' testId='leader-life-badge'>{badgeValue}</CardOverlayBadge>
         ) : null}
+
+        <CardStatusBadgeRail
+          statusEffects={leaderCard.statusEffects}
+          cannotAttackReason={battleRestrictionReason}
+          className='bottom-8 right-1 justify-end'
+        />
 
         {previewCard && showPreviewButton && showOverlayControls ? (
           <div className="card-overlay-float pointer-events-none absolute right-2 top-2 z-30 opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
@@ -131,16 +143,18 @@ export function LeaderCard({
                 onToggleEffectTarget()
               }}
               disabled={isDisabled}
-              className={LEADER_ACTION_BUTTON_CLASSNAME}
+              // A fixed width keeps the centred chip from resizing (and so from shifting) when the label changes
+              // between Select and Selected.
+              className={twMerge(LEADER_ACTION_BUTTON_CLASSNAME, 'w-[4.25rem]')}
             >
               {t('components.ui.leaderCard.select')}
             </button>
           </div>
         ) : null}
 
-        {showOverlayControls && !isSoleAction && leaderActionOptions.length > 0 ? (
+        {showOverlayControls && !isSoleAction && visibleLeaderActionOptions.length > 0 ? (
           <div className={LEADER_OVERLAY_CONTAINER_CLASSNAME}>
-              {leaderActionOptions.map((action) => (
+              {visibleLeaderActionOptions.map((action) => (
                 <button
                   key={action.actionId}
                   type="button"

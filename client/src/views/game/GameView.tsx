@@ -137,13 +137,6 @@ export function GameView() {
     ? gameState.availableActions.filter((action) => !action.actionId.startsWith(PROMPT_RESOLVE_ACTION_ID_PREFIX))
     : gameState.availableActions
 
-  const canShowHandNoActionsMessage =
-    gameOutcome === null
-    && Boolean(authUserId)
-    && gameState.phase === 'MainPhase'
-    && gameState.activePlayerId.trim().toLowerCase() === authUserId?.trim().toLowerCase()
-    && !gameState.pendingPrompt
-
   useGameViewSideEffects({
     authUserId,
     gameState,
@@ -334,7 +327,6 @@ export function GameView() {
               cardById={derivedGameState.cardById}
               availableActions={mappedAvailableActions}
               faceUpByInstanceId={bottomHandFaceUpByInstanceId}
-              showNoActionsMessage={canShowHandNoActionsMessage}
               isConnected={isConnected}
               isActionPending={isActionPending}
               onSelectCardActionOption={submitMappedAction}

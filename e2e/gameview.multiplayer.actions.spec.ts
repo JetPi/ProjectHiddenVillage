@@ -625,6 +625,32 @@ test.describe('GameView multiplayer actions', () => {
       // the phase indicator lists every outstanding material.
       await expect(genericMaterialOnField.getByTestId('tribute-requirement-label')).toHaveText('any', { timeout: 5_000 })
       await expect(takaMaterialOnField.getByTestId('tribute-requirement-label')).toHaveText('The Taka', { timeout: 5_000 })
+
+      // The requirement label must stay inside the card it belongs to, and it must sit *above* the status badges
+      // rather than shoving them up: the badges used to jump by the label's height the moment a target pick
+      // started.
+      const materialCardBox = await genericMaterialOnField.boundingBox()
+      const materialLabelBox = await genericMaterialOnField.getByTestId('tribute-requirement-label').boundingBox()
+
+      expect(materialCardBox).not.toBeNull()
+      expect(materialLabelBox).not.toBeNull()
+      if (materialCardBox && materialLabelBox) {
+        expect(materialLabelBox.y + materialLabelBox.height)
+          .toBeLessThanOrEqual(materialCardBox.y + materialCardBox.height + 1)
+      }
+
+      // The rail itself is always mounted (that is what lets the last badge animate out), so the guard keys off
+      // the chips it actually holds.
+      const materialRail = genericMaterialOnField.getByTestId('card-status-badges')
+      if (await materialRail.locator('[data-status-effect]').count() > 0) {
+        const materialRailBox = await materialRail.boundingBox()
+        expect(materialRailBox).not.toBeNull()
+        if (materialCardBox && materialLabelBox && materialRailBox) {
+          expect((materialCardBox.y + materialCardBox.height) - (materialRailBox.y + materialRailBox.height))
+            .toBeLessThan(4)
+          expect(materialLabelBox.y + materialLabelBox.height).toBeLessThanOrEqual(materialRailBox.y)
+        }
+      }
       await expect(ownerPage.getByTestId('phase-indicator')).toContainText('Selecting tribute materials (needs: (any x1, The Taka x1))', { timeout: 5_000 })
 
       // Paying the generic material leaves only the trait requirement outstanding.

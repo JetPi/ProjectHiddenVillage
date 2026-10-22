@@ -143,7 +143,12 @@ public static partial class GameStateResponseMapper
                     IsExhausted = card.IsExhausted,
                     IsRested = card.IsRested,
                     IsRevealed = card.IsRevealedToBothPlayers,
-                    AvailableActions = cardActions
+                    AvailableActions = cardActions,
+                    // Only the battlefield publishes statuses: deck/hand/trash/exile are not badge targets, and
+                    // the opponent's hidden cards must never carry information the client could read.
+                    StatusEffects = playerZone == PlayerZone.CharacterField && state is not null
+                        ? BuildCardStatusEffects(state, card, isLeader: false)
+                        : [],
                 },
             PlayerZone.SupportZone =>
                     isRequestingPlayer

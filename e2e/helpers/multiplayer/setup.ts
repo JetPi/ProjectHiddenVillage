@@ -136,10 +136,17 @@ export async function setupMultiplayerGame(
   }
 }
 
+export type MultiplayerPagePrepareHook = (
+  page: Page,
+  playerKey: 'playerOne' | 'playerTwo',
+) => Promise<void> | void
+
 async function createAuthenticatedGamePage(
   browser: Browser,
   session: AuthSession,
   gameCode: string,
+  preparePage?: MultiplayerPagePrepareHook,
+  playerKey: 'playerOne' | 'playerTwo' = 'playerOne',
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({
     extraHTTPHeaders: {
@@ -155,6 +162,11 @@ async function createAuthenticatedGamePage(
   })
 
   const page = await context.newPage()
+  if (preparePage) {
+    // Runs before the first navigation so a spec can intercept the requests the board makes while it mounts
+    // (the hub handshake, for one).
+    await preparePage(page, playerKey)
+  }
   await openReadyGameView(page, gameCode)
 
   const sessionIsValid = await page.evaluate((authStorageKey) => {
@@ -188,10 +200,14 @@ async function createAuthenticatedGamePage(
   return { context, page }
 }
 
-export async function openMultiplayerPages(browser: Browser, setup: MultiplayerSetup): Promise<MultiplayerPages> {
+export async function openMultiplayerPages(
+  browser: Browser,
+  setup: MultiplayerSetup,
+  options: { preparePage?: MultiplayerPagePrepareHook } = {},
+): Promise<MultiplayerPages> {
   const [playerOneResources, playerTwoResources] = await Promise.all([
-    createAuthenticatedGamePage(browser, setup.playerOne.session, setup.gameCode),
-    createAuthenticatedGamePage(browser, setup.playerTwo.session, setup.gameCode),
+    createAuthenticatedGamePage(browser, setup.playerOne.session, setup.gameCode, options.preparePage, 'playerOne'),
+    createAuthenticatedGamePage(browser, setup.playerTwo.session, setup.gameCode, options.preparePage, 'playerTwo'),
   ])
 
   return {

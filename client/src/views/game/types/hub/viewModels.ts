@@ -1,6 +1,6 @@
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import type { IGamePlayerStateResponse } from '@/services/api/gameApi'
-import type { IGameActionOptionResponse } from '@/services/api/types/game'
+import type { ICardStatusEffect, IGameActionOptionResponse } from '@/services/api/types/game'
 
 export type IGameCard = ICardCatalogItemResponse
 
@@ -27,6 +27,7 @@ export type ILeaderCardViewModel = {
   currentDamage: number
   recoveryEffect: string
   availableActions?: IGameActionOptionResponse[]
+  statusEffects: ICardStatusEffect[]
 }
 
 export type INonLeaderCardViewModel = {
@@ -43,6 +44,7 @@ export type INonLeaderCardViewModel = {
   isRevealed: boolean
   isExhausted: boolean
   availableActions?: IGameActionOptionResponse[]
+  statusEffects: ICardStatusEffect[]
   isRested: boolean
   supportSlotIndex?: number | null
   currentPower: number

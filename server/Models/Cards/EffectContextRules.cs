@@ -96,23 +96,35 @@ public enum ZoneCardPredicateOperator
     In,
 }
 
+/// <summary>
+/// The property a stored effect predicate compares against. <c>card_catalog_entries.EffectsJson</c> serializes
+/// enums as ordinals, so <b>these numbers are a storage contract</b>: a predicate written to the database keeps the
+/// integer it was given, and seeding never rewrites an existing row.
+/// <para>
+/// The numbers are spelled out for exactly that reason. While they were implicit, removing <c>OriginalId</c> (which
+/// sat at index 2) shifted every later member down by one, so rows written before that commit silently started
+/// reading a different property (Name -> Trait, Power -> Damage, Type -> Color, ...). That is why N-007's
+/// conditional Rush and N-011's Choji/Shikamaru condition stopped working on an existing database while a fresh one
+/// was fine. Add a new member at a number above the highest one in use; never renumber or reuse an existing number.
+/// </para>
+/// </summary>
 public enum ZoneCardProperty
 {
-    Self,
-    Id,
-    DisplayName,
-    Name,
-    Trait,
-    Type,
-    Color,
-    Power,
-    Damage,
-    Health,
-    CurrentHealth,
-    OwnerPlayerId,
-    ControllerPlayerId,
-    IsRested,
-    CannotBeNormalSummoned,
+    Self = 0,
+    Id = 1,
+    DisplayName = 2,
+    Name = 3,
+    Trait = 4,
+    Type = 5,
+    Color = 6,
+    Power = 7,
+    Damage = 8,
+    Health = 9,
+    CurrentHealth = 10,
+    OwnerPlayerId = 11,
+    ControllerPlayerId = 12,
+    IsRested = 13,
+    CannotBeNormalSummoned = 14,
 }
 
 public sealed class ZoneCardPropertyPredicate

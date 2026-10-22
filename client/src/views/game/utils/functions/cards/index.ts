@@ -93,6 +93,7 @@ function resolveLeaderCard(
     currentDamage: player?.leader?.damage ?? catalogCard.damage ?? 0,
     recoveryEffect: player?.leader?.recoveryEffect ?? '',
     availableActions: player?.leader?.availableActions,
+    statusEffects: player?.leader?.statusEffects ?? [],
   }
 }
 
@@ -128,6 +129,7 @@ function resolveNonLeaderCards(
       isRevealed: card.isRevealed === true,
       isExhausted: card.isExhausted,
       availableActions: card.availableActions,
+      statusEffects: card.statusEffects ?? [],
       isRested: card.isRested,
       supportSlotIndex: card.supportSlotIndex,
       currentPower: card.power ?? catalogCard.power ?? 0,
@@ -157,6 +159,39 @@ function resolveCardActionOptionsForInstanceId(
     const normalizedActionId = action.actionId.trim().toLowerCase()
     return normalizedActionId.includes(normalizedInstanceId)
   })
+}
+
+function isBattleActionOption(action: IGameActionOptionResponse): boolean {
+  if (action.actionId.startsWith('battle-action:')) {
+    return true
+  }
+
+  return action.label.trim().toLowerCase() === 'battle'
+}
+
+/**
+ * The chips the board actually renders. A Battle option the engine published as unusable stays in the
+ * payload - the engine probe and the e2e specs read its reason - but it never reaches the board as a
+ * greyed-out button: the card's status badges explain why the card cannot attack instead.
+ */
+function filterVisibleCardActions(
+  actionOptions: IGameActionOptionResponse[],
+): IGameActionOptionResponse[] {
+  return actionOptions.filter((action) => !(isBattleActionOption(action) && !action.isEnabled))
+}
+
+/**
+ * The reason a disabled Battle option carries, used as the tooltip of the "cannot attack" status badge.
+ * Null when Battle is either usable or absent (for example on the opponent's cards, which publish no actions).
+ */
+function resolveBattleRestrictionReason(
+  actionOptions: IGameActionOptionResponse[],
+): string | null {
+  const disabledBattleAction = actionOptions.find(
+    (action) => isBattleActionOption(action) && !action.isEnabled,
+  )
+
+  return disabledBattleAction?.disabledReason ?? null
 }
 
 function buildCardById(cards: IGameLoaderData['gameCards']): Map<string, IGameLoaderData['gameCards'][number]> {
@@ -198,4 +233,7 @@ export {
   buildCardListEntries,
   resolveNonLeaderCards,
   resolveCardActionOptionsForInstanceId,
+  isBattleActionOption,
+  filterVisibleCardActions,
+  resolveBattleRestrictionReason,
 }

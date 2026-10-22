@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { AppButton, Panel } from '@/components/ui'
 import { CardImage } from '@/components/ui/cards'
@@ -11,6 +12,8 @@ function GamePromptOverlay({
   onResolve,
   candidateCards,
 }: IGamePromptOverlayProps) {
+  const { t } = useTranslation()
+
   if (!isOpen || !prompt) {
     return null
   }
@@ -94,6 +97,18 @@ function GamePromptOverlay({
               </AppButton>
             ))}
           </div>
+        )}
+
+        {isConnected ? null : (
+          // The options are disabled while the hub is down, and an unexplained dead button reads as a bug. The
+          // connection retries itself with a backoff (see useGameHubState), so this note is transient.
+          <p
+            data-testid="prompt-reconnecting-note"
+            role="status"
+            className="mt-3 text-center text-xs text-[var(--text-secondary)]"
+          >
+            {t('game.prompt.reconnecting')}
+          </p>
         )}
       </Panel>
     </div>

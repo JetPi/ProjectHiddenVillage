@@ -117,8 +117,6 @@ function BattlefieldCardBody({
               ? () => useGameUIStore.getState().toggleEffectTarget(card.instanceId)
               : undefined
           }
-          showEmptyActionMessage={data.isCurrentPlayerZone}
-          suppressActionFallback={!data.isCurrentPlayerZone}
           isConnected={props.isConnected}
           isActionPending={props.isActionPending}
           onSelectActionOption={(actionId) => {
@@ -138,6 +136,12 @@ function BattlefieldCardBody({
 function BattlefieldCard({ data, card, index }: { data: IBattleFieldRowProps; card: IBattlefieldCard; index: number }) {
   const side = data.isCurrentPlayerZone ? 'bottom' : 'top'
   const isCardRested = card.isRested || data.optimisticRestedByInstanceId[card.instanceId] === true
+  const normalizedInstanceId = card.instanceId.trim().toLowerCase()
+  // Raising the *wrapper* is what lifts the attack-link ring: a rested card is rotated, and a transformed
+  // wrapper is its own stacking context, so the ring's own z-index can never paint over the neighbouring rows.
+  const isAttackLinkEndpoint =
+    (data.normalizedAttackLinkSourceCardId.length > 0 && data.normalizedAttackLinkSourceCardId === normalizedInstanceId)
+    || (data.normalizedAttackLinkTargetCardId.length > 0 && data.normalizedAttackLinkTargetCardId === normalizedInstanceId)
 
   return (
     <motion.div
@@ -146,7 +150,10 @@ function BattlefieldCard({ data, card, index }: { data: IBattleFieldRowProps; ca
         transition: { duration: RESTED_CARD_TILT_DURATION_MS / 1000, ease: BOARD_MOVEMENT_EASE },
       }}
       layout="position"
-      className="h-full w-auto shrink-0 origin-center aspect-[200/277]"
+      className={twMerge(
+        'h-full w-auto shrink-0 origin-center aspect-[200/277]',
+        isAttackLinkEndpoint ? 'relative z-[240]' : '',
+      )}
     >
       <BattlefieldCardBody data={data} card={card} index={index} side={side} isDeparting={false} />
     </motion.div>

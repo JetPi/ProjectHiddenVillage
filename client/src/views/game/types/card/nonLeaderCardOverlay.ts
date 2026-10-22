@@ -13,8 +13,6 @@ export type INonLeaderCardOverlayProps = {
   visibilityMode: ICardOverlayVisibilityMode
   actionOptions: IGameActionOptionResponse[]
   hidePreviewButton?: boolean
-  showEmptyActionMessage?: boolean
-  suppressActionFallback?: boolean
   disableInteractions?: boolean
   isTargetCandidate?: boolean
   onChooseTarget?: () => void

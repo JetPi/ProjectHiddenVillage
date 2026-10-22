@@ -8,7 +8,6 @@ export type IBottomHandReorderRowProps = {
   cardById: Map<string, ICardCatalogItemResponse>
   availableActions: IGameActionOptionResponse[]
   faceUpByInstanceId: Record<string, boolean>
-  showNoActionsMessage: boolean
   isConnected: boolean
   isActionPending: boolean
   onSelectCardActionOption: (option: IGameActionOptionResponse) => void

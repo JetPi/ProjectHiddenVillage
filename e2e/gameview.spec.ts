@@ -48,6 +48,10 @@ test.describe('GameView', () => {
       await expect(page.locator('[data-zone="character-field-row"][data-slot-side="top"]')).toBeVisible()
       await expect(page.locator('[data-zone="character-field-row"][data-slot-side="bottom"]')).toBeVisible()
 
+      // The status rail is mounted even when a card has no status: that is what lets the last badge fade out
+      // instead of vanishing with its container.
+      await expect(page.getByTestId('card-status-badges').first()).toBeAttached()
+
       const passTurnButton = page.getByTestId('pass-turn-button')
       await expect(passTurnButton).toBeVisible({ timeout: 60_000 })
     })

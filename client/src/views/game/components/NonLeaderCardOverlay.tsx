@@ -3,7 +3,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { CardOverlayBadge, CardPreviewCard } from '@/components/ui/cards'
+import { filterVisibleCardActions, resolveBattleRestrictionReason } from '@/views/game/utils/functions/cards'
 import type { INonLeaderCardOverlayProps } from '@/views/game/types'
+import { CardStatusBadgeRail } from './CardStatusBadgeRail'
 
 const OVERLAY_VISIBILITY_CLASSNAME =
   'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
@@ -17,8 +19,6 @@ function NonLeaderCardOverlay({
   visibilityMode,
   actionOptions,
   hidePreviewButton = false,
-  showEmptyActionMessage = true,
-  suppressActionFallback = false,
   disableInteractions = false,
   isTargetCandidate = false,
   onChooseTarget,
@@ -41,7 +41,17 @@ function NonLeaderCardOverlay({
   const isTributeTargetCandidate = isSummonTargetCandidate === true
   const showPreviewButton = isChoosingTarget || isTributeTargetCandidate || !hidePreviewButton
 
-  const hasActions = actionOptions.length > 0
+  // The Battle option is published even when the card cannot use it (the payload carries the reason), but a
+  // greyed-out button reads as a bug on the board. Chips only show what can actually be clicked; the status
+  // rail explains the restriction instead.
+  const visibleActionOptions = filterVisibleCardActions(actionOptions)
+  const battleRestrictionReason = resolveBattleRestrictionReason(actionOptions)
+  const hasActions = visibleActionOptions.length > 0
+  // The status rail is pinned: it used to slide up while a tribute requirement label was showing, which made the
+  // badges jump the moment a target pick started. The label moves above the rail instead, so the badges never do.
+  const hasStatusRail = (card?.statusEffects.length ?? 0) > 0
+  const statusRailClassName = 'bottom-0.5 left-0.5'
+  const tributeLabelClassName = hasStatusRail ? 'bottom-6' : 'bottom-0'
 
   return (
     <>
@@ -53,6 +63,13 @@ function NonLeaderCardOverlay({
           </CardOverlayBadge>
 
         </>
+      ) : null}
+      {zone === 'battlefield' && card ? (
+        <CardStatusBadgeRail
+          statusEffects={card.statusEffects}
+          cannotAttackReason={battleRestrictionReason}
+          className={statusRailClassName}
+        />
       ) : null}
       <div
         className={twMerge(
@@ -110,7 +127,9 @@ function NonLeaderCardOverlay({
                 onToggleEffectTarget()
               }}
               className={twMerge(
-                'w-fit max-w-full rounded-sm border px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] transition-colors duration-150',
+                // Fixed width: "Select" and "Selected" used to resize the chip, so it shifted under the cursor
+                // on every toggle.
+                'w-[4.25rem] max-w-full rounded-sm border px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] transition-colors duration-150',
                 isEffectTargetSelected
                   ? 'border-amber-300/90 bg-amber-300/85 text-black hover:bg-amber-200'
                   : 'border-white/35 bg-black/65 text-white hover:bg-black/80',
@@ -120,7 +139,7 @@ function NonLeaderCardOverlay({
             </button>
           ) : hasActions ? (
             <div className="grid w-full place-items-center gap-0.5">
-              {actionOptions.map((action) => (
+              {visibleActionOptions.map((action) => (
                 <button
                   key={action.actionId}
                   type="button"
@@ -135,17 +154,6 @@ function NonLeaderCardOverlay({
                 </button>
               ))}
             </div>
-          ) : !suppressActionFallback && showEmptyActionMessage ? (
-            <div className="grid w-full place-items-center gap-0.5">
-              <button
-                type="button"
-                data-testid="card-no-actions-chip"
-                disabled
-                className={ACTION_CHIP_CLASSNAME}
-              >
-                {t('game.zone.noActions')}
-              </button>
-            </div>
           ) : null}
         </div>
       </div>
@@ -154,21 +162,22 @@ function NonLeaderCardOverlay({
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-between rounded-b-md border-t border-[var(--border-subtle)] bg-[var(--surface-elevated)]/95 px-1 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)]">
           <span>
             {hasActions
-              ? actionOptions.length === 1
-                ? t('game.zone.actionCountOne', { n: actionOptions.length })
-                : t('game.zone.actionCountOther', { n: actionOptions.length })
-              : (showEmptyActionMessage ? t('game.zone.noActions') : '')}
+              ? visibleActionOptions.length === 1
+                ? t('game.zone.actionCountOne', { n: visibleActionOptions.length })
+                : t('game.zone.actionCountOther', { n: visibleActionOptions.length })
+              : ''}
           </span>
           <span>{t('game.zone.view')}</span>
         </div>
       ) : null}
 
       {isTributeTargetCandidate && summonRequirementText ? (
-        <div
-          data-testid="tribute-requirement-label"
-          title={summonRequirementText}
-          className={twMerge(
-            'card-overlay-requirement-label pointer-events-none absolute inset-x-0 bottom-0 z-10 flex w-full items-center justify-center rounded-b-md border-t px-1 py-0.5 text-center text-[10px] font-extrabold leading-none',
+          <div
+            data-testid="tribute-requirement-label"
+            title={summonRequirementText}
+            className={twMerge(
+              'card-overlay-requirement-label pointer-events-none absolute inset-x-0 z-10 flex w-full items-center justify-center rounded-b-md border-t px-1 py-0.5 text-center text-[10px] font-extrabold leading-none',
+              tributeLabelClassName,
             isSummonTargetSelected
               ? 'border-amber-300/40 bg-black/75 text-amber-200'
               : 'border-black/40 bg-amber-300/95 text-black',
