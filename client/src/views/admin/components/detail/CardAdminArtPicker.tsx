@@ -11,6 +11,7 @@ const LABEL_CLASS = 'text-xs font-semibold uppercase tracking-wide text-[var(--t
 
 export type ICardAdminArtPickerProps = {
   previewSrc: string
+  previewSrcSet?: string | null
   isUploading?: boolean
   error: string | null
   statusMessage?: string | null
@@ -24,6 +25,7 @@ export type ICardAdminArtPickerProps = {
 
 export function CardAdminArtPicker({
   previewSrc,
+  previewSrcSet,
   isUploading = false,
   error,
   statusMessage,
@@ -47,8 +49,10 @@ export function CardAdminArtPicker({
       <div className="mt-2 grid grid-cols-1 gap-3 lg:grid-cols-[10rem_1fr]">
         <CardImage
           src={previewSrc}
+          srcSet={previewSrcSet ?? undefined}
+          sizes="160px"
           alt={t('admin.art.previewAlt')}
-          className="h-40 w-32"
+          className="h-auto w-40 object-contain"
         />
 
         <div className="space-y-2">

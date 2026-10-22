@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext, Browser, BrowserContext, Page } from '@playwright/test'
+import { TINY_WEBP_BASE64 } from './helpers/adminCardMocks'
 import { createAdminSession } from './helpers/adminSession'
 
 const AUTH_STORAGE_KEY = 'phv-auth-session'
@@ -321,6 +322,92 @@ test('admin card editor warns before leaving a card with unsaved changes', async
   await expect(unsavedDialog).toBeHidden()
   await expect(artUrlField).toHaveValue('')
   await expect(unsavedPill).toBeHidden()
+
+  await context.close()
+})
+
+/**
+ * The deckable-type scope is one hook shared with the deck builder (`useDeckableTypeFilter`), but the two
+ * screens default it differently: the deck builder hides Chakra and Summon because they can never be in a
+ * deck, while the card admin starts with every card visible because it manages all of them. Toggling it off
+ * must still narrow the catalogue request, not just the rendered chips.
+ */
+test('admin card catalogue narrows to deckable types when Chakra and Summon are hidden', async ({ browser, request }) => {
+  const { context, page } = await openAdminCatalogue(browser, request, { width: 1600, height: 900 })
+
+  const includeNonDeckableCheckbox = page.getByRole('checkbox', {
+    name: 'Include Chakra and Summon cards in the catalog',
+  })
+
+  await expect(includeNonDeckableCheckbox, 'the card admin manages every card, so nothing is hidden by default')
+    .toBeChecked()
+
+  // Watch the server scope instead of a seeded card: the request's type include-list is what proves the filter
+  // narrowed the query rather than just hiding chips.
+  const catalogueTypeRequests: string[][] = []
+  await page.route('**/api/card/catalog?*', async (route) => {
+    catalogueTypeRequests.push(new URL(route.request().url()).searchParams.getAll('types'))
+    await route.continue()
+  })
+
+  // The query normaliser sorts the include list, so compare the set rather than the append order.
+  const latestTypeRequest = () =>
+    [...(catalogueTypeRequests[catalogueTypeRequests.length - 1] ?? [])].sort()
+
+  const toggle = page.getByTestId('catalog-nondeckable-toggle').locator('label')
+  await toggle.click()
+  await expect(includeNonDeckableCheckbox).not.toBeChecked()
+  await expect
+    .poll(latestTypeRequest, { timeout: 15_000 })
+    .toEqual(['character', 'ex character', 'leader'])
+
+  // The type picker offers the same scope the request uses, so the hidden types cannot be selected either.
+  const typePicker = page.locator('aside').getByRole('combobox').first()
+  await expect(typePicker).toBeVisible()
+  await typePicker.click()
+  await expect(page.getByRole('option', { name: 'Character', exact: true })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Chakra', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('option', { name: 'Summon', exact: true })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  // Re-enabling puts the full type list back (the unfiltered query is still cached, so no new request is due).
+  await toggle.click()
+  await expect(includeNonDeckableCheckbox).toBeChecked()
+  await typePicker.click()
+  await expect(page.getByRole('option', { name: 'Chakra', exact: true })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Summon', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await context.close()
+})
+
+/**
+ * The Card Art preview used to point at the 600px master no matter how small it was drawn, which meant a ~160px
+ * preview went through a ~4x downscale on a 1x display - the source of the blocky, pixelated look. The preview now
+ * carries a density descriptor per catalogue variant and lets the browser pick the one that matches its box.
+ */
+test('the card art preview lets the browser pick the variant that matches its rendered size', async ({ browser, request }) => {
+  const { context, page } = await openAdminCatalogue(browser, request, { width: 1600, height: 900 })
+
+  // The preview only needs to load for the browser's selection to be observable; the seeded art itself is external.
+  await page.route('**/api/card-art/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'image/webp', body: Buffer.from(TINY_WEBP_BASE64, 'base64') }))
+
+  await page.locator('#card-admin-search').fill('N-012')
+  await page.locator('[data-testid="catalog-card-tile"][data-card-id="N-012"] button').first().click()
+  await expect(page.locator('#card-admin-art-url')).toBeVisible({ timeout: 15_000 })
+
+  const preview = page.locator('section:has(#card-admin-art-url) img').first()
+  await expect(preview).toHaveAttribute('sizes', '160px')
+  await expect(preview).toHaveAttribute('srcset', /w=240&v=\d+ 240w/)
+  await expect(preview).toHaveAttribute('srcset', /w=600&v=\d+ 600w/)
+  // Whole card, not a crop: the preview shows the art at the aspect ratio the author uploaded.
+  await expect(preview).toHaveCSS('object-fit', 'contain')
+
+  // Default Playwright context is 1x, where the 240px variant already covers the 160px box.
+  await expect
+    .poll(() => preview.evaluate((element) => (element as HTMLImageElement).currentSrc))
+    .toMatch(/\?w=240&v=\d+$/)
 
   await context.close()
 })

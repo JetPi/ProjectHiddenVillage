@@ -8,7 +8,7 @@ export const ADMIN_CREATE_CARD_PREFIX = 'E2E-CREATE-'
 export const ADMIN_TRAIT_OPTIONS = ['Ninja', 'Uchiha Clan'] as const
 
 /** A 1x1 WebP, enough for the mocked art endpoint to resolve as a real image. */
-const TINY_WEBP_BASE64 = 'UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=='
+export const TINY_WEBP_BASE64 = 'UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=='
 
 type CreateCardPayload = {
   cardId: string

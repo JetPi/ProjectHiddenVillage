@@ -18,6 +18,7 @@ export function CardAdminCardArtSection({ art }: { art: ICardAdminArtDraftModel 
     <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-3">
       <CardAdminArtPicker
         previewSrc={art.previewSrc}
+        previewSrcSet={art.previewSrcSet}
         error={art.error}
         statusMessage={stagedMessage}
         storedArt={art.storedArt}

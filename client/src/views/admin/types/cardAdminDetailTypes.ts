@@ -37,6 +37,7 @@ export type ICardAdminArtCommitResult = {
 
 export type ICardAdminArtDraftModel = {
   previewSrc: string
+  previewSrcSet: string | null
   storedArt: ICardAdminStoredArt | null
   pending: ICardAdminPendingArt | null
   isDirty: boolean
