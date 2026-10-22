@@ -6,7 +6,7 @@ import type {
   RefCallback,
   ReactNode,
 } from 'react'
-import type { IGameActionOptionResponse } from '@/services/api/types/game'
+import type { ICardStatusEffect, IGameActionOptionResponse } from '@/services/api/types/game'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import type { IDerivedGameViewState } from '@/views/game/types'
 
@@ -145,6 +145,7 @@ export type ILeaderCardProps = {
     currentLife: number | null
     currentPower: number
     currentDamage: number
+    statusEffects?: ICardStatusEffect[]
   } | null
 }
 

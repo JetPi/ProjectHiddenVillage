@@ -2,7 +2,12 @@ import type { IGamePlayerStateResponse } from "@/services/api/gameApi"
 import type { IGameActionOptionResponse } from "@/services/api/types/game"
 import type { IGameCardActionExecutionRequest } from "@/services/api/types/gameHub"
 import type { ISubmitHubIntentRequest, IGameLoaderData, ICardPreloadPayload, IDerivedGameViewState } from "@/views/game/types"
-import { buildCardById, buildCardTypeById, resolveLeaderCard } from "@/views/game/utils/functions/cards"
+import {
+  buildCardById,
+  buildCardTypeById,
+  isBattleActionOption,
+  resolveLeaderCard,
+} from "@/views/game/utils/functions/cards"
 import { normalizePlayerId } from "./gameViewFunctions"
 
 function resolveCurrentPlayer(
@@ -83,14 +88,6 @@ function resolveSourceCardInstanceId(actionId: string): string | null {
   }
 
   return actionId.slice(delimiterIndex + 1)
-}
-
-function isBattleActionOption(action: IGameActionOptionResponse): boolean {
-  if (action.actionId.startsWith('battle-action:')) {
-    return true
-  }
-
-  return action.label.trim().toLowerCase() === 'battle'
 }
 
 function buildCardPreloadPayload(gameCards: IGameLoaderData['gameCards']): ICardPreloadPayload | null {

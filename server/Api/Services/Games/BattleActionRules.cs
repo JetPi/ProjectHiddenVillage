@@ -108,13 +108,21 @@ internal static class BattleActionRules
             string.Equals(condition, EffectConditionKeywords.Rush, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool HasCannotAttackEffect(GameState state, CardInstance card)
+    internal static bool HasCannotAttackEffect(GameState state, CardInstance card)
+    {
+        return HasKeyword(state, card, FreezeCardEffect.CannotAttackKeyword);
+    }
+
+    /// <summary>
+    /// True when the card's *effective* keyword set contains <paramref name="keyword"/>, i.e. a runtime grant
+    /// or a temporary keyword modification. Printed conditions are deliberately not consulted here: each
+    /// keyword decides for itself whether a printed copy counts (Rush does, Cannot Attack does not), so the
+    /// battle rules and the published card statuses can never drift apart.
+    /// </summary>
+    internal static bool HasKeyword(GameState state, CardInstance card, string keyword)
     {
         return CardRuntimeEffectStateService
             .ResolveEffectiveKeywords(state, card)
-            .Any(keyword => string.Equals(
-                keyword,
-                FreezeCardEffect.CannotAttackKeyword,
-                StringComparison.OrdinalIgnoreCase));
+            .Any(existing => string.Equals(existing, keyword, StringComparison.OrdinalIgnoreCase));
     }
 }

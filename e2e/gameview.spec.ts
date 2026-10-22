@@ -48,8 +48,43 @@ test.describe('GameView', () => {
       await expect(page.locator('[data-zone="character-field-row"][data-slot-side="top"]')).toBeVisible()
       await expect(page.locator('[data-zone="character-field-row"][data-slot-side="bottom"]')).toBeVisible()
 
+      // The status rail is mounted even when a card has no status: that is what lets the last badge fade out
+      // instead of vanishing with its container.
+      await expect(page.getByTestId('card-status-badges').first()).toBeAttached()
+
       const passTurnButton = page.getByTestId('pass-turn-button')
       await expect(passTurnButton).toBeVisible({ timeout: 60_000 })
+    })
+
+    test('the navigation scrim never filters the board underneath it', async () => {
+      // The scrim stays mounted for the whole session so its fade-out can play, i.e. it sits over every page. A
+      // `backdrop-filter` there turns the page into a filtered backdrop, which is re-rasterized and re-sampled as
+      // the layer's opacity animates - mounting a board underneath it made the whole board pop/jitter for the
+      // length of the fade (reported as "the board shakes when I navigate into the game"). `GameView`'s `Panel`
+      // already pins `backdropFilter: 'none'` for the same reason; this pins the scrim itself.
+      const scrim = page.getByTestId('route-transition-overlay')
+      await expect(scrim).toBeAttached()
+
+      const scrimStyle = await scrim.evaluate((element) => {
+        const style = window.getComputedStyle(element)
+        return {
+          backdropFilter: style.backdropFilter,
+          webkitBackdropFilter: style.getPropertyValue('-webkit-backdrop-filter'),
+          opacity: style.opacity,
+          busy: element.getAttribute('data-navigation-busy'),
+        }
+      })
+
+      // Idle: fully transparent (nothing is painted over the board at rest).
+      expect(scrimStyle.busy).toBe('false')
+      expect(Number(scrimStyle.opacity)).toBe(0)
+      // Busy or idle: never a filter over the board (both the standard and the prefixed property).
+      const hasFilter = [scrimStyle.backdropFilter, scrimStyle.webkitBackdropFilter]
+        .some((value) => value !== '' && value !== 'none')
+      expect(
+        hasFilter,
+        `the navigation scrim must not filter the page underneath it: ${JSON.stringify(scrimStyle)}`,
+      ).toBe(false)
     })
 
     test('supports key interactions without crashing game view', async () => {

@@ -68,7 +68,7 @@ function GamePhaseActionRow({
     <div className="grid min-h-0 grid-cols-6">
       <div className="col-span-6 flex min-h-0 min-w-0 items-stretch gap-1">
         <div
-          className={`overflow-hidden transition-[max-width,opacity] duration-300 ease-out ${
+          className={`overflow-hidden transition-opacity duration-200 ease-out ${
             hasOptions ? 'max-w-[55%] opacity-100' : 'pointer-events-none max-w-0 opacity-0'
           }`}
         >

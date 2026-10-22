@@ -455,6 +455,19 @@ async function playOnSummonRevealScenario(
     return leaderBattleAction?.disabledReason ?? null
   }, { timeout: 15_000 }).toBe(CANNOT_ATTACK_REASON)
 
+  // The same restriction reaches the board as a badge on the leader, and the unusable Battle chip is no longer
+  // rendered there (the payload keeps publishing it, which is what the poll above asserts).
+  const leaderCannotAttackBadge = actorLeaderCard.locator('[data-status-effect="CannotAttack"]')
+  await expect(leaderCannotAttackBadge).toBeVisible({ timeout: 10_000 })
+  await expect(actorLeaderCard.getByRole('button', { name: /^battle$/i })).toHaveCount(0)
+
+  // Hovering the badge names the reason: a freeze reads as "under an effect that prevents it from attacking",
+  // not as a bare "cannot attack".
+  await leaderCannotAttackBadge.hover()
+  await expect(actorPage.getByTestId('card-status-tooltip')).toBeVisible({ timeout: 5_000 })
+  await expect(actorPage.getByTestId('card-status-tooltip'))
+    .toContainText('It is under an effect that prevents it from attacking.')
+
   // The chain is done once the freeze is picked, so this is when the transient reveal goes back face down — the
   // card is still in the deck where the reveal found it (a plain reveal never moves it).
   await expect.poll(async () => {

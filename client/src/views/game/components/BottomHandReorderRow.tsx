@@ -12,7 +12,6 @@ export function BottomHandReorderRow({
   cardById,
   availableActions,
   faceUpByInstanceId,
-  showNoActionsMessage,
   isConnected,
   isActionPending,
   onSelectCardActionOption,
@@ -85,7 +84,6 @@ export function BottomHandReorderRow({
                     zone="hand"
                     visibilityMode="hover"
                     actionOptions={cardActionOptions}
-                    showEmptyActionMessage={showNoActionsMessage}
                     disableInteractions={isReorderDragging}
                     isTargetCandidate={isEffectTargetCandidate}
                     onChooseTarget={

@@ -15,6 +15,26 @@ export type IGameActionOptionResponse = {
   disabledReason: string | null
 }
 
+/**
+ * Statuses the server projects onto a card (`CardStatusEffectCodes`). Contract values: never localise them,
+ * map them to wording and icons instead.
+ */
+export type TCardStatusEffectKind =
+  | 'Rush'
+  | 'CannotAttack'
+  | 'ImmuneToOpponentSupportEffects'
+  | 'EffectsSuppressed'
+
+/**
+ * One status a card is under. The reason fields are only filled for `CannotAttack`, and they exist because the
+ * opponent's cards publish no action options: without them that side of the board could never explain the badge.
+ */
+export type ICardStatusEffect = {
+  kind: TCardStatusEffectKind
+  reasonCode?: string | null
+  reason?: string | null
+}
+
 export type IActiveTemporaryEffectResponse = {
   effectId: string
   sourceCardInstanceId: string
@@ -37,6 +57,7 @@ export type IGameCardInstanceResponse = {
   isConcealedFromOpponent?: boolean
   isExhausted: boolean
   availableActions?: IGameActionOptionResponse[]
+  statusEffects?: ICardStatusEffect[]
   isRested: boolean
   supportSlotIndex?: number | null
   isRevealed?: boolean
@@ -66,6 +87,7 @@ export type IGameLeaderCardInstanceResponse = {
   currentLife: number
   recoveryEffect: string
   availableActions?: IGameActionOptionResponse[]
+  statusEffects?: ICardStatusEffect[]
 }
 
 export type IGamePlayerStateResponse = {

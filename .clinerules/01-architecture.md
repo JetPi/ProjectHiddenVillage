@@ -168,8 +168,10 @@ paths:
 
 - `GameZones.tsx` renders the board; shared helpers live in
   `utils/functions/gameState/gameZoneFunctions.ts` (highlight classes
-  `battle-target-*`, `summon-target-*`, `toAnchorId`, target-set builders, attack-link
-  geometry).
+  `battle-target-*`, `summon-target-*`, `toAnchorId`, target-set builders, the DOM-reading
+  attack-link *anchor* geometry). The attack-link **curve maths** is DOM-free in
+  `utils/functions/gameState/attackLinkCurve.ts` so `e2e/gameview.attack-link-geometry.spec.ts`
+  can call it directly; `gameZoneFunctions` re-exports both entry points.
 - Rows/zones: `BattleFieldRow` (character field), `ZoneCardSlots` (support slots),
   `BottomHandReorderRow` + `GameHandRow` (hand), `NonLeaderCardOverlay` (per-card
   hover actions/preview/HUD), `LeaderCard` (`components/ui/cards/`),

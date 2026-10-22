@@ -112,6 +112,48 @@ public sealed class SeedManifestAuthoringTests
                 + string.Join(Environment.NewLine, offenders));
     }
 
+    /// <summary>
+    /// A conditional Rush ("if this Character has 10 or more power, this Character gains [Rush]") has to be
+    /// authored against <see cref="ZoneCardProperty.Power"/>. A local database once carried the same node reading
+    /// Damage, which no realistic power boost can satisfy, so the card silently never gained Rush - exactly the
+    /// rule the shipped seed data states, so this test pins it.
+    /// </summary>
+    [TestMethod]
+    public void ConditionalRushRules_AreAuthoredAgainstPower()
+    {
+        var dump = LoadJson<IReadOnlyList<RawCatalogDumpEntry>>(
+            Path.Combine(FindRepositoryRoot(), "server", "Api", "rawCardCatalogDump.txt"));
+
+        var offenders = new List<string>();
+        foreach (var card in dump)
+        {
+            foreach (var effect in card.Effects)
+            {
+                var touchesRush = effect.KeywordModifications.Any(modification =>
+                    string.Equals(modification.Keyword, EffectConditionKeywords.Rush, StringComparison.OrdinalIgnoreCase));
+                if (!touchesRush)
+                {
+                    continue;
+                }
+
+                var predicates = effect.TargetRules.Rules
+                    .SelectMany(rule => rule.Restriction.Predicates ?? [])
+                    .Where(predicate => predicate.Property == ZoneCardProperty.Damage);
+
+                foreach (var predicate in predicates)
+                {
+                    offenders.Add(
+                        $"{card.Id}/{effect.Id}: the Rush condition compares Damage ({predicate.Operator} {predicate.Value}) instead of Power");
+                }
+            }
+        }
+
+        Assert.AreEqual(
+            0,
+            offenders.Count,
+            "A Rush threshold has to be authored against Power:" + Environment.NewLine + string.Join(Environment.NewLine, offenders));
+    }
+
     [TestMethod]
     public void AuthoredNodesInTheManifest_KeepTheirShapeInTheRawDump()
     {

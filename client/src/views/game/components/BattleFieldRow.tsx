@@ -3,10 +3,10 @@ import { motion } from 'motion/react'
 import { CardBack, CardImage } from '@/components/ui/cards'
 import { PlayCard } from '@/components/ui/game'
 import {
-  BOARD_MOVEMENT_EASE,
+  BOARD_LAYOUT_SPRING,
+  BOARD_ROTATE_SPRING,
   CARD_TO_TRASH_FLY_DURATION_MS,
   RESTED_CARD_TILT_DEG,
-  RESTED_CARD_TILT_DURATION_MS,
 } from '@/views/game/animation/tuning'
 import {
   noteFlight,
@@ -117,8 +117,6 @@ function BattlefieldCardBody({
               ? () => useGameUIStore.getState().toggleEffectTarget(card.instanceId)
               : undefined
           }
-          showEmptyActionMessage={data.isCurrentPlayerZone}
-          suppressActionFallback={!data.isCurrentPlayerZone}
           isConnected={props.isConnected}
           isActionPending={props.isActionPending}
           onSelectActionOption={(actionId) => {
@@ -138,15 +136,32 @@ function BattlefieldCardBody({
 function BattlefieldCard({ data, card, index }: { data: IBattleFieldRowProps; card: IBattlefieldCard; index: number }) {
   const side = data.isCurrentPlayerZone ? 'bottom' : 'top'
   const isCardRested = card.isRested || data.optimisticRestedByInstanceId[card.instanceId] === true
+  const normalizedInstanceId = card.instanceId.trim().toLowerCase()
+  // Raising the *wrapper* is what lifts the attack-link ring: a rested card is rotated, and a transformed
+  // wrapper is its own stacking context, so the ring's own z-index can never paint over the neighbouring rows.
+  const isAttackLinkEndpoint =
+    (data.normalizedAttackLinkSourceCardId.length > 0 && data.normalizedAttackLinkSourceCardId === normalizedInstanceId)
+    || (data.normalizedAttackLinkTargetCardId.length > 0 && data.normalizedAttackLinkTargetCardId === normalizedInstanceId)
 
   return (
+    // `initial={false}`: a card mounts *in* its pose, it never animates into it. Without it Motion springs the
+    // rested tilt from 0deg to 14deg on mount, so every rested card in the scene (i.e. every card that has
+    // attacked) rotated into place on the first ~400 ms of a reload / re-mount - and a rotating card's bounding
+    // box grows ~24px in both axes while it turns, which is the "the whole board shakes when I reload after an
+    // attack" report. `FlippableCard` (the other animated card surface) has had `initial={false}` all along; the
+    // tilt must follow the same rule. Changing `isRested` later still springs, which is what the tilt is for.
     <motion.div
+      initial={false}
       animate={{
         rotate: isCardRested ? RESTED_CARD_TILT_DEG : 0,
-        transition: { duration: RESTED_CARD_TILT_DURATION_MS / 1000, ease: BOARD_MOVEMENT_EASE },
+        transition: BOARD_ROTATE_SPRING,
       }}
+      transition={BOARD_LAYOUT_SPRING}
       layout="position"
-      className="h-full w-auto shrink-0 origin-center aspect-[200/277]"
+      className={twMerge(
+        'h-full w-auto shrink-0 origin-center aspect-[200/277]',
+        isAttackLinkEndpoint ? 'relative z-[240]' : '',
+      )}
     >
       <BattlefieldCardBody data={data} card={card} index={index} side={side} isDeparting={false} />
     </motion.div>

@@ -241,6 +241,18 @@ function GameZones(props: IGameZonesProps) {
     props,
   }
 
+  // A leader can be the source or the target of the attack link, and its frame is the flex/grid item that has to
+  // be raised - the outline lives on the card inside it, so the card's own z-index cannot escape that frame.
+  const isLeaderAttackLinkEndpoint = (instanceId: string | null | undefined): boolean => {
+    const normalizedInstanceId = instanceId?.trim().toLowerCase() ?? ''
+    if (!normalizedInstanceId) {
+      return false
+    }
+
+    return cardOptions.normalizedAttackLinkSourceCardId === normalizedInstanceId
+      || cardOptions.normalizedAttackLinkTargetCardId === normalizedInstanceId
+  }
+
   const renderZoneCardSlotsProps = {
     cards: cardOptions.topBattlefieldCards,
     validBattleTargetsByCardId,
@@ -303,6 +315,7 @@ function GameZones(props: IGameZonesProps) {
               className={twMerge(
                 props.topLeaderCardFrameClassName,
                 'relative overflow-visible',
+                isLeaderAttackLinkEndpoint(cardOptions.topLeaderCard?.instanceId) ? 'z-[240]' : '',
               )}
             >
               <LeaderCard {...topLeaderCardProps} />
@@ -333,6 +346,7 @@ function GameZones(props: IGameZonesProps) {
               className={twMerge(
                 props.bottomLeaderCardFrameClassName,
                 'relative overflow-visible',
+                isLeaderAttackLinkEndpoint(cardOptions.bottomLeaderCard?.instanceId) ? 'z-[240]' : '',
               )}
             >
               <LeaderCard {...bottomLeaderCardProps} />

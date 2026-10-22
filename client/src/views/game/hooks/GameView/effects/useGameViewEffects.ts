@@ -12,10 +12,12 @@ import type {
   IGameViewAnimController,
   IPlayerCardZoneInstanceIds,
   IRevalidatorState,
+  IUseAdoptRecordedAnimationEventsOnMountArgs,
   IUseCardMoveGhostAnimationEffectArgs,
   IUseHandZoneAnimationEffectsArgs,
   IUsePhasePresentationAckEffectArgs,
   IUseRevealedCardSummonFlightEffectArgs,
+  IUseSupportSummonFlightEffectArgs,
   IUseTrashRecallSummonFlightEffectArgs,
 } from '@/views/game/types'
 import {
@@ -39,6 +41,7 @@ import {
   DECK_TO_HAND_FLY_DURATION_MS,
   DRAW_ANIMATION_COMPLETE_PADDING_MS,
   REVEAL_SUMMON_FLIGHT_DURATION_MS,
+  SUPPORT_SUMMON_FLIGHT_DURATION_MS,
   TRASH_RECALL_SUMMON_FLIGHT_DURATION_MS,
 } from '@/views/game/animation/tuning'
 import { cancelAllFlights } from '@/views/game/animation/flightRegistry'
@@ -99,6 +102,42 @@ function collectCardGhostSnapshots(
       zone: resolveRenderedZone(element, fallbackZone),
     })
   }
+}
+
+/**
+ * A board that mounts must adopt the movement history it was handed, not replay it.
+ *
+ * The state payload carries a bounded tail of recorded card movements and the client animates the ones it has
+ * not seen yet. That is right for a push received while the board is mounted, and wrong for the first payload of
+ * a mount: a reload hands the client the last movements of the game, all of which already happened, so every
+ * consumer that only checks "not handled yet" replays them - a summon flies out of the deck again, a draw flies
+ * out of the deck into a hand that already holds the card, and because `consumeRecordedDeckSummon` consumes one
+ * event per pass, a refresh walked a *sequence* of old summons across the board.
+ *
+ * Adopting the mount payload's ids before any consumer runs makes "unhandled" mean "happened while I was
+ * watching". Nothing is lost: a movement that happens after mount arrives in a later payload with an id that is
+ * not in this set. This is the same rule `EffectNoticeBanner` follows for notices, and it is why the first
+ * render of a refreshed board is its final one - cards appear where they belong instead of animating there.
+ *
+ * Must stay the first effect of the side-effect hook (a layout effect, so it is in place before the flight
+ * scheduling effects of the same commit run).
+ */
+function useAdoptRecordedAnimationEventsOnMount({
+  animationEvents,
+  animControllerRef,
+}: IUseAdoptRecordedAnimationEventsOnMountArgs): void {
+  const hasAdoptedRef = useRef(false)
+
+  useLayoutEffect(() => {
+    if (hasAdoptedRef.current) {
+      return
+    }
+    hasAdoptedRef.current = true
+
+    for (const animationEvent of animationEvents ?? []) {
+      animControllerRef.current.handledAnimationEventIds.add(animationEvent.eventId)
+    }
+  }, [animationEvents, animControllerRef])
 }
 
 function snapshotRenderedCardGhosts({
@@ -958,6 +997,98 @@ function useTrashRecallSummonFlightEffect({
   ])
 }
 
+/**
+ * How long a remembered support-slot rect stays eligible for an arrival flight after the card has left it.
+ *
+ * A push is applied in one commit, but the engine can also place the card on the battlefield one commit later
+ * (a summon that runs as a separate effect step). The rect is dropped as soon as it is used, and it expires so a
+ * card that went to the trash can never fly onto the battlefield later.
+ */
+const SUPPORT_SUMMON_RECT_RETENTION_MS = 1_500
+
+type ISupportSlotSnapshot = {
+  rect: DOMRect
+  side: 'top' | 'bottom'
+  capturedAtMs: number
+}
+
+/**
+ * A support card that leaves the support area for the battlefield arrives with its own flight.
+ *
+ * N-021/N-008/N-010 summon *themselves* out of the support area, and a move effect can do the same; the card is
+ * then re-rendered on the battlefield by the same push that unmounts its support slot. Nothing else in the engine
+ * covers that pair:
+ * - the submit helpers (`runSubmitThenZoneEntryAnimation`) only cover moves the client initiates from the hand,
+ * - `useDeckSummonFlightEffect` only reads a `summon` movement whose source is the deck,
+ * - `useCardMoveGhostAnimationEffect` resolves no battlefield destination.
+ * Without this effect the arriving battlefield card is simply painted at its final box - the reported
+ * "instant teleport from the support row to the field".
+ *
+ * The source rect therefore has to be captured while the card is still in the support row, which is why this is a
+ * layout effect: it runs after the push is committed but *before* the browser paints it, so the arriving card is
+ * hidden (the flight primitive hides its element synchronously) on its very first painted frame.
+ */
+function useSupportSummonFlightEffect({
+  boardZoneRef,
+  supportSummonSignature,
+}: IUseSupportSummonFlightEffectArgs): void {
+  const previousSupportSlotsRef = useRef<Map<string, ISupportSlotSnapshot>>(new Map())
+
+  useLayoutEffect(() => {
+    const boardElement = boardZoneRef.current
+    const previousSlots = previousSupportSlotsRef.current
+    const nowMs = Date.now()
+    const nextSlots = new Map<string, ISupportSlotSnapshot>()
+
+    boardElement
+      ?.querySelectorAll<HTMLElement>('[data-zone="support"][data-card-instance-id]')
+      .forEach((element) => {
+        const instanceId = element.dataset.cardInstanceId
+        if (!instanceId) {
+          return
+        }
+
+        const rect = element.getBoundingClientRect()
+        if (rect.width <= 0 || rect.height <= 0) {
+          return
+        }
+
+        nextSlots.set(instanceId, {
+          rect,
+          side: element.dataset.slotSide === 'top' ? 'top' : 'bottom',
+          capturedAtMs: nowMs,
+        })
+      })
+
+    if (!boardElement) {
+      previousSupportSlotsRef.current = nextSlots
+      return
+    }
+
+    for (const [instanceId, slot] of previousSlots) {
+      if (nextSlots.has(instanceId)) {
+        continue
+      }
+
+      const destinationElement = resolveBattlefieldCardElement(boardElement, { instanceId, side: slot.side })
+      if (!destinationElement) {
+        if (nowMs - slot.capturedAtMs <= SUPPORT_SUMMON_RECT_RETENTION_MS) {
+          nextSlots.set(instanceId, slot)
+        }
+        continue
+      }
+
+      void runElementFromRectAnimation({
+        element: destinationElement,
+        sourceRect: slot.rect,
+        durationMs: SUPPORT_SUMMON_FLIGHT_DURATION_MS,
+      })
+    }
+
+    previousSupportSlotsRef.current = nextSlots
+  }, [boardZoneRef, supportSummonSignature])
+}
+
 type ICardZoneLocation = {
   instanceId: string
   side: 'top' | 'bottom'
@@ -1065,10 +1196,12 @@ function usePhasePresentationAckEffect({
 
 export {
   useIdleRevalidationPoll,
+  useAdoptRecordedAnimationEventsOnMount,
   useCardCatalogPreload,
   useHandZoneAnimationEffects,
   useCardMoveGhostAnimationEffect,
   useDeckSummonFlightEffect,
   useTrashRecallSummonFlightEffect,
+  useSupportSummonFlightEffect,
   usePhasePresentationAckEffect,
 }

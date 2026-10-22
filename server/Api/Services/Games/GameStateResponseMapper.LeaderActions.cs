@@ -34,7 +34,10 @@ public static partial class GameStateResponseMapper
         {
             IsExhausted = leader.IsExhausted,
             IsRested = leader.IsRested,
-            AvailableActions = availableActions
+            AvailableActions = availableActions,
+            // A leader can be frozen ("choose 1 Leader or Character: it cannot attack"), so it reports the
+            // same statuses a battlefield card does, minus the ones that only apply to cards in play.
+            StatusEffects = BuildCardStatusEffects(state, leader, isLeader: true)
         };
     }
 

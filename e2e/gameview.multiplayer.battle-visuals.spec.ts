@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import {
   closeMultiplayerPages,
+  declarePassInActionStepViaHub,
   executeBattleActionViaHub,
   fetchGameState,
   openMultiplayerPages,
@@ -144,6 +145,28 @@ test.describe('GameView multiplayer battle visuals', () => {
       }, {
         timeout: 8_000,
       }).toBeGreaterThan(0)
+
+      // The ring around the attacker has to paint over the neighbouring rows (the support row sits below the
+      // battlefield row). It lives on the card, but a rested card is rotated and a transformed wrapper is its own
+      // stacking context, so the card's own z-index can never cross into the row below - the *wrapper* must be
+      // raised. Without that the outline disappears behind the concealed support card underneath.
+      const attackerCard = battleActor.actorPage.locator(
+        `[data-zone="character-field-card"][data-card-instance-id="${battleActor.cardInstanceId}"]`,
+      )
+      await expect(attackerCard).toHaveClass(/attack-link-card-outline/)
+
+      const wrapperStacking = await attackerCard.evaluate((node) => {
+        const wrapper = node.parentElement
+        if (!wrapper) {
+          return null
+        }
+
+        const style = window.getComputedStyle(wrapper)
+        return { position: style.position, zIndex: style.zIndex }
+      })
+
+      expect(wrapperStacking?.position).toBe('relative')
+      expect(Number(wrapperStacking?.zIndex ?? 0)).toBeGreaterThanOrEqual(200)
 
       await expect.poll(async () => {
         const state = await fetchGameState(request, setup.gameCode, battleActor.actor.session.accessToken)
@@ -332,6 +355,52 @@ test.describe('GameView multiplayer battle visuals', () => {
         timeout: 8_000,
       }).toEqual({ sourceOnVisualEdge: true, targetOnVisualEdge: true })
 
+      // The drawn tail is an arc, not a hook. This is the same measurement `gameview.attack-link-geometry.spec.ts`
+      // pins on the curve maths; here it runs against the rendered path, so the geometry the board actually
+      // composed (rotation offsets, gaps, the chosen anchor sides) is covered too. A corner concentrates the
+      // direction change into one window of the curve; an arc spreads it.
+      const readRenderedTailShape = async (): Promise<{ maxWindowTurn: number; endVsChord: number } | null> => (
+        await battleActor.actorPage.evaluate(() => {
+          const path = document.querySelector<SVGPathElement>('#attack-link-overlay svg path[stroke]')
+          if (!path) {
+            return null
+          }
+
+          const sampleCount = 100
+          const windowSize = 10
+          const total = path.getTotalLength()
+          const points = Array.from({ length: sampleCount + 1 }, (_, index) => {
+            const point = path.getPointAtLength((index / sampleCount) * total)
+            return { x: point.x, y: point.y }
+          })
+          const angles = points.slice(1).map((point, index) => (
+            (Math.atan2(point.y - points[index].y, point.x - points[index].x) * 180) / Math.PI
+          ))
+          const turn = (from: number, to: number): number => Math.abs(((to - from + 540) % 360) - 180)
+
+          let maxWindowTurn = 0
+          for (let index = 0; index + windowSize < angles.length; index += 1) {
+            maxWindowTurn = Math.max(maxWindowTurn, turn(angles[index], angles[index + windowSize]))
+          }
+
+          const start = points[0]
+          const end = points[points.length - 1]
+          const chordDeg = (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI
+
+          return {
+            maxWindowTurn: Math.round(maxWindowTurn),
+            endVsChord: Math.round(turn(angles[angles.length - 1], chordDeg)),
+          }
+        })
+      )
+
+      await expect.poll(async () => (await readRenderedTailShape())?.maxWindowTurn ?? 999, {
+        timeout: 8_000,
+      }).toBeLessThan(20)
+      await expect.poll(async () => (await readRenderedTailShape())?.endVsChord ?? 0, {
+        timeout: 8_000,
+      }).toBeGreaterThan(15)
+
       // The attacker is tilted from the backend's rested flag. Motion applies the rotation on the card's
       // wrapper rather than as a Tailwind class on the card, so assert the effective rotation instead.
       await expect.poll(async () => {
@@ -390,6 +459,253 @@ test.describe('GameView multiplayer battle visuals', () => {
         hasRestFlag: true,
         isRested: true,
       })
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  /**
+   * A rested card mounts *in* its pose, it never animates into it.
+   *
+   * `BattleFieldRow` carries the rested tilt on a Motion wrapper (`animate={{ rotate: 14 }}`). Without
+   * `initial={false}` Motion springs that tilt from 0deg on mount, so after a reload / re-mount every rested card
+   * in the scene - i.e. every card that has attacked - rotated into place over ~400 ms, and a rotating card's
+   * bounding box grows ~24 px in *both* axes while it turns. That is the reported "the whole board shakes when I
+   * reload after an attack": it needs a rested card, which is why an idle board never showed it.
+   */
+  test('a rested card is painted in its tilt and never animates into it', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request, 'default', { one: { deckId: rushDeckId } })
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
+        actorUserId: setup.playerOne.userId,
+        cardDefinitionId: FIXTURE_CARD_IDS.rushCharacter,
+      })
+      const summonCard = summonActor.actorPage.locator(`[data-testid="bottom-hand-card-${summonActor.cardInstanceId}"]`)
+      await summonCard.hover()
+      await summonCard.getByRole('button', { name: /^summon$/i }).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, summonActor.actor.session.accessToken)
+        return resolvePlayerState(state, summonActor.actor).characterField
+          .some((card) => card.instanceId === summonActor.cardInstanceId)
+      }, { timeout: 12_000 }).toBe(true)
+
+      const battleActor = await resolveBattleActionForSpecificCard(
+        request,
+        setup,
+        pages,
+        summonActor.actor,
+        summonActor.cardInstanceId,
+      )
+      await executeBattleActionViaHub(
+        setup.gameCode,
+        battleActor.actor,
+        battleActor.actionId,
+        battleActor.cardInstanceId,
+      )
+
+      // The declaration rests the card: that is the pose the board has to reproduce on mount.
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, battleActor.actor.session.accessToken)
+        return resolvePlayerState(state, battleActor.actor).characterField
+          .find((card) => card.instanceId === battleActor.cardInstanceId)?.isRested ?? false
+      }, { timeout: 12_000 }).toBe(true)
+
+      await battleActor.actorPage.addInitScript((instanceId) => {
+        const state = window as unknown as {
+          __phvRestPoseSamples?: Array<{ rotationDeg: number; rect: number[] } | null>
+        }
+        state.__phvRestPoseSamples = []
+
+        // The tilt lives on a wrapper, so read it from the nearest element that owns a rotation - the same walk
+        // the attack-link anchor code does (a Tailwind `rotate` property first, then a transform matrix).
+        const readRotationDeg = (element: HTMLElement | null): number => {
+          let node: HTMLElement | null = element
+          while (node) {
+            const style = getComputedStyle(node)
+            const rotateMatch = (style.rotate ?? '').match(/(-?[\d.]+)deg/)
+            if (rotateMatch) {
+              return Math.round(Number.parseFloat(rotateMatch[1]) * 10) / 10
+            }
+            if (style.transform && style.transform !== 'none') {
+              const matrix = new DOMMatrixReadOnly(style.transform)
+              return Math.round((Math.atan2(matrix.b, matrix.a) * 180 / Math.PI) * 10) / 10
+            }
+            node = node.parentElement
+          }
+          return 0
+        }
+
+        const tick = (): void => {
+          const samples = state.__phvRestPoseSamples!
+          if (samples.length > 240) {
+            return
+          }
+
+          const card = document.querySelector<HTMLElement>(`[data-card-instance-id="${instanceId}"]`)
+          if (!card) {
+            samples.push(null)
+          } else {
+            const rect = card.getBoundingClientRect()
+            samples.push({
+              rotationDeg: readRotationDeg(card),
+              rect: [Math.round(rect.left), Math.round(rect.top), Math.round(rect.width), Math.round(rect.height)],
+            })
+          }
+          window.requestAnimationFrame(tick)
+        }
+
+        window.requestAnimationFrame(tick)
+      }, battleActor.cardInstanceId)
+
+      await battleActor.actorPage.reload()
+      await expect(battleActor.actorPage.getByTestId('game-board')).toBeVisible({ timeout: 15_000 })
+      await battleActor.actorPage.waitForTimeout(1_200)
+
+      const samples = (await battleActor.actorPage.evaluate(
+        () => (window as unknown as {
+          __phvRestPoseSamples?: Array<{ rotationDeg: number; rect: number[] } | null>
+        }).__phvRestPoseSamples ?? [],
+      )).filter((sample): sample is { rotationDeg: number; rect: number[] } => sample !== null)
+
+      // Non-vacuous: the sampler has to have seen the card.
+      expect(samples.length, 'the rest-pose sampler never saw the card').toBeGreaterThan(0)
+
+      // Painted already tilted on its very first frame - not animating from upright.
+      expect(
+        Math.abs(samples[0].rotationDeg),
+        `the rested card mounted upright and animated into its tilt: ${JSON.stringify(samples.slice(0, 4))}`,
+      ).toBeGreaterThan(13)
+
+      // And it never moves afterwards: one distinct pose for the whole observation.
+      const distinctPoses = new Set(samples.map((sample) => `${sample.rotationDeg}|${sample.rect.join(',')}`))
+      expect(
+        [...distinctPoses],
+        `a rested card moved after mount: ${JSON.stringify(samples.slice(0, 6))}`,
+      ).toHaveLength(1)
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
+
+  /**
+   * A reload is not a movement - including the attack shake.
+   *
+   * A shake is the *declaration's* motion, so it belongs to the page that watched the attack get declared. Reload
+   * inside the cut-in window and the fresh page mounts with the attack still pending: the damage step then lands
+   * on *that* page, and the board used to shake an attacker whose swing the player had already watched on the page
+   * they refreshed away. That shake is history for the new page, like the recorded movement tail, and it is the one
+   * piece of motion a refreshed board still had.
+   */
+  test('a reload inside an attack window does not shake the attacker when the damage step lands', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request, 'default', { one: { deckId: rushDeckId } })
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      const summonActor = await resolveActorWithBottomHandAction(request, setup, pages, 'Summon', {
+        actorUserId: setup.playerOne.userId,
+        cardDefinitionId: FIXTURE_CARD_IDS.rushCharacter,
+      })
+      const summonCard = summonActor.actorPage.locator(`[data-testid="bottom-hand-card-${summonActor.cardInstanceId}"]`)
+      await summonCard.hover()
+      await summonCard.getByRole('button', { name: /^summon$/i }).click()
+
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, summonActor.actor.session.accessToken)
+        return resolvePlayerState(state, summonActor.actor).characterField
+          .some((card) => card.instanceId === summonActor.cardInstanceId)
+      }, { timeout: 12_000 }).toBe(true)
+
+      const battleActor = await resolveBattleActionForSpecificCard(
+        request,
+        setup,
+        pages,
+        summonActor.actor,
+        summonActor.cardInstanceId,
+      )
+      await executeBattleActionViaHub(
+        setup.gameCode,
+        battleActor.actor,
+        battleActor.actionId,
+        battleActor.cardInstanceId,
+      )
+
+      const attackerPage = battleActor.actorPage
+
+      // The attack has to be parked on its response window when the page is refreshed - that is what makes the
+      // damage step land after the mount.
+      await expect.poll(async () => {
+        const state = await fetchGameState(request, setup.gameCode, battleActor.actor.session.accessToken)
+        return { pending: state.isAttackSequencePending, stage: state.attackSequenceStage }
+      }, { timeout: 12_000 }).toMatchObject({ pending: true, stage: 'SupportCutIn' })
+
+      // Installed before the reload, so the fresh document is already watched from its first script. The shake is
+      // the only animation this board runs with more than two keyframes; flights are counted too, because a
+      // refreshed board may not animate at all.
+      await attackerPage.addInitScript(() => {
+        const state = window as unknown as { __phvReloadShakes?: number; __phvReloadFlights?: number }
+        state.__phvReloadShakes = 0
+        state.__phvReloadFlights = 0
+
+        const originalAnimate = Element.prototype.animate
+        Element.prototype.animate = function patchedAnimate(
+          keyframes: PropertyIndexedKeyframes | Keyframe[],
+          options?: number | KeyframeAnimationOptions,
+        ): Animation {
+          if (Array.isArray(keyframes) && keyframes.length > 2) {
+            state.__phvReloadShakes = (state.__phvReloadShakes ?? 0) + 1
+          }
+
+          if (this instanceof Element && this.getAttribute('data-card-traveling') === 'true') {
+            state.__phvReloadFlights = (state.__phvReloadFlights ?? 0) + 1
+          }
+
+          return originalAnimate.call(this, keyframes, options)
+        }
+      })
+
+      await attackerPage.reload()
+      await expect(attackerPage.getByTestId('game-board')).toBeVisible({ timeout: 15_000 })
+
+      // Now close the response window(s) the way the boards themselves do - whichever side is offered the pass -
+      // so the damage step runs *after* the reload, on the page that never saw the declaration.
+      let attackResolved = false
+      for (let step = 0; step < 15 && !attackResolved; step += 1) {
+        const [playerOneState, playerTwoState] = await Promise.all([
+          fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
+          fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
+        ])
+
+        if (!playerOneState.isAttackSequencePending) {
+          attackResolved = true
+          break
+        }
+
+        const canPass = (state: typeof playerOneState): boolean => (state.availableActions ?? [])
+          .some((action) => action.actionId === 'pass-turn' && action.isEnabled)
+
+        if (canPass(playerOneState)) {
+          await declarePassInActionStepViaHub(setup.gameCode, setup.playerOne)
+        } else if (canPass(playerTwoState)) {
+          await declarePassInActionStepViaHub(setup.gameCode, setup.playerTwo)
+        }
+
+        await attackerPage.waitForTimeout(150)
+      }
+      expect(attackResolved, 'the attack never resolved, so the damage step was not observed').toBe(true)
+
+      // The damage step's own presentation (the shake's trigger) is gone by now; give a late one room to appear.
+      await attackerPage.waitForTimeout(1_200)
+
+      const report = await attackerPage.evaluate(() => {
+        const state = window as unknown as { __phvReloadShakes?: number; __phvReloadFlights?: number }
+        return { shakes: state.__phvReloadShakes ?? 0, flights: state.__phvReloadFlights ?? 0 }
+      })
+
+      expect(report.shakes, `an attack this page never watched was shaken again: ${JSON.stringify(report)}`).toBe(0)
+      expect(report.flights, `a reloaded board animated cards into place: ${JSON.stringify(report)}`).toBe(0)
     } finally {
       await closeMultiplayerPages(pages)
     }

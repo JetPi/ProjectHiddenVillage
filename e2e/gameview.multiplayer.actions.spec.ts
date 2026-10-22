@@ -625,6 +625,22 @@ test.describe('GameView multiplayer actions', () => {
       // the phase indicator lists every outstanding material.
       await expect(genericMaterialOnField.getByTestId('tribute-requirement-label')).toHaveText('any', { timeout: 5_000 })
       await expect(takaMaterialOnField.getByTestId('tribute-requirement-label')).toHaveText('The Taka', { timeout: 5_000 })
+
+      // The requirement label must stay inside the card it belongs to.
+      const materialCardBox = await genericMaterialOnField.boundingBox()
+      const materialLabelBox = await genericMaterialOnField.getByTestId('tribute-requirement-label').boundingBox()
+
+      expect(materialCardBox).not.toBeNull()
+      expect(materialLabelBox).not.toBeNull()
+      if (materialCardBox && materialLabelBox) {
+        expect(materialLabelBox.y + materialLabelBox.height)
+          .toBeLessThanOrEqual(materialCardBox.y + materialCardBox.height + 1)
+      }
+
+      // A tribute candidate drops the whole stat/status HUD. The TRIBUTE chip and the requirement label own the
+      // lower half of the card, so the damage/power badges and the status rail must not compete with them.
+      await expect(genericMaterialOnField.getByTestId('card-status-badges')).toHaveCount(0)
+      await expect(genericMaterialOnField.locator('.card-overlay-badge')).toHaveCount(0)
       await expect(ownerPage.getByTestId('phase-indicator')).toContainText('Selecting tribute materials (needs: (any x1, The Taka x1))', { timeout: 5_000 })
 
       // Paying the generic material leaves only the trait requirement outstanding.

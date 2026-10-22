@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { createFixtureDeck } from './helpers/multiplayer/fixtures'
-import type { APIRequestContext } from '@playwright/test'
+import type { APIRequestContext, Page } from '@playwright/test'
 import {
   closeMultiplayerPages,
   declarePassInActionStepViaHub,
@@ -28,6 +28,8 @@ const LEADER_POWER_UP_EFFECT_SUFFIX = ':power-up-card'
 // `BattleActionRules.DescribeRestriction(EnteredFieldThisTurn)`: what a summon-sick card without Rush
 // reads. The board hides the reason behind the chip's title, and the payload publishes it directly.
 const SUMMONED_THIS_TURN_REASON = 'Cannot declare battle action the turn that the card entered the field.'
+// The same reason as the board localises it for the badge tooltip (`game.zone.status.cannotAttackReason`).
+const SUMMONED_THIS_TURN_REASON_TEXT = 'It cannot attack on the turn it enters the field.'
 
 test.describe('GameView multiplayer conditional rush', () => {
   test.describe.configure({ timeout: 300_000 })
@@ -80,6 +82,43 @@ async function playConditionalRushScenario(
   expect(beforeBoost.isEnabled).toBe(false)
   expect(beforeBoost.disabledReason).toBe(SUMMONED_THIS_TURN_REASON)
 
+  // The board no longer draws a Battle chip it cannot use: the card explains itself with the status rail, so the
+  // summon-sick card reads as "cannot attack" with the reason in the badge tooltip instead of a greyed button.
+  const summoningCard = summoningPage.locator(
+    `[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${summonActor.cardInstanceId}"]`,
+  )
+  await expect(summoningCard).toBeVisible({ timeout: 10_000 })
+  const cannotAttackBadge = summoningCard.locator('[data-status-effect="CannotAttack"]')
+  await expect(cannotAttackBadge).toBeVisible({ timeout: 10_000 })
+
+  // The icon explains itself on hover: the tooltip states what the status means (for the cannot-attack case it
+  // carries the server's own reason), which is the whole point of replacing the greyed-out Battle chip.
+  await cannotAttackBadge.hover()
+  await expect(summoningPage.getByTestId('card-status-tooltip')).toBeVisible({ timeout: 5_000 })
+  await expect(summoningPage.getByTestId('card-status-tooltip')).toContainText('Cannot attack')
+  await expect(summoningPage.getByTestId('card-status-tooltip')).toContainText(SUMMONED_THIS_TURN_REASON_TEXT)
+
+  await summoningCard.hover()
+  await expect(summoningCard.getByRole('button', { name: /^battle$/i })).toHaveCount(0)
+
+  // Card statuses are public information, so the opponent's board badges the same card in its top row.
+  const opponentPage = pages.playerTwoPage
+  const opponentCard = opponentPage.locator(
+    `[data-zone="character-field-card"][data-slot-side="top"][data-card-instance-id="${summonActor.cardInstanceId}"]`,
+  )
+  const opponentCannotAttackBadge = opponentCard.locator('[data-status-effect="CannotAttack"]')
+  await expect(opponentCannotAttackBadge).toBeVisible({ timeout: 15_000 })
+
+  // The opponent's board receives no card actions at all, so the reason rides on the status itself: their
+  // tooltip names the cause instead of falling back to a generic "cannot attack".
+  await opponentCannotAttackBadge.hover()
+  await expect(opponentPage.getByTestId('card-status-tooltip')).toBeVisible({ timeout: 5_000 })
+  await expect(opponentPage.getByTestId('card-status-tooltip')).toContainText(SUMMONED_THIS_TURN_REASON_TEXT)
+
+  // Watch the rail across the boost: the lock leaves and Rush arrives on the same state push, and the order the
+  // two chips enter and leave the DOM is what the animation has to respect.
+  await installCardStatusTimeline(summoningPage, summonActor.cardInstanceId)
+
   // The leader's own "[Activate: Main] Flip 1 of your CHAKRA face-down and choose 1 Character: +3 power
   // during this turn" is the boost that crosses the threshold ("During This Turn" + Change Values, so the
   // engine reports a stat mutation and the continuous passive re-evaluates immediately).
@@ -93,6 +132,28 @@ async function playConditionalRushScenario(
     const battleAction = await readBattleAction(request, setup, summonActor.cardInstanceId)
     return battleAction.isEnabled
   }, { timeout: 15_000 }).toBe(true)
+
+  // The granted Rush lands on the board as its own badge, and the restriction badge clears the moment the card
+  // can actually declare battle. The chip that reappears here is the one the scenario clicks below.
+  const rushBadge = summoningCard.locator('[data-status-effect="Rush"]')
+  await expect(rushBadge).toBeVisible({ timeout: 15_000 })
+  await expect(summoningCard.locator('[data-status-effect="CannotAttack"]')).toHaveCount(0)
+
+  // A status that replaces another is sequenced, not cross-faded: the outgoing chip has to be gone before the
+  // incoming one mounts, otherwise the new badge pops up beside a half-faded one and slides into its slot when
+  // that one unmounts.
+  const statusTimeline = await readCardStatusTimeline(summoningPage)
+  const lockRemovedAt = statusTimeline.findIndex(
+    (entry) => entry.type === 'removed' && entry.kind === 'CannotAttack',
+  )
+  const rushAddedAt = statusTimeline.findIndex((entry) => entry.type === 'added' && entry.kind === 'Rush')
+  expect(lockRemovedAt).toBeGreaterThanOrEqual(0)
+  expect(rushAddedAt).toBeGreaterThanOrEqual(0)
+  expect(lockRemovedAt).toBeLessThan(rushAddedAt)
+
+  await rushBadge.hover()
+  await expect(summoningPage.getByTestId('card-status-tooltip')).toBeVisible({ timeout: 5_000 })
+  await expect(summoningPage.getByTestId('card-status-tooltip')).toContainText('Rush')
 
   const attackDamage = await readDamage(request, setup, summonActor.cardInstanceId)
   expect(attackDamage).toBeGreaterThan(0)
@@ -113,6 +174,57 @@ async function playConditionalRushScenario(
     return card?.isRested === true
   }, { timeout: 15_000 }).toBe(true)
 }
+type CardStatusTimelineEntry = {
+  type: 'added' | 'removed'
+  kind: string
+}
+
+/**
+ * Records the order in which a card's status chips are added to and removed from the DOM. The rail animates the
+ * swap, so those two mutations are the observable contract: a badge that replaces another may only be added after
+ * the outgoing chip was removed.
+ */
+async function installCardStatusTimeline(page: Page, cardInstanceId: string): Promise<void> {
+  await page.evaluate((instanceId) => {
+    const card = document.querySelector(
+      `[data-zone="character-field-card"][data-slot-side="bottom"][data-card-instance-id="${instanceId}"]`,
+    )
+
+    if (card === null) {
+      throw new Error(`Card ${instanceId} is not on the board.`)
+    }
+
+    const timeline: Array<{ type: 'added' | 'removed'; kind: string }> = []
+    ;(window as unknown as { __cardStatusTimeline?: typeof timeline }).__cardStatusTimeline = timeline
+
+    const capture = (type: 'added' | 'removed') => (node: Node): void => {
+      if (!(node instanceof HTMLElement)) {
+        return
+      }
+
+      const kind = node.getAttribute('data-status-effect')
+      if (kind !== null) {
+        timeline.push({ type, kind })
+      }
+    }
+
+    new MutationObserver((records) => {
+      for (const record of records) {
+        record.addedNodes.forEach(capture('added'))
+        record.removedNodes.forEach(capture('removed'))
+      }
+    }).observe(card, { childList: true, subtree: true })
+  }, cardInstanceId)
+}
+
+async function readCardStatusTimeline(page: Page): Promise<CardStatusTimelineEntry[]> {
+  return await page.evaluate(() => {
+    const timeline = (window as unknown as { __cardStatusTimeline?: CardStatusTimelineEntry[] })
+      .__cardStatusTimeline
+    return timeline ?? []
+  })
+}
+
 async function readPower(
   request: APIRequestContext,
   setup: MultiplayerSetup,
@@ -196,7 +308,23 @@ async function activateLeaderPowerUp(
   )
   await expect(targetCard).toBeVisible({ timeout: 10_000 })
   await targetCard.hover()
-  await targetCard.getByRole('button', { name: /^choose$/i }).click()
+  const chooseChip = targetCard.getByRole('button', { name: /^choose$/i })
+  await expect(chooseChip).toBeVisible({ timeout: 10_000 })
+
+  // Regression guard: a target card gets the `battle-target-*` class, and the stylesheet used to force every
+  // direct child of such a card to `position: relative`. The status rail then fell into normal flow - full card
+  // width and hanging below the card - so the badges looked shoved the moment a pick started.
+  const targetCardBox = await targetCard.boundingBox()
+  const targetRailBox = await targetCard.locator('[data-testid="card-status-badges"]').boundingBox()
+  expect(targetCardBox).not.toBeNull()
+  expect(targetRailBox).not.toBeNull()
+  if (targetCardBox && targetRailBox) {
+    const cardBottom = targetCardBox.y + targetCardBox.height
+    expect(targetRailBox.y + targetRailBox.height).toBeLessThanOrEqual(cardBottom)
+    expect(targetRailBox.width).toBeLessThan(targetCardBox.width / 2)
+  }
+
+  await chooseChip.click()
 }
 /** Declares the attack on the opposing leader through the card's hover chip and the leader's "Choose". */
 async function declareAttackOnOpposingLeader(

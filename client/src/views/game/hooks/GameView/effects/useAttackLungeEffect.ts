@@ -9,7 +9,20 @@ function useAttackLungeEffect({
   attackVisualState,
   boardZoneRef,
 }: IUseAttackLungeEffectArgs): void {
-  const handledPresentationIdRef = useRef<string | null>(null)
+  // A shake is the *declaration's* motion, so this board may only play it for an attack it watched get declared.
+  // Two things can make a reloaded board play it anyway, and both are history it never saw:
+  //
+  //  - the damage presentation was already pending at mount (the old page's ack died with it, or it is waiting on
+  //    the other player) - so its id is adopted as handled, exactly like the recorded movement tail
+  //    (`useAdoptRecordedAnimationEventsOnMount`); the presentation still resolves, it just does not re-animate;
+  //  - the attack was already declared before the mount (a reload inside the cut-in window): the damage step lands
+  //    *after* the mount and would shake an attacker whose swing this page never showed. That is the reported
+  //    "the completed attack shook again after I refreshed", so an attack that was already pending at mount never
+  //    lunges on this page - the arrow it mounts with is the whole story.
+  const handledPresentationIdRef = useRef<string | null>(pendingPresentation?.presentationId ?? null)
+  const mountedDuringPendingAttackRef = useRef<boolean>(
+    (attackVisualState?.attackerCardInstanceId ?? '').length > 0,
+  )
   const attackPairRef = useRef<{ attackerCardInstanceId: string; defenderCardInstanceId: string } | null>(null)
 
   useEffect(() => {
@@ -30,6 +43,10 @@ function useAttackLungeEffect({
       return
     }
     handledPresentationIdRef.current = presentationId
+
+    if (mountedDuringPendingAttackRef.current) {
+      return
+    }
 
     const pair = attackPairRef.current
     if (!pair) {

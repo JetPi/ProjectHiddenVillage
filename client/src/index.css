@@ -306,22 +306,6 @@ html[data-theme='light'] {
   }
 }
 
-.effect-notice-enter {
-  animation: effect-notice-enter 180ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-@keyframes effect-notice-enter {
-  from {
-    opacity: 0;
-    transform: translate3d(-6px, -6px, 0);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 .attack-link-card-outline,
 .attack-link-leader-outline {
   position: relative;
@@ -457,7 +441,19 @@ html[data-theme='light'] {
 .battle-target-top > .card-selection-tint,
 .battle-target-bottom > .card-selection-tint,
 .battle-target-leader-top > .card-selection-tint,
-.battle-target-leader-bottom > .card-selection-tint {
+.battle-target-leader-bottom > .card-selection-tint,
+/* The status rail is positioned against the card too. Without this it falls back to the `> *` rule above
+   (`position: relative`), which drops it into normal flow - full card width, hanging below the card - the
+   moment a card becomes a target. */
+.battle-target-top > .card-status-badges,
+.battle-target-bottom > .card-status-badges,
+.battle-target-leader-top > .card-status-badges,
+.battle-target-leader-bottom > .card-status-badges,
+/* Same reasoning for the summon-requirement label: one card can be a requirement pick and a target at once. */
+.battle-target-top > .card-overlay-requirement-label,
+.battle-target-bottom > .card-overlay-requirement-label,
+.battle-target-leader-top > .card-overlay-requirement-label,
+.battle-target-leader-bottom > .card-overlay-requirement-label {
   position: absolute;
 }
 
@@ -534,11 +530,11 @@ html[data-theme='light'] {
   visibility: hidden;
 }
 
-body:has([data-card-traveling='true']) .card-drop-zone {
+body[data-card-flight-active='true'] .card-drop-zone {
   overflow: visible;
 }
 
-[data-board-half]:has([data-card-traveling='true']) {
+[data-board-half][data-flight-owner='true'] {
   z-index: 34;
 }
 

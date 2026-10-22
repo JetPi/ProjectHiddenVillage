@@ -145,6 +145,16 @@ public sealed record GameActionOptionResponse(
     bool IsEnabled,
     string? DisabledReason = null);
 
+/// <summary>
+/// One status a card is under. <see cref="Kind"/> is a <see cref="CardStatusEffectCodes"/> value. The reason
+/// fields are only filled for the cannot-attack status, and they exist because the opponent's board receives
+/// no card actions at all - without them that client could never explain why the card cannot attack.
+/// </summary>
+public sealed record CardStatusEffectResponse(
+    string Kind,
+    string? ReasonCode = null,
+    string? Reason = null);
+
 public sealed record GameCardActionTargetsResponse(
     string ActionId,
     string SourceCardInstanceId,
@@ -212,6 +222,14 @@ public record CardInstanceResponse(
     public bool IsConcealedFromOpponent { get; init; }
 
     public IReadOnlyList<GameActionOptionResponse> AvailableActions { get; init; } = [];
+
+    /// <summary>
+    /// The statuses this card is under right now (<see cref="CardStatusEffectCodes"/>). Computed by the mapper
+    /// from the engine's effective keywords and suppression state, because the client cannot infer them: a
+    /// printed "Rush" is void while the card's effects are suppressed, and keyword grants live in the engine.
+    /// Only battlefield cards and leaders carry statuses; hidden zones stay empty so nothing leaks.
+    /// </summary>
+    public IReadOnlyList<CardStatusEffectResponse> StatusEffects { get; init; } = [];
 }
 
 public sealed record LeaderCardInstanceResponse(

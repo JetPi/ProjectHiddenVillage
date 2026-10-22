@@ -8,7 +8,7 @@ export function PlayTopResourceZone({ currentChakra, className, isSummonCardRead
     <ResourceTrackerShell
       reverse
       className={className}
-      chakraContent={<ResourceChakraGrid currentChakra={currentChakra} cardClassName={chakraCardClassName} slotClassName="w-[2.32rem]" />}
+      chakraContent={<ResourceChakraGrid currentChakra={currentChakra} cardClassName={chakraCardClassName} />}
       summonContent={<ResourceSummonCard isSummonCardReady={isSummonCardReady} />}
     />
   )

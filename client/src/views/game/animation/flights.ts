@@ -17,6 +17,135 @@ import {
 } from './flightRegistry'
 import { prefersReducedMotion, resolveFlightDurationMs } from './reducedMotion'
 
+type ISuppressedInstanceVisualOwner = {
+  count: number
+  visibility: string
+}
+
+// Reference-counted so a superseded flight's cleanup cannot reveal an element the newer flight is still hiding.
+const suppressedInstanceVisuals = new Map<HTMLElement, ISuppressedInstanceVisualOwner>()
+
+function resolveElementInstanceId(element: HTMLElement): string {
+  return element.dataset.cardInstanceId
+    ?? element.dataset.handInstanceId
+    ?? element.dataset.departingInstanceId
+    ?? ''
+}
+
+/**
+ * One visual per card instance: while `flyingElement` owns the flight for `instanceId`, every other element that
+ * carries that same identity is hidden for the flight's duration.
+ *
+ * The hand row can keep a leaving card mounted for one extra commit (`AnimatePresence` renders a removed child
+ * once before dropping it, even with no exit animation). That commit can be painted after the arrival flight
+ * starts, so the played card exists in the hand row and in its destination at the same time - the reported
+ * "ghost copy stays at the starting position". Hiding the non-flying element makes the invariant independent of
+ * which render pass produced the second node.
+ */
+function suppressOtherInstanceVisuals(instanceId: string, flyingElement: HTMLElement): HTMLElement[] {
+  if (!instanceId || typeof document === 'undefined') {
+    return []
+  }
+
+  const escapedId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(instanceId) : instanceId
+  const selector = [
+    `[data-hand-instance-id="${escapedId}"]`,
+    `[data-card-instance-id="${escapedId}"]`,
+    `[data-departing-instance-id="${escapedId}"]`,
+  ].join(',')
+
+  const suppressed: HTMLElement[] = []
+  document.querySelectorAll<HTMLElement>(selector).forEach((element) => {
+    // Never hide the flying element or one that contains it: that would hide the flight itself.
+    if (element === flyingElement || element.contains(flyingElement) || flyingElement.contains(element)) {
+      return
+    }
+
+    const existingOwner = suppressedInstanceVisuals.get(element)
+    if (existingOwner) {
+      existingOwner.count += 1
+      suppressed.push(element)
+      return
+    }
+
+    if (element.style.visibility === 'hidden') {
+      return
+    }
+
+    suppressedInstanceVisuals.set(element, { count: 1, visibility: element.style.visibility })
+    element.style.visibility = 'hidden'
+    suppressed.push(element)
+  })
+
+  return suppressed
+}
+
+function restoreSuppressedInstanceVisuals(suppressed: HTMLElement[]): void {
+  for (const element of suppressed) {
+    const owner = suppressedInstanceVisuals.get(element)
+    if (!owner) {
+      continue
+    }
+
+    owner.count -= 1
+    if (owner.count > 0) {
+      continue
+    }
+
+    suppressedInstanceVisuals.delete(element)
+    element.style.visibility = owner.visibility
+  }
+}
+
+const flightOwnerCounts = new Map<HTMLElement, number>()
+let travelingFlightCount = 0
+
+function acquireFlightOwner(half: HTMLElement): () => void {
+  flightOwnerCounts.set(half, (flightOwnerCounts.get(half) ?? 0) + 1)
+  half.setAttribute('data-flight-owner', 'true')
+
+  let isReleased = false
+  return () => {
+    if (isReleased) {
+      return
+    }
+    isReleased = true
+
+    const nextCount = (flightOwnerCounts.get(half) ?? 1) - 1
+    if (nextCount > 0) {
+      flightOwnerCounts.set(half, nextCount)
+      return
+    }
+
+    flightOwnerCounts.delete(half)
+    half.removeAttribute('data-flight-owner')
+  }
+}
+
+function markCardTraveling(element: HTMLElement): () => void {
+  element.setAttribute('data-card-traveling', 'true')
+  travelingFlightCount += 1
+  document.body.setAttribute('data-card-flight-active', 'true')
+
+  const half = element.closest<HTMLElement>('[data-board-half]')
+  const releaseFlightOwner = half ? acquireFlightOwner(half) : null
+
+  let isReleased = false
+  return () => {
+    if (isReleased) {
+      return
+    }
+    isReleased = true
+
+    element.removeAttribute('data-card-traveling')
+    travelingFlightCount = Math.max(0, travelingFlightCount - 1)
+    if (travelingFlightCount === 0) {
+      document.body.removeAttribute('data-card-flight-active')
+    }
+    releaseFlightOwner?.()
+  }
+}
+
 function promoteAirborneLayer(element: HTMLElement): () => void {
   const slot = element.parentElement
   const previousElementPosition = element.style.position
@@ -78,12 +207,16 @@ export function runElementFromRectAnimation({
   const previousVisibility = element.style.visibility
   const previousWillChange = element.style.willChange
   let restoreAirborneLayer: (() => void) | null = null
+  let releaseTraveling: (() => void) | null = null
+
+  // This flight is the only visual allowed for its instance while it is in the air.
+  const suppressedVisuals = suppressOtherInstanceVisuals(resolveElementInstanceId(element), element)
 
   element.style.visibility = 'hidden'
 
   return new Promise<void>((resolve) => {
     window.requestAnimationFrame(() => {
-      element.setAttribute('data-card-traveling', 'true')
+      releaseTraveling = markCardTraveling(element)
       element.style.willChange = 'transform'
       restoreAirborneLayer = promoteAirborneLayer(element)
       element.style.transform = startTransform
@@ -99,18 +232,19 @@ export function runElementFromRectAnimation({
 
       let hasSettled = false
       const cleanup = () => {
-        if (hasSettled) {
-          return
-        }
-        hasSettled = true
-        unregisterFlight(resolvedKey, animation)
-        element.style.transform = previousTransform
-        element.style.visibility = previousVisibility
-        element.style.willChange = previousWillChange
-        restoreAirborneLayer?.()
-        element.removeAttribute('data-card-traveling')
-        resolve()
+      if (hasSettled) {
+        return
       }
+      hasSettled = true
+      unregisterFlight(resolvedKey, animation)
+      element.style.transform = previousTransform
+      element.style.visibility = previousVisibility
+      element.style.willChange = previousWillChange
+      restoreAirborneLayer?.()
+      releaseTraveling?.()
+      restoreSuppressedInstanceVisuals(suppressedVisuals)
+      resolve()
+    }
 
       animation.onfinish = cleanup
       animation.oncancel = cleanup
@@ -151,7 +285,9 @@ export function runElementToRectAnimation({
   const endScale = Math.max(destinationRect.width / sourceRect.width, 0.15)
 
   const previousTransform = element.style.transform
-  element.setAttribute('data-card-traveling', 'true')
+  // This flight is the only visual allowed for its instance while it is in the air.
+  const suppressedVisuals = suppressOtherInstanceVisuals(resolveElementInstanceId(element), element)
+  const releaseTraveling = markCardTraveling(element)
   const restoreAirborneLayer = promoteAirborneLayer(element)
 
   const animation = element.animate(
@@ -173,9 +309,10 @@ export function runElementToRectAnimation({
       unregisterFlight(resolvedKey, animation)
       element.style.transform = previousTransform
       restoreAirborneLayer()
-      element.removeAttribute('data-card-traveling')
+      releaseTraveling()
       element.setAttribute('data-card-departed', 'true')
       element.style.visibility = 'hidden'
+      restoreSuppressedInstanceVisuals(suppressedVisuals)
       resolve()
     }
 

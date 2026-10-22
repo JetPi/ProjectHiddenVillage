@@ -21,8 +21,11 @@ import { useGameHubStore } from '@/state/gameHubStore'
 import type { IUseGameHubStateResult } from '@/views/game/types'
 import { useSubmitHubIntent } from './useSubmitHubIntent'
 
-const HUB_CONNECT_MAX_ATTEMPTS = 3
-const HUB_CONNECT_RETRY_DELAY_MS = 600
+// The initial handshake used to give up after three 600 ms attempts. A `dotnet watch` rebuild or a deploy
+// outlasts that, and the board was then stranded behind disabled prompt buttons with no way back short of a
+// page reload. Retries now continue with a capped backoff until the connection is up or the view unmounts.
+const HUB_CONNECT_BASE_DELAY_MS = 500
+const HUB_CONNECT_MAX_DELAY_MS = 10_000
 const ACTION_PENDING_WATCHDOG_MS = 15_000
 
 function isConnectionConnected(connection: HubConnection): boolean {
@@ -83,15 +86,16 @@ function useGameHubState(
   }, [gameId, initialGameState, initializeGameSession])
 
   const refreshCurrentGameState = useCallback(
-    async (currentConnection: HubConnection) => {
+    async (currentConnection: HubConnection): Promise<boolean> => {
       const result = await getCurrentGameState(currentConnection, gameId)
       if (!result.succeeded || !result.value) {
         setConnectionError(resolveHubErrorMessage(result))
-        return
+        return false
       }
 
       setConnectionError(null)
       setGameState(result.value)
+      return true
     },
     [gameId, setConnectionError, setGameState],
   )
@@ -164,8 +168,28 @@ function useGameHubState(
     connectionRef.current = nextConnection
 
     let isDisposed = false
-    let disposeInvalidationHandler = () => {}
-    let disposeParticipantJoinedHandler = () => {}
+    let isConnecting = false
+    let retryTimeoutId: number | null = null
+    let retryAttempt = 0
+    let hasFetchedFallbackSnapshot = false
+
+    // Registered once per connection, never inside the retry loop: `connection.on` appends handlers, so
+    // re-registering them on every attempt would multiply the refresh callbacks.
+    const disposeInvalidationHandler = onGameStateInvalidated(nextConnection, (updatedGameId) => {
+      if (updatedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
+        return
+      }
+
+      requestGameStateRefresh(nextConnection)
+    })
+
+    const disposeParticipantJoinedHandler = onGameParticipantJoined(nextConnection, (updatedGameId) => {
+      if (updatedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
+        return
+      }
+
+      requestGameStateRefresh(nextConnection)
+    })
 
     const handleReconnected = async (): Promise<void> => {
       if (isDisposed) {
@@ -183,6 +207,7 @@ function useGameHubState(
           return
         }
 
+        retryAttempt = 0
         setConnectionError(null)
         setConnected(nextConnection.state === HubConnectionState.Connected)
       } catch (error) {
@@ -209,82 +234,89 @@ function useGameHubState(
     })
     nextConnection.onreconnected(handleReconnected)
     nextConnection.onclose(() => {
-      if (!isDisposed) {
-        setConnected(false)
+      if (isDisposed) {
+        return
       }
+
+      setConnected(false)
+      // `withAutomaticReconnect` has already exhausted its own policy by the time onclose fires, so this is
+      // the last chance to keep the board alive: restart the connect loop from the top of the backoff.
+      retryAttempt = 0
+      scheduleRetry()
     })
 
-    async function connectAndSubscribe(): Promise<void> {
-      let lastError: unknown
+    function scheduleRetry(): void {
+      if (isDisposed || retryTimeoutId !== null) {
+        return
+      }
 
-      for (let attempt = 0; attempt < HUB_CONNECT_MAX_ATTEMPTS; attempt += 1) {
+      const delayMs = Math.min(HUB_CONNECT_BASE_DELAY_MS * 2 ** retryAttempt, HUB_CONNECT_MAX_DELAY_MS)
+      retryAttempt += 1
+      retryTimeoutId = window.setTimeout(() => {
+        retryTimeoutId = null
+        void connectAndSubscribe()
+      }, delayMs)
+    }
+
+    async function connectAndSubscribe(): Promise<void> {
+      if (isDisposed || isConnecting) {
+        return
+      }
+
+      isConnecting = true
+
+      try {
+        await connectGameHub(nextConnection)
         if (isDisposed) {
           return
         }
 
-        try {
-          await connectGameHub(nextConnection)
-          if (isDisposed) {
-            return
-          }
-
-          await subscribeToGame(nextConnection, gameId)
-          if (isDisposed) {
-            return
-          }
-
-          disposeInvalidationHandler = onGameStateInvalidated(nextConnection, (updatedGameId) => {
-            if (updatedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
-              return
-            }
-
-            requestGameStateRefresh(nextConnection)
-          })
-
-          disposeParticipantJoinedHandler = onGameParticipantJoined(nextConnection, (updatedGameId) => {
-            if (updatedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
-              return
-            }
-
-            requestGameStateRefresh(nextConnection)
-          })
-
-          await refreshCurrentGameState(nextConnection)
-          if (isDisposed) {
-            return
-          }
-
-          setConnected(nextConnection.state === HubConnectionState.Connected)
+        await subscribeToGame(nextConnection, gameId)
+        if (isDisposed) {
           return
-        } catch (error) {
-          lastError = error
-
-          if (isDisposed) {
-            return
-          }
-
-          if (nextConnection.state === HubConnectionState.Connected) {
-            return
-          }
-
-          if (attempt < HUB_CONNECT_MAX_ATTEMPTS - 1) {
-            await new Promise<void>((resolve) => {
-              window.setTimeout(resolve, HUB_CONNECT_RETRY_DELAY_MS)
-            })
-          }
         }
-      }
 
-      if (!isDisposed && !isConnectionConnected(nextConnection)) {
-        const message = lastError instanceof Error ? lastError.message : 'Unable to connect to game hub.'
-        const snapshotResult = await refetchGameStateSnapshot()
-        if (!isDisposed && !isConnectionConnected(nextConnection)) {
-          if (snapshotResult.data) {
-            setGameState(snapshotResult.data)
-          }
-          setConnectionError(message)
+        const refreshed = await refreshCurrentGameState(nextConnection)
+        if (isDisposed) {
+          return
+        }
+
+        retryAttempt = 0
+        setConnected(nextConnection.state === HubConnectionState.Connected)
+
+        // The socket is up but the game itself refused: most often the API restarted and dropped the
+        // in-memory game. That is not a transient network condition, so do not loop on it - tell the player
+        // instead of leaving a board that silently never updates.
+        if (!refreshed) {
+          setActionError('The game could not be loaded. It may no longer exist on the server.')
+          return
+        }
+
+        setConnectionError(null)
+      } catch (error) {
+        if (isDisposed) {
+          return
+        }
+
+        setConnectionError(error instanceof Error ? error.message : 'Unable to connect to game hub.')
+
+        if (!isConnectionConnected(nextConnection)) {
           setConnected(false)
+
+          // One snapshot keeps real cards on the board while the hub is down; the retry loop is what brings the
+          // connection itself back, so this must never be the end of the road.
+          if (!hasFetchedFallbackSnapshot) {
+            hasFetchedFallbackSnapshot = true
+            const snapshotResult = await refetchGameStateSnapshot()
+            if (!isDisposed && snapshotResult.data && !isConnectionConnected(nextConnection)) {
+              setGameState(snapshotResult.data)
+            }
+          }
+
+          scheduleRetry()
         }
+      } finally {
+        isConnecting = false
       }
     }
 
@@ -292,6 +324,10 @@ function useGameHubState(
 
     return () => {
       isDisposed = true
+      if (retryTimeoutId !== null) {
+        window.clearTimeout(retryTimeoutId)
+        retryTimeoutId = null
+      }
       resetConnectionState()
       disposeInvalidationHandler()
       disposeParticipantJoinedHandler()
@@ -310,7 +346,7 @@ function useGameHubState(
         await disconnectGameHub(nextConnection)
       })()
     }
-  }, [authUserId, gameId, hubConnectionScopeKey, refreshCurrentGameState, refetchGameStateSnapshot, requestGameStateRefresh, resetConnectionState, setConnected, setConnectionError, setGameState])
+  }, [authUserId, gameId, hubConnectionScopeKey, refreshCurrentGameState, refetchGameStateSnapshot, requestGameStateRefresh, resetConnectionState, setActionError, setConnected, setConnectionError, setGameState])
 
   useEffect(() => {
     if (!isActionPending) {

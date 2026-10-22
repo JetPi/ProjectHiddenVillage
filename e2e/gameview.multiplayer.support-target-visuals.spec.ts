@@ -277,9 +277,9 @@ async function activateSupportFromSupportZone(
 
 /**
  * A support already in the chain publishes no support action at all, so its hover overlay has no Support
- * button - it shows the disabled "No actions" placeholder instead. The preview chip is asserted first: it
- * proves the hover landed and the overlay is rendering, so the missing Support button is the rule and not a
- * hover that never happened.
+ * button - and nothing takes its place: the overlay simply lists no actions. The preview chip is asserted
+ * first: it proves the hover landed and the overlay is rendering, so the empty action list is the rule and
+ * not a hover that never happened.
  */
 async function expectSupportChipRemoved(page: Page, supportInstanceId: string): Promise<void> {
   const supportZoneCard = page.locator(
@@ -289,7 +289,7 @@ async function expectSupportChipRemoved(page: Page, supportInstanceId: string): 
   await expect(supportZoneCard).toBeVisible()
   await supportZoneCard.hover()
   await expect(supportZoneCard.getByRole('button', { name: 'Open card details' })).toBeVisible()
-  await expect(supportZoneCard.getByTestId('card-no-actions-chip')).toHaveText('No actions')
+  await expect(supportZoneCard.getByTestId('card-no-actions-chip')).toHaveCount(0)
   await expect(supportZoneCard.getByRole('button', { name: /^support$/i })).toHaveCount(0)
 }
 

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { memo, useLayoutEffect, useRef, useState } from "react";
 import type {
   IAttackLinkCubic,
   IAttackLinkHeadConfig,
@@ -44,11 +44,13 @@ function readAnchorSignature(element: HTMLElement): string {
   return `${rect.left.toFixed(1)},${rect.top.toFixed(1)},${rect.width.toFixed(1)},${rect.height.toFixed(1)}`
 }
 
-function sampleAttackLinkLayout(config: IAttackLinkRenderConfig): IAttackLinkLayoutSample | null {
-  const board = document.querySelector<HTMLElement>('[data-testid="game-board"]')
+function sampleAttackLinkLayout(
+  config: IAttackLinkRenderConfig,
+  board: HTMLElement,
+): IAttackLinkLayoutSample | null {
   const sourceCard = document.getElementById(config.startId)
   const targetCard = document.getElementById(config.endId)
-  if (!board || !sourceCard || !targetCard) {
+  if (!sourceCard || !targetCard) {
     return null
   }
 
@@ -77,16 +79,28 @@ function sampleAttackLinkLayout(config: IAttackLinkRenderConfig): IAttackLinkLay
   }
 }
 
-export const AttackLinkArrow = ({ config }: AttackLinkArrowProps) => {
+export const AttackLinkArrow = memo(function AttackLinkArrow({ config }: AttackLinkArrowProps) {
   const [sample, setSample] = useState<IAttackLinkLayoutSample | null>(null)
   const measuredSignature = useRef<string | null>(null)
+  const configRef = useRef(config)
+
+  useLayoutEffect(() => {
+    configRef.current = config
+  })
 
   useLayoutEffect(() => {
     let frame = 0
     let settleFrames = ATTACK_LINK_SETTLE_FRAMES
+    let isStopped = false
 
-    const run = () => {
-      const next = sampleAttackLinkLayout(config)
+    function run() {
+      frame = 0
+      if (isStopped) {
+        return
+      }
+
+      const board = document.querySelector<HTMLElement>('[data-testid="game-board"]')
+      const next = board ? sampleAttackLinkLayout(configRef.current, board) : null
 
       if (next && next.signature !== measuredSignature.current) {
         measuredSignature.current = next.signature
@@ -101,14 +115,29 @@ export const AttackLinkArrow = ({ config }: AttackLinkArrowProps) => {
       }
     }
 
-    frame = window.requestAnimationFrame(run)
+    const schedule = () => {
+      if (!isStopped && frame === 0) {
+        frame = window.requestAnimationFrame(run)
+      }
+    }
+
+    const resample = () => {
+      settleFrames = ATTACK_LINK_SETTLE_FRAMES
+      schedule()
+    }
+
+    schedule()
+    window.addEventListener('resize', resample)
 
     return () => {
+      isStopped = true
+      window.removeEventListener('resize', resample)
       if (frame) {
         window.cancelAnimationFrame(frame)
       }
+      frame = 0
     }
-  })
+  }, [config])
 
   const cubic = sample?.cubic ?? null
   const head = sample?.head ?? null
@@ -184,4 +213,4 @@ export const AttackLinkArrow = ({ config }: AttackLinkArrowProps) => {
       ) : null}
     </div>
   )
-}
+})
