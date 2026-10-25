@@ -244,8 +244,9 @@ server build or e2e suite while the dev stack is live.
   `localStorage` under `phv-imported-deck`, so a refresh restores the list; `Use` also selects it as the deck for
   the next match. `Save` is only rendered when signed in, writes a named user deck, and falls back to
   `Saved Deck X` where `X` is one above the highest existing `Saved Deck N`.
-- The login import reports only a summary: "Deck isn't valid for any format." when every active format
-  rejects it, "Deck is valid for format(s): ..." listing the accepting formats otherwise, and no text when
-  every active format accepts it.
+- The login import modal owns the detailed breakdown through `DeckImportValidation`; the main login view does
+  not share it and instead computes one line inline: "Deck isn't valid for any format." when every active
+  format rejects the deck, "Deck is valid for format(s): ..." listing the accepting formats otherwise, and no
+  text when every active format accepts it.
 - Verified: `npm run typecheck`, `npm run lint`, `npm run test:server` (798 passing), `npm run db:migrate`, and
   `npx playwright test e2e/admin.deck-builder.spec.ts e2e/admin.deck-ruleset-editor.spec.ts` (5 passing).

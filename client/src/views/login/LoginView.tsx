@@ -19,7 +19,6 @@ import {
   FormField,
   FormLabel,
   FormInput,
-  FormTextarea,
   OptionToggle,
 } from '@/components/forms'
 import type { IAdaptiveFieldConfig } from '@/components/forms'
@@ -38,7 +37,7 @@ import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
 import { useActiveDeckRulesetsQuery } from '@/services/queries/deckRulesetQueries'
 import { evaluateDeckRulesets } from '@/domain/deck/evaluateDeckRulesets'
 import { normalizeDeckCardId, parseDeckList } from '@/domain/deck/parseDeckList'
-import { DeckImportValidation } from '@/views/login/components/DeckImportValidation'
+import { DeckImportDialog } from '@/views/login/components/DeckImportDialog'
 import { writeCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
 import { buildDefaultSavedDeckName } from '@/views/login/utils/defaultDeckName'
 import type { IDeckCardMetadata, IDeckListParseError } from '@/domain/deck/types'
@@ -390,6 +389,13 @@ export function LoginView() {
 
   const isCheckingImportedDeck = importedDeckCardsQuery.isFetching || activeDeckRulesetsQuery.isFetching
   const visibleImportedDeckValidation = isCheckingImportedDeck ? null : importedDeckValidation
+  const visibleImportedDeckEvaluations = visibleImportedDeckValidation?.evaluations ?? []
+  const validImportedDeckRulesets = visibleImportedDeckEvaluations.filter(
+    (evaluation) => evaluation.isValid,
+  )
+  const isImportedDeckLegalEverywhere =
+    visibleImportedDeckEvaluations.length > 0
+    && validImportedDeckRulesets.length === visibleImportedDeckEvaluations.length
   const importedDeckParseError = importedDeckParse && !importedDeckParse.isValid
     ? importedDeckParse.error
     : null
@@ -767,11 +773,34 @@ export function LoginView() {
                     >
                       {t('auth.importDeckButton')}
                     </AppButton>
-                    <DeckImportValidation
-                      parseError={importedDeckParseError}
-                      validation={visibleImportedDeckValidation}
-                      variant="summary"
-                    />
+                    {importedDeckParseError && importedDeckParseError.code !== 'empty' ? (
+                      <p
+                        role="alert"
+                        data-testid="login-deck-parse-error"
+                        className="mt-2 text-xs font-medium text-[var(--button-primary-bg)]"
+                      >
+                        {describeImportedDeckParseError(importedDeckParseError)}
+                      </p>
+                    ) : null}
+                    {visibleImportedDeckValidation && !isImportedDeckLegalEverywhere ? (
+                      <p
+                        data-testid="login-deck-format-status"
+                        data-has-valid-format={validImportedDeckRulesets.length > 0 ? 'true' : 'false'}
+                        className={`mt-2 text-xs font-medium ${
+                          validImportedDeckRulesets.length > 0
+                            ? 'text-emerald-700 dark:text-emerald-300'
+                            : 'text-[var(--button-primary-bg)]'
+                        }`}
+                      >
+                        {validImportedDeckRulesets.length > 0
+                          ? t('deckRules.status.validForFormats', {
+                              formats: validImportedDeckRulesets
+                                .map((evaluation) => evaluation.ruleset.name)
+                                .join(', '),
+                            })
+                          : t('deckRules.status.invalidForAllFormats')}
+                      </p>
+                    ) : null}
                   </>
                 ) : (
                   <AdaptiveFormField
@@ -901,94 +930,25 @@ export function LoginView() {
         </div>
       ) : null}
 
-      {isImportModalOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="import-modal-title"
-          onClick={() => setIsImportModalOpen(false)}
-        >
-          <Panel
-            className="w-full max-w-2xl p-5"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h2 id="import-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
-                {t('auth.importModalTitle')}
-              </h2>
-            </div>
-            <p className="mb-2 text-sm text-[var(--text-secondary)]">
-              {t('auth.importModalBody')}
-            </p>
-            <FormTextarea
-              id="deckImportPayload"
-              value={activeDeckOption}
-              onChange={(event) => handleImportDeckTextChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  setIsImportModalOpen(false)
-                }
-              }}
-              placeholder={t('auth.importPlaceholder')}
-              rows={10}
-              className="py-2"
-            />
-            <DeckImportValidation
-              parseError={importedDeckParseError}
-              validation={importedDeckValidation}
-              isChecking={isCheckingImportedDeck}
-            />
-
-            {authUser?.userId ? (
-              <div className="mt-3">
-                <FormLabel htmlFor="importDeckName">{t('auth.importDeckNameLabel')}</FormLabel>
-                <FormInput
-                  id="importDeckName"
-                  data-testid="import-deck-name"
-                  value={importDeckName}
-                  placeholder={defaultImportDeckName}
-                  onChange={(event) => setImportDeckName(event.target.value)}
-                  className="py-2"
-                />
-                <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-                  {t('auth.importDeckNameHint', { name: defaultImportDeckName })}
-                </p>
-              </div>
-            ) : null}
-
-            <div className="mt-4 flex justify-end gap-2">
-              <AppButton type="button" variant="ghost" onClick={() => setIsImportModalOpen(false)}>
-                {t('auth.close')}
-              </AppButton>
-
-              <AppButton
-                type="button"
-                variant="ghost"
-                onClick={handleUseImportedDeck}
-                disabled={!isImportedDeckReady}
-                data-testid="import-deck-use"
-              >
-                {t('auth.importUse')}
-              </AppButton>
-
-              {authUser?.userId ? (
-                <AppButton
-                  type="button"
-                  onClick={() => {
-                    void handleSaveImportedDeck()
-                  }}
-                  disabled={!isImportedDeckReady || isSavingImportedDeck}
-                  data-testid="import-deck-save"
-                >
-                  {isSavingImportedDeck ? t('auth.importSaving') : t('auth.importSave')}
-                </AppButton>
-              ) : null}
-            </div>
-          </Panel>
-        </div>
-      ) : null}
+      <DeckImportDialog
+        isOpen={isImportModalOpen}
+        payload={activeDeckOption}
+        onPayloadChange={handleImportDeckTextChange}
+        parseError={importedDeckParseError}
+        validation={importedDeckValidation}
+        isChecking={isCheckingImportedDeck}
+        isAuthenticated={Boolean(authUser?.userId)}
+        deckName={importDeckName}
+        onDeckNameChange={setImportDeckName}
+        defaultDeckName={defaultImportDeckName}
+        canUse={isImportedDeckReady}
+        isSaving={isSavingImportedDeck}
+        onClose={() => setIsImportModalOpen(false)}
+        onUse={handleUseImportedDeck}
+        onSave={() => {
+          void handleSaveImportedDeck()
+        }}
+      />
     </PageShell>
   )
 }
