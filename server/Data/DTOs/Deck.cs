@@ -5,4 +5,5 @@ namespace ProjectHiddenVillage.Server.Data.DTOs;
 public sealed record CreateDeckRequest(
     DeckType Type,
     string Cards,
-    Guid? UserId = null);
+    Guid? UserId = null,
+    string? Name = null);

@@ -115,9 +115,18 @@ public sealed partial class DeckService : IDeckService
             return ToRulesetErrors(rulesetValidation);
         }
 
+        var deckName = request.Name?.Trim() ?? string.Empty;
+        if (deckName.Length > 128)
+        {
+            return Error.Validation(
+                    code: "Deck.Create.NameTooLong",
+                    description: "Deck name cannot exceed 128 characters.");
+        }
+
         var deck = new Deck
         {
             Type = request.Type,
+            Name = deckName,
             UserId = request.UserId,
             Cards = parsedCards.ConvertAll(card => new DeckCard
             {
@@ -1067,11 +1076,19 @@ public sealed partial class DeckService : IDeckService
     private static ErrorOr<List<ParsedDeckCard>> ParseCards(string cardsPayload)
     {
         var quantitiesByCardId = new Dictionary<string, int>(StringComparer.Ordinal);
-        var lines = cardsPayload.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var lines = cardsPayload.Split('\n');
 
         for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
         {
-            var line = lines[lineIndex];
+            var rawLine = lines[lineIndex].TrimEnd('\r');
+            var commentIndex = rawLine.IndexOf("//", StringComparison.Ordinal);
+            var line = (commentIndex >= 0 ? rawLine[..commentIndex] : rawLine).Trim();
+
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
             var match = DeckLinePattern().Match(line);
 
             if (!match.Success)

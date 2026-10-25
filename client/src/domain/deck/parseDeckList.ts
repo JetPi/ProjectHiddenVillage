@@ -12,7 +12,9 @@ export function parseDeckList(payload: string): IDeckListParseResult {
   let hasContent = false
 
   for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index].trim()
+    const rawLine = lines[index]
+    const commentIndex = rawLine.indexOf('//')
+    const line = (commentIndex >= 0 ? rawLine.slice(0, commentIndex) : rawLine).trim()
 
     if (line.length === 0) {
       continue

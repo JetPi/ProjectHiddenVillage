@@ -238,5 +238,14 @@ server build or e2e suite while the dev stack is live.
 - The existing `test-data/seed-profiles.json` decks are intentionally left as engine fixtures: they are not
   Standard or Pre-Release legal, and no game-start guard was added, so they remain playable but unsavable until
   they are rebuilt to 50 or 30 non-leader cards.
-- Verified: `npm run typecheck`, `npm run lint`, `npm run test:server` (796 passing), `npm run db:migrate`, and
+- Comment lines are ignored on both sides: a line starting with `//`, or the part of a line after `//`, is dropped
+  before parsing. The same rule applies to the admin import dialog and the player import.
+- The player import modal now has `Close`, `Use` and `Save`. Every edit of the import textarea is written to
+  `localStorage` under `phv-imported-deck`, so a refresh restores the list; `Use` also selects it as the deck for
+  the next match. `Save` is only rendered when signed in, writes a named user deck, and falls back to
+  `Saved Deck X` where `X` is one above the highest existing `Saved Deck N`.
+- The login import reports only a summary: "Deck isn't valid for any format." when every active format
+  rejects it, "Deck is valid for format(s): ..." listing the accepting formats otherwise, and no text when
+  every active format accepts it.
+- Verified: `npm run typecheck`, `npm run lint`, `npm run test:server` (798 passing), `npm run db:migrate`, and
   `npx playwright test e2e/admin.deck-builder.spec.ts e2e/admin.deck-ruleset-editor.spec.ts` (5 passing).

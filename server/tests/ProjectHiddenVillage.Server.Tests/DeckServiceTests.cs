@@ -154,6 +154,55 @@ public sealed class DeckServiceTests
     }
 
     [TestMethod]
+    public async Task CreateDeck_IgnoresCommentAndBlankLines()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.CardCatalogEntries.AddRange(
+            CreateCatalogEntry("L-600", CardType.Leader, CardColor.Red),
+            CreateCatalogEntry("C-600", CardType.Character, CardColor.Red));
+        AddTestRuleset(dbContext, nonLeaderCardCount: 2);
+        await dbContext.SaveChangesAsync();
+
+        var service = new DeckService(dbContext);
+        var result = await service.CreateDeck(new CreateDeckRequest(
+            Type: DeckType.Public,
+            Cards: "// Main Deck\n\n1x L-600\n2x C-600 // two copies\n"));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+
+        var deckId = Guid.Parse(result.Value);
+        var persistedDeck = await dbContext.Decks
+            .Include(deck => deck.Cards)
+            .SingleAsync(deck => deck.Id == deckId);
+
+        Assert.AreEqual(2, persistedDeck.Cards.Count);
+    }
+
+    [TestMethod]
+    public async Task CreateDeck_PersistsTheProvidedName()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.CardCatalogEntries.AddRange(
+            CreateCatalogEntry("L-601", CardType.Leader, CardColor.Red),
+            CreateCatalogEntry("C-601", CardType.Character, CardColor.Red));
+        AddTestRuleset(dbContext, nonLeaderCardCount: 1);
+        await dbContext.SaveChangesAsync();
+
+        var service = new DeckService(dbContext);
+        var result = await service.CreateDeck(new CreateDeckRequest(
+            Type: DeckType.Public,
+            Cards: "1x L-601\n1x C-601",
+            Name: "  Imported Deck  "));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+
+        var deckId = Guid.Parse(result.Value);
+        var persistedDeck = await dbContext.Decks.SingleAsync(deck => deck.Id == deckId);
+
+        Assert.AreEqual("Imported Deck", persistedDeck.Name);
+    }
+
+    [TestMethod]
     public async Task GetDeck_ReturnsDeckWithResolvedCardIds()
     {
         await using var dbContext = CreateDbContext();

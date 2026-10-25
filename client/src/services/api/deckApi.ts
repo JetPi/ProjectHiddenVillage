@@ -9,11 +9,12 @@ import type {
 
 const DECK_TYPE_USER = 1
 
-export async function createUserDeck(cards: string, userId: string): Promise<string> {
+export async function createUserDeck(cards: string, userId: string, name?: string): Promise<string> {
   const payload: ICreateDeckRequest = {
     type: DECK_TYPE_USER,
     cards,
     userId,
+    ...(name?.trim() ? { name: name.trim() } : {}),
   }
 
   const { data } = await api.post<string>('/api/deck', payload)

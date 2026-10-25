@@ -3,9 +3,9 @@
     "validation": {
       "unknownCards": "These cards are not in the catalog: {{cardIds}}.",
       "unsupportedCardType": "Chakra and Summon cards are not allowed: {{cardIds}}.",
-      "leaderCount": "This format needs exactly {{expected}} leader card(s); this deck has {{actual}}.",
+      "leaderCount": "Expected {{expected}} leader card(s); this deck has {{actual}}.",
       "leaderCopies": "{{cardId}} must have exactly one copy, not {{quantity}}.",
-      "deckSize": "This format needs exactly {{expected}} non-leader cards; this deck has {{actual}}.",
+      "deckSize": "Expected {{expected}} cards; this deck has {{actual}}.",
       "tooManyCopies": "{{cardId}} allows at most {{max}} copies; this deck has {{quantity}}.",
       "bannedCard": "{{cardId}} is banned in this format.",
       "limitedCard": "{{cardId}} is limited to {{max}} copies; this deck has {{quantity}}.",
@@ -14,10 +14,11 @@
     "status": {
       "legal": "Legal",
       "notLegal": "Not legal",
-      "savable": "This deck can be saved; at least one format accepts it.",
+      "savable": "This deck can be saved",
       "noRulesets": "No deck formats are active, so the deck cannot be validated.",
       "checking": "Checking card details...",
-      "counts": "{{leaders}}/{{expectedLeaders}} leader · {{cards}}/{{expectedCards}} cards"
+      "invalidForAllFormats": "Deck isn't valid for any format.",
+      "validForFormats": "Deck is valid for format(s): {{formats}}"
     },
     "parse": {
       "empty": "Paste at least one deck line (example: 1x N-001).",
@@ -134,7 +135,6 @@
     "deckOptionsModeAria": "Deck options input mode",
     "retry": "Retry",
     "importDeckButton": "Import your deck here",
-    "importedReady": "Imported deck list ready ({{lineCount}} lines).",
     "enterGame": "Enter Game",
     "toggleThemeAria": "Toggle light and dark mode",
     "openLogoutModalAria": "Open logout modal",
@@ -153,8 +153,13 @@
     "cancel": "Cancel",
     "logOut": "Log Out",
     "importModalTitle": "Import Deck List",
-    "importModalBody": "Paste one card per line using format like: 1x N-001",
-    "importPlaceholder": "1x N-001\n2x N-045",
+    "importModalBody": "Paste one card per line using format like: 1x N-001. Lines starting with // are ignored.",
+    "importPlaceholder": "// Main Deck\n1x N-001\n2x N-045",
+    "importDeckNameLabel": "Deck name (optional)",
+    "importDeckNameHint": "Leave blank to save as \"{{name}}\".",
+    "importUse": "Use",
+    "importSave": "Save",
+    "importSaving": "Saving...",
     "close": "Close",
     "deckChoice": {
       "loginToLoad": "Log in to load your decks",
@@ -183,7 +188,10 @@
       "gameCodeRequired": "Please provide a game code to join.",
       "submitFailed": "Unable to submit deck or join game. Please try again.",
       "deckNotLegal": "This deck is not legal in any active format. Fix the format issues shown and try again.",
-      "deckStillChecking": "Still checking the deck list. Try again in a moment."
+      "deckStillChecking": "Still checking the deck list. Try again in a moment.",
+      "deckCached": "Deck cached and selected for your next match.",
+      "deckSavedAs": "Deck saved as \"{{name}}\".",
+      "deckSaveFailed": "The deck could not be saved."
     },
     "errors": {
       "emailAndPasswordRequired": "Email and password are required.",
