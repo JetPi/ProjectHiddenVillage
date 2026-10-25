@@ -1,4 +1,30 @@
 {
+  "deckRules": {
+    "validation": {
+      "unknownCards": "These cards are not in the catalog: {{cardIds}}.",
+      "unsupportedCardType": "Chakra and Summon cards are not allowed: {{cardIds}}.",
+      "leaderCount": "This format needs exactly {{expected}} leader card(s); this deck has {{actual}}.",
+      "leaderCopies": "{{cardId}} must have exactly one copy, not {{quantity}}.",
+      "deckSize": "This format needs exactly {{expected}} non-leader cards; this deck has {{actual}}.",
+      "tooManyCopies": "{{cardId}} allows at most {{max}} copies; this deck has {{quantity}}.",
+      "bannedCard": "{{cardId}} is banned in this format.",
+      "limitedCard": "{{cardId}} is limited to {{max}} copies; this deck has {{quantity}}.",
+      "colorMismatch": "Every card must match the leader's colour ({{color}}): {{cardIds}}."
+    },
+    "status": {
+      "legal": "Legal",
+      "notLegal": "Not legal",
+      "savable": "This deck can be saved; at least one format accepts it.",
+      "noRulesets": "No deck formats are active, so the deck cannot be validated.",
+      "checking": "Checking card details...",
+      "counts": "{{leaders}}/{{expectedLeaders}} leader · {{cards}}/{{expectedCards}} cards"
+    },
+    "parse": {
+      "empty": "Paste at least one deck line (example: 1x N-001).",
+      "invalidLine": "Invalid deck line {{line}}: \"{{value}}\". Expected format like \"1x N-001\".",
+      "nonPositiveQuantity": "Line {{line}} has an invalid quantity."
+    }
+  },
   "components": {
     "ui": {
       "cardBack": {
@@ -155,7 +181,9 @@
       "gameCreated": "Game created. Share code {{code}}",
       "joinedGame": "Joined game successfully.",
       "gameCodeRequired": "Please provide a game code to join.",
-      "submitFailed": "Unable to submit deck or join game. Please try again."
+      "submitFailed": "Unable to submit deck or join game. Please try again.",
+      "deckNotLegal": "This deck is not legal in any active format. Fix the format issues shown and try again.",
+      "deckStillChecking": "Still checking the deck list. Try again in a moment."
     },
     "errors": {
       "emailAndPasswordRequired": "Email and password are required.",
@@ -510,7 +538,9 @@
         "leaderTitle": "Leader",
         "noLeader": "No leader selected",
         "leaderEmpty": "Click a Leader card in the catalog to set it.",
-        "totalCopies": "{{count}} cards in the deck",
+        "nonLeaderCopies": "{{count}} non-leader cards",
+        "leaderCount": "Leader {{count}}/{{expected}}",
+        "rulesetCount": "{{name}} {{count}}/{{expected}}",
         "cardsTitle": "Cards",
         "emptyCards": "Click a card in the catalog to add a copy.",
         "noChanges": "No unsaved changes.",
@@ -518,14 +548,16 @@
         "loadFailed": "Failed to load this deck.",
         "save": "Save Deck",
         "saving": "Saving...",
-        "saveDisabledHint": "Fix the deck issues below before saving.",
+        "saveDisabledHint": "This deck must be legal in at least one active format before saving.",
         "import": "Import List",
+        "formats": "Formats",
         "delete": "Delete Deck"
       },
       "cards": {
         "leaderBadge": "Leader",
         "unknownCard": "Card details unavailable",
         "copyLimitHint": "Up to {{max}} copies of a non-leader card",
+        "copyLimitHintDynamic": "One or more active formats allow fewer copies of this card.",
         "addCopyOf": "Add a copy of {{name}}",
         "removeCopyOf": "Remove a copy of {{name}}",
         "removeAllOf": "Remove {{name}} from the deck",
@@ -545,10 +577,11 @@
       },
       "import": {
         "title": "Import a Deck List",
-        "body": "Paste one card per line using the format 1x N-001. The lines are added to the cards already in the draft.",
+        "body": "Paste a complete deck list using one line per card, such as 1x N-001. Confirming replaces the current deck.",
         "label": "Deck list",
         "placeholder": "1x N-001\n2x N-045",
-        "confirm": "Add Cards",
+        "parsed": "{{count}} card lines parsed.",
+        "confirm": "Replace Deck",
         "cancel": "Cancel"
       },
       "delete": {
@@ -562,9 +595,77 @@
         "created": "Deck \"{{name}}\" created.",
         "updated": "Deck \"{{name}}\" saved.",
         "deleted": "Deck deleted.",
-        "imported": "Added {{count}} card lines to the draft.",
+        "imported": "Replaced the draft with {{count}} card lines.",
         "saveFailed": "The deck could not be saved.",
         "deleteFailed": "The deck could not be deleted."
+      }
+    },
+    "rulesets": {
+      "title": "Deck Formats",
+      "subtitle": "Formats and card restrictions used when validating decks.",
+      "backToDecks": "Back to Decks",
+      "rail": {
+        "title": "Formats",
+        "newRuleset": "New Format",
+        "loading": "Loading formats...",
+        "loadFailed": "Failed to load formats.",
+        "empty": "No formats yet.",
+        "active": "Active",
+        "inactive": "Inactive",
+        "cardCount": "{{count}} non-leader cards"
+      },
+      "editor": {
+        "newTitle": "New Format",
+        "editTitle": "Edit Format",
+        "key": "Key",
+        "keyPlaceholder": "e.g. standard",
+        "keyLocked": "The key cannot change after creation.",
+        "name": "Name",
+        "active": "Active",
+        "leaderCount": "Leaders required",
+        "nonLeaderCardCount": "Non-leader cards required",
+        "maxCopies": "Max copies per card",
+        "requireColorMatch": "Cards must match the leader's colour",
+        "allowChakra": "Allow Chakra cards",
+        "allowSummon": "Allow Summon cards",
+        "sortOrder": "Sort order",
+        "restrictionsTitle": "Banned and limited cards",
+        "restrictionsEmpty": "No card restrictions.",
+        "restrictionsHint": "A max of 0 bans the card; a value below the copy cap limits it.",
+        "addRestriction": "Add Card",
+        "removeRestriction": "Remove the restriction for {{name}}",
+        "selectPrompt": "Select a format or create a new one.",
+        "save": "Save Format",
+        "saving": "Saving...",
+        "create": "Create Format",
+        "creating": "Creating...",
+        "saveDisabledHint": "Fix the format values before saving."
+      },
+      "validation": {
+        "keyRequired": "A ruleset key is required.",
+        "keyFormat": "The key must be lower-case letters, digits and single dashes.",
+        "nameRequired": "A ruleset name is required.",
+        "nameTooLong": "The ruleset name cannot exceed {{max}} characters.",
+        "leaderCount": "A ruleset must require exactly one leader card.",
+        "cardCount": "The non-leader card count must be between 1 and {{max}}.",
+        "maxCopies": "The copy cap must be between 1 and {{max}}.",
+        "sortOrder": "Sort order cannot be negative.",
+        "restrictionDuplicates": "Each card may appear only once in the restriction list.",
+        "restrictionMaxCopies": "A restriction must allow between 0 and {{max}} copies."
+      },
+      "delete": {
+        "title": "Delete this format?",
+        "body": "{{name}} and its card restrictions will be removed. This cannot be undone.",
+        "confirm": "Delete Format",
+        "cancel": "Cancel",
+        "deleting": "Deleting..."
+      },
+      "toasts": {
+        "created": "Format \"{{name}}\" created.",
+        "updated": "Format \"{{name}}\" saved.",
+        "deleted": "Format deleted.",
+        "saveFailed": "The format could not be saved.",
+        "deleteFailed": "The format could not be deleted."
       }
     },
     "filters": {

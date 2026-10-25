@@ -26,6 +26,8 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<GameInstanceEntity> GameInstances => Set<GameInstanceEntity>();
     public DbSet<SavedDeck> SavedDecks => Set<SavedDeck>();
     public DbSet<SavedDeckCard> SavedDeckCards => Set<SavedDeckCard>();
+    public DbSet<DeckRuleset> DeckRulesets => Set<DeckRuleset>();
+    public DbSet<DeckRulesetCardRestriction> DeckRulesetCardRestrictions => Set<DeckRulesetCardRestriction>();
     public DbSet<CardCatalogEntry> CardCatalogEntries => Set<CardCatalogEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -107,6 +107,7 @@ builder.Services.AddScoped<ICardMappingService, CardMappingService>();
 builder.Services.AddScoped<ICardDeletionService, CardDeletionService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IDeckService, DeckService>();
+builder.Services.AddScoped<IDeckRulesetService, DeckRulesetService>();
 builder.Services.AddScoped<DevelopmentDeckSeeder>();
 builder.Services.AddScoped<DevelopmentUserSeeder>();
 builder.Services.AddScoped<DevelopmentGameInstanceSeeder>();

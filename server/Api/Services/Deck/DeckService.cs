@@ -75,7 +75,7 @@ public sealed partial class DeckService : IDeckService
         var cardCatalogEntries = await dbContext.CardCatalogEntries
                 .AsNoTracking()
                 .Where(entry => requestedCardIds.Contains(entry.CardId.ToUpper()))
-            .Select(entry => new { entry.Id, entry.CardId, entry.Type })
+            .Select(entry => new { entry.Id, entry.CardId, entry.Type, entry.Color })
                 .ToListAsync();
 
         var cardCatalogById = cardCatalogEntries
@@ -97,18 +97,22 @@ public sealed partial class DeckService : IDeckService
                     description: $"Unknown card id(s): {string.Join(", ", missingCardIds)}.");
         }
 
-        var prohibitedCardIds = cardCatalogEntries
-            .Where(entry => entry.Type is CardType.Chakra or CardType.Summon)
-            .Select(entry => entry.CardId)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(card => card, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var metadataByCardId = cardCatalogEntries
+            .GroupBy(entry => entry.CardId.Trim().ToUpperInvariant(), StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => new DeckRuleCardMetadata(group.First().CardId, group.First().Type, group.First().Color),
+                comparer: StringComparer.Ordinal);
 
-        if (prohibitedCardIds.Count > 0)
+        var activeRulesets = await LoadActiveRulesetDefinitionsAsync();
+        var rulesetValidation = DeckRulesetRules.Evaluate(
+            parsedCards.Select(card => new DeckRuleCard(card.CardId, card.Quantity)),
+            metadataByCardId,
+            activeRulesets);
+
+        if (!rulesetValidation.IsLegalInAnyRuleset)
         {
-            return Error.Validation(
-                    code: "Deck.Create.UnsupportedCardType",
-                    description: $"Decks cannot include Chakra or Summon cards: {string.Join(", ", prohibitedCardIds)}.");
+            return ToRulesetErrors(rulesetValidation);
         }
 
         var deck = new Deck
@@ -986,12 +990,11 @@ public sealed partial class DeckService : IDeckService
             elementSelector: entry => new DeckRuleCardMetadata(entry.CardId, entry.Type, entry.Color),
             comparer: StringComparer.Ordinal);
 
-        var violations = PublicDeckRules.Evaluate(normalizedCards, metadataByCardId);
-        if (violations.Count > 0)
+        var activeRulesets = await LoadActiveRulesetDefinitionsAsync();
+        var rulesetValidation = DeckRulesetRules.Evaluate(normalizedCards, metadataByCardId, activeRulesets);
+        if (!rulesetValidation.IsLegalInAnyRuleset)
         {
-            return violations
-                .Select(violation => Error.Validation(code: violation.Code, description: violation.Description))
-                .ToList();
+            return ToRulesetErrors(rulesetValidation);
         }
 
         var catalogEntryIdByCardId = catalogEntries.ToDictionary(
@@ -1006,6 +1009,59 @@ public sealed partial class DeckService : IDeckService
                 Quantity = card.Quantity,
             })
             .ToList();
+    }
+
+    private async Task<List<DeckRulesetDefinition>> LoadActiveRulesetDefinitionsAsync()
+    {
+        var rulesets = await dbContext.DeckRulesets
+            .AsNoTracking()
+            .Where(ruleset => ruleset.IsActive)
+            .Include(ruleset => ruleset.CardRestrictions)
+            .ThenInclude(restriction => restriction.CardCatalogEntry)
+            .OrderBy(ruleset => ruleset.SortOrder)
+            .ThenBy(ruleset => ruleset.Name)
+            .ToListAsync();
+
+        return rulesets
+            .Select(ruleset => new DeckRulesetDefinition(
+                Id: ruleset.Id,
+                Key: ruleset.Key,
+                Name: ruleset.Name,
+                LeaderCount: ruleset.LeaderCount,
+                NonLeaderCardCount: ruleset.NonLeaderCardCount,
+                MaxCopiesPerNonLeaderCard: ruleset.MaxCopiesPerNonLeaderCard,
+                RequireLeaderColorMatch: ruleset.RequireLeaderColorMatch,
+                AllowChakraCards: ruleset.AllowChakraCards,
+                AllowSummonCards: ruleset.AllowSummonCards,
+                MaxCopiesByCardId: ruleset.CardRestrictions.ToDictionary(
+                    restriction => restriction.CardCatalogEntry.CardId.Trim().ToUpperInvariant(),
+                    restriction => restriction.MaxCopies,
+                    comparer: StringComparer.Ordinal)))
+            .ToList();
+    }
+
+    private static List<Error> ToRulesetErrors(DeckRulesetValidation validation)
+    {
+        if (validation.Evaluations.Count == 0)
+        {
+            return
+            [
+                Error.Validation(
+                    code: "Deck.Ruleset.NoActiveRulesets",
+                    description: "No active deck rulesets are configured, so the deck cannot be validated.")
+            ];
+        }
+
+        var summaries = validation.Evaluations
+            .Select(evaluation => $"{evaluation.Name}: "
+                + string.Join(" ", evaluation.Violations.Select(violation => violation.Description.Trim())));
+
+        return
+        [
+            Error.Validation(
+                code: "Deck.Ruleset.NotLegalInAnyRuleset",
+                description: "This deck is not legal in any active ruleset. " + string.Join(" ", summaries))
+        ];
     }
 
     private static ErrorOr<List<ParsedDeckCard>> ParseCards(string cardsPayload)

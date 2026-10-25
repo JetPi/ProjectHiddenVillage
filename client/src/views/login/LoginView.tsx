@@ -33,11 +33,14 @@ import type { ILoginActionData, ILoginLoaderData } from '@/views/login/types/rou
 import { createGameForUser, joinGameAsPlayer } from '@/services/api/gameApi'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import { createUserDeck, fetchDecks } from '@/services/api/deckApi'
-import { validateDeckCardsPayload } from '@/views/login/utils/validateDeckCardsPayload'
-import type { IDeckResponse } from '@/types/deck'
 import { preloadCardsByIds } from '@/services/cardPreloadService'
-
-const DECK_LINE_PATTERN = /^\s*(\d+)x\s+([A-Za-z0-9-]+)\s*$/
+import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
+import { useActiveDeckRulesetsQuery } from '@/services/queries/deckRulesetQueries'
+import { evaluateDeckRulesets } from '@/domain/deck/evaluateDeckRulesets'
+import { normalizeDeckCardId, parseDeckList } from '@/domain/deck/parseDeckList'
+import { DeckImportValidation } from '@/views/login/components/DeckImportValidation'
+import type { IDeckCardMetadata, IDeckListParseError } from '@/domain/deck/types'
+import type { IDeckResponse } from '@/types/deck'
 const STARTER_DECK_FETCH_RETRY_ATTEMPTS = 3
 const STARTER_DECK_FETCH_RETRY_DELAY_MS = 700
 const TITLE_FONT_LOAD_QUERY = '1em "Water Brush"'
@@ -346,6 +349,63 @@ export function LoginView() {
     [activeDeckOption],
   )
 
+  const importedDeckParse = useMemo(() => {
+    if (deckOptionsMode !== 'import' || activeDeckOption.trim().length === 0) {
+      return null
+    }
+
+    return parseDeckList(activeDeckOption)
+  }, [deckOptionsMode, activeDeckOption])
+
+  const importedDeckCardIds = useMemo(
+    () => (importedDeckParse?.isValid ? importedDeckParse.cards.map((card) => card.cardId) : []),
+    [importedDeckParse],
+  )
+
+  const importedDeckCardsQuery = useCardCatalogByIdsQuery(importedDeckCardIds, {
+    enabled: deckOptionsMode === 'import' && importedDeckCardIds.length > 0,
+  })
+  const activeDeckRulesetsQuery = useActiveDeckRulesetsQuery()
+
+  const importedDeckCardsById = useMemo(() => {
+    const byId = new Map<string, IDeckCardMetadata>()
+
+    for (const card of importedDeckCardsQuery.data ?? []) {
+      byId.set(normalizeDeckCardId(card.id), card)
+    }
+
+    return byId
+  }, [importedDeckCardsQuery.data])
+
+  const importedDeckValidation = useMemo(() => {
+    if (!importedDeckParse?.isValid) {
+      return null
+    }
+
+    return evaluateDeckRulesets({
+      cards: importedDeckParse.cards,
+      cardsById: importedDeckCardsById,
+      rulesets: activeDeckRulesetsQuery.data ?? [],
+    })
+  }, [importedDeckParse, importedDeckCardsById, activeDeckRulesetsQuery.data])
+
+  const isCheckingImportedDeck = importedDeckCardsQuery.isFetching || activeDeckRulesetsQuery.isFetching
+  const importedDeckParseError = importedDeckParse && !importedDeckParse.isValid
+    ? importedDeckParse.error
+    : null
+
+  const describeImportedDeckParseError = (error: IDeckListParseError): string => {
+    if (error.code === 'empty') {
+      return t('deckRules.parse.empty')
+    }
+
+    if (error.code === 'nonPositiveQuantity') {
+      return t('deckRules.parse.nonPositiveQuantity', { line: error.line })
+    }
+
+    return t('deckRules.parse.invalidLine', { line: error.line, value: error.value ?? '' })
+  }
+
   const handleLogout = () => {
     clearAuthSession()
     setDisplayName('')
@@ -393,14 +453,23 @@ export function LoginView() {
             return
           }
         } else {
-          const deckPayloadValidation = validateDeckCardsPayload(deckCardsPayload)
-          if (!deckPayloadValidation.isValid) {
-            showAppInfoToast(deckPayloadValidation.message ?? t('auth.toasts.deckFormatInvalid'))
+          const parsedDeckList = parseDeckList(deckCardsPayload)
+          if (!parsedDeckList.isValid) {
+            showAppInfoToast(describeImportedDeckParseError(parsedDeckList.error))
             return
           }
 
-          const importedDeckCardIds = parseDeckCardIdsFromPayload(deckCardsPayload)
-          void preloadCardsByIds(importedDeckCardIds).catch(() => {
+          if (isCheckingImportedDeck) {
+            showAppInfoToast(t('auth.toasts.deckStillChecking'))
+            return
+          }
+
+          if (importedDeckValidation?.isLegalInAnyRuleset !== true) {
+            showAppInfoToast(t('auth.toasts.deckNotLegal'))
+            return
+          }
+
+          void preloadCardsByIds(parsedDeckList.cards.map((card) => card.cardId)).catch(() => {
           })
 
           deckId = await createUserDeck(deckCardsPayload, authUser.userId)
@@ -601,6 +670,11 @@ export function LoginView() {
                         {t('auth.importedReady', { lineCount: importedDeckLineCount })}
                       </p>
                     ) : null}
+                    <DeckImportValidation
+                      parseError={importedDeckParseError}
+                      isChecking={isCheckingImportedDeck}
+                      validation={importedDeckValidation}
+                    />
                   </>
                 ) : (
                   <AdaptiveFormField
@@ -764,6 +838,11 @@ export function LoginView() {
               rows={10}
               className="py-2"
             />
+            <DeckImportValidation
+              parseError={importedDeckParseError}
+              isChecking={isCheckingImportedDeck}
+              validation={importedDeckValidation}
+            />
             <div className="mt-4 flex justify-end gap-2">
               <AppButton type="button" variant="ghost" onClick={() => setIsImportModalOpen(false)}>
                 {t('auth.close')}
@@ -827,35 +906,6 @@ function toDeckCardIdsByDeckId(decks: IDeckResponse[]): Record<string, string[]>
     result[deck.id] = cardIds
     return result
   }, {})
-}
-
-function parseDeckCardIdsFromPayload(cardsPayload: string): string[] {
-  const lines = cardsPayload
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-
-  const seen = new Set<string>()
-  const cardIds: string[] = []
-
-  for (const line of lines) {
-    const match = DECK_LINE_PATTERN.exec(line)
-    if (!match) {
-      continue
-    }
-
-    const cardId = match[2].trim()
-    const cardKey = cardId.toLowerCase()
-
-    if (!cardId || seen.has(cardKey)) {
-      continue
-    }
-
-    seen.add(cardKey)
-    cardIds.push(cardId)
-  }
-
-  return cardIds
 }
 
 async function fetchDecksWithRetry(

@@ -1,39 +1,28 @@
-import type { IDeckCardInput } from '@/types/deck'
+import type { IDeckCardMetadata, IDeckRulesetEvaluation } from '@/domain/deck/types'
 
 export type IDeckAdminDraft = {
   name: string
   quantitiesByCardId: ReadonlyMap<string, number>
 }
 
-export type IDeckAdminCardMetadata = {
-  id: string
-  displayName: string
-  type: string
-  color: string
+export type IDeckAdminCardMetadata = IDeckCardMetadata & {
   image: string
   imageVersion?: number | null
 }
 
-export type IDeckAdminViolationCode =
-  | 'nameRequired'
-  | 'nameTooLong'
-  | 'deckEmpty'
-  | 'unknownCards'
-  | 'unsupportedCardType'
-  | 'leaderCount'
-  | 'leaderCopies'
-  | 'tooManyCopies'
-  | 'colorMismatch'
+export type IDeckAdminNameViolationCode = 'nameRequired' | 'nameTooLong'
 
-export type IDeckAdminViolation = {
-  code: IDeckAdminViolationCode
+export type IDeckAdminNameViolation = {
+  code: IDeckAdminNameViolationCode
   messageKey: string
   params?: Record<string, string | number>
 }
 
 export type IDeckAdminValidationResult = {
+  nameViolations: IDeckAdminNameViolation[]
+  evaluations: IDeckRulesetEvaluation[]
+  isLegalInAnyRuleset: boolean
   isValid: boolean
-  violations: IDeckAdminViolation[]
 }
 
 export type IDeckAdminSelectedCard = {
@@ -43,13 +32,3 @@ export type IDeckAdminSelectedCard = {
   isLeader: boolean
   exceedsCopyLimit: boolean
 }
-
-export type IDeckAdminImportError = {
-  line: number
-  code: 'empty' | 'invalidLine' | 'nonPositiveQuantity'
-  value?: string
-}
-
-export type IDeckAdminImportParseResult =
-  | { isValid: true; cards: IDeckCardInput[] }
-  | { isValid: false; error: IDeckAdminImportError }

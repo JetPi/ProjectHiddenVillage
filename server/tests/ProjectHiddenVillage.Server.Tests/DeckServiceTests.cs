@@ -44,6 +44,7 @@ public sealed class DeckServiceTests
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 UpdatedAtUtc = DateTimeOffset.UtcNow
             });
+        AddTestRuleset(dbContext, nonLeaderCardCount: 6, leaderCount: 0);
         await dbContext.SaveChangesAsync();
 
         var service = new DeckService(dbContext);
@@ -138,6 +139,7 @@ public sealed class DeckServiceTests
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 UpdatedAtUtc = DateTimeOffset.UtcNow
             });
+        AddTestRuleset(dbContext, nonLeaderCardCount: 2, leaderCount: 0);
 
         await dbContext.SaveChangesAsync();
 
@@ -147,7 +149,8 @@ public sealed class DeckServiceTests
             Cards: "1x N-100\n1x N-101"));
 
         Assert.IsTrue(result.IsError);
-        Assert.AreEqual("Deck.Create.UnsupportedCardType", result.FirstError.Code);
+        Assert.AreEqual("Deck.Ruleset.NotLegalInAnyRuleset", result.FirstError.Code);
+        StringAssert.Contains(result.FirstError.Description, "Chakra");
     }
 
     [TestMethod]
@@ -493,6 +496,7 @@ public sealed class DeckServiceTests
         dbContext.CardCatalogEntries.AddRange(
             CreateCatalogEntry("L-100", CardType.Leader, CardColor.Red),
             CreateCatalogEntry("C-100", CardType.Character, CardColor.Red));
+        AddTestRuleset(dbContext, nonLeaderCardCount: 4);
         await dbContext.SaveChangesAsync();
 
         var service = new DeckService(dbContext);
@@ -523,6 +527,7 @@ public sealed class DeckServiceTests
     {
         await using var dbContext = CreateDbContext();
         dbContext.CardCatalogEntries.Add(CreateCatalogEntry("C-100", CardType.Character, CardColor.Red));
+        AddTestRuleset(dbContext, nonLeaderCardCount: 1);
         await dbContext.SaveChangesAsync();
 
         var service = new DeckService(dbContext);
@@ -531,7 +536,8 @@ public sealed class DeckServiceTests
             Cards: [new DeckCardRequest("C-100", 1)]));
 
         Assert.IsTrue(result.IsError);
-        Assert.AreEqual(PublicDeckRules.LeaderCountCode, result.FirstError.Code);
+        Assert.AreEqual("Deck.Ruleset.NotLegalInAnyRuleset", result.FirstError.Code);
+        StringAssert.Contains(result.FirstError.Description, "leader");
         Assert.AreEqual(0, await dbContext.Decks.CountAsync());
     }
 
@@ -543,6 +549,7 @@ public sealed class DeckServiceTests
         var character = CreateCatalogEntry("C-200", CardType.Character, CardColor.Blue);
         var retired = CreateCatalogEntry("C-201", CardType.Character, CardColor.Blue);
         dbContext.CardCatalogEntries.AddRange(leader, character, retired);
+        AddTestRuleset(dbContext, nonLeaderCardCount: 3);
 
         var deck = new Deck
         {
@@ -592,6 +599,7 @@ public sealed class DeckServiceTests
         var leader = CreateCatalogEntry("L-300", CardType.Leader, CardColor.Green);
         var offColor = CreateCatalogEntry("C-300", CardType.Character, CardColor.Red);
         dbContext.CardCatalogEntries.AddRange(leader, offColor);
+        AddTestRuleset(dbContext, nonLeaderCardCount: 1);
 
         var deck = new Deck
         {
@@ -615,7 +623,8 @@ public sealed class DeckServiceTests
             ]));
 
         Assert.IsTrue(result.IsError);
-        Assert.AreEqual(PublicDeckRules.ColorMismatchCode, result.FirstError.Code);
+        Assert.AreEqual("Deck.Ruleset.NotLegalInAnyRuleset", result.FirstError.Code);
+        StringAssert.Contains(result.FirstError.Description, "colour");
 
         var persistedDeck = await dbContext.Decks
             .Include(record => record.Cards)
@@ -687,6 +696,7 @@ public sealed class DeckServiceTests
         var leader = CreateCatalogEntry("L-350", CardType.Leader, CardColor.Red);
         var retained = CreateCatalogEntry("C-350", CardType.Character, CardColor.Red);
         dbContext.CardCatalogEntries.AddRange(leader, retained);
+        AddTestRuleset(dbContext, nonLeaderCardCount: 4);
 
         var deck = new Deck
         {
@@ -740,6 +750,29 @@ public sealed class DeckServiceTests
         Assert.AreEqual(1, result.Value.Count);
         Assert.AreEqual("Public deck", result.Value[0].Name);
         Assert.AreEqual(nameof(DeckType.Public), result.Value[0].Type);
+    }
+
+    private static void AddTestRuleset(
+        ApplicationDbContext dbContext,
+        int nonLeaderCardCount,
+        int maxCopies = 4,
+        int leaderCount = 1)
+    {
+        dbContext.DeckRulesets.Add(new DeckRuleset
+        {
+            Key = $"test-{Guid.NewGuid():N}",
+            Name = "Test Ruleset",
+            IsActive = true,
+            LeaderCount = leaderCount,
+            NonLeaderCardCount = nonLeaderCardCount,
+            MaxCopiesPerNonLeaderCard = maxCopies,
+            RequireLeaderColorMatch = true,
+            AllowChakraCards = false,
+            AllowSummonCards = false,
+            SortOrder = 0,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+        });
     }
 
     private static CardCatalogEntry CreateCatalogEntry(

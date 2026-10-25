@@ -16,6 +16,17 @@ const MOCK_CARDS: MockCard[] = [
   { id: 'C-001', displayName: 'Red Character', type: 'Character', color: 'Red' },
   { id: 'C-002', displayName: 'Blue Character', type: 'Character', color: 'Blue' },
   { id: 'C-003', displayName: 'Red Backup', type: 'Character', color: 'Red' },
+  { id: 'C-004', displayName: 'Red Character 4', type: 'Character', color: 'Red' },
+  { id: 'C-005', displayName: 'Red Character 5', type: 'Character', color: 'Red' },
+  { id: 'C-006', displayName: 'Red Character 6', type: 'Character', color: 'Red' },
+  { id: 'C-007', displayName: 'Red Character 7', type: 'Character', color: 'Red' },
+  { id: 'C-008', displayName: 'Red Character 8', type: 'Character', color: 'Red' },
+  { id: 'C-009', displayName: 'Red Character 9', type: 'Character', color: 'Red' },
+  { id: 'C-010', displayName: 'Red Character 10', type: 'Character', color: 'Red' },
+  { id: 'C-011', displayName: 'Red Character 11', type: 'Character', color: 'Red' },
+  { id: 'C-012', displayName: 'Red Character 12', type: 'Character', color: 'Red' },
+  { id: 'C-013', displayName: 'Red Character 13', type: 'Character', color: 'Red' },
+  { id: 'C-014', displayName: 'Red Character 14', type: 'Character', color: 'Red' },
   { id: 'K-001', displayName: 'Red Chakra', type: 'Chakra', color: 'Red' },
 ]
 
@@ -40,6 +51,62 @@ export type DeckAdminMockState = {
 export type IDeckAdminMockOptions = {
   decks?: DeckAdminMockDeck[]
   undeletableDeckId?: string
+}
+
+export const MOCK_RULESETS = [
+  {
+    id: 'ruleset-standard',
+    key: 'standard',
+    name: 'Standard',
+    isActive: true,
+    leaderCount: 1,
+    nonLeaderCardCount: 50,
+    maxCopiesPerNonLeaderCard: 4,
+    requireLeaderColorMatch: true,
+    allowChakraCards: false,
+    allowSummonCards: false,
+    sortOrder: 0,
+    cardRestrictions: [],
+  },
+  {
+    id: 'ruleset-pre-release',
+    key: 'pre-release',
+    name: 'Pre-Release',
+    isActive: true,
+    leaderCount: 1,
+    nonLeaderCardCount: 30,
+    maxCopiesPerNonLeaderCard: 3,
+    requireLeaderColorMatch: true,
+    allowChakraCards: false,
+    allowSummonCards: false,
+    sortOrder: 1,
+    cardRestrictions: [],
+  },
+]
+
+export function buildMockLegalDeckCards(
+  nonLeaderCount: number,
+  maxCopies = 4,
+): DeckAdminMockCardLine[] {
+  const cardIds = MOCK_CARDS
+    .filter((card) => card.type === 'Character' && card.color === 'Red')
+    .map((card) => card.id)
+  const cards: DeckAdminMockCardLine[] = []
+  let remaining = nonLeaderCount
+  let cardIndex = 0
+
+  while (remaining > 0 && cardIds.length > 0) {
+    const quantity = Math.min(maxCopies, remaining)
+    cards.push({ cardId: cardIds[cardIndex % cardIds.length], quantity })
+    remaining -= quantity
+    cardIndex += 1
+  }
+
+  return cards
+}
+
+export function toMockDeckListText(cards: readonly DeckAdminMockCardLine[]): string {
+  return cards.map((card) => `${card.quantity}x ${card.cardId}`).join('\n')
 }
 
 function findMockCard(cardId: string): MockCard {
@@ -257,6 +324,21 @@ export async function installDeckAdminMocks(
     }
 
     await route.continue()
+  })
+
+  await page.route('**/api/deck-rulesets**', async (route) => {
+    if (await handlePreflight(route)) {
+      return
+    }
+
+    const url = new URL(route.request().url())
+    const includeInactive = url.pathname.endsWith('/all')
+
+    await fulfillJson(
+      route,
+      200,
+      includeInactive ? MOCK_RULESETS : MOCK_RULESETS.filter((ruleset) => ruleset.isActive),
+    )
   })
 
   return state

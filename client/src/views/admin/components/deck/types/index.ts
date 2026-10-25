@@ -1,5 +1,10 @@
 import type { IDeckCardInput, IDeckResponse } from "@/types/deck"
-import type { IDeckAdminSelectedCard, IDeckAdminValidationResult, IDeckAdminViolation } from "@/views/admin/types/deckAdminTypes"
+import type { IDeckRuleset } from "@/types/deckRuleset"
+import type {
+  IDeckAdminCardMetadata,
+  IDeckAdminSelectedCard,
+  IDeckAdminValidationResult,
+} from "@/views/admin/types/deckAdminTypes"
 
 export type IDeckAdminEditorPaneProps = {
   isNew: boolean
@@ -7,8 +12,10 @@ export type IDeckAdminEditorPaneProps = {
   onNameChange: (value: string) => void
   leaderCard: IDeckAdminSelectedCard | null
   selectedCards: IDeckAdminSelectedCard[]
-  totalCopies: number
+  leaderCopies: number
+  nonLeaderCopies: number
   validation: IDeckAdminValidationResult
+  isCheckingCards: boolean
   canSave: boolean
   isDirty: boolean
   isSaving: boolean
@@ -33,8 +40,10 @@ export type IDeckAdminDeleteDialogProps = {
 
 export type IDeckAdminImportDialogProps = {
   isOpen: boolean
+  rulesets: readonly IDeckRuleset[]
+  cardsById: ReadonlyMap<string, IDeckAdminCardMetadata>
   onClose: () => void
-  onImport: (cards: IDeckCardInput[]) => void
+  onReplace: (cards: IDeckCardInput[], leaderCardId: string | null) => void
 }
 
 export type IDeckAdminListRailProps = {
@@ -52,5 +61,6 @@ export type IDeckAdminSelectedCardRowProps = {
 }
 
 export type IDeckAdminValidationListProps = {
-  violations: IDeckAdminViolation[]
+  validation: IDeckAdminValidationResult
+  isCheckingCards: boolean
 }

@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { AppButton } from '@/components/ui'
 import { FormInput, FormLabel } from '@/components/forms'
 import { MAX_DECK_NAME_LENGTH } from '@/views/admin/utils/deckDraftValidation'
@@ -13,8 +14,10 @@ export function DeckAdminEditorPane({
   onNameChange,
   leaderCard,
   selectedCards,
-  totalCopies,
+  leaderCopies,
+  nonLeaderCopies,
   validation,
+  isCheckingCards,
   canSave,
   isDirty,
   isSaving,
@@ -38,6 +41,14 @@ export function DeckAdminEditorPane({
         </h2>
 
         <div className="flex items-center gap-2">
+          <Link
+            to="/admin/rulesets"
+            data-testid="admin-deck-formats-link"
+            className="text-xs text-[var(--text-secondary)] underline-offset-2 hover:underline"
+          >
+            {t('admin.decks.editor.formats')}
+          </Link>
+
           <AppButton type="button" variant="ghost" onClick={onOpenImport} data-testid="admin-deck-import">
             {t('admin.decks.editor.import')}
           </AppButton>
@@ -67,9 +78,9 @@ export function DeckAdminEditorPane({
           </AppButton>
         </div>
       </div>
-      <div className='pt-1'>
 
-      <DeckAdminValidationList violations={validation.violations} />
+      <div className="pt-1">
+        <DeckAdminValidationList validation={validation} isCheckingCards={isCheckingCards} />
       </div>
 
       {isLoading ? (
@@ -94,7 +105,46 @@ export function DeckAdminEditorPane({
             />
           </div>
 
-          <LeaderCardIndicator totalCopies={totalCopies} t={t} onClearLeader={onClearLeader} leaderCard={leaderCard}/>
+          <div data-testid="deck-admin-format-summary" className="flex flex-wrap gap-1.5">
+            <span
+              data-testid="deck-admin-leader-count"
+              data-leader-legal={leaderCopies === 1 ? 'true' : 'false'}
+              className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                leaderCopies === 1
+                  ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                  : 'border-[var(--button-primary-bg)]/40 text-[var(--button-primary-bg)]'
+              }`}
+            >
+              {t('admin.decks.editor.leaderCount', { count: leaderCopies, expected: 1 })}
+            </span>
+
+            {validation.evaluations.map((evaluation) => (
+              <span
+                key={evaluation.ruleset.key}
+                data-testid="deck-admin-ruleset-count"
+                data-ruleset-key={evaluation.ruleset.key}
+                data-ruleset-legal={evaluation.isValid ? 'true' : 'false'}
+                className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                  evaluation.isValid
+                    ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                    : 'border-[var(--border-subtle)] text-[var(--text-secondary)]'
+                }`}
+              >
+                {t('admin.decks.editor.rulesetCount', {
+                  name: evaluation.ruleset.name,
+                  count: evaluation.nonLeaderCopies,
+                  expected: evaluation.ruleset.nonLeaderCardCount,
+                })}
+              </span>
+            ))}
+          </div>
+
+          <LeaderCardIndicator
+            nonLeaderCopies={nonLeaderCopies}
+            t={t}
+            onClearLeader={onClearLeader}
+            leaderCard={leaderCard}
+          />
 
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
