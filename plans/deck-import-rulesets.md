@@ -248,5 +248,35 @@ server build or e2e suite while the dev stack is live.
   not share it and instead computes one line inline: "Deck isn't valid for any format." when every active
   format rejects the deck, "Deck is valid for format(s): ..." listing the accepting formats otherwise, and no
   text when every active format accepts it.
-- Verified: `npm run typecheck`, `npm run lint`, `npm run test:server` (798 passing), `npm run db:migrate`, and
-  `npx playwright test e2e/admin.deck-builder.spec.ts e2e/admin.deck-ruleset-editor.spec.ts` (5 passing).
+- The import overlay presents two separate, top-aligned windows: the deck-list window and a second
+  `Ruleset Validation` window. The validation window measures the deck-list window and caps its own height to
+  match, so many rulesets scroll inside it instead of growing past the deck-list window.
+- The login ruleset list evaluates a lenient partial parse, so typing an incomplete line shows the parse
+  error without unmounting the list. Evaluation is keyed on a canonical card signature, so comment and
+  whitespace edits do not re-evaluate, and the list reserves its scrollbar gutter to avoid width reflow.
+- Parse failures are reported at two levels of detail. The main login form shows a single generic
+  "Invalid deck value" line (`auth.invalidDeckValue`, test id `login-deck-invalid-value`), while the import
+  modal keeps the line-specific explanation (`deckRules.parse.invalidLine` / `nonPositiveQuantity`) rendered
+  directly beneath the deck textarea (test id `login-deck-parse-error`) instead of inside the ruleset window.
+- The import overlay never reflows while typing. The ruleset window is a fixed-height window
+  (`h-[var(--main-import-window-height)]`, `h-64` when stacked) whose height matches the deck-list window, so
+  pill changes only scroll inside it. The deck-list window itself is height-stable: the parse error sits in a
+  reserved `h-5` slot and is truncated with a `title` tooltip instead of pushing content, and the name field only
+  depends on the session. The cap is written imperatively from a `useLayoutEffect` (before first paint, no
+  re-render, kept in sync by a `ResizeObserver` on the deck-list window and a window resize listener, clamped to
+  the viewport).
+- The ruleset window never renders empty. It lists every active ruleset from the moment it opens, one pill per
+  ruleset with a `pending` state (`deckRules.status.notEvaluated`, `data-ruleset-legal="pending"`) until an
+  evaluation exists, so the list is mounted once and only its contents change. The placeholder is reduced to the
+  genuine "no active formats" case (`deckRules.status.noRulesets`), and the cold card-metadata visit keeps the
+  pending pills instead of reporting every card as unknown.
+- Populating the ruleset list for the first time also used to jump because the cap started at `80vh` and only
+  snapped after a `setState` round-trip. The "Checking card details..." label now lives in the window header, so
+  the pills never shift.
+- The login form reserves a fixed single-line `h-5` slot for the "Invalid deck value" line and the format summary
+  (both `truncate`, full text in `title`), so the submit button stays put while a deck list is edited behind the
+  modal without leaving a gap. The slot inherits the field's `space-y-2` above only, and the actions row uses
+  `pt-1`, so the message sits close to both the import button and the submit button.
+- Verified: `npm run typecheck`, `npm run lint`, `npm run test:server` (798 passing), `npm run db:migrate`,
+  `npx playwright test e2e/admin.deck-builder.spec.ts e2e/admin.deck-ruleset-editor.spec.ts` (5 passing) and
+  `npx playwright test e2e/login.deck-import.spec.ts` (1 passing).

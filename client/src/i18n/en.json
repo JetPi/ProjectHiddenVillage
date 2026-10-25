@@ -3,7 +3,7 @@
     "validation": {
       "unknownCards": "These cards are not in the catalog: {{cardIds}}.",
       "unsupportedCardType": "Chakra and Summon cards are not allowed: {{cardIds}}.",
-      "leaderCount": "Expected {{expected}} leader card(s); this deck has {{actual}}.",
+      "leaderCount": "All decks must have a leader card.",
       "leaderCopies": "{{cardId}} must have exactly one copy, not {{quantity}}.",
       "deckSize": "Expected {{expected}} cards; this deck has {{actual}}.",
       "tooManyCopies": "{{cardId}} allows at most {{max}} copies; this deck has {{quantity}}.",
@@ -14,6 +14,7 @@
     "status": {
       "legal": "Legal",
       "notLegal": "Not legal",
+      "notEvaluated": "Not evaluated",
       "savable": "This deck can be saved",
       "noRulesets": "No deck formats are active, so the deck cannot be validated.",
       "checking": "Checking card details...",
@@ -124,8 +125,6 @@
   },
   "auth": {
     "title": "Shinobi Tactics",
-    "tagline1": "Make your deck, test against opponents, and seize victory.",
-    "tagline2": "Prepare for official tournament play in a free online <strong>Naruto Card Game</strong> simulator.",
     "displayName": "Display Name",
     "displayNamePlaceholder": "Enter name here",
     "displayNameRequired": "Please enter a display name.",
@@ -157,6 +156,8 @@
     "importPlaceholder": "// Main Deck\n1x N-001\n2x N-045",
     "importDeckNameLabel": "Deck name (optional)",
     "importDeckNameHint": "Leave blank to save as \"{{name}}\".",
+    "importValidationTitle": "Ruleset Validation",
+    "invalidDeckValue": "Invalid deck value",
     "importUse": "Use",
     "importSave": "Save",
     "importSaving": "Saving...",

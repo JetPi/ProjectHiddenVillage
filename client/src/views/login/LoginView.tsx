@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SubmitEvent } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import i18n, { translateKey } from '@/i18n'
 import {
@@ -36,7 +36,13 @@ import { preloadCardsByIds } from '@/services/cardPreloadService'
 import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
 import { useActiveDeckRulesetsQuery } from '@/services/queries/deckRulesetQueries'
 import { evaluateDeckRulesets } from '@/domain/deck/evaluateDeckRulesets'
-import { normalizeDeckCardId, parseDeckList } from '@/domain/deck/parseDeckList'
+import {
+  buildDeckCardSignature,
+  deckCardsFromSignature,
+  normalizeDeckCardId,
+  parseDeckList,
+  parseDeckListPartial,
+} from '@/domain/deck/parseDeckList'
 import { DeckImportDialog } from '@/views/login/components/DeckImportDialog'
 import { writeCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
 import { buildDefaultSavedDeckName } from '@/views/login/utils/defaultDeckName'
@@ -355,9 +361,27 @@ export function LoginView() {
     return parseDeckList(activeDeckOption)
   }, [deckOptionsMode, activeDeckOption])
 
+  const importedDeckPartialCards = useMemo(() => {
+    if (deckOptionsMode !== 'import') {
+      return []
+    }
+
+    return parseDeckListPartial(activeDeckOption)
+  }, [deckOptionsMode, activeDeckOption])
+
+  const importedDeckPartialSignature = useMemo(
+    () => buildDeckCardSignature(importedDeckPartialCards),
+    [importedDeckPartialCards],
+  )
+
+  const importedDeckCards = useMemo(
+    () => deckCardsFromSignature(importedDeckPartialSignature),
+    [importedDeckPartialSignature],
+  )
+
   const importedDeckCardIds = useMemo(
-    () => (importedDeckParse?.isValid ? importedDeckParse.cards.map((card) => card.cardId) : []),
-    [importedDeckParse],
+    () => importedDeckCards.map((card) => card.cardId),
+    [importedDeckCards],
   )
 
   const importedDeckCardsQuery = useCardCatalogByIdsQuery(importedDeckCardIds, {
@@ -376,18 +400,20 @@ export function LoginView() {
   }, [importedDeckCardsQuery.data])
 
   const importedDeckValidation = useMemo(() => {
-    if (!importedDeckParse?.isValid) {
+    if (importedDeckCards.length === 0) {
       return null
     }
 
     return evaluateDeckRulesets({
-      cards: importedDeckParse.cards,
+      cards: importedDeckCards,
       cardsById: importedDeckCardsById,
       rulesets: activeDeckRulesetsQuery.data ?? [],
     })
-  }, [importedDeckParse, importedDeckCardsById, activeDeckRulesetsQuery.data])
+  }, [importedDeckCards, importedDeckCardsById, activeDeckRulesetsQuery.data])
 
   const isCheckingImportedDeck = importedDeckCardsQuery.isFetching || activeDeckRulesetsQuery.isFetching
+  const isImportedDeckMetadataCold = isCheckingImportedDeck && importedDeckCardsById.size === 0
+  const importedDeckDialogValidation = isImportedDeckMetadataCold ? null : importedDeckValidation
   const visibleImportedDeckValidation = isCheckingImportedDeck ? null : importedDeckValidation
   const visibleImportedDeckEvaluations = visibleImportedDeckValidation?.evaluations ?? []
   const validImportedDeckRulesets = visibleImportedDeckEvaluations.filter(
@@ -399,6 +425,18 @@ export function LoginView() {
   const importedDeckParseError = importedDeckParse && !importedDeckParse.isValid
     ? importedDeckParse.error
     : null
+
+  const importedDeckFormatStatusText = useMemo(() => {
+    if (validImportedDeckRulesets.length > 0) {
+      return t('deckRules.status.validForFormats', {
+        formats: validImportedDeckRulesets
+          .map((evaluation) => evaluation.ruleset.name)
+          .join(', '),
+      })
+    }
+
+    return t('deckRules.status.invalidForAllFormats')
+  }, [t, validImportedDeckRulesets])
 
   const describeImportedDeckParseError = (error: IDeckListParseError): string => {
     if (error.code === 'empty') {
@@ -418,7 +456,9 @@ export function LoginView() {
   )
 
   const isImportedDeckReady =
-    !isCheckingImportedDeck && importedDeckValidation?.isLegalInAnyRuleset === true
+    Boolean(importedDeckParse?.isValid)
+    && !isCheckingImportedDeck
+    && importedDeckValidation?.isLegalInAnyRuleset === true
 
   const handleImportDeckTextChange = (value: string) => {
     setDeckOptionValue(value)
@@ -668,10 +708,6 @@ export function LoginView() {
           >
             {t('auth.title')}
           </p>
-          <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)] sm:text-base">
-            <span className="block">{t('auth.tagline1')}</span>
-            <span className="block"><Trans i18nKey="auth.tagline2" components={{ strong: <strong /> }} /></span>
-          </p>
         </Panel>
         <Panel className="my-2 w-full px-5 pt-3">
           <Form className="mt-0 grid grid-cols-2 items-stretch gap-x-4" onSubmit={handleSubmit}>
@@ -773,34 +809,33 @@ export function LoginView() {
                     >
                       {t('auth.importDeckButton')}
                     </AppButton>
-                    {importedDeckParseError && importedDeckParseError.code !== 'empty' ? (
-                      <p
-                        role="alert"
-                        data-testid="login-deck-parse-error"
-                        className="mt-2 text-xs font-medium text-[var(--button-primary-bg)]"
-                      >
-                        {describeImportedDeckParseError(importedDeckParseError)}
-                      </p>
-                    ) : null}
-                    {visibleImportedDeckValidation && !isImportedDeckLegalEverywhere ? (
-                      <p
-                        data-testid="login-deck-format-status"
-                        data-has-valid-format={validImportedDeckRulesets.length > 0 ? 'true' : 'false'}
-                        className={`mt-2 text-xs font-medium ${
-                          validImportedDeckRulesets.length > 0
-                            ? 'text-emerald-700 dark:text-emerald-300'
-                            : 'text-[var(--button-primary-bg)]'
-                        }`}
-                      >
-                        {validImportedDeckRulesets.length > 0
-                          ? t('deckRules.status.validForFormats', {
-                              formats: validImportedDeckRulesets
-                                .map((evaluation) => evaluation.ruleset.name)
-                                .join(', '),
-                            })
-                          : t('deckRules.status.invalidForAllFormats')}
-                      </p>
-                    ) : null}
+                    <div className="h-5">
+                      {importedDeckParseError && importedDeckParseError.code !== 'empty' ? (
+                        <p
+                          role="alert"
+                          data-testid="login-deck-invalid-value"
+                          className="truncate text-xs font-medium leading-5 text-[var(--button-primary-bg)]"
+                        >
+                          {t('auth.invalidDeckValue')}
+                        </p>
+                      ) : null}
+                      {importedDeckParse?.isValid
+                      && visibleImportedDeckValidation
+                      && !isImportedDeckLegalEverywhere ? (
+                        <p
+                          data-testid="login-deck-format-status"
+                          data-has-valid-format={validImportedDeckRulesets.length > 0 ? 'true' : 'false'}
+                          title={importedDeckFormatStatusText}
+                          className={`truncate text-xs font-medium leading-5 ${
+                            validImportedDeckRulesets.length > 0
+                              ? 'text-emerald-700 dark:text-emerald-300'
+                              : 'text-[var(--button-primary-bg)]'
+                          }`}
+                        >
+                          {importedDeckFormatStatusText}
+                        </p>
+                      ) : null}
+                    </div>
                   </>
                 ) : (
                   <AdaptiveFormField
@@ -813,7 +848,7 @@ export function LoginView() {
                 )}
               </FormField>
 
-            <FormActions className="col-span-full pt-2 w-full justify-start">
+            <FormActions className="col-span-full pt-1 w-full justify-start">
               <AppButton type="submit" className="w-full">
                 {t('auth.enterGame')}
               </AppButton>
@@ -935,7 +970,8 @@ export function LoginView() {
         payload={activeDeckOption}
         onPayloadChange={handleImportDeckTextChange}
         parseError={importedDeckParseError}
-        validation={importedDeckValidation}
+        rulesets={activeDeckRulesetsQuery.data ?? []}
+        validation={importedDeckDialogValidation}
         isChecking={isCheckingImportedDeck}
         isAuthenticated={Boolean(authUser?.userId)}
         deckName={importDeckName}
