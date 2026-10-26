@@ -4,7 +4,7 @@ import type { IDeckAdminSelectedCard } from '@/views/admin/types/deckAdminTypes'
 import { resolveDeckCardColorStyling } from '@/views/admin/utils/deckCardColorStyles'
 import type { TFunction } from 'node_modules/i18next/typescript/t'
 
-export function LeaderCardIndicator({leaderCard, onClearLeader, totalCopies, t} : {leaderCard: IDeckAdminSelectedCard | null, onClearLeader: () => void, t: TFunction<"translation", undefined>, totalCopies: number}) {
+export function LeaderCardIndicator({leaderCard, onClearLeader, nonLeaderCopies, t} : {leaderCard: IDeckAdminSelectedCard | null, onClearLeader: () => void, t: TFunction<"translation", undefined>, nonLeaderCopies: number}) {
   const leaderName = leaderCard?.metadata?.displayName ?? leaderCard?.cardId ?? null
   const leaderDetail = leaderCard?.metadata
     ? `${leaderCard.metadata.type} · ${leaderCard.metadata.color}`
@@ -72,7 +72,7 @@ export function LeaderCardIndicator({leaderCard, onClearLeader, totalCopies, t} 
     )}
 
     <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
-      {t('admin.decks.editor.totalCopies', { count: totalCopies })}
+      {t('admin.decks.editor.nonLeaderCopies', { count: nonLeaderCopies })}
     </p>
   </div>
 }

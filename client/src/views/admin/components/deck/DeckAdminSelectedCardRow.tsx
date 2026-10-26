@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next'
 import { translateKey } from '@/i18n'
 import { CARD_ART_IMAGE_CLASS, CardImage } from '@/components/ui/cards'
 import { resolveDeckCardColorStyling } from '@/views/admin/utils/deckCardColorStyles'
-import { MAX_NON_LEADER_COPIES } from '@/views/admin/utils/deckDraftValidation'
 import type { IDeckAdminSelectedCardRowProps } from './types'
 
 export function DeckAdminSelectedCardRow({
@@ -70,7 +69,7 @@ export function DeckAdminSelectedCardRow({
               ? 'border-[var(--button-primary-bg)] text-[var(--button-primary-bg)]'
               : 'border-[var(--border-subtle)] text-[var(--text-primary)]'
           }`}
-          title={t('admin.decks.cards.copyLimitHint', { max: MAX_NON_LEADER_COPIES })}
+          title={card.exceedsCopyLimit ? t('admin.decks.cards.copyLimitHintDynamic') : undefined}
         >
           {card.quantity}
         </span>

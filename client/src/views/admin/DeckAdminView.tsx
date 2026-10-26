@@ -18,7 +18,6 @@ import {
 import { useDeckAdminModel } from '@/views/admin/model/useDeckAdminModel'
 import { useDeckableTypeFilter } from '@/views/admin/model/useDeckableTypeFilter'
 import { COLOR_FILTER_OPTIONS, SORT_OPTIONS } from '@/views/admin/constants'
-import { MAX_NON_LEADER_COPIES } from '@/views/admin/utils/deckDraftValidation'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import type { IDeckCardInput } from '@/types/deck'
 import type { ICardCatalogListItemResponse } from '@/types/cardCatalog'
@@ -170,8 +169,8 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
     }
   }
 
-  const handleImport = (cards: IDeckCardInput[]) => {
-    model.importCards(cards)
+  const handleReplaceCards = (cards: IDeckCardInput[], leaderCardId: string | null) => {
+    model.replaceCards(cards, leaderCardId)
     showAppSuccessToast(t('admin.decks.toasts.imported', { count: cards.length }), {
       id: TOAST_ID,
       position: 'top-right',
@@ -227,7 +226,7 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
               listScrollContainerRef={listScrollContainerRef}
               loadMoreSentinelRef={loadMoreSentinelRef}
               selectedCountByCardId={selectedCountByCardId}
-              maxCopies={MAX_NON_LEADER_COPIES}
+              maxCopies={model.maxCopies}
               onAddCard={model.addCopy}
               onRemoveCard={model.removeCopy}
             />
@@ -240,8 +239,10 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
               onNameChange={model.setName}
               leaderCard={model.leaderCard}
               selectedCards={model.selectedCards}
-              totalCopies={model.totalCopies}
+              leaderCopies={model.leaderCopies}
+              nonLeaderCopies={model.nonLeaderCopies}
               validation={model.validation}
+              isCheckingCards={model.isCheckingCards}
               canSave={model.canSave}
               isDirty={model.isDirty}
               isSaving={model.isSaving}
@@ -268,8 +269,10 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
       {isImportOpen ? (
         <DeckAdminImportDialog
           isOpen={isImportOpen}
+          rulesets={model.rulesets}
+          cardsById={model.metadataById}
           onClose={() => setIsImportOpen(false)}
-          onImport={handleImport}
+          onReplace={handleReplaceCards}
         />
       ) : null}
 

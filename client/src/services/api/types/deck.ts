@@ -4,6 +4,7 @@ export type ICreateDeckRequest = {
   type: number
   cards: string
   userId: string
+  name?: string
 }
 
 export type ICreatePublicDeckRequest = {

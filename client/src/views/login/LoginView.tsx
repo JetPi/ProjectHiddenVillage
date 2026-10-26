@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SubmitEvent } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import i18n, { translateKey } from '@/i18n'
 import {
@@ -19,7 +19,6 @@ import {
   FormField,
   FormLabel,
   FormInput,
-  FormTextarea,
   OptionToggle,
 } from '@/components/forms'
 import type { IAdaptiveFieldConfig } from '@/components/forms'
@@ -33,11 +32,22 @@ import type { ILoginActionData, ILoginLoaderData } from '@/views/login/types/rou
 import { createGameForUser, joinGameAsPlayer } from '@/services/api/gameApi'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import { createUserDeck, fetchDecks } from '@/services/api/deckApi'
-import { validateDeckCardsPayload } from '@/views/login/utils/validateDeckCardsPayload'
-import type { IDeckResponse } from '@/types/deck'
 import { preloadCardsByIds } from '@/services/cardPreloadService'
-
-const DECK_LINE_PATTERN = /^\s*(\d+)x\s+([A-Za-z0-9-]+)\s*$/
+import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
+import { useActiveDeckRulesetsQuery } from '@/services/queries/deckRulesetQueries'
+import { evaluateDeckRulesets } from '@/domain/deck/evaluateDeckRulesets'
+import {
+  buildDeckCardSignature,
+  deckCardsFromSignature,
+  normalizeDeckCardId,
+  parseDeckList,
+  parseDeckListPartial,
+} from '@/domain/deck/parseDeckList'
+import { DeckImportDialog } from '@/views/login/components/DeckImportDialog'
+import { writeCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
+import { buildDefaultSavedDeckName } from '@/views/login/utils/defaultDeckName'
+import type { IDeckCardMetadata, IDeckListParseError } from '@/domain/deck/types'
+import type { IDeckResponse } from '@/types/deck'
 const STARTER_DECK_FETCH_RETRY_ATTEMPTS = 3
 const STARTER_DECK_FETCH_RETRY_DELAY_MS = 700
 const TITLE_FONT_LOAD_QUERY = '1em "Water Brush"'
@@ -98,6 +108,9 @@ export function LoginView() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
+  const [savedDecks, setSavedDecks] = useState<IDeckResponse[]>([])
+  const [importDeckName, setImportDeckName] = useState('')
+  const [isSavingImportedDeck, setIsSavingImportedDeck] = useState(false)
   const [savedDeckChoices, setSavedDeckChoices] = useState<{ value: string; label: string }[]>([
     { value: '', label: t('auth.deckChoice.loginToLoad') },
   ])
@@ -246,6 +259,7 @@ export function LoginView() {
 
       if (!authUser?.userId) {
         if (!isCancelled) {
+          setSavedDecks([])
           setSavedDeckChoices([{ value: '', label: t('auth.deckChoice.loginToLoad') }])
           setSavedDeckCardIdsByDeckId({})
         }
@@ -257,11 +271,13 @@ export function LoginView() {
         const userDecks = await fetchDecks({ userId: authUser.userId })
 
         if (!isCancelled) {
+          setSavedDecks(userDecks)
           setSavedDeckChoices(toDeckChoices(userDecks, t('auth.deckChoice.noSaved')))
           setSavedDeckCardIdsByDeckId(toDeckCardIdsByDeckId(userDecks))
         }
       } catch {
         if (!isCancelled) {
+          setSavedDecks([])
           setSavedDeckChoices([{ value: '', label: t('auth.deckChoice.failedSaved') }])
           setSavedDeckCardIdsByDeckId({})
         }
@@ -337,14 +353,204 @@ export function LoginView() {
     [gameCodeMode, t],
   )
 
-  const importedDeckLineCount = useMemo(
-    () =>
-      activeDeckOption
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0).length,
-    [activeDeckOption],
+  const importedDeckParse = useMemo(() => {
+    if (deckOptionsMode !== 'import' || activeDeckOption.trim().length === 0) {
+      return null
+    }
+
+    return parseDeckList(activeDeckOption)
+  }, [deckOptionsMode, activeDeckOption])
+
+  const importedDeckPartialCards = useMemo(() => {
+    if (deckOptionsMode !== 'import') {
+      return []
+    }
+
+    return parseDeckListPartial(activeDeckOption)
+  }, [deckOptionsMode, activeDeckOption])
+
+  const importedDeckPartialSignature = useMemo(
+    () => buildDeckCardSignature(importedDeckPartialCards),
+    [importedDeckPartialCards],
   )
+
+  const importedDeckCards = useMemo(
+    () => deckCardsFromSignature(importedDeckPartialSignature),
+    [importedDeckPartialSignature],
+  )
+
+  const importedDeckCardIds = useMemo(
+    () => importedDeckCards.map((card) => card.cardId),
+    [importedDeckCards],
+  )
+
+  const importedDeckCardsQuery = useCardCatalogByIdsQuery(importedDeckCardIds, {
+    enabled: deckOptionsMode === 'import' && importedDeckCardIds.length > 0,
+  })
+  const activeDeckRulesetsQuery = useActiveDeckRulesetsQuery()
+
+  const importedDeckCardsById = useMemo(() => {
+    const byId = new Map<string, IDeckCardMetadata>()
+
+    for (const card of importedDeckCardsQuery.data ?? []) {
+      byId.set(normalizeDeckCardId(card.id), card)
+    }
+
+    return byId
+  }, [importedDeckCardsQuery.data])
+
+  const importedDeckValidation = useMemo(() => {
+    if (importedDeckCards.length === 0) {
+      return null
+    }
+
+    return evaluateDeckRulesets({
+      cards: importedDeckCards,
+      cardsById: importedDeckCardsById,
+      rulesets: activeDeckRulesetsQuery.data ?? [],
+    })
+  }, [importedDeckCards, importedDeckCardsById, activeDeckRulesetsQuery.data])
+
+  const isCheckingImportedDeck = importedDeckCardsQuery.isFetching || activeDeckRulesetsQuery.isFetching
+  const isImportedDeckMetadataCold = isCheckingImportedDeck && importedDeckCardsById.size === 0
+  const importedDeckDialogValidation = isImportedDeckMetadataCold ? null : importedDeckValidation
+  const visibleImportedDeckValidation = isCheckingImportedDeck ? null : importedDeckValidation
+  const visibleImportedDeckEvaluations = visibleImportedDeckValidation?.evaluations ?? []
+  const validImportedDeckRulesets = visibleImportedDeckEvaluations.filter(
+    (evaluation) => evaluation.isValid,
+  )
+  const isImportedDeckLegalEverywhere =
+    visibleImportedDeckEvaluations.length > 0
+    && validImportedDeckRulesets.length === visibleImportedDeckEvaluations.length
+  const importedDeckParseError = importedDeckParse && !importedDeckParse.isValid
+    ? importedDeckParse.error
+    : null
+
+  const importedDeckFormatStatusText = useMemo(() => {
+    if (validImportedDeckRulesets.length > 0) {
+      return t('deckRules.status.validForFormats', {
+        formats: validImportedDeckRulesets
+          .map((evaluation) => evaluation.ruleset.name)
+          .join(', '),
+      })
+    }
+
+    return t('deckRules.status.invalidForAllFormats')
+  }, [t, validImportedDeckRulesets])
+
+  const describeImportedDeckParseError = (error: IDeckListParseError): string => {
+    if (error.code === 'empty') {
+      return t('deckRules.parse.empty')
+    }
+
+    if (error.code === 'nonPositiveQuantity') {
+      return t('deckRules.parse.nonPositiveQuantity', { line: error.line })
+    }
+
+    return t('deckRules.parse.invalidLine', { line: error.line, value: error.value ?? '' })
+  }
+
+  const defaultImportDeckName = useMemo(
+    () => buildDefaultSavedDeckName(savedDecks),
+    [savedDecks],
+  )
+
+  const isImportedDeckReady =
+    Boolean(importedDeckParse?.isValid)
+    && !isCheckingImportedDeck
+    && importedDeckValidation?.isLegalInAnyRuleset === true
+
+  const handleImportDeckTextChange = (value: string) => {
+    setDeckOptionValue(value)
+    writeCachedImportedDeck(value)
+  }
+
+  const resolveReadyImportedDeck = () => {
+    const cardsPayload = activeDeckOption.trim()
+
+    if (!cardsPayload) {
+      showAppInfoToast(t('auth.toasts.pasteDeckList'))
+      return null
+    }
+
+    const parsedDeckList = parseDeckList(cardsPayload)
+    if (!parsedDeckList.isValid) {
+      showAppInfoToast(describeImportedDeckParseError(parsedDeckList.error))
+      return null
+    }
+
+    if (isCheckingImportedDeck) {
+      showAppInfoToast(t('auth.toasts.deckStillChecking'))
+      return null
+    }
+
+    if (importedDeckValidation?.isLegalInAnyRuleset !== true) {
+      showAppInfoToast(t('auth.toasts.deckNotLegal'))
+      return null
+    }
+
+    return { cardsPayload, cards: parsedDeckList.cards }
+  }
+
+  const handleUseImportedDeck = () => {
+    const resolvedDeck = resolveReadyImportedDeck()
+    if (!resolvedDeck) {
+      return
+    }
+
+    writeCachedImportedDeck(resolvedDeck.cardsPayload)
+    setDeckOptionValue(resolvedDeck.cardsPayload)
+    setIsImportModalOpen(false)
+    showAppSuccessToast(t('auth.toasts.deckCached'), { id: 'auth-deck-import-status' })
+  }
+
+  const handleSaveImportedDeck = async () => {
+    if (!authUser?.userId) {
+      return
+    }
+
+    const resolvedDeck = resolveReadyImportedDeck()
+    if (!resolvedDeck) {
+      return
+    }
+
+    setIsSavingImportedDeck(true)
+
+    try {
+      const deckName = importDeckName.trim() || defaultImportDeckName
+      const deckId = await createUserDeck(resolvedDeck.cardsPayload, authUser.userId, deckName)
+      const savedDeck: IDeckResponse = {
+        id: deckId,
+        name: deckName,
+        type: 'User',
+        userId: authUser.userId,
+        cards: resolvedDeck.cards,
+      }
+      const nextSavedDecks = [...savedDecks, savedDeck]
+
+      setSavedDecks(nextSavedDecks)
+      setSavedDeckChoices(toDeckChoices(nextSavedDecks, t('auth.deckChoice.noSaved')))
+      setSavedDeckCardIdsByDeckId((current) => ({
+        ...current,
+        [deckId]: resolvedDeck.cards.map((card) => card.cardId),
+      }))
+      setImportDeckName('')
+      setIsImportModalOpen(false)
+      setDeckOptionsMode('saved_decks')
+      setDeckOptionValue(deckId)
+      showAppSuccessToast(
+        t('auth.toasts.deckSavedAs', { name: deckName }),
+        { id: 'auth-deck-import-status' },
+      )
+    } catch (error) {
+      showAppInfoToast(
+        getApiErrorMessage(error, t('auth.toasts.deckSaveFailed')),
+        { id: 'auth-deck-import-status' },
+      )
+    } finally {
+      setIsSavingImportedDeck(false)
+    }
+  }
 
   const handleLogout = () => {
     clearAuthSession()
@@ -393,14 +599,25 @@ export function LoginView() {
             return
           }
         } else {
-          const deckPayloadValidation = validateDeckCardsPayload(deckCardsPayload)
-          if (!deckPayloadValidation.isValid) {
-            showAppInfoToast(deckPayloadValidation.message ?? t('auth.toasts.deckFormatInvalid'))
+          const parsedDeckList = parseDeckList(deckCardsPayload)
+          if (!parsedDeckList.isValid) {
+            showAppInfoToast(describeImportedDeckParseError(parsedDeckList.error))
             return
           }
 
-          const importedDeckCardIds = parseDeckCardIdsFromPayload(deckCardsPayload)
-          void preloadCardsByIds(importedDeckCardIds).catch(() => {
+          if (isCheckingImportedDeck) {
+            showAppInfoToast(t('auth.toasts.deckStillChecking'))
+            return
+          }
+
+          if (importedDeckValidation?.isLegalInAnyRuleset !== true) {
+            showAppInfoToast(t('auth.toasts.deckNotLegal'))
+            return
+          }
+
+          writeCachedImportedDeck(deckCardsPayload)
+
+          void preloadCardsByIds(parsedDeckList.cards.map((card) => card.cardId)).catch(() => {
           })
 
           deckId = await createUserDeck(deckCardsPayload, authUser.userId)
@@ -490,10 +707,6 @@ export function LoginView() {
             }`}
           >
             {t('auth.title')}
-          </p>
-          <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)] sm:text-base">
-            <span className="block">{t('auth.tagline1')}</span>
-            <span className="block"><Trans i18nKey="auth.tagline2" components={{ strong: <strong /> }} /></span>
           </p>
         </Panel>
         <Panel className="my-2 w-full px-5 pt-3">
@@ -596,11 +809,33 @@ export function LoginView() {
                     >
                       {t('auth.importDeckButton')}
                     </AppButton>
-                    {importedDeckLineCount > 0 ? (
-                      <p className="mt-2 text-xs text-[var(--text-secondary)]">
-                        {t('auth.importedReady', { lineCount: importedDeckLineCount })}
-                      </p>
-                    ) : null}
+                    <div className="h-5">
+                      {importedDeckParseError && importedDeckParseError.code !== 'empty' ? (
+                        <p
+                          role="alert"
+                          data-testid="login-deck-invalid-value"
+                          className="truncate text-xs font-medium leading-5 text-[var(--button-primary-bg)]"
+                        >
+                          {t('auth.invalidDeckValue')}
+                        </p>
+                      ) : null}
+                      {importedDeckParse?.isValid
+                      && visibleImportedDeckValidation
+                      && !isImportedDeckLegalEverywhere ? (
+                        <p
+                          data-testid="login-deck-format-status"
+                          data-has-valid-format={validImportedDeckRulesets.length > 0 ? 'true' : 'false'}
+                          title={importedDeckFormatStatusText}
+                          className={`truncate text-xs font-medium leading-5 ${
+                            validImportedDeckRulesets.length > 0
+                              ? 'text-emerald-700 dark:text-emerald-300'
+                              : 'text-[var(--button-primary-bg)]'
+                          }`}
+                        >
+                          {importedDeckFormatStatusText}
+                        </p>
+                      ) : null}
+                    </div>
                   </>
                 ) : (
                   <AdaptiveFormField
@@ -613,7 +848,7 @@ export function LoginView() {
                 )}
               </FormField>
 
-            <FormActions className="col-span-full pt-2 w-full justify-start">
+            <FormActions className="col-span-full pt-1 w-full justify-start">
               <AppButton type="submit" className="w-full">
                 {t('auth.enterGame')}
               </AppButton>
@@ -730,48 +965,26 @@ export function LoginView() {
         </div>
       ) : null}
 
-      {isImportModalOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="import-modal-title"
-          onClick={() => setIsImportModalOpen(false)}
-        >
-          <Panel
-            className="w-full max-w-2xl p-5"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h2 id="import-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
-                {t('auth.importModalTitle')}
-              </h2>
-            </div>
-            <p className="mb-2 text-sm text-[var(--text-secondary)]">
-              {t('auth.importModalBody')}
-            </p>
-            <FormTextarea
-              id="deckImportPayload"
-              value={activeDeckOption}
-              onChange={(event) => setDeckOptionValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  setIsImportModalOpen(false)
-                }
-              }}
-              placeholder={t('auth.importPlaceholder')}
-              rows={10}
-              className="py-2"
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <AppButton type="button" variant="ghost" onClick={() => setIsImportModalOpen(false)}>
-                {t('auth.close')}
-              </AppButton>
-            </div>
-          </Panel>
-        </div>
-      ) : null}
+      <DeckImportDialog
+        isOpen={isImportModalOpen}
+        payload={activeDeckOption}
+        onPayloadChange={handleImportDeckTextChange}
+        parseError={importedDeckParseError}
+        rulesets={activeDeckRulesetsQuery.data ?? []}
+        validation={importedDeckDialogValidation}
+        isChecking={isCheckingImportedDeck}
+        isAuthenticated={Boolean(authUser?.userId)}
+        deckName={importDeckName}
+        onDeckNameChange={setImportDeckName}
+        defaultDeckName={defaultImportDeckName}
+        canUse={isImportedDeckReady}
+        isSaving={isSavingImportedDeck}
+        onClose={() => setIsImportModalOpen(false)}
+        onUse={handleUseImportedDeck}
+        onSave={() => {
+          void handleSaveImportedDeck()
+        }}
+      />
     </PageShell>
   )
 }
@@ -827,35 +1040,6 @@ function toDeckCardIdsByDeckId(decks: IDeckResponse[]): Record<string, string[]>
     result[deck.id] = cardIds
     return result
   }, {})
-}
-
-function parseDeckCardIdsFromPayload(cardsPayload: string): string[] {
-  const lines = cardsPayload
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-
-  const seen = new Set<string>()
-  const cardIds: string[] = []
-
-  for (const line of lines) {
-    const match = DECK_LINE_PATTERN.exec(line)
-    if (!match) {
-      continue
-    }
-
-    const cardId = match[2].trim()
-    const cardKey = cardId.toLowerCase()
-
-    if (!cardId || seen.has(cardKey)) {
-      continue
-    }
-
-    seen.add(cardKey)
-    cardIds.push(cardId)
-  }
-
-  return cardIds
 }
 
 async function fetchDecksWithRetry(

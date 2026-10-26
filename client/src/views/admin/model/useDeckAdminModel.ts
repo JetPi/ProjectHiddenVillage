@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { evaluateDeckRulesets } from '@/domain/deck/evaluateDeckRulesets'
+import { normalizeDeckCardId } from '@/domain/deck/parseDeckList'
 import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
 import {
   useCreatePublicDeckMutation,
@@ -8,6 +10,7 @@ import {
   useDeleteDeckMutation,
   useUpdateDeckMutation,
 } from '@/services/queries/deckQueries'
+import { useActiveDeckRulesetsQuery } from '@/services/queries/deckRulesetQueries'
 import type { ICardCatalogListItemResponse } from '@/types/cardCatalog'
 import type { IDeckCardInput, IDeckResponse } from '@/types/deck'
 import type {
@@ -17,14 +20,12 @@ import type {
   IDeckAdminValidationResult,
 } from '@/views/admin/types/deckAdminTypes'
 import {
+  buildDeckDraftNameViolations,
   buildDeckDraftSignature,
   buildDeckLeaderCard,
   buildSelectedDeckCards,
-  evaluateDeckDraft,
   isLeaderCard,
-  normalizeDeckCardId,
 } from '@/views/admin/utils/deckDraftValidation'
-import { mergeImportedDeckCards } from '@/views/admin/utils/deckImport'
 
 const EMPTY_QUANTITIES: ReadonlyMap<string, number> = new Map()
 const EMPTY_DRAFT: IDeckAdminDraft = { name: '', quantitiesByCardId: EMPTY_QUANTITIES }
@@ -93,12 +94,15 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
 
   const decksQuery = useDecksQuery({ type: 'Public' })
   const deckQuery = useDeckQuery(deckId, { populate: true })
+  const rulesetsQuery = useActiveDeckRulesetsQuery()
   const createDeckMutation = useCreatePublicDeckMutation()
   const updateDeckMutation = useUpdateDeckMutation()
   const deleteDeckMutation = useDeleteDeckMutation()
 
   const [editedDraft, setEditedDraft] = useState<IDeckAdminDraft | null>(null)
   const [savedSignature, setSavedSignature] = useState<string | null>(null)
+
+  const rulesets = useMemo(() => rulesetsQuery.data ?? [], [rulesetsQuery.data])
 
   const loadedDraft = useMemo<IDeckAdminDraft | null>(() => {
     const loadedDeck = deckQuery.data
@@ -149,30 +153,48 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
     return byId
   }, [deckQuery.data, selectedCardsQuery.data, catalogCards])
 
-  const validation = useMemo<IDeckAdminValidationResult>(() => {
-    const result = evaluateDeckDraft(draft, metadataById)
+  const maxCopies = useMemo(
+    () => Math.max(1, ...rulesets.map((ruleset) => ruleset.maxCopiesPerNonLeaderCard)),
+    [rulesets],
+  )
 
-    if (!selectedCardsQuery.isFetching) {
-      return result
-    }
+  const deckCards = useMemo(
+    () => toDeckCardPayload(draft.quantitiesByCardId, metadataById),
+    [draft.quantitiesByCardId, metadataById],
+  )
+
+  const isCheckingCards = selectedCardsQuery.isFetching || rulesetsQuery.isFetching
+
+  const validation = useMemo<IDeckAdminValidationResult>(() => {
+    const nameViolations = buildDeckDraftNameViolations(draft.name)
+    const rulesetValidation = evaluateDeckRulesets({
+      cards: deckCards,
+      cardsById: metadataById,
+      rulesets,
+    })
+    const isLegalInAnyRuleset = !isCheckingCards && rulesetValidation.isLegalInAnyRuleset
 
     return {
-      isValid: false,
-      violations: result.violations.filter((violation) => violation.code !== 'unknownCards'),
+      nameViolations,
+      evaluations: rulesetValidation.evaluations,
+      isLegalInAnyRuleset,
+      isValid: nameViolations.length === 0 && isLegalInAnyRuleset,
     }
-  }, [draft, metadataById, selectedCardsQuery.isFetching])
+  }, [draft.name, deckCards, metadataById, rulesets, isCheckingCards])
 
   const selectedCards = useMemo<IDeckAdminSelectedCard[]>(
-    () => buildSelectedDeckCards(draft, metadataById),
-    [draft, metadataById],
+    () => buildSelectedDeckCards(draft, metadataById, maxCopies),
+    [draft, metadataById, maxCopies],
   )
 
   const leaderCard = useMemo(() => buildDeckLeaderCard(draft, metadataById), [draft, metadataById])
 
-  const totalCopies = useMemo(
-    () => selectedCards.reduce((total, card) => total + card.quantity, 0) + (leaderCard?.quantity ?? 0),
-    [selectedCards, leaderCard],
+  const nonLeaderCopies = useMemo(
+    () => selectedCards.reduce((total, card) => total + card.quantity, 0),
+    [selectedCards],
   )
+
+  const leaderCopies = leaderCard?.quantity ?? 0
 
   const draftSignature = useMemo(() => buildDeckDraftSignature(draft), [draft])
   const isDirty = draftSignature !== baselineSignature
@@ -245,28 +267,22 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
     })
   }
 
-  const importCards = (cards: IDeckCardInput[]) => {
-    const importedLeaderIds: string[] = []
-    const importedCardLines: IDeckCardInput[] = []
+  const replaceCards = (cards: readonly IDeckCardInput[], leaderCardId: string | null) => {
+    const nextQuantities = new Map<string, number>()
 
     for (const card of cards) {
       const cardId = normalizeDeckCardId(card.cardId)
-      if (cardId && isLeaderCard(metadataById.get(cardId))) {
-        importedLeaderIds.push(cardId)
+      if (!cardId || card.quantity <= 0) {
         continue
       }
 
-      importedCardLines.push(card)
+      nextQuantities.set(cardId, (nextQuantities.get(cardId) ?? 0) + card.quantity)
     }
 
-    const baseQuantities = importedLeaderIds.length > 0
-      ? withoutLeaderEntries(draft.quantitiesByCardId, metadataById)
-      : draft.quantitiesByCardId
-    const nextQuantities = mergeImportedDeckCards(baseQuantities, importedCardLines)
-    const importedLeaderId = importedLeaderIds.at(-1)
-
-    if (importedLeaderId) {
-      nextQuantities.set(importedLeaderId, 1)
+    const normalizedLeaderCardId = leaderCardId ? normalizeDeckCardId(leaderCardId) : null
+    if (normalizedLeaderCardId) {
+      nextQuantities.delete(normalizedLeaderCardId)
+      nextQuantities.set(normalizedLeaderCardId, 1)
     }
 
     setEditedDraft({ name: draft.name, quantitiesByCardId: nextQuantities })
@@ -322,9 +338,13 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
     setName,
     selectedCards,
     leaderCard,
-    totalCopies,
+    rulesets,
+    maxCopies,
+    nonLeaderCopies,
+    leaderCopies,
     metadataById,
     validation,
+    isCheckingCards,
     isDirty,
     isSaving,
     isDeleting: deleteDeckMutation.isPending,
@@ -332,11 +352,10 @@ export function useDeckAdminModel({ deckId, catalogCards }: IUseDeckAdminModelOp
     addCopy,
     removeCopy,
     clearCard,
-    importCards,
+    replaceCards,
     save,
     remove,
   }
 }
 
 export type IDeckAdminModel = ReturnType<typeof useDeckAdminModel>
-

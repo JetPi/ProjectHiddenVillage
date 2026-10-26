@@ -173,6 +173,127 @@ namespace ProjectHiddenVillage.Server.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.DeckRuleset", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AllowChakraCards")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AllowSummonCards")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("LeaderCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxCopiesPerNonLeaderCard")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("NonLeaderCardCount")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("RequireLeaderColorMatch")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "SortOrder");
+
+                    b.ToTable("deck_rulesets", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_deck_rulesets_counts_positive", "\"LeaderCount\" > 0 AND \"NonLeaderCardCount\" > 0 AND \"MaxCopiesPerNonLeaderCard\" > 0");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000001"),
+                            AllowChakraCards = false,
+                            AllowSummonCards = false,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "standard",
+                            LeaderCount = 1,
+                            MaxCopiesPerNonLeaderCard = 4,
+                            Name = "Standard",
+                            NonLeaderCardCount = 50,
+                            RequireLeaderColorMatch = true,
+                            SortOrder = 0,
+                            UpdatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000002"),
+                            AllowChakraCards = false,
+                            AllowSummonCards = false,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "pre-release",
+                            LeaderCount = 1,
+                            MaxCopiesPerNonLeaderCard = 3,
+                            Name = "Pre-Release",
+                            NonLeaderCardCount = 30,
+                            RequireLeaderColorMatch = true,
+                            SortOrder = 1,
+                            UpdatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
+                });
+
+            modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.DeckRulesetCardRestriction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CardCatalogEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DeckRulesetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("MaxCopies")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CardCatalogEntryId");
+
+                    b.HasIndex("DeckRulesetId", "CardCatalogEntryId")
+                        .IsUnique();
+
+                    b.ToTable("deck_ruleset_card_restrictions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_deck_ruleset_card_restrictions_max_copies_non_negative", "\"MaxCopies\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.GameInstance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -607,6 +728,25 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.Navigation("Deck");
                 });
 
+            modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.DeckRulesetCardRestriction", b =>
+                {
+                    b.HasOne("ProjectHiddenVillage.Server.Data.Entities.CardCatalogEntry", "CardCatalogEntry")
+                        .WithMany()
+                        .HasForeignKey("CardCatalogEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ProjectHiddenVillage.Server.Data.Entities.DeckRuleset", "DeckRuleset")
+                        .WithMany("CardRestrictions")
+                        .HasForeignKey("DeckRulesetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CardCatalogEntry");
+
+                    b.Navigation("DeckRuleset");
+                });
+
             modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.GameInstance", b =>
                 {
                     b.HasOne("ProjectHiddenVillage.Server.Data.Entities.Deck", "Player1Deck")
@@ -755,6 +895,11 @@ namespace ProjectHiddenVillage.Server.Migrations
             modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.Deck", b =>
                 {
                     b.Navigation("Cards");
+                });
+
+            modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.DeckRuleset", b =>
+                {
+                    b.Navigation("CardRestrictions");
                 });
 
             modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.GameInstance", b =>

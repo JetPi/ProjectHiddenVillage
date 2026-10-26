@@ -8,6 +8,12 @@ public interface IDeckService
 {
     Task<ErrorOr<string>> CreateDeck(CreateDeckRequest request);
 
+    /// <summary>
+    /// Creates a deck without evaluating the active rulesets. Reserved for the e2e engine fixtures, which are
+    /// deliberately illegal in every format.
+    /// </summary>
+    Task<ErrorOr<string>> CreateFixtureDeckAsync(CreateDeckRequest request);
+
     Task<ErrorOr<DeckResponse>> CreatePublicDeckAsync(CreatePublicDeckRequest request);
 
     Task<ErrorOr<DeckResponse>> UpdateDeckAsync(string deckId, UpdateDeckRequest request);

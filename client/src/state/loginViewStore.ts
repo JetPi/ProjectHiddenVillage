@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from '@/types/login'
 import type { ILoginViewStoreState } from '@/state/types/loginViewStore'
+import { readCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
 
 const initialGameCodeByMode: Record<IGameCodeEntryMode, string> = {
   quickmatch: 'casual',
@@ -9,7 +10,7 @@ const initialGameCodeByMode: Record<IGameCodeEntryMode, string> = {
 }
 
 const initialDeckOptionsByMode: Record<IDeckOptionsEntryMode, string> = {
-  import: '',
+  import: readCachedImportedDeck() ?? '',
   saved_decks: '',
   starter_decks: '',
 }

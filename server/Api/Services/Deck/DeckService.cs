@@ -32,7 +32,24 @@ public sealed partial class DeckService : IDeckService
         return options;
     }
 
-    public async Task<ErrorOr<string>> CreateDeck(CreateDeckRequest request)
+    public Task<ErrorOr<string>> CreateDeck(CreateDeckRequest request)
+    {
+        return CreateDeckAsync(request, enforceRulesets: true);
+    }
+
+    /// <summary>
+    /// Creates a deck without a ruleset evaluation.
+    ///
+    /// Only reachable through the test-only <see cref="TestDecksController"/>. The e2e suite mints engine fixtures
+    /// (a 25-card deck holding 24 copies of one card, a three-card combination that makes one interaction certain)
+    /// that no format can ever accept, so they must be creatable while staying unsavable for a player.
+    /// </summary>
+    public Task<ErrorOr<string>> CreateFixtureDeckAsync(CreateDeckRequest request)
+    {
+        return CreateDeckAsync(request, enforceRulesets: false);
+    }
+
+    private async Task<ErrorOr<string>> CreateDeckAsync(CreateDeckRequest request, bool enforceRulesets)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -75,7 +92,7 @@ public sealed partial class DeckService : IDeckService
         var cardCatalogEntries = await dbContext.CardCatalogEntries
                 .AsNoTracking()
                 .Where(entry => requestedCardIds.Contains(entry.CardId.ToUpper()))
-            .Select(entry => new { entry.Id, entry.CardId, entry.Type })
+            .Select(entry => new { entry.Id, entry.CardId, entry.Type, entry.Color })
                 .ToListAsync();
 
         var cardCatalogById = cardCatalogEntries
@@ -97,23 +114,39 @@ public sealed partial class DeckService : IDeckService
                     description: $"Unknown card id(s): {string.Join(", ", missingCardIds)}.");
         }
 
-        var prohibitedCardIds = cardCatalogEntries
-            .Where(entry => entry.Type is CardType.Chakra or CardType.Summon)
-            .Select(entry => entry.CardId)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(card => card, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var metadataByCardId = cardCatalogEntries
+            .GroupBy(entry => entry.CardId.Trim().ToUpperInvariant(), StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => new DeckRuleCardMetadata(group.First().CardId, group.First().Type, group.First().Color),
+                comparer: StringComparer.Ordinal);
 
-        if (prohibitedCardIds.Count > 0)
+        if (enforceRulesets)
+        {
+            var activeRulesets = await LoadActiveRulesetDefinitionsAsync();
+            var rulesetValidation = DeckRulesetRules.Evaluate(
+                parsedCards.Select(card => new DeckRuleCard(card.CardId, card.Quantity)),
+                metadataByCardId,
+                activeRulesets);
+
+            if (!rulesetValidation.IsLegalInAnyRuleset)
+            {
+                return ToRulesetErrors(rulesetValidation);
+            }
+        }
+
+        var deckName = request.Name?.Trim() ?? string.Empty;
+        if (deckName.Length > 128)
         {
             return Error.Validation(
-                    code: "Deck.Create.UnsupportedCardType",
-                    description: $"Decks cannot include Chakra or Summon cards: {string.Join(", ", prohibitedCardIds)}.");
+                    code: "Deck.Create.NameTooLong",
+                    description: "Deck name cannot exceed 128 characters.");
         }
 
         var deck = new Deck
         {
             Type = request.Type,
+            Name = deckName,
             UserId = request.UserId,
             Cards = parsedCards.ConvertAll(card => new DeckCard
             {
@@ -986,12 +1019,11 @@ public sealed partial class DeckService : IDeckService
             elementSelector: entry => new DeckRuleCardMetadata(entry.CardId, entry.Type, entry.Color),
             comparer: StringComparer.Ordinal);
 
-        var violations = PublicDeckRules.Evaluate(normalizedCards, metadataByCardId);
-        if (violations.Count > 0)
+        var activeRulesets = await LoadActiveRulesetDefinitionsAsync();
+        var rulesetValidation = DeckRulesetRules.Evaluate(normalizedCards, metadataByCardId, activeRulesets);
+        if (!rulesetValidation.IsLegalInAnyRuleset)
         {
-            return violations
-                .Select(violation => Error.Validation(code: violation.Code, description: violation.Description))
-                .ToList();
+            return ToRulesetErrors(rulesetValidation);
         }
 
         var catalogEntryIdByCardId = catalogEntries.ToDictionary(
@@ -1008,14 +1040,75 @@ public sealed partial class DeckService : IDeckService
             .ToList();
     }
 
+    private async Task<List<DeckRulesetDefinition>> LoadActiveRulesetDefinitionsAsync()
+    {
+        var rulesets = await dbContext.DeckRulesets
+            .AsNoTracking()
+            .Where(ruleset => ruleset.IsActive)
+            .Include(ruleset => ruleset.CardRestrictions)
+            .ThenInclude(restriction => restriction.CardCatalogEntry)
+            .OrderBy(ruleset => ruleset.SortOrder)
+            .ThenBy(ruleset => ruleset.Name)
+            .ToListAsync();
+
+        return rulesets
+            .Select(ruleset => new DeckRulesetDefinition(
+                Id: ruleset.Id,
+                Key: ruleset.Key,
+                Name: ruleset.Name,
+                LeaderCount: ruleset.LeaderCount,
+                NonLeaderCardCount: ruleset.NonLeaderCardCount,
+                MaxCopiesPerNonLeaderCard: ruleset.MaxCopiesPerNonLeaderCard,
+                RequireLeaderColorMatch: ruleset.RequireLeaderColorMatch,
+                AllowChakraCards: ruleset.AllowChakraCards,
+                AllowSummonCards: ruleset.AllowSummonCards,
+                MaxCopiesByCardId: ruleset.CardRestrictions.ToDictionary(
+                    restriction => restriction.CardCatalogEntry.CardId.Trim().ToUpperInvariant(),
+                    restriction => restriction.MaxCopies,
+                    comparer: StringComparer.Ordinal)))
+            .ToList();
+    }
+
+    private static List<Error> ToRulesetErrors(DeckRulesetValidation validation)
+    {
+        if (validation.Evaluations.Count == 0)
+        {
+            return
+            [
+                Error.Validation(
+                    code: "Deck.Ruleset.NoActiveRulesets",
+                    description: "No active deck rulesets are configured, so the deck cannot be validated.")
+            ];
+        }
+
+        var summaries = validation.Evaluations
+            .Select(evaluation => $"{evaluation.Name}: "
+                + string.Join(" ", evaluation.Violations.Select(violation => violation.Description.Trim())));
+
+        return
+        [
+            Error.Validation(
+                code: "Deck.Ruleset.NotLegalInAnyRuleset",
+                description: "This deck is not legal in any active ruleset. " + string.Join(" ", summaries))
+        ];
+    }
+
     private static ErrorOr<List<ParsedDeckCard>> ParseCards(string cardsPayload)
     {
         var quantitiesByCardId = new Dictionary<string, int>(StringComparer.Ordinal);
-        var lines = cardsPayload.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var lines = cardsPayload.Split('\n');
 
         for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
         {
-            var line = lines[lineIndex];
+            var rawLine = lines[lineIndex].TrimEnd('\r');
+            var commentIndex = rawLine.IndexOf("//", StringComparison.Ordinal);
+            var line = (commentIndex >= 0 ? rawLine[..commentIndex] : rawLine).Trim();
+
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
             var match = DeckLinePattern().Match(line);
 
             if (!match.Success)
