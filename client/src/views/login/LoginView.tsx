@@ -29,7 +29,7 @@ import { ensurePlayerIdentity } from '@/state/guestSession'
 import { useSessionStore } from '@/state/sessionStore'
 import { useThemeStore } from '@/state/themeStore'
 import { useLoginViewModel } from '@/views/login/model/useLoginViewModel'
-import { usePresenceSnapshot } from '@/services/presence/usePresence'
+import { selectRulesetWaitingCount, usePresenceSnapshot } from '@/services/presence/usePresence'
 import type { ILoginActionData } from '@/views/login/types/routeHandlers'
 import { createGameForUser, joinGameAsPlayer } from '@/services/api/gameApi'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
@@ -47,6 +47,7 @@ import {
 } from '@/domain/deck/parseDeckList'
 import { DeckImportDialog } from '@/views/login/components/DeckImportDialog'
 import { MatchmakingSearchDialog } from '@/views/login/components/MatchmakingSearchDialog'
+import { QueuedPlayersBadge } from '@/views/login/components/QueuedPlayersBadge'
 import { writeCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
 import { buildDefaultSavedDeckName } from '@/views/login/utils/defaultDeckName'
 import type { IDeckCardMetadata, IDeckListParseError } from '@/domain/deck/types'
@@ -346,12 +347,19 @@ export function LoginView() {
     [t],
   )
 
+  // Each format carries its current queue depth, right-aligned in the select row. Formats with no queue are absent
+  // from the snapshot, so a known snapshot makes a missing entry zero rather than "unknown".
   const activeRulesetOptions = useMemo(
-    () => (activeDeckRulesetsQuery.data ?? []).map((ruleset) => ({
-      value: ruleset.id,
-      label: ruleset.name,
-    })),
-    [activeDeckRulesetsQuery.data],
+    () => (activeDeckRulesetsQuery.data ?? []).map((ruleset) => {
+      const waitingCount = selectRulesetWaitingCount(presenceSnapshot, ruleset.id)
+
+      return {
+        value: ruleset.id,
+        label: ruleset.name,
+        trailing: waitingCount === null ? undefined : <QueuedPlayersBadge count={waitingCount} />,
+      }
+    }),
+    [activeDeckRulesetsQuery.data, presenceSnapshot],
   )
 
   const selectedRuleset = useMemo(

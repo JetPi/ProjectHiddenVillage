@@ -185,6 +185,7 @@
       "searchingBody": "You will be taken to the game as soon as another player queues for the same format.",
       "waitingPlayers_one": "{{count}} player is queued for this format.",
       "waitingPlayers_other": "{{count}} players are queued for this format.",
+      "queuedCount": "{{count}} queued",
       "cancel": "Cancel search",
       "cancelling": "Cancelling..."
     },

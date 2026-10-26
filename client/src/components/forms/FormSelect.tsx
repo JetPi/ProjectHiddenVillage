@@ -68,16 +68,19 @@ export function FormSelect({
           className,
         )}
       >
-        <span
-          className={
-            selectedOption
-              ? selectedOption.value
-                ? 'font-semibold text-[var(--text-primary)]'
-                : 'font-normal text-[var(--text-primary)]'
-              : 'font-normal text-[var(--text-muted)]'
-          }
-        >
-          {selectedOption?.label || resolvedPlaceholder}
+        <span className="flex w-full min-w-0 items-center justify-between gap-3">
+          <span
+            className={`min-w-0 truncate ${
+              selectedOption
+                ? selectedOption.value
+                  ? 'font-semibold text-[var(--text-primary)]'
+                  : 'font-normal text-[var(--text-primary)]'
+                : 'font-normal text-[var(--text-muted)]'
+            }`}
+          >
+            {selectedOption?.label || resolvedPlaceholder}
+          </span>
+          {selectedOption?.trailing ? <span className="shrink-0">{selectedOption.trailing}</span> : null}
         </span>
       </button>
       <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[var(--text-muted)]">
@@ -101,13 +104,14 @@ export function FormSelect({
                   aria-selected={isSelected}
                   disabled={option.disabled}
                   onClick={() => handleSelect(option.value)}
-                  className={`w-full rounded-lg px-3 py-2 text-left text-sm normal-case transition-colors duration-150 ${
+                  className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm normal-case transition-colors duration-150 ${
                     isSelected
                       ? 'bg-[var(--button-primary-bg)] text-[var(--button-primary-text)]'
                       : 'text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'
                   } ${option.value ? 'font-semibold' : 'font-normal'} disabled:cursor-not-allowed disabled:opacity-50`}
                 >
-                  {option.label}
+                  <span className="min-w-0 truncate">{option.label}</span>
+                  {option.trailing ? <span className="shrink-0">{option.trailing}</span> : null}
                 </button>
               </li>
             )

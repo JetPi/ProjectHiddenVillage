@@ -4,6 +4,7 @@ import type {
   InputHTMLAttributes,
   LabelHTMLAttributes,
   PropsWithChildren,
+  ReactNode,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react'
@@ -28,6 +29,8 @@ export type IOptionToggleProps<T extends string> = {
 export type IFormSelectOption = {
   value: string
   label: string
+  /** Rendered at the far right of the row and of the collapsed control, e.g. a queue-depth badge. */
+  trailing?: ReactNode
   disabled?: boolean
 }
 
@@ -45,6 +48,7 @@ export type IFormSelectProps = {
 export type ISelectChoice = {
   value: string
   label: string
+  trailing?: ReactNode
 }
 
 export type IAdaptiveInputConfig = {

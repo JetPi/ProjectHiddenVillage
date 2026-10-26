@@ -87,6 +87,10 @@ missed. On failure it keeps the last known figure rather than blanking it.
 - Matchmaking search dialog: how many players are already waiting in the selected format, with
   `data-testid="matchmaking-waiting-players"` (`auth.matchmaking.waitingPlayers_one/_other`). When the snapshot is
   unknown it falls back to copy that quotes no number.
+- Quick-match format select: each option row, and the collapsed control, show that format's current queue depth
+  right-aligned behind a people icon, through [`QueuedPlayersBadge`](../client/src/views/login/components/QueuedPlayersBadge.tsx:11)
+  and `data-testid="queued-players-count"` (`auth.matchmaking.queuedCount`). This is why `FormSelect` options carry
+  an optional `trailing` node. Once the snapshot is known, a format with no queue shows `0` rather than nothing.
 
 ## Constraints and known limits
 

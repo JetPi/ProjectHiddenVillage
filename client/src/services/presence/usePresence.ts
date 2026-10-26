@@ -13,14 +13,22 @@ export function usePresenceConnected(): boolean {
 
 /**
  * How many players are waiting in one format. Null while the snapshot is unknown, so callers can fall back to
- * copy that does not quote a number; zero means "nobody yet", which is worth saying.
+ * copy that does not quote a number; zero means "nobody yet", which is worth saying. Formats with no queue are
+ * absent from the payload, so a missing entry means zero once the snapshot is known.
  */
-export function useRulesetWaitingCount(rulesetId: string | null): number | null {
-  const snapshot = usePresenceStore((state) => state.snapshot)
-
+export function selectRulesetWaitingCount(
+  snapshot: IPresenceSnapshot | null,
+  rulesetId: string | null,
+): number | null {
   if (!snapshot || !rulesetId) {
     return null
   }
 
   return snapshot.waitingByRuleset.find((entry) => entry.rulesetId === rulesetId)?.waitingCount ?? 0
+}
+
+export function useRulesetWaitingCount(rulesetId: string | null): number | null {
+  const snapshot = usePresenceStore((state) => state.snapshot)
+
+  return selectRulesetWaitingCount(snapshot, rulesetId)
 }

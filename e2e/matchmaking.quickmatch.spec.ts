@@ -161,7 +161,15 @@ test('quick match queues under the selected format and joins the matched game', 
   await page.goto('/')
 
   // The quick-match combo shows the format the active rulesets provide, not a game code.
-  await expect(page.getByRole('combobox', { name: 'Game Code' })).toHaveText(MOCKED_RULESET.name)
+  const gameCodeSelect = page.getByRole('combobox', { name: 'Game Code' })
+  await expect(gameCodeSelect).toContainText(MOCKED_RULESET.name)
+  // Each format row carries its queue depth from the presence snapshot, pinned to the right.
+  await expect(gameCodeSelect.getByTestId('queued-players-count')).toHaveText('3')
+  await gameCodeSelect.click()
+  await expect(
+    page.getByRole('option', { name: /E2E Format/ }).getByTestId('queued-players-count'),
+  ).toHaveText('3')
+  await page.keyboard.press('Escape')
   // Everyone with the site open is counted, in a game or not.
   await expect(page.getByTestId('online-players')).toHaveText('7 players online')
 
