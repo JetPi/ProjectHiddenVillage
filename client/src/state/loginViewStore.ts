@@ -4,7 +4,9 @@ import type { ILoginViewStoreState } from '@/state/types/loginViewStore'
 import { readCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
 
 const initialGameCodeByMode: Record<IGameCodeEntryMode, string> = {
-  quickmatch: 'casual',
+  // Quick match selects a ruleset, so the value is a ruleset id that the view fills in as soon as the active
+  // rulesets arrive. Join and create still hold the game code itself.
+  quickmatch: '',
   join: '',
   create: '',
 }

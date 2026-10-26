@@ -59,6 +59,7 @@ export async function signInAction({ request }: ActionFunctionArgs): Promise<ISi
       email: loginResponse.email,
       accessToken: loginResponse.accessToken,
       expiresAt: loginResponse.expiresAt,
+      isGuest: false,
     }
 
     persistAuthSession(authUser)

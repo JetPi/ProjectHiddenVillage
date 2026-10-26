@@ -53,6 +53,7 @@ export async function loginAction({ request }: ActionFunctionArgs): Promise<ILog
       email: payload.email,
       accessToken: payload.accessToken,
       expiresAt: payload.expiresAt,
+      isGuest: false,
     }
 
     persistAuthSession(authUser)

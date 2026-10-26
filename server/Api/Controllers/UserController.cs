@@ -10,11 +10,16 @@ namespace ProjectHiddenVillage.Server;
 public sealed class UserController : ApiControllerBase
 {
 	private readonly IUserService userService;
+	private readonly IGuestUserService guestUserService;
 	private readonly IAuthTokenService authTokenService;
 
-	public UserController(IUserService userService, IAuthTokenService authTokenService)
+	public UserController(
+		IUserService userService,
+		IGuestUserService guestUserService,
+		IAuthTokenService authTokenService)
 	{
 		this.userService = userService;
+		this.guestUserService = guestUserService;
 		this.authTokenService = authTokenService;
 	}
 
@@ -31,6 +36,24 @@ public sealed class UserController : ApiControllerBase
 		}
 
 		return Created($"/api/user/{result.Value.Id}", result.Value);
+	}
+
+	/// <summary>
+	/// Starts a guest session from a display name. This is what keeps every game mode playable without an
+	/// account: the guest gets a real player id and token, but owns nothing durable.
+	/// </summary>
+	[HttpPost("guest")]
+	[ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+	public async Task<ActionResult<LoginResponse>> CreateGuestSession([FromBody] GuestUserRequest request)
+	{
+		var result = await guestUserService.CreateGuestSessionAsync(request);
+		if (result.IsError)
+		{
+			return ProblemFromErrors<LoginResponse>(result.Errors);
+		}
+
+		return Ok(result.Value);
 	}
 
 	[HttpPost("login")]

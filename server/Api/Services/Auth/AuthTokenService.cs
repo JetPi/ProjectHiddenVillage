@@ -17,26 +17,13 @@ public sealed class AuthTokenService : IAuthTokenService
 
     public AuthTokenResult CreateToken(Guid userId, string username, string email, bool isCardCatalogAdmin)
     {
-        if (string.IsNullOrWhiteSpace(username))
-        {
-            throw new ArgumentException("Username is required.", nameof(username));
-        }
-
         if (string.IsNullOrWhiteSpace(email))
         {
             throw new ArgumentException("Email is required.", nameof(email));
         }
 
-        var now = DateTimeOffset.UtcNow;
-        var expiresAt = now.AddMinutes(jwtOptions.AccessTokenLifetimeMinutes);
-
-        var claims = new List<Claim>
-        {
-            new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, email),
-            new Claim("username", username),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
+        var claims = CreateIdentityClaims(userId, username);
+        claims.Add(new Claim(JwtRegisteredClaimNames.Email, email));
 
         if (isCardCatalogAdmin)
         {
@@ -44,6 +31,41 @@ public sealed class AuthTokenService : IAuthTokenService
                 AuthorizationPolicies.CardCatalogAdminClaimType,
                 AuthorizationPolicies.CardCatalogAdminClaimValue));
         }
+
+        return WriteToken(claims);
+    }
+
+    public AuthTokenResult CreateGuestToken(Guid userId, string displayName)
+    {
+        var claims = CreateIdentityClaims(userId, displayName);
+        claims.Add(new Claim(AuthorizationPolicies.GuestClaimType, AuthorizationPolicies.GuestClaimValue));
+
+        return WriteToken(claims);
+    }
+
+    /// <summary>
+    /// The claims every token carries. Guests deliberately get no email claim: they have no mailbox, only the
+    /// synthetic address the guest row needs to satisfy the unique email index.
+    /// </summary>
+    private static List<Claim> CreateIdentityClaims(Guid userId, string username)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            throw new ArgumentException("Username is required.", nameof(username));
+        }
+
+        return
+        [
+            new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new Claim("username", username),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        ];
+    }
+
+    private AuthTokenResult WriteToken(List<Claim> claims)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var expiresAt = now.AddMinutes(jwtOptions.AccessTokenLifetimeMinutes);
 
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key));
         var signingCredentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);

@@ -1,5 +1,11 @@
 namespace ProjectHiddenVillage.Server;
 
+/// <summary>
+/// The deck ruleset a game was created under. A game with a binding is a quick-match game: every participant's
+/// deck was validated against it, and anyone joining by code is validated too.
+/// </summary>
+public sealed record GameRulesetBinding(Guid Id, string Key, string Name);
+
 public sealed class GameInstance
 {
     private static readonly IReadOnlyDictionary<GamePromptType, PromptTemplate> PromptTemplates =
@@ -36,6 +42,13 @@ public sealed class GameInstance
     }
 
     public GameState State { get; }
+
+    /// <summary>
+    /// The ruleset this game plays under, or <c>null</c> for a game created through the plain create mode. It
+    /// lives on the instance (not in <see cref="GameState"/>) because it is matchmaking metadata: the state is
+    /// what the board renders, this is what admission checks read.
+    /// </summary>
+    public GameRulesetBinding? Ruleset { get; set; }
 
     public DateTimeOffset CreatedAtUtc { get; }
 

@@ -11,7 +11,19 @@ export function SideBarButtons(props: IGameZonesProps){
 
     const frozenClassName = props.isPresentationPending ? ' pointer-events-none' : ''
    
+    const rulesetName = props.gameState.ruleset?.name ?? null
+
     return<div className="flex flex-col items-end justify-center gap-1">
+        {rulesetName ? (
+          <div
+            data-testid="game-ruleset-name"
+            title={rulesetName}
+            className="mb-1 px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] [writing-mode:vertical-rl] rotate-180"
+          >
+            {rulesetName}
+          </div>
+        ) : null}
+
         {props.joinCode ? (
           <div
             data-testid="game-join-code"

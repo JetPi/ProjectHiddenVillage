@@ -164,6 +164,7 @@
     "close": "Close",
     "deckChoice": {
       "loginToLoad": "Log in to load your decks",
+      "guestSavedDecksHint": "Saved decks need an account. You can still import a deck or play a public one.",
       "loadingPublic": "Loading public decks...",
       "noPublic": "No public decks available yet.",
       "failedPublic": "Failed to load public decks.",
@@ -176,12 +177,24 @@
       "saved": "saved deck",
       "public": "public deck"
     },
+    "matchmaking": {
+      "searchingTitle": "Searching for a {{ruleset}} opponent",
+      "searchingBody": "You will be taken to the game as soon as another player queues for the same format.",
+      "cancel": "Cancel search",
+      "cancelling": "Cancelling..."
+    },
     "toasts": {
       "accountCreated": "Account created successfully.",
       "loggedInAs": "Logged in as {{username}}",
       "loggedOut": "Logged out successfully.",
       "loginRequired": "Please log in before creating or joining a game.",
+      "selectRuleset": "Please choose a format before searching for a match.",
+      "deckNotLegalForRuleset": "This deck is not legal in {{ruleset}}. Fix the issues shown and try again.",
+      "matchmakingFailed": "The match search could not be started. Please try again.",
+      "matchFound": "Opponent found. Joining the game.",
+      "identityFailed": "We could not start your session. Please try again.",
       "pasteDeckList": "Please paste your deck list before continuing.",
+      "missingDeckForCreation": "No deck has been selected. Import a deck or select from a pre-existing deck.",
       "deckFormatInvalid": "Deck list format is invalid.",
       "selectDeck": "Please select a {{mode}} before continuing.",
       "gameCreated": "Game created. Share code {{code}}",
@@ -222,7 +235,8 @@
       "modeQuickMatch": "Quick Match",
       "modeJoin": "Join",
       "modeCreate": "Create",
-      "casual": "Casual",
+      "loadingRulesets": "Loading formats...",
+      "noRulesets": "No formats available yet",
       "joinCodePlaceholder": "Paste your code here",
       "createCodePlaceholder": "Code will be generated on create",
       "importPlaceholder": "Use Import to paste your deck list",

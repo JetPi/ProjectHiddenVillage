@@ -22,7 +22,8 @@ public static partial class GameStateResponseMapper
             game.GetPendingPrompt(),
             BuildEffectNotices(game, requestingPlayerId),
             isPhaseAutomationEnabled: game.IsPhaseAutomationEnabled,
-            pendingPresentation: ToPhasePresentationResponse(game.PendingPhasePresentation));
+            pendingPresentation: ToPhasePresentationResponse(game.PendingPhasePresentation),
+            ruleset: game.Ruleset);
     }
 
     public static GameStateResponse ToGameStateResponse(GameState state, string requestingPlayerId)
@@ -33,7 +34,8 @@ public static partial class GameStateResponseMapper
             pendingPrompt: null,
             effectNotices: null,
             isPhaseAutomationEnabled: false,
-            pendingPresentation: null);
+            pendingPresentation: null,
+            ruleset: null);
     }
 
     private static PhasePresentationResponse? ToPhasePresentationResponse(PendingPhasePresentation? presentation)
@@ -55,7 +57,8 @@ public static partial class GameStateResponseMapper
         GamePrompt? pendingPrompt,
         IReadOnlyList<EffectNoticeResponse>? effectNotices,
         bool isPhaseAutomationEnabled,
-        PhasePresentationResponse? pendingPresentation)
+        PhasePresentationResponse? pendingPresentation,
+        GameRulesetBinding? ruleset)
     {
         var phaseData = PhaseStateService.GetPhaseData(state.Phase);
         var hasOutcome = GameEndRules.IsGameOver(state);
@@ -103,7 +106,13 @@ public static partial class GameStateResponseMapper
             PendingPresentation: hasOutcome ? null : pendingPresentation,
             // Card movements are the engine's own record of what it did, so the client animates them directly
             // instead of inferring a move from zone/count deltas.
-            AnimationEvents: BuildAnimationEvents(state));
+            AnimationEvents: BuildAnimationEvents(state),
+            Ruleset: ruleset is null
+                ? null
+                : new GameRulesetBindingResponse(
+                    Id: ruleset.Id.ToString(),
+                    Key: ruleset.Key,
+                    Name: ruleset.Name));
     }
 
     /// <summary>

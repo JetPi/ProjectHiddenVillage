@@ -13,6 +13,8 @@ using ProjectHiddenVillage.Server.Api.Interfaces.Card;
 using ProjectHiddenVillage.Server.Api.Interfaces.CardArt;
 using ProjectHiddenVillage.Server.Api.Services.CardArt;
 using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
+using ProjectHiddenVillage.Server.Api.Services.Guests;
+using ProjectHiddenVillage.Server.Api.Services.Matchmaking;
 using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
@@ -99,10 +101,20 @@ builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGame
 builder.Services.AddScoped<IGameRuntimeDeckService, GameRuntimeDeckService>();
 builder.Services.AddScoped<IGamePhaseHandlingService, GamePhaseHandlingService>();
 builder.Services.AddScoped<IGameInstanceService, GameInstanceService>();
+builder.Services.AddSingleton<MatchmakingQueue>();
+builder.Services.AddScoped<IMatchmakingService, MatchmakingService>();
+builder.Services.Configure<MatchmakingOptions>(builder.Configuration.GetSection(MatchmakingOptions.SectionName));
+builder.Services.AddSingleton<IGameRulesetDeckValidator, GameRulesetDeckValidator>();
 // Test-only: walks a fresh game to the first MainPhase for the e2e suite. Reachable only through
 // TestGamesController, which is itself gated on Development + PHV_INCLUDE_TEST_SEED_PROFILES.
 builder.Services.AddScoped<IGameWarmStartService, GameWarmStartService>();
 builder.Services.AddScoped<IGameReadService, GamesReadService>();
+builder.Services.AddScoped<IGuestUserService, GuestUserService>();
+// Guests are collected by a timer rather than on each request, so the clock has to be injectable for the
+// retention window to be testable without waiting a week.
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.Configure<GuestUserOptions>(builder.Configuration.GetSection(GuestUserOptions.SectionName));
+builder.Services.AddHostedService<GuestUserSweeper>();
 builder.Services.AddScoped<ICardMappingService, CardMappingService>();
 builder.Services.AddScoped<ICardDeletionService, CardDeletionService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -323,6 +335,16 @@ builder.Services.AddAuthorization(options =>
         policy.RequireClaim(
             AuthorizationPolicies.CardCatalogAdminClaimType,
             AuthorizationPolicies.CardCatalogAdminClaimValue);
+    });
+
+    // Everything a guest may do is plain authenticated play. Anything that persists ownership - saving a deck,
+    // for instance - requires an account, and the guest claim is what makes that distinction visible here.
+    options.AddPolicy(AuthorizationPolicies.RegisteredUser, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireAssertion(context => !context.User.HasClaim(
+            claim => claim.Type == AuthorizationPolicies.GuestClaimType
+                && claim.Value == AuthorizationPolicies.GuestClaimValue));
     });
 });
 

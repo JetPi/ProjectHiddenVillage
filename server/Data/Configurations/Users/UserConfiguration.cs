@@ -23,7 +23,25 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasDefaultValue(false);
 
+        entity.Property(record => record.IsGuest)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        entity.Property(record => record.CreatedAtUtc)
+            .IsRequired()
+            .HasDefaultValueSql("now()");
+
+        entity.Property(record => record.LastSeenAtUtc)
+            .IsRequired()
+            .HasDefaultValueSql("now()");
+
         entity.HasIndex(record => record.Email)
             .IsUnique();
+
+        // The retention sweeper scans exactly this pair: guests ordered by how long they have been idle. A
+        // partial index keeps it from growing with the registered users it never looks at.
+        entity.HasIndex(record => record.LastSeenAtUtc)
+            .HasDatabaseName("IX_users_guests_last_seen_at_utc")
+            .HasFilter("\"IsGuest\"");
     }
 }

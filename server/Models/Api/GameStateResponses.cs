@@ -33,7 +33,13 @@ public sealed record GameStateResponse(
     // The card movements the engine performed, oldest first, as a bounded tail. The client de-duplicates by
     // AnimationEventResponse.EventId and animates the ones it has not seen yet, so a move is drawn because the
     // engine said it happened rather than because a zone count changed (see CardMovementRecord).
-    IReadOnlyList<AnimationEventResponse>? AnimationEvents = null);
+    IReadOnlyList<AnimationEventResponse>? AnimationEvents = null,
+    // The deck ruleset this game plays under, or null for a game created outside matchmaking. The board names
+    // the format from this, and it is the reason a join-by-code can be refused.
+    GameRulesetBindingResponse? Ruleset = null);
+
+/// <summary>The format a quick-match game was created under.</summary>
+public sealed record GameRulesetBindingResponse(string Id, string Key, string Name);
 
 /// <summary>
 /// A phase transition waiting to be presented. It is deliberately not a prompt: nothing is being asked, the only

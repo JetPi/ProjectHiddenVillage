@@ -17,9 +17,12 @@ public sealed class DeckController : ApiControllerBase
         this.deckService = deckService;
     }
 
+    [Authorize(Policy = AuthorizationPolicies.RegisteredUser)]
     [HttpPost]
     [ProducesResponseType(typeof(string), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<string>> CreateDeck([FromBody] CreateDeckRequest request)
     {
@@ -49,6 +52,7 @@ public sealed class DeckController : ApiControllerBase
         return Created($"/api/deck/{result.Value.Id}", result.Value);
     }
 
+    // Admin-only already excludes guests (a guest token never carries the admin claim), so this stays as it was.
     [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
     [HttpPut("{deckId}")]
     [ProducesResponseType(typeof(DeckResponse), StatusCodes.Status200OK)]
