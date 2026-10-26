@@ -33,7 +33,7 @@ import { useLoginViewModel } from '@/views/login/model/useLoginViewModel'
 import { selectRulesetWaitingCount, usePresenceSnapshot } from '@/services/presence/usePresence'
 import type { ILoginActionData } from '@/views/login/types/routeHandlers'
 import { createGameForUser, joinGameAsPlayer } from '@/services/api/gameApi'
-import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
+import { getApiErrorMessage, isApiBadRequestError } from '@/views/utils/getApiErrorMessage'
 import { createUserDeck, fetchDecks } from '@/services/api/deckApi'
 import { preloadCardsByIds } from '@/services/cardPreloadService'
 import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
@@ -707,6 +707,21 @@ export function LoginView() {
     }
   }
 
+  /**
+   * The toast shown when the chosen format refuses the deck. An imported deck is fixed in the import dialog, which
+   * is where its violations are listed, so the toast points there instead of quoting the whole list.
+   */
+  const showRulesetDeckRejectedToast = () => {
+    if (deckOptionsMode === 'import') {
+      showAppInfoToast(t('auth.toasts.deckInvalidForImportedDeck'))
+      return
+    }
+
+    showAppInfoToast(
+      t('auth.toasts.deckNotLegalForRuleset', { ruleset: selectedRuleset?.name ?? '' }),
+    )
+  }
+
   const finishQuickmatch = (gameId: string) => {
     setActiveTicket(null)
     clearStoredMatchTicket()
@@ -748,6 +763,12 @@ export function LoginView() {
       storeMatchTicket(ticket)
       setActiveTicket(ticket)
     } catch (error) {
+      // The queue refuses a deck with a full list of violations; the import dialog is where those are shown.
+      if (isApiBadRequestError(error)) {
+        showRulesetDeckRejectedToast()
+        return
+      }
+
       showAppInfoToast(getApiErrorMessage(error, t('auth.toasts.matchmakingFailed')))
     }
   }
@@ -837,9 +858,7 @@ export function LoginView() {
         }
 
         if (rulesetDeckEvaluation && !rulesetDeckEvaluation.isValid) {
-          showAppInfoToast(
-            t('auth.toasts.deckNotLegalForRuleset', { ruleset: selectedRuleset.name }),
-          )
+          showRulesetDeckRejectedToast()
           return
         }
 
@@ -878,6 +897,13 @@ export function LoginView() {
       showAppSuccessToast(t('auth.toasts.joinedGame'))
       navigate(toGameRoutePath(joinedGame.id))
     } catch (error) {
+      // Under a ruleset the only 400 the server sends back here is the deck/format verdict, and its description
+      // lists every violation. Point at the import view instead of pasting that list into a toast.
+      if (selectsRuleset && isApiBadRequestError(error)) {
+        showRulesetDeckRejectedToast()
+        return
+      }
+
       const apiMessage = getApiErrorMessage(error, t('auth.toasts.submitFailed'))
 
       if (

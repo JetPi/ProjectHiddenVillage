@@ -211,6 +211,7 @@
       "loginRequired": "Please log in before creating or joining a game.",
       "selectRuleset": "Please choose a format before searching for a match.",
       "deckNotLegalForRuleset": "This deck is not legal in {{ruleset}}. Fix the issues shown and try again.",
+      "deckInvalidForImportedDeck": "The selected deck isnt valid for the selected ruleset, please open the import view to see details",
       "matchmakingFailed": "The match search could not be started. Please try again.",
       "matchFound": "Opponent found. Joining the game.",
       "identityFailed": "We could not start your session. Please try again.",

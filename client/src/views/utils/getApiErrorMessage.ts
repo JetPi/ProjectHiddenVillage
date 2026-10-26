@@ -20,3 +20,11 @@ export function getApiErrorMessage(error: unknown, fallbackMessage: string): str
 
   return fallbackMessage
 }
+
+/**
+ * Whether the API refused the request as invalid input. Callers use this to swap a server-authored description -
+ * which may be a whole list of rule violations - for copy that points at the view explaining them.
+ */
+export function isApiBadRequestError(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 400
+}

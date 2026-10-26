@@ -33,6 +33,10 @@ moment to hand it to an opponent - the creator has already sat down and the boar
 - `quickmatchDeckEvaluation` became `rulesetDeckEvaluation`: the deck is judged against **only** the selected format
   in both modes, the import dialog names just that format, and the "legal in some active format" rule is now join
   only. The store comment in `loginViewStore` records that create holds a ruleset id, not a code.
+- When that judgement fails the toast is a single line (`showRulesetDeckRejectedToast`). For an imported deck it
+  points at the import view, where the violations are rendered, rather than quoting them. A server refusal under a
+  ruleset mode (HTTP 400: the deck/format verdict and nothing else, at that point) shows the same line instead of
+  pasting the server's joined violation list into the toast.
 
 ### 3. Share before you sit down
 

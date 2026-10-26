@@ -186,8 +186,11 @@ test('quick match refuses a deck that does not fit the selected format without q
   // No leader: the mocked format requires exactly one.
   await submitQuickmatch(page, '2x N-001')
 
+  // The toast points at the import view, where the violations are listed, instead of repeating them inline.
   await expect(
-    page.getByText('This deck is not legal in E2E Format. Fix the issues shown and try again.'),
+    page.getByText(
+      'The selected deck isnt valid for the selected ruleset, please open the import view to see details',
+    ),
   ).toBeVisible()
   expect(queueRequests).toHaveLength(0)
 })

@@ -152,8 +152,8 @@ async function seedImportedDeck(page: Page, deckText: string): Promise<void> {
 }
 
 /** Create mode, like quick match, asks for a format instead of a code; the first active format is pre-selected. */
-async function submitCreate(page: Page): Promise<void> {
-  await seedImportedDeck(page, '1x L-001\n2x N-001')
+async function submitCreate(page: Page, deckText = '1x L-001\n2x N-001'): Promise<void> {
+  await seedImportedDeck(page, deckText)
   await page.goto('/')
   await page.getByLabel('Display Name').fill('Guest One')
   await page.getByRole('radio', { name: 'Create' }).click()
@@ -227,6 +227,22 @@ test('the creator is handed over as soon as the second player joins', async ({ p
   const expectedPath = `/api/games/${CREATED_GAME_CODE}/state`
   expect(gameStatePaths.length).toBeGreaterThanOrEqual(2)
   expect(gameStatePaths.filter((path) => path !== expectedPath)).toEqual([])
+})
+
+test('an imported deck that does not fit the selected format is refused with a pointer to the import view', async ({
+  page,
+}) => {
+  const { createPayloads } = await mockCreateGameNetwork(page)
+
+  // No leader: the mocked format requires exactly one, so the deck never reaches the create call.
+  await submitCreate(page, '2x N-001')
+
+  await expect(
+    page.getByText(
+      'The selected deck isnt valid for the selected ruleset, please open the import view to see details',
+    ),
+  ).toBeVisible()
+  expect(createPayloads).toHaveLength(0)
 })
 
 test('a game that can no longer be checked says so and offers a way back', async ({ page }) => {
