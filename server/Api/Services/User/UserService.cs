@@ -65,6 +65,13 @@ public sealed class UserService : IUserService
                 description: "No user exists for the provided email.");
         }
 
+        if (user.IsGuest)
+        {
+            return Error.Unauthorized(
+                code: "Auth.GuestLoginNotAllowed",
+                description: "Guest identities cannot be signed in to; start a new guest session instead.");
+        }
+
         var verificationResult = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, loginDto.Password);
         if (verificationResult == PasswordVerificationResult.Failed)
         {
@@ -117,11 +124,13 @@ public sealed class UserService : IUserService
         var normalizedPage = page <= 0 ? 1 : page;
         var normalizedPageSize = pageSize <= 0 ? 100 : Math.Min(pageSize, 100);
 
-        var totalCount = await dbContext.Users.CountAsync();
+        // Guests are not accounts: they never appear in the user listing, which exists to browse real ones.
+        var totalCount = await dbContext.Users.CountAsync(record => !record.IsGuest);
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)normalizedPageSize);
 
         var users = await dbContext.Users
             .AsNoTracking()
+            .Where(record => !record.IsGuest)
             .OrderBy(record => record.Email)
             .Skip((normalizedPage - 1) * normalizedPageSize)
             .Take(normalizedPageSize)

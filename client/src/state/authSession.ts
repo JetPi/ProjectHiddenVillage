@@ -31,6 +31,8 @@ function parseAuthSession(rawValue: string | null): IAuthSession | null {
       email: parsed.email,
       accessToken: parsed.accessToken,
       expiresAt: parsed.expiresAt,
+      // Sessions persisted before guests existed have no flag and were all registered accounts.
+      isGuest: parsed.isGuest === true,
     }
   } catch {
     return null

@@ -111,124 +111,123 @@ export function DeckImportDialog({
     <div
       ref={overlayRef}
       style={DEFAULT_IMPORT_WINDOW_STYLE}
-      className="fixed inset-0 z-50 flex items-start justify-center gap-3 bg-black/40 px-4 py-6 backdrop-blur-[2px] max-xl:flex-col max-xl:items-center max-xl:overflow-y-auto"
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/40 px-4 py-6 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="import-modal-title"
       onClick={onClose}
     >
-      <div
-        ref={mainWindowRef}
-        data-testid="import-deck-main-window"
-        className="min-w-0 w-full max-w-2xl"
-      >
-        <Panel
-          className="w-full p-5"
-          onClick={(event) => event.stopPropagation()}
+      <div className="flex min-h-full w-full flex-col items-center justify-center gap-3 xl:flex-row">
+        <div
+          ref={mainWindowRef}
+          data-testid="import-deck-main-window"
+          className="w-full min-w-0 max-w-2xl"
         >
-          <div className="mb-3 flex items-center justify-between">
-            <h2 id="import-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
-              {t('auth.importModalTitle')}
-            </h2>
-          </div>
-          <p className="mb-2 text-sm text-[var(--text-secondary)]">
-            {t('auth.importModalBody')}
-          </p>
-          <FormTextarea
-            id="deckImportPayload"
-            value={payload}
-            onChange={(event) => onPayloadChange(event.target.value)}
-            placeholder={t('auth.importPlaceholder')}
-            rows={10}
-            className="py-2"
-          />
+          <Panel
+            className="w-full p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 id="import-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
+                {t('auth.importModalTitle')}
+              </h2>
+            </div>
+            <p className="mb-2 text-sm text-[var(--text-secondary)]">
+              {t('auth.importModalBody')}
+            </p>
+            <FormTextarea
+              id="deckImportPayload"
+              value={payload}
+              onChange={(event) => onPayloadChange(event.target.value)}
+              placeholder={t('auth.importPlaceholder')}
+              rows={10}
+              className="py-2"
+            />
 
-          <div className="mt-2 h-5">
             {parseErrorText ? (
               <p
                 role="alert"
                 data-testid="login-deck-parse-error"
                 title={parseErrorText}
-                className="truncate text-xs font-medium leading-5 text-[var(--button-primary-bg)]"
+                className="mt-2 truncate text-xs font-medium leading-5 text-[var(--button-primary-bg)]"
               >
                 {parseErrorText}
               </p>
             ) : null}
-          </div>
-
-          {isAuthenticated ? (
-            <div className="mt-3">
-              <FormLabel htmlFor="importDeckName">{t('auth.importDeckNameLabel')}</FormLabel>
-              <FormInput
-                id="importDeckName"
-                data-testid="import-deck-name"
-                value={deckName}
-                placeholder={defaultDeckName}
-                onChange={(event) => onDeckNameChange(event.target.value)}
-                className="py-2"
-              />
-              <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-                {t('auth.importDeckNameHint', { name: defaultDeckName })}
-              </p>
-            </div>
-          ) : null}
-
-          <div className="mt-4 flex justify-end gap-2">
-            <AppButton type="button" variant="ghost" onClick={onClose}>
-              {t('auth.close')}
-            </AppButton>
-
-            <AppButton
-              type="button"
-              variant="ghost"
-              onClick={onUse}
-              disabled={!canUse}
-              data-testid="import-deck-use"
-            >
-              {t('auth.importUse')}
-            </AppButton>
 
             {isAuthenticated ? (
+              <div className="mt-3">
+                <FormLabel className="mb-2" htmlFor="importDeckName">{t('auth.importDeckNameLabel')}</FormLabel>
+                <FormInput
+                  id="importDeckName"
+                  data-testid="import-deck-name"
+                  value={deckName}
+                  onChange={(event) => onDeckNameChange(event.target.value)}
+                  className="py-2"
+                />
+                <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                  {t('auth.importDeckNameHint', { name: defaultDeckName })}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex justify-end gap-2">
+              <AppButton type="button" variant="ghost" onClick={onClose}>
+                {t('auth.close')}
+              </AppButton>
+
               <AppButton
                 type="button"
-                onClick={onSave}
-                disabled={!canUse || isSaving}
-                data-testid="import-deck-save"
+                variant="ghost"
+                onClick={onUse}
+                disabled={!canUse}
+                data-testid="import-deck-use"
               >
-                {isSaving ? t('auth.importSaving') : t('auth.importSave')}
+                {t('auth.importUse')}
               </AppButton>
+
+              {isAuthenticated ? (
+                <AppButton
+                  type="button"
+                  onClick={onSave}
+                  disabled={!canUse || isSaving}
+                  data-testid="import-deck-save"
+                >
+                  {isSaving ? t('auth.importSaving') : t('auth.importSave')}
+                </AppButton>
+              ) : null}
+            </div>
+          </Panel>
+        </div>
+
+        <Panel
+          data-testid="import-deck-validation-window"
+          className="flex h-[var(--main-import-window-height)] w-full max-w-sm flex-col overflow-hidden p-4 max-xl:h-64"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-baseline justify-between gap-2">
+            <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+              {t('auth.importValidationTitle')}
+            </h3>
+            {isChecking ? (
+              <span
+                data-testid="login-deck-checking"
+                className="shrink-0 text-[10px] text-[var(--text-muted)]"
+              >
+                {t('deckRules.status.checking')}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-gutter:stable]">
+            <DeckImportValidation rulesets={rulesets} validation={validation} />
+            {rulesets.length === 0 ? (
+              <p className="text-[11px] text-[var(--text-secondary)]">
+                {t('deckRules.status.noRulesets')}
+              </p>
             ) : null}
           </div>
         </Panel>
       </div>
-
-      <Panel
-        data-testid="import-deck-validation-window"
-        className="flex h-[var(--main-import-window-height)] w-full max-w-sm flex-col overflow-hidden p-4 max-xl:h-64"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-baseline justify-between gap-2">
-          <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-            {t('auth.importValidationTitle')}
-          </h3>
-          {isChecking ? (
-            <span
-              data-testid="login-deck-checking"
-              className="shrink-0 text-[10px] text-[var(--text-muted)]"
-            >
-              {t('deckRules.status.checking')}
-            </span>
-          ) : null}
-        </div>
-        <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-gutter:stable]">
-          <DeckImportValidation rulesets={rulesets} validation={validation} />
-          {rulesets.length === 0 ? (
-            <p className="text-[11px] text-[var(--text-secondary)]">
-              {t('deckRules.status.noRulesets')}
-            </p>
-          ) : null}
-        </div>
-      </Panel>
     </div>
   )
 }

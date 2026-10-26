@@ -205,6 +205,14 @@ export type IGameStateResponse = {
   availableActions: IGameActionOptionResponse[]
   activeTemporaryEffects: IActiveTemporaryEffectResponse[]
   players: IGamePlayerStateResponse[]
+  // Present only for a game created through matchmaking: the format both decks were validated against.
+  ruleset?: IGameRulesetBindingResponse | null
+}
+
+export type IGameRulesetBindingResponse = {
+  id: string
+  key: string
+  name: string
 }
 
 export type IGameInstanceResponse = {

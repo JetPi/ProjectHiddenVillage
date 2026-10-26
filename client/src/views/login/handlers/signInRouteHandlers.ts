@@ -4,6 +4,7 @@ import i18n from '@/i18n'
 import { api } from '@/services/api/httpClient'
 import type { IAuthSession } from '@/state/authSession'
 import { persistAuthSession } from '@/state/authSession'
+import { publishAuthNotice } from '@/state/authNotices'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import type {
   ILoginApiRequest,
@@ -59,11 +60,13 @@ export async function signInAction({ request }: ActionFunctionArgs): Promise<ISi
       email: loginResponse.email,
       accessToken: loginResponse.accessToken,
       expiresAt: loginResponse.expiresAt,
+      isGuest: false,
     }
 
     persistAuthSession(authUser)
+    publishAuthNotice('signedUp', authUser.username)
 
-    return redirect('/?signup=success')
+    return redirect('/')
   } catch (error) {
     return {
       signUp: {

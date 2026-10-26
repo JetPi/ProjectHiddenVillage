@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { SubmitEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -8,7 +8,7 @@ import {
   gameCodeFieldConfigByMode,
   gameCodeModeOptions,
 } from '@/views/login/configs/LoginView'
-import { Link, useActionData, useLoaderData, useNavigate, useNavigation } from 'react-router-dom'
+import { Link, useActionData, useNavigate, useNavigation } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
 import { AppButton, Panel } from '@/components/ui'
 import {
@@ -24,18 +24,20 @@ import {
 import type { IAdaptiveFieldConfig } from '@/components/forms'
 import { Lightbulb, LogIn, X } from 'lucide-react'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
-import { clearAuthSession, useAuthSessionStore } from '@/state/authSession'
+import { clearAuthSession, useAuthSessionStore, type IAuthSession } from '@/state/authSession'
+import { ensurePlayerIdentity } from '@/state/guestSession'
 import { useSessionStore } from '@/state/sessionStore'
 import { useThemeStore } from '@/state/themeStore'
 import { useLoginViewModel } from '@/views/login/model/useLoginViewModel'
-import type { ILoginActionData, ILoginLoaderData } from '@/views/login/types/routeHandlers'
+import { selectRulesetWaitingCount, usePresenceSnapshot } from '@/services/presence/usePresence'
+import type { ILoginActionData } from '@/views/login/types/routeHandlers'
 import { createGameForUser, joinGameAsPlayer } from '@/services/api/gameApi'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import { createUserDeck, fetchDecks } from '@/services/api/deckApi'
 import { preloadCardsByIds } from '@/services/cardPreloadService'
 import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
 import { useActiveDeckRulesetsQuery } from '@/services/queries/deckRulesetQueries'
-import { evaluateDeckRulesets } from '@/domain/deck/evaluateDeckRulesets'
+import { evaluateDeckRulesets, evaluateRuleset } from '@/domain/deck/evaluateDeckRulesets'
 import {
   buildDeckCardSignature,
   deckCardsFromSignature,
@@ -44,10 +46,14 @@ import {
   parseDeckListPartial,
 } from '@/domain/deck/parseDeckList'
 import { DeckImportDialog } from '@/views/login/components/DeckImportDialog'
+import { MatchmakingSearchDialog } from '@/views/login/components/MatchmakingSearchDialog'
+import { QueuedPlayersBadge } from '@/views/login/components/QueuedPlayersBadge'
 import { writeCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
 import { buildDefaultSavedDeckName } from '@/views/login/utils/defaultDeckName'
 import type { IDeckCardMetadata, IDeckListParseError } from '@/domain/deck/types'
-import type { IDeckResponse } from '@/types/deck'
+import type { IDeckCardInput, IDeckResponse } from '@/types/deck'
+import type { IMatchTicket } from '@/types/matchmaking'
+import { useEnqueueMatchMutation } from '@/services/queries/matchmakingQueries'
 const STARTER_DECK_FETCH_RETRY_ATTEMPTS = 3
 const STARTER_DECK_FETCH_RETRY_DELAY_MS = 700
 const TITLE_FONT_LOAD_QUERY = '1em "Water Brush"'
@@ -98,7 +104,6 @@ function translateAdaptiveFieldConfig(config: IAdaptiveFieldConfig, t: TFunction
 
 export function LoginView() {
   const { t } = useTranslation()
-  const loaderData = useLoaderData() as ILoginLoaderData
   const actionData = useActionData() as ILoginActionData | undefined
   const navigation = useNavigation()
   const navigate = useNavigate()
@@ -121,6 +126,11 @@ export function LoginView() {
   const [starterDeckRetryToken, setStarterDeckRetryToken] = useState(0)
   const [savedDeckCardIdsByDeckId, setSavedDeckCardIdsByDeckId] = useState<Record<string, string[]>>({})
   const [starterDeckCardIdsByDeckId, setStarterDeckCardIdsByDeckId] = useState<Record<string, string[]>>({})
+  // The full card list per deck, quantities included: the ruleset evaluation needs counts, which the id lists
+  // (kept for preloading) collapse away.
+  const [savedDeckCardsByDeckId, setSavedDeckCardsByDeckId] = useState<Record<string, IDeckCardInput[]>>({})
+  const [starterDeckCardsByDeckId, setStarterDeckCardsByDeckId] = useState<Record<string, IDeckCardInput[]>>({})
+  const [activeTicket, setActiveTicket] = useState<IMatchTicket | null>(() => readStoredMatchTicket())
   const [isTitleFontReady, setIsTitleFontReady] = useState(() => {
     const fontSet = getFontFaceSet()
     if (!fontSet) {
@@ -129,9 +139,7 @@ export function LoginView() {
 
     return fontSet.check(TITLE_FONT_LOAD_QUERY)
   })
-  const hasShownSignupToast = useRef(false)
-  const lastAuthToastUsername = useRef<string | null>(null)
-  
+
   const setSession = useSessionStore((state) => state.setSession)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const {
@@ -152,8 +160,17 @@ export function LoginView() {
   const isSubmittingLogin =
     navigation.state === 'submitting' && navigation.formData?.get('intent') === 'login'
   const authSession = useAuthSessionStore((state) => state.session)
-  const authUser = authSession ?? actionData?.login?.user ?? null
+  // `authUser` means "a real account". Guests play through `authSession` like everyone else, but nothing that
+  // persists ownership - saving a deck, loading saved decks - may treat them as a signed-in user.
+  const authUser = actionData?.login?.user ?? (authSession && !authSession.isGuest ? authSession : null)
   const authUsername = authUser?.username ?? ''
+  const isGuestSession = authSession?.isGuest === true
+
+  const presenceSnapshot = usePresenceSnapshot()
+  const onlineViewers = presenceSnapshot?.onlineViewers ?? null
+
+  const activeDeckRulesetsQuery = useActiveDeckRulesetsQuery()
+  const enqueueMatchMutation = useEnqueueMatchMutation()
 
   useEffect(() => {
     if (isTitleFontReady) {
@@ -186,29 +203,6 @@ export function LoginView() {
       isCancelled = true
     }
   }, [isTitleFontReady])
-
-  useEffect(() => {
-    if (!loaderData.signupSuccess || hasShownSignupToast.current) {
-      return
-    }
-
-    showAppSuccessToast(t('auth.toasts.accountCreated'), { id: 'signup-success', duration: 3200 })
-    hasShownSignupToast.current = true
-  }, [loaderData.signupSuccess, t])
-
-  useEffect(() => {
-    if (!authUsername) {
-      lastAuthToastUsername.current = null
-      return
-    }
-
-    if (loaderData.signupSuccess || lastAuthToastUsername.current === authUsername) {
-      return
-    }
-
-    showAppInfoToast(t('auth.toasts.loggedInAs', { username: authUsername }), { id: 'auth-login-status', duration: 3200 })
-    lastAuthToastUsername.current = authUsername
-  }, [authUsername, loaderData.signupSuccess, t])
 
   useEffect(() => {
     if (!authUsername) {
@@ -247,12 +241,14 @@ export function LoginView() {
           const publicDecks = allDecks.filter((deck) => deck.type === 'Public')
           setStarterDeckChoices(toDeckChoices(publicDecks, t('auth.deckChoice.noPublic')))
           setStarterDeckCardIdsByDeckId(toDeckCardIdsByDeckId(publicDecks))
+          setStarterDeckCardsByDeckId(toDeckCardsByDeckId(publicDecks))
           setStarterDeckFetchFailed(false)
         }
       } catch {
         if (!isCancelled) {
           setStarterDeckChoices([{ value: '', label: t('auth.deckChoice.failedPublic') }])
           setStarterDeckCardIdsByDeckId({})
+          setStarterDeckCardsByDeckId({})
           setStarterDeckFetchFailed(true)
         }
       }
@@ -262,6 +258,7 @@ export function LoginView() {
           setSavedDecks([])
           setSavedDeckChoices([{ value: '', label: t('auth.deckChoice.loginToLoad') }])
           setSavedDeckCardIdsByDeckId({})
+          setSavedDeckCardsByDeckId({})
         }
 
         return
@@ -274,12 +271,14 @@ export function LoginView() {
           setSavedDecks(userDecks)
           setSavedDeckChoices(toDeckChoices(userDecks, t('auth.deckChoice.noSaved')))
           setSavedDeckCardIdsByDeckId(toDeckCardIdsByDeckId(userDecks))
+          setSavedDeckCardsByDeckId(toDeckCardsByDeckId(userDecks))
         }
       } catch {
         if (!isCancelled) {
           setSavedDecks([])
           setSavedDeckChoices([{ value: '', label: t('auth.deckChoice.failedSaved') }])
           setSavedDeckCardIdsByDeckId({})
+          setSavedDeckCardsByDeckId({})
         }
       }
     }
@@ -348,10 +347,75 @@ export function LoginView() {
     [t],
   )
 
-  const translatedGameCodeConfig = useMemo(
-    () => translateAdaptiveFieldConfig(gameCodeFieldConfigByMode[gameCodeMode], t),
-    [gameCodeMode, t],
+  // Each format carries its current queue depth, right-aligned in the select row. Formats with no queue are absent
+  // from the snapshot, so a known snapshot makes a missing entry zero rather than "unknown".
+  const activeRulesetOptions = useMemo(
+    () => (activeDeckRulesetsQuery.data ?? []).map((ruleset) => {
+      const waitingCount = selectRulesetWaitingCount(presenceSnapshot, ruleset.id)
+
+      return {
+        value: ruleset.id,
+        label: ruleset.name,
+        trailing: waitingCount === null ? undefined : <QueuedPlayersBadge count={waitingCount} />,
+      }
+    }),
+    [activeDeckRulesetsQuery.data, presenceSnapshot],
   )
+
+  const selectedRuleset = useMemo(
+    () => (activeDeckRulesetsQuery.data ?? []).find((ruleset) => ruleset.id === activeGameCode) ?? null,
+    [activeDeckRulesetsQuery.data, activeGameCode],
+  )
+
+  // While queueing for a format, the import dialog should only talk about that format.
+  const importDialogRulesets = useMemo(() => {
+    if (gameCodeMode === 'quickmatch') {
+      return selectedRuleset ? [selectedRuleset] : []
+    }
+
+    return activeDeckRulesetsQuery.data ?? []
+  }, [activeDeckRulesetsQuery.data, gameCodeMode, selectedRuleset])
+
+  // Quick match queues under a ruleset, so its select is the active ruleset list rather than a fixed code.
+  const translatedGameCodeConfig = useMemo(() => {
+    if (gameCodeMode !== 'quickmatch') {
+      return translateAdaptiveFieldConfig(gameCodeFieldConfigByMode[gameCodeMode], t)
+    }
+
+    if (activeRulesetOptions.length > 0) {
+      return { type: 'select' as const, choices: activeRulesetOptions }
+    }
+
+    return {
+      type: 'select' as const,
+      choices: [
+        {
+          value: '',
+          label: activeDeckRulesetsQuery.isLoading
+            ? t('auth.config.loadingRulesets')
+            : t('auth.config.noRulesets'),
+        },
+      ],
+    }
+  }, [
+    activeDeckRulesetsQuery.isLoading,
+    activeRulesetOptions,
+    gameCodeMode,
+    t,
+  ])
+
+  useEffect(() => {
+    if (gameCodeMode !== 'quickmatch') {
+      return
+    }
+
+    const rulesets = activeDeckRulesetsQuery.data ?? []
+    if (rulesets.length === 0 || rulesets.some((ruleset) => ruleset.id === activeGameCode)) {
+      return
+    }
+
+    setGameCodeValue(rulesets[0].id)
+  }, [activeDeckRulesetsQuery.data, activeGameCode, gameCodeMode, setGameCodeValue])
 
   const importedDeckParse = useMemo(() => {
     if (deckOptionsMode !== 'import' || activeDeckOption.trim().length === 0) {
@@ -387,7 +451,6 @@ export function LoginView() {
   const importedDeckCardsQuery = useCardCatalogByIdsQuery(importedDeckCardIds, {
     enabled: deckOptionsMode === 'import' && importedDeckCardIds.length > 0,
   })
-  const activeDeckRulesetsQuery = useActiveDeckRulesetsQuery()
 
   const importedDeckCardsById = useMemo(() => {
     const byId = new Map<string, IDeckCardMetadata>()
@@ -425,6 +488,55 @@ export function LoginView() {
   const importedDeckParseError = importedDeckParse && !importedDeckParse.isValid
     ? importedDeckParse.error
     : null
+
+  const selectedStoredDeckCards = useMemo(() => {
+    const selectedDeckId = activeDeckOption.trim()
+    if (!selectedDeckId || deckOptionsMode === 'import') {
+      return []
+    }
+
+    return deckOptionsMode === 'saved_decks'
+      ? savedDeckCardsByDeckId[selectedDeckId] ?? []
+      : starterDeckCardsByDeckId[selectedDeckId] ?? []
+  }, [activeDeckOption, deckOptionsMode, savedDeckCardsByDeckId, starterDeckCardsByDeckId])
+
+  const storedDeckCardIds = useMemo(
+    () => selectedStoredDeckCards.map((card) => card.cardId),
+    [selectedStoredDeckCards],
+  )
+
+  const storedDeckCardsQuery = useCardCatalogByIdsQuery(storedDeckCardIds, {
+    enabled: deckOptionsMode !== 'import' && storedDeckCardIds.length > 0,
+  })
+
+  const storedDeckCardsById = useMemo(() => {
+    const byId = new Map<string, IDeckCardMetadata>()
+
+    for (const card of storedDeckCardsQuery.data ?? []) {
+      byId.set(normalizeDeckCardId(card.id), card)
+    }
+
+    return byId
+  }, [storedDeckCardsQuery.data])
+
+  // The deck the player is about to bring, whichever mode supplies it: parsed import text or the stored deck
+  // they selected.
+  const activeDeckCards = deckOptionsMode === 'import' ? importedDeckCards : selectedStoredDeckCards
+  const activeDeckCardsById = deckOptionsMode === 'import' ? importedDeckCardsById : storedDeckCardsById
+
+  /**
+   * Quick match judges the deck against the ruleset being queued for, nothing else: a deck that is legal in some
+   * other format is still refused here, because the game it is about to join only accepts this one.
+   */
+  const quickmatchDeckEvaluation = useMemo(() => {
+    if (gameCodeMode !== 'quickmatch' || !selectedRuleset || activeDeckCards.length === 0) {
+      return null
+    }
+
+    return evaluateRuleset(activeDeckCards, activeDeckCardsById, selectedRuleset)
+  }, [gameCodeMode, selectedRuleset, activeDeckCards, activeDeckCardsById])
+
+  const isCheckingActiveDeck = importedDeckCardsQuery.isFetching || storedDeckCardsQuery.isFetching
 
   const importedDeckFormatStatusText = useMemo(() => {
     if (validImportedDeckRulesets.length > 0) {
@@ -562,6 +674,56 @@ export function LoginView() {
     navigate('/', { replace: true })
   }
 
+  /**
+   * Every mode is open to everyone: a display name is enough, and a guest session is minted on the spot when
+   * there is no registered one. Only the features that persist ownership need `authUser`.
+   */
+  const resolvePlayerIdentity = async (): Promise<IAuthSession | null> => {
+    try {
+      const identity = await ensurePlayerIdentity(displayName)
+      if (identity.username !== displayName) {
+        setDisplayName(identity.username)
+      }
+
+      return identity
+    } catch (error) {
+      showAppInfoToast(getApiErrorMessage(error, t('auth.toasts.identityFailed')))
+      return null
+    }
+  }
+
+  const finishQuickmatch = (gameId: string) => {
+    setActiveTicket(null)
+    clearStoredMatchTicket()
+    setSession({ displayName, gameCode: gameId })
+    showAppSuccessToast(t('auth.toasts.matchFound'))
+    navigate(toGameRoutePath(gameId))
+  }
+
+  const startQuickmatch = async (identity: IAuthSession, deckId: string) => {
+    if (!selectedRuleset) {
+      return
+    }
+
+    try {
+      const ticket = await enqueueMatchMutation.mutateAsync({
+        userId: identity.userId,
+        deckId,
+        rulesetId: selectedRuleset.id,
+      })
+
+      if (ticket.state === 'matched' && ticket.gameId) {
+        finishQuickmatch(ticket.gameId)
+        return
+      }
+
+      storeMatchTicket(ticket)
+      setActiveTicket(ticket)
+    } catch (error) {
+      showAppInfoToast(getApiErrorMessage(error, t('auth.toasts.matchmakingFailed')))
+    }
+  }
+
   const handleSubmit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -570,32 +732,22 @@ export function LoginView() {
     }
 
     const normalizedGameCode = activeGameCode.trim()
+    const isQuickmatchMode = gameCodeMode === 'quickmatch'
+    const requiresDeck = gameCodeMode === 'create' || isQuickmatchMode
 
-    if (gameCodeMode === 'quickmatch') {
-      setSession({
-        displayName,
-        gameCode: normalizedGameCode,
-      })
-
-      navigate(toGameRoutePath(normalizedGameCode))
-      return
-    }
-
-    if (!authUser?.userId) {
-      showAppInfoToast(t('auth.toasts.loginRequired'))
-      setIsLoginModalOpen(true)
+    const identity = await resolvePlayerIdentity()
+    if (!identity) {
       return
     }
 
     try {
-      const isCreateMode = gameCodeMode === 'create'
       let deckId: string | null = null
 
       if (deckOptionsMode === 'import') {
         const deckCardsPayload = activeDeckOption.trim()
         if (!deckCardsPayload) {
-          if (isCreateMode) {
-            showAppInfoToast(t('auth.toasts.pasteDeckList'))
+          if (requiresDeck) {
+            showAppInfoToast(t('auth.toasts.missingDeckForCreation'))
             return
           }
         } else {
@@ -610,7 +762,9 @@ export function LoginView() {
             return
           }
 
-          if (importedDeckValidation?.isLegalInAnyRuleset !== true) {
+          // Quick match judges the deck against the ruleset it is queueing for, just below. Create and join keep
+          // the long-standing "legal in some active format" rule.
+          if (!isQuickmatchMode && importedDeckValidation?.isLegalInAnyRuleset !== true) {
             showAppInfoToast(t('auth.toasts.deckNotLegal'))
             return
           }
@@ -620,12 +774,12 @@ export function LoginView() {
           void preloadCardsByIds(parsedDeckList.cards.map((card) => card.cardId)).catch(() => {
           })
 
-          deckId = await createUserDeck(deckCardsPayload, authUser.userId)
+          deckId = await createUserDeck(deckCardsPayload, identity.userId)
         }
       } else {
         const selectedDeckId = activeDeckOption.trim()
         if (!selectedDeckId) {
-          if (!isCreateMode) {
+          if (!requiresDeck) {
             deckId = null
           } else {
             const deckModeLabel = t(deckOptionsMode === 'saved_decks' ? 'auth.deckMode.saved' : 'auth.deckMode.public')
@@ -637,6 +791,33 @@ export function LoginView() {
         }
       }
 
+      if (isQuickmatchMode) {
+        if (!selectedRuleset) {
+          showAppInfoToast(t('auth.toasts.selectRuleset'))
+          return
+        }
+
+        if (!deckId) {
+          showAppInfoToast(t('auth.toasts.missingDeckForCreation'))
+          return
+        }
+
+        if (isCheckingActiveDeck) {
+          showAppInfoToast(t('auth.toasts.deckStillChecking'))
+          return
+        }
+
+        if (quickmatchDeckEvaluation && !quickmatchDeckEvaluation.isValid) {
+          showAppInfoToast(
+            t('auth.toasts.deckNotLegalForRuleset', { ruleset: selectedRuleset.name }),
+          )
+          return
+        }
+
+        await startQuickmatch(identity, deckId)
+        return
+      }
+
       if (gameCodeMode === 'create') {
         if (!deckId) {
           const deckModeLabel = t(deckOptionsMode === 'saved_decks' ? 'auth.deckMode.saved' : 'auth.deckMode.public')
@@ -645,7 +826,7 @@ export function LoginView() {
         }
 
         const createdGame = await createGameForUser({
-          userId: authUser.userId,
+          userId: identity.userId,
           deckId,
         })
 
@@ -666,7 +847,7 @@ export function LoginView() {
       }
 
       const joinedGame = await joinGameAsPlayer(normalizedGameCode, {
-        userId: authUser.userId,
+        userId: identity.userId,
         ...(deckId ? { deckId } : {}),
       })
 
@@ -708,6 +889,9 @@ export function LoginView() {
           >
             {t('auth.title')}
           </p>
+          <p className="mt-2 text-sm text-[var(--text-secondary)] sm:text-base">
+            {t('auth.tagline')}
+          </p>
         </Panel>
         <Panel className="my-2 w-full px-5 pt-3">
           <Form className="mt-0 grid grid-cols-2 items-stretch gap-x-4" onSubmit={handleSubmit}>
@@ -715,15 +899,25 @@ export function LoginView() {
             <FormField className="col-span-2">
               <div className="flex items-center justify-between gap-3">
                 <FormLabel htmlFor="displayName" className="mb-0">{t('auth.displayName')}</FormLabel>
-                <AppButton
-                  type="button"
-                  variant="ghost"
-                  onClick={toggleTheme}
-                  aria-label={t('auth.toggleThemeAria')}
-                  className="h-6 w-6 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-                >
-                  <Lightbulb size={12} />
-                </AppButton>
+                <div className="flex items-center gap-2">
+                  {onlineViewers !== null ? (
+                    <p
+                      data-testid="online-players"
+                      className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]"
+                    >
+                      {t('auth.onlinePlayers', { count: onlineViewers })}
+                    </p>
+                  ) : null}
+                  <AppButton
+                    type="button"
+                    variant="ghost"
+                    onClick={toggleTheme}
+                    aria-label={t('auth.toggleThemeAria')}
+                    className="h-6 w-6 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+                  >
+                    <Lightbulb size={12} />
+                  </AppButton>
+                </div>
               </div>
               <div className="relative">
                 <FormInput
@@ -799,6 +993,11 @@ export function LoginView() {
                     }
                   }}
                 />
+                {isGuestSession && deckOptionsMode === 'saved_decks' ? (
+                  <p className="text-[11px] leading-4 text-[var(--text-muted)]">
+                    {t('auth.deckChoice.guestSavedDecksHint')}
+                  </p>
+                ) : null}
                 {deckOptionsMode === 'import' ? (
                   <>
                     <AppButton
@@ -809,33 +1008,31 @@ export function LoginView() {
                     >
                       {t('auth.importDeckButton')}
                     </AppButton>
-                    <div className="h-5">
-                      {importedDeckParseError && importedDeckParseError.code !== 'empty' ? (
-                        <p
-                          role="alert"
-                          data-testid="login-deck-invalid-value"
-                          className="truncate text-xs font-medium leading-5 text-[var(--button-primary-bg)]"
-                        >
-                          {t('auth.invalidDeckValue')}
-                        </p>
-                      ) : null}
-                      {importedDeckParse?.isValid
-                      && visibleImportedDeckValidation
-                      && !isImportedDeckLegalEverywhere ? (
-                        <p
-                          data-testid="login-deck-format-status"
-                          data-has-valid-format={validImportedDeckRulesets.length > 0 ? 'true' : 'false'}
-                          title={importedDeckFormatStatusText}
-                          className={`truncate text-xs font-medium leading-5 ${
-                            validImportedDeckRulesets.length > 0
-                              ? 'text-emerald-700 dark:text-emerald-300'
-                              : 'text-[var(--button-primary-bg)]'
-                          }`}
-                        >
-                          {importedDeckFormatStatusText}
-                        </p>
-                      ) : null}
-                    </div>
+                    {importedDeckParseError && importedDeckParseError.code !== 'empty' ? (
+                      <p
+                        role="alert"
+                        data-testid="login-deck-invalid-value"
+                        className="truncate text-xs font-medium leading-5 text-[var(--button-primary-bg)]"
+                      >
+                        {t('auth.invalidDeckValue')}
+                      </p>
+                    ) : null}
+                    {importedDeckParse?.isValid
+                    && visibleImportedDeckValidation
+                    && !isImportedDeckLegalEverywhere ? (
+                      <p
+                        data-testid="login-deck-format-status"
+                        data-has-valid-format={validImportedDeckRulesets.length > 0 ? 'true' : 'false'}
+                        title={importedDeckFormatStatusText}
+                        className={`truncate text-xs font-medium leading-5 ${
+                          validImportedDeckRulesets.length > 0
+                            ? 'text-emerald-700 dark:text-emerald-300'
+                            : 'text-[var(--button-primary-bg)]'
+                        }`}
+                      >
+                        {importedDeckFormatStatusText}
+                      </p>
+                    ) : null}
                   </>
                 ) : (
                   <AdaptiveFormField
@@ -965,12 +1162,23 @@ export function LoginView() {
         </div>
       ) : null}
 
+      {activeTicket ? (
+        <MatchmakingSearchDialog
+          ticket={activeTicket}
+          onMatched={finishQuickmatch}
+          onDismiss={() => {
+            setActiveTicket(null)
+            clearStoredMatchTicket()
+          }}
+        />
+      ) : null}
+
       <DeckImportDialog
         isOpen={isImportModalOpen}
         payload={activeDeckOption}
         onPayloadChange={handleImportDeckTextChange}
         parseError={importedDeckParseError}
-        rulesets={activeDeckRulesetsQuery.data ?? []}
+        rulesets={importDialogRulesets}
         validation={importedDeckDialogValidation}
         isChecking={isCheckingImportedDeck}
         isAuthenticated={Boolean(authUser?.userId)}
@@ -1040,6 +1248,61 @@ function toDeckCardIdsByDeckId(decks: IDeckResponse[]): Record<string, string[]>
     result[deck.id] = cardIds
     return result
   }, {})
+}
+
+function toDeckCardsByDeckId(decks: IDeckResponse[]): Record<string, IDeckCardInput[]> {
+  return decks.reduce<Record<string, IDeckCardInput[]>>((result, deck) => {
+    result[deck.id] = deck.cards
+      .filter((card) => Number.isFinite(card.quantity) && card.quantity > 0)
+      .map((card) => ({ cardId: card.cardId.trim(), quantity: card.quantity }))
+      .filter((card) => card.cardId.length > 0)
+
+    return result
+  }, {})
+}
+
+const MATCH_TICKET_STORAGE_KEY = 'phv-quickmatch-ticket'
+
+/**
+ * A queue ticket survives a reload, so a player who refreshes while searching comes back to the search dialog
+ * instead of leaving a ticket behind and queueing a second time.
+ */
+function readStoredMatchTicket(): IMatchTicket | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const rawValue = window.sessionStorage.getItem(MATCH_TICKET_STORAGE_KEY)
+  if (!rawValue) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as Partial<IMatchTicket>
+    if (!parsed.ticketId || !parsed.rulesetId || !parsed.state) {
+      return null
+    }
+
+    return parsed as IMatchTicket
+  } catch {
+    return null
+  }
+}
+
+function storeMatchTicket(ticket: IMatchTicket): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.sessionStorage.setItem(MATCH_TICKET_STORAGE_KEY, JSON.stringify(ticket))
+}
+
+function clearStoredMatchTicket(): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.sessionStorage.removeItem(MATCH_TICKET_STORAGE_KEY)
 }
 
 async function fetchDecksWithRetry(

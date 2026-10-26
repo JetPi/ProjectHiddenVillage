@@ -13,6 +13,9 @@ using ProjectHiddenVillage.Server.Api.Interfaces.Card;
 using ProjectHiddenVillage.Server.Api.Interfaces.CardArt;
 using ProjectHiddenVillage.Server.Api.Services.CardArt;
 using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
+using ProjectHiddenVillage.Server.Api.Services.Guests;
+using ProjectHiddenVillage.Server.Api.Services.Matchmaking;
+using ProjectHiddenVillage.Server.Api.Services.Presence;
 using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
@@ -99,10 +102,25 @@ builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGame
 builder.Services.AddScoped<IGameRuntimeDeckService, GameRuntimeDeckService>();
 builder.Services.AddScoped<IGamePhaseHandlingService, GamePhaseHandlingService>();
 builder.Services.AddScoped<IGameInstanceService, GameInstanceService>();
+builder.Services.AddSingleton<MatchmakingQueue>();
+builder.Services.AddScoped<IMatchmakingService, MatchmakingService>();
+builder.Services.Configure<MatchmakingOptions>(builder.Configuration.GetSection(MatchmakingOptions.SectionName));
+// Viewer presence is per-process, like the games it sits next to, and is deliberately separate from the game
+// presence tracker: that one decides who must acknowledge a phase presentation.
+builder.Services.Configure<PresenceOptions>(builder.Configuration.GetSection(PresenceOptions.SectionName));
+builder.Services.AddSingleton<PresenceRegistry>();
+builder.Services.AddHostedService<PresenceBroadcaster>();
+builder.Services.AddSingleton<IGameRulesetDeckValidator, GameRulesetDeckValidator>();
 // Test-only: walks a fresh game to the first MainPhase for the e2e suite. Reachable only through
 // TestGamesController, which is itself gated on Development + PHV_INCLUDE_TEST_SEED_PROFILES.
 builder.Services.AddScoped<IGameWarmStartService, GameWarmStartService>();
 builder.Services.AddScoped<IGameReadService, GamesReadService>();
+builder.Services.AddScoped<IGuestUserService, GuestUserService>();
+// Guests are collected by a timer rather than on each request, so the clock has to be injectable for the
+// retention window to be testable without waiting a week.
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.Configure<GuestUserOptions>(builder.Configuration.GetSection(GuestUserOptions.SectionName));
+builder.Services.AddHostedService<GuestUserSweeper>();
 builder.Services.AddScoped<ICardMappingService, CardMappingService>();
 builder.Services.AddScoped<ICardDeletionService, CardDeletionService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -177,7 +195,7 @@ if (builder.Environment.IsDevelopment())
 
                 var accessToken = context.Request.Query["access_token"];
                 var requestPath = context.Request.Path;
-                if (!string.IsNullOrWhiteSpace(accessToken) && requestPath.StartsWithSegments("/hubs/games"))
+                if (!string.IsNullOrWhiteSpace(accessToken) && IsHubPath(requestPath))
                 {
                     return JwtBearerDefaults.AuthenticationScheme;
                 }
@@ -194,7 +212,7 @@ if (builder.Environment.IsDevelopment())
                     var accessToken = context.Request.Query["access_token"];
                     var requestPath = context.HttpContext.Request.Path;
 
-                    if (!string.IsNullOrWhiteSpace(accessToken) && requestPath.StartsWithSegments("/hubs/games"))
+                    if (!string.IsNullOrWhiteSpace(accessToken) && IsHubPath(requestPath))
                     {
                         context.Token = accessToken;
                     }
@@ -266,7 +284,7 @@ else
                     var accessToken = context.Request.Query["access_token"];
                     var requestPath = context.HttpContext.Request.Path;
 
-                    if (!string.IsNullOrWhiteSpace(accessToken) && requestPath.StartsWithSegments("/hubs/games"))
+                    if (!string.IsNullOrWhiteSpace(accessToken) && IsHubPath(requestPath))
                     {
                         context.Token = accessToken;
                     }
@@ -323,6 +341,16 @@ builder.Services.AddAuthorization(options =>
         policy.RequireClaim(
             AuthorizationPolicies.CardCatalogAdminClaimType,
             AuthorizationPolicies.CardCatalogAdminClaimValue);
+    });
+
+    // Everything a guest may do is plain authenticated play. Anything that persists ownership - saving a deck,
+    // for instance - requires an account, and the guest claim is what makes that distinction visible here.
+    options.AddPolicy(AuthorizationPolicies.RegisteredUser, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireAssertion(context => !context.User.HasClaim(
+            claim => claim.Type == AuthorizationPolicies.GuestClaimType
+                && claim.Value == AuthorizationPolicies.GuestClaimValue));
     });
 });
 
@@ -384,8 +412,20 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<GamesHub>("/hubs/games");
+app.MapHub<PresenceHub>("/hubs/presence");
 
 app.Run();
+
+/// <summary>
+/// The paths whose query-string <c>access_token</c> has to be honoured, because a browser cannot set an
+/// Authorization header on a SignalR connection. A hub missing from this list still works, but its callers are
+/// authenticated by the development bypass (in Development) or not at all (in Production).
+/// </summary>
+static bool IsHubPath(PathString requestPath)
+{
+    return requestPath.StartsWithSegments("/hubs/games")
+        || requestPath.StartsWithSegments("/hubs/presence");
+}
 
 static bool IsAllowedClientOrigin(string origin, HashSet<string> configuredOrigins)
 {

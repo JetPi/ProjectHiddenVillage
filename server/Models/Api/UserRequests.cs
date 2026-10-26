@@ -13,6 +13,12 @@ public sealed record LoginResponse(
     string AccessToken,
     DateTimeOffset ExpiresAt);
 
+/// <summary>
+/// What a guest is asked for. A display name is the entire sign-up: guests get a player id, a token and
+/// nothing durable.
+/// </summary>
+public sealed record GuestUserRequest(string DisplayName);
+
 public sealed record PagedResponse<T>(
     int Page,
     int PageSize,

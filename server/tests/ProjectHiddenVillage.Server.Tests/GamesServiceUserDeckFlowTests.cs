@@ -39,6 +39,38 @@ public sealed class GamesServiceUserDeckFlowTests
     }
 
     [TestMethod]
+    public async Task CreateGameForUser_WorksForAGuestWithATransientDeck()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var now = DateTimeOffset.UtcNow;
+        var guest = new User
+        {
+            Username = "Shadow",
+            Email = "guest+creategame@guests.invalid",
+            PasswordHash = "hash",
+            IsGuest = true,
+            CreatedAtUtc = now,
+            LastSeenAtUtc = now,
+        };
+        var card = CreateCatalogEntry("N-001", "Card A");
+
+        dbContext.Users.Add(guest);
+        dbContext.Decks.Add(CreateDeck(guest.Id, [(card, 2)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
+        var services = CreateServices(dbContext);
+
+        var result = await services.InstanceService.CreateGameForUser(new CreateGameForUserRequest(guest.Id, deckId));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        Assert.AreEqual(1, result.Value.State.Players.Count);
+        Assert.AreEqual(guest.Id.ToString("N"), result.Value.State.Players[0].PlayerId);
+        Assert.AreEqual(2, result.Value.State.Players[0].Deck.Count);
+    }
+
+    [TestMethod]
     public async Task CreateGameForUser_PopulatesLeaderCardInstance_WhenDeckContainsLeader()
     {
         await using var dbContext = CreateDbContext();

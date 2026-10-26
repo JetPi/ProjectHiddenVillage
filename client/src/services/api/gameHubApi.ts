@@ -1,4 +1,5 @@
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
+import { buildHubUrl } from '@/services/api/hubUrl'
 import { getAuthAccessToken } from '@/state/authSession'
 import type {
   ICreateGameForUserRequest,
@@ -20,10 +21,6 @@ import type {
 const EVENT_GAME_STATE_INVALIDATED = 'GameStateInvalidated'
 const EVENT_GAME_PARTICIPANT_JOINED = 'GameParticipantJoined'
 const HUB_ENDPOINT_PATH = '/hubs/games'
-const defaultApiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3001'
-const hubBaseUrl = defaultApiBaseUrl.endsWith('/')
-  ? defaultApiBaseUrl.slice(0, -1)
-  : defaultApiBaseUrl
 
 function normalizePlayerId(value: string): string {
   return value.trim().toLowerCase().replace(/-/g, '')
@@ -35,7 +32,7 @@ function normalizeGameId(value: string): string {
 
 function createGameHubConnection(): HubConnection {
   return new HubConnectionBuilder()
-    .withUrl(`${hubBaseUrl}${HUB_ENDPOINT_PATH}`, {
+    .withUrl(buildHubUrl(HUB_ENDPOINT_PATH), {
       accessTokenFactory: () => getAuthAccessToken() ?? '',
       withCredentials: false,
     })

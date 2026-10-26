@@ -36,6 +36,46 @@ public sealed class DeckRulesetService : IDeckRulesetService
         return rulesets.Select(ToResponse).ToList();
     }
 
+    public async Task<ErrorOr<DeckRulesetDefinition>> GetActiveRulesetDefinition(Guid rulesetId)
+    {
+        var ruleset = await dbContext.DeckRulesets
+            .AsNoTracking()
+            .Include(record => record.CardRestrictions)
+            .ThenInclude(restriction => restriction.CardCatalogEntry)
+            .SingleOrDefaultAsync(record => record.Id == rulesetId);
+
+        if (ruleset is null)
+        {
+            return Error.NotFound(
+                code: "Deck.Rulesets.NotFound",
+                description: $"Ruleset '{rulesetId}' was not found.");
+        }
+
+        if (!ruleset.IsActive)
+        {
+            return Error.Validation(
+                code: "Deck.Rulesets.NotActive",
+                description: $"Ruleset '{ruleset.Name}' is not active and cannot be played.");
+        }
+
+        return new DeckRulesetDefinition(
+            Id: ruleset.Id,
+            Key: ruleset.Key,
+            Name: ruleset.Name,
+            LeaderCount: ruleset.LeaderCount,
+            NonLeaderCardCount: ruleset.NonLeaderCardCount,
+            MaxCopiesPerNonLeaderCard: ruleset.MaxCopiesPerNonLeaderCard,
+            RequireLeaderColorMatch: ruleset.RequireLeaderColorMatch,
+            AllowChakraCards: ruleset.AllowChakraCards,
+            AllowSummonCards: ruleset.AllowSummonCards,
+            MaxCopiesByCardId: ruleset.CardRestrictions
+                .GroupBy(restriction => restriction.CardCatalogEntry.CardId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Last().MaxCopies,
+                    StringComparer.OrdinalIgnoreCase));
+    }
+
     public async Task<ErrorOr<DeckRulesetResponse>> CreateRuleset(CreateDeckRulesetRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);

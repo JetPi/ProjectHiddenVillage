@@ -1,22 +1,17 @@
 using ErrorOr;
+using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
-using ProjectHiddenVillage.Server.Data;
+using ProjectHiddenVillage.Server.Api.Interfaces.User;
 
 namespace ProjectHiddenVillage.Server;
 
 public sealed class GameInstanceService(
     InMemoryGameInstanceRegistry registry,
-    IGameReadService gameReadService) : IGameInstanceService
+    IGameReadService gameReadService,
+    IDeckRulesetService? deckRulesetService = null,
+    IGameRulesetDeckValidator? deckValidator = null,
+    IGuestUserService? guestUserService = null) : IGameInstanceService
 {
-    private const int OpeningHandSize = 5;
-    private const int MaxShuffleSeedAttempts = 8192;
-
-    private static readonly HashSet<Guid> DevelopmentSeedDeckIds =
-    [
-        Guid.Parse("10000000-0000-0000-0000-000000000001"),
-        Guid.Parse("10000000-0000-0000-0000-000000000002")
-    ];
-
     public Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request)
     {
         return CreateGameForUser(request, preferredGameCode: null);
@@ -34,10 +29,12 @@ public sealed class GameInstanceService(
 
         var playerDeck = playerDeckResult.Value;
 
+        await TouchGuestAsync(request.UserId);
+
         try
         {
             var gameInstance = registry.Create([playerDeck.Player], playerDeck.CardDefinitions, preferredGameCode);
-            EnsureSupportCardSeededIntoOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId);
+            OpeningSupportSeeding.EnsureSupportCardSeededIntoOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId);
             return gameInstance;
         }
         catch (ArgumentException ex)
@@ -92,10 +89,21 @@ public sealed class GameInstanceService(
         }
 
         var playerDeck = playerDeckResult.Value;
+
+        // A quick-match game carries its format with it, so joining by code is admission-checked against the same
+        // rules the matchmaking queue enforced. Games created through the plain create mode carry no binding.
+        var rulesetResult = await EnsureDeckMatchesGameRulesetAsync(game.Ruleset, playerDeck);
+        if (rulesetResult.IsError)
+        {
+            return rulesetResult.Errors;
+        }
+
+        await TouchGuestAsync(request.UserId);
+
         try
         {
             var gameInstance = registry.Join(normalizedGameCode, playerDeck.Player, playerDeck.CardDefinitions);
-            EnsureSupportCardSeededIntoOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId.Value);
+            OpeningSupportSeeding.EnsureSupportCardSeededIntoOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId.Value);
             return gameInstance;
         }
         catch (KeyNotFoundException ex)
@@ -112,109 +120,45 @@ public sealed class GameInstanceService(
         }
     }
 
+    private async Task<ErrorOr<Success>> EnsureDeckMatchesGameRulesetAsync(
+        GameRulesetBinding? binding,
+        ResolvedPlayerDeck deck)
+    {
+        if (binding is null)
+        {
+            return Result.Success;
+        }
+
+        if (deckRulesetService is null || deckValidator is null)
+        {
+            // Composition used by the engine tests does not register the ruleset services; there are no bound
+            // games in those tests either, so this only guards a misconfigured deployment.
+            return Result.Success;
+        }
+
+        var definitionResult = await deckRulesetService.GetActiveRulesetDefinition(binding.Id);
+        if (definitionResult.IsError)
+        {
+            return definitionResult.Errors;
+        }
+
+        var evaluation = deckValidator.Validate(deck, definitionResult.Value);
+        return evaluation.IsError ? evaluation.Errors : Result.Success;
+    }
+
+    /// <summary>
+    /// Entering a game is a sign of life from a guest, and the retention window is measured from the last one.
+    /// Writing is throttled inside the guest service, so an active guest costs one update every few minutes.
+    /// </summary>
+    private Task TouchGuestAsync(Guid userId)
+    {
+        return guestUserService is null
+            ? Task.CompletedTask
+            : guestUserService.TouchAsync(userId.ToString("N"));
+    }
+
     private static bool HasStoredDeck(PlayerState playerState)
     {
         return playerState.Deck.Any(card => !string.IsNullOrWhiteSpace(card.CardDefinitionId));
-    }
-
-    private static void EnsureSupportCardSeededIntoOpeningDrawWindow(GameInstance gameInstance, string playerId, Guid deckId)
-    {
-        if (!DevelopmentSeedDeckIds.Contains(deckId))
-        {
-            return;
-        }
-
-        var playerState = gameInstance.State.Players
-            .SingleOrDefault(player => string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
-
-        if (playerState is null || playerState.Deck.Count == 0)
-        {
-            return;
-        }
-
-        var supportCardInstanceIds = playerState.Deck
-            .Where(card => IsSupportCapableCard(gameInstance, card.CardDefinitionId))
-            .Select(card => card.InstanceId)
-            .ToHashSet(StringComparer.Ordinal);
-
-        if (supportCardInstanceIds.Count == 0)
-        {
-            return;
-        }
-
-        var openingDrawWindow = Math.Min(OpeningHandSize, playerState.Deck.Count);
-        if (ContainsSupportInOpeningWindow(playerState.Deck, supportCardInstanceIds, openingDrawWindow))
-        {
-            return;
-        }
-
-        var gameSeed = HashCode.Combine(gameInstance.State.GameSeed, playerId, deckId);
-        var selectedSeed = FindOpeningSupportShuffleSeed(
-            playerState.Deck,
-            supportCardInstanceIds,
-            openingDrawWindow,
-            gameSeed);
-
-        if (selectedSeed.HasValue)
-        {
-            GameDeckShuffle.Shuffle(playerState.Deck, new Random(selectedSeed.Value));
-            return;
-        }
-
-        // Safety fallback: keep deterministic startup behavior even if no suitable seed was found.
-        var supportCardIndex = playerState.Deck.FindIndex(card => supportCardInstanceIds.Contains(card.InstanceId));
-        if (supportCardIndex <= 0)
-        {
-            return;
-        }
-
-        var supportCard = playerState.Deck[supportCardIndex];
-        playerState.Deck.RemoveAt(supportCardIndex);
-        playerState.Deck.Insert(0, supportCard);
-    }
-
-    private static int? FindOpeningSupportShuffleSeed(
-        List<CardInstance> deck,
-        HashSet<string> supportCardInstanceIds,
-        int openingDrawWindow,
-        int baseSeed)
-    {
-        for (var attempt = 0; attempt < MaxShuffleSeedAttempts; attempt++)
-        {
-            var candidateSeed = unchecked(baseSeed + (attempt * 7919));
-            var candidateDeck = deck.ToList();
-            GameDeckShuffle.Shuffle(candidateDeck, new Random(candidateSeed));
-
-            if (ContainsSupportInOpeningWindow(candidateDeck, supportCardInstanceIds, openingDrawWindow))
-            {
-                return candidateSeed;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool ContainsSupportInOpeningWindow(
-        List<CardInstance> deck,
-        HashSet<string> supportCardInstanceIds,
-        int openingDrawWindow)
-    {
-        return deck.Take(openingDrawWindow).Any(card => supportCardInstanceIds.Contains(card.InstanceId));
-    }
-
-    private static bool IsSupportCapableCard(GameInstance gameInstance, string cardDefinitionId)
-    {
-        if (!gameInstance.State.CardDefinitions.TryGetValue(cardDefinitionId, out var cardDefinition))
-        {
-            return false;
-        }
-
-        if (cardDefinition is not CharacterCard characterCard)
-        {
-            return false;
-        }
-
-        return !string.IsNullOrWhiteSpace(characterCard.SupportName)
-            || !string.IsNullOrWhiteSpace(characterCard.SupportEffect);
     }
 }

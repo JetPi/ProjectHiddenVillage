@@ -25,9 +25,8 @@ export type ISignUpApiRequest = {
   password: string
 }
 
-export type ILoginLoaderData = {
-  signupSuccess: boolean
-}
+/** The login route's loader only exists to keep its hydrate-fallback behaviour; it carries no data. */
+export type ILoginLoaderData = null
 
 export type ILoginActionData = {
   login?: {
