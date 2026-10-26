@@ -5,8 +5,9 @@ import type { TFunction } from 'i18next'
 import i18n, { translateKey } from '@/i18n'
 import {
   deckOptionsModeOptions,
-  gameCodeFieldConfigByMode,
   gameCodeModeOptions,
+  isRulesetSelectionMode,
+  joinGameCodeFieldConfig,
 } from '@/views/login/configs/LoginView'
 import { Link, useActionData, useNavigate, useNavigation } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
@@ -45,6 +46,7 @@ import {
   parseDeckList,
   parseDeckListPartial,
 } from '@/domain/deck/parseDeckList'
+import { CreateGameShareDialog } from '@/views/login/components/CreateGameShareDialog'
 import { DeckImportDialog } from '@/views/login/components/DeckImportDialog'
 import { MatchmakingSearchDialog } from '@/views/login/components/MatchmakingSearchDialog'
 import { QueuedPlayersBadge } from '@/views/login/components/QueuedPlayersBadge'
@@ -131,6 +133,12 @@ export function LoginView() {
   const [savedDeckCardsByDeckId, setSavedDeckCardsByDeckId] = useState<Record<string, IDeckCardInput[]>>({})
   const [starterDeckCardsByDeckId, setStarterDeckCardsByDeckId] = useState<Record<string, IDeckCardInput[]>>({})
   const [activeTicket, setActiveTicket] = useState<IMatchTicket | null>(() => readStoredMatchTicket())
+  // A created game exists on the server the moment `Enter Game` runs, so its code is held here while the creator
+  // copies it. The board is only opened once they confirm.
+  const [createdGameShare, setCreatedGameShare] = useState<{
+    gameId: string
+    rulesetName: string
+  } | null>(null)
   const [isTitleFontReady, setIsTitleFontReady] = useState(() => {
     const fontSet = getFontFaceSet()
     if (!fontSet) {
@@ -347,11 +355,17 @@ export function LoginView() {
     [t],
   )
 
+  // Queue depth answers "how many players are waiting to be paired", which is a quick-match question only: a creator
+  // opens a table of their own and has nobody to be paired with, so their format list stays plain.
+  const showsQueueDepth = gameCodeMode === 'quickmatch'
+
   // Each format carries its current queue depth, right-aligned in the select row. Formats with no queue are absent
   // from the snapshot, so a known snapshot makes a missing entry zero rather than "unknown".
   const activeRulesetOptions = useMemo(
     () => (activeDeckRulesetsQuery.data ?? []).map((ruleset) => {
-      const waitingCount = selectRulesetWaitingCount(presenceSnapshot, ruleset.id)
+      const waitingCount = showsQueueDepth
+        ? selectRulesetWaitingCount(presenceSnapshot, ruleset.id)
+        : null
 
       return {
         value: ruleset.id,
@@ -359,7 +373,7 @@ export function LoginView() {
         trailing: waitingCount === null ? undefined : <QueuedPlayersBadge count={waitingCount} />,
       }
     }),
-    [activeDeckRulesetsQuery.data, presenceSnapshot],
+    [activeDeckRulesetsQuery.data, presenceSnapshot, showsQueueDepth],
   )
 
   const selectedRuleset = useMemo(
@@ -367,19 +381,20 @@ export function LoginView() {
     [activeDeckRulesetsQuery.data, activeGameCode],
   )
 
-  // While queueing for a format, the import dialog should only talk about that format.
+  // While playing under one format, the import dialog should only talk about that format.
   const importDialogRulesets = useMemo(() => {
-    if (gameCodeMode === 'quickmatch') {
+    if (isRulesetSelectionMode(gameCodeMode)) {
       return selectedRuleset ? [selectedRuleset] : []
     }
 
     return activeDeckRulesetsQuery.data ?? []
   }, [activeDeckRulesetsQuery.data, gameCodeMode, selectedRuleset])
 
-  // Quick match queues under a ruleset, so its select is the active ruleset list rather than a fixed code.
+  // Quick match queues under a format and create opens a table in one, so both modes show the same ruleset list
+  // (queue depth included) instead of a code field. Only join still asks for the code itself.
   const translatedGameCodeConfig = useMemo(() => {
-    if (gameCodeMode !== 'quickmatch') {
-      return translateAdaptiveFieldConfig(gameCodeFieldConfigByMode[gameCodeMode], t)
+    if (!isRulesetSelectionMode(gameCodeMode)) {
+      return translateAdaptiveFieldConfig(joinGameCodeFieldConfig, t)
     }
 
     if (activeRulesetOptions.length > 0) {
@@ -405,7 +420,7 @@ export function LoginView() {
   ])
 
   useEffect(() => {
-    if (gameCodeMode !== 'quickmatch') {
+    if (!isRulesetSelectionMode(gameCodeMode)) {
       return
     }
 
@@ -525,11 +540,11 @@ export function LoginView() {
   const activeDeckCardsById = deckOptionsMode === 'import' ? importedDeckCardsById : storedDeckCardsById
 
   /**
-   * Quick match judges the deck against the ruleset being queued for, nothing else: a deck that is legal in some
-   * other format is still refused here, because the game it is about to join only accepts this one.
+   * Quick match and create both judge the deck against the format being chosen, nothing else: a deck that is legal
+   * in some other format is still refused here, because the game it is about to enter only accepts this one.
    */
-  const quickmatchDeckEvaluation = useMemo(() => {
-    if (gameCodeMode !== 'quickmatch' || !selectedRuleset || activeDeckCards.length === 0) {
+  const rulesetDeckEvaluation = useMemo(() => {
+    if (!isRulesetSelectionMode(gameCodeMode) || !selectedRuleset || activeDeckCards.length === 0) {
       return null
     }
 
@@ -700,6 +715,19 @@ export function LoginView() {
     navigate(toGameRoutePath(gameId))
   }
 
+  const handleEnterCreatedGame = () => {
+    if (!createdGameShare) {
+      return
+    }
+
+    const gameId = createdGameShare.gameId
+    setCreatedGameShare(null)
+    setSession({ displayName, gameCode: gameId })
+    // No "share this code" toast here: the dialog has just shown the code and the invite link, and repeating it over
+    // the board adds nothing.
+    navigate(toGameRoutePath(gameId))
+  }
+
   const startQuickmatch = async (identity: IAuthSession, deckId: string) => {
     if (!selectedRuleset) {
       return
@@ -732,8 +760,9 @@ export function LoginView() {
     }
 
     const normalizedGameCode = activeGameCode.trim()
-    const isQuickmatchMode = gameCodeMode === 'quickmatch'
-    const requiresDeck = gameCodeMode === 'create' || isQuickmatchMode
+    // Quick match and create both sit under a format, so both need a deck that fits it before anything is minted.
+    const selectsRuleset = isRulesetSelectionMode(gameCodeMode)
+    const requiresDeck = selectsRuleset
 
     const identity = await resolvePlayerIdentity()
     if (!identity) {
@@ -762,9 +791,9 @@ export function LoginView() {
             return
           }
 
-          // Quick match judges the deck against the ruleset it is queueing for, just below. Create and join keep
-          // the long-standing "legal in some active format" rule.
-          if (!isQuickmatchMode && importedDeckValidation?.isLegalInAnyRuleset !== true) {
+          // The ruleset modes judge the deck against the format they are about to play, just below. Join keeps the
+          // long-standing "legal in some active format" rule.
+          if (!selectsRuleset && importedDeckValidation?.isLegalInAnyRuleset !== true) {
             showAppInfoToast(t('auth.toasts.deckNotLegal'))
             return
           }
@@ -791,7 +820,7 @@ export function LoginView() {
         }
       }
 
-      if (isQuickmatchMode) {
+      if (selectsRuleset) {
         if (!selectedRuleset) {
           showAppInfoToast(t('auth.toasts.selectRuleset'))
           return
@@ -807,37 +836,27 @@ export function LoginView() {
           return
         }
 
-        if (quickmatchDeckEvaluation && !quickmatchDeckEvaluation.isValid) {
+        if (rulesetDeckEvaluation && !rulesetDeckEvaluation.isValid) {
           showAppInfoToast(
             t('auth.toasts.deckNotLegalForRuleset', { ruleset: selectedRuleset.name }),
           )
           return
         }
 
-        await startQuickmatch(identity, deckId)
-        return
-      }
-
-      if (gameCodeMode === 'create') {
-        if (!deckId) {
-          const deckModeLabel = t(deckOptionsMode === 'saved_decks' ? 'auth.deckMode.saved' : 'auth.deckMode.public')
-          showAppInfoToast(t('auth.toasts.selectDeck', { mode: deckModeLabel }))
+        if (gameCodeMode === 'quickmatch') {
+          await startQuickmatch(identity, deckId)
           return
         }
 
+        // Create mints a real, already-joinable game and then holds the creator on the code: the invite has to be
+        // shareable before the board takes over the screen.
         const createdGame = await createGameForUser({
           userId: identity.userId,
           deckId,
+          rulesetId: selectedRuleset.id,
         })
 
-        setGameCodeValue(createdGame.id)
-        setSession({
-          displayName,
-          gameCode: createdGame.id,
-        })
-
-        showAppSuccessToast(t('auth.toasts.gameCreated', { code: createdGame.id }))
-        navigate(toGameRoutePath(createdGame.id))
+        setCreatedGameShare({ gameId: createdGame.id, rulesetName: selectedRuleset.name })
         return
       }
 
@@ -1170,6 +1189,15 @@ export function LoginView() {
             setActiveTicket(null)
             clearStoredMatchTicket()
           }}
+        />
+      ) : null}
+
+      {createdGameShare ? (
+        <CreateGameShareDialog
+          gameId={createdGameShare.gameId}
+          rulesetName={createdGameShare.rulesetName}
+          onEnterGame={handleEnterCreatedGame}
+          onLeave={() => setCreatedGameShare(null)}
         />
       ) : null}
 

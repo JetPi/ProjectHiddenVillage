@@ -14,27 +14,22 @@ export const gameCodeModeOptions: readonly IToggleOption<IGameCodeEntryMode>[] =
   { value: 'create', label: 'auth.config.modeCreate' },
 ]
 
-export const gameCodeFieldConfigByMode: Record<IGameCodeEntryMode, IAdaptiveFieldConfig> = {
-  quickmatch: {
-    type: 'select',
-    choices: [
-      { value: 'casual', label: 'auth.config.casual' }
-    ],
+/**
+ * Quick match pairs players inside a format and create opens a table bound to one, so both modes ask for a format
+ * instead of a code. The ruleset list itself comes from `useActiveDeckRulesetsQuery`, shared by both modes; only
+ * join still types in the code of an existing game.
+ */
+export function isRulesetSelectionMode(
+  mode: IGameCodeEntryMode,
+): mode is 'quickmatch' | 'create' {
+  return mode === 'quickmatch' || mode === 'create'
+}
 
-  },
-  join: {
-    type: 'input',
-    props: {
-      placeholder: 'auth.config.joinCodePlaceholder',
-      maxLength: 5,
-    },
-  },
-  create: {
-    type: 'input',
-    props: {
-      placeholder: 'auth.config.createCodePlaceholder',
-      maxLength: 5,
-    },
+export const joinGameCodeFieldConfig: IAdaptiveFieldConfig = {
+  type: 'input',
+  props: {
+    placeholder: 'auth.config.joinCodePlaceholder',
+    maxLength: 5,
   },
 }
 

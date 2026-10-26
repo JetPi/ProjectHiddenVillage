@@ -189,6 +189,21 @@
       "cancel": "Cancel search",
       "cancelling": "Cancelling..."
     },
+    "createGame": {
+      "title": "Your {{ruleset}} game is ready",
+      "body": "Share this code or the invite link so your opponent can take the second seat.",
+      "linkLabel": "Invite link",
+      "copyCode": "Copy code",
+      "copyCodeDone": "Code copied",
+      "copyLink": "Copy link",
+      "copyLinkDone": "Link copied",
+      "copyFailed": "Copying is not available here. Select the code or the link and copy it manually.",
+      "waitingForOpponent": "Waiting for your opponent to join.",
+      "opponentJoined": "Your opponent joined. Taking you in.",
+      "watchFailed": "This game can no longer be checked. Use Enter Game to try again, or go back.",
+      "back": "Back",
+      "enter": "Enter Game"
+    },
     "toasts": {
       "accountCreated": "Account created successfully.",
       "loggedInAs": "Logged in as {{username}}",
@@ -203,7 +218,6 @@
       "missingDeckForCreation": "No deck has been selected. Import a deck or select from a pre-existing deck.",
       "deckFormatInvalid": "Deck list format is invalid.",
       "selectDeck": "Please select a {{mode}} before continuing.",
-      "gameCreated": "Game created. Share code {{code}}",
       "joinedGame": "Joined game successfully.",
       "gameCodeRequired": "Please provide a game code to join.",
       "submitFailed": "Unable to submit deck or join game. Please try again.",
@@ -244,7 +258,6 @@
       "loadingRulesets": "Loading formats...",
       "noRulesets": "No formats available yet",
       "joinCodePlaceholder": "Paste your code here",
-      "createCodePlaceholder": "Code will be generated on create",
       "importPlaceholder": "Use Import to paste your deck list",
       "loadingSavedDecks": "Loading saved decks...",
       "loadingPublicDecks": "Loading public decks..."

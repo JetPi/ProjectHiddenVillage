@@ -1,6 +1,11 @@
 export type ICreateGameForUserRequest = {
   userId: string
   deckId: string
+  /**
+   * The format the invite is created under. When present the server binds the game to it, so anyone the code is
+   * shared with is admitted only with a deck that fits the same rules.
+   */
+  rulesetId?: string
 }
 
 export type IJoinGameAsPlayerRequest = {

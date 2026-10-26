@@ -2,7 +2,10 @@ namespace ProjectHiddenVillage.Server;
 
 public sealed record CreateGameForUserRequest(
     Guid UserId,
-    Guid DeckId);
+    Guid DeckId,
+    // Optional: a game created for an invite carries the format it was created for, so anyone holding the code
+    // is admitted only with a deck that fits it.
+    Guid? RulesetId = null);
 
 public sealed record JoinGameAsPlayer(
     Guid UserId,

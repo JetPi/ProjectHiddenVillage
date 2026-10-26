@@ -71,6 +71,149 @@ public sealed class GamesServiceUserDeckFlowTests
     }
 
     [TestMethod]
+    public async Task CreateGameForUser_WithRuleset_BindsTheGameToThatFormat()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var user = CreateUser("binder@example.com", "binder");
+        var leader = CreateLeaderCatalogEntry("L-001", "Binder", life: 5, description: "desc");
+        var cardA = CreateCatalogEntry("N-001", "Card A");
+
+        dbContext.Users.Add(user);
+        dbContext.Decks.Add(CreateDeck(user.Id, [(leader, 1), (cardA, 2)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
+        var services = CreateServices(dbContext);
+        var rulesetId = await SeedStandardRulesetAsync(services);
+
+        var result = await services.InstanceService.CreateGameForUser(
+            new CreateGameForUserRequest(user.Id, deckId, rulesetId));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        Assert.IsNotNull(result.Value.Ruleset);
+        Assert.AreEqual(rulesetId, result.Value.Ruleset.Id);
+        Assert.AreEqual("standard", result.Value.Ruleset.Key);
+        Assert.AreEqual("Standard", result.Value.Ruleset.Name);
+    }
+
+    [TestMethod]
+    public async Task CreateGameForUser_WithoutRuleset_LeavesTheGameUnbound()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var user = CreateUser("unbound@example.com", "unbound");
+        var card = CreateCatalogEntry("N-001", "Card A");
+
+        dbContext.Users.Add(user);
+        dbContext.Decks.Add(CreateDeck(user.Id, [(card, 2)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
+        var services = CreateServices(dbContext);
+
+        var result = await services.InstanceService.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        Assert.IsNull(result.Value.Ruleset);
+    }
+
+    [TestMethod]
+    public async Task GetById_IsCaseSensitive_SoCallersMustSendTheCodeTheyWereGiven()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var user = CreateUser("case@example.com", "case");
+        var card = CreateCatalogEntry("N-001", "Card A");
+
+        dbContext.Users.Add(user);
+        dbContext.Decks.Add(CreateDeck(user.Id, [(card, 2)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
+        var services = CreateServices(dbContext);
+
+        var createdGame = await services.InstanceService.CreateGameForUser(new CreateGameForUserRequest(user.Id, deckId));
+        Assert.IsFalse(createdGame.IsError, createdGame.IsError ? createdGame.FirstError.Description : string.Empty);
+
+        Assert.IsFalse(services.ReadService.GetById(createdGame.Value.Id).IsError);
+
+        // Generated codes are upper case and the registry keys them with StringComparer.Ordinal, so folding the case
+        // asks for a game that does not exist. This pins the contract every client has to respect: send the code
+        // exactly as the server handed it out, and fold case only in local caches.
+        var foldedLookup = services.ReadService.GetById(createdGame.Value.Id.ToLowerInvariant());
+
+        Assert.IsTrue(foldedLookup.IsError);
+        Assert.AreEqual("Game.NotFound", foldedLookup.FirstError.Code);
+    }
+
+    [TestMethod]
+    public async Task CreateGameForUser_RefusesADeckThatDoesNotFitTheRequestedRuleset()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var user = CreateUser("too-big@example.com", "too-big");
+        var leader = CreateLeaderCatalogEntry("L-001", "Leader", life: 5, description: "desc");
+        var cardA = CreateCatalogEntry("N-001", "Card A");
+        var cardB = CreateCatalogEntry("N-002", "Card B");
+        var cardC = CreateCatalogEntry("N-003", "Card C");
+
+        dbContext.Users.Add(user);
+        // The standard format takes exactly two non-leader cards; this deck brings three.
+        dbContext.Decks.Add(CreateDeck(user.Id, [(leader, 1), (cardA, 1), (cardB, 1), (cardC, 1)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
+        var services = CreateServices(dbContext);
+        var rulesetId = await SeedStandardRulesetAsync(services);
+
+        var result = await services.InstanceService.CreateGameForUser(
+            new CreateGameForUserRequest(user.Id, deckId, rulesetId));
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual(GameRulesetDeckValidator.DeckIllegalCode, result.FirstError.Code);
+    }
+
+    [TestMethod]
+    public async Task JoinGameForUser_RefusesAnInvitedDeckThatDoesNotFitTheCreatedGamesFormat()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var host = CreateUser("host@example.com", "host");
+        var invitee = CreateUser("invitee@example.com", "invitee");
+        var leader = CreateLeaderCatalogEntry("L-001", "Leader", life: 5, description: "desc");
+        var cardA = CreateCatalogEntry("N-001", "Card A");
+        var cardB = CreateCatalogEntry("N-002", "Card B");
+        var cardC = CreateCatalogEntry("N-003", "Card C");
+
+        dbContext.Users.AddRange(host, invitee);
+        dbContext.Decks.AddRange(
+            CreateDeck(host.Id, [(leader, 1), (cardA, 2)]),
+            CreateDeck(invitee.Id, [(leader, 1), (cardA, 1), (cardB, 1), (cardC, 1)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckIdsByUserId = await dbContext.Decks
+            .AsNoTracking()
+            .ToDictionaryAsync(deck => deck.UserId!.Value, deck => deck.Id);
+
+        var services = CreateServices(dbContext);
+        var rulesetId = await SeedStandardRulesetAsync(services);
+
+        var createdGame = await services.InstanceService.CreateGameForUser(
+            new CreateGameForUserRequest(host.Id, deckIdsByUserId[host.Id], rulesetId));
+
+        Assert.IsFalse(createdGame.IsError, createdGame.IsError ? createdGame.FirstError.Description : string.Empty);
+
+        // The shared code is only the entry point: the format the host chose still governs who may sit down.
+        var joinResult = await services.InstanceService.JoinGameForUser(
+            createdGame.Value.Id,
+            new JoinGameAsPlayer(invitee.Id, deckIdsByUserId[invitee.Id]));
+
+        Assert.IsTrue(joinResult.IsError);
+        Assert.AreEqual(GameRulesetDeckValidator.DeckIllegalCode, joinResult.FirstError.Code);
+    }
+
+    [TestMethod]
     public async Task CreateGameForUser_PopulatesLeaderCardInstance_WhenDeckContainsLeader()
     {
         await using var dbContext = CreateDbContext();
@@ -284,12 +427,40 @@ public sealed class GamesServiceUserDeckFlowTests
             dbContext,
             new GameRuntimeDeckService(effectHandlingService));
 
+        // Registered even for the create-mode tests that ask for no format: a game created without a ruleset id
+        // must stay exactly as unbound as it was before formats could be attached to an invite.
+        var rulesets = new DeckRulesetService(dbContext);
+
         return new TestGameServices(
-            InstanceService: new GameInstanceService(registry, readService),
-            ReadService: readService);
+            InstanceService: new GameInstanceService(registry, readService, rulesets, new GameRulesetDeckValidator()),
+            ReadService: readService,
+            Rulesets: rulesets);
     }
 
-    private sealed record TestGameServices(IGameInstanceService InstanceService, IGameReadService ReadService);
+    private static async Task<Guid> SeedStandardRulesetAsync(TestGameServices services)
+    {
+        var ruleset = await services.Rulesets.CreateRuleset(new CreateDeckRulesetRequest(
+            Key: "standard",
+            Name: "Standard",
+            IsActive: true,
+            LeaderCount: 1,
+            NonLeaderCardCount: 2,
+            MaxCopiesPerNonLeaderCard: 4,
+            RequireLeaderColorMatch: false,
+            AllowChakraCards: true,
+            AllowSummonCards: true,
+            SortOrder: 0,
+            CardRestrictions: []));
+
+        Assert.IsFalse(ruleset.IsError, ruleset.IsError ? ruleset.FirstError.Description : string.Empty);
+
+        return ruleset.Value.Id;
+    }
+
+    private sealed record TestGameServices(
+        IGameInstanceService InstanceService,
+        IGameReadService ReadService,
+        DeckRulesetService Rulesets);
 
     private static User CreateUser(string email, string username)
     {
