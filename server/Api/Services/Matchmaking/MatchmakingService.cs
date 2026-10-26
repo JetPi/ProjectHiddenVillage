@@ -111,7 +111,7 @@ public sealed class MatchmakingService : IMatchmakingService
 
         lock (queue.SyncRoot)
         {
-            PruneTickets(now);
+            queue.PruneExpiredTicketsLocked(now, WaitingLifetime, FinishedRetention);
             // Queueing again replaces whatever this player had in flight: two tickets from one player must never
             // be able to share an opponent.
             EvictTicketsForUser(ticket.UserId);
@@ -177,7 +177,7 @@ public sealed class MatchmakingService : IMatchmakingService
 
         lock (queue.SyncRoot)
         {
-            PruneTickets(timeProvider.GetUtcNow());
+            queue.PruneExpiredTicketsLocked(timeProvider.GetUtcNow(), WaitingLifetime, FinishedRetention);
 
             if (!queue.TryGet(ticketId.Trim(), out var ticket) || ticket is null)
             {
@@ -226,31 +226,14 @@ public sealed class MatchmakingService : IMatchmakingService
         }
     }
 
-    private void PruneTickets(DateTimeOffset now)
+    public IReadOnlyList<WaitingPlayersByRuleset> GetQueueSummary()
     {
-        var waitingLifetime = TimeSpan.FromSeconds(Math.Max(1, options.TicketLifetimeSeconds));
-        var finishedRetention = TimeSpan.FromSeconds(Math.Max(1, options.FinishedTicketRetentionSeconds));
-
-        foreach (var ticket in queue.Snapshot())
-        {
-            if (ticket.State == MatchTicketStates.Waiting)
-            {
-                if (now - ticket.EnqueuedAtUtc >= waitingLifetime)
-                {
-                    ticket.State = MatchTicketStates.Expired;
-                    ticket.FinishedAtUtc = now;
-                }
-
-                continue;
-            }
-
-            var finishedAt = ticket.FinishedAtUtc ?? ticket.EnqueuedAtUtc;
-            if (now - finishedAt >= finishedRetention)
-            {
-                queue.Remove(ticket.Id);
-            }
-        }
+        return queue.GetWaitingSummary(timeProvider.GetUtcNow(), WaitingLifetime, FinishedRetention);
     }
+
+    private TimeSpan WaitingLifetime => TimeSpan.FromSeconds(Math.Max(1, options.TicketLifetimeSeconds));
+
+    private TimeSpan FinishedRetention => TimeSpan.FromSeconds(Math.Max(1, options.FinishedTicketRetentionSeconds));
 
     private void EvictTicketsForUser(Guid userId)
     {

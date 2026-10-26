@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppButton, Panel } from '@/components/ui'
 import { useCancelMatchMutation, useMatchTicketQuery } from '@/services/queries/matchmakingQueries'
+import { useRulesetWaitingCount } from '@/services/presence/usePresence'
 import type { IMatchTicket } from '@/types/matchmaking'
 
 export type IMatchmakingSearchDialogProps = {
@@ -28,6 +29,7 @@ export function MatchmakingSearchDialog({ ticket, onMatched, onDismiss }: IMatch
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
 
   const currentTicket = ticketQuery.data ?? ticket
+  const waitingPlayers = useRulesetWaitingCount(currentTicket.rulesetId)
 
   useEffect(() => {
     const startedAtMs = Date.parse(ticket.enqueuedAtUtc)
@@ -76,6 +78,14 @@ export function MatchmakingSearchDialog({ ticket, onMatched, onDismiss }: IMatch
         <p className="mt-2 text-sm text-[var(--text-secondary)]">
           {t('auth.matchmaking.searchingBody')}
         </p>
+        {waitingPlayers !== null ? (
+          <p
+            data-testid="matchmaking-waiting-players"
+            className="mt-1 text-xs text-[var(--text-muted)]"
+          >
+            {t('auth.matchmaking.waitingPlayers', { count: waitingPlayers })}
+          </p>
+        ) : null}
         <p
           data-testid="matchmaking-elapsed"
           className="mt-3 text-2xl font-semibold tabular-nums text-[var(--text-primary)]"

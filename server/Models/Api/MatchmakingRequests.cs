@@ -23,3 +23,6 @@ public sealed record MatchTicketResponse(
     string? GameId,
     string? OpponentName,
     DateTimeOffset EnqueuedAtUtc);
+
+/// <summary>How many players are waiting in one format right now, after abandoned tickets were pruned.</summary>
+public sealed record WaitingPlayersByRuleset(Guid RulesetId, string RulesetName, int WaitingCount);

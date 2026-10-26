@@ -34,8 +34,9 @@ public sealed class MatchTicket
 }
 
 /// <summary>
-/// The tickets currently in flight, shared by every request. It is deliberately the only stateful part of
-/// matchmaking: pairing itself lives in the scoped service, which needs the request-scoped database services.
+/// The tickets currently in flight, shared by every request, and the only owner of their lifetime rules. Pruning
+/// lives here rather than in <see cref="MatchmakingService"/> because the presence broadcaster has to read an
+/// accurate waiting count from a singleton, without a request scope or a database context.
 /// </summary>
 public sealed class MatchmakingQueue
 {
@@ -63,5 +64,65 @@ public sealed class MatchmakingQueue
     public bool Remove(string ticketId)
     {
         return tickets.Remove(ticketId);
+    }
+
+    /// <summary>Expires abandoned waiting tickets and drops finished ones whose grace period ran out.</summary>
+    public void PruneExpiredTickets(DateTimeOffset now, TimeSpan waitingLifetime, TimeSpan finishedRetention)
+    {
+        lock (SyncRoot)
+        {
+            PruneExpiredTicketsLocked(now, waitingLifetime, finishedRetention);
+        }
+    }
+
+    /// <summary>
+    /// The waiting players per ruleset. Every caller gets an accurate number because the prune runs first:
+    /// a ticket that was never read again would otherwise keep counting after its player closed the tab.
+    /// </summary>
+    public IReadOnlyList<WaitingPlayersByRuleset> GetWaitingSummary(
+        DateTimeOffset now,
+        TimeSpan waitingLifetime,
+        TimeSpan finishedRetention)
+    {
+        lock (SyncRoot)
+        {
+            PruneExpiredTicketsLocked(now, waitingLifetime, finishedRetention);
+
+            return tickets.Values
+                .Where(ticket => ticket.State == MatchTicketStates.Waiting)
+                .GroupBy(ticket => ticket.RulesetId)
+                .Select(group => new WaitingPlayersByRuleset(
+                    RulesetId: group.Key,
+                    RulesetName: group.First().RulesetName,
+                    // A player queues once (a re-queue evicts the previous ticket), so distinct users guard the
+                    // invariant rather than correct a known duplicate.
+                    WaitingCount: group.Select(ticket => ticket.UserId).Distinct().Count()))
+                .OrderByDescending(summary => summary.WaitingCount)
+                .ThenBy(summary => summary.RulesetName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
+
+    internal void PruneExpiredTicketsLocked(DateTimeOffset now, TimeSpan waitingLifetime, TimeSpan finishedRetention)
+    {
+        foreach (var ticket in tickets.Values.ToList())
+        {
+            if (ticket.State == MatchTicketStates.Waiting)
+            {
+                if (now - ticket.EnqueuedAtUtc >= waitingLifetime)
+                {
+                    ticket.State = MatchTicketStates.Expired;
+                    ticket.FinishedAtUtc = now;
+                }
+
+                continue;
+            }
+
+            var finishedAt = ticket.FinishedAtUtc ?? ticket.EnqueuedAtUtc;
+            if (now - finishedAt >= finishedRetention)
+            {
+                tickets.Remove(ticket.Id);
+            }
+        }
     }
 }

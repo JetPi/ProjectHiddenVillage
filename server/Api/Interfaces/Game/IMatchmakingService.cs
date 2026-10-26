@@ -17,4 +17,10 @@ public interface IMatchmakingService
 
     /// <summary>Gives up a waiting ticket. A ticket that already matched is reported as matched, not cancelled.</summary>
     ErrorOr<MatchTicketResponse> Cancel(string ticketId, Guid requestingUserId);
+
+    /// <summary>
+    /// How many players are waiting per format right now. Expired tickets are pruned first, so a player who closed
+    /// the tab stops being counted as soon as anyone asks.
+    /// </summary>
+    IReadOnlyList<WaitingPlayersByRuleset> GetQueueSummary();
 }

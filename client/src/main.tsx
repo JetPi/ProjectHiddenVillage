@@ -6,6 +6,7 @@ import './index.css'
 import '@/i18n'
 import { AppRouter } from '@/app/AppRouter'
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary'
+import { PresenceProvider } from '@/services/presence/PresenceProvider'
 import { appQueryClient } from '@/services/queryClient'
 
 const BOOT_LOADER_FADE_MS = 420
@@ -14,7 +15,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={appQueryClient}>
       <ErrorBoundary>
-        <AppRouter />
+        <PresenceProvider>
+          <AppRouter />
+        </PresenceProvider>
         <Toaster position="bottom-right" richColors closeButton style={{ zIndex: 9999 }} />
       </ErrorBoundary>
     </QueryClientProvider>

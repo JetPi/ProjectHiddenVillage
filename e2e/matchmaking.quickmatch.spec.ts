@@ -32,6 +32,13 @@ const MOCKED_CARDS = [
   { id: 'N-002', displayName: 'Another Character', type: 'Character', color: 'Red' },
 ]
 
+const MOCKED_PRESENCE = {
+  onlineViewers: 7,
+  waitingByRuleset: [{ rulesetId: RULESET_ID, rulesetName: MOCKED_RULESET.name, waitingCount: 3 }],
+  authenticatedViewers: 2,
+  anonymousViewers: 5,
+}
+
 type MatchmakingMockOptions = {
   /** Ticket state the status endpoint reports. `waiting` keeps the search dialog open. */
   statusState?: 'waiting' | 'matched'
@@ -54,6 +61,10 @@ async function mockQuickmatchNetwork(page: Page, options: MatchmakingMockOptions
   const enqueuedAtUtc = new Date().toISOString()
 
   await page.route(/\/api\/deck-rulesets$/, (route) => fulfillJson(route, [MOCKED_RULESET]))
+
+  // Presence is mocked too, and its socket is refused: a live snapshot would overwrite the figures under test.
+  await page.route(/\/api\/presence$/, (route) => fulfillJson(route, MOCKED_PRESENCE))
+  await page.route(/\/hubs\/presence(\/.*)?(\?.*)?$/, (route) => route.abort())
 
   await page.route(/\/api\/card\/catalog(\/by-ids)?(\?.*)?$/, (route) => fulfillJson(route, MOCKED_CARDS))
 
@@ -151,6 +162,8 @@ test('quick match queues under the selected format and joins the matched game', 
 
   // The quick-match combo shows the format the active rulesets provide, not a game code.
   await expect(page.getByRole('combobox', { name: 'Game Code' })).toHaveText(MOCKED_RULESET.name)
+  // Everyone with the site open is counted, in a game or not.
+  await expect(page.getByTestId('online-players')).toHaveText('7 players online')
 
   await submitQuickmatch(page, '1x L-001\n2x N-001')
 
@@ -179,6 +192,10 @@ test('the search dialog shows the wait and cancelling it releases the ticket', a
   const searchDialog = page.getByRole('dialog', { name: /Searching for a E2E Format opponent/ })
   await expect(searchDialog).toBeVisible()
   await expect(page.getByTestId('matchmaking-elapsed')).toBeVisible()
+  // Queue depth for the format being searched comes from the same presence snapshot.
+  await expect(page.getByTestId('matchmaking-waiting-players')).toHaveText(
+    '3 players are queued for this format.',
+  )
 
   await page.getByTestId('matchmaking-cancel').click()
 

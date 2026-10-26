@@ -29,6 +29,7 @@ import { ensurePlayerIdentity } from '@/state/guestSession'
 import { useSessionStore } from '@/state/sessionStore'
 import { useThemeStore } from '@/state/themeStore'
 import { useLoginViewModel } from '@/views/login/model/useLoginViewModel'
+import { usePresenceSnapshot } from '@/services/presence/usePresence'
 import type { ILoginActionData, ILoginLoaderData } from '@/views/login/types/routeHandlers'
 import { createGameForUser, joinGameAsPlayer } from '@/services/api/gameApi'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
@@ -166,6 +167,9 @@ export function LoginView() {
   const authUser = actionData?.login?.user ?? (authSession && !authSession.isGuest ? authSession : null)
   const authUsername = authUser?.username ?? ''
   const isGuestSession = authSession?.isGuest === true
+
+  const presenceSnapshot = usePresenceSnapshot()
+  const onlineViewers = presenceSnapshot?.onlineViewers ?? null
 
   const activeDeckRulesetsQuery = useActiveDeckRulesetsQuery()
   const enqueueMatchMutation = useEnqueueMatchMutation()
@@ -903,6 +907,14 @@ export function LoginView() {
           >
             {t('auth.title')}
           </p>
+          {onlineViewers !== null ? (
+            <p
+              data-testid="online-players"
+              className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]"
+            >
+              {t('auth.onlinePlayers', { count: onlineViewers })}
+            </p>
+          ) : null}
         </Panel>
         <Panel className="my-2 w-full px-5 pt-3">
           <Form className="mt-0 grid grid-cols-2 items-stretch gap-x-4" onSubmit={handleSubmit}>
