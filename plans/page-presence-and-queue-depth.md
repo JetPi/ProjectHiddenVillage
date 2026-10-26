@@ -81,8 +81,9 @@ missed. On failure it keeps the last known figure rather than blanking it.
 
 ### Where the numbers surface
 
-- Login screen: a badge under the title with `data-testid="online-players"` and pluralised copy
-  (`auth.onlinePlayers_one/_other`).
+- Login screen: a badge beside the theme toggle in the display-name row, with
+  `data-testid="online-players"` and pluralised copy (`auth.onlinePlayers_one/_other`). The title block shows the
+  tagline `auth.tagline` in the space the badge used to occupy.
 - Matchmaking search dialog: how many players are already waiting in the selected format, with
   `data-testid="matchmaking-waiting-players"` (`auth.matchmaking.waitingPlayers_one/_other`). When the snapshot is
   unknown it falls back to copy that quotes no number.

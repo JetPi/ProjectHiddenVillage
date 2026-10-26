@@ -6,6 +6,7 @@ import './index.css'
 import '@/i18n'
 import { AppRouter } from '@/app/AppRouter'
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary'
+import { AuthNoticeToaster } from '@/components/feedback/AuthNoticeToaster'
 import { PresenceProvider } from '@/services/presence/PresenceProvider'
 import { appQueryClient } from '@/services/queryClient'
 
@@ -18,6 +19,8 @@ createRoot(document.getElementById('root')!).render(
         <PresenceProvider>
           <AppRouter />
         </PresenceProvider>
+        {/* Above the router so a notice published by an action is shown no matter which route is mounted. */}
+        <AuthNoticeToaster />
         <Toaster position="bottom-right" richColors closeButton style={{ zIndex: 9999 }} />
       </ErrorBoundary>
     </QueryClientProvider>

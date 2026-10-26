@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { SubmitEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -8,7 +8,7 @@ import {
   gameCodeFieldConfigByMode,
   gameCodeModeOptions,
 } from '@/views/login/configs/LoginView'
-import { Link, useActionData, useLoaderData, useNavigate, useNavigation } from 'react-router-dom'
+import { Link, useActionData, useNavigate, useNavigation } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
 import { AppButton, Panel } from '@/components/ui'
 import {
@@ -30,7 +30,7 @@ import { useSessionStore } from '@/state/sessionStore'
 import { useThemeStore } from '@/state/themeStore'
 import { useLoginViewModel } from '@/views/login/model/useLoginViewModel'
 import { usePresenceSnapshot } from '@/services/presence/usePresence'
-import type { ILoginActionData, ILoginLoaderData } from '@/views/login/types/routeHandlers'
+import type { ILoginActionData } from '@/views/login/types/routeHandlers'
 import { createGameForUser, joinGameAsPlayer } from '@/services/api/gameApi'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import { createUserDeck, fetchDecks } from '@/services/api/deckApi'
@@ -103,7 +103,6 @@ function translateAdaptiveFieldConfig(config: IAdaptiveFieldConfig, t: TFunction
 
 export function LoginView() {
   const { t } = useTranslation()
-  const loaderData = useLoaderData() as ILoginLoaderData
   const actionData = useActionData() as ILoginActionData | undefined
   const navigation = useNavigation()
   const navigate = useNavigate()
@@ -139,9 +138,7 @@ export function LoginView() {
 
     return fontSet.check(TITLE_FONT_LOAD_QUERY)
   })
-  const hasShownSignupToast = useRef(false)
-  const lastAuthToastUsername = useRef<string | null>(null)
-  
+
   const setSession = useSessionStore((state) => state.setSession)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const {
@@ -205,29 +202,6 @@ export function LoginView() {
       isCancelled = true
     }
   }, [isTitleFontReady])
-
-  useEffect(() => {
-    if (!loaderData.signupSuccess || hasShownSignupToast.current) {
-      return
-    }
-
-    showAppSuccessToast(t('auth.toasts.accountCreated'), { id: 'signup-success', duration: 3200 })
-    hasShownSignupToast.current = true
-  }, [loaderData.signupSuccess, t])
-
-  useEffect(() => {
-    if (!authUsername) {
-      lastAuthToastUsername.current = null
-      return
-    }
-
-    if (loaderData.signupSuccess || lastAuthToastUsername.current === authUsername) {
-      return
-    }
-
-    showAppInfoToast(t('auth.toasts.loggedInAs', { username: authUsername }), { id: 'auth-login-status', duration: 3200 })
-    lastAuthToastUsername.current = authUsername
-  }, [authUsername, loaderData.signupSuccess, t])
 
   useEffect(() => {
     if (!authUsername) {
@@ -907,14 +881,9 @@ export function LoginView() {
           >
             {t('auth.title')}
           </p>
-          {onlineViewers !== null ? (
-            <p
-              data-testid="online-players"
-              className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]"
-            >
-              {t('auth.onlinePlayers', { count: onlineViewers })}
-            </p>
-          ) : null}
+          <p className="mt-2 text-sm text-[var(--text-secondary)] sm:text-base">
+            {t('auth.tagline')}
+          </p>
         </Panel>
         <Panel className="my-2 w-full px-5 pt-3">
           <Form className="mt-0 grid grid-cols-2 items-stretch gap-x-4" onSubmit={handleSubmit}>
@@ -922,15 +891,25 @@ export function LoginView() {
             <FormField className="col-span-2">
               <div className="flex items-center justify-between gap-3">
                 <FormLabel htmlFor="displayName" className="mb-0">{t('auth.displayName')}</FormLabel>
-                <AppButton
-                  type="button"
-                  variant="ghost"
-                  onClick={toggleTheme}
-                  aria-label={t('auth.toggleThemeAria')}
-                  className="h-6 w-6 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-                >
-                  <Lightbulb size={12} />
-                </AppButton>
+                <div className="flex items-center gap-2">
+                  {onlineViewers !== null ? (
+                    <p
+                      data-testid="online-players"
+                      className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]"
+                    >
+                      {t('auth.onlinePlayers', { count: onlineViewers })}
+                    </p>
+                  ) : null}
+                  <AppButton
+                    type="button"
+                    variant="ghost"
+                    onClick={toggleTheme}
+                    aria-label={t('auth.toggleThemeAria')}
+                    className="h-6 w-6 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+                  >
+                    <Lightbulb size={12} />
+                  </AppButton>
+                </div>
               </div>
               <div className="relative">
                 <FormInput

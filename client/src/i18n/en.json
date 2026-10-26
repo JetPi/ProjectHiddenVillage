@@ -125,6 +125,7 @@
   },
   "auth": {
     "title": "Shinobi Tactics",
+    "tagline": "A free Naruto TCG online simulator",
     "onlinePlayers_one": "{{count}} player online",
     "onlinePlayers_other": "{{count}} players online",
     "displayName": "Display Name",

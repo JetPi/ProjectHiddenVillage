@@ -1,8 +1,9 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router-dom'
+import type { ActionFunctionArgs } from 'react-router-dom'
 import i18n from '@/i18n'
 import { api } from '@/services/api/httpClient'
 import type { IAuthSession } from '@/state/authSession'
 import { persistAuthSession } from '@/state/authSession'
+import { publishAuthNotice } from '@/state/authNotices'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import type {
   ILoginActionData,
@@ -11,12 +12,12 @@ import type {
   ILoginResponse,
 } from '@/views/login/types/routeHandlers'
 
-export async function loginLoader({ request }: LoaderFunctionArgs): Promise<ILoginLoaderData> {
-  const url = new URL(request.url)
-
-  return {
-    signupSuccess: url.searchParams.get('signup') === 'success',
-  }
+/**
+ * Kept so the route still has a loader and therefore the same hydrate-fallback behaviour. It returns nothing:
+ * auth notices are events published by the actions, not data a navigation should re-derive.
+ */
+export async function loginLoader(): Promise<ILoginLoaderData> {
+  return null
 }
 
 export async function loginAction({ request }: ActionFunctionArgs): Promise<ILoginActionData> {
@@ -57,6 +58,7 @@ export async function loginAction({ request }: ActionFunctionArgs): Promise<ILog
     }
 
     persistAuthSession(authUser)
+    publishAuthNotice('signedIn', authUser.username)
 
     return {
       login: {
