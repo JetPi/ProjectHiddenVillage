@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using ProjectHiddenVillage.Server.Api.Testing;
 
 namespace ProjectHiddenVillage.Server;
 
@@ -8,9 +9,8 @@ public sealed record WarmStartGameRequest(int StartingPlayerPosition = 0);
 
 /// <summary>
 /// Test-only endpoints for the e2e suite. They mutate game state without going through the rules the players do,
-/// so every action answers 404 unless the API runs in Development *and* the test seed profiles are enabled (the
-/// e2e start script sets <c>PHV_INCLUDE_TEST_SEED_PROFILES=true</c>). A deployed build therefore cannot reach
-/// them even though the route exists.
+/// so every action is gated by <see cref="TestEndpointGate"/>: 404 unless the API runs in Development with the
+/// test seed profiles enabled.
 /// </summary>
 [ApiController]
 [Route("api/test/games")]
@@ -21,8 +21,6 @@ public sealed class TestGamesController(
     IConfiguration configuration,
     ILogger<TestGamesController> logger) : ApiControllerBase
 {
-    private const string TestEndpointsEnvironmentVariable = "PHV_INCLUDE_TEST_SEED_PROFILES";
-
     /// <summary>
     /// Walks a just-created two-player game through its opening and returns the first MainPhase, so an e2e
     /// scenario starts where it wants to assert instead of replaying the prompts and the phase walk.
@@ -51,27 +49,6 @@ public sealed class TestGamesController(
 
     private bool TestEndpointsAreEnabled()
     {
-        if (!environment.IsDevelopment())
-        {
-            return false;
-        }
-
-        var configured = configuration[TestEndpointsEnvironmentVariable];
-        if (bool.TryParse(configured, out var enabled) && enabled)
-        {
-            return true;
-        }
-
-        if (string.Equals(configured, "1", StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        logger.LogWarning(
-            "Refusing a test-endpoint call on {Path}: set {EnvironmentVariable}=true to enable them.",
-            HttpContext.Request.Path,
-            TestEndpointsEnvironmentVariable);
-
-        return false;
+        return TestEndpointGate.IsEnabled(environment, configuration, logger, HttpContext.Request.Path);
     }
 }

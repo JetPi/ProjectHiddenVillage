@@ -277,6 +277,14 @@ server build or e2e suite while the dev stack is live.
   (both `truncate`, full text in `title`), so the submit button stays put while a deck list is edited behind the
   modal without leaving a gap. The slot inherits the field's `space-y-2` above only, and the actions row uses
   `pt-1`, so the message sits close to both the import button and the submit button.
+- The multiplayer e2e fixture decks (`createFixtureDeck` in `e2e/helpers/multiplayer/fixtures.ts`) are minted
+  through the test-only `POST /api/test/decks` instead of `POST /api/deck`. They are deliberately illegal in every
+  format - a 25-card deck, 24 copies of one card, a deck built around a fabricated character - so the player write
+  path rejects them, and unlike the seed profiles they cannot be seeded. The route calls
+  `IDeckService.CreateFixtureDeckAsync`, which parses, resolves and stores the deck while skipping the ruleset
+  evaluation, and answers 404 unless the API runs in Development with `PHV_INCLUDE_TEST_SEED_PROFILES` (the same
+  gate as `api/test/games`, now shared through `TestEndpointGate`). Nothing a player can call changed: every save
+  still re-evaluates, so a fixture deck stays unsavable as it is.
 - Verified: `npm run typecheck`, `npm run lint`, `npm run test:server` (798 passing), `npm run db:migrate`,
   `npx playwright test e2e/admin.deck-builder.spec.ts e2e/admin.deck-ruleset-editor.spec.ts` (5 passing) and
   `npx playwright test e2e/login.deck-import.spec.ts` (1 passing).

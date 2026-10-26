@@ -335,24 +335,35 @@ function writeFixtureDeckLedger(deckIds: string[]): void {
  * Builds a public deck from the given `"<quantity>x <cardId>"` lines and returns its id, so a spec can use a deck
  * composition the seed manifest does not (and must not) contain.
  *
+ * It posts to the test-only endpoint rather than `/api/deck`, because the player write path evaluates the active
+ * rulesets: every fixture deck here is deliberately illegal in every format (a 25-card deck, 24 copies of one
+ * card, a deck carrying a fabricated card). The test endpoint parses and stores the deck while skipping that
+ * evaluation, exactly like the development seed profiles, and answers 404 unless the server runs in Development
+ * with the test seed profiles enabled - the e2e start script sets that variable.
+ *
  * The id is recorded in the fixture ledger, because the deck outlives the spec that made it: global teardown
  * deletes it after every worker exits, which is what keeps fabricated decks out of the database.
  */
 export async function createFixtureDeck(request: APIRequestContext, deckLines: string[]): Promise<string> {
-  const response = await request.post(`${API_BASE_URL}/api/deck`, {
-    headers: adminHeaders(),
+  const response = await request.post(`${API_BASE_URL}/api/test/decks`, {
     data: {
       type: 'Public',
       cards: deckLines.join('\n'),
     },
   })
 
-  expect(response.ok(), `creating a fixture deck (${deckLines.join(', ')})`).toBeTruthy()
-
   // The endpoint answers with a plain-text body (`Created` with a string payload goes through ASP.NET's
   // StringOutputFormatter), so this is not JSON and `response.json()` throws on it. Quotes are stripped
   // defensively in case that formatter ever changes to the JSON one.
   const rawDeckId = (await response.text()).trim()
+
+  // The body carries the validation message, which is the difference between "this fixture is malformed" and
+  // "the test endpoint is not reachable", so it belongs in the failure.
+  expect(
+    response.ok(),
+    `creating a fixture deck (${deckLines.join(', ')}) answered HTTP ${response.status()}: ${rawDeckId}`,
+  ).toBeTruthy()
+
   const deckId = rawDeckId.replace(/^"|"$/g, '')
 
   expect(deckId.length, `the deck endpoint should return the id it created, got "${rawDeckId}"`).toBeGreaterThan(0)

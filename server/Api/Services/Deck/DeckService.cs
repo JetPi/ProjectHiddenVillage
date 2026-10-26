@@ -32,7 +32,24 @@ public sealed partial class DeckService : IDeckService
         return options;
     }
 
-    public async Task<ErrorOr<string>> CreateDeck(CreateDeckRequest request)
+    public Task<ErrorOr<string>> CreateDeck(CreateDeckRequest request)
+    {
+        return CreateDeckAsync(request, enforceRulesets: true);
+    }
+
+    /// <summary>
+    /// Creates a deck without a ruleset evaluation.
+    ///
+    /// Only reachable through the test-only <see cref="TestDecksController"/>. The e2e suite mints engine fixtures
+    /// (a 25-card deck holding 24 copies of one card, a three-card combination that makes one interaction certain)
+    /// that no format can ever accept, so they must be creatable while staying unsavable for a player.
+    /// </summary>
+    public Task<ErrorOr<string>> CreateFixtureDeckAsync(CreateDeckRequest request)
+    {
+        return CreateDeckAsync(request, enforceRulesets: false);
+    }
+
+    private async Task<ErrorOr<string>> CreateDeckAsync(CreateDeckRequest request, bool enforceRulesets)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -104,15 +121,18 @@ public sealed partial class DeckService : IDeckService
                 group => new DeckRuleCardMetadata(group.First().CardId, group.First().Type, group.First().Color),
                 comparer: StringComparer.Ordinal);
 
-        var activeRulesets = await LoadActiveRulesetDefinitionsAsync();
-        var rulesetValidation = DeckRulesetRules.Evaluate(
-            parsedCards.Select(card => new DeckRuleCard(card.CardId, card.Quantity)),
-            metadataByCardId,
-            activeRulesets);
-
-        if (!rulesetValidation.IsLegalInAnyRuleset)
+        if (enforceRulesets)
         {
-            return ToRulesetErrors(rulesetValidation);
+            var activeRulesets = await LoadActiveRulesetDefinitionsAsync();
+            var rulesetValidation = DeckRulesetRules.Evaluate(
+                parsedCards.Select(card => new DeckRuleCard(card.CardId, card.Quantity)),
+                metadataByCardId,
+                activeRulesets);
+
+            if (!rulesetValidation.IsLegalInAnyRuleset)
+            {
+                return ToRulesetErrors(rulesetValidation);
+            }
         }
 
         var deckName = request.Name?.Trim() ?? string.Empty;
