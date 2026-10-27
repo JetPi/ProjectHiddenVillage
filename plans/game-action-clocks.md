@@ -255,10 +255,9 @@ Landed (server suite: 856 passed; client `typecheck` and `lint` clean):
   `useSyncExternalStore` ticker), `GameClockBadge` in the phase row, the `game.clock.*` strings, and the admin
   editor's Action clock section with its own validation messages.
 - **Result overlay reason text**, worded per standing (`game.outcome.reason.*`): the winner reads why the opponent
-  lost ("You won because your opponent ran out of time." / "... stopped responding and forfeited."), the loser reads
-  their own defeat ("You ran out of time." / "You had to draw from an empty deck." / "Your leader was reduced to 0
-  life."), and a draw gets a neutral line - so a stall forfeit is never described as a board result. The
-  `gameview.multiplayer.game-over` spec asserts both sides' wording.
+  lost ("Won by deck out.", "Opponent has left the game."), the loser reads their own defeat ("Lost by deck out.",
+  "You stopped playing."), and a draw gets a neutral line - so a stall forfeit is never described as a board result.
+  The `gameview.multiplayer.game-over` spec asserts both sides' wording against these strings.
 
 **Local setup note:** the server applies pending migrations at startup in Development (see `Program.cs`), which is
 what stops a schema change from surfacing as a runtime `column ... does not exist` on the first ruleset query. Set
