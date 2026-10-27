@@ -176,12 +176,16 @@
       "failedPublic": "Failed to load public decks.",
       "noSaved": "No saved decks found for this user.",
       "failedSaved": "Failed to load your decks.",
-      "deckLabel": "Deck {{number}} ({{shortId}}) - {{totalCards}} cards",
-      "namedDeckLabel": "{{name}} - {{totalCards}} cards"
+      "unnamedDeck": "Deck {{shortId}}"
     },
     "deckMode": {
       "saved": "saved deck",
       "public": "public deck"
+    },
+    "deckSummary": {
+      "legalPill": "Legal",
+      "illegalPill": "Not legal",
+      "importedDeck": "Imported deck"
     },
     "matchmaking": {
       "searchingTitle": "Searching for a {{ruleset}} opponent",
@@ -214,6 +218,7 @@
       "loginRequired": "Please log in before creating or joining a game.",
       "selectRuleset": "Please choose a format before searching for a match.",
       "deckNotLegalForRuleset": "This deck is not legal in {{ruleset}}. Fix the issues shown and try again.",
+      "deckNotLegalForJoinedGame": "This match is played in {{ruleset}}, and your deck does not fit it.",
       "deckInvalidForImportedDeck": "The selected deck isnt valid for the selected ruleset, please open the import view to see details",
       "matchmakingFailed": "The match search could not be started. Please try again.",
       "matchFound": "Opponent found. Joining the game.",

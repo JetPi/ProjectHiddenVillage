@@ -1,12 +1,18 @@
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { fetchGameState } from '@/services/api/gameApi'
-import type { IGameStateResponse } from '@/services/api/types/game'
+import { fetchGameRuleset, fetchGameState } from '@/services/api/gameApi'
+import type { IGameRulesetBindingResponse, IGameStateResponse } from '@/services/api/types/game'
 
 export const DEFAULT_GAME_STATE_STALE_TIME_MS = 15_000
 
 export const gameStateQueryKeys = {
   all: ['game-state'] as const,
   byCode: (joinCode: string) => ['game-state', joinCode.trim().toLowerCase()] as const,
+}
+
+export const gameRulesetQueryKeys = {
+  all: ['game-ruleset'] as const,
+  byCode: (joinCode: string) => ['game-ruleset', joinCode.trim().toLowerCase()] as const,
 }
 
 export type IUseGameStateQueryOptions = {
@@ -57,4 +63,55 @@ export function useGameStateQuery(joinCode: string | undefined, options: IUseGam
     enabled: (options.enabled ?? true) && normalizedJoinCode.length > 0,
     staleTime: options.staleTimeMs ?? DEFAULT_GAME_STATE_STALE_TIME_MS,
   })
+}
+
+/** Typing a five-character code should cost one lookup, not five. */
+const GAME_RULESET_LOOKUP_DEBOUNCE_MS = 250
+
+export type IGameRulesetLookup = {
+  /** The format of the game behind the code, or null while it is unknown or the game has none. */
+  ruleset: IGameRulesetBindingResponse | null
+  /** True while the code is still settling or its answer is on its way. */
+  isChecking: boolean
+}
+
+/**
+ * The format of the game a player is typing a code for, so their deck can be judged before they ask to join.
+ *
+ * The code is debounced, but the answer is only reported for the code currently in the field: a stale format must
+ * never judge a deck the player is about to bring to a different table. An unbound game and an unknown code both
+ * answer null, which reads as "nothing to check here".
+ */
+export function useGameRulesetByCodeQuery(joinCode: string | undefined): IGameRulesetLookup {
+  const requestedCode = joinCode?.trim() ?? ''
+  const [settledCode, setSettledCode] = useState('')
+
+  useEffect(() => {
+    // Clearing settles immediately; typing waits for the code to stop changing. Both go through the timer so the
+    // effect never sets state in its own body.
+    const delayMs = requestedCode ? GAME_RULESET_LOOKUP_DEBOUNCE_MS : 0
+    const timer = window.setTimeout(() => setSettledCode(requestedCode), delayMs)
+
+    return () => window.clearTimeout(timer)
+  }, [requestedCode])
+
+  // As with the state reads, the request must carry the code exactly as typed: the server keys codes ordinally.
+  const query = useQuery<IGameRulesetBindingResponse | null>({
+    queryKey: gameRulesetQueryKeys.byCode(settledCode),
+    queryFn: () => fetchGameRuleset(settledCode),
+    enabled: settledCode.length > 0,
+    // A game's format is fixed when it is minted, so one answer per code is final.
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
+    // A 404 already answers null, so a retry only asks the same question again.
+    retry: 1,
+  })
+
+  const isCurrentCode = settledCode === requestedCode
+  const hasAnswer = query.isSuccess && !query.isFetching
+
+  return {
+    ruleset: isCurrentCode && query.data ? query.data : null,
+    isChecking: requestedCode.length > 0 && (!isCurrentCode || !hasAnswer),
+  }
 }

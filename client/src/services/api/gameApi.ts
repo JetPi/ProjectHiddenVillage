@@ -4,6 +4,7 @@ import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import type {
   ICreateGameForUserRequest,
   IGameInstanceResponse,
+  IGameRulesetBindingResponse,
   IGameStateResponse,
   IJoinGameAsPlayerRequest,
 } from '@/services/api/types/game'
@@ -17,6 +18,7 @@ export type {
   IGameInstanceResponse,
   IGameOutcomeResponse,
   IGamePlayerStateResponse,
+  IGameRulesetBindingResponse,
   IGameStateResponse,
   IJoinGameAsPlayerRequest,
   IPendingPromptResponse,
@@ -88,4 +90,25 @@ export async function fetchGameCards(gameCode: string): Promise<ICardCatalogItem
 export async function fetchGameState(gameCode: string): Promise<IGameStateResponse> {
   const { data } = await api.get<IGameStateResponse>(`/api/games/${encodeURIComponent(gameCode)}/state`)
   return data
+}
+
+/**
+ * The format a game is played in, readable without being a player of it: a player holding a code needs it to judge
+ * their deck before asking to join. A code that matches no live game answers null, because that is an ordinary state
+ * while a code is being typed - and `null` also covers an unbound game, which has no format to check.
+ */
+export async function fetchGameRuleset(gameCode: string): Promise<IGameRulesetBindingResponse | null> {
+  try {
+    const { data } = await api.get<IGameRulesetBindingResponse | null>(
+      `/api/games/${encodeURIComponent(gameCode)}/ruleset`,
+    )
+
+    return data ?? null
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return null
+    }
+
+    throw error
+  }
 }

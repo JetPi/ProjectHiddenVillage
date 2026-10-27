@@ -193,6 +193,12 @@ test('quick match refuses a deck that does not fit the selected format without q
     ),
   ).toBeVisible()
   expect(queueRequests).toHaveLength(0)
+
+  // The inline summary judges the same deck against the format that would be queued for.
+  const summary = page.getByTestId('login-deck-summary')
+  await expect(summary).toHaveAttribute('data-legal', 'false')
+  await expect(page.getByTestId('login-deck-summary-pill')).toHaveText('Not legal')
+  await expect(summary.locator('span').last()).toHaveText('Imported deck')
 })
 
 test('the search dialog shows the wait and cancelling it releases the ticket', async ({ page }) => {

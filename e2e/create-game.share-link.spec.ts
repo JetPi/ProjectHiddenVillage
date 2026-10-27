@@ -92,6 +92,15 @@ async function mockCreateGameNetwork(
     await fulfillJson(route, [])
   })
 
+  // A typed code resolves to the mocked format, which is what lets the deck summary and the join check speak up.
+  await page.route(/\/api\/games\/[A-Z0-9]{5}\/ruleset$/, (route) =>
+    fulfillJson(route, {
+      id: RULESET_ID,
+      key: MOCKED_RULESET.key,
+      name: MOCKED_RULESET.name,
+    }),
+  )
+
   await page.route(/\/api\/user\/guest$/, (route) =>
     fulfillJson(route, {
       id: '11111111-1111-1111-1111-111111111111',
@@ -290,10 +299,51 @@ test('the Join button joins the typed code and never creates a game', async ({ p
   // The host format list is filled in as soon as the active formats arrive, which is also when the deck can be judged.
   await expect(page.getByRole('combobox', { name: 'Format' })).toContainText(MOCKED_RULESET.name)
   await page.getByLabel('Game Code').fill(joinedGameCode)
+
+  // Once the code resolves, the summary pill follows that table's format and the deck is named by its leader.
+  const summary = page.getByTestId('login-deck-summary')
+  await expect(summary).toHaveAttribute('data-legal', 'true')
+  await expect(page.getByTestId('login-deck-summary-pill')).toHaveText('Legal')
+  await expect(summary.locator('span').last()).toHaveText('L-001 Test Leader')
+
   await page.getByRole('button', { name: 'Join', exact: true }).click()
 
   await page.waitForURL(new RegExp(`/game/${joinedGameCode}$`))
   expect(joinPayloads).toHaveLength(1)
   expect(joinPayloads[0].deckId).toBe('e2e-deck-id')
+  expect(createPayloads).toHaveLength(0)
+})
+
+/**
+ * The live check the code buys: the deck is judged against the table's own format, and a deck that does not fit it is
+ * refused before the join request leaves the browser.
+ */
+test('joining a coded table refuses a deck that does not fit its format', async ({ page }) => {
+  const { createPayloads } = await mockCreateGameNetwork(page)
+  const joinedGameCode = 'E2EJN'
+  const joinPayloads: unknown[] = []
+
+  await page.route(new RegExp(`/api/games/${joinedGameCode}/join$`), async (route) => {
+    joinPayloads.push(route.request().postDataJSON())
+    await fulfillJson(route, { id: joinedGameCode })
+  })
+
+  // No leader, which the mocked format requires exactly one of.
+  await seedImportedDeck(page, '2x N-001')
+  await page.goto('/')
+  await page.getByLabel('Display Name').fill('Guest One')
+  await page.getByRole('radio', { name: 'Join or Host' }).click()
+  await page.getByLabel('Game Code').fill(joinedGameCode)
+
+  const summary = page.getByTestId('login-deck-summary')
+  await expect(summary).toHaveAttribute('data-legal', 'false')
+  await expect(page.getByTestId('login-deck-summary-pill')).toHaveText('Not legal')
+
+  await page.getByRole('button', { name: 'Join', exact: true }).click()
+
+  await expect(
+    page.getByText(`This match is played in ${MOCKED_RULESET.name}, and your deck does not fit it.`),
+  ).toBeVisible()
+  expect(joinPayloads).toHaveLength(0)
   expect(createPayloads).toHaveLength(0)
 })
