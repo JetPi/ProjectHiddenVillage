@@ -235,7 +235,8 @@ public sealed class DeckRulesetRulesTests
             AllowChakraCards: false,
             AllowSummonCards: false,
             MaxCopiesByCardId: restrictions
-                ?? new Dictionary<string, int>(StringComparer.Ordinal));
+                ?? new Dictionary<string, int>(StringComparer.Ordinal),
+            Clock: GameClockPolicy.Standard);
     }
 
     private static List<DeckRuleCard> BuildCards(int nonLeaderCount, int maxCopies, bool includeLeader = true)

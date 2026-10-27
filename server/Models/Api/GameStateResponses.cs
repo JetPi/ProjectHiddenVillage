@@ -36,7 +36,32 @@ public sealed record GameStateResponse(
     IReadOnlyList<AnimationEventResponse>? AnimationEvents = null,
     // The deck ruleset this game plays under, or null for a game created outside matchmaking. The board names
     // the format from this, and it is the reason a join-by-code can be refused.
-    GameRulesetBindingResponse? Ruleset = null);
+    GameRulesetBindingResponse? Ruleset = null,
+    // The action clock: who is being waited on, when their stop expires, and what is left of each player's pool.
+    // Null for an untimed ruleset, for a game whose clock has not been created yet, and once the game is over.
+    GameClockResponse? Clock = null);
+
+/// <summary>
+/// The action clock as a client renders it. <see cref="DeadlineUtc"/> is absolute on purpose: the client counts
+/// down toward it locally and re-syncs on every push, so a reload or a slow frame cannot drift the displayed time
+/// away from the engine's. <see cref="ServerNowUtc"/> is the server's own reading at mapping time, which lets a
+/// client correct for clock skew instead of trusting its own clock.
+/// </summary>
+public sealed record GameClockResponse(
+    bool IsEnabled,
+    string? OwningPlayerId,
+    string StopKind,
+    string? DeadlineUtc,
+    string ServerNowUtc,
+    int? SecondsRemainingInStop,
+    IReadOnlyList<GameClockPlayerResponse> Players);
+
+/// <summary>One player's side of the clock: what is left of their pool and how close they are to forfeiting.</summary>
+public sealed record GameClockPlayerResponse(
+    string PlayerId,
+    int SecondsRemainingInPool,
+    int ConsecutiveTimeouts,
+    int TimeoutsBeforeForfeit);
 
 /// <summary>The format a quick-match game was created under.</summary>
 public sealed record GameRulesetBindingResponse(string Id, string Key, string Name);

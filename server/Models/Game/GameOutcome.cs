@@ -11,7 +11,16 @@ public enum GameEndReason
     LeaderLifeDepleted,
 
     /// <summary>A player had to draw a card but their deck had no cards left.</summary>
-    DeckOut
+    DeckOut,
+
+    /// <summary>
+    /// A player let the action clock run out on the same stop, back to back, as many times as the ruleset allows:
+    /// they are treated as having left the game rather than as having lost it on the board.
+    /// </summary>
+    ForfeitByTimeout,
+
+    /// <summary>A player used up their whole-game time pool.</summary>
+    ClockExpired
 }
 
 /// <summary>

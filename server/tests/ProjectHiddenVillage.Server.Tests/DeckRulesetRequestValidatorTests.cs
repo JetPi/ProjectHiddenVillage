@@ -82,6 +82,30 @@ public sealed class DeckRulesetRequestValidatorTests
         Assert.IsTrue(result.IsValid, result.ToString());
     }
 
+    [TestMethod]
+    public void Validate_RejectsAClockBudgetAboveThePlayerPool()
+    {
+        var result = new CreateDeckRulesetRequestValidator().Validate(
+            CreateRequest() with { MainPhaseSeconds = 120, PlayerPoolSeconds = 60 });
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(
+            result.Errors.Any(error => error.ErrorMessage.Contains("whole-game pool")),
+            result.ToString());
+    }
+
+    [TestMethod]
+    public void Validate_RejectsAClockWithNoAllowedTimeout()
+    {
+        var result = new CreateDeckRulesetRequestValidator().Validate(
+            CreateRequest() with { TimeoutsBeforeForfeit = 0 });
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(
+            result.Errors.Any(error => error.PropertyName == nameof(CreateDeckRulesetRequest.TimeoutsBeforeForfeit)),
+            result.ToString());
+    }
+
     private static CreateDeckRulesetRequest CreateRequest(
         string key = "standard",
         int leaderCount = 1,

@@ -20,6 +20,7 @@ const MAX_NAME_LENGTH = 64
 const MAX_DECK_CARD_COUNT = 200
 const MAX_COPIES_PER_CARD = 99
 const MAX_RESTRICTION_COPIES = 99
+const MAX_TIMEOUTS_BEFORE_FORFEIT = 10
 
 const EMPTY_DRAFT: IDeckRulesetDraft = {
   key: '',
@@ -32,6 +33,11 @@ const EMPTY_DRAFT: IDeckRulesetDraft = {
   allowChakraCards: false,
   allowSummonCards: false,
   sortOrder: 0,
+  clockEnabled: true,
+  mainPhaseSeconds: 60,
+  otherPhaseSeconds: 30,
+  playerPoolSeconds: 1800,
+  timeoutsBeforeForfeit: 3,
   restrictions: [],
 }
 
@@ -47,6 +53,11 @@ function toDraft(ruleset: IDeckRuleset): IDeckRulesetDraft {
     allowChakraCards: ruleset.allowChakraCards,
     allowSummonCards: ruleset.allowSummonCards,
     sortOrder: ruleset.sortOrder,
+    clockEnabled: ruleset.clockEnabled,
+    mainPhaseSeconds: ruleset.mainPhaseSeconds,
+    otherPhaseSeconds: ruleset.otherPhaseSeconds,
+    playerPoolSeconds: ruleset.playerPoolSeconds,
+    timeoutsBeforeForfeit: ruleset.timeoutsBeforeForfeit,
     restrictions: ruleset.cardRestrictions.map((restriction) => ({ ...restriction })),
   }
 }
@@ -77,6 +88,11 @@ function toCreatePayload(draft: IDeckRulesetDraft): ICreateDeckRulesetRequest {
     allowChakraCards: draft.allowChakraCards,
     allowSummonCards: draft.allowSummonCards,
     sortOrder: draft.sortOrder,
+    clockEnabled: draft.clockEnabled,
+    mainPhaseSeconds: draft.mainPhaseSeconds,
+    otherPhaseSeconds: draft.otherPhaseSeconds,
+    playerPoolSeconds: draft.playerPoolSeconds,
+    timeoutsBeforeForfeit: draft.timeoutsBeforeForfeit,
     cardRestrictions: draft.restrictions.map((restriction) => ({
       cardId: restriction.cardId.trim(),
       maxCopies: restriction.maxCopies,
@@ -95,6 +111,11 @@ function toUpdatePayload(draft: IDeckRulesetDraft): IUpdateDeckRulesetRequest {
     allowChakraCards: draft.allowChakraCards,
     allowSummonCards: draft.allowSummonCards,
     sortOrder: draft.sortOrder,
+    clockEnabled: draft.clockEnabled,
+    mainPhaseSeconds: draft.mainPhaseSeconds,
+    otherPhaseSeconds: draft.otherPhaseSeconds,
+    playerPoolSeconds: draft.playerPoolSeconds,
+    timeoutsBeforeForfeit: draft.timeoutsBeforeForfeit,
     cardRestrictions: draft.restrictions.map((restriction) => ({
       cardId: restriction.cardId.trim(),
       maxCopies: restriction.maxCopies,
@@ -152,6 +173,35 @@ function buildViolations(
 
   if (!Number.isInteger(draft.sortOrder) || draft.sortOrder < 0) {
     violations.push({ messageKey: 'admin.rulesets.validation.sortOrder' })
+  }
+
+  // The action clock: a zero budget arms an already-expired deadline, and a stop longer than the whole-game pool
+  // would make the pool the only limit.
+  if (
+    !Number.isInteger(draft.mainPhaseSeconds)
+    || draft.mainPhaseSeconds < 1
+    || !Number.isInteger(draft.otherPhaseSeconds)
+    || draft.otherPhaseSeconds < 1
+    || !Number.isInteger(draft.playerPoolSeconds)
+    || draft.playerPoolSeconds < 1
+  ) {
+    violations.push({ messageKey: 'admin.rulesets.validation.clockBudget' })
+  } else if (
+    draft.mainPhaseSeconds > draft.playerPoolSeconds
+    || draft.otherPhaseSeconds > draft.playerPoolSeconds
+  ) {
+    violations.push({ messageKey: 'admin.rulesets.validation.clockBudgetAbovePool' })
+  }
+
+  if (
+    !Number.isInteger(draft.timeoutsBeforeForfeit)
+    || draft.timeoutsBeforeForfeit < 1
+    || draft.timeoutsBeforeForfeit > MAX_TIMEOUTS_BEFORE_FORFEIT
+  ) {
+    violations.push({
+      messageKey: 'admin.rulesets.validation.clockTimeouts',
+      params: { max: MAX_TIMEOUTS_BEFORE_FORFEIT },
+    })
   }
 
   const seenCardIds = new Set<string>()

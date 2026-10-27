@@ -14,6 +14,11 @@ export type IDeckRulesetDraft = {
   allowChakraCards: boolean
   allowSummonCards: boolean
   sortOrder: number
+  clockEnabled: boolean
+  mainPhaseSeconds: number
+  otherPhaseSeconds: number
+  playerPoolSeconds: number
+  timeoutsBeforeForfeit: number
   restrictions: IDeckRulesetRestrictionDraft[]
 }
 

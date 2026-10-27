@@ -23,7 +23,8 @@ public static partial class GameStateResponseMapper
             BuildEffectNotices(game, requestingPlayerId),
             isPhaseAutomationEnabled: game.IsPhaseAutomationEnabled,
             pendingPresentation: ToPhasePresentationResponse(game.PendingPhasePresentation),
-            ruleset: game.Ruleset);
+            ruleset: game.Ruleset,
+            clock: ToGameClockResponse(game));
     }
 
     public static GameStateResponse ToGameStateResponse(GameState state, string requestingPlayerId)
@@ -35,7 +36,8 @@ public static partial class GameStateResponseMapper
             effectNotices: null,
             isPhaseAutomationEnabled: false,
             pendingPresentation: null,
-            ruleset: null);
+            ruleset: null,
+            clock: null);
     }
 
     private static PhasePresentationResponse? ToPhasePresentationResponse(PendingPhasePresentation? presentation)
@@ -58,7 +60,8 @@ public static partial class GameStateResponseMapper
         IReadOnlyList<EffectNoticeResponse>? effectNotices,
         bool isPhaseAutomationEnabled,
         PhasePresentationResponse? pendingPresentation,
-        GameRulesetBinding? ruleset)
+        GameRulesetBinding? ruleset,
+        GameClockResponse? clock)
     {
         var phaseData = PhaseStateService.GetPhaseData(state.Phase);
         var hasOutcome = GameEndRules.IsGameOver(state);
@@ -112,7 +115,9 @@ public static partial class GameStateResponseMapper
                 : new GameRulesetBindingResponse(
                     Id: ruleset.Id.ToString(),
                     Key: ruleset.Key,
-                    Name: ruleset.Name));
+                    Name: ruleset.Name),
+            // A finished game has no clock left to run, and an untimed game never had one.
+            Clock: hasOutcome ? null : clock);
     }
 
     /// <summary>

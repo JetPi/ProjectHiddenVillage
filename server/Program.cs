@@ -71,6 +71,18 @@ builder.Services.AddSingleton(serviceProvider =>
         .Bind(options);
     return options;
 });
+// The action clock's deployment defaults and kill switch, plus the clock the registry arms its deadlines with.
+// TimeProvider is injected rather than read from the ambient clock so the timeout paths can be driven by a fake
+// clock in tests instead of by real waits (see plans/game-action-clocks.md).
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(serviceProvider =>
+{
+    var options = new ProjectHiddenVillage.Server.Engine.GameClockOptions();
+    serviceProvider.GetRequiredService<IConfiguration>()
+        .GetSection(ProjectHiddenVillage.Server.Engine.GameClockOptions.SectionName)
+        .Bind(options);
+    return options;
+});
 builder.Services.AddScoped<IGameEffectContextConditionEvaluator, EffectContextConditionEvaluator>();
 builder.Services.AddScoped<IGameEffectTargetResolver, EffectTargetResolver>();
 builder.Services.AddScoped<IGameRuntimeEffectSpecResolver, GameRuntimeEffectSpecResolver>();

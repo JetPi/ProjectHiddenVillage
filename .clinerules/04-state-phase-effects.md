@@ -104,6 +104,36 @@ job is therefore no longer to advance anything: it is to *present* the transitio
   list or the pickers. `GamePrompt` means "you owe the engine a decision"; this means "you owe the engine an
   animation receipt".
 
+## The action clock (per-stop deadlines, per-player pools, stall forfeiture)
+
+The contract is `plans/game-action-clocks.md`. Rules to keep:
+
+- **The engine owns the clock**, not the client: `GameClock` lives on the instance, is armed from the registry's
+  injected `TimeProvider`, and the client only renders `gameState.clock` (`deadlineUtc`, `serverNowUtc`, and each
+  player's pool and strike count).
+- **The owner is whoever the engine is waiting on** (`GameClockStopResolver`): the pending prompt's requested
+  player, the priority player in the cut-in window / support window / `ActionStep`, the active player in
+  `MainPhase` and in the optional On-Attack window. It is stopped - no deadline at all - while a phase presentation
+  is outstanding, while the drain owns the phase, before the second player joins, and once the game is over. A
+  system step is never charged to anybody.
+- **Any accepted mutation by the owner refreshes their stop** and clears their strikes (`SyncClock(instance,
+  actingPlayerId)` at every mutation boundary); the outgoing owner is charged only for the time they used, which is
+  what makes the reaction-window hand-over fair.
+- **A timeout may only yield or decline** (`ApplyTimeoutYield`): end the main phase, pass the cut-in, pass the
+  support window, decline the optional On-Attack choice, answer the mulligan with `noMulligan`, answer the starting
+  choice with `goSecond`. It must never spend a resource, move a card, declare an attack, activate a support or pick
+  a target - and a stop whose only answers change the board (an effect-selection prompt) is left standing with a
+  strike and a re-armed full budget.
+- **`TimeoutsBeforeForfeit` consecutive timeouts forfeit the game** (`GameEndReason.ForfeitByTimeout`), and a spent
+  pool ends it immediately (`GameEndReason.ClockExpired`). Both resolve through `GameEndRules.ResolveForfeit`, so
+  the opponent wins whatever the board says.
+- **The policy is snapshotted** from the ruleset's `Clock*` columns when the game is created; `GameClockOptions`
+  supplies an unbound game's defaults and the deployment kill switch. Editing a ruleset never retunes a running game.
+- Client side: `GameClockBadge` in the phase row, `useGameClockCountdown` (a `useSyncExternalStore` ticker with one
+  shared 250 ms interval that stops when no badge is mounted) and the pure math in
+  `utils/functions/gameState/gameClock.ts`. It renders nothing for `isEnabled: false` and `--:--` while the clock is
+  stopped, so a paused number never looks like a bug.
+
 ## Frozen HUD during an engine transition
 
 - The engine no longer publishes a system `advance-phase` action for these games at all

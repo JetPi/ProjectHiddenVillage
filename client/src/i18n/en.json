@@ -272,6 +272,12 @@
     }
   },
   "game": {
+    "clock": {
+      "yourClock": "Your clock",
+      "opponentClock": "Opponent's clock",
+      "paused": "--:--",
+      "strikes": "{{count}}/{{max}} timeouts"
+    },
     "phase": {
       "waitingForPlayers": "Waiting for player",
       "waitingForOpponent": "Waiting for opponent",
@@ -679,6 +685,13 @@
         "allowChakra": "Allow Chakra cards",
         "allowSummon": "Allow Summon cards",
         "sortOrder": "Sort order",
+        "clockTitle": "Action clock",
+        "clockHint": "A game created under this format plays under these timings. Editing them never changes a game that already started.",
+        "clockEnabled": "Time the game",
+        "mainPhaseSeconds": "Main phase budget (seconds)",
+        "otherPhaseSeconds": "Other stops budget (seconds)",
+        "playerPoolSeconds": "Player pool (seconds)",
+        "timeoutsBeforeForfeit": "Timeouts before forfeit",
         "restrictionsTitle": "Banned and limited cards",
         "restrictionsEmpty": "No card restrictions.",
         "restrictionsHint": "A max of 0 bans the card; a value below the copy cap limits it.",
@@ -700,6 +713,9 @@
         "cardCount": "The non-leader card count must be between 1 and {{max}}.",
         "maxCopies": "The copy cap must be between 1 and {{max}}.",
         "sortOrder": "Sort order cannot be negative.",
+        "clockBudget": "Clock budgets must be whole positive seconds.",
+        "clockBudgetAbovePool": "A single stop's budget cannot exceed the player's whole-game pool.",
+        "clockTimeouts": "Timeouts before forfeit must be between 1 and {{max}}.",
         "restrictionDuplicates": "Each card may appear only once in the restriction list.",
         "restrictionMaxCopies": "A restriction must allow between 0 and {{max}} copies."
       },

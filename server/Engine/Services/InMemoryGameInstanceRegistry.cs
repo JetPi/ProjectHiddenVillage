@@ -52,7 +52,11 @@ public sealed class InMemoryGameInstanceRegistry
         new(StringComparer.Ordinal);
 
     /// <summary>One watchdog per game: the timer that resumes the drain when acknowledgements never arrive.</summary>
-    private readonly ConcurrentDictionary<string, Timer> presentationWatchdogs =
+    private readonly ConcurrentDictionary<string, ITimer> presentationWatchdogs =
+        new(StringComparer.Ordinal);
+
+    /// <summary>One action-clock timer per game, armed for the deadline of the stop in progress.</summary>
+    private readonly ConcurrentDictionary<string, ITimer> clockWatchdogs =
         new(StringComparer.Ordinal);
 
     private readonly GameInstanceFactory factory;
@@ -61,13 +65,17 @@ public sealed class InMemoryGameInstanceRegistry
     private readonly GamePhaseAutomationOptions phaseAutomation;
     private readonly IGamePresenceTracker? presenceTracker;
     private readonly IGameStateBroadcaster? stateBroadcaster;
+    private readonly GameClockOptions clockOptions;
+    private readonly TimeProvider timeProvider;
 
     public InMemoryGameInstanceRegistry(
         GameInstanceFactory factory,
         global::ProjectHiddenVillage.Server.Engine.GamePhaseService phaseService,
         GamePhaseAutomationOptions? phaseAutomation = null,
         IGamePresenceTracker? presenceTracker = null,
-        IGameStateBroadcaster? stateBroadcaster = null)
+        IGameStateBroadcaster? stateBroadcaster = null,
+        GameClockOptions? clockOptions = null,
+        TimeProvider? timeProvider = null)
     {
         this.factory = factory;
         this.phaseService = phaseService;
@@ -77,6 +85,10 @@ public sealed class InMemoryGameInstanceRegistry
         this.phaseAutomation = phaseAutomation ?? new GamePhaseAutomationOptions();
         this.presenceTracker = presenceTracker;
         this.stateBroadcaster = stateBroadcaster;
+        // Timers are driven by the injected clock, not the ambient one, so the timeout paths can be tested by
+        // advancing a fake clock instead of waiting for real minutes to pass.
+        this.clockOptions = clockOptions ?? new GameClockOptions();
+        this.timeProvider = timeProvider ?? TimeProvider.System;
         runtimeDeckService = new Api.Services.Games.GameRuntimeDeckService(new GameEffectHandlingService());
     }
 
@@ -102,6 +114,7 @@ public sealed class InMemoryGameInstanceRegistry
             instance.State.GameId = normalizedCode;
             if (instances.TryAdd(instance.Id, instance))
             {
+                SyncClock(instance);
                 return instance;
             }
 
@@ -113,6 +126,7 @@ public sealed class InMemoryGameInstanceRegistry
             instance.State.GameId = GenerateGameCode();
             if (instances.TryAdd(instance.Id, instance))
             {
+                SyncClock(instance);
                 return instance;
             }
         }
@@ -167,6 +181,9 @@ public sealed class InMemoryGameInstanceRegistry
             }
 
             factory.JoinPlayer(instance, player, random);
+            // The second player is in: the clock now has somebody to wait on, so this is where a game starts being
+            // charged for its time.
+            SyncClock(instance);
             return instance;
         }
     }
@@ -202,6 +219,7 @@ public sealed class InMemoryGameInstanceRegistry
 
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
+            SyncClock(instance, requestedPlayerId);
             return instance;
         }
     }
@@ -328,6 +346,7 @@ public sealed class InMemoryGameInstanceRegistry
             DrainIdlePhases(instance, reactiveEffectOrchestrator, sequentialEffectExecutor);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
+            SyncClock(instance);
             return instance;
         }
     }
@@ -362,6 +381,7 @@ public sealed class InMemoryGameInstanceRegistry
                 DrainIdlePhases(instance, reactiveEffectOrchestrator, sequentialEffectExecutor);
                 instance.ValidateInvariants();
                 EvaluateGameEnd(instance);
+                SyncClock(instance, playerId);
                 return instance;
             }
 
@@ -381,6 +401,7 @@ public sealed class InMemoryGameInstanceRegistry
             DrainIdlePhases(instance, reactiveEffectOrchestrator, sequentialEffectExecutor);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
+            SyncClock(instance, playerId);
             return instance;
         }
     }
@@ -398,6 +419,7 @@ public sealed class InMemoryGameInstanceRegistry
             DrainIdlePhases(instance);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
+            SyncClock(instance, playerId);
             return instance;
         }
     }
@@ -501,6 +523,7 @@ public sealed class InMemoryGameInstanceRegistry
 
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
+            SyncClock(instance, request.PlayerId);
             return instance;
         }
     }
@@ -761,6 +784,7 @@ public sealed class InMemoryGameInstanceRegistry
             DrainIdlePhases(instance, null, sequentialEffectExecutor);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
+            SyncClock(instance, instance.State.ActivePlayerId);
             return instance;
         }
     }
@@ -776,6 +800,9 @@ public sealed class InMemoryGameInstanceRegistry
         {
             GameEndRules.ThrowIfGameOver(instance.State);
 
+            // The player whose turn is ending: the clock must credit the input to them before the turn swaps.
+            var completingPlayerId = instance.State.ActivePlayerId;
+
             // A turn can never end with an activation still waiting to resolve.
             ResolvePendingActivations(instance, sequentialEffectExecutor);
             phaseService.CompleteEndStep(instance);
@@ -783,6 +810,7 @@ public sealed class InMemoryGameInstanceRegistry
             DrainIdlePhases(instance, reactiveEffectOrchestrator, sequentialEffectExecutor);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
+            SyncClock(instance, completingPlayerId);
             return instance;
         }
     }
@@ -2774,11 +2802,11 @@ public sealed class InMemoryGameInstanceRegistry
             return;
         }
 
-        var watchdog = new Timer(
+        var watchdog = timeProvider.CreateTimer(
             callback: _ => ResumeAfterPresentationTimeout(gameId, presentationId),
             state: null,
-            dueTime: phaseAutomation.PresentationAckTimeoutMs,
-            period: Timeout.Infinite);
+            dueTime: TimeSpan.FromMilliseconds(phaseAutomation.PresentationAckTimeoutMs),
+            period: Timeout.InfiniteTimeSpan);
 
         presentationWatchdogs[gameId] = watchdog;
     }
@@ -2834,6 +2862,7 @@ public sealed class InMemoryGameInstanceRegistry
             DrainIdlePhases(instance, phaseAlreadyPresented: true);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
+            SyncClock(instance);
             didResume = true;
         }
 
@@ -2868,6 +2897,9 @@ public sealed class InMemoryGameInstanceRegistry
                 DrainIdlePhases(instance, phaseAlreadyPresented: true);
                 instance.ValidateInvariants();
                 EvaluateGameEnd(instance);
+                // The drain may have landed on an interactive phase somebody now owes an answer in: that is the
+                // stop the clock resumes on, and its budget starts fresh rather than counting the ack wait.
+                SyncClock(instance);
             }
 
             return instance;
@@ -2897,6 +2929,7 @@ public sealed class InMemoryGameInstanceRegistry
             DrainIdlePhases(instance, phaseAlreadyPresented: true);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
+            SyncClock(instance);
             didResume = true;
         }
 
@@ -2920,6 +2953,273 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         _ = stateBroadcaster.NotifyGameStateInvalidatedAsync(gameId);
+    }
+
+    /// <summary>The action-log entry a stop's timeout is recorded with.</summary>
+    private const string ClockTimedOutActionType = "clock_timed_out";
+
+    /// <summary>
+    /// Reconciles the action clock with the state the mutation just produced: seeds the clock, charges the player
+    /// whose stop just ended, resets strikes for a player who answered, and re-arms the next stop's deadline.
+    /// <paramref name="actingPlayerId"/> is whoever submitted the mutation (<c>null</c> for system-driven ones).
+    /// </summary>
+    private void SyncClock(GameInstance instance, string? actingPlayerId = null, bool forceRearm = false)
+    {
+        var now = timeProvider.GetUtcNow();
+        var clock = instance.StartClock(ResolveClockPolicy(instance), timeProvider);
+
+        if (!clock.IsEnabled || GameEndRules.IsGameOver(instance.State))
+        {
+            // Nothing is owed: an untimed ruleset never arms a timer, and a finished game has nobody left to time
+            // out. Disarming here is what keeps a watchdog from resurrecting a finished table.
+            clock.Stop();
+            ClearClockWatchdog(instance.Id);
+            return;
+        }
+
+        var result = clock.SyncTo(GameClockStopResolver.Resolve(instance), now, actingPlayerId, forceRearm);
+
+        if (result.HasExhaustedPool)
+        {
+            // A spent pool is a loss: the player who ran out of time cannot win by refusing to play.
+            GameEndRules.ResolveForfeit(instance.State, result.ExhaustedPlayerId!, GameEndReason.ClockExpired);
+            GameEndRules.EnsureGameEndLogged(instance);
+            clock.Stop();
+            ClearClockWatchdog(instance.Id);
+            return;
+        }
+
+        if (!result.Rearmed)
+        {
+            return;
+        }
+
+        if (clock.DeadlineUtc is { } deadline && clock.IsRunning)
+        {
+            ArmClockWatchdog(instance.Id, deadline, clock.DeadlineToken);
+            return;
+        }
+
+        ClearClockWatchdog(instance.Id);
+    }
+
+    /// <summary>The policy a game runs under: its ruleset's snapshot, or the deployment default for an unbound game.</summary>
+    private GameClockPolicy ResolveClockPolicy(GameInstance instance)
+    {
+        return instance.Ruleset is { } binding
+            ? clockOptions.Apply(binding.Clock)
+            : clockOptions.DefaultPolicy;
+    }
+
+    /// <summary>
+    /// Arms the stop's deadline. The timer carries the deadline token it was armed with, so a timer that fires
+    /// after the stop moved on (an action re-armed it, the turn ended) is recognised as stale and ignored rather
+    /// than ending a stop that is no longer in progress.
+    /// </summary>
+    private void ArmClockWatchdog(string gameId, DateTimeOffset deadlineUtc, long token)
+    {
+        ClearClockWatchdog(gameId);
+
+        var delay = deadlineUtc - timeProvider.GetUtcNow();
+        if (delay < TimeSpan.Zero)
+        {
+            delay = TimeSpan.Zero;
+        }
+
+        var watchdog = timeProvider.CreateTimer(
+            callback: _ => OnClockDeadline(gameId, token),
+            state: null,
+            dueTime: delay,
+            period: Timeout.InfiniteTimeSpan);
+
+        clockWatchdogs[gameId] = watchdog;
+    }
+
+    private void ClearClockWatchdog(string gameId)
+    {
+        if (clockWatchdogs.TryRemove(gameId, out var watchdog))
+        {
+            watchdog.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// The clock ran out on the player who owed the answer. Records the strike, ends the game if that was the
+    /// ruleset's limit (or the player's pool is spent), and otherwise has the engine take its yield move for them
+    /// and resume. The state changes outside any hub call, so the clients are told to pull it again.
+    /// </summary>
+    private void OnClockDeadline(string gameId, long token)
+    {
+        if (!instances.TryGetValue(gameId, out var instance) || instance is null)
+        {
+            ClearClockWatchdog(gameId);
+            return;
+        }
+
+        var didChange = false;
+
+        lock (instance)
+        {
+            var clock = instance.Clock;
+            if (clock is null || !clock.IsRunning || clock.DeadlineToken != token)
+            {
+                // Superseded (an action re-armed the stop) or stopped: no deadline is owed.
+                return;
+            }
+
+            var now = timeProvider.GetUtcNow();
+            if (clock.DeadlineUtc is not { } deadline)
+            {
+                return;
+            }
+
+            if (now < deadline)
+            {
+                // A timer that fired early: wait out the remainder instead of ending a stop that is still live.
+                ArmClockWatchdog(gameId, deadline, token);
+                return;
+            }
+
+            if (GameEndRules.IsGameOver(instance.State))
+            {
+                clock.Stop();
+                ClearClockWatchdog(gameId);
+                return;
+            }
+
+            var ownerPlayerId = clock.OwningPlayerId!;
+            var stopKind = clock.StopKind;
+            var strikes = clock.RegisterTimeout(now);
+            var forfeitLimit = clock.Policy.TimeoutsBeforeForfeit;
+            var secondsLeftInPool = (int)Math.Ceiling(clock.RemainingPool(ownerPlayerId).TotalSeconds);
+            var isPoolExhausted = secondsLeftInPool <= 0;
+
+            instance.AddActionLogEntry(
+                actionType: ClockTimedOutActionType,
+                message: $"Player '{ownerPlayerId}' ran out of time in {instance.State.Phase}.",
+                playerId: ownerPlayerId,
+                metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["phase"] = instance.State.Phase.ToString(),
+                    ["stopKind"] = stopKind.ToString(),
+                    ["consecutiveTimeouts"] = strikes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["timeoutsBeforeForfeit"] = forfeitLimit.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["secondsRemainingInPool"] = secondsLeftInPool.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                });
+
+            if (isPoolExhausted || strikes >= forfeitLimit)
+            {
+                // Stalling or walking away is a loss, not a draw: the opponent wins whatever the board says.
+                GameEndRules.ResolveForfeit(
+                    instance.State,
+                    ownerPlayerId,
+                    isPoolExhausted ? GameEndReason.ClockExpired : GameEndReason.ForfeitByTimeout);
+                GameEndRules.EnsureGameEndLogged(instance);
+                clock.Stop();
+                ClearClockWatchdog(gameId);
+                instance.ValidateInvariants();
+            }
+            else
+            {
+                ApplyTimeoutYield(instance, ownerPlayerId);
+                SweepContinuousPassives(instance, null);
+                AutoAdvanceMainPhaseIfNoLegalActions(instance);
+                DrainIdlePhases(instance);
+                instance.ValidateInvariants();
+                EvaluateGameEnd(instance);
+                // forceRearm covers the case where the yield could not change the stop (nothing to yield from):
+                // the same player is asked again with a full budget, and the strike they just earned stands.
+                SyncClock(instance, forceRearm: true);
+            }
+
+            didChange = true;
+        }
+
+        if (didChange)
+        {
+            NotifyStateInvalidated(gameId);
+        }
+    }
+
+    /// <summary>
+    /// The only moves a timeout may make on a player's behalf: yield the stop or decline the choice. It never
+    /// spends a resource, moves a card, declares an attack, activates a support or picks a target - a stop whose
+    /// only answers change the board (an effect selection prompt) is left standing and the strike is the whole
+    /// response, so an absent player forfeits while a present one loses nothing but time.
+    /// </summary>
+    private bool ApplyTimeoutYield(GameInstance instance, string ownerPlayerId)
+    {
+        var state = instance.State;
+
+        if (instance.GetPendingPrompt() is { } prompt)
+        {
+            if (ResolveTimeoutPromptOption(prompt) is not { } safeOption)
+            {
+                return false;
+            }
+
+            var phaseBeforeResolve = state.Phase;
+            instance.ResolvePrompt(ownerPlayerId, safeOption);
+
+            if (ShouldAdvanceAfterPromptResolution(phaseBeforeResolve, instance.GetPendingPrompt()))
+            {
+                phaseService.AdvancePhase(instance);
+            }
+
+            return true;
+        }
+
+        if (state.Phase == GamePhase.MainPhase && SupportTimingRules.HasPendingSupportActivation(state))
+        {
+            phaseService.DeclarePassInSupportWindow(instance, ownerPlayerId);
+            ResolvePendingActivations(instance, null);
+            state.PriorityPlayerId = state.ActivePlayerId;
+            return true;
+        }
+
+        switch (state.Phase)
+        {
+            case GamePhase.MainPhase:
+                phaseService.DeclareEndStep(instance);
+                return true;
+
+            case GamePhase.ActionStep:
+                var isCutInWindowClosed = phaseService.DeclarePassInActionStep(instance, ownerPlayerId);
+                if (isCutInWindowClosed)
+                {
+                    ResolvePendingActivations(instance, null);
+                    ApplyPendingAttackResolutionIfNeeded(instance, GamePhase.ActionStep);
+                }
+
+                return true;
+
+            case GamePhase.AttackDeclaration when !string.IsNullOrWhiteSpace(state.PendingAttackOptionalEffectSourceCardInstanceId):
+                var defenderPlayerId = state.PendingAttackDefenderPlayerId;
+                ClearPendingOptionalAttackEffectState(state);
+                EnterSupportCutInWindow(state, defenderPlayerId);
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// The safe answer to a setup prompt: declining the mulligan keeps the hand the player was dealt, and choosing
+    /// to go second takes no tempo. Every other prompt (an effect selection) needs a choice that changes the board,
+    /// so it has no safe answer and returns null.
+    /// </summary>
+    private static string? ResolveTimeoutPromptOption(GamePrompt prompt)
+    {
+        return prompt.Type switch
+        {
+            GamePromptType.Mulligan => prompt.Options.FirstOrDefault(option =>
+                string.Equals(option, "noMulligan", StringComparison.Ordinal)),
+            GamePromptType.ChooseStartingPlayer => prompt.Options.FirstOrDefault(option =>
+                string.Equals(option, "goSecond", StringComparison.Ordinal))
+                ?? prompt.Options.FirstOrDefault(),
+            _ => null
+        };
     }
 
     private void AutoAdvanceMainPhaseIfNoLegalActions(GameInstance instance)

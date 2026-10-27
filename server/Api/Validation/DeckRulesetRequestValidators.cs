@@ -42,6 +42,8 @@ public sealed class CreateDeckRulesetRequestValidator : AbstractValidator<Create
             request => request.MaxCopiesPerNonLeaderCard,
             request => request.SortOrder);
 
+        DeckRulesetShapeRules.AddClockRules(this);
+
         DeckRulesetShapeRules.AddRestrictionRules(this, request => request.CardRestrictions);
     }
 }
@@ -57,6 +59,8 @@ public sealed class UpdateDeckRulesetRequestValidator : AbstractValidator<Update
             request => request.NonLeaderCardCount,
             request => request.MaxCopiesPerNonLeaderCard,
             request => request.SortOrder);
+
+        DeckRulesetShapeRules.AddClockRules(this);
 
         DeckRulesetShapeRules.AddRestrictionRules(this, request => request.CardRestrictions);
     }
@@ -97,6 +101,39 @@ internal static class DeckRulesetShapeRules
         validator.RuleFor(sortOrderSelector)
             .GreaterThanOrEqualTo(0)
             .WithMessage("Sort order cannot be negative.");
+    }
+
+    internal const int MaxClockSeconds = 21_600;
+    internal const int MaxPoolSeconds = 14_400;
+    internal const int MaxTimeoutsBeforeForfeit = 10;
+
+    /// <summary>
+    /// The action-clock ranges. A zero budget would arm an already-expired deadline (so the first stop would time
+    /// out instantly), and a budget larger than the player's whole-game pool would make the pool the only limit.
+    /// </summary>
+    internal static void AddClockRules<T>(AbstractValidator<T> validator)
+        where T : IDeckRulesetClockRequest
+    {
+        validator.RuleFor(request => request.MainPhaseSeconds)
+            .InclusiveBetween(1, MaxClockSeconds)
+            .WithMessage($"A main phase budget must be between 1 and {MaxClockSeconds} seconds.");
+
+        validator.RuleFor(request => request.OtherPhaseSeconds)
+            .InclusiveBetween(1, MaxClockSeconds)
+            .WithMessage($"An other phase budget must be between 1 and {MaxClockSeconds} seconds.");
+
+        validator.RuleFor(request => request.PlayerPoolSeconds)
+            .InclusiveBetween(1, MaxPoolSeconds)
+            .WithMessage($"A player clock pool must be between 1 and {MaxPoolSeconds} seconds.");
+
+        validator.RuleFor(request => request.TimeoutsBeforeForfeit)
+            .InclusiveBetween(1, MaxTimeoutsBeforeForfeit)
+            .WithMessage($"Timeouts before forfeit must be between 1 and {MaxTimeoutsBeforeForfeit}.");
+
+        validator.RuleFor(request => request)
+            .Must(request => request.MainPhaseSeconds <= request.PlayerPoolSeconds
+                && request.OtherPhaseSeconds <= request.PlayerPoolSeconds)
+            .WithMessage("A single stop's budget cannot exceed the player's whole-game pool.");
     }
 
     internal static void AddRestrictionRules<T>(

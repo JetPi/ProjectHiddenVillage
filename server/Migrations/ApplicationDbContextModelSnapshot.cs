@@ -185,6 +185,9 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.Property<bool>("AllowSummonCards")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("ClockEnabled")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -199,6 +202,9 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.Property<int>("LeaderCount")
                         .HasColumnType("integer");
 
+                    b.Property<int>("MainPhaseSeconds")
+                        .HasColumnType("integer");
+
                     b.Property<int>("MaxCopiesPerNonLeaderCard")
                         .HasColumnType("integer");
 
@@ -210,10 +216,19 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.Property<int>("NonLeaderCardCount")
                         .HasColumnType("integer");
 
+                    b.Property<int>("OtherPhaseSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PlayerPoolSeconds")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("RequireLeaderColorMatch")
                         .HasColumnType("boolean");
 
                     b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TimeoutsBeforeForfeit")
                         .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
@@ -228,6 +243,8 @@ namespace ProjectHiddenVillage.Server.Migrations
 
                     b.ToTable("deck_rulesets", null, t =>
                         {
+                            t.HasCheckConstraint("CK_deck_rulesets_clock_positive", "\"MainPhaseSeconds\" > 0 AND \"OtherPhaseSeconds\" > 0 AND \"PlayerPoolSeconds\" > 0 AND \"TimeoutsBeforeForfeit\" > 0");
+
                             t.HasCheckConstraint("CK_deck_rulesets_counts_positive", "\"LeaderCount\" > 0 AND \"NonLeaderCardCount\" > 0 AND \"MaxCopiesPerNonLeaderCard\" > 0");
                         });
 
@@ -237,15 +254,20 @@ namespace ProjectHiddenVillage.Server.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000001"),
                             AllowChakraCards = false,
                             AllowSummonCards = false,
+                            ClockEnabled = true,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
                             Key = "standard",
                             LeaderCount = 1,
+                            MainPhaseSeconds = 60,
                             MaxCopiesPerNonLeaderCard = 4,
                             Name = "Standard",
                             NonLeaderCardCount = 50,
+                            OtherPhaseSeconds = 30,
+                            PlayerPoolSeconds = 1800,
                             RequireLeaderColorMatch = true,
                             SortOrder = 0,
+                            TimeoutsBeforeForfeit = 3,
                             UpdatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
                         },
                         new
@@ -253,15 +275,41 @@ namespace ProjectHiddenVillage.Server.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000002"),
                             AllowChakraCards = false,
                             AllowSummonCards = false,
+                            ClockEnabled = true,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
                             Key = "pre-release",
                             LeaderCount = 1,
+                            MainPhaseSeconds = 60,
                             MaxCopiesPerNonLeaderCard = 3,
                             Name = "Pre-Release",
                             NonLeaderCardCount = 30,
+                            OtherPhaseSeconds = 30,
+                            PlayerPoolSeconds = 1800,
                             RequireLeaderColorMatch = true,
                             SortOrder = 1,
+                            TimeoutsBeforeForfeit = 3,
+                            UpdatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000003"),
+                            AllowChakraCards = false,
+                            AllowSummonCards = false,
+                            ClockEnabled = false,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "time-relaxed",
+                            LeaderCount = 1,
+                            MainPhaseSeconds = 60,
+                            MaxCopiesPerNonLeaderCard = 4,
+                            Name = "Time Relaxed",
+                            NonLeaderCardCount = 50,
+                            OtherPhaseSeconds = 30,
+                            PlayerPoolSeconds = 1800,
+                            RequireLeaderColorMatch = true,
+                            SortOrder = 2,
+                            TimeoutsBeforeForfeit = 3,
                             UpdatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
                         });
                 });

@@ -1,5 +1,6 @@
 export * from './GamePhaseActionRow'
 export * from './GamePhaseIndicator'
+export * from './GameClockBadge'
 export * from './GamePromptOverlay'
 export * from './PromptSelectionBanner'
 export * from './GameHandRow'

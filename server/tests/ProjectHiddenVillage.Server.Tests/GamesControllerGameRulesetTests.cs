@@ -15,7 +15,8 @@ public sealed class GamesControllerGameRulesetTests
     private static readonly GameRulesetBinding Binding = new(
         Guid.Parse("20000000-0000-0000-0000-0000000000e3"),
         "e2e-format",
-        "E2E Format");
+        "E2E Format",
+        GameClockPolicy.Standard);
 
     [TestMethod]
     public void GetGameRuleset_ReturnsTheBinding_ForABoundGame()

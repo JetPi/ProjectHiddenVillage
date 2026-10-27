@@ -225,6 +225,83 @@ export function DeckRulesetEditorPane({
 
         <section>
           <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+            {t('admin.rulesets.editor.clockTitle')}
+          </h2>
+          <p className="text-[10px] text-[var(--text-muted)]">{t('admin.rulesets.editor.clockHint')}</p>
+
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <FormCheckboxField
+              id="admin-ruleset-clock-enabled"
+              data-testid="admin-ruleset-clock-enabled"
+              label={t('admin.rulesets.editor.clockEnabled')}
+              checked={draft.clockEnabled}
+              onChange={(event) => onPatch({ clockEnabled: event.target.checked })}
+            />
+
+            <div>
+              <FormLabel htmlFor="admin-ruleset-main-phase-seconds">
+                {t('admin.rulesets.editor.mainPhaseSeconds')}
+              </FormLabel>
+              <FormInput
+                id="admin-ruleset-main-phase-seconds"
+                data-testid="admin-ruleset-main-phase-seconds"
+                type="number"
+                min={1}
+                value={draft.mainPhaseSeconds}
+                onChange={(event) =>
+                  onPatch({ mainPhaseSeconds: Number.parseInt(event.target.value, 10) || 0 })}
+              />
+            </div>
+
+            <div>
+              <FormLabel htmlFor="admin-ruleset-other-phase-seconds">
+                {t('admin.rulesets.editor.otherPhaseSeconds')}
+              </FormLabel>
+              <FormInput
+                id="admin-ruleset-other-phase-seconds"
+                data-testid="admin-ruleset-other-phase-seconds"
+                type="number"
+                min={1}
+                value={draft.otherPhaseSeconds}
+                onChange={(event) =>
+                  onPatch({ otherPhaseSeconds: Number.parseInt(event.target.value, 10) || 0 })}
+              />
+            </div>
+
+            <div>
+              <FormLabel htmlFor="admin-ruleset-player-pool-seconds">
+                {t('admin.rulesets.editor.playerPoolSeconds')}
+              </FormLabel>
+              <FormInput
+                id="admin-ruleset-player-pool-seconds"
+                data-testid="admin-ruleset-player-pool-seconds"
+                type="number"
+                min={1}
+                value={draft.playerPoolSeconds}
+                onChange={(event) =>
+                  onPatch({ playerPoolSeconds: Number.parseInt(event.target.value, 10) || 0 })}
+              />
+            </div>
+
+            <div>
+              <FormLabel htmlFor="admin-ruleset-timeouts-before-forfeit">
+                {t('admin.rulesets.editor.timeoutsBeforeForfeit')}
+              </FormLabel>
+              <FormInput
+                id="admin-ruleset-timeouts-before-forfeit"
+                data-testid="admin-ruleset-timeouts-before-forfeit"
+                type="number"
+                min={1}
+                value={draft.timeoutsBeforeForfeit}
+                onChange={(event) =>
+                  onPatch({ timeoutsBeforeForfeit: Number.parseInt(event.target.value, 10) || 0 })}
+              />
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
             {t('admin.rulesets.editor.restrictionsTitle')}
           </h2>
           <p className="text-[10px] text-[var(--text-muted)]">

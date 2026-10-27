@@ -8,6 +8,7 @@ import { getPhaseValue, getPhaseThemeClasses, getTributeRequirementSummary } fro
 import { canConfirmEffectTargetSelection } from '@/views/game/utils/functions/gameState/canConfirmEffectTargetSelection'
 import { resolvePhaseActionChips } from '@/views/game/utils/functions/gameState/phaseActionChips'
 import { invertedPhaseThemeClassByPhaseTheme, phaseActionChipClassName, translatePhaseValue } from './constants/gamePhaseActionRow'
+import { GameClockBadge } from './GameClockBadge'
 
 function cancelActiveTargetingMode(): void {
   const state = useGameUIStore.getState()
@@ -143,6 +144,8 @@ function GamePhaseActionRow({
           ) : null}
           </>
         ) : null}
+
+        <GameClockBadge clock={gameInstance.clock} authUserId={authUserId} />
 
         <div
           data-testid={phaseTestId}

@@ -147,7 +147,9 @@ public sealed class MatchmakingService : IMatchmakingService
                 return ToResponse(ticket);
             }
 
-            game.Ruleset = new GameRulesetBinding(ruleset.Id, ruleset.Key, ruleset.Name);
+            // The clock policy travels with the binding: a ranked ruleset can tighten or switch off the clock
+            // without the matchmaker knowing anything about timers.
+            game.Ruleset = new GameRulesetBinding(ruleset.Id, ruleset.Key, ruleset.Name, ruleset.Clock);
             OpeningSupportSeeding.EnsureSupportCardSeededIntoOpeningDrawWindow(game, opponentDeck.Player.Id, opponent.DeckId);
             OpeningSupportSeeding.EnsureSupportCardSeededIntoOpeningDrawWindow(game, deck.Player.Id, ticket.DeckId);
 

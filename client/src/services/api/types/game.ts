@@ -191,6 +191,28 @@ export type IPhasePresentationResponse = {
   acknowledgedPlayerIds: string[]
 }
 
+export type IGameClockPlayerResponse = {
+  playerId: string
+  secondsRemainingInPool: number
+  consecutiveTimeouts: number
+  timeoutsBeforeForfeit: number
+}
+
+/**
+ * The action clock of the game. `deadlineUtc` is absolute and `serverNowUtc` is the server's own reading at mapping
+ * time, so the client counts down locally without trusting its own clock. `deadlineUtc` is null while the engine is
+ * not waiting on anybody (a system step, an outstanding presentation, or a finished game).
+ */
+export type IGameClockResponse = {
+  isEnabled: boolean
+  owningPlayerId: string | null
+  stopKind: string
+  deadlineUtc: string | null
+  serverNowUtc: string
+  secondsRemainingInStop: number | null
+  players: IGameClockPlayerResponse[]
+}
+
 export type IGameStateResponse = {
   gameId: string
   turnNumber: number
@@ -212,6 +234,9 @@ export type IGameStateResponse = {
   players: IGamePlayerStateResponse[]
   // Present only for a game created through matchmaking: the format both decks were validated against.
   ruleset?: IGameRulesetBindingResponse | null
+  // The action clock, or null for a game whose clock has not been created yet. An untimed ruleset publishes it with
+  // isEnabled false so the board can say the game is untimed instead of guessing.
+  clock?: IGameClockResponse | null
 }
 
 export type IGameRulesetBindingResponse = {

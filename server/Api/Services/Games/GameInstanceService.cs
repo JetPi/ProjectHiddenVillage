@@ -163,7 +163,9 @@ public sealed class GameInstanceService(
             return evaluation.Errors;
         }
 
-        return new GameRulesetBinding(definition.Id, definition.Key, definition.Name);
+        // The clock policy is snapshotted with the binding: the ruleset may be edited later, but a game that has
+        // already started must keep the timings its players agreed to.
+        return new GameRulesetBinding(definition.Id, definition.Key, definition.Name, definition.Clock);
     }
 
     private async Task<ErrorOr<Success>> EnsureDeckMatchesGameRulesetAsync(

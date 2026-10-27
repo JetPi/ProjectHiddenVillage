@@ -245,7 +245,11 @@ public sealed class MatchmakingServiceTests
 
         Assert.IsFalse(hostDeckResult.IsError);
         var boundGame = harness.Registry.Create([hostDeckResult.Value.Player], hostDeckResult.Value.CardDefinitions);
-        boundGame.Ruleset = new GameRulesetBinding(ruleset.PreReleaseId, "pre-release", "Pre-Release");
+        boundGame.Ruleset = new GameRulesetBinding(
+            ruleset.PreReleaseId,
+            "pre-release",
+            "Pre-Release",
+            GameClockPolicy.Standard);
 
         var illegalJoin = await harness.InstanceService.JoinGameForUser(
             boundGame.Id,

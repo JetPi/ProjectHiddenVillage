@@ -14,7 +14,10 @@ public sealed record DeckRulesetDefinition(
     bool RequireLeaderColorMatch,
     bool AllowChakraCards,
     bool AllowSummonCards,
-    IReadOnlyDictionary<string, int> MaxCopiesByCardId);
+    IReadOnlyDictionary<string, int> MaxCopiesByCardId,
+    // The timing rules a game created under this ruleset plays under. It is carried with the definition because
+    // creating a game reads exactly this object, and the clock must be snapshotted at that moment.
+    GameClockPolicy Clock);
 
 public sealed record DeckRuleViolation(
     string Code,
