@@ -152,7 +152,7 @@ async function submitQuickmatch(page: Page, deckText: string): Promise<void> {
   await seedImportedDeck(page, deckText)
   await page.goto('/')
   await page.getByLabel('Display Name').fill('Guest One')
-  await page.getByRole('button', { name: 'Enter Game' }).click()
+  await page.getByRole('button', { name: 'Find Match' }).click()
 }
 
 test('quick match queues under the selected format and joins the matched game', async ({ page }) => {
@@ -160,12 +160,12 @@ test('quick match queues under the selected format and joins the matched game', 
 
   await page.goto('/')
 
-  // The quick-match combo shows the format the active rulesets provide, not a game code.
-  const gameCodeSelect = page.getByRole('combobox', { name: 'Game Code' })
-  await expect(gameCodeSelect).toContainText(MOCKED_RULESET.name)
+  // The quick-match tab shows the format the active rulesets provide, not a game code.
+  const formatSelect = page.getByRole('combobox', { name: 'Format' })
+  await expect(formatSelect).toContainText(MOCKED_RULESET.name)
   // Each format row carries its queue depth from the presence snapshot, pinned to the right.
-  await expect(gameCodeSelect.getByTestId('queued-players-count')).toHaveText('3')
-  await gameCodeSelect.click()
+  await expect(formatSelect.getByTestId('queued-players-count')).toHaveText('3')
+  await formatSelect.click()
   await expect(
     page.getByRole('option', { name: /E2E Format/ }).getByTestId('queued-players-count'),
   ).toHaveText('3')

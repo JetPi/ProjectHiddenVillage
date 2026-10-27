@@ -2,13 +2,14 @@ import { expect, test } from '@playwright/test'
 import type { Page, Route } from '@playwright/test'
 
 /**
- * Create mode is exercised with the network mocked, for the same reason quick match is: the ruleset list, the
- * catalogue lookups, the guest session, the deck write and the game create call are all stubbed, so this spec can
- * use a two-card format instead of writing throw-away rulesets (and full-size decks) into the shared e2e database.
+ * Hosting is exercised with the network mocked, for the same reason quick match is: the ruleset list, the catalogue
+ * lookups, the guest session, the deck write and the game create call are all stubbed, so this spec can use a
+ * two-card format instead of writing throw-away rulesets (and full-size decks) into the shared e2e database.
  *
- * What is under test is the hand-off: `Enter Game` mints a real game, holds the creator on the login view with its
- * code and invite link, and only opens the board once they confirm. The server-side half - that a created game
- * only admits decks fitting the format it was created under - lives in GamesServiceUserDeckFlowTests.
+ * What is under test is the hand-off: `Host` mints a real game, holds the host on the login view with its code and
+ * invite link, and only opens the board once they confirm. The server-side half - that a created game only admits
+ * decks fitting the format it was created under - lives in GamesServiceUserDeckFlowTests. The last test covers the
+ * other half of the shared tab: `Join` posts the typed code and never reaches the create endpoint.
  */
 
 const RULESET_ID = '20000000-0000-0000-0000-0000000000e3'
@@ -151,18 +152,21 @@ async function seedImportedDeck(page: Page, deckText: string): Promise<void> {
   )
 }
 
-/** Create mode, like quick match, asks for a format instead of a code; the first active format is pre-selected. */
+/**
+ * Hosting, like quick match, asks for a format instead of a code; the first active format is pre-selected. Joining
+ * and hosting share a tab, each with its own button, so the format list next to the code field belongs to hosting.
+ */
 async function submitCreate(page: Page, deckText = '1x L-001\n2x N-001'): Promise<void> {
   await seedImportedDeck(page, deckText)
   await page.goto('/')
   await page.getByLabel('Display Name').fill('Guest One')
-  await page.getByRole('radio', { name: 'Create' }).click()
+  await page.getByRole('radio', { name: 'Join or Host' }).click()
 
-  await expect(page.getByRole('combobox', { name: 'Game Code' })).toContainText(MOCKED_RULESET.name)
-  // Queue depth is a matchmaking figure - who is waiting to be paired - which a creator opening their own table
-  // has no use for, so the create-mode format list stays plain.
+  await expect(page.getByRole('combobox', { name: 'Format' })).toContainText(MOCKED_RULESET.name)
+  // Queue depth is a matchmaking figure - who is waiting to be paired - which a host opening their own table
+  // has no use for, so the host format list stays plain.
   await expect(page.getByTestId('queued-players-count')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Enter Game' }).click()
+  await page.getByRole('button', { name: 'Host' }).click()
 }
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] })
@@ -258,6 +262,38 @@ test('a game that can no longer be checked says so and offers a way back', async
   await page.getByTestId('create-game-back').click()
 
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Enter Game' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Host' })).toBeVisible()
   expect(new URL(page.url()).pathname).toBe('/')
+})
+
+/**
+ * Joining and hosting share one tab, so the code field's own button has to reach the join endpoint with the typed
+ * code, and must never fall through to the create call sitting next to it.
+ */
+test('the Join button joins the typed code and never creates a game', async ({ page }) => {
+  const { createPayloads } = await mockCreateGameNetwork(page)
+  // Five characters, because the code field caps its length at the real code length.
+  const joinedGameCode = 'E2EJN'
+  const joinPayloads: { userId?: string; deckId?: string }[] = []
+
+  await page.route(new RegExp(`/api/games/${joinedGameCode}/join$`), async (route) => {
+    joinPayloads.push((route.request().postDataJSON() ?? {}) as { userId?: string; deckId?: string })
+    await fulfillJson(route, { id: joinedGameCode })
+  })
+  // The board behind the hand-off is not what this test is about; only the navigation target matters.
+  await page.route(new RegExp(`/api/games/${joinedGameCode}/state$`), (route) => route.abort())
+
+  await seedImportedDeck(page, '1x L-001\n2x N-001')
+  await page.goto('/')
+  await page.getByLabel('Display Name').fill('Guest One')
+  await page.getByRole('radio', { name: 'Join or Host' }).click()
+  // The host format list is filled in as soon as the active formats arrive, which is also when the deck can be judged.
+  await expect(page.getByRole('combobox', { name: 'Format' })).toContainText(MOCKED_RULESET.name)
+  await page.getByLabel('Game Code').fill(joinedGameCode)
+  await page.getByRole('button', { name: 'Join', exact: true }).click()
+
+  await page.waitForURL(new RegExp(`/game/${joinedGameCode}$`))
+  expect(joinPayloads).toHaveLength(1)
+  expect(joinPayloads[0].deckId).toBe('e2e-deck-id')
+  expect(createPayloads).toHaveLength(0)
 })

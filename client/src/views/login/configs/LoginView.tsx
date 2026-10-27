@@ -1,6 +1,6 @@
 import type { IToggleOption } from '@/components/forms'
 import type { IAdaptiveFieldConfig } from '@/components/forms'
-import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from '@/types/login'
+import type { IDeckOptionsEntryMode, IGameEntryMode, IGameIntent } from '@/types/login'
 
 export const deckOptionsModeOptions: readonly IToggleOption<IDeckOptionsEntryMode>[] = [
   { value: 'import', label: 'auth.config.deckImport' },
@@ -8,21 +8,25 @@ export const deckOptionsModeOptions: readonly IToggleOption<IDeckOptionsEntryMod
   { value: 'starter_decks', label: 'auth.config.deckStarter' },
 ]
 
-export const gameCodeModeOptions: readonly IToggleOption<IGameCodeEntryMode>[] = [
+export const gameEntryModeOptions: readonly IToggleOption<IGameEntryMode>[] = [
   { value: 'quickmatch', label: 'auth.config.modeQuickMatch' },
-  { value: 'join', label: 'auth.config.modeJoin' },
-  { value: 'create', label: 'auth.config.modeCreate' },
+  { value: 'join_or_host', label: 'auth.config.modeJoinOrHost' },
 ]
 
 /**
- * Quick match pairs players inside a format and create opens a table bound to one, so both modes ask for a format
- * instead of a code. The ruleset list itself comes from `useActiveDeckRulesetsQuery`, shared by both modes; only
- * join still types in the code of an existing game.
+ * Quick match queues inside a format and hosting opens a table bound to one, so both actions pick a format; joining
+ * by code does not, because the code decides the table. The question is about the action a button asks for, not the
+ * tab it sits on: the Join or Host tab offers both a format-driven action and a code-driven one side by side.
  */
-export function isRulesetSelectionMode(
-  mode: IGameCodeEntryMode,
-): mode is 'quickmatch' | 'create' {
-  return mode === 'quickmatch' || mode === 'create'
+export function isRulesetIntent(intent: IGameIntent): intent is 'quickmatch' | 'host' {
+  return intent === 'quickmatch' || intent === 'host'
+}
+
+const gameIntents: readonly IGameIntent[] = ['quickmatch', 'join', 'host']
+
+/** Narrowing for the `value` a submit button carries into the form's submit event. */
+export function isGameIntent(value: string): value is IGameIntent {
+  return gameIntents.some((intent) => intent === value)
 }
 
 export const joinGameCodeFieldConfig: IAdaptiveFieldConfig = {

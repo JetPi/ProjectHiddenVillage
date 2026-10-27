@@ -1,5 +1,9 @@
 # Create Game: ruleset-bound invites with a share dialog
 
+> The server half of this plan still stands. Its client half described a separate `Create` tab and an `Enter Game`
+> button; the tab has since been merged with `Join`, and the button is now `Host`. See
+> `plans/login-join-host-unification.md`.
+
 ## Problem
 
 Create mode still behaved like the pre-matchmaking login form: it asked the player to type a game code that the
