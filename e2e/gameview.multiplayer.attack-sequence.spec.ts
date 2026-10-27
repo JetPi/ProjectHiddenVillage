@@ -129,7 +129,7 @@ test.describe('GameView multiplayer attack sequence', () => {
         // for the whole 45 s below. Press again while the engine still reports the same active player: a press
         // that did take effect changes that state immediately, so this can never end two turns.
         for (let press = 0; press < 3; press += 1) {
-          await activePage.getByTestId('pass-turn-button').click()
+          await activePage.locator('[data-turn-advance="true"]').first().click()
 
           const turnChanged = await expect.poll(async () => {
             const nextState = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)

@@ -15,4 +15,5 @@ export * from './EffectNoticeBanner'
 export * from './GameOverOverlay'
 export * from './NonLeaderCardOverlay'
 export * from './SidebarButtons'
+export * from './MatchModifierBadge'
 

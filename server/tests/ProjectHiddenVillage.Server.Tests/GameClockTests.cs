@@ -190,7 +190,7 @@ public sealed class GameClockTests
     [TestMethod]
     public void SyncTo_ArmsNothing_WhenThePolicyIsDisabled()
     {
-        var clock = CreateClock(GameClockPolicy.TimeRelaxed);
+        var clock = CreateClock(GameClockPolicy.Untimed);
 
         var result = clock.SyncTo(new GameClockStop("p1", GameClockStopKind.MainPhase), Start);
 

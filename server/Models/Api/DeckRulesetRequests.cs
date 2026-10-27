@@ -20,7 +20,10 @@ public sealed record DeckRulesetResponse(
     int MainPhaseSeconds = 60,
     int OtherPhaseSeconds = 30,
     int PlayerPoolSeconds = 1800,
-    int TimeoutsBeforeForfeit = 3);
+    int TimeoutsBeforeForfeit = 3,
+    // Whether quick match may pair players on this format. Hosting, invites and joins ignore it, so a host-only
+    // format is still fully playable; it is simply never offered by the matchmaker.
+    bool AvailableInQuickMatch = true);
 
 /// <summary>
 /// The clock settings every create/update ruleset request carries. It exists so one validator rule set can be
@@ -57,7 +60,8 @@ public sealed record CreateDeckRulesetRequest(
     int MainPhaseSeconds = 60,
     int OtherPhaseSeconds = 30,
     int PlayerPoolSeconds = 1800,
-    int TimeoutsBeforeForfeit = 3) : IDeckRulesetClockRequest;
+    int TimeoutsBeforeForfeit = 3,
+    bool AvailableInQuickMatch = true) : IDeckRulesetClockRequest;
 
 public sealed record UpdateDeckRulesetRequest(
     string Name,
@@ -74,4 +78,5 @@ public sealed record UpdateDeckRulesetRequest(
     int MainPhaseSeconds = 60,
     int OtherPhaseSeconds = 30,
     int PlayerPoolSeconds = 1800,
-    int TimeoutsBeforeForfeit = 3) : IDeckRulesetClockRequest;
+    int TimeoutsBeforeForfeit = 3,
+    bool AvailableInQuickMatch = true) : IDeckRulesetClockRequest;

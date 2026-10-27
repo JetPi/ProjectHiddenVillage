@@ -1056,6 +1056,7 @@ public sealed partial class DeckService : IDeckService
                 Id: ruleset.Id,
                 Key: ruleset.Key,
                 Name: ruleset.Name,
+                AvailableInQuickMatch: ruleset.AvailableInQuickMatch,
                 LeaderCount: ruleset.LeaderCount,
                 NonLeaderCardCount: ruleset.NonLeaderCardCount,
                 MaxCopiesPerNonLeaderCard: ruleset.MaxCopiesPerNonLeaderCard,

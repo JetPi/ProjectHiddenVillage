@@ -6,6 +6,11 @@ export type ICreateGameForUserRequest = {
    * shared with is admitted only with a deck that fits the same rules.
    */
   rulesetId?: string
+  /**
+   * Host-only table rules, such as the untimed `time-relaxed` table. Quick match never sends these: its queue request
+   * has no modifier field, which is what keeps a relaxed table out of matchmaking by construction.
+   */
+  modifiers?: string[]
 }
 
 export type IJoinGameAsPlayerRequest = {
@@ -232,11 +237,14 @@ export type IGameStateResponse = {
   availableActions: IGameActionOptionResponse[]
   activeTemporaryEffects: IActiveTemporaryEffectResponse[]
   players: IGamePlayerStateResponse[]
-  // Present only for a game created through matchmaking: the format both decks were validated against.
+  // Present only for a game created under a format: the rules both decks were validated against.
   ruleset?: IGameRulesetBindingResponse | null
-  // The action clock, or null for a game whose clock has not been created yet. An untimed ruleset publishes it with
+  // The action clock, or null for a game whose clock has not been created yet. An untimed table publishes it with
   // isEnabled false so the board can say the game is untimed instead of guessing.
   clock?: IGameClockResponse | null
+  // Host-only table rules this game runs with (see GameModifierKeys on the server). Absent for a plain table and
+  // always absent in quick match.
+  modifiers?: string[] | null
 }
 
 export type IGameRulesetBindingResponse = {

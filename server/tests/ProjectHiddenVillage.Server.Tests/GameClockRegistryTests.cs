@@ -189,16 +189,18 @@ public sealed class GameClockRegistryTests
     }
 
     [TestMethod]
-    public void AnUntimedRulesetArmsNoClock()
+    public void ATimeRelaxedHostedGameArmsNoClockEvenUnderATimedRuleset()
     {
         var clock = new TestClockProvider(Start);
         var registry = CreateRegistry(clock);
         var game = CreateGame(registry);
+        // The format keeps its own (timed) policy; the host's modifier is what switches the clock off for this table.
         game.Ruleset = new GameRulesetBinding(
-            Guid.Parse("20000000-0000-0000-0000-000000000003"),
-            "time-relaxed",
-            "Time Relaxed",
-            GameClockPolicy.TimeRelaxed);
+            Guid.Parse("20000000-0000-0000-0000-000000000001"),
+            "standard",
+            "Standard",
+            GameClockPolicy.Standard);
+        game.Modifiers = [GameModifierKeys.TimeRelaxed];
 
         ResolveOpeningToMainPhase(registry, game);
 

@@ -82,6 +82,21 @@ reach every game mode.
   (`scripts/e2e-start-server.sh`).
 - `Matchmaking:*` and `Guests:*` are configuration sections; retention must stay far above any single test run.
 
+## Host-only formats and the time-relaxed modifier
+
+Added after the queue landed, see
+[`plans/time-relaxed-modifier-and-quickmatch-availability.md`](plans/time-relaxed-modifier-and-quickmatch-availability.md:1):
+
+- `DeckRuleset.AvailableInQuickMatch` (default true) decides who may pair on a format. The quick-match select, its
+  default selection and its deck evaluation filter on it, and `MatchmakingService.EnqueueAsync` refuses a host-only
+  format with `Matchmaking.Enqueue.RulesetNotQuickMatch` before a ticket exists. Hosting, invites, joins and the import
+  dialog keep offering every active format - an invite to a host-only format has to work.
+- "Time Relaxed" stopped being a ruleset. A host toggles the `time-relaxed` modifier on the table they open, which
+  switches the action clock off for that instance only; quick match has no modifier field, so it cannot reach a
+  relaxed game.
+- `GameStateResponse.Modifiers` names the rules a table runs with, so the created-game share dialog and the board
+  sidebar can tell a joiner the table is untimed instead of leaving them to infer it from a missing countdown.
+
 ## Header and e2e coverage
 
 - The board sidebar renders `GameStateResponse.Ruleset.Name` above the join code (`data-testid="game-ruleset-name"`),

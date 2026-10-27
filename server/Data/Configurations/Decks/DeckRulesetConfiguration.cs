@@ -8,7 +8,6 @@ public sealed class DeckRulesetConfiguration : IEntityTypeConfiguration<DeckRule
 {
     internal static readonly Guid StandardRulesetId = Guid.Parse("20000000-0000-0000-0000-000000000001");
     internal static readonly Guid PreReleaseRulesetId = Guid.Parse("20000000-0000-0000-0000-000000000002");
-    internal static readonly Guid TimeRelaxedRulesetId = Guid.Parse("20000000-0000-0000-0000-000000000003");
 
     private static readonly DateTimeOffset SeedTimestamp = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
@@ -29,6 +28,10 @@ public sealed class DeckRulesetConfiguration : IEntityTypeConfiguration<DeckRule
             .IsUnique();
 
         entity.HasIndex(record => new { record.IsActive, record.SortOrder });
+
+        // The matchmaker reads this pair on every enqueue, and an inactive format is filtered out of every list, so
+        // the two flags the "what may be queued for" question turns on are indexed together.
+        entity.HasIndex(record => new { record.IsActive, record.AvailableInQuickMatch });
 
         entity.HasMany(record => record.CardRestrictions)
             .WithOne(record => record.DeckRuleset)
@@ -85,29 +88,6 @@ public sealed class DeckRulesetConfiguration : IEntityTypeConfiguration<DeckRule
                 PlayerPoolSeconds = 1800,
                 TimeoutsBeforeForfeit = 3,
                 SortOrder = 1,
-                CreatedAtUtc = SeedTimestamp,
-                UpdatedAtUtc = SeedTimestamp,
-            },
-            // The untimed format: same deck rules as Standard, no action clock at all. This is the "create a game
-            // with a friend and take your time" option the plan calls for.
-            new DeckRuleset
-            {
-                Id = TimeRelaxedRulesetId,
-                Key = "time-relaxed",
-                Name = "Time Relaxed",
-                IsActive = true,
-                LeaderCount = 1,
-                NonLeaderCardCount = 50,
-                MaxCopiesPerNonLeaderCard = 4,
-                RequireLeaderColorMatch = true,
-                AllowChakraCards = false,
-                AllowSummonCards = false,
-                ClockEnabled = false,
-                MainPhaseSeconds = 60,
-                OtherPhaseSeconds = 30,
-                PlayerPoolSeconds = 1800,
-                TimeoutsBeforeForfeit = 3,
-                SortOrder = 2,
                 CreatedAtUtc = SeedTimestamp,
                 UpdatedAtUtc = SeedTimestamp,
             });

@@ -26,6 +26,8 @@ const EMPTY_DRAFT: IDeckRulesetDraft = {
   key: '',
   name: '',
   isActive: true,
+  // A new format joins the quick-match queue unless the admin deliberately marks it host-only.
+  availableInQuickMatch: true,
   leaderCount: 1,
   nonLeaderCardCount: 50,
   maxCopiesPerNonLeaderCard: 4,
@@ -46,6 +48,7 @@ function toDraft(ruleset: IDeckRuleset): IDeckRulesetDraft {
     key: ruleset.key,
     name: ruleset.name,
     isActive: ruleset.isActive,
+    availableInQuickMatch: ruleset.availableInQuickMatch,
     leaderCount: ruleset.leaderCount,
     nonLeaderCardCount: ruleset.nonLeaderCardCount,
     maxCopiesPerNonLeaderCard: ruleset.maxCopiesPerNonLeaderCard,
@@ -81,6 +84,7 @@ function toCreatePayload(draft: IDeckRulesetDraft): ICreateDeckRulesetRequest {
     key: draft.key.trim().toLowerCase(),
     name: draft.name.trim(),
     isActive: draft.isActive,
+    availableInQuickMatch: draft.availableInQuickMatch,
     leaderCount: draft.leaderCount,
     nonLeaderCardCount: draft.nonLeaderCardCount,
     maxCopiesPerNonLeaderCard: draft.maxCopiesPerNonLeaderCard,
@@ -104,6 +108,7 @@ function toUpdatePayload(draft: IDeckRulesetDraft): IUpdateDeckRulesetRequest {
   return {
     name: draft.name.trim(),
     isActive: draft.isActive,
+    availableInQuickMatch: draft.availableInQuickMatch,
     leaderCount: draft.leaderCount,
     nonLeaderCardCount: draft.nonLeaderCardCount,
     maxCopiesPerNonLeaderCard: draft.maxCopiesPerNonLeaderCard,

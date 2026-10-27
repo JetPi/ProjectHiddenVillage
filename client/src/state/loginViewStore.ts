@@ -22,6 +22,8 @@ const initialState = {
   gameEntryMode: 'quickmatch' as const,
   joinGameCode: '',
   rulesetIdByMode: initialRulesetIdByMode,
+  // Off by default: a hosted table is timed unless the host says otherwise, and quick match has no such toggle at all.
+  hostTimeRelaxed: false,
   deckOptionsMode: 'import' as IDeckOptionsEntryMode,
   deckOptionsByMode: initialDeckOptionsByMode,
   showDisplayNameError: false,
@@ -46,6 +48,7 @@ export const useLoginViewStore = create<ILoginViewStoreState>()((set, get) => ({
         [mode]: value,
       },
     })),
+  setHostTimeRelaxed: (value) => set({ hostTimeRelaxed: value }),
   setDeckOptionsMode: (mode) => set({ deckOptionsMode: mode }),
   setDeckOptionValue: (value) =>
     set((state) => ({

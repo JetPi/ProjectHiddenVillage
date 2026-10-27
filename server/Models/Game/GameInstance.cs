@@ -53,6 +53,16 @@ public sealed class GameInstance
     /// </summary>
     public GameRulesetBinding? Ruleset { get; set; }
 
+    /// <summary>
+    /// The modifiers the host opened this table with (see <see cref="GameModifierKeys"/>). They are stamped at
+    /// creation and never changed, so a running game keeps the rules its players agreed to. Quick match never sets
+    /// them: the queue request has no modifier field.
+    /// </summary>
+    public IReadOnlyList<string> Modifiers { get; set; } = [];
+
+    /// <summary>True when this table was hosted as "time relaxed": the action clock never runs here.</summary>
+    public bool IsTimeRelaxed => GameModifierKeys.IsTimeRelaxed(Modifiers);
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     public string Id => State.GameId;

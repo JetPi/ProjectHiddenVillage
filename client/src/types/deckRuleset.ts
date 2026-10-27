@@ -8,6 +8,11 @@ export type IDeckRuleset = {
   key: string
   name: string
   isActive: boolean
+  /**
+   * Whether quick match may pair players on this format. A host-only format stays fully playable through hosting,
+   * invites and joins; it is simply never offered by the matchmaker.
+   */
+  availableInQuickMatch: boolean
   leaderCount: number
   nonLeaderCardCount: number
   maxCopiesPerNonLeaderCard: number

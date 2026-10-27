@@ -21,6 +21,15 @@ public sealed class GameInstanceService(
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        // The table's modifiers are validated before anything is loaded: a host who asks for a rule this deployment
+        // does not know must be told, not quietly hosted a different game.
+        if (!GameModifierKeys.TryNormalize(request.Modifiers, out var modifiers, out var unknownModifier))
+        {
+            return Error.Validation(
+                code: "Game.CreateForUser.UnknownModifier",
+                description: $"Unknown game modifier '{unknownModifier}'. Known modifiers: {GameModifierKeys.AllowedList}.");
+        }
+
         var playerDeckResult = await gameReadService.ResolvePlayerDeckData(request.UserId, request.DeckId, operationName: "Game.CreateForUser");
         if (playerDeckResult.IsError)
         {
@@ -41,7 +50,11 @@ public sealed class GameInstanceService(
 
         try
         {
-            var gameInstance = registry.Create([playerDeck.Player], playerDeck.CardDefinitions, preferredGameCode);
+            var gameInstance = registry.Create(
+                [playerDeck.Player],
+                playerDeck.CardDefinitions,
+                preferredGameCode,
+                modifiers: modifiers);
             gameInstance.Ruleset = rulesetBindingResult.Value;
             OpeningSupportSeeding.EnsureSupportCardSeededIntoOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId);
             return gameInstance;

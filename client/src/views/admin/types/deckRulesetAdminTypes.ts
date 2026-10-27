@@ -7,6 +7,7 @@ export type IDeckRulesetDraft = {
   key: string
   name: string
   isActive: boolean
+  availableInQuickMatch: boolean
   leaderCount: number
   nonLeaderCardCount: number
   maxCopiesPerNonLeaderCard: number

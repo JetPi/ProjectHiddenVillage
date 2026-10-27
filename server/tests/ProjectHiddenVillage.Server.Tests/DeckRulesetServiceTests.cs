@@ -165,8 +165,8 @@ public sealed class DeckRulesetServiceTests
         var service = new DeckRulesetService(dbContext);
 
         var result = await service.CreateRuleset(new CreateDeckRulesetRequest(
-            Key: "time-relaxed",
-            Name: "Time Relaxed",
+            Key: "untimed",
+            Name: "Untimed",
             IsActive: true,
             LeaderCount: 1,
             NonLeaderCardCount: 50,
@@ -197,6 +197,58 @@ public sealed class DeckRulesetServiceTests
         Assert.AreEqual(TimeSpan.FromSeconds(20), definitionResult.Value.Clock.OtherPhaseBudget);
         Assert.AreEqual(TimeSpan.FromSeconds(900), definitionResult.Value.Clock.PlayerPoolBudget);
         Assert.AreEqual(2, definitionResult.Value.Clock.TimeoutsBeforeForfeit);
+    }
+
+    [TestMethod]
+    public async Task CreateRuleset_PersistsQuickMatchAvailability()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new DeckRulesetService(dbContext);
+
+        var hostOnly = await service.CreateRuleset(CreateRequest(key: "invite-only", availableInQuickMatch: false));
+
+        Assert.IsFalse(hostOnly.IsError, hostOnly.IsError ? hostOnly.FirstError.Description : string.Empty);
+        Assert.IsFalse(hostOnly.Value.AvailableInQuickMatch);
+
+        // The queue reads the definition, so that projection has to carry the flag too.
+        var definitionResult = await service.GetActiveRulesetDefinition(hostOnly.Value.Id);
+        Assert.IsFalse(definitionResult.IsError);
+        Assert.IsFalse(definitionResult.Value.AvailableInQuickMatch);
+
+        // Flipping it back makes the format quick-matchable again without touching anything else.
+        var updated = await service.UpdateRuleset(hostOnly.Value.Id.ToString(), new UpdateDeckRulesetRequest(
+            Name: "Invite Only",
+            IsActive: true,
+            LeaderCount: 1,
+            NonLeaderCardCount: 50,
+            MaxCopiesPerNonLeaderCard: 4,
+            RequireLeaderColorMatch: true,
+            AllowChakraCards: false,
+            AllowSummonCards: false,
+            SortOrder: 0,
+            CardRestrictions: [],
+            AvailableInQuickMatch: true));
+
+        Assert.IsFalse(updated.IsError, updated.IsError ? updated.FirstError.Description : string.Empty);
+        Assert.IsTrue(updated.Value.AvailableInQuickMatch);
+        Assert.IsTrue(await dbContext.DeckRulesets
+            .Where(ruleset => ruleset.Id == hostOnly.Value.Id)
+            .Select(ruleset => ruleset.AvailableInQuickMatch)
+            .SingleAsync());
+    }
+
+    [TestMethod]
+    public async Task CreateRuleset_IsQuickMatchableByDefault()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new DeckRulesetService(dbContext);
+
+        var result = await service.CreateRuleset(CreateRequest(key: "standard"));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        Assert.IsTrue(
+            result.Value.AvailableInQuickMatch,
+            "A new format joins the queue unless the admin deliberately marks it host-only.");
     }
 
     [TestMethod]
@@ -247,7 +299,8 @@ public sealed class DeckRulesetServiceTests
 
     private static CreateDeckRulesetRequest CreateRequest(
         string key = "standard",
-        IReadOnlyList<DeckRulesetCardRestrictionRequest>? restrictions = null)
+        IReadOnlyList<DeckRulesetCardRestrictionRequest>? restrictions = null,
+        bool availableInQuickMatch = true)
     {
         return new CreateDeckRulesetRequest(
             Key: key,
@@ -260,7 +313,8 @@ public sealed class DeckRulesetServiceTests
             AllowChakraCards: false,
             AllowSummonCards: false,
             SortOrder: 0,
-            CardRestrictions: restrictions ?? []);
+            CardRestrictions: restrictions ?? [],
+            AvailableInQuickMatch: availableInQuickMatch);
     }
 
     private static DeckRuleset CreateRulesetEntity(

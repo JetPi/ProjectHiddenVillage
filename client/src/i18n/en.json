@@ -136,6 +136,7 @@
     "format": "Format",
     "join": "Join",
     "host": "Host",
+    "hostTimeRelaxed": "Time relaxed (no action clock)",
     "findMatch": "Find Match",
     "deckOptions": "Deck Options",
     "deckOptionsModeAria": "Deck options input mode",
@@ -470,9 +471,14 @@
       "cardCountOne": "{{n}} card",
       "cardCountOther": "{{n}} cards"
     },
+    "matchModifier": {
+      "timeRelaxed": "Time relaxed"
+    },
+    "matchInfo": {
+      "joinCode": "Join code"
+    },
     "sidebar": {
       "toggleThemeAria": "Toggle light and dark mode",
-      "passTurnAria": "Pass turn",
       "forfeitAria": "Forfeit the game",
       "forfeitTooltip": "Forfeit Game",
       "cancelAttackAria": "Cancel attack target selection",
@@ -480,7 +486,6 @@
       "undoAria": "Undo action",
       "openLogAria": "Open log",
       "toggleThemeTooltip": "Toggle Theme",
-      "passTurnTooltip": "Do Nothing / Pass",
       "cancelAttackTooltip": "Cancel Attack Target",
       "cancelTargetTooltip": "Cancel Target Selection",
       "undoTooltip": "Undo Action",
@@ -723,6 +728,8 @@
         "allowChakra": "Allow Chakra cards",
         "allowSummon": "Allow Summon cards",
         "sortOrder": "Sort order",
+        "availableInQuickMatch": "Available in Quick Match",
+        "availableInQuickMatchHint": "Uncheck to keep this format out of quick match. It stays playable when hosting and through invites.",
         "clockTitle": "Action clock",
         "clockHint": "A game created under this format plays under these timings. Editing them never changes a game that already started.",
         "clockEnabled": "Time the game",

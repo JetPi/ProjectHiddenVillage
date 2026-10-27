@@ -187,6 +187,17 @@ export function DeckRulesetEditorPane({
             checked={draft.isActive}
             onChange={(event) => onPatch({ isActive: event.target.checked })}
           />
+          {/* Unchecked keeps the format playable through hosting and invites; it only removes it from the queue. */}
+          <FormCheckboxField
+            id="admin-ruleset-quick-match"
+            data-testid="admin-ruleset-quick-match"
+            label={t('admin.rulesets.editor.availableInQuickMatch')}
+            checked={draft.availableInQuickMatch}
+            onChange={(event) => onPatch({ availableInQuickMatch: event.target.checked })}
+          />
+          <p className="text-[10px] leading-4 text-[var(--text-muted)] sm:col-span-2">
+            {t('admin.rulesets.editor.availableInQuickMatchHint')}
+          </p>
           <FormCheckboxField
             id="admin-ruleset-color-match"
             data-testid="admin-ruleset-color-match"

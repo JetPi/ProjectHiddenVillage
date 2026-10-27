@@ -8,6 +8,9 @@ public sealed record DeckRulesetDefinition(
     Guid Id,
     string Key,
     string Name,
+    // Whether quick match may pair players on this format. Hosting, invites and joins ignore it: a host-only
+    // format is still fully playable, it is simply never offered by the matchmaker.
+    bool AvailableInQuickMatch,
     int LeaderCount,
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,

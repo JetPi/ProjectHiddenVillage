@@ -16,7 +16,7 @@ import {
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IAttackTargetingState, IEffectTargetingState, IGameLoaderData, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
-import { BottomHandReorderRow, EffectNoticeBanner, GameHandRow, GamePromptOverlay, GameOverOverlay, GameZones, PromptSelectionBanner, SupportChainBubble } from '@/views/game/components'
+import { BottomHandReorderRow, EffectNoticeBanner, GameHandRow, GamePromptOverlay, GameOverOverlay, GameZones, MatchModifierBadge, PromptSelectionBanner, SupportChainBubble } from '@/views/game/components'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
@@ -35,7 +35,6 @@ import {
   usePersistedBattlefieldDisplayOrderEffect,
   useBattlefieldCards,
   useCurrentBattlefieldRawCards,
-  usePassLikeAction,
   useRetainedActionBlocked,
   useRetainedPhaseActionSource,
   useGameCardsBackfill,
@@ -155,10 +154,8 @@ export function GameView() {
     setBottomBattlefieldDisplayOrder,
   })
 
-  const { phaseActions: retainedOrLiveAvailableActions, isHolding } = useRetainedPhaseActionSource(mappedAvailableActions)
+  const { isHolding } = useRetainedPhaseActionSource(mappedAvailableActions)
   const { isActionBlocked } = useRetainedActionBlocked(!isConnected || isActionPending)
-
-  const passLikeAction = usePassLikeAction({ mappedAvailableActions: retainedOrLiveAvailableActions })
 
   function beginBattleTargeting(targeting: IAttackTargetingState): void {
     setActiveAttackLink(null)
@@ -229,14 +226,6 @@ export function GameView() {
     submitMappedGameAction({ ...gameActionDeps, action })
   }
 
-  function handlePassLikeAction(): void {
-    if (isHolding || !passLikeAction || !passLikeAction.isEnabled) {
-      return
-    }
-
-    submitMappedAction(passLikeAction)
-  }
-
   async function handlePromptResolve(selectedOption: string): Promise<void> {
     await resolvePromptAction({ ...gameActionDeps, selectedOption })
   }
@@ -253,6 +242,10 @@ export function GameView() {
       <div
         className={`mx-auto h-full min-h-0 w-full overflow-visible gap-1.5 rounded-2xl ${GAMEBOARD_MAX_WIDTH_CLASS} ${GAMEBOARD_COLUMNS_CLASS}`}
       >
+        {/* Only the table's modifiers ride here as a solid overlay. The format name and join code keep their
+            original vertical labels in the side rail. */}
+        <MatchModifierBadge modifiers={gameState.modifiers} />
+
         <Panel
           className="col-span-full h-full min-h-0 border-hidden overflow-visible bg-transparent pt-0 pb-0.5 px-0.5 backdrop-blur-none"
           style={{ backdropFilter: 'none' }}
@@ -321,7 +314,6 @@ export function GameView() {
               onConfirmSummonTargetSelection={submitSummonTargetSelection}
               onConfirmEffectTargetSelection={submitEffectTargetSelection}
               onToggleTheme={toggleTheme}
-              onPassTurn={handlePassLikeAction}
               onForfeit={forfeitGame}
             />
 

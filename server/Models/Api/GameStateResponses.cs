@@ -38,8 +38,13 @@ public sealed record GameStateResponse(
     // the format from this, and it is the reason a join-by-code can be refused.
     GameRulesetBindingResponse? Ruleset = null,
     // The action clock: who is being waited on, when their stop expires, and what is left of each player's pool.
-    // Null for an untimed ruleset, for a game whose clock has not been created yet, and once the game is over.
-    GameClockResponse? Clock = null);
+    // Null for a game whose clock has not been created yet and once the game is over; a table hosted as "time
+    // relaxed" publishes it with IsEnabled = false instead, so the clients can tell untimed-by-design from unstarted.
+    GameClockResponse? Clock = null,
+    // The host-only table rules this game runs with (see GameModifierKeys), or null for a plain table. Always null
+    // for a quick-match game. The board names them so a joiner is told the table is untimed instead of inferring it
+    // from a missing countdown.
+    IReadOnlyList<string>? Modifiers = null);
 
 /// <summary>
 /// The action clock as a client renders it. <see cref="DeadlineUtc"/> is absolute on purpose: the client counts

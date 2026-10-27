@@ -1,6 +1,15 @@
 import type { TFunction } from 'i18next'
 import { translateKey } from '@/i18n'
 
+// The action ids that walk the turn forward. The rail used to own a single "skip" button that submitted whichever
+// of these the engine offered; that control is gone, so the action row is now the only place it can be pressed and
+// it tags the matching chip so tests (and future code) can still find exactly that control.
+const turnAdvanceActionIds = new Set(['pass-turn', 'turn-end', 'endPhase', 'declare-end-step'])
+
+function isTurnAdvanceActionId(actionId: string): boolean {
+  return turnAdvanceActionIds.has(actionId)
+}
+
 const phaseActionChipClassName =
   'h-full shrink-0 whitespace-nowrap rounded-md border border-[var(--border-subtle)] px-1.5 text-[10px] font-extrabold leading-none transition-[color,background-color,filter] duration-300 ease-out enabled:hover:brightness-120'
 
@@ -78,6 +87,7 @@ function translatePhaseValue(t: TFunction, phaseValue: string): string {
 }
 
 export {
+  isTurnAdvanceActionId,
   phaseActionChipClassName,
   invertedPhaseThemeClassByPhaseTheme,
   PhaseValues,

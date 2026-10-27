@@ -86,7 +86,7 @@ async function passTurnViaUi(
   const isPlayerOneActive = normalizeUserId(state.activePlayerId) === setup.playerOne.normalizedUserId
   const activePage = isPlayerOneActive ? pages.playerOnePage : pages.playerTwoPage
 
-  await activePage.getByTestId('pass-turn-button').click()
+  await activePage.locator('[data-turn-advance="true"]').first().click()
   await expect.poll(async () => {
     const nextState = await fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken)
     return nextState.phase

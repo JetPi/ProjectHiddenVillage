@@ -260,9 +260,9 @@ Landed (server suite: 856 passed; client `typecheck` and `lint` clean):
   life."), and a draw gets a neutral line - so a stall forfeit is never described as a board result. The
   `gameview.multiplayer.game-over` spec asserts both sides' wording.
 
-**Local setup note:** `npm run dev` does not migrate the database, so an existing dev database must run
-`npm run db:migrate` once after pulling this change - otherwise the ruleset queries fail with
-`column d.ClockEnabled does not exist`.
+**Local setup note:** the server applies pending migrations at startup in Development (see `Program.cs`), which is
+what stops a schema change from surfacing as a runtime `column ... does not exist` on the first ruleset query. Set
+`Database:MigrateOnStartup=false` to keep the schema manual; production still owns it through `npm run db:migrate`.
 
 - **Manual forfeit (added after the clock landed).** `GameEndReason.Resigned` resolved through the same
   `GameEndRules.ResolveForfeit`, a `ForfeitGame` hub method on its own path (the presentation gate refuses every
@@ -280,6 +280,21 @@ Still open:
   the optional On-Attack decline. Both share the pass/decline paths the cut-in test already covers, and the existing
   attack e2e specs will exercise them once they run with the clock on.
 - A registry-level "two timeouts, then an action resets the count" test (the reset itself is unit-tested).
+
+## Superseded: "Time Relaxed" is a modifier, not a ruleset
+
+The seeded `time-relaxed` ruleset is gone (migration `AddQuickMatchAvailabilityAndDropTimeRelaxedRuleset`). It made an
+untimed game look like a format, so quick match offered it and paired players on it. An untimed table is now a
+**host-only modifier** on the created game:
+
+- `GameModifierKeys.TimeRelaxed` travels in `CreateGameForUserRequest.Modifiers` and is stamped on the
+  [`GameInstance`](server/Models/Game/GameInstance.cs:12); the enqueue request has no modifier field at all, so quick
+  match cannot ask for it.
+- [`ResolveClockPolicy()`](server/Engine/Services/InMemoryGameInstanceRegistry.cs:3046) applies it last
+  (`basePolicy.WithoutClock()`), so it wins over whatever policy the ruleset binds while the snapshot rule survives.
+- `GameClockPolicy.TimeRelaxed` was renamed `Untimed` because no ruleset binds it any more.
+- The ruleset clock columns and `ClockEnabled` stay: a format can still tighten its timings, and the admin decides
+  whether that format is quick-matchable at all (`AvailableInQuickMatch`).
 
 ## Implementation decisions (deltas from the plan above)
 

@@ -25,8 +25,15 @@ public sealed record GameClockPolicy(
         TimeoutsBeforeForfeit: 3,
         RefreshOnAction: true);
 
-    /// <summary>The untimed policy a "time relaxed" ruleset binds: nothing is ever armed or published.</summary>
-    public static GameClockPolicy TimeRelaxed { get; } = Standard with { Enabled = false };
+    /// <summary>
+    /// The untimed policy: nothing is ever armed or published. A "time relaxed" table reaches this by applying the
+    /// host's modifier on top of whatever policy its ruleset binds (see <see cref="GameModifierKeys.TimeRelaxed"/>),
+    /// so no ruleset has to exist just to switch the clock off.
+    /// </summary>
+    public static GameClockPolicy Untimed { get; } = Standard with { Enabled = false };
+
+    /// <summary>Turns the clock off, keeping every other timing value for the clients that still read them.</summary>
+    public GameClockPolicy WithoutClock() => this with { Enabled = false };
 
     /// <summary>
     /// The budget of one stop. <paramref name="isMainPhase"/> is true only for a main phase the active player

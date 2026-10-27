@@ -24,7 +24,8 @@ public static partial class GameStateResponseMapper
             isPhaseAutomationEnabled: game.IsPhaseAutomationEnabled,
             pendingPresentation: ToPhasePresentationResponse(game.PendingPhasePresentation),
             ruleset: game.Ruleset,
-            clock: ToGameClockResponse(game));
+            clock: ToGameClockResponse(game),
+            modifiers: game.Modifiers.Count == 0 ? null : game.Modifiers);
     }
 
     public static GameStateResponse ToGameStateResponse(GameState state, string requestingPlayerId)
@@ -37,7 +38,8 @@ public static partial class GameStateResponseMapper
             isPhaseAutomationEnabled: false,
             pendingPresentation: null,
             ruleset: null,
-            clock: null);
+            clock: null,
+            modifiers: null);
     }
 
     private static PhasePresentationResponse? ToPhasePresentationResponse(PendingPhasePresentation? presentation)
@@ -61,7 +63,8 @@ public static partial class GameStateResponseMapper
         bool isPhaseAutomationEnabled,
         PhasePresentationResponse? pendingPresentation,
         GameRulesetBinding? ruleset,
-        GameClockResponse? clock)
+        GameClockResponse? clock,
+        IReadOnlyList<string>? modifiers)
     {
         var phaseData = PhaseStateService.GetPhaseData(state.Phase);
         var hasOutcome = GameEndRules.IsGameOver(state);
@@ -116,8 +119,10 @@ public static partial class GameStateResponseMapper
                     Id: ruleset.Id.ToString(),
                     Key: ruleset.Key,
                     Name: ruleset.Name),
-            // A finished game has no clock left to run, and an untimed game never had one.
-            Clock: hasOutcome ? null : clock);
+            // A finished game has no clock left to run. An untimed table still publishes the block with
+            // IsEnabled = false, so the client distinguishes it from a game whose clock has not started.
+            Clock: hasOutcome ? null : clock,
+            Modifiers: modifiers);
     }
 
     /// <summary>

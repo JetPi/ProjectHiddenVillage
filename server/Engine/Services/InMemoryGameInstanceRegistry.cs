@@ -96,12 +96,20 @@ public sealed class InMemoryGameInstanceRegistry
         IReadOnlyList<Player> players,
         IReadOnlyDictionary<string, Card> cardDefinitions,
         string? preferredGameCode,
-        Random? random = null)
+        Random? random = null,
+        IReadOnlyList<string>? modifiers = null)
     {
         var instance = factory.Create(players, cardDefinitions, random);
         // The payload has to say who owns the non-interactive phases: with the automation on the client must not
         // be offered the system action at all (see GameInstance.IsPhaseAutomationEnabled).
         instance.IsPhaseAutomationEnabled = phaseAutomation.Enabled;
+
+        // Modifiers are stamped before the first clock sync, so the instance is never briefly created under a policy
+        // its host did not ask for (see GameInstance.Modifiers).
+        if (modifiers is { Count: > 0 })
+        {
+            instance.Modifiers = modifiers;
+        }
 
         if (!string.IsNullOrWhiteSpace(preferredGameCode))
         {
@@ -3042,12 +3050,18 @@ public sealed class InMemoryGameInstanceRegistry
         ClearClockWatchdog(instance.Id);
     }
 
-    /// <summary>The policy a game runs under: its ruleset's snapshot, or the deployment default for an unbound game.</summary>
+    /// <summary>
+    /// The policy a game runs under: its ruleset's snapshot (or the deployment default for an unbound game), with the
+    /// host's "time relaxed" modifier applied last. This is the one place a modifier can change the clock, so the
+    /// snapshot on the instance stays the only thing a running game is judged by.
+    /// </summary>
     private GameClockPolicy ResolveClockPolicy(GameInstance instance)
     {
-        return instance.Ruleset is { } binding
+        var basePolicy = instance.Ruleset is { } binding
             ? clockOptions.Apply(binding.Clock)
             : clockOptions.DefaultPolicy;
+
+        return instance.IsTimeRelaxed ? basePolicy.WithoutClock() : basePolicy;
     }
 
     /// <summary>

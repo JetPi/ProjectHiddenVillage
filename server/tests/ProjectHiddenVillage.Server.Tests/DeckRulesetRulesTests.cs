@@ -228,6 +228,7 @@ public sealed class DeckRulesetRulesTests
             Id: id ?? StandardRulesetId,
             Key: key,
             Name: name,
+            AvailableInQuickMatch: true,
             LeaderCount: 1,
             NonLeaderCardCount: nonLeaderCardCount,
             MaxCopiesPerNonLeaderCard: maxCopies,

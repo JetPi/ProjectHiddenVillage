@@ -62,17 +62,18 @@ public sealed class GameStateResponseMapperClockTests
     }
 
     [TestMethod]
-    public void ToGameStateResponse_PublishesNoClockForAnUntimedGame()
+    public void ToGameStateResponse_PublishesAnUntimedClockForATimeRelaxedGame()
     {
         var registry = CreateRegistry(new TestClockProvider(DateTimeOffset.UtcNow));
         var game = CreateGame(registry);
         game.Ruleset = new GameRulesetBinding(
-            Guid.Parse("20000000-0000-0000-0000-000000000003"),
-            "time-relaxed",
-            "Time Relaxed",
-            GameClockPolicy.TimeRelaxed);
+            Guid.Parse("20000000-0000-0000-0000-000000000001"),
+            "standard",
+            "Standard",
+            GameClockPolicy.Standard);
+        game.Modifiers = [GameModifierKeys.TimeRelaxed];
 
-        // Any mutation rebuilds the clock under the ruleset's policy.
+        // Any mutation rebuilds the clock under the ruleset's policy plus the host's modifier.
         var prompt = game.GetPendingPrompt()!;
         registry.ResolvePrompt(game.Id, prompt.RequestedPlayerId, "goFirst");
 
@@ -83,6 +84,10 @@ public sealed class GameStateResponseMapperClockTests
         Assert.IsNull(response.Clock.DeadlineUtc);
         Assert.IsNull(response.Clock.SecondsRemainingInStop);
         Assert.IsNull(response.Clock.OwningPlayerId);
+        CollectionAssert.AreEqual(
+            new[] { GameModifierKeys.TimeRelaxed },
+            response.Modifiers?.ToArray(),
+            "The payload names the modifier so both clients can label the table.");
     }
 
     [TestMethod]

@@ -185,6 +185,9 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.Property<bool>("AllowSummonCards")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("AvailableInQuickMatch")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("ClockEnabled")
                         .HasColumnType("boolean");
 
@@ -239,6 +242,8 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.HasIndex("Key")
                         .IsUnique();
 
+                    b.HasIndex("IsActive", "AvailableInQuickMatch");
+
                     b.HasIndex("IsActive", "SortOrder");
 
                     b.ToTable("deck_rulesets", null, t =>
@@ -254,6 +259,7 @@ namespace ProjectHiddenVillage.Server.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000001"),
                             AllowChakraCards = false,
                             AllowSummonCards = false,
+                            AvailableInQuickMatch = true,
                             ClockEnabled = true,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
@@ -275,6 +281,7 @@ namespace ProjectHiddenVillage.Server.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000002"),
                             AllowChakraCards = false,
                             AllowSummonCards = false,
+                            AvailableInQuickMatch = true,
                             ClockEnabled = true,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
@@ -288,27 +295,6 @@ namespace ProjectHiddenVillage.Server.Migrations
                             PlayerPoolSeconds = 1800,
                             RequireLeaderColorMatch = true,
                             SortOrder = 1,
-                            TimeoutsBeforeForfeit = 3,
-                            UpdatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000003"),
-                            AllowChakraCards = false,
-                            AllowSummonCards = false,
-                            ClockEnabled = false,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "time-relaxed",
-                            LeaderCount = 1,
-                            MainPhaseSeconds = 60,
-                            MaxCopiesPerNonLeaderCard = 4,
-                            Name = "Time Relaxed",
-                            NonLeaderCardCount = 50,
-                            OtherPhaseSeconds = 30,
-                            PlayerPoolSeconds = 1800,
-                            RequireLeaderColorMatch = true,
-                            SortOrder = 2,
                             TimeoutsBeforeForfeit = 3,
                             UpdatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
                         });

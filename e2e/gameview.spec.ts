@@ -52,8 +52,9 @@ test.describe('GameView', () => {
       // instead of vanishing with its container.
       await expect(page.getByTestId('card-status-badges').first()).toBeAttached()
 
-      const passTurnButton = page.getByTestId('pass-turn-button')
-      await expect(passTurnButton).toBeVisible({ timeout: 60_000 })
+      // The side rail carries no turn-passing affordance any more: passing lives in the phase action row.
+      await expect(page.getByTestId('theme-toggle-button')).toBeVisible({ timeout: 60_000 })
+      await expect(page.getByTestId('pass-turn-button')).toHaveCount(0)
     })
 
     test('the navigation scrim never filters the board underneath it', async () => {
@@ -91,18 +92,21 @@ test.describe('GameView', () => {
       await expect(page.getByText('Route Error')).toHaveCount(0)
       await expect(page.getByTestId('game-board')).toBeVisible()
 
-      const passTurnBeforeTheme = page.getByTestId('pass-turn-button')
-      await expect(passTurnBeforeTheme).toBeVisible()
+      const themeToggleBefore = page.getByTestId('theme-toggle-button')
+      await expect(themeToggleBefore).toBeVisible()
 
       await page.getByRole('button', { name: 'Toggle light and dark mode' }).click()
 
       await expect(page.getByTestId('game-board')).toBeVisible()
 
-      const passTurnButton = page.getByTestId('pass-turn-button')
-      await expect(passTurnButton).toBeVisible()
+      const themeToggleAfter = page.getByTestId('theme-toggle-button')
+      await expect(themeToggleAfter).toBeVisible()
 
-      if (await passTurnButton.isEnabled()) {
-        await passTurnButton.click()
+      // Walking the turn forward is a phase action chip now; press it when the engine offers one. A presentation
+      // hold makes the row temporarily inert, so a swallowed press must not fail the smoke test.
+      const turnAdvanceChip = page.locator('[data-turn-advance="true"]').first()
+      if (await turnAdvanceChip.count() > 0 && await turnAdvanceChip.isEnabled()) {
+        await turnAdvanceChip.click({ timeout: 5_000 }).catch(() => {})
       }
 
       await expect(page.getByTestId('game-board')).toBeVisible()

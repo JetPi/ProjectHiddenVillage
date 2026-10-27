@@ -62,6 +62,7 @@ public sealed class DeckRulesetService : IDeckRulesetService
             Id: ruleset.Id,
             Key: ruleset.Key,
             Name: ruleset.Name,
+            AvailableInQuickMatch: ruleset.AvailableInQuickMatch,
             LeaderCount: ruleset.LeaderCount,
             NonLeaderCardCount: ruleset.NonLeaderCardCount,
             MaxCopiesPerNonLeaderCard: ruleset.MaxCopiesPerNonLeaderCard,
@@ -114,6 +115,7 @@ public sealed class DeckRulesetService : IDeckRulesetService
             Key = key,
             Name = request.Name.Trim(),
             IsActive = request.IsActive,
+            AvailableInQuickMatch = request.AvailableInQuickMatch,
             LeaderCount = request.LeaderCount,
             NonLeaderCardCount = request.NonLeaderCardCount,
             MaxCopiesPerNonLeaderCard = request.MaxCopiesPerNonLeaderCard,
@@ -200,6 +202,7 @@ public sealed class DeckRulesetService : IDeckRulesetService
 
         ruleset.Name = request.Name.Trim();
         ruleset.IsActive = request.IsActive;
+        ruleset.AvailableInQuickMatch = request.AvailableInQuickMatch;
         ruleset.LeaderCount = request.LeaderCount;
         ruleset.NonLeaderCardCount = request.NonLeaderCardCount;
         ruleset.MaxCopiesPerNonLeaderCard = request.MaxCopiesPerNonLeaderCard;
@@ -396,7 +399,8 @@ public sealed class DeckRulesetService : IDeckRulesetService
             MainPhaseSeconds: ruleset.MainPhaseSeconds,
             OtherPhaseSeconds: ruleset.OtherPhaseSeconds,
             PlayerPoolSeconds: ruleset.PlayerPoolSeconds,
-            TimeoutsBeforeForfeit: ruleset.TimeoutsBeforeForfeit);
+            TimeoutsBeforeForfeit: ruleset.TimeoutsBeforeForfeit,
+            AvailableInQuickMatch: ruleset.AvailableInQuickMatch);
     }
 
     /// <summary>The persisted columns as the policy a created game snapshots.</summary>
