@@ -576,3 +576,17 @@ covered by the bottom trash pile (`elementFromPoint` at the card's centre return
   that **both ends sit the gap away from the rotated card surface** (source ≤ 11px vs
   ~15-17 at the bbox corner; target 13-19px vs ~28 when the bbox edge is used), so keep
   `data-testid="attack-link-head"` on it.
+
+## The action-clock badge and the result overlay
+
+- **`GameClockBadge` sits in the phase row**, between the action chips and the phase chip
+  (`GamePhaseActionRow`). It renders nothing at all for an untimed ruleset (`clock.isEnabled === false`) and
+  `--:--` while no deadline is running, so the row's layout is unchanged for those games and a paused clock never
+  looks broken. It reads nothing but `gameState.clock`; the local countdown is `deadlineUtc - serverNowUtc - elapsed`
+  (`utils/functions/gameState/gameClock.ts`), never a trust in the browser's own clock.
+- **The result overlay's reason line is perspective-aware** (`buildGameOutcomePresentation` in
+  `utils/functions/helpers/index.ts`, strings under `game.outcome.reason.*`): the winner reads why the opponent
+  lost ("You won because your opponent ran out of time."), the loser reads their own defeat rule ("You ran out of
+  time."), and a draw gets a neutral line. Every `GameEndReason` - `LeaderLifeDepleted`, `DeckOut`,
+  `ForfeitByTimeout`, `ClockExpired` - has its own wording per standing, so a timeout win is never described as a
+  board win.

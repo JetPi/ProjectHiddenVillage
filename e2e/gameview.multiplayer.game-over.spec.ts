@@ -58,7 +58,11 @@ test.describe('GameView multiplayer game over', () => {
 
       await expect(loserPage.getByTestId('game-over-headline')).toHaveText('Defeat')
       await expect(winnerPage.getByTestId('game-over-headline')).toHaveText('Victory')
-      await expect(loserPage.getByTestId('game-over-reason')).toHaveText('A player ran out of cards to draw.')
+      // The reason is worded for the player reading it: the loser reads their own rule defeat, the winner reads why
+      // the opponent lost, instead of one perspective-neutral sentence for both.
+      await expect(loserPage.getByTestId('game-over-reason')).toHaveText('You had to draw from an empty deck.')
+      await expect(winnerPage.getByTestId('game-over-reason'))
+        .toHaveText('You won because your opponent had to draw from an empty deck.')
 
       // The engine publishes no action, no prompt and no support window once the game is over, so the loser
       // has nothing left to click but the overlay's "Return to main page" button.

@@ -376,9 +376,33 @@
       "victory": "Victory",
       "defeat": "Defeat",
       "draw": "Draw",
-      "reasonDeckOut": "A player ran out of cards to draw.",
-      "reasonLeaderLifeDepleted": "A leader's life points reached 0.",
-      "reasonDefault": "The game ended.",
+      "reason": {
+        "leaderLifeDepleted": {
+          "victory": "Opponent leader hit 0 life.",
+          "defeat": "Your leader hit 0 life.",
+          "draw": "Both leaders hit 0 life at the same time."
+        },
+        "deckOut": {
+          "victory": "Won by deck out.",
+          "defeat": "Lost by deck out.",
+          "draw": "Both players ran out of cards at the same time."
+        },
+        "forfeitByTimeout": {
+          "victory": "Opponent has left the game.",
+          "defeat": "You stopped playing.",
+          "draw": "A player stopped responding"
+        },
+        "clockExpired": {
+          "victory": "Won by timeout.",
+          "defeat": "Lost by tiemout.",
+          "draw": "A player ran out of time."
+        },
+        "unknown": {
+          "victory": "You won.",
+          "defeat": "You lost.",
+          "draw": "The game ended in a draw."
+        }
+      },
       "returnToMainPage": "Return to main page"
     },
     "supportChain": {

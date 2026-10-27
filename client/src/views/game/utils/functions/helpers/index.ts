@@ -433,6 +433,46 @@ function shouldShowSupportChainBubble(entries: ISupportChainViewEntry[]): boolea
   return entries.length > 0
 }
 
+/**
+ * Why the game ended, worded for the player reading it. The same `GameEndReason` reads very differently from the
+ * winner's and the loser's side ("your opponent ran out of time" vs "you ran out of time"), and a timeout ending is
+ * not the same story as a leader's life reaching 0, so every reason carries one line per standing.
+ */
+function resolveGameOutcomeReasonText(reason: string, standing: IGameOutcomeStanding): string {
+  switch (reason) {
+    case 'LeaderLifeDepleted':
+      return standing === 'victory'
+        ? i18n.t('game.outcome.reason.leaderLifeDepleted.victory')
+        : standing === 'defeat'
+          ? i18n.t('game.outcome.reason.leaderLifeDepleted.defeat')
+          : i18n.t('game.outcome.reason.leaderLifeDepleted.draw')
+    case 'DeckOut':
+      return standing === 'victory'
+        ? i18n.t('game.outcome.reason.deckOut.victory')
+        : standing === 'defeat'
+          ? i18n.t('game.outcome.reason.deckOut.defeat')
+          : i18n.t('game.outcome.reason.deckOut.draw')
+    case 'ForfeitByTimeout':
+      return standing === 'victory'
+        ? i18n.t('game.outcome.reason.forfeitByTimeout.victory')
+        : standing === 'defeat'
+          ? i18n.t('game.outcome.reason.forfeitByTimeout.defeat')
+          : i18n.t('game.outcome.reason.forfeitByTimeout.draw')
+    case 'ClockExpired':
+      return standing === 'victory'
+        ? i18n.t('game.outcome.reason.clockExpired.victory')
+        : standing === 'defeat'
+          ? i18n.t('game.outcome.reason.clockExpired.defeat')
+          : i18n.t('game.outcome.reason.clockExpired.draw')
+    default:
+      return standing === 'victory'
+        ? i18n.t('game.outcome.reason.unknown.victory')
+        : standing === 'defeat'
+          ? i18n.t('game.outcome.reason.unknown.defeat')
+          : i18n.t('game.outcome.reason.unknown.draw')
+  }
+}
+
 function buildGameOutcomePresentation(
   outcome: IGameOutcomeResponse | null | undefined,
   authUserId?: string,
@@ -456,12 +496,7 @@ function buildGameOutcomePresentation(
         : standing === 'defeat'
           ? i18n.t('game.outcome.defeat')
           : i18n.t('game.outcome.draw'),
-    reason:
-      outcome.reason === 'DeckOut'
-        ? i18n.t('game.outcome.reasonDeckOut')
-        : outcome.reason === 'LeaderLifeDepleted'
-          ? i18n.t('game.outcome.reasonLeaderLifeDepleted')
-          : i18n.t('game.outcome.reasonDefault'),
+    reason: resolveGameOutcomeReasonText(outcome.reason, standing),
   }
 }
 

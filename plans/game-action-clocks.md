@@ -254,6 +254,11 @@ Landed (server suite: 856 passed; client `typecheck` and `lint` clean):
 - Client: the `clock` payload types, the `gameClock.ts` math, `useGameClockCountdown` (a shared
   `useSyncExternalStore` ticker), `GameClockBadge` in the phase row, the `game.clock.*` strings, and the admin
   editor's Action clock section with its own validation messages.
+- **Result overlay reason text**, worded per standing (`game.outcome.reason.*`): the winner reads why the opponent
+  lost ("You won because your opponent ran out of time." / "... stopped responding and forfeited."), the loser reads
+  their own defeat ("You ran out of time." / "You had to draw from an empty deck." / "Your leader was reduced to 0
+  life."), and a draw gets a neutral line - so a stall forfeit is never described as a board result. The
+  `gameview.multiplayer.game-over` spec asserts both sides' wording.
 
 **Local setup note:** `npm run dev` does not migrate the database, so an existing dev database must run
 `npm run db:migrate` once after pulling this change - otherwise the ruleset queries fail with
