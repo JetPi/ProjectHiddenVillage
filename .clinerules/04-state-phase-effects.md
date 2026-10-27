@@ -103,6 +103,12 @@ job is therefore no longer to advance anything: it is to *present* the transitio
 - A phase presentation is **not** a prompt: it never enters `pendingPrompt`, the `resolve-prompt:*` action
   list or the pickers. `GamePrompt` means "you owe the engine a decision"; this means "you owe the engine an
   animation receipt".
+- **A resignation is the one mutation allowed through that gate.** `ForfeitGame` has its own hub path (like the
+  acknowledgement), because `ExecuteAuthorizedGameMutation` refuses everything else while a presentation is
+  outstanding and a player must be able to leave mid-transition or during the opponent's turn. The engine resolves
+  it through `GameEndRules.ResolveForfeit` with `GameEndReason.Resigned`, stops the clock and clears the outstanding
+  presentation, so nothing of the game in progress outlives the result; a second resignation on a finished game is
+  a no-op.
 
 ## The action clock (per-stop deadlines, per-player pools, stall forfeiture)
 

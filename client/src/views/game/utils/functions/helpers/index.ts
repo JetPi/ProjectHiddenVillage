@@ -464,6 +464,12 @@ function resolveGameOutcomeReasonText(reason: string, standing: IGameOutcomeStan
         : standing === 'defeat'
           ? i18n.t('game.outcome.reason.clockExpired.defeat')
           : i18n.t('game.outcome.reason.clockExpired.draw')
+    case 'Resigned':
+      return standing === 'victory'
+        ? i18n.t('game.outcome.reason.resigned.victory')
+        : standing === 'defeat'
+          ? i18n.t('game.outcome.reason.resigned.defeat')
+          : i18n.t('game.outcome.reason.resigned.draw')
     default:
       return standing === 'victory'
         ? i18n.t('game.outcome.reason.unknown.victory')

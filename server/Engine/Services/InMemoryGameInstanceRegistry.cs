@@ -2942,6 +2942,45 @@ public sealed class InMemoryGameInstanceRegistry
     }
 
     /// <summary>
+    /// Ends the game on the player's own request: they lose, the opponent wins. It goes through the same write-once
+    /// forfeit resolution the clock uses, so the board is irrelevant, and it deliberately does not drain or wait for
+    /// anything - a player who wants out must never be held by a transition, a presentation or the opponent's turn.
+    ///
+    /// A finished game is returned untouched: resigning twice, or resigning after the opponent already won, is not
+    /// an error the client should ever have to handle.
+    /// </summary>
+    public GameInstance ForfeitGame(string gameId, string playerId)
+    {
+        var instance = GetRequired(gameId);
+
+        lock (instance)
+        {
+            if (GameEndRules.IsGameOver(instance.State))
+            {
+                return instance;
+            }
+
+            if (!instance.State.Players.Any(player => IsSamePlayerId(player.PlayerId, playerId)))
+            {
+                throw new InvalidOperationException($"Player '{playerId}' was not found in game.");
+            }
+
+            // Nothing may outlive the game: the stop in progress, the presentation the clients owe an ack for, and
+            // the acknowledgement watchdog that would otherwise fire on a finished table.
+            ClearClockWatchdog(instance.Id);
+            ClearPresentationWatchdog(instance.Id);
+            instance.ClearPhasePresentation();
+            instance.StopClock();
+
+            GameEndRules.ResolveForfeit(instance.State, playerId, GameEndReason.Resigned);
+            GameEndRules.EnsureGameEndLogged(instance);
+            instance.ValidateInvariants();
+
+            return instance;
+        }
+    }
+
+    /// <summary>
     /// Tells the clients the state changed, for the changes that did not come from a hub call of their own (the
     /// presentation watchdog, a disconnecting participant).
     /// </summary>

@@ -43,4 +43,6 @@ export type IGameZonesProps = {
   onConfirmEffectTargetSelection: () => void
   onToggleTheme: () => void
   onPassTurn: () => void
+  /** Resigns from the game after the confirmation dialog is accepted; resolves false when the server refused. */
+  onForfeit: () => Promise<boolean>
 }

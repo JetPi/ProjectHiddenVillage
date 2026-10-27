@@ -588,5 +588,11 @@ covered by the bottom trash pile (`elementFromPoint` at the card's centre return
   `utils/functions/helpers/index.ts`, strings under `game.outcome.reason.*`): the winner reads why the opponent
   lost ("You won because your opponent ran out of time."), the loser reads their own defeat rule ("You ran out of
   time."), and a draw gets a neutral line. Every `GameEndReason` - `LeaderLifeDepleted`, `DeckOut`,
-  `ForfeitByTimeout`, `ClockExpired` - has its own wording per standing, so a timeout win is never described as a
-  board win.
+  `ForfeitByTimeout`, `ClockExpired`, `Resigned` - has its own wording per standing, so a timeout win is never
+  described as a board win.
+- **Forfeiting lives in the sidebar** (`SidebarButtons`), next to pass/undo/log, and it is deliberately *not* frozen
+  by `isPresentationPending`: resigning is exactly what a player must be able to do while the table is parked on a
+  transition or on the opponent's turn. It opens `ForfeitConfirmDialog` (`role="dialog"`, Cancel focused, the
+  destructive button is the confirm), and accepting calls `gameHubState.forfeitGame` - never `submitHubIntent`,
+  because resigning is not a game action and must not be gated by the action HUD - then applies the returned state,
+  so both boards get the result overlay from the server push. The button disappears once `gameOutcome` exists.

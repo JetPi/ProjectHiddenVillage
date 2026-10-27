@@ -161,6 +161,38 @@ public sealed class GamesHubNormalizationTests
             "A rejected action never mutated anything, so there is nothing to resync.");
     }
 
+    [TestMethod]
+    public async Task ForfeitGame_IsAccepted_WhileAPresentationIsOutstanding()
+    {
+        var requesterUserId = Guid.NewGuid();
+        const string canonicalGameId = "ABCDE";
+
+        var game = CreateGameInstance(canonicalGameId, requesterUserId.ToString("N"));
+        game.MintPhasePresentation(PhasePresentationKind.Draw, [requesterUserId.ToString("N")]);
+
+        var phaseHandlingService = new StubGamePhaseHandlingService
+        {
+            ForfeitHandler = (_, _) => game,
+        };
+
+        var hub = CreateHub(
+            requesterUserId,
+            new StubGameInstanceService(),
+            phaseHandlingService,
+            new StubGameReadService(canonicalGameId, game));
+
+        var result = await hub.Hub.ForfeitGame("abcde");
+
+        // Resigning is the one thing a player must be able to do while the engine is mid-transition, so it does not
+        // go through the gate that refuses every other mutation.
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual(requesterUserId.ToString("N"), phaseHandlingService.ForfeitRequests.Single().PlayerId);
+
+        var messages = hub.ClientsRecorder.GetGroupMessages(canonicalGameId);
+        Assert.AreEqual(1, messages.Count);
+        Assert.AreEqual("GameStateInvalidated", messages[0].Method);
+    }
+
     private static HubFixture CreateHub(
         Guid requesterUserId,
         IGameInstanceService instanceService,
@@ -303,7 +335,11 @@ public sealed class GamesHubNormalizationTests
     {
         public Func<string, string, string, ErrorOr<GameInstance>>? AcknowledgeHandler { get; init; }
 
+        public Func<string, string, ErrorOr<GameInstance>>? ForfeitHandler { get; init; }
+
         public List<(string GameId, string PlayerId, string PresentationId)> AcknowledgeRequests { get; } = [];
+
+        public List<(string GameId, string PlayerId)> ForfeitRequests { get; } = [];
 
         public int DeclareEndStepRequestCount { get; private set; }
 
@@ -344,6 +380,14 @@ public sealed class GamesHubNormalizationTests
 
         public ErrorOr<GameInstance> ReleasePhasePresentationRequirement(string gameId, string playerId)
             => throw new NotImplementedException();
+
+        public ErrorOr<GameInstance> ForfeitGame(string gameId, string playerId)
+        {
+            ForfeitRequests.Add((gameId, playerId));
+
+            return ForfeitHandler?.Invoke(gameId, playerId)
+                ?? throw new InvalidOperationException("ForfeitHandler not configured.");
+        }
     }
 
     private sealed class TestHubCallerContext(Guid requesterUserId) : HubCallerContext

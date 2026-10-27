@@ -33,4 +33,11 @@ public interface IGamePhaseHandlingService
     /// not an error.
     /// </summary>
     ErrorOr<GameInstance> ReleasePhasePresentationRequirement(string gameId, string playerId);
+
+    /// <summary>
+    /// Ends the game immediately on the player's own request: they lose, the opponent wins. It is accepted at any
+    /// moment (including mid-transition and during the opponent's turn), so the hub must not route it through the
+    /// gate that refuses mutations while a presentation is outstanding.
+    /// </summary>
+    ErrorOr<GameInstance> ForfeitGame(string gameId, string playerId);
 }

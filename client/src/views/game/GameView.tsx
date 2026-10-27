@@ -88,6 +88,7 @@ export function GameView() {
     actionError,
     submitHubIntent,
     getCardActionTargets,
+    forfeitGame,
   } = gameHubState
   const setActionError = useGameHubStore((state) => state.setActionError)
 
@@ -321,6 +322,7 @@ export function GameView() {
               onConfirmEffectTargetSelection={submitEffectTargetSelection}
               onToggleTheme={toggleTheme}
               onPassTurn={handlePassLikeAction}
+              onForfeit={forfeitGame}
             />
 
             <BottomHandReorderRow

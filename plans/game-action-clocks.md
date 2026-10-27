@@ -264,6 +264,13 @@ Landed (server suite: 856 passed; client `typecheck` and `lint` clean):
 `npm run db:migrate` once after pulling this change - otherwise the ruleset queries fail with
 `column d.ClockEnabled does not exist`.
 
+- **Manual forfeit (added after the clock landed).** `GameEndReason.Resigned` resolved through the same
+  `GameEndRules.ResolveForfeit`, a `ForfeitGame` hub method on its own path (the presentation gate refuses every
+  other mutation, and a player must be able to resign mid-transition or off-turn), a sidebar button with a
+  confirmation dialog, and a per-standing resignation line in the result overlay. Tests: `GameForfeitTests`
+  (instant end, opponent wins, clock stopped, presentation cleared, finished game untouched, unknown player
+  rejected) plus the hub case that a resignation is accepted while a presentation is outstanding.
+
 Still open:
 
 - **e2e**: a Time Relaxed game renders no clock, and a short-clock ruleset visibly times a main phase out. It needs

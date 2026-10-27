@@ -1,19 +1,36 @@
-import { Lightbulb, RotateCcw, ScrollText, SkipForward, X } from "lucide-react";
+import { useState } from "react";
+import { Flag, Lightbulb, RotateCcw, ScrollText, SkipForward, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { IGameZonesProps } from "@/views/game/types";
 import { AppButton } from "@/components/ui";
 import { useGameUIStore } from "@/state/gameUIStore";
+import { ForfeitConfirmDialog } from './ForfeitConfirmDialog'
 
 export function SideBarButtons(props: IGameZonesProps){
     const { t } = useTranslation()
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
     const isEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting !== null)
+    const [isForfeitDialogOpen, setIsForfeitDialogOpen] = useState(false)
+    const [isForfeiting, setIsForfeiting] = useState(false)
 
     const frozenClassName = props.isPresentationPending ? ' pointer-events-none' : ''
    
     const rulesetName = props.gameState.ruleset?.name ?? null
+    const isGameOver = Boolean(props.gameState.gameOutcome)
 
-    return<div className="flex flex-col items-end justify-center gap-1">
+    const confirmForfeit = async () => {
+      setIsForfeiting(true)
+      const didForfeit = await props.onForfeit()
+      setIsForfeiting(false)
+
+      // The result overlay takes over on success, so the dialog must not linger behind it.
+      if (didForfeit) {
+        setIsForfeitDialogOpen(false)
+      }
+    }
+
+    return <>
+      <div className="flex flex-col items-end justify-center gap-1">
         {rulesetName ? (
           <div
             data-testid="game-ruleset-name"
@@ -67,6 +84,26 @@ export function SideBarButtons(props: IGameZonesProps){
             {t('game.sidebar.passTurnTooltip')}
           </span>
         </div>
+
+        {isGameOver ? null : (
+          <div className="group relative">
+            <AppButton
+              type="button"
+              variant="ghost"
+              data-testid="forfeit-game-button"
+              aria-label={t('game.sidebar.forfeitAria')}
+              onClick={() => setIsForfeitDialogOpen(true)}
+              // Deliberately not frozen by a presentation: resigning is exactly what a player must be able to do
+              // while the table is parked on a transition or on the opponent.
+              className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+            >
+              <Flag size={10} />
+            </AppButton>
+            <span className="pointer-events-none absolute right-full top-1/2 mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-sm group-hover:block">
+              {t('game.sidebar.forfeitTooltip')}
+            </span>
+          </div>
+        )}
 
         {isBattleActionTargeting ? (
           <div className="group relative">
@@ -136,4 +173,15 @@ export function SideBarButtons(props: IGameZonesProps){
           </span>
         </div>
       </div>
+
+      {isForfeitDialogOpen ? (
+        <ForfeitConfirmDialog
+          isSubmitting={isForfeiting}
+          onCancel={() => setIsForfeitDialogOpen(false)}
+          onConfirm={() => {
+            void confirmForfeit()
+          }}
+        />
+      ) : null}
+    </>
 }

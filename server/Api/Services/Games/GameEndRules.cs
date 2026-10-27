@@ -153,6 +153,7 @@ public static class GameEndRules
             GameEndReason.DeckOut => "a player ran out of cards to draw",
             GameEndReason.ForfeitByTimeout => "a player stopped responding to the game",
             GameEndReason.ClockExpired => "a player used up their time",
+            GameEndReason.Resigned => "a player resigned",
             _ => "a leader's life points reached 0",
         };
 

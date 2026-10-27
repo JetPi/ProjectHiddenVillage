@@ -47,6 +47,8 @@ export type IUseGameHubStateResult = {
   actionError: string | null
   submitHubIntent: (request: ISubmitHubIntentRequest) => Promise<void>
   acknowledgePhasePresentation: (presentationId: string) => Promise<boolean>
+  /** Ends the game on this player's own request; resolves false when the server refused or the call failed. */
+  forfeitGame: () => Promise<boolean>
   getCardActionTargets: (
     request: Omit<IGameCardActionTargetsRequest, 'playerId'>,
   ) => Promise<IGameCardActionTargetsResponse | null>

@@ -128,6 +128,17 @@ async function declareAttack(
   return invokeHubStateMethod(connection, 'AdvancePhase', gameId)
 }
 
+/**
+ * Resigns from the game: the server ends it on the spot and the opponent wins. It is a plain game-id invocation
+ * (no player id, no request body) because the hub derives the resigning player from the auth claim.
+ */
+async function forfeitGame(
+  connection: HubConnection,
+  gameId: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  return invokeHubStateMethod(connection, 'ForfeitGame', gameId)
+}
+
 async function declareEndStep(
   connection: HubConnection,
   gameId: string,
@@ -312,6 +323,7 @@ export {
   unsubscribeFromGame,
   getCurrentGameState,
   acknowledgePhasePresentation,
+  forfeitGame,
   declareAttack,
   declareEndStep,
   completeEndStep,

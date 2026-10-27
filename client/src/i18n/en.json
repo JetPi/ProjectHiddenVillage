@@ -397,6 +397,11 @@
           "defeat": "Lost by tiemout.",
           "draw": "A player ran out of time."
         },
+        "resigned": {
+          "victory": "Your opponent forfeited the game.",
+          "defeat": "You forfeited the game.",
+          "draw": "A player forfeited the game."
+        },
         "unknown": {
           "victory": "You won.",
           "defeat": "You lost.",
@@ -468,6 +473,8 @@
     "sidebar": {
       "toggleThemeAria": "Toggle light and dark mode",
       "passTurnAria": "Pass turn",
+      "forfeitAria": "Forfeit the game",
+      "forfeitTooltip": "Forfeit Game",
       "cancelAttackAria": "Cancel attack target selection",
       "cancelTargetAria": "Cancel target selection",
       "undoAria": "Undo action",
@@ -478,6 +485,13 @@
       "cancelTargetTooltip": "Cancel Target Selection",
       "undoTooltip": "Undo Action",
       "openLogTooltip": "Open Log"
+    },
+    "forfeit": {
+      "title": "Forfeit the game?",
+      "body": "Your opponent wins immediately and this cannot be undone.",
+      "confirm": "Forfeit",
+      "resigning": "Forfeiting…",
+      "cancel": "Keep playing"
     },
     "actionRow": {
       "cancel": "Cancel",

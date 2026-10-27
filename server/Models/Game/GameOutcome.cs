@@ -20,7 +20,10 @@ public enum GameEndReason
     ForfeitByTimeout,
 
     /// <summary>A player used up their whole-game time pool.</summary>
-    ClockExpired
+    ClockExpired,
+
+    /// <summary>A player resigned: they ended the game themselves and their opponent wins.</summary>
+    Resigned
 }
 
 /// <summary>
