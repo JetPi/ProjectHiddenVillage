@@ -9,6 +9,7 @@ export function AdaptiveFormField({
   onValueChange,
   config,
   className = '',
+  ariaLabel,
 }: IAdaptiveFormFieldProps) {
   if (config.type === 'input') {
     return (
@@ -17,6 +18,7 @@ export function AdaptiveFormField({
         id={id}
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
+        aria-label={ariaLabel}
         className={className}
       />
     )
@@ -31,6 +33,7 @@ export function AdaptiveFormField({
         onValueChange={onValueChange}
         name={config.props?.name}
         disabled={config.props?.disabled}
+        ariaLabel={ariaLabel}
         className={className}
       />
     )
@@ -42,6 +45,7 @@ export function AdaptiveFormField({
       id={id}
       value={value}
       onChange={(event) => onValueChange(event.target.value)}
+      aria-label={ariaLabel}
       className={className}
     />
   )

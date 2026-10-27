@@ -132,12 +132,15 @@
     "displayNamePlaceholder": "Enter name here",
     "displayNameRequired": "Please enter a display name.",
     "gameCode": "Game Code",
-    "gameCodeModeAria": "Game code input mode",
+    "gameEntryModeAria": "Game entry mode",
+    "format": "Format",
+    "join": "Join",
+    "host": "Host",
+    "findMatch": "Find Match",
     "deckOptions": "Deck Options",
     "deckOptionsModeAria": "Deck options input mode",
     "retry": "Retry",
     "importDeckButton": "Import your deck here",
-    "enterGame": "Enter Game",
     "toggleThemeAria": "Toggle light and dark mode",
     "openLogoutModalAria": "Open logout modal",
     "openLoginModalAria": "Open login modal",
@@ -173,12 +176,16 @@
       "failedPublic": "Failed to load public decks.",
       "noSaved": "No saved decks found for this user.",
       "failedSaved": "Failed to load your decks.",
-      "deckLabel": "Deck {{number}} ({{shortId}}) - {{totalCards}} cards",
-      "namedDeckLabel": "{{name}} - {{totalCards}} cards"
+      "unnamedDeck": "Deck {{shortId}}"
     },
     "deckMode": {
       "saved": "saved deck",
       "public": "public deck"
+    },
+    "deckSummary": {
+      "legalPill": "Legal",
+      "illegalPill": "Not legal",
+      "importedDeck": "Imported deck"
     },
     "matchmaking": {
       "searchingTitle": "Searching for a {{ruleset}} opponent",
@@ -189,6 +196,21 @@
       "cancel": "Cancel search",
       "cancelling": "Cancelling..."
     },
+    "createGame": {
+      "title": "Your {{ruleset}} game is ready",
+      "body": "Share this code or the invite link so your opponent can take the second seat.",
+      "linkLabel": "Invite link",
+      "copyCode": "Copy code",
+      "copyCodeDone": "Code copied",
+      "copyLink": "Copy link",
+      "copyLinkDone": "Link copied",
+      "copyFailed": "Copying is not available here. Select the code or the link and copy it manually.",
+      "waitingForOpponent": "Waiting for your opponent to join.",
+      "opponentJoined": "Your opponent joined. Taking you in.",
+      "watchFailed": "This game can no longer be checked. Use Enter Game to try again, or go back.",
+      "back": "Back",
+      "enter": "Enter Game"
+    },
     "toasts": {
       "accountCreated": "Account created successfully.",
       "loggedInAs": "Logged in as {{username}}",
@@ -196,6 +218,8 @@
       "loginRequired": "Please log in before creating or joining a game.",
       "selectRuleset": "Please choose a format before searching for a match.",
       "deckNotLegalForRuleset": "This deck is not legal in {{ruleset}}. Fix the issues shown and try again.",
+      "deckNotLegalForJoinedGame": "This match is played in {{ruleset}}, and your deck does not fit it.",
+      "deckInvalidForImportedDeck": "The selected deck isnt valid for the selected ruleset, please open the import view to see details",
       "matchmakingFailed": "The match search could not be started. Please try again.",
       "matchFound": "Opponent found. Joining the game.",
       "identityFailed": "We could not start your session. Please try again.",
@@ -203,7 +227,6 @@
       "missingDeckForCreation": "No deck has been selected. Import a deck or select from a pre-existing deck.",
       "deckFormatInvalid": "Deck list format is invalid.",
       "selectDeck": "Please select a {{mode}} before continuing.",
-      "gameCreated": "Game created. Share code {{code}}",
       "joinedGame": "Joined game successfully.",
       "gameCodeRequired": "Please provide a game code to join.",
       "submitFailed": "Unable to submit deck or join game. Please try again.",
@@ -239,12 +262,10 @@
       "deckSaved": "Saved Decks",
       "deckStarter": "Starter Decks",
       "modeQuickMatch": "Quick Match",
-      "modeJoin": "Join",
-      "modeCreate": "Create",
+      "modeJoinOrHost": "Join or Host",
       "loadingRulesets": "Loading formats...",
       "noRulesets": "No formats available yet",
       "joinCodePlaceholder": "Paste your code here",
-      "createCodePlaceholder": "Code will be generated on create",
       "importPlaceholder": "Use Import to paste your deck list",
       "loadingSavedDecks": "Loading saved decks...",
       "loadingPublicDecks": "Loading public decks..."

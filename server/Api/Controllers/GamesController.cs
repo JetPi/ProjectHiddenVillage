@@ -147,6 +147,32 @@ public sealed class GamesController(
         return Ok(result.Value);
     }
 
+    /// <summary>
+    /// The format a game is played in, so a player holding a code can judge their deck before asking to join.
+    /// Anonymous like the card read above: the code is the secret and the caller is not a player of the game yet.
+    /// An unbound game answers null, because it has no format to check against.
+    /// </summary>
+    [HttpGet("{gameId}/ruleset")]
+    [ProducesResponseType(typeof(GameRulesetBindingResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    public ActionResult<GameRulesetBindingResponse?> GetGameRuleset(string gameId)
+    {
+        var result = gameReadService.GetById(gameId);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<GameRulesetBindingResponse?>(result.Errors);
+        }
+
+        var binding = result.Value.Ruleset;
+        if (binding is null)
+        {
+            return Ok(null);
+        }
+
+        return Ok(new GameRulesetBindingResponse(binding.Id.ToString(), binding.Key, binding.Name));
+    }
+
     private ErrorOr<string> GetRequestingPlayerId()
     {
         var rawUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)

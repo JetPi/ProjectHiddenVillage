@@ -13,6 +13,7 @@ export function FormSelect({
   placeholder,
   disabled = false,
   className = '',
+  ariaLabel,
 }: IFormSelectProps) {
   const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
@@ -59,6 +60,7 @@ export function FormSelect({
         type="button"
         disabled={disabled}
         role="combobox"
+        aria-label={ariaLabel}
         aria-controls={`${id}-listbox`}
         aria-expanded={isOpen}
         aria-haspopup="listbox"

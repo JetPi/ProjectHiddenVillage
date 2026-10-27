@@ -29,11 +29,20 @@ public sealed class GameInstanceService(
 
         var playerDeck = playerDeckResult.Value;
 
+        // A game created for an invite carries its format, so the people the code is shared with are admitted by
+        // the same rule set the creator saw. Creating without a format leaves the game unbound, as before.
+        var rulesetBindingResult = await ResolveCreateRulesetBindingAsync(request.RulesetId, playerDeck);
+        if (rulesetBindingResult.IsError)
+        {
+            return rulesetBindingResult.Errors;
+        }
+
         await TouchGuestAsync(request.UserId);
 
         try
         {
             var gameInstance = registry.Create([playerDeck.Player], playerDeck.CardDefinitions, preferredGameCode);
+            gameInstance.Ruleset = rulesetBindingResult.Value;
             OpeningSupportSeeding.EnsureSupportCardSeededIntoOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId);
             return gameInstance;
         }
@@ -90,8 +99,8 @@ public sealed class GameInstanceService(
 
         var playerDeck = playerDeckResult.Value;
 
-        // A quick-match game carries its format with it, so joining by code is admission-checked against the same
-        // rules the matchmaking queue enforced. Games created through the plain create mode carry no binding.
+        // A bound game carries its format with it - a quick match, or an invite created under a format - so joining
+        // by code is admission-checked against exactly the rules its creator saw. Unbound games admit anyone.
         var rulesetResult = await EnsureDeckMatchesGameRulesetAsync(game.Ruleset, playerDeck);
         if (rulesetResult.IsError)
         {
@@ -118,6 +127,43 @@ public sealed class GameInstanceService(
         {
             return Error.Validation(code: "Game.JoinForUser.InvalidState", description: ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Judges the creator's deck against the format the game will be bound to before the game exists, then hands
+    /// back the binding to stamp on it. No format requested means no binding and no extra validation.
+    /// </summary>
+    private async Task<ErrorOr<GameRulesetBinding?>> ResolveCreateRulesetBindingAsync(
+        Guid? rulesetId,
+        ResolvedPlayerDeck deck)
+    {
+        if (rulesetId is null || rulesetId.Value == Guid.Empty)
+        {
+            return (GameRulesetBinding?)null;
+        }
+
+        if (deckRulesetService is null || deckValidator is null)
+        {
+            // Composition used by the engine tests does not register the ruleset services; those tests never ask
+            // for a bound game either, so this only guards a misconfigured deployment.
+            return (GameRulesetBinding?)null;
+        }
+
+        var definitionResult = await deckRulesetService.GetActiveRulesetDefinition(rulesetId.Value);
+        if (definitionResult.IsError)
+        {
+            return definitionResult.Errors;
+        }
+
+        var definition = definitionResult.Value;
+
+        var evaluation = deckValidator.Validate(deck, definition);
+        if (evaluation.IsError)
+        {
+            return evaluation.Errors;
+        }
+
+        return new GameRulesetBinding(definition.Id, definition.Key, definition.Name);
     }
 
     private async Task<ErrorOr<Success>> EnsureDeckMatchesGameRulesetAsync(

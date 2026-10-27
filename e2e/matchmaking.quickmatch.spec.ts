@@ -152,7 +152,7 @@ async function submitQuickmatch(page: Page, deckText: string): Promise<void> {
   await seedImportedDeck(page, deckText)
   await page.goto('/')
   await page.getByLabel('Display Name').fill('Guest One')
-  await page.getByRole('button', { name: 'Enter Game' }).click()
+  await page.getByRole('button', { name: 'Find Match' }).click()
 }
 
 test('quick match queues under the selected format and joins the matched game', async ({ page }) => {
@@ -160,12 +160,12 @@ test('quick match queues under the selected format and joins the matched game', 
 
   await page.goto('/')
 
-  // The quick-match combo shows the format the active rulesets provide, not a game code.
-  const gameCodeSelect = page.getByRole('combobox', { name: 'Game Code' })
-  await expect(gameCodeSelect).toContainText(MOCKED_RULESET.name)
+  // The quick-match tab shows the format the active rulesets provide, not a game code.
+  const formatSelect = page.getByRole('combobox', { name: 'Format' })
+  await expect(formatSelect).toContainText(MOCKED_RULESET.name)
   // Each format row carries its queue depth from the presence snapshot, pinned to the right.
-  await expect(gameCodeSelect.getByTestId('queued-players-count')).toHaveText('3')
-  await gameCodeSelect.click()
+  await expect(formatSelect.getByTestId('queued-players-count')).toHaveText('3')
+  await formatSelect.click()
   await expect(
     page.getByRole('option', { name: /E2E Format/ }).getByTestId('queued-players-count'),
   ).toHaveText('3')
@@ -186,10 +186,19 @@ test('quick match refuses a deck that does not fit the selected format without q
   // No leader: the mocked format requires exactly one.
   await submitQuickmatch(page, '2x N-001')
 
+  // The toast points at the import view, where the violations are listed, instead of repeating them inline.
   await expect(
-    page.getByText('This deck is not legal in E2E Format. Fix the issues shown and try again.'),
+    page.getByText(
+      'The selected deck isnt valid for the selected ruleset, please open the import view to see details',
+    ),
   ).toBeVisible()
   expect(queueRequests).toHaveLength(0)
+
+  // The inline summary judges the same deck against the format that would be queued for.
+  const summary = page.getByTestId('login-deck-summary')
+  await expect(summary).toHaveAttribute('data-legal', 'false')
+  await expect(page.getByTestId('login-deck-summary-pill')).toHaveText('Not legal')
+  await expect(summary.locator('span').last()).toHaveText('Imported deck')
 })
 
 test('the search dialog shows the wait and cancelling it releases the ticket', async ({ page }) => {

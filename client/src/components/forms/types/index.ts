@@ -43,6 +43,8 @@ export type IFormSelectProps = {
   placeholder?: string
   disabled?: boolean
   className?: string
+  /** Names the control for assistive tech when the form omits a visible label. */
+  ariaLabel?: string
 }
 
 export type ISelectChoice = {
@@ -75,6 +77,8 @@ export type IAdaptiveFormFieldProps = {
   onValueChange: (value: string) => void
   config: IAdaptiveFieldConfig
   className?: string
+  /** Names the control for assistive tech when the form omits a visible label. */
+  ariaLabel?: string
 }
 
 export type IFormTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement>

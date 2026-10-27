@@ -5,8 +5,10 @@ import type { TFunction } from 'i18next'
 import i18n, { translateKey } from '@/i18n'
 import {
   deckOptionsModeOptions,
-  gameCodeFieldConfigByMode,
-  gameCodeModeOptions,
+  gameEntryModeOptions,
+  isGameIntent,
+  isRulesetIntent,
+  joinGameCodeFieldConfig,
 } from '@/views/login/configs/LoginView'
 import { Link, useActionData, useNavigate, useNavigation } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
@@ -31,8 +33,11 @@ import { useThemeStore } from '@/state/themeStore'
 import { useLoginViewModel } from '@/views/login/model/useLoginViewModel'
 import { selectRulesetWaitingCount, usePresenceSnapshot } from '@/services/presence/usePresence'
 import type { ILoginActionData } from '@/views/login/types/routeHandlers'
-import { createGameForUser, joinGameAsPlayer } from '@/services/api/gameApi'
-import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
+import type { IGameIntent } from '@/types/login'
+import type { IDeckRuleset } from '@/types/deckRuleset'
+import type { IPresenceSnapshot } from '@/types/presence'
+import { createGameForUser, fetchGameRuleset, joinGameAsPlayer } from '@/services/api/gameApi'
+import { getApiErrorMessage, isApiBadRequestError } from '@/views/utils/getApiErrorMessage'
 import { createUserDeck, fetchDecks } from '@/services/api/deckApi'
 import { preloadCardsByIds } from '@/services/cardPreloadService'
 import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
@@ -45,6 +50,7 @@ import {
   parseDeckList,
   parseDeckListPartial,
 } from '@/domain/deck/parseDeckList'
+import { CreateGameShareDialog } from '@/views/login/components/CreateGameShareDialog'
 import { DeckImportDialog } from '@/views/login/components/DeckImportDialog'
 import { MatchmakingSearchDialog } from '@/views/login/components/MatchmakingSearchDialog'
 import { QueuedPlayersBadge } from '@/views/login/components/QueuedPlayersBadge'
@@ -54,6 +60,7 @@ import type { IDeckCardMetadata, IDeckListParseError } from '@/domain/deck/types
 import type { IDeckCardInput, IDeckResponse } from '@/types/deck'
 import type { IMatchTicket } from '@/types/matchmaking'
 import { useEnqueueMatchMutation } from '@/services/queries/matchmakingQueries'
+import { useGameRulesetByCodeQuery } from '@/services/queries/gameStateQueries'
 const STARTER_DECK_FETCH_RETRY_ATTEMPTS = 3
 const STARTER_DECK_FETCH_RETRY_DELAY_MS = 700
 const TITLE_FONT_LOAD_QUERY = '1em "Water Brush"'
@@ -102,6 +109,48 @@ function translateAdaptiveFieldConfig(config: IAdaptiveFieldConfig, t: TFunction
   }
 }
 
+/**
+ * Queue depth answers "how many players are waiting to be paired", which is a quick-match question only: a host
+ * opens a table of their own and has nobody to be paired with, so the host format list stays plain.
+ */
+function toRulesetChoices(
+  rulesets: IDeckRuleset[],
+  presenceSnapshot: IPresenceSnapshot | null,
+  withQueueDepth: boolean,
+) {
+  return rulesets.map((ruleset) => {
+    const waitingCount = withQueueDepth
+      ? selectRulesetWaitingCount(presenceSnapshot, ruleset.id)
+      : null
+
+    return {
+      value: ruleset.id,
+      label: ruleset.name,
+      trailing: waitingCount === null ? undefined : <QueuedPlayersBadge count={waitingCount} />,
+    }
+  })
+}
+
+function toRulesetSelectConfig(
+  choices: ReturnType<typeof toRulesetChoices>,
+  isLoading: boolean,
+  t: TFunction,
+): IAdaptiveFieldConfig {
+  if (choices.length > 0) {
+    return { type: 'select', choices }
+  }
+
+  return {
+    type: 'select',
+    choices: [
+      {
+        value: '',
+        label: isLoading ? t('auth.config.loadingRulesets') : t('auth.config.noRulesets'),
+      },
+    ],
+  }
+}
+
 export function LoginView() {
   const { t } = useTranslation()
   const actionData = useActionData() as ILoginActionData | undefined
@@ -114,8 +163,12 @@ export function LoginView() {
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [savedDecks, setSavedDecks] = useState<IDeckResponse[]>([])
+  // The public decks are kept whole, not just as select choices: the deck summary names the selected one.
+  const [starterDecks, setStarterDecks] = useState<IDeckResponse[]>([])
   const [importDeckName, setImportDeckName] = useState('')
   const [isSavingImportedDeck, setIsSavingImportedDeck] = useState(false)
+  // Hosting mints a real game on the click, so every action button is held shut while one submission is in flight.
+  const [pendingIntent, setPendingIntent] = useState<IGameIntent | null>(null)
   const [savedDeckChoices, setSavedDeckChoices] = useState<{ value: string; label: string }[]>([
     { value: '', label: t('auth.deckChoice.loginToLoad') },
   ])
@@ -131,6 +184,12 @@ export function LoginView() {
   const [savedDeckCardsByDeckId, setSavedDeckCardsByDeckId] = useState<Record<string, IDeckCardInput[]>>({})
   const [starterDeckCardsByDeckId, setStarterDeckCardsByDeckId] = useState<Record<string, IDeckCardInput[]>>({})
   const [activeTicket, setActiveTicket] = useState<IMatchTicket | null>(() => readStoredMatchTicket())
+  // A created game exists on the server the moment `Enter Game` runs, so its code is held here while the creator
+  // copies it. The board is only opened once they confirm.
+  const [createdGameShare, setCreatedGameShare] = useState<{
+    gameId: string
+    rulesetName: string
+  } | null>(null)
   const [isTitleFontReady, setIsTitleFontReady] = useState(() => {
     const fontSet = getFontFaceSet()
     if (!fontSet) {
@@ -144,15 +203,18 @@ export function LoginView() {
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
   const {
     activeDeckOption,
-    activeGameCode,
     deckOptionsMode,
     displayName,
-    gameCodeMode,
+    gameEntryMode,
+    hostRulesetId,
+    joinGameCode,
+    quickmatchRulesetId,
     setDeckOptionsMode,
     setDeckOptionValue,
     setDisplayName,
-    setGameCodeMode,
-    setGameCodeValue,
+    setGameEntryMode,
+    setJoinGameCode,
+    setRulesetId,
     showDisplayNameError,
     validateDisplayName,
   } = useLoginViewModel()
@@ -171,6 +233,10 @@ export function LoginView() {
 
   const activeDeckRulesetsQuery = useActiveDeckRulesetsQuery()
   const enqueueMatchMutation = useEnqueueMatchMutation()
+  // The table behind a typed code, so the deck can be judged before the join is ever attempted.
+  const joinGameRulesetQuery = useGameRulesetByCodeQuery(
+    gameEntryMode === 'join_or_host' ? joinGameCode : '',
+  )
 
   useEffect(() => {
     if (isTitleFontReady) {
@@ -239,6 +305,7 @@ export function LoginView() {
 
         if (!isCancelled) {
           const publicDecks = allDecks.filter((deck) => deck.type === 'Public')
+          setStarterDecks(publicDecks)
           setStarterDeckChoices(toDeckChoices(publicDecks, t('auth.deckChoice.noPublic')))
           setStarterDeckCardIdsByDeckId(toDeckCardIdsByDeckId(publicDecks))
           setStarterDeckCardsByDeckId(toDeckCardsByDeckId(publicDecks))
@@ -246,6 +313,7 @@ export function LoginView() {
         }
       } catch {
         if (!isCancelled) {
+          setStarterDecks([])
           setStarterDeckChoices([{ value: '', label: t('auth.deckChoice.failedPublic') }])
           setStarterDeckCardIdsByDeckId({})
           setStarterDeckCardsByDeckId({})
@@ -337,8 +405,8 @@ export function LoginView() {
     }
   }, [deckOptionsMode, savedDeckChoices, starterDeckChoices])
 
-  const translatedGameCodeModeOptions = useMemo(
-    () => gameCodeModeOptions.map((option) => ({ ...option, label: translateKey(t, option.label) })),
+  const translatedGameEntryModeOptions = useMemo(
+    () => gameEntryModeOptions.map((option) => ({ ...option, label: translateKey(t, option.label) })),
     [t],
   )
 
@@ -347,75 +415,78 @@ export function LoginView() {
     [t],
   )
 
-  // Each format carries its current queue depth, right-aligned in the select row. Formats with no queue are absent
-  // from the snapshot, so a known snapshot makes a missing entry zero rather than "unknown".
-  const activeRulesetOptions = useMemo(
-    () => (activeDeckRulesetsQuery.data ?? []).map((ruleset) => {
-      const waitingCount = selectRulesetWaitingCount(presenceSnapshot, ruleset.id)
-
-      return {
-        value: ruleset.id,
-        label: ruleset.name,
-        trailing: waitingCount === null ? undefined : <QueuedPlayersBadge count={waitingCount} />,
-      }
-    }),
+  const quickmatchRulesetChoices = useMemo(
+    () => toRulesetChoices(activeDeckRulesetsQuery.data ?? [], presenceSnapshot, true),
     [activeDeckRulesetsQuery.data, presenceSnapshot],
   )
 
-  const selectedRuleset = useMemo(
-    () => (activeDeckRulesetsQuery.data ?? []).find((ruleset) => ruleset.id === activeGameCode) ?? null,
-    [activeDeckRulesetsQuery.data, activeGameCode],
+  const hostRulesetChoices = useMemo(
+    () => toRulesetChoices(activeDeckRulesetsQuery.data ?? [], presenceSnapshot, false),
+    [activeDeckRulesetsQuery.data, presenceSnapshot],
   )
 
-  // While queueing for a format, the import dialog should only talk about that format.
-  const importDialogRulesets = useMemo(() => {
-    if (gameCodeMode === 'quickmatch') {
-      return selectedRuleset ? [selectedRuleset] : []
+  const quickmatchRulesetConfig = useMemo(
+    () => toRulesetSelectConfig(quickmatchRulesetChoices, activeDeckRulesetsQuery.isLoading, t),
+    [activeDeckRulesetsQuery.isLoading, quickmatchRulesetChoices, t],
+  )
+
+  const hostRulesetConfig = useMemo(
+    () => toRulesetSelectConfig(hostRulesetChoices, activeDeckRulesetsQuery.isLoading, t),
+    [activeDeckRulesetsQuery.isLoading, hostRulesetChoices, t],
+  )
+
+  const translatedJoinGameCodeConfig = useMemo(
+    () => translateAdaptiveFieldConfig(joinGameCodeFieldConfig, t),
+    [t],
+  )
+
+  const selectedQuickmatchRuleset = useMemo(
+    () => (activeDeckRulesetsQuery.data ?? []).find((ruleset) => ruleset.id === quickmatchRulesetId) ?? null,
+    [activeDeckRulesetsQuery.data, quickmatchRulesetId],
+  )
+
+  const selectedHostRuleset = useMemo(
+    () => (activeDeckRulesetsQuery.data ?? []).find((ruleset) => ruleset.id === hostRulesetId) ?? null,
+    [activeDeckRulesetsQuery.data, hostRulesetId],
+  )
+
+  // The code only names the format; the definition the deck is judged with comes from the active list the select
+  // already loads, so both paths evaluate with exactly the same ruleset object.
+  const joinTargetRuleset = useMemo(() => {
+    const binding = joinGameRulesetQuery.ruleset
+    if (!binding) {
+      return null
     }
 
-    return activeDeckRulesetsQuery.data ?? []
-  }, [activeDeckRulesetsQuery.data, gameCodeMode, selectedRuleset])
+    return (activeDeckRulesetsQuery.data ?? []).find((ruleset) => ruleset.id === binding.id) ?? null
+  }, [activeDeckRulesetsQuery.data, joinGameRulesetQuery.ruleset])
 
-  // Quick match queues under a ruleset, so its select is the active ruleset list rather than a fixed code.
-  const translatedGameCodeConfig = useMemo(() => {
-    if (gameCodeMode !== 'quickmatch') {
-      return translateAdaptiveFieldConfig(gameCodeFieldConfigByMode[gameCodeMode], t)
+  // The dialog is where a deck gets fixed, so it always shows every active format: the warning about the format the
+  // player is about to play is the login view's job, not the dialog's.
+  const importDialogRulesets = useMemo(
+    () => activeDeckRulesetsQuery.data ?? [],
+    [activeDeckRulesetsQuery.data],
+  )
+
+  // Both format-driven actions default to the first active format, each in its own slot so switching tabs or changing
+  // the host format never moves the quick-match queue target.
+  useEffect(() => {
+    const rulesets = activeDeckRulesetsQuery.data ?? []
+    if (rulesets.length === 0 || rulesets.some((ruleset) => ruleset.id === quickmatchRulesetId)) {
+      return
     }
 
-    if (activeRulesetOptions.length > 0) {
-      return { type: 'select' as const, choices: activeRulesetOptions }
-    }
-
-    return {
-      type: 'select' as const,
-      choices: [
-        {
-          value: '',
-          label: activeDeckRulesetsQuery.isLoading
-            ? t('auth.config.loadingRulesets')
-            : t('auth.config.noRulesets'),
-        },
-      ],
-    }
-  }, [
-    activeDeckRulesetsQuery.isLoading,
-    activeRulesetOptions,
-    gameCodeMode,
-    t,
-  ])
+    setRulesetId('quickmatch', rulesets[0].id)
+  }, [activeDeckRulesetsQuery.data, quickmatchRulesetId, setRulesetId])
 
   useEffect(() => {
-    if (gameCodeMode !== 'quickmatch') {
-      return
-    }
-
     const rulesets = activeDeckRulesetsQuery.data ?? []
-    if (rulesets.length === 0 || rulesets.some((ruleset) => ruleset.id === activeGameCode)) {
+    if (rulesets.length === 0 || rulesets.some((ruleset) => ruleset.id === hostRulesetId)) {
       return
     }
 
-    setGameCodeValue(rulesets[0].id)
-  }, [activeDeckRulesetsQuery.data, activeGameCode, gameCodeMode, setGameCodeValue])
+    setRulesetId('host', rulesets[0].id)
+  }, [activeDeckRulesetsQuery.data, hostRulesetId, setRulesetId])
 
   const importedDeckParse = useMemo(() => {
     if (deckOptionsMode !== 'import' || activeDeckOption.trim().length === 0) {
@@ -477,14 +548,6 @@ export function LoginView() {
   const isCheckingImportedDeck = importedDeckCardsQuery.isFetching || activeDeckRulesetsQuery.isFetching
   const isImportedDeckMetadataCold = isCheckingImportedDeck && importedDeckCardsById.size === 0
   const importedDeckDialogValidation = isImportedDeckMetadataCold ? null : importedDeckValidation
-  const visibleImportedDeckValidation = isCheckingImportedDeck ? null : importedDeckValidation
-  const visibleImportedDeckEvaluations = visibleImportedDeckValidation?.evaluations ?? []
-  const validImportedDeckRulesets = visibleImportedDeckEvaluations.filter(
-    (evaluation) => evaluation.isValid,
-  )
-  const isImportedDeckLegalEverywhere =
-    visibleImportedDeckEvaluations.length > 0
-    && validImportedDeckRulesets.length === visibleImportedDeckEvaluations.length
   const importedDeckParseError = importedDeckParse && !importedDeckParse.isValid
     ? importedDeckParse.error
     : null
@@ -525,30 +588,75 @@ export function LoginView() {
   const activeDeckCardsById = deckOptionsMode === 'import' ? importedDeckCardsById : storedDeckCardsById
 
   /**
-   * Quick match judges the deck against the ruleset being queued for, nothing else: a deck that is legal in some
-   * other format is still refused here, because the game it is about to join only accepts this one.
+   * Quick match and host judge the deck against the format of the action about to run, nothing else: a deck that is
+   * legal in some other format is still refused here, because the game it is about to enter only accepts this one.
+   * The Join or Host tab shows both actions, and only hosting is format-bound.
    */
-  const quickmatchDeckEvaluation = useMemo(() => {
-    if (gameCodeMode !== 'quickmatch' || !selectedRuleset || activeDeckCards.length === 0) {
+  const rulesetDeckEvaluation = useMemo(() => {
+    const ruleset = gameEntryMode === 'quickmatch' ? selectedQuickmatchRuleset : selectedHostRuleset
+    if (!ruleset || activeDeckCards.length === 0) {
       return null
     }
 
-    return evaluateRuleset(activeDeckCards, activeDeckCardsById, selectedRuleset)
-  }, [gameCodeMode, selectedRuleset, activeDeckCards, activeDeckCardsById])
+    return evaluateRuleset(activeDeckCards, activeDeckCardsById, ruleset)
+  }, [gameEntryMode, selectedQuickmatchRuleset, selectedHostRuleset, activeDeckCards, activeDeckCardsById])
 
   const isCheckingActiveDeck = importedDeckCardsQuery.isFetching || storedDeckCardsQuery.isFetching
 
-  const importedDeckFormatStatusText = useMemo(() => {
-    if (validImportedDeckRulesets.length > 0) {
-      return t('deckRules.status.validForFormats', {
-        formats: validImportedDeckRulesets
-          .map((evaluation) => evaluation.ruleset.name)
-          .join(', '),
-      })
+  /**
+   * The format the deck summary judges against: the quick-match format while queueing, and on the Join or Host tab the
+   * table behind the typed code - falling back to the host format while no code resolves to a game.
+   */
+  const summaryRuleset = gameEntryMode === 'quickmatch'
+    ? selectedQuickmatchRuleset
+    : joinTargetRuleset ?? selectedHostRuleset
+
+  const summaryDeckEvaluation = useMemo(() => {
+    if (!summaryRuleset || activeDeckCards.length === 0) {
+      return null
     }
 
-    return t('deckRules.status.invalidForAllFormats')
-  }, [t, validImportedDeckRulesets])
+    return evaluateRuleset(activeDeckCards, activeDeckCardsById, summaryRuleset)
+  }, [summaryRuleset, activeDeckCards, activeDeckCardsById])
+
+  // A stored deck is named by the player, so its name is enough. An imported deck has none, so it takes the identity
+  // of its leader, which is the one card every legal deck is built around.
+  const summaryDeckName = useMemo(() => {
+    if (deckOptionsMode === 'import') {
+      const leaderCard = importedDeckCards.find(
+        (card) => importedDeckCardsById.get(normalizeDeckCardId(card.cardId))?.type.trim().toLowerCase() === 'leader',
+      )
+      const leader = leaderCard
+        ? importedDeckCardsById.get(normalizeDeckCardId(leaderCard.cardId))
+        : undefined
+
+      if (leader) {
+        return `${leader.id} ${leader.displayName}`
+      }
+
+      return activeDeckOption.trim() ? t('auth.deckSummary.importedDeck') : null
+    }
+
+    const selectedDeckId = activeDeckOption.trim()
+    if (!selectedDeckId) {
+      return null
+    }
+
+    const decks = deckOptionsMode === 'saved_decks' ? savedDecks : starterDecks
+    const deckName = decks.find((deck) => deck.id === selectedDeckId)?.name.trim()
+
+    return deckName || t('auth.deckChoice.unnamedDeck', { shortId: selectedDeckId.slice(0, 8) })
+  }, [
+    activeDeckOption,
+    deckOptionsMode,
+    importedDeckCards,
+    importedDeckCardsById,
+    savedDecks,
+    starterDecks,
+    t,
+  ])
+
+  const isCheckingDeckSummary = isCheckingActiveDeck || joinGameRulesetQuery.isChecking
 
   const describeImportedDeckParseError = (error: IDeckListParseError): string => {
     if (error.code === 'empty') {
@@ -692,6 +800,21 @@ export function LoginView() {
     }
   }
 
+  /**
+   * The toast shown when the chosen format refuses the deck. An imported deck is fixed in the import dialog, which
+   * is where its violations are listed, so the toast points there instead of quoting the whole list.
+   */
+  const showRulesetDeckRejectedToast = (rulesetName: string) => {
+    if (deckOptionsMode === 'import') {
+      showAppInfoToast(t('auth.toasts.deckInvalidForImportedDeck'))
+      return
+    }
+
+    showAppInfoToast(
+      t('auth.toasts.deckNotLegalForRuleset', { ruleset: rulesetName }),
+    )
+  }
+
   const finishQuickmatch = (gameId: string) => {
     setActiveTicket(null)
     clearStoredMatchTicket()
@@ -700,16 +823,25 @@ export function LoginView() {
     navigate(toGameRoutePath(gameId))
   }
 
-  const startQuickmatch = async (identity: IAuthSession, deckId: string) => {
-    if (!selectedRuleset) {
+  const handleEnterCreatedGame = () => {
+    if (!createdGameShare) {
       return
     }
 
+    const gameId = createdGameShare.gameId
+    setCreatedGameShare(null)
+    setSession({ displayName, gameCode: gameId })
+    // No "share this code" toast here: the dialog has just shown the code and the invite link, and repeating it over
+    // the board adds nothing.
+    navigate(toGameRoutePath(gameId))
+  }
+
+  const startQuickmatch = async (identity: IAuthSession, deckId: string, ruleset: IDeckRuleset) => {
     try {
       const ticket = await enqueueMatchMutation.mutateAsync({
         userId: identity.userId,
         deckId,
-        rulesetId: selectedRuleset.id,
+        rulesetId: ruleset.id,
       })
 
       if (ticket.state === 'matched' && ticket.gameId) {
@@ -720,27 +852,80 @@ export function LoginView() {
       storeMatchTicket(ticket)
       setActiveTicket(ticket)
     } catch (error) {
+      // The queue refuses a deck with a full list of violations; the import dialog is where those are shown.
+      if (isApiBadRequestError(error)) {
+        showRulesetDeckRejectedToast(ruleset.name)
+        return
+      }
+
       showAppInfoToast(getApiErrorMessage(error, t('auth.toasts.matchmakingFailed')))
     }
   }
 
-  const handleSubmit = async (event: SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  /**
+   * The format of the table behind a code. The debounced lookup usually has it already; when it does not (the player
+   * typed fast and pressed Join), this asks directly rather than letting the server produce the same verdict later.
+   * A code that names no live game, or a game with no format, resolves to null and leaves joining as it was.
+   */
+  const resolveJoinFormat = async (gameCode: string): Promise<IDeckRuleset | null> => {
+    if (joinTargetRuleset && !joinGameRulesetQuery.isChecking) {
+      return joinTargetRuleset
+    }
+
+    try {
+      const binding = await fetchGameRuleset(gameCode)
+      if (!binding) {
+        return null
+      }
+
+      return (activeDeckRulesetsQuery.data ?? []).find((ruleset) => ruleset.id === binding.id) ?? null
+    } catch {
+      return null
+    }
+  }
+
+  const showJoinFormatRejectedToast = (rulesetName: string) => {
+    showAppInfoToast(t('auth.toasts.deckNotLegalForJoinedGame', { ruleset: rulesetName }))
+  }
+
+  /**
+   * The single path behind every action button. The intent is what the pressed button asked for, which is finer
+   * grained than the tab it sits on: the Join or Host tab offers two of them at once.
+   */
+  const submitGameIntent = async (intent: IGameIntent) => {
+    if (pendingIntent) {
+      return
+    }
 
     if (!validateDisplayName()) {
       return
     }
 
-    const normalizedGameCode = activeGameCode.trim()
-    const isQuickmatchMode = gameCodeMode === 'quickmatch'
-    const requiresDeck = gameCodeMode === 'create' || isQuickmatchMode
+    // Quick match and host both sit under a format, so both need a deck that fits it before anything is minted.
+    const selectsRuleset = isRulesetIntent(intent)
+    const requiresDeck = selectsRuleset
+    const ruleset = intent === 'quickmatch'
+      ? selectedQuickmatchRuleset
+      : intent === 'host'
+        ? selectedHostRuleset
+        : null
+    const normalizedGameCode = joinGameCode.trim()
+    let joinFormat: IDeckRuleset | null = null
 
-    const identity = await resolvePlayerIdentity()
-    if (!identity) {
-      return
-    }
+    setPendingIntent(intent)
 
     try {
+      const identity = await resolvePlayerIdentity()
+      if (!identity) {
+        return
+      }
+
+      // Before the deck is even resolved: knowing the table's format decides whether the imported deck has to be
+      // legal in some format or in this one.
+      if (intent === 'join' && normalizedGameCode) {
+        joinFormat = await resolveJoinFormat(normalizedGameCode)
+      }
+
       let deckId: string | null = null
 
       if (deckOptionsMode === 'import') {
@@ -762,9 +947,10 @@ export function LoginView() {
             return
           }
 
-          // Quick match judges the deck against the ruleset it is queueing for, just below. Create and join keep
-          // the long-standing "legal in some active format" rule.
-          if (!isQuickmatchMode && importedDeckValidation?.isLegalInAnyRuleset !== true) {
+          // The format-driven actions judge the deck against the format they are about to play, just below. Join
+          // judges against the table's format when the code resolved one, and otherwise keeps the long-standing
+          // "legal in some active format" rule.
+          if (!selectsRuleset && !joinFormat && importedDeckValidation?.isLegalInAnyRuleset !== true) {
             showAppInfoToast(t('auth.toasts.deckNotLegal'))
             return
           }
@@ -791,8 +977,17 @@ export function LoginView() {
         }
       }
 
-      if (isQuickmatchMode) {
-        if (!selectedRuleset) {
+      // Joining a table that declares a format is judged against that format, before the request goes out.
+      if (joinFormat && activeDeckCards.length > 0) {
+        const joinEvaluation = evaluateRuleset(activeDeckCards, activeDeckCardsById, joinFormat)
+        if (!joinEvaluation.isValid) {
+          showJoinFormatRejectedToast(joinFormat.name)
+          return
+        }
+      }
+
+      if (selectsRuleset) {
+        if (!ruleset) {
           showAppInfoToast(t('auth.toasts.selectRuleset'))
           return
         }
@@ -807,37 +1002,25 @@ export function LoginView() {
           return
         }
 
-        if (quickmatchDeckEvaluation && !quickmatchDeckEvaluation.isValid) {
-          showAppInfoToast(
-            t('auth.toasts.deckNotLegalForRuleset', { ruleset: selectedRuleset.name }),
-          )
+        if (rulesetDeckEvaluation && !rulesetDeckEvaluation.isValid) {
+          showRulesetDeckRejectedToast(ruleset.name)
           return
         }
 
-        await startQuickmatch(identity, deckId)
-        return
-      }
-
-      if (gameCodeMode === 'create') {
-        if (!deckId) {
-          const deckModeLabel = t(deckOptionsMode === 'saved_decks' ? 'auth.deckMode.saved' : 'auth.deckMode.public')
-          showAppInfoToast(t('auth.toasts.selectDeck', { mode: deckModeLabel }))
+        if (intent === 'quickmatch') {
+          await startQuickmatch(identity, deckId, ruleset)
           return
         }
 
+        // Hosting mints a real, already-joinable game and then holds the host on the code: the invite has to be
+        // shareable before the board takes over the screen.
         const createdGame = await createGameForUser({
           userId: identity.userId,
           deckId,
+          rulesetId: ruleset.id,
         })
 
-        setGameCodeValue(createdGame.id)
-        setSession({
-          displayName,
-          gameCode: createdGame.id,
-        })
-
-        showAppSuccessToast(t('auth.toasts.gameCreated', { code: createdGame.id }))
-        navigate(toGameRoutePath(createdGame.id))
+        setCreatedGameShare({ gameId: createdGame.id, rulesetName: ruleset.name })
         return
       }
 
@@ -859,10 +1042,24 @@ export function LoginView() {
       showAppSuccessToast(t('auth.toasts.joinedGame'))
       navigate(toGameRoutePath(joinedGame.id))
     } catch (error) {
+      // Under a format the only 400 the server sends back here is the deck/format verdict, and its description lists
+      // every violation. Point at the import view instead of pasting that list into a toast.
+      if (selectsRuleset && isApiBadRequestError(error)) {
+        showRulesetDeckRejectedToast(ruleset?.name ?? '')
+        return
+      }
+
+      // A join refused for its deck can only be about the joined table's format, so name that format instead of
+      // quoting the server's violation list.
+      if (joinFormat && isApiBadRequestError(error)) {
+        showJoinFormatRejectedToast(joinFormat.name)
+        return
+      }
+
       const apiMessage = getApiErrorMessage(error, t('auth.toasts.submitFailed'))
 
       if (
-        gameCodeMode === 'join' &&
+        intent === 'join' &&
         normalizedGameCode.length > 0 &&
         apiMessage.toLowerCase().includes('already part of this game instance')
       ) {
@@ -875,7 +1072,24 @@ export function LoginView() {
       }
 
       showAppInfoToast(apiMessage)
+    } finally {
+      setPendingIntent(null)
     }
+  }
+
+  /**
+   * Every action button is a submit button carrying its intent in `value`, so `Host` can never be mistaken for
+   * `Join`. The Enter key arrives without a submitter and falls back to the visible tab's primary action.
+   */
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const submitter = event.nativeEvent.submitter
+    const pressedIntent = submitter instanceof HTMLButtonElement && isGameIntent(submitter.value)
+      ? submitter.value
+      : null
+
+    void submitGameIntent(pressedIntent ?? (gameEntryMode === 'quickmatch' ? 'quickmatch' : 'join'))
   }
 
   return (
@@ -949,38 +1163,84 @@ export function LoginView() {
             </FormField>
 
             <FormField className="col-span-1">
-              <FormLabel htmlFor="gameCode">{t('auth.gameCode')}</FormLabel>
               <OptionToggle
-                ariaLabel={t('auth.gameCodeModeAria')}
-                value={gameCodeMode}
-                options={translatedGameCodeModeOptions}
+                ariaLabel={t('auth.gameEntryModeAria')}
+                value={gameEntryMode}
+                options={translatedGameEntryModeOptions}
                 optionClassName="py-1"
                 onChange={(nextMode) => {
-                  setGameCodeMode(nextMode)
+                  setGameEntryMode(nextMode)
                 }}
               />
-              <AdaptiveFormField
-                id="gameCode"
-                value={activeGameCode}
-                onValueChange={setGameCodeValue}
-                config={translatedGameCodeConfig}
-                className="py-1.5"
-              />
+
+              {gameEntryMode === 'quickmatch' ? (
+                <>
+                  <AdaptiveFormField
+                    id="quickmatchRuleset"
+                    value={quickmatchRulesetId}
+                    onValueChange={(value) => setRulesetId('quickmatch', value)}
+                    config={quickmatchRulesetConfig}
+                    ariaLabel={t('auth.format')}
+                    className="py-1.5"
+                  />
+                  <AppButton
+                    type="submit"
+                    name="intent"
+                    value="quickmatch"
+                    disabled={pendingIntent !== null}
+                    className="w-full justify-center py-1.5"
+                  >
+                    {t('auth.findMatch')}
+                  </AppButton>
+                </>
+              ) : (
+                <div className="grid grid-cols-2 items-start gap-2">
+                  <div className="space-y-2">
+                    <AdaptiveFormField
+                      id="joinGameCode"
+                      value={joinGameCode}
+                      onValueChange={setJoinGameCode}
+                      config={translatedJoinGameCodeConfig}
+                      ariaLabel={t('auth.gameCode')}
+                      className="py-1.5"
+                    />
+                    <AppButton
+                      type="submit"
+                      name="intent"
+                      value="join"
+                      disabled={pendingIntent !== null}
+                      className="w-full justify-center py-1.5"
+                    >
+                      {t('auth.join')}
+                    </AppButton>
+                  </div>
+
+                  <div className="space-y-2">
+                    <AdaptiveFormField
+                      id="hostRuleset"
+                      value={hostRulesetId}
+                      onValueChange={(value) => setRulesetId('host', value)}
+                      config={hostRulesetConfig}
+                      ariaLabel={t('auth.format')}
+                      className="py-1.5"
+                    />
+                    <AppButton
+                      type="submit"
+                      name="intent"
+                      value="host"
+                      disabled={pendingIntent !== null}
+                      className="w-full justify-center py-1.5"
+                    >
+                      {t('auth.host')}
+                    </AppButton>
+                  </div>
+                </div>
+              )}
             </FormField>
 
             <FormField className="col-span-1">
-                <div className="flex items-center justify-between gap-2">
-                  <FormLabel htmlFor="deckOptions" className="mb-0">{t('auth.deckOptions')}</FormLabel>
-                  {starterDeckFetchFailed && deckOptionsMode === 'starter_decks' ? (
-                    <button
-                      type="button"
-                      onClick={() => setStarterDeckRetryToken((value) => value + 1)}
-                      className="px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] transition-opacity hover:opacity-75"
-                    >
-                      {t('auth.retry')}
-                    </button>
-                  ) : null}
-                </div>
+                {/* The deck toggle is the first thing in this column, exactly like the tab toggle in the other one, so
+                    both columns start on the same line. The retry hint sits below it for the same reason. */}
                 <OptionToggle
                   ariaLabel={t('auth.deckOptionsModeAria')}
                   value={deckOptionsMode}
@@ -993,6 +1253,17 @@ export function LoginView() {
                     }
                   }}
                 />
+                {starterDeckFetchFailed && deckOptionsMode === 'starter_decks' ? (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setStarterDeckRetryToken((value) => value + 1)}
+                      className="px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] transition-opacity hover:opacity-75"
+                    >
+                      {t('auth.retry')}
+                    </button>
+                  </div>
+                ) : null}
                 {isGuestSession && deckOptionsMode === 'saved_decks' ? (
                   <p className="text-[11px] leading-4 text-[var(--text-muted)]">
                     {t('auth.deckChoice.guestSavedDecksHint')}
@@ -1017,22 +1288,6 @@ export function LoginView() {
                         {t('auth.invalidDeckValue')}
                       </p>
                     ) : null}
-                    {importedDeckParse?.isValid
-                    && visibleImportedDeckValidation
-                    && !isImportedDeckLegalEverywhere ? (
-                      <p
-                        data-testid="login-deck-format-status"
-                        data-has-valid-format={validImportedDeckRulesets.length > 0 ? 'true' : 'false'}
-                        title={importedDeckFormatStatusText}
-                        className={`truncate text-xs font-medium leading-5 ${
-                          validImportedDeckRulesets.length > 0
-                            ? 'text-emerald-700 dark:text-emerald-300'
-                            : 'text-[var(--button-primary-bg)]'
-                        }`}
-                      >
-                        {importedDeckFormatStatusText}
-                      </p>
-                    ) : null}
                   </>
                 ) : (
                   <AdaptiveFormField
@@ -1040,16 +1295,40 @@ export function LoginView() {
                     value={activeDeckOption}
                     onValueChange={setDeckOptionValue}
                     config={activeDeckFieldConfig}
+                    ariaLabel={t('auth.deckOptions')}
                     className="py-1.5"
                   />
                 )}
+                {summaryDeckName || summaryDeckEvaluation ? (
+                  <div
+                    data-testid="login-deck-summary"
+                    data-legal={
+                      summaryDeckEvaluation
+                        ? summaryDeckEvaluation.isValid
+                          ? 'true'
+                          : 'false'
+                        : 'unknown'
+                    }
+                    className="flex min-w-0 items-center gap-2 text-xs font-normal leading-5"
+                  >
+                    {summaryDeckEvaluation && !isCheckingDeckSummary ? (
+                      <span
+                        data-testid="login-deck-summary-pill"
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] ${
+                          summaryDeckEvaluation.isValid
+                            ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                            : 'bg-[var(--button-primary-bg)]/20 text-[var(--button-primary-bg)]'
+                        }`}
+                      >
+                        {summaryDeckEvaluation.isValid
+                          ? t('auth.deckSummary.legalPill')
+                          : t('auth.deckSummary.illegalPill')}
+                      </span>
+                    ) : null}
+                    <span className="min-w-0 truncate text-[var(--text-secondary)]">{summaryDeckName}</span>
+                  </div>
+                ) : null}
               </FormField>
-
-            <FormActions className="col-span-full pt-1 w-full justify-start">
-              <AppButton type="submit" className="w-full">
-                {t('auth.enterGame')}
-              </AppButton>
-            </FormActions>
           </Form>
         </Panel>
       </div>
@@ -1173,6 +1452,15 @@ export function LoginView() {
         />
       ) : null}
 
+      {createdGameShare ? (
+        <CreateGameShareDialog
+          gameId={createdGameShare.gameId}
+          rulesetName={createdGameShare.rulesetName}
+          onEnterGame={handleEnterCreatedGame}
+          onLeave={() => setCreatedGameShare(null)}
+        />
+      ) : null}
+
       <DeckImportDialog
         isOpen={isImportModalOpen}
         payload={activeDeckOption}
@@ -1201,29 +1489,18 @@ function toGameRoutePath(joinCode: string): string {
   return `/game/${encodeURIComponent(joinCode.trim())}`
 }
 
+/** Deck choices carry the name and nothing else: counts belong to the deck itself, not to the picker. */
 function toDeckChoices(decks: IDeckResponse[], emptyStateLabel: string): { value: string; label: string }[] {
   if (decks.length === 0) {
     return [{ value: '', label: emptyStateLabel }]
   }
 
-  return decks.map((deck, index) => {
-    const totalCards = deck.cards.reduce((sum, card) => sum + card.quantity, 0)
+  return decks.map((deck) => {
     const deckName = deck.name.trim()
-
-    if (deckName) {
-      return {
-        value: deck.id,
-        label: i18n.t('auth.deckChoice.namedDeckLabel', { name: deckName, totalCards }),
-      }
-    }
 
     return {
       value: deck.id,
-      label: i18n.t('auth.deckChoice.deckLabel', {
-        number: index + 1,
-        shortId: deck.id.slice(0, 8),
-        totalCards,
-      }),
+      label: deckName || i18n.t('auth.deckChoice.unnamedDeck', { shortId: deck.id.slice(0, 8) }),
     }
   })
 }

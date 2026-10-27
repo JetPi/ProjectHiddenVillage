@@ -1,14 +1,14 @@
 import { create } from 'zustand'
-import type { IDeckOptionsEntryMode, IGameCodeEntryMode } from '@/types/login'
+import type { IDeckOptionsEntryMode, IRulesetMode } from '@/types/login'
 import type { ILoginViewStoreState } from '@/state/types/loginViewStore'
 import { readCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
 
-const initialGameCodeByMode: Record<IGameCodeEntryMode, string> = {
-  // Quick match selects a ruleset, so the value is a ruleset id that the view fills in as soon as the active
-  // rulesets arrive. Join and create still hold the game code itself.
+// Quick match queues inside one format and hosting opens a table bound to one, so each keeps a ruleset id that the
+// view fills in as soon as the active rulesets arrive. Joining keeps the code the player typed instead, and the two
+// live side by side on the Join or Host tab, which is why they are separate fields rather than per-tab strings.
+const initialRulesetIdByMode: Record<IRulesetMode, string> = {
   quickmatch: '',
-  join: '',
-  create: '',
+  host: '',
 }
 
 const initialDeckOptionsByMode: Record<IDeckOptionsEntryMode, string> = {
@@ -19,8 +19,9 @@ const initialDeckOptionsByMode: Record<IDeckOptionsEntryMode, string> = {
 
 const initialState = {
   displayName: '',
-  gameCodeMode: 'quickmatch' as IGameCodeEntryMode,
-  gameCodeByMode: initialGameCodeByMode,
+  gameEntryMode: 'quickmatch' as const,
+  joinGameCode: '',
+  rulesetIdByMode: initialRulesetIdByMode,
   deckOptionsMode: 'import' as IDeckOptionsEntryMode,
   deckOptionsByMode: initialDeckOptionsByMode,
   showDisplayNameError: false,
@@ -36,12 +37,13 @@ export const useLoginViewStore = create<ILoginViewStoreState>()((set, get) => ({
       showDisplayNameError: state.showDisplayNameError ? !hasValue : state.showDisplayNameError,
     }))
   },
-  setGameCodeMode: (mode) => set({ gameCodeMode: mode }),
-  setGameCodeValue: (value) =>
+  setGameEntryMode: (mode) => set({ gameEntryMode: mode }),
+  setJoinGameCode: (value) => set({ joinGameCode: value }),
+  setRulesetId: (mode, value) =>
     set((state) => ({
-      gameCodeByMode: {
-        ...state.gameCodeByMode,
-        [state.gameCodeMode]: value,
+      rulesetIdByMode: {
+        ...state.rulesetIdByMode,
+        [mode]: value,
       },
     })),
   setDeckOptionsMode: (mode) => set({ deckOptionsMode: mode }),
@@ -60,7 +62,7 @@ export const useLoginViewStore = create<ILoginViewStoreState>()((set, get) => ({
   reset: () =>
     set({
       ...initialState,
-      gameCodeByMode: { ...initialGameCodeByMode },
+      rulesetIdByMode: { ...initialRulesetIdByMode },
       deckOptionsByMode: { ...initialDeckOptionsByMode },
     }),
 }))
