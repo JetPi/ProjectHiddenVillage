@@ -50,6 +50,9 @@ const initialState = {
   activeAttackLink: null,
   lastSubmittedAttackSourceInstanceId: null,
   isPhasePresentationPending: false,
+  isActionLogOpen: false,
+  isActionLogExpanded: false,
+  isGameOverOverlayDismissed: false,
   retainedInteractiveAvailableActions: [],
   retainedIsActionBlocked: false,
   isSupportWindowHudHolding: false,
@@ -131,6 +134,20 @@ export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
     set((state) => ({ lastSubmittedAttackSourceInstanceId: resolveUpdate(value, state.lastSubmittedAttackSourceInstanceId) })),
   setIsPhasePresentationPending: (value) =>
     set((state) => ({ isPhasePresentationPending: resolveUpdate(value, state.isPhasePresentationPending) })),
+  // Closing drops the expanded mode as well, so reopening the log always starts in the compact column instead of
+  // jumping straight back to covering the board.
+  toggleActionLog: () =>
+    set((state) => ({
+      isActionLogOpen: !state.isActionLogOpen,
+      isActionLogExpanded: state.isActionLogOpen ? false : state.isActionLogExpanded,
+    })),
+  openActionLog: () => set({ isActionLogOpen: true }),
+  closeActionLog: () => set({ isActionLogOpen: false, isActionLogExpanded: false }),
+  setActionLogExpanded: (value) =>
+    set((state) => ({ isActionLogExpanded: resolveUpdate(value, state.isActionLogExpanded) })),
+  dismissGameOverOverlay: () => set({ isGameOverOverlayDismissed: true }),
+  setGameOverOverlayDismissed: (value) =>
+    set((state) => ({ isGameOverOverlayDismissed: resolveUpdate(value, state.isGameOverOverlayDismissed) })),
   setRetainedInteractiveAvailableActions: (value) =>
     set((state) => ({ retainedInteractiveAvailableActions: resolveUpdate(value, state.retainedInteractiveAvailableActions) })),
   setRetainedIsActionBlocked: (value) =>

@@ -1675,6 +1675,14 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.AreEqual(1, game.State.Players[1].Battlefield.Count);
         Assert.AreEqual("hand-1", game.State.Players[1].Battlefield[0].InstanceId);
         Assert.IsFalse(game.State.IsSummonCardReady("p2"));
+
+        // The summon is what reveals the card, so the published entry may name it.
+        var summonEntry = game.ActionLog.Single(entry =>
+            entry.ActionType == GameActionLogActionTypes.CardSummoned);
+        Assert.AreEqual(GameActionLogCategory.Action, summonEntry.Category);
+        Assert.AreEqual(GameActionLogVisibility.Public, summonEntry.Visibility);
+        Assert.AreEqual("hand-1", summonEntry.Metadata["cardInstanceId"]);
+        Assert.IsTrue(summonEntry.Metadata.ContainsKey("displayName"));
     }
 
     [TestMethod]
@@ -1826,6 +1834,16 @@ public sealed class InMemoryGameInstanceRegistryTests
         Assert.AreEqual(1, game.State.Players[1].SupportZone.Count);
         Assert.AreEqual("hand-1", game.State.Players[1].SupportZone[0].InstanceId);
         Assert.AreEqual(0, game.State.Players[1].SupportZone[0].SupportSlotIndex);
+
+        // The opponent may see that a support was set, but never which card it was: the card is face down and
+        // the log is shared, so naming it here would turn the back row into open information.
+        var supportEntry = game.ActionLog.Single(entry =>
+            entry.ActionType == GameActionLogActionTypes.SupportSet);
+        Assert.AreEqual(GameActionLogVisibility.Public, supportEntry.Visibility);
+        Assert.AreEqual("hand-1", supportEntry.Metadata["cardInstanceId"]);
+        Assert.IsFalse(supportEntry.Metadata.ContainsKey("displayName"));
+        Assert.IsFalse(supportEntry.Metadata.ContainsKey("cardDefinitionId"));
+        Assert.AreEqual("0", supportEntry.Metadata["slotIndex"]);
     }
 
     [TestMethod]

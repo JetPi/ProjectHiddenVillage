@@ -17,6 +17,8 @@ export function SideBarButtons(props: IGameZonesProps){
     const { t } = useTranslation()
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
     const isEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting !== null)
+    const isActionLogOpen = useGameUIStore((state) => state.isActionLogOpen)
+    const toggleActionLog = useGameUIStore((state) => state.toggleActionLog)
     const [isForfeitDialogOpen, setIsForfeitDialogOpen] = useState(false)
     const [isForfeiting, setIsForfeiting] = useState(false)
 
@@ -37,7 +39,10 @@ export function SideBarButtons(props: IGameZonesProps){
     }
 
     return <>
-      <div className="flex flex-col items-end justify-center gap-1">
+      {/* This root stays the grid item so `justify-center` still centres the rail in the column. It also carries the
+          stacking order that keeps the buttons above the compact action log, which overlaps this column: the log
+          button is the only thing that can close that panel. */}
+      <div className="relative z-40 flex flex-col items-end justify-center gap-1">
         {rulesetName ? (
           <div
             data-testid="game-ruleset-name"
@@ -127,32 +132,39 @@ export function SideBarButtons(props: IGameZonesProps){
           </div>
         ) : null}
 
-        <div className="group relative">
-          <AppButton
-            type="button"
-            variant="ghost"
-            aria-label={t('game.sidebar.undoAria')}
-            disabled={props.isActionBlocked}
-            aria-disabled={props.isPresentationPending || undefined}
-            tabIndex={props.isPresentationPending ? -1 : undefined}
-            className={`h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]${frozenClassName}`}
-          >
-            <RotateCcw size={10} />
-          </AppButton>
-          <span className={SIDEBAR_TOOLTIP_CLASS_NAME}>
-            {t('game.sidebar.undoTooltip')}
-          </span>
-        </div>
+        {/* Undoing is a live-game affordance: there is nothing left to take back once the engine has published an
+            outcome, so the control goes away with the rest of the interaction. */}
+        {isGameOver ? null : (
+          <div className="group relative">
+            <AppButton
+              type="button"
+              variant="ghost"
+              data-testid="undo-action-button"
+              aria-label={t('game.sidebar.undoAria')}
+              disabled={props.isActionBlocked}
+              aria-disabled={props.isPresentationPending || undefined}
+              tabIndex={props.isPresentationPending ? -1 : undefined}
+              className={`h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]${frozenClassName}`}
+            >
+              <RotateCcw size={10} />
+            </AppButton>
+            <span className={SIDEBAR_TOOLTIP_CLASS_NAME}>
+              {t('game.sidebar.undoTooltip')}
+            </span>
+          </div>
+        )}
 
         <div className="group relative">
+          {/* Reading the log is not a game action: it stays available while actions are blocked, while a phase
+              presentation is being shown, and after the game is over. The button only opens and closes it. */}
           <AppButton
             type="button"
             variant="ghost"
+            data-testid="action-log-toggle"
             aria-label={t('game.sidebar.openLogAria')}
-            disabled={props.isActionBlocked}
-            aria-disabled={props.isPresentationPending || undefined}
-            tabIndex={props.isPresentationPending ? -1 : undefined}
-            className={`h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]${frozenClassName}`}
+            aria-pressed={isActionLogOpen}
+            onClick={toggleActionLog}
+            className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
           >
             <ScrollText size={10} />
           </AppButton>

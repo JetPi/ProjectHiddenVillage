@@ -154,7 +154,8 @@ public sealed class GameInstance
                 ["turnNumber"] = State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["requiredAckPlayerIds"] = string.Join(",", presentation.RequiredAckPlayerIds),
             },
-            timestampUtc: timestampUtc);
+            timestampUtc: timestampUtc,
+            category: GameActionLogCategory.Phase);
 
         return presentation;
     }
@@ -185,7 +186,8 @@ public sealed class GameInstance
                 ["presentationId"] = presentation.PresentationId,
                 ["presentationKind"] = presentation.Kind.ToString(),
                 ["phase"] = presentation.Phase.ToString(),
-            });
+            },
+            category: GameActionLogCategory.Phase);
 
         return true;
     }
@@ -211,7 +213,9 @@ public sealed class GameInstance
         string message,
         string? playerId = null,
         IReadOnlyDictionary<string, string>? metadata = null,
-        DateTimeOffset? timestampUtc = null)
+        DateTimeOffset? timestampUtc = null,
+        GameActionLogCategory category = GameActionLogCategory.Lifecycle,
+        GameActionLogVisibility visibility = GameActionLogVisibility.Public)
     {
         if (string.IsNullOrWhiteSpace(actionType))
         {
@@ -232,15 +236,51 @@ public sealed class GameInstance
                 $"Log player '{resolvedPlayerId}' was not found in game players.");
         }
 
+        // An owner-only entry nobody owns could never be shown to anyone, which is almost certainly a mistake at
+        // the call site rather than a deliberate "record it and hide it from everybody".
+        if (visibility == GameActionLogVisibility.OwnerOnly && string.IsNullOrWhiteSpace(resolvedPlayerId))
+        {
+            throw new InvalidOperationException(
+                "An owner-only action log entry must name the player it belongs to.");
+        }
+
+        var resolvedMetadata = metadata is null
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : new Dictionary<string, string>(metadata, StringComparer.Ordinal);
+
+        // Turn context is stamped here rather than at each call site. The log is grouped by whose turn it was and
+        // which of that player's turns it was, and an entry that forgets to carry the context splits the group - which
+        // is exactly what a duplicated "Turn 4" header was. A caller that already knows better (an outcome recording
+        // the turn it ended on) keeps its own value.
+        resolvedMetadata.TryAdd(
+            "turnNumber",
+            State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        resolvedMetadata.TryAdd("phase", State.Phase.ToString());
+
+        if (!string.IsNullOrWhiteSpace(State.ActivePlayerId))
+        {
+            resolvedMetadata.TryAdd("activePlayerId", State.ActivePlayerId);
+
+            var turnOwner = State.Players.FirstOrDefault(player =>
+                string.Equals(player.PlayerId, State.ActivePlayerId, StringComparison.Ordinal));
+
+            if (turnOwner is not null)
+            {
+                resolvedMetadata.TryAdd(
+                    "turnOwnerTurnCount",
+                    turnOwner.TurnCount.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+        }
+
         var entry = new GameActionLogEntry
         {
             ActionType = actionType,
             Message = message,
             PlayerId = resolvedPlayerId,
             TimestampUtc = timestampUtc ?? DateTimeOffset.UtcNow,
-            Metadata = metadata is null
-                ? []
-                : new Dictionary<string, string>(metadata, StringComparer.Ordinal)
+            Category = category,
+            Visibility = visibility,
+            Metadata = resolvedMetadata
         };
 
         ActionLog.Add(entry);
@@ -280,7 +320,11 @@ public sealed class GameInstance
         return PendingPrompts.Count > 0 ? PendingPrompts.Peek() : null;
     }
 
-    public void ResolvePrompt(string requestedPlayerId, string selectedOption)
+    /// <param name="resolvedByTimeout">
+    /// True when the engine answered on the player's behalf because their clock ran out. The entry keeps the player
+    /// (it was their stop) but records that no choice was made, so the log does not report a decision nobody took.
+    /// </param>
+    public void ResolvePrompt(string requestedPlayerId, string selectedOption, bool resolvedByTimeout = false)
     {
         if (PendingPrompts.Count == 0)
         {
@@ -301,7 +345,7 @@ public sealed class GameInstance
 
         if (PromptTemplates.TryGetValue(prompt.Type, out var promptTemplate))
         {
-            promptTemplate.Resolve(this, requestedPlayerId, selectedOption);
+            promptTemplate.Resolve(this, prompt, requestedPlayerId, selectedOption, resolvedByTimeout);
             return;
         }
 
@@ -502,7 +546,12 @@ public sealed class GameInstance
         }
     }
 
-    private static void ResolveChooseStartingPlayerPrompt(GameInstance instance, string requestedPlayerId, string selectedOption)
+    private static void ResolveChooseStartingPlayerPrompt(
+        GameInstance instance,
+        GamePrompt _,
+        string requestedPlayerId,
+        string selectedOption,
+        bool resolvedByTimeout)
     {
         var startingPlayerId = ResolveStartingPlayerFromPromptOption(instance.State, requestedPlayerId, selectedOption);
         instance.State.ActivePlayerId = startingPlayerId;
@@ -518,7 +567,8 @@ public sealed class GameInstance
             playerId: requestedPlayerId,
             promptType: GamePromptType.ChooseStartingPlayer,
             selectedOption: selectedOption,
-            selectedPlayerId: startingPlayerId);
+            selectedPlayerId: startingPlayerId,
+            resolvedByTimeout: resolvedByTimeout);
 
         LogAction(
             instance,
@@ -578,7 +628,12 @@ public sealed class GameInstance
         throw new InvalidOperationException("Selected option is not valid for this prompt.");
     }
 
-    private static void ResolveMulliganPrompt(GameInstance instance, string requestedPlayerId, string selectedOption)
+    private static void ResolveMulliganPrompt(
+        GameInstance instance,
+        GamePrompt _,
+        string requestedPlayerId,
+        string selectedOption,
+        bool resolvedByTimeout)
     {
         var player = instance.State.Players.SingleOrDefault(entry =>
             string.Equals(entry.PlayerId, requestedPlayerId, StringComparison.Ordinal));
@@ -613,7 +668,8 @@ public sealed class GameInstance
             actionType: "prompt_resolved",
             playerId: requestedPlayerId,
             promptType: GamePromptType.Mulligan,
-            selectedOption: selectedOption);
+            selectedOption: selectedOption,
+            resolvedByTimeout: resolvedByTimeout);
 
         instance.ValidateInvariants();
     }
@@ -643,18 +699,126 @@ public sealed class GameInstance
     /// record the answer and drop the prompt - the registry then resumes the suspended chain through
     /// <see cref="GamePrompt.EffectContinuation"/>.
     /// </summary>
-    private static void ResolveEffectSelectionPrompt(GameInstance instance, string requestedPlayerId, string selectedOption)
+    private static void ResolveEffectSelectionPrompt(
+        GameInstance instance,
+        GamePrompt prompt,
+        string requestedPlayerId,
+        string selectedOption,
+        bool resolvedByTimeout)
     {
         instance.PendingPrompts.Dequeue();
+
+        // A reveal presentation is a prompt only because the engine needed a way to pause the table while the card is
+        // shown: the client acknowledges it automatically. Recording it as a prompt resolution would tell the log that
+        // the player answered something they never saw a choice for.
+        if (prompt.SelectionPromptKind == EffectSelectionPromptKind.RevealPresentation)
+        {
+            LogRevealedPresentation(instance, prompt, requestedPlayerId);
+            instance.ValidateInvariants();
+            return;
+        }
+
+        // A selection is usually a card, so the log can name it. The name is only recorded when the card sits in a
+        // zone both players can see: a selection from a hand or a deck is still hidden information, and the log is
+        // shared. In that case the entry carries the instance only, and the client falls back to generic wording.
+        var selectedCard = instance.ResolveSelectedPromptCard(prompt, selectedOption);
+        var selectedCardDisplayName = selectedCard is not null && IsPublicZone(prompt.CandidateZone)
+            ? instance.ResolveCardDisplayName(selectedCard)
+            : null;
 
         LogAction(
             instance,
             actionType: "prompt_resolved",
             playerId: requestedPlayerId,
             promptType: GamePromptType.Effect,
-            selectedOption: selectedOption);
+            selectedOption: selectedOption,
+            selectionPromptKind: prompt.SelectionPromptKind,
+            resolvedByTimeout: resolvedByTimeout,
+            selectedCardInstanceId: selectedCard?.InstanceId,
+            selectedCardDisplayName: selectedCardDisplayName);
 
         instance.ValidateInvariants();
+    }
+
+    /// <summary>Zones whose contents both players can see, so naming a card chosen from them leaks nothing.</summary>
+    private static bool IsPublicZone(PlayerZone? zone)
+    {
+        return zone is PlayerZone.CharacterField or PlayerZone.SupportZone or PlayerZone.Trash or PlayerZone.Leader;
+    }
+
+    private CardInstance? ResolveSelectedPromptCard(GamePrompt prompt, string selectedOption)
+    {
+        if (prompt.CandidateZone is not { } zone || string.IsNullOrWhiteSpace(prompt.CandidatePlayerId))
+        {
+            return null;
+        }
+
+        return FindCardInstance(zone, new GameEffectTargetReference(prompt.CandidatePlayerId, zone, selectedOption));
+    }
+
+    private string? ResolveCardDisplayName(CardInstance card)
+    {
+        return State.CardDefinitions.TryGetValue(card.CardDefinitionId, out var definition)
+            ? definition.DisplayName
+            : null;
+    }
+
+    private static void LogRevealedPresentation(GameInstance instance, GamePrompt prompt, string playerId)
+    {
+        var presentedTarget = prompt.EffectContinuation?.RevealPresentation?.PresentedTargets.FirstOrDefault();
+        var revealedCard = presentedTarget is null ? null : instance.FindCardInstance(presentedTarget.Zone, presentedTarget);
+
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["selectionPromptKind"] = nameof(EffectSelectionPromptKind.RevealPresentation),
+        };
+
+        if (presentedTarget is not null)
+        {
+            metadata["cardInstanceId"] = presentedTarget.CardInstanceId;
+        }
+
+        if (revealedCard is not null)
+        {
+            metadata["cardDefinitionId"] = revealedCard.CardDefinitionId;
+
+            if (instance.State.CardDefinitions.TryGetValue(revealedCard.CardDefinitionId, out var definition))
+            {
+                metadata["displayName"] = definition.DisplayName;
+            }
+        }
+
+        instance.AddActionLogEntry(
+            GameActionLogActionTypes.RevealPresented,
+            "A card was revealed.",
+            playerId,
+            metadata,
+            category: GameActionLogCategory.Effect);
+    }
+
+    private CardInstance? FindCardInstance(PlayerZone zone, GameEffectTargetReference target)
+    {
+        var player = State.Players.FirstOrDefault(candidate =>
+            string.Equals(candidate.PlayerId, target.PlayerId, StringComparison.Ordinal));
+
+        if (player is null)
+        {
+            return null;
+        }
+
+        IReadOnlyList<CardInstance> zoneCards = zone switch
+        {
+            PlayerZone.Hand => player.Hand,
+            PlayerZone.Deck => player.Deck,
+            PlayerZone.CharacterField => player.Battlefield,
+            PlayerZone.SupportZone => player.SupportZone,
+            PlayerZone.Trash => player.DiscardPile,
+            PlayerZone.Leader => player.LeaderCardInstance is { } leader ? [leader] : [],
+            _ => [],
+        };
+
+        return zoneCards.FirstOrDefault(card =>
+            string.Equals(card.InstanceId, target.CardInstanceId, StringComparison.Ordinal));
     }
 
     private static void ValidateEffectSelectionPrompt(GameInstance _, GamePrompt prompt, HashSet<string> __)
@@ -687,7 +851,7 @@ public sealed class GameInstance
 
     private sealed record PromptTemplate(
         bool RequiresOptions,
-        Action<GameInstance, string, string> Resolve,
+        Action<GameInstance, GamePrompt, string, string, bool> Resolve,
         Action<GameInstance, GamePrompt, HashSet<string>> Validate);
 
     private static void LogAction(
@@ -696,16 +860,18 @@ public sealed class GameInstance
         string? playerId = null,
         GamePromptType? promptType = null,
         string? selectedOption = null,
-        string? selectedPlayerId = null)
+        string? selectedPlayerId = null,
+        EffectSelectionPromptKind? selectionPromptKind = null,
+        bool resolvedByTimeout = false,
+        string? selectedCardInstanceId = null,
+        string? selectedCardDisplayName = null)
     {
         var message = actionType switch
         {
             "prompt_resolved" => BuildPromptResolvedMessage(
                 promptType ?? throw new InvalidOperationException("Prompt type is required."),
-                playerId ?? throw new InvalidOperationException("Player id is required for prompt resolution."),
-                selectedOption ?? throw new InvalidOperationException("Selected option is required for prompt resolution."),
-                selectedPlayerId),
-            "phase_started" => $"{playerId} starts turn {instance.State.TurnNumber} in {instance.State.Phase}.",
+                selectedOption ?? throw new InvalidOperationException("Selected option is required for prompt resolution.")),
+            "phase_started" => $"Turn {instance.State.TurnNumber} started in {instance.State.Phase}.",
             _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
         };
 
@@ -714,30 +880,38 @@ public sealed class GameInstance
             "prompt_resolved" => BuildPromptResolvedMetadata(
                 promptType ?? throw new InvalidOperationException("Prompt type is required."),
                 selectedOption ?? throw new InvalidOperationException("Selected option is required for prompt resolution."),
-                selectedPlayerId),
+                selectedPlayerId,
+                selectionPromptKind,
+                resolvedByTimeout,
+                selectedCardInstanceId,
+                selectedCardDisplayName),
             "phase_started" => CreateMetadata(
                 ("phase", instance.State.Phase.ToString()),
                 ("turnNumber", ToInvariant(instance.State.TurnNumber))),
             _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
         };
 
-        instance.AddActionLogEntry(actionType, message, playerId, metadata);
+        instance.AddActionLogEntry(
+            actionType,
+            message,
+            playerId,
+            metadata,
+            category: string.Equals(actionType, "prompt_resolved", StringComparison.Ordinal)
+                ? GameActionLogCategory.Prompt
+                : GameActionLogCategory.Phase);
     }
 
-    private static string BuildPromptResolvedMessage(
-        GamePromptType promptType,
-        string requestedPlayerId,
-        string selectedOption,
-        string? selectedPlayerId)
+    /// <summary>
+    /// The audit sentence for a resolved prompt, deliberately free of identifiers: who answered is the entry's
+    /// <see cref="GameActionLogEntry.PlayerId"/>, and the answer itself lives in the metadata.
+    /// </summary>
+    private static string BuildPromptResolvedMessage(GamePromptType promptType, string selectedOption)
     {
         return promptType switch
         {
-            GamePromptType.ChooseStartingPlayer =>
-                $"{requestedPlayerId} selected {selectedOption} and {selectedPlayerId ?? throw new InvalidOperationException("Selected player id is required.")} will start.",
-            GamePromptType.Mulligan =>
-                $"{requestedPlayerId} selected {selectedOption} for mulligan.",
-            GamePromptType.Effect =>
-                $"{requestedPlayerId} selected {selectedOption} for {promptType}.",
+            GamePromptType.ChooseStartingPlayer => $"The starting player was chosen: {selectedOption}.",
+            GamePromptType.Mulligan => $"A mulligan choice was made: {selectedOption}.",
+            GamePromptType.Effect => "An effect selection was made.",
             _ => throw new InvalidOperationException($"Unsupported prompt type '{promptType}'.")
         };
     }
@@ -745,31 +919,49 @@ public sealed class GameInstance
     private static IReadOnlyDictionary<string, string> BuildPromptResolvedMetadata(
         GamePromptType promptType,
         string selectedOption,
-        string? selectedPlayerId)
+        string? selectedPlayerId,
+        EffectSelectionPromptKind? selectionPromptKind,
+        bool resolvedByTimeout,
+        string? selectedCardInstanceId,
+        string? selectedCardDisplayName)
     {
-        if (promptType == GamePromptType.ChooseStartingPlayer)
+        if (promptType == GamePromptType.ChooseStartingPlayer && string.IsNullOrWhiteSpace(selectedPlayerId))
         {
-            return CreateMetadata(
-                ("promptType", nameof(GamePromptType.ChooseStartingPlayer)),
-                ("selectedOption", selectedOption),
-                ("selectedPlayerId", selectedPlayerId ?? throw new InvalidOperationException("Selected player id is required.")));
+            throw new InvalidOperationException("Selected player id is required.");
         }
 
-        if (promptType == GamePromptType.Mulligan)
+        var map = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            return CreateMetadata(
-                ("promptType", nameof(GamePromptType.Mulligan)),
-                ("selectedOption", selectedOption));
+            ["promptType"] = promptType.ToString(),
+            ["selectedOption"] = selectedOption,
+            // Whether the engine answered for the player because their clock ran out: the answer is still recorded,
+            // but the log must not present it as a decision they took.
+            ["resolvedByTimeout"] = resolvedByTimeout ? bool.TrueString : bool.FalseString,
+        };
+
+        if (!string.IsNullOrWhiteSpace(selectedPlayerId))
+        {
+            map["selectedPlayerId"] = selectedPlayerId;
         }
 
-        if (promptType == GamePromptType.Effect)
+        if (selectionPromptKind is not null)
         {
-            return CreateMetadata(
-                ("promptType", nameof(GamePromptType.Effect)),
-                ("selectedOption", selectedOption));
+            map["selectionPromptKind"] = selectionPromptKind.Value.ToString();
         }
 
-        throw new InvalidOperationException($"Unsupported prompt type '{promptType}'.");
+        if (!string.IsNullOrWhiteSpace(selectedCardInstanceId))
+        {
+            map["cardInstanceId"] = selectedCardInstanceId;
+        }
+
+        // Present only when the chosen card was in a zone both players can see; a hidden selection keeps the instance
+        // and stays nameless.
+        if (!string.IsNullOrWhiteSpace(selectedCardDisplayName))
+        {
+            map["displayName"] = selectedCardDisplayName;
+        }
+
+        return map;
     }
 
     private static IReadOnlyDictionary<string, string> CreateMetadata(params (string Key, string Value)[] entries)

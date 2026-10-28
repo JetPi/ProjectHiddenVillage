@@ -141,7 +141,8 @@ public static class GameEndRules
                 ["winnerPlayerId"] = outcome.WinnerPlayerId ?? string.Empty,
                 ["loserPlayerIds"] = string.Join(",", outcome.LoserPlayerIds),
                 ["turnNumber"] = outcome.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            });
+            },
+            category: GameActionLogCategory.Outcome);
     }
 
     public static string DescribeOutcome(GameOutcome outcome)
@@ -157,9 +158,11 @@ public static class GameEndRules
             _ => "a leader's life points reached 0",
         };
 
+        // No winner id in the sentence: the entry's metadata carries `winnerPlayerId`, and the message can be
+        // published as fallback wording where an id would be meaningless.
         return outcome.WinnerPlayerId is null
             ? $"The game ended because {reason}; the result is a draw."
-            : $"The game ended because {reason}; player '{outcome.WinnerPlayerId}' wins.";
+            : $"The game ended because {reason}.";
     }
 
     private static void Resolve(GameState state, IReadOnlyList<string> loserPlayerIds, GameEndReason reason)

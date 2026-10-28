@@ -44,7 +44,11 @@ public sealed record GameStateResponse(
     // The host-only table rules this game runs with (see GameModifierKeys), or null for a plain table. Always null
     // for a quick-match game. The board names them so a joiner is told the table is untimed instead of inferring it
     // from a missing countdown.
-    IReadOnlyList<string>? Modifiers = null);
+    IReadOnlyList<string>? Modifiers = null,
+    // The tail of the game's action log, oldest first, already filtered for the requesting player. This is the
+    // player-facing record of what happened (see ActionLogEntryResponse and GameActionLogPublishing); the engine
+    // keeps the full, unfiltered log for auditing.
+    IReadOnlyList<ActionLogEntryResponse>? ActionLog = null);
 
 /// <summary>
 /// The action clock as a client renders it. <see cref="DeadlineUtc"/> is absolute on purpose: the client counts
@@ -92,6 +96,45 @@ public sealed record GameOutcomeResponse(
     IReadOnlyList<string> LoserPlayerIds,
     string Reason,
     int TurnNumber);
+
+/// <summary>
+/// One published line of the game's action log. <see cref="Sequence"/> is the entry's position in the game's own
+/// log, so the client can order and de-duplicate entries without trusting timestamps or list indices; the rest is
+/// the shape the log panel renders, lifted out of the entry's metadata so the client never has to parse
+/// <see cref="Message"/>.
+///
+/// <see cref="Message"/> is a development aid, not a shipping path: it is the server's audit sentence, so it may name
+/// players by id, and it is published as null whenever it carries an identifier (see
+/// <c>GameStateResponseMapper.SanitizePublishedMessage</c>). The client phrases every known action type itself and
+/// shows a neutral line otherwise, so nothing player-facing depends on this field.
+/// </summary>
+public sealed record ActionLogEntryResponse(
+    string EntryId,
+    int Sequence,
+    string TimestampUtc,
+    string ActionType,
+    string Category,
+    string? PlayerId,
+    string? CardInstanceId,
+    string? CardDefinitionId,
+    string? DisplayName,
+    string? TargetInstanceId,
+    string? TargetDisplayName,
+    string? Phase,
+    int? TurnNumber,
+    // Whose turn this entry happened in, and which of that player's own turns it was. The global turn number counts
+    // every player's turn in sequence, so only this pair can group "all of your turn 4, then all of theirs".
+    string? ActivePlayerId,
+    int? TurnOwnerTurnCount,
+    // For a resolved prompt: which kind of prompt it was and what was answered, so the client can say what happened
+    // instead of "a prompt was answered". All null for entries that are not prompt resolutions.
+    string? PromptType,
+    string? SelectionPromptKind,
+    string? SelectedOption,
+    // True when the engine answered on the player's behalf because their clock ran out: the entry keeps the player,
+    // the client must not phrase it as their decision.
+    bool? ResolvedByTimeout,
+    string? Message);
 
 /// <summary>
 /// One "the effect resolved, but it had nothing to act on" notice, projected from the game's action log so the

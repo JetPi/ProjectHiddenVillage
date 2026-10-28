@@ -37,6 +37,18 @@ export type IGameUIStoreState = {
   setLastSubmittedAttackSourceInstanceId: (value: SetStateAction<string | null>) => void
   isPhasePresentationPending: boolean
   setIsPhasePresentationPending: (value: SetStateAction<boolean>) => void
+  /** Whether the action log panel is on screen. Only the board's log button opens and closes it. */
+  isActionLogOpen: boolean
+  /** Whether the panel is covering the board instead of sitting in its compact column. */
+  isActionLogExpanded: boolean
+  toggleActionLog: () => void
+  openActionLog: () => void
+  closeActionLog: () => void
+  setActionLogExpanded: (value: SetStateAction<boolean>) => void
+  /** Whether the result overlay was taken off the board so the finished position can be reviewed. */
+  isGameOverOverlayDismissed: boolean
+  dismissGameOverOverlay: () => void
+  setGameOverOverlayDismissed: (value: SetStateAction<boolean>) => void
   retainedInteractiveAvailableActions: IGameActionOptionResponse[]
   setRetainedInteractiveAvailableActions: (value: SetStateAction<IGameActionOptionResponse[]>) => void
   retainedIsActionBlocked: boolean

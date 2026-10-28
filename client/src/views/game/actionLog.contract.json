@@ -1,0 +1,31 @@
+{
+  "$comment": "The action types the game publishes to clients. This file is the meeting point between the server's GameActionLogPublishing allow-list (which a server test asserts matches it) and the client's wording map (which a compile-time check asserts covers it). Update it when the server starts publishing a new type, and add the matching game.actionLog.event.* wording in the same change.",
+  "publishedActionTypes": [
+    "game_created",
+    "player_joined",
+    "starting_player_assigned",
+    "starting_player_prompted",
+    "turn_started",
+    "phase_started",
+    "action_step_action_declared",
+    "action_step_pass_declared",
+    "support_window_pass_declared",
+    "end_step_declared",
+    "prompt_resolved",
+    "mulligan_prompted",
+    "reveal_presented",
+    "card_summoned",
+    "card_summoned_with_requirement",
+    "support_set",
+    "support_activated",
+    "attack_declared",
+    "leader_ability_used",
+    "character_ability_used",
+    "optional_attack_effect_answered",
+    "attack_interrupted",
+    "support_activation_skipped",
+    "support_activation_failed",
+    "clock_timed_out",
+    "game_ended"
+  ]
+}

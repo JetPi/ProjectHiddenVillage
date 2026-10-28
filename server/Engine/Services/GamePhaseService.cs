@@ -130,11 +130,6 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
         phaseStateService.EnqueueJumpToPhase(instance.State, targetPhase);
     }
 
-    private static string DescribePlayer(string playerId)
-    {
-        return string.IsNullOrWhiteSpace(playerId) ? "System" : playerId;
-    }
-
     private static void EnsureMulliganPrompt(GameInstance instance)
     {
         if (instance.State.Players.Count < 2)
@@ -188,15 +183,18 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
         bool? advancedToAttackResolution = null,
         string? previousActivePlayerId = null)
     {
+        // Audit messages carry no identifiers: the entry's `PlayerId` already says who acted, and a message can be
+        // published to the client as fallback wording, where a raw id is meaningless. Whatever the message used to
+        // name is in the metadata below.
         var message = actionType switch
         {
-            "phase_started" => $"{DescribePlayer(playerId ?? string.Empty)} started {instance.State.Phase}.",
-            "action_step_pass_declared" => $"{playerId} declared pass in ActionStep.",
-            "support_window_pass_declared" => $"{playerId} declared pass while a support awaited responses.",
-            "action_step_action_declared" => $"{playerId} declared an action in ActionStep.",
-            "end_step_declared" => $"{DescribePlayer(instance.State.ActivePlayerId)} declared EndStep.",
-            "turn_started" => $"Turn {instance.State.TurnNumber} started for {instance.State.ActivePlayerId}.",
-            "mulligan_prompted" => $"{playerId} can choose mulligan.",
+            "phase_started" => $"Phase {instance.State.Phase} started.",
+            "action_step_pass_declared" => "A player declared pass in ActionStep.",
+            "support_window_pass_declared" => "A player declared pass while a support awaited responses.",
+            "action_step_action_declared" => "A player declared an action in ActionStep.",
+            "end_step_declared" => "EndStep was declared.",
+            "turn_started" => $"Turn {instance.State.TurnNumber} started.",
+            "mulligan_prompted" => "A player can choose mulligan.",
             _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
         };
 
@@ -207,14 +205,17 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
                 ("toPhase", instance.State.Phase.ToString()),
                 ("turnNumber", ToInvariant(instance.State.TurnNumber))),
             "action_step_pass_declared" => CreateMetadata(
+                ("playerId", playerId ?? string.Empty),
                 ("advancedToAttackResolution", (advancedToAttackResolution ?? throw new InvalidOperationException("Pass resolution flag is required.")).ToString()),
                 ("nextPriorityPlayerId", instance.State.PriorityPlayerId),
                 ("consecutivePasses", ToInvariant(instance.State.ConsecutivePasses))),
             "support_window_pass_declared" => CreateMetadata(
+                ("playerId", playerId ?? string.Empty),
                 ("windowClosed", (advancedToAttackResolution ?? throw new InvalidOperationException("Pass resolution flag is required.")).ToString()),
                 ("nextPriorityPlayerId", instance.State.PriorityPlayerId),
                 ("consecutivePasses", ToInvariant(instance.State.ConsecutivePasses))),
             "action_step_action_declared" => CreateMetadata(
+                ("playerId", playerId ?? string.Empty),
                 ("nextPriorityPlayerId", instance.State.PriorityPlayerId),
                 ("consecutivePasses", ToInvariant(instance.State.ConsecutivePasses))),
             "end_step_declared" => CreateMetadata(
@@ -225,13 +226,20 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
                 ("phase", instance.State.Phase.ToString()),
                 ("turnNumber", ToInvariant(instance.State.TurnNumber))),
             "mulligan_prompted" => CreateMetadata(
+                ("playerId", playerId ?? string.Empty),
                 ("promptType", nameof(GamePromptType.Mulligan)),
                 ("phase", instance.State.Phase.ToString()),
                 ("turnNumber", ToInvariant(instance.State.TurnNumber))),
             _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
         };
 
-        instance.AddActionLogEntry(actionType, message, playerId, metadata);
+        // Everything this service records is either a phase/turn transition or a declaration made inside one,
+        // except the mulligan prompt, which the log panel groups with the other prompts the players answer.
+        var category = string.Equals(actionType, "mulligan_prompted", StringComparison.Ordinal)
+            ? GameActionLogCategory.Prompt
+            : GameActionLogCategory.Phase;
+
+        instance.AddActionLogEntry(actionType, message, playerId, metadata, category: category);
     }
 
     private static IReadOnlyDictionary<string, string> CreateMetadata(params (string Key, string Value)[] entries)

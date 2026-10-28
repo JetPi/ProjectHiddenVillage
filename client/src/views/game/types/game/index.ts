@@ -1,4 +1,5 @@
 export * from './attackLink'
+export * from './actionLog'
 export * from './gameHandRow'
 export * from './gameZones'
 export * from './gamePhaseActionRow'

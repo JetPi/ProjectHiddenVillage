@@ -22,12 +22,37 @@ const GAMEBOARD_COLUMNS_CLASS = 'lg:grid-cols-[1.1fr_1.7fr_1.1fr]'
 const LEADER_CARD_FRAME_CLASS = 'relative h-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]'
 const LEADER_CARD_IMAGE_CLASS = CARD_ART_IMAGE_CLASS
 
+// The right-hand HUD panels share one vertical budget.
+//
+// The support chain owns the top-right corner and the action log sits underneath it, so the log's top offset is
+// derived from the chain's maximum height rather than guessed: if the two drifted apart, a long chain would either
+// be clipped or start overlapping the log. Five single-line rows is the budget the chain is allowed to grow to
+// before its list starts scrolling; rows with targets or negate notes are taller, which is why the cap is a pixel
+// budget rather than a row count.
+const SUPPORT_CHAIN_VISIBLE_ROW_COUNT = 5
+const SUPPORT_CHAIN_TOP_REM = 0.5
+const SUPPORT_CHAIN_LIST_MAX_HEIGHT_REM = 8.5
+// Heading, count badge, the LIFO note, the panel's own padding and the gaps between them.
+const SUPPORT_CHAIN_CHROME_HEIGHT_REM = 3.5
+const SUPPORT_CHAIN_PANEL_MAX_HEIGHT_REM = SUPPORT_CHAIN_LIST_MAX_HEIGHT_REM + SUPPORT_CHAIN_CHROME_HEIGHT_REM
+const HUD_PANEL_WIDTH_CLASS = 'w-[252px] max-w-[46vw]'
+const ACTION_LOG_COMPACT_TOP_REM = SUPPORT_CHAIN_TOP_REM + SUPPORT_CHAIN_PANEL_MAX_HEIGHT_REM + 0.5
+// Below this the compact log would be a sliver; it collapses to scrolling inside a floor instead.
+const ACTION_LOG_COMPACT_MIN_HEIGHT_REM = 7
+
 export {
   GAME_CARD_PRELOAD_POLL_INTERVAL_MS,
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
   LEADER_CARD_FRAME_CLASS,
   LEADER_CARD_IMAGE_CLASS,
+  SUPPORT_CHAIN_VISIBLE_ROW_COUNT,
+  SUPPORT_CHAIN_TOP_REM,
+  SUPPORT_CHAIN_LIST_MAX_HEIGHT_REM,
+  SUPPORT_CHAIN_PANEL_MAX_HEIGHT_REM,
+  HUD_PANEL_WIDTH_CLASS,
+  ACTION_LOG_COMPACT_TOP_REM,
+  ACTION_LOG_COMPACT_MIN_HEIGHT_REM,
   DRAW_TO_HAND_STAGGER_MS,
   DRAW_TO_HAND_REVEAL_DELAY_MS,
   HAND_TO_PILE_STAGGER_MS,

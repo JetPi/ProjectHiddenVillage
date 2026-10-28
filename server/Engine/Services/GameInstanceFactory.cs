@@ -262,12 +262,14 @@ public sealed class GameInstanceFactory
         string actionType,
         string? playerId = null)
     {
+        // Identifiers stay out of the message: the entry's `PlayerId` already names the player, and a published
+        // message may be shown to a player, who cannot do anything with a GUID.
         var message = actionType switch
         {
             "game_created" => $"Game created with {instance.State.Players.Count} player(s).",
-            "player_joined" => $"{playerId} joined the game.",
-            "starting_player_assigned" => $"Starting player candidate auto-assigned to {playerId}.",
-            "starting_player_prompted" => $"{playerId} must choose who starts.",
+            "player_joined" => "A player joined the game.",
+            "starting_player_assigned" => "A starting player candidate was assigned.",
+            "starting_player_prompted" => "A player must choose who starts.",
             _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
         };
 

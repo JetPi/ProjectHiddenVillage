@@ -1727,6 +1727,25 @@ public sealed class InMemoryGameInstanceRegistry
             throw new InvalidOperationException(executeResult.FirstError.Description);
         }
 
+        // A leader effect and a character ability share this path, so the log distinguishes them by the action
+        // type and carries the activated effect's type: a Recovery reads as "recovered chakra", everything else
+        // as an ability.
+        LogBoardAction(
+            instance,
+            isLeader ? GameActionLogActionTypes.LeaderAbilityUsed : GameActionLogActionTypes.CharacterAbilityUsed,
+            playerId,
+            effectSpec.EffectType == EffectKind.Recovery
+                ? $"{sourceCardDefinition.DisplayName} recovered chakra."
+                : $"{sourceCardDefinition.DisplayName} used an ability.",
+            GameActionLogCategory.Action,
+            sourceCardInstance: sourceCardInstance,
+            sourceCardDefinition: sourceCardDefinition,
+            extraMetadata: new[]
+            {
+                ("abilityKey", effectKey),
+                ("effectType", effectSpec.EffectType.ToString()),
+            });
+
         // "[Recovery] ... rest this card and flip all of your CHAKRA face-up": the rest is part of the
         // ability's cost and no authored payload carries it, so the registry pays it here (the attack
         // declaration rests its attacker the same way). OnEnterRefreshPhase readies the card again.
@@ -1821,6 +1840,18 @@ public sealed class InMemoryGameInstanceRegistry
         }
 
         RevealActivatedSupportCard(sourceCardInstance, isFromSupportZone);
+
+        // Activation flips the card face up (see RevealActivatedSupportCard), so the name is public by the time
+        // this entry is recorded.
+        LogBoardAction(
+            instance,
+            GameActionLogActionTypes.SupportActivated,
+            playerId,
+            $"{sourceCardDefinition.DisplayName} was activated.",
+            GameActionLogCategory.Action,
+            sourceCardInstance: sourceCardInstance,
+            sourceCardDefinition: sourceCardDefinition,
+            extraMetadata: new[] { ("activatedFrom", isFromSupportZone ? PlayerZone.SupportZone.ToString() : PlayerZone.Hand.ToString()) });
 
         instance.State.EffectResolutionStack.Add(new EffectResolutionStackEntry
         {
@@ -1977,10 +2008,17 @@ public sealed class InMemoryGameInstanceRegistry
             || sourceCardInstance is null
             || !instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
         {
+            // The stack entry id moves into metadata: the message can reach a player as fallback wording, and an
+            // engine id there would be noise at best.
             instance.AddActionLogEntry(
-                actionType: "support_activation_skipped",
-                message: $"Skipped support activation '{entry.EntryId}': its source card is no longer in play.",
-                playerId: entry.SourcePlayerId);
+                actionType: GameActionLogActionTypes.SupportActivationSkipped,
+                message: "A support activation fizzled because its card had left play.",
+                playerId: entry.SourcePlayerId,
+                metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["stackEntryId"] = entry.EntryId,
+                },
+                category: GameActionLogCategory.Effect);
             return;
         }
 
@@ -2019,9 +2057,15 @@ public sealed class InMemoryGameInstanceRegistry
                 {
                     // A single unresolvable activation must not strand both players: log it and continue.
                     instance.AddActionLogEntry(
-                        actionType: "support_activation_failed",
-                        message: $"Support activation '{entry.EntryId}' failed: {executeResult.FirstError.Description}",
-                        playerId: entry.SourcePlayerId);
+                        actionType: GameActionLogActionTypes.SupportActivationFailed,
+                        message: "A support activation fizzled.",
+                        playerId: entry.SourcePlayerId,
+                        metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+                        {
+                            ["stackEntryId"] = entry.EntryId,
+                            ["failureDescription"] = executeResult.FirstError.Description,
+                        },
+                        category: GameActionLogCategory.Effect);
                 }
             }
         }
@@ -2142,6 +2186,34 @@ public sealed class InMemoryGameInstanceRegistry
         instance.State.PendingAttackDefenderPlayerId = defenderPlayer.PlayerId;
         instance.State.PendingAttackDefenderInstanceId = selectedTarget.CardInstanceId;
         instance.State.PendingAttackDefenderZone = targetZone;
+
+        var defenderInstance = targetZone == PlayerZone.Leader
+            ? defenderPlayer.LeaderCardInstance
+            : defenderPlayer.Battlefield.FirstOrDefault(card =>
+                string.Equals(card.InstanceId, selectedTarget.CardInstanceId, StringComparison.Ordinal));
+
+        var attackerDefinition = instance.State.CardDefinitions.TryGetValue(attacker.CardDefinitionId, out var resolvedAttackerDefinition)
+            ? resolvedAttackerDefinition
+            : null;
+        var defenderDefinition = defenderInstance is not null
+            && instance.State.CardDefinitions.TryGetValue(defenderInstance.CardDefinitionId, out var resolvedDefenderDefinition)
+                ? resolvedDefenderDefinition
+                : null;
+
+        // The attack is public the instant it is declared: the attacker is rested and the defender is named on
+        // both boards, so the log entry carries both names.
+        LogBoardAction(
+            instance,
+            GameActionLogActionTypes.AttackDeclared,
+            playerId,
+            $"{attackerDefinition?.DisplayName ?? attacker.InstanceId} declared an attack on "
+                + $"{defenderDefinition?.DisplayName ?? "the opposing leader"}.",
+            GameActionLogCategory.Action,
+            sourceCardInstance: attacker,
+            sourceCardDefinition: attackerDefinition,
+            targetCardInstance: defenderInstance,
+            targetCardDefinition: defenderDefinition,
+            extraMetadata: new[] { ("defenderZone", targetZone.ToString()) });
 
         ExecuteAutomaticWhenAttackingEffects(instance, playerId, attacker, sequentialEffectExecutor)
             .ToList()
@@ -2274,6 +2346,28 @@ public sealed class InMemoryGameInstanceRegistry
             }
         }
 
+        var optionalChoicePlayer = instance.State.Players.FirstOrDefault(player =>
+            IsSamePlayerId(player.PlayerId, playerId));
+        var optionalChoiceSource = optionalChoicePlayer?.Battlefield.FirstOrDefault(card =>
+            string.Equals(card.InstanceId, sourceCardInstanceId, StringComparison.Ordinal));
+        var optionalChoiceDefinition = optionalChoiceSource is not null
+            && instance.State.CardDefinitions.TryGetValue(optionalChoiceSource.CardDefinitionId, out var resolvedOptionalChoiceDefinition)
+                ? resolvedOptionalChoiceDefinition
+                : null;
+        var isOptionalChoiceAccepted = string.Equals(decision, "yes", StringComparison.Ordinal);
+
+        LogBoardAction(
+            instance,
+            GameActionLogActionTypes.OptionalAttackEffectAnswered,
+            playerId,
+            isOptionalChoiceAccepted
+                ? "The optional when-attacking effect was used."
+                : "The optional when-attacking effect was declined.",
+            GameActionLogCategory.Action,
+            sourceCardInstance: optionalChoiceSource,
+            sourceCardDefinition: optionalChoiceDefinition,
+            extraMetadata: new[] { ("decision", decision) });
+
         var defenderPlayerId = instance.State.PendingAttackDefenderPlayerId;
         ClearPendingOptionalAttackEffectState(instance.State);
         EnterSupportCutInWindow(instance.State, defenderPlayerId);
@@ -2300,6 +2394,87 @@ public sealed class InMemoryGameInstanceRegistry
         decision = payload[(delimiterIndex + 1)..].Trim();
         return !string.IsNullOrWhiteSpace(sourceCardInstanceId)
             && (string.Equals(decision, "yes", StringComparison.Ordinal) || string.Equals(decision, "no", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Records one published board action.
+    ///
+    /// The metadata keys written here are the ones <see cref="GameStateResponseMapper"/> lifts into
+    /// <see cref="ActionLogEntryResponse"/>, so the client can phrase the entry from the action type and the card
+    /// it names instead of parsing <see cref="GameActionLogEntry.Message"/>. The phase and turn are always
+    /// attached because the log panel groups by them.
+    /// </summary>
+    private static void LogBoardAction(
+        GameInstance instance,
+        string actionType,
+        string playerId,
+        string message,
+        GameActionLogCategory category,
+        CardInstance? sourceCardInstance = null,
+        Card? sourceCardDefinition = null,
+        CardInstance? targetCardInstance = null,
+        Card? targetCardDefinition = null,
+        GameActionLogVisibility visibility = GameActionLogVisibility.Public,
+        (string Key, string Value)[]? extraMetadata = null)
+    {
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["phase"] = instance.State.Phase.ToString(),
+            ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        };
+
+        if (sourceCardInstance is not null)
+        {
+            metadata["cardInstanceId"] = sourceCardInstance.InstanceId;
+        }
+
+        if (sourceCardDefinition is not null)
+        {
+            metadata["cardDefinitionId"] = sourceCardDefinition.Id;
+            metadata["displayName"] = sourceCardDefinition.DisplayName;
+        }
+
+        if (targetCardInstance is not null)
+        {
+            metadata["targetInstanceId"] = targetCardInstance.InstanceId;
+        }
+
+        if (targetCardDefinition is not null)
+        {
+            metadata["targetDisplayName"] = targetCardDefinition.DisplayName;
+        }
+
+        if (extraMetadata is not null)
+        {
+            foreach (var (key, value) in extraMetadata)
+            {
+                metadata[key] = value;
+            }
+        }
+
+        instance.AddActionLogEntry(
+            actionType,
+            message,
+            // A request may carry an equivalent GUID form (stripped hyphens, for instance), which the action paths
+            // accept on purpose. The log stores the player the game actually knows, so attribution and the
+            // owner-only filter keep working.
+            ResolveCanonicalPlayerId(instance, playerId),
+            metadata,
+            category: category,
+            visibility: visibility);
+    }
+
+    private static string ResolveCanonicalPlayerId(GameInstance instance, string playerId)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return string.Empty;
+        }
+
+        var player = instance.State.Players.FirstOrDefault(candidate =>
+            IsSamePlayerId(candidate.PlayerId, playerId));
+
+        return player?.PlayerId ?? playerId;
     }
 
     private static void EnterSupportCutInWindow(GameState state, string defenderPlayerId)
@@ -3149,16 +3324,18 @@ public sealed class InMemoryGameInstanceRegistry
 
             instance.AddActionLogEntry(
                 actionType: ClockTimedOutActionType,
-                message: $"Player '{ownerPlayerId}' ran out of time in {instance.State.Phase}.",
+                message: $"A player ran out of time in {instance.State.Phase}.",
                 playerId: ownerPlayerId,
                 metadata: new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["phase"] = instance.State.Phase.ToString(),
+                    ["turnNumber"] = instance.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     ["stopKind"] = stopKind.ToString(),
                     ["consecutiveTimeouts"] = strikes.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     ["timeoutsBeforeForfeit"] = forfeitLimit.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     ["secondsRemainingInPool"] = secondsLeftInPool.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                });
+                },
+                category: GameActionLogCategory.Clock);
 
             if (isPoolExhausted || strikes >= forfeitLimit)
             {
@@ -3212,7 +3389,7 @@ public sealed class InMemoryGameInstanceRegistry
             }
 
             var phaseBeforeResolve = state.Phase;
-            instance.ResolvePrompt(ownerPlayerId, safeOption);
+            instance.ResolvePrompt(ownerPlayerId, safeOption, resolvedByTimeout: true);
 
             if (ShouldAdvanceAfterPromptResolution(phaseBeforeResolve, instance.GetPendingPrompt()))
             {
@@ -3377,6 +3554,16 @@ public sealed class InMemoryGameInstanceRegistry
             instance.State.SetSummonCardReady(playerId, false);
         }
 
+        // The card is on the field, so naming it publicly leaks nothing: the summon is what revealed it.
+        LogBoardAction(
+            instance,
+            GameActionLogActionTypes.CardSummoned,
+            playerId,
+            $"{sourceCardDefinition.DisplayName} was summoned.",
+            GameActionLogCategory.Action,
+            sourceCardInstance: movedCard,
+            sourceCardDefinition: sourceCardDefinition);
+
         // The card is on the field now, so its mandatory "[On Summon]" effects run. Failures are logged,
         // never thrown: the summon already happened and both clients have to keep moving.
         GameTriggeredEffectRunner.ExecuteAutomaticOnSummonEffects(instance, playerId, movedCard, sequentialEffectExecutor);
@@ -3454,6 +3641,16 @@ public sealed class InMemoryGameInstanceRegistry
         // MoveCardToZone already reset the card's runtime state (see CharacterFieldStateRules): it lands standing
         // with a fresh summon-turn marker, so no extra bookkeeping is needed here.
 
+        LogBoardAction(
+            instance,
+            GameActionLogActionTypes.CardSummonedWithRequirement,
+            playerId,
+            $"{sourceCardDefinition.DisplayName} was summoned by paying its requirement.",
+            GameActionLogCategory.Action,
+            sourceCardInstance: movedCard,
+            sourceCardDefinition: sourceCardDefinition,
+            extraMetadata: new[] { ("tributedCount", selectedTargets.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)) });
+
         // A requirement (tribute) summon is a normal summon too: the card's mandatory "[On Summon]" effects
         // run as soon as it lands on the field.
         GameTriggeredEffectRunner.ExecuteAutomaticOnSummonEffects(instance, playerId, movedCard, sequentialEffectExecutor);
@@ -3491,13 +3688,25 @@ public sealed class InMemoryGameInstanceRegistry
             throw new InvalidOperationException("No empty support slot is available for this card.");
         }
 
-        MoveCardToZone(
+        var movedSupportCard = MoveCardToZone(
             instance,
             playerId,
             sourceCardInstanceId,
             PlayerZone.Hand,
             PlayerZone.SupportZone,
             slotIndex);
+
+        // The support lands face down, so the entry is public - the opponent watched a card appear in the support
+        // area - but it deliberately does not name the card. Withholding the name is what keeps a face-down row
+        // from becoming readable through the log.
+        LogBoardAction(
+            instance,
+            GameActionLogActionTypes.SupportSet,
+            playerId,
+            "A support card was set face down.",
+            GameActionLogCategory.Action,
+            sourceCardInstance: movedSupportCard,
+            extraMetadata: new[] { ("slotIndex", slotIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)) });
     }
 
     /// <summary>
