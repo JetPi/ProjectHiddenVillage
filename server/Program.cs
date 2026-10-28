@@ -12,6 +12,7 @@ using ProjectHiddenVillage.Server.Api.Interfaces.Auth;
 using ProjectHiddenVillage.Server.Api.Interfaces.Card;
 using ProjectHiddenVillage.Server.Api.Interfaces.CardArt;
 using ProjectHiddenVillage.Server.Api.Services.CardArt;
+using ProjectHiddenVillage.Server.Api.Services.Chat;
 using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 using ProjectHiddenVillage.Server.Api.Services.Guests;
 using ProjectHiddenVillage.Server.Api.Services.Matchmaking;
@@ -61,6 +62,12 @@ builder.Services.AddSingleton<
 builder.Services.AddSingleton<
     ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameStateBroadcaster,
     ProjectHiddenVillage.Server.Api.Services.Games.GamesHubStateBroadcaster>();
+// Chat is per-process and per-game, like the games it belongs to: it never reaches the database and never touches
+// the engine's per-game lock.
+builder.Services.Configure<GameChatOptions>(builder.Configuration.GetSection(GameChatOptions.SectionName));
+builder.Services.AddSingleton<
+    ProjectHiddenVillage.Server.Api.Interfaces.Chat.IGameChatStore,
+    ProjectHiddenVillage.Server.Api.Services.Chat.GameChatStore>();
 // The phase automation is off unless the configuration turns it on, so a deployment (and a rollback) flips one
 // section instead of shipping code: see GamePhaseAutomationOptions.
 builder.Services.AddSingleton(serviceProvider =>

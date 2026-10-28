@@ -4,8 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { useGameUIStore } from '@/state/gameUIStore'
 import type { IActionLogProps, IActionLogViewEntry } from '@/views/game/types'
+import { useHasRoomForChatColumn } from '@/views/game/hooks'
 import { buildActionLogView, formatActionLogEngineToken } from '@/views/game/utils/functions/helpers'
 import {
+  ACTION_LOG_COMPACT_BOTTOM_REM,
+  ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_REM,
   ACTION_LOG_COMPACT_MIN_HEIGHT_REM,
   ACTION_LOG_COMPACT_TOP_REM,
   HUD_PANEL_WIDTH_CLASS,
@@ -41,6 +44,7 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
   const isExpanded = useGameUIStore((state) => state.isActionLogExpanded)
   const setActionLogExpanded = useGameUIStore((state) => state.setActionLogExpanded)
   const isGameOverOverlayDismissed = useGameUIStore((state) => state.isGameOverOverlayDismissed)
+  const hasRoomForChat = useHasRoomForChatColumn()
 
   const entries = useMemo(
     () => buildActionLogView(gameState, authUserId, cardById),
@@ -137,7 +141,8 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
             ? undefined
             : {
               top: `${ACTION_LOG_COMPACT_TOP_REM}rem`,
-              bottom: '0.5rem',
+              // The docked chat strip owns the bottom of this corner, so the compact log stops above it.
+              bottom: `${hasRoomForChat ? ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_REM : ACTION_LOG_COMPACT_BOTTOM_REM}rem`,
               minHeight: `${ACTION_LOG_COMPACT_MIN_HEIGHT_REM}rem`,
             }
         }

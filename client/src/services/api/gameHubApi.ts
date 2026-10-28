@@ -17,9 +17,15 @@ import type {
   IPlayerPhaseActionRequest,
   IResolvePromptRequest,
 } from '@/services/api/types/gameHub'
+import type {
+  IGameChatHistoryResponse,
+  IGameChatMessage,
+  IGameChatMessagePostedHandler,
+} from '@/services/api/types/gameChat'
 
 const EVENT_GAME_STATE_INVALIDATED = 'GameStateInvalidated'
 const EVENT_GAME_PARTICIPANT_JOINED = 'GameParticipantJoined'
+const EVENT_GAME_CHAT_MESSAGE_POSTED = 'GameChatMessagePosted'
 const HUB_ENDPOINT_PATH = '/hubs/games'
 
 function normalizePlayerId(value: string): string {
@@ -89,6 +95,17 @@ function onGameParticipantJoined(
 
   return () => {
     connection.off(EVENT_GAME_PARTICIPANT_JOINED, handler)
+  }
+}
+
+function onGameChatMessagePosted(
+  connection: HubConnection,
+  handler: IGameChatMessagePostedHandler,
+): () => void {
+  connection.on(EVENT_GAME_CHAT_MESSAGE_POSTED, handler)
+
+  return () => {
+    connection.off(EVENT_GAME_CHAT_MESSAGE_POSTED, handler)
   }
 }
 
@@ -293,6 +310,34 @@ async function cancelRedo(
   return invokeHubStateMethod(connection, 'CancelRedo', gameId)
 }
 
+async function sendGameChatMessage(
+  connection: HubConnection,
+  gameId: string,
+  text: string,
+): Promise<IHubOperationResult<IGameChatMessage>> {
+  const result = await connection.invoke<IHubOperationResult<IGameChatMessage>>(
+    'SendGameChatMessage',
+    normalizeGameId(gameId),
+    { text },
+  )
+
+  return result
+}
+
+async function getGameChatHistory(
+  connection: HubConnection,
+  gameId: string,
+  sinceSequence: number,
+): Promise<IHubOperationResult<IGameChatHistoryResponse>> {
+  const result = await connection.invoke<IHubOperationResult<IGameChatHistoryResponse>>(
+    'GetGameChatHistory',
+    normalizeGameId(gameId),
+    sinceSequence,
+  )
+
+  return result
+}
+
 async function createGameForUserViaHub(
   request: ICreateGameForUserRequest,
   preferredGameCode?: string,
@@ -353,6 +398,7 @@ export {
   disconnectGameHub,
   onGameStateInvalidated,
   onGameParticipantJoined,
+  onGameChatMessagePosted,
   subscribeToGame,
   unsubscribeFromGame,
   getCurrentGameState,
@@ -361,6 +407,8 @@ export {
   requestRedo,
   respondToRedo,
   cancelRedo,
+  sendGameChatMessage,
+  getGameChatHistory,
   declareAttack,
   declareEndStep,
   completeEndStep,

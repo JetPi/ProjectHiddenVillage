@@ -3,9 +3,11 @@ using ErrorOr;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using ProjectHiddenVillage.Server.Api.Services.Chat;
 using ProjectHiddenVillage.Server.Api.Services.Games;
 
 namespace ProjectHiddenVillage.Server.Tests;
@@ -193,6 +195,76 @@ public sealed class GamesHubNormalizationTests
         Assert.AreEqual("GameStateInvalidated", messages[0].Method);
     }
 
+    [TestMethod]
+    public async Task SendGameChatMessage_PublishesOnlyTheChatEvent()
+    {
+        var requesterUserId = Guid.NewGuid();
+        const string canonicalGameId = "ABCDE";
+
+        var game = CreateGameInstance(canonicalGameId, requesterUserId.ToString("N"));
+
+        var hub = CreateHub(
+            requesterUserId,
+            new StubGameInstanceService(),
+            new StubGamePhaseHandlingService(),
+            new StubGameReadService(canonicalGameId, game));
+
+        var result = await hub.Hub.SendGameChatMessage("abcde", new GameChatSendRequest("  hello  "));
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsNotNull(result.Value);
+        Assert.AreEqual("hello", result.Value.Text);
+        Assert.AreEqual(requesterUserId.ToString("N"), result.Value.SenderPlayerId);
+
+        var messages = hub.ClientsRecorder.GetGroupMessages(canonicalGameId);
+        Assert.AreEqual(1, messages.Count, "Chat must not ask the clients to refetch the board.");
+        Assert.AreEqual("GameChatMessagePosted", messages[0].Method);
+        Assert.AreEqual(canonicalGameId, (string)messages[0].Args[0]);
+        Assert.AreEqual("hello", ((GameChatMessageResponse)messages[0].Args[1]).Text);
+    }
+
+    [TestMethod]
+    public async Task SendGameChatMessage_IsAcceptedWhileAPresentationIsOutstanding()
+    {
+        var requesterUserId = Guid.NewGuid();
+        const string canonicalGameId = "ABCDE";
+
+        var game = CreateGameInstance(canonicalGameId, requesterUserId.ToString("N"));
+        game.MintPhasePresentation(PhasePresentationKind.Draw, [requesterUserId.ToString("N")]);
+
+        var hub = CreateHub(
+            requesterUserId,
+            new StubGameInstanceService(),
+            new StubGamePhaseHandlingService(),
+            new StubGameReadService(canonicalGameId, game));
+
+        var result = await hub.Hub.SendGameChatMessage("abcde", new GameChatSendRequest("good luck"));
+
+        Assert.IsTrue(result.Succeeded);
+    }
+
+    [TestMethod]
+    public async Task SendGameChatMessage_RefusesASenderWhoIsNotInTheGame()
+    {
+        var requesterUserId = Guid.NewGuid();
+        var actualPlayerId = Guid.NewGuid().ToString("N");
+        const string canonicalGameId = "ABCDE";
+
+        var game = CreateGameInstance(canonicalGameId, actualPlayerId);
+
+        var hub = CreateHub(
+            requesterUserId,
+            new StubGameInstanceService(),
+            new StubGamePhaseHandlingService(),
+            new StubGameReadService(canonicalGameId, game));
+
+        var result = await hub.Hub.SendGameChatMessage("abcde", new GameChatSendRequest("hello"));
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual("Game.Hub.Forbidden", result.ErrorCode);
+        Assert.AreEqual(0, hub.ClientsRecorder.GetGroupMessages(canonicalGameId).Count);
+    }
+
     private static HubFixture CreateHub(
         Guid requesterUserId,
         IGameInstanceService instanceService,
@@ -207,6 +279,7 @@ public sealed class GamesHubNormalizationTests
             new StubGameRedoHandlingService(),
             gameReadService,
             new GamePresenceTracker(),
+            new GameChatStore(Options.Create(new GameChatOptions()), new TestClockProvider(DateTimeOffset.UnixEpoch)),
             NullLogger<GamesHub>.Instance)
         {
             Context = new TestHubCallerContext(requesterUserId),
