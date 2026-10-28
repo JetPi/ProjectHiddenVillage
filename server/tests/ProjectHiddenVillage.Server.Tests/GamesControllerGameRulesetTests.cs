@@ -2,6 +2,7 @@ using ErrorOr;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using ProjectHiddenVillage.Server.Api.Services.Rematch;
 
 namespace ProjectHiddenVillage.Server.Tests;
 
@@ -57,9 +58,70 @@ public sealed class GamesControllerGameRulesetTests
         Assert.IsInstanceOfType<NotFoundObjectResult>(response.Result);
     }
 
-    private static GamesController BuildController(ErrorOr<GameInstance> game)
+    [TestMethod]
+    public void GetGameRuleset_AnswersAReservedRematchCode_FromItsReservation()
     {
-        return new GamesController(new StubGameReadService(game), new StubGameInstanceService());
+        // A rematch table exists as a reserved code before anybody is seated in it. The join form has to be able to
+        // judge a deck against that format, or the player would have to claim the table blind.
+        var controller = BuildController(
+            Error.NotFound(code: "Game.NotFound", description: "no table yet"),
+            BuildReservation(Binding));
+
+        var response = controller.GetGameRuleset("ABCDE");
+
+        var ok = response.Result as OkObjectResult;
+        Assert.IsNotNull(ok);
+        var payload = ok.Value as GameRulesetBindingResponse;
+        Assert.IsNotNull(payload);
+        Assert.AreEqual("e2e-format", payload.Key);
+    }
+
+    [TestMethod]
+    public void GetGameRuleset_ReturnsNull_ForAReservedUnboundTable()
+    {
+        var controller = BuildController(
+            Error.NotFound(code: "Game.NotFound", description: "no table yet"),
+            BuildReservation(binding: null));
+
+        var response = controller.GetGameRuleset("ABCDE");
+
+        var ok = response.Result as OkObjectResult;
+        Assert.IsNotNull(ok);
+        Assert.IsNull(ok.Value);
+    }
+
+    [TestMethod]
+    public void GetGameRuleset_ReturnsNotFound_ForAnExpiredReservation()
+    {
+        var controller = BuildController(
+            Error.NotFound(code: "Game.NotFound", description: "no table yet"),
+            Error.Validation(code: "Game.Rematch.Expired", description: "expired"));
+
+        var response = controller.GetGameRuleset("ABCDE");
+
+        Assert.IsInstanceOfType<NotFoundObjectResult>(response.Result);
+    }
+
+    private static RematchReservation BuildReservation(GameRulesetBinding? binding)
+    {
+        return new RematchReservation
+        {
+            Code = "ABCDE",
+            SourceGameId = "FGHIJ",
+            Ruleset = binding,
+            PlayerIds = ["p1", "p2"],
+            ExpiresAtUtc = DateTimeOffset.UnixEpoch.AddMinutes(10),
+        };
+    }
+
+    private static GamesController BuildController(
+        ErrorOr<GameInstance> game,
+        ErrorOr<RematchReservation>? reservation = null)
+    {
+        return new GamesController(
+            new StubGameReadService(game),
+            new StubGameInstanceService(),
+            rematchHandlingService: new StubRematchHandlingService(reservation));
     }
 
     private static ErrorOr<GameInstance> BuildGame(GameRulesetBinding? binding)
@@ -94,6 +156,34 @@ public sealed class GamesControllerGameRulesetTests
         public ErrorOr<GameInstance> GetById(string gameCode)
         {
             return game;
+        }
+    }
+
+    private sealed class StubRematchHandlingService(ErrorOr<RematchReservation>? reservation) : IRematchHandlingService
+    {
+        public ErrorOr<GameInstance> RequestRematch(string gameId, string playerId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ErrorOr<GameInstance> AcceptRematch(string gameId, string playerId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ErrorOr<GameInstance> DeclineRematch(string gameId, string playerId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ErrorOr<RematchReservation> GetActiveReservation(string gameCode)
+        {
+            return reservation
+                ?? Error.NotFound(code: "Game.Rematch.NotFound", description: "stub");
+        }
+
+        public void CompleteReservation(string gameCode)
+        {
         }
     }
 

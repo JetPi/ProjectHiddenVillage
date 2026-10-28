@@ -35,7 +35,9 @@ public static partial class GameStateResponseMapper
             canRequestRedo: !hasOutcome
                 && game.PendingRedoRequest is null
                 && game.PendingPhasePresentation is null
-                && game.HasRewindTarget);
+                && game.HasRewindTarget,
+            // Only a finished board offers a rematch: there is no next match before this one ends.
+            pendingRematch: hasOutcome ? ToRematchResponse(game.PendingRematch) : null);
     }
 
     public static GameStateResponse ToGameStateResponse(GameState state, string requestingPlayerId)
@@ -53,7 +55,22 @@ public static partial class GameStateResponseMapper
             actionLog: null,
             pendingRedo: null,
             lastRewindId: null,
-            canRequestRedo: false);
+            canRequestRedo: false,
+            pendingRematch: null);
+    }
+
+    private static PendingRematchResponse? ToRematchResponse(RematchOffer? offer)
+    {
+        return offer is null
+            ? null
+            : new PendingRematchResponse(
+                RequestId: offer.RequestId,
+                RequestedByPlayerId: offer.RequestedByPlayerId,
+                AcceptedByPlayerId: offer.AcceptedByPlayerId,
+                DeclinedByPlayerId: offer.DeclinedByPlayerId,
+                ExpiresAtUtc: offer.ExpiresAtUtc.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                ReservedCode: offer.ReservedCode,
+                RulesetName: offer.ReservedRulesetName);
     }
 
     private static RedoRequestResponse? ToRedoRequestResponse(PendingRedoRequest? request)
@@ -94,7 +111,8 @@ public static partial class GameStateResponseMapper
         IReadOnlyList<ActionLogEntryResponse>? actionLog,
         RedoRequestResponse? pendingRedo,
         string? lastRewindId,
-        bool canRequestRedo)
+        bool canRequestRedo,
+        PendingRematchResponse? pendingRematch)
     {
         var phaseData = PhaseStateService.GetPhaseData(state.Phase);
         var hasOutcome = GameEndRules.IsGameOver(state);
@@ -156,7 +174,8 @@ public static partial class GameStateResponseMapper
             ActionLog: actionLog,
             PendingRedo: pendingRedo,
             LastRewindId: lastRewindId,
-            CanRequestRedo: canRequestRedo);
+            CanRequestRedo: canRequestRedo,
+            PendingRematch: pendingRematch);
     }
 
     /// <summary>

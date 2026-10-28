@@ -9,12 +9,6 @@ namespace ProjectHiddenVillage.Server;
 
 public sealed partial class InMemoryGameInstanceRegistry
 {
-    private const int GameCodeLength = 5;
-    // Upper case only, deliberately. The hub normalizes every incoming game id with
-    // ToUpperInvariant (see GamesHub.NormalizeGameId) while this registry's dictionary uses
-    // StringComparer.Ordinal, so a generated code containing a lower-case letter produces a game
-    // that can never be reached through the hub - i.e. one that is unplayable in the client.
-    private const string GameCodeAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private const string ActivateSupportActionPrefix = "activate-support:";
     private const string SummonToFieldActionPrefix = "summon-to-field:";
     private const string SetSupportActionPrefix = "set-support:";
@@ -32,7 +26,6 @@ public sealed partial class InMemoryGameInstanceRegistry
     private const string SupportSlotIndexArgumentKey = "supportSlotIndex";
     private const string SummonTargetIdArgumentKey = "summonTargetId";
     private const int MaxSupportSlots = 5;
-    private static readonly Regex GameCodePattern = new("^[A-Za-z0-9]{5}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly IGameRuntimeEffectSpecResolver RuntimeEffectSpecResolver = new GameRuntimeEffectSpecResolver();
     private static readonly IGameEffectTargetResolver EffectTargetResolver = new EffectTargetResolver();
 
@@ -60,6 +53,7 @@ public sealed partial class InMemoryGameInstanceRegistry
         new(StringComparer.Ordinal);
 
     private readonly GameInstanceFactory factory;
+    private readonly IGameCodeAllocator codeAllocator;
     private readonly global::ProjectHiddenVillage.Server.Engine.GamePhaseService phaseService;
     private readonly IGameRuntimeDeckService runtimeDeckService;
     private readonly GamePhaseAutomationOptions phaseAutomation;
@@ -77,9 +71,14 @@ public sealed partial class InMemoryGameInstanceRegistry
         IGameStateBroadcaster? stateBroadcaster = null,
         GameClockOptions? clockOptions = null,
         TimeProvider? timeProvider = null,
-        GameRedoOptions? redoOptions = null)
+        GameRedoOptions? redoOptions = null,
+        IGameCodeAllocator? codeAllocator = null)
     {
         this.factory = factory;
+        // The allocator is the one authority on which codes are in use, shared with the rematch reservations so a
+        // code cannot be handed to a live table and to a reserved table at the same time. Test compositions that do
+        // not register it get a private one, which behaves exactly like the previous generate-and-retry loop.
+        this.codeAllocator = codeAllocator ?? new GameCodeAllocator();
         this.phaseService = phaseService;
         // The phase automation is opt-in: a registry built without options - unit-test composition, and every
         // caller that predates the presentation contract - behaves exactly as it did before the engine owned
@@ -102,47 +101,92 @@ public sealed partial class InMemoryGameInstanceRegistry
         Random? random = null,
         IReadOnlyList<string>? modifiers = null)
     {
+        var instance = BuildInstance(players, cardDefinitions, random, modifiers);
+        var allocation = codeAllocator.Allocate(preferredGameCode);
+
+        switch (allocation.Status)
+        {
+            case GameCodeAllocationStatus.InvalidFormat:
+                throw new ArgumentException(
+                    "Preferred game code must be a 5-character alphanumeric string.",
+                    nameof(preferredGameCode));
+            case GameCodeAllocationStatus.InUse:
+                throw new InvalidOperationException($"Game code '{allocation.Code}' is already in use.");
+            case GameCodeAllocationStatus.Exhausted:
+                throw new InvalidOperationException("A unique game code could not be generated.");
+        }
+
+        instance.State.GameId = allocation.Code;
+
+        if (instances.TryAdd(allocation.Code, instance))
+        {
+            SyncClock(instance);
+            return instance;
+        }
+
+        // The allocator is the only place codes are claimed, so a live table already holding a code it handed out
+        // means the dictionary disagrees with it. Give the claim back instead of leaking it on the way out.
+        codeAllocator.Release(allocation.Code);
+        throw new InvalidOperationException($"Game code '{allocation.Code}' is already in use.");
+    }
+
+    /// <summary>
+    /// Creates a table under a code that was claimed in advance - the rematch lobby. The code is adopted from the
+    /// reservation rather than allocated again, so a reservation whose code is unknown fails here instead of
+    /// quietly opening a table under somebody else's code.
+    /// </summary>
+    public GameInstance CreateWithReservedCode(
+        IReadOnlyList<Player> players,
+        IReadOnlyDictionary<string, Card> cardDefinitions,
+        string reservedCode,
+        Random? random = null,
+        IReadOnlyList<string>? modifiers = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reservedCode);
+
+        var normalizedCode = reservedCode.Trim();
+
+        if (!codeAllocator.TryAdopt(normalizedCode))
+        {
+            throw new ArgumentException(
+                "The reserved game code is not claimed by any reservation.",
+                nameof(reservedCode));
+        }
+
+        var instance = BuildInstance(players, cardDefinitions, random, modifiers);
+        instance.State.GameId = normalizedCode;
+
+        if (!instances.TryAdd(normalizedCode, instance))
+        {
+            throw new InvalidOperationException($"Game code '{normalizedCode}' is already in use.");
+        }
+
+        SyncClock(instance);
+        return instance;
+    }
+
+    /// <summary>
+    /// Builds the instance every creation path shares: the phase-automation ownership is stamped on and the host's
+    /// modifiers are set before the first clock sync, so the table is never briefly created under a policy its host
+    /// did not ask for (see <see cref="GameInstance.Modifiers"/>).
+    /// </summary>
+    private GameInstance BuildInstance(
+        IReadOnlyList<Player> players,
+        IReadOnlyDictionary<string, Card> cardDefinitions,
+        Random? random,
+        IReadOnlyList<string>? modifiers)
+    {
         var instance = factory.Create(players, cardDefinitions, random);
         // The payload has to say who owns the non-interactive phases: with the automation on the client must not
         // be offered the system action at all (see GameInstance.IsPhaseAutomationEnabled).
         instance.IsPhaseAutomationEnabled = phaseAutomation.Enabled;
 
-        // Modifiers are stamped before the first clock sync, so the instance is never briefly created under a policy
-        // its host did not ask for (see GameInstance.Modifiers).
         if (modifiers is { Count: > 0 })
         {
             instance.Modifiers = modifiers;
         }
 
-        if (!string.IsNullOrWhiteSpace(preferredGameCode))
-        {
-            var normalizedCode = preferredGameCode.Trim();
-            if (!GameCodePattern.IsMatch(normalizedCode))
-            {
-                throw new ArgumentException("Preferred game code must be a 5-character alphanumeric string.", nameof(preferredGameCode));
-            }
-
-            instance.State.GameId = normalizedCode;
-            if (instances.TryAdd(instance.Id, instance))
-            {
-                SyncClock(instance);
-                return instance;
-            }
-
-            throw new InvalidOperationException($"Game code '{normalizedCode}' is already in use.");
-        }
-
-        for (var attempt = 0; attempt < 128; attempt++)
-        {
-            instance.State.GameId = GenerateGameCode();
-            if (instances.TryAdd(instance.Id, instance))
-            {
-                SyncClock(instance);
-                return instance;
-            }
-        }
-
-        throw new InvalidOperationException("A unique game code could not be generated.");
+        return instance;
     }
 
     public GameInstance Create(
@@ -158,6 +202,41 @@ public sealed partial class InMemoryGameInstanceRegistry
         var found = instances.TryGetValue(gameId, out var existing);
         instance = existing;
         return found;
+    }
+
+    /// <summary>Every table currently in the registry, for the retirement sweep and for diagnostics.</summary>
+    public IReadOnlyList<GameInstance> Snapshot()
+    {
+        return instances.Values.ToList();
+    }
+
+    /// <summary>
+    /// Drops a table that has gone out of use and gives its code back to the allocator. The watchdogs are disposed
+    /// first: a timer that fires after the instance is gone would only log about a table that is intentionally
+    /// finished. Returns false when the game is no longer registered, which makes retirement idempotent for a sweep
+    /// that may look at the same table twice.
+    /// </summary>
+    public bool TryRetire(string gameId)
+    {
+        if (string.IsNullOrWhiteSpace(gameId))
+        {
+            return false;
+        }
+
+        var normalizedGameId = gameId.Trim();
+
+        if (!instances.TryRemove(normalizedGameId, out var instance) || instance is null)
+        {
+            return false;
+        }
+
+        ClearPresentationWatchdog(normalizedGameId);
+        ClearClockWatchdog(normalizedGameId);
+        ClearRedoWatchdog(normalizedGameId);
+        instance.StopClock();
+        codeAllocator.Release(normalizedGameId);
+
+        return true;
     }
 
     public GameInstance Join(string gameId, Player player, Random? random = null)
@@ -916,17 +995,6 @@ public sealed partial class InMemoryGameInstanceRegistry
         }
 
         return instance;
-    }
-
-    private static string GenerateGameCode()
-    {
-        return string.Create(GameCodeLength, 0, static (buffer, _) =>
-        {
-            for (var index = 0; index < buffer.Length; index++)
-            {
-                buffer[index] = GameCodeAlphabet[RandomNumberGenerator.GetInt32(GameCodeAlphabet.Length)];
-            }
-        });
     }
 
     private static string? ResolveActionPrefix(string actionId)

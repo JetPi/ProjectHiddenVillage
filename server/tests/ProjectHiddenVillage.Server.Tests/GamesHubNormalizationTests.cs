@@ -9,6 +9,7 @@ using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Chat;
 using ProjectHiddenVillage.Server.Api.Services.Games;
+using ProjectHiddenVillage.Server.Api.Services.Rematch;
 
 namespace ProjectHiddenVillage.Server.Tests;
 
@@ -277,6 +278,7 @@ public sealed class GamesHubNormalizationTests
             instanceService,
             phaseHandlingService,
             new StubGameRedoHandlingService(),
+            new StubRematchHandlingService(),
             gameReadService,
             new GamePresenceTracker(),
             new GameChatStore(Options.Create(new GameChatOptions()), new TestClockProvider(DateTimeOffset.UnixEpoch)),
@@ -419,6 +421,25 @@ public sealed class GamesHubNormalizationTests
         // A disconnect releases whatever request was outstanding; these tests never raise one.
         public ErrorOr<GameInstance> ReleaseRedoRequest(string gameId, string playerId)
             => Error.NotFound(code: "Game.ReleaseRedoRequest.NotFound", description: "stub");
+    }
+
+    private sealed class StubRematchHandlingService : IRematchHandlingService
+    {
+        public ErrorOr<GameInstance> RequestRematch(string gameId, string playerId)
+            => throw new NotImplementedException();
+
+        public ErrorOr<GameInstance> AcceptRematch(string gameId, string playerId)
+            => throw new NotImplementedException();
+
+        public ErrorOr<GameInstance> DeclineRematch(string gameId, string playerId)
+            => throw new NotImplementedException();
+
+        public ErrorOr<RematchReservation> GetActiveReservation(string gameCode)
+            => Error.NotFound(code: "Game.Rematch.NotFound", description: "stub");
+
+        public void CompleteReservation(string gameCode)
+        {
+        }
     }
 
     private sealed class StubGamePhaseHandlingService : IGamePhaseHandlingService

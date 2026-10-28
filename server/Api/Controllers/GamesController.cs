@@ -15,11 +15,13 @@ namespace ProjectHiddenVillage.Server;
 public sealed class GamesController(
     IGameReadService gameReadService,
     IGameInstanceService gameInstanceService,
-    IHubContext<GamesHub>? gamesHubContext = null) : ApiControllerBase
+    IHubContext<GamesHub>? gamesHubContext = null,
+    IRematchHandlingService? rematchHandlingService = null) : ApiControllerBase
 {
     private readonly IGameReadService gameReadService = gameReadService;
     private readonly IGameInstanceService gameInstanceService = gameInstanceService;
     private readonly IHubContext<GamesHub>? gamesHubContext = gamesHubContext;
+    private readonly IRematchHandlingService? rematchHandlingService = rematchHandlingService;
 
     [HttpPost]
     [Authorize]
@@ -151,6 +153,9 @@ public sealed class GamesController(
     /// The format a game is played in, so a player holding a code can judge their deck before asking to join.
     /// Anonymous like the card read above: the code is the secret and the caller is not a player of the game yet.
     /// An unbound game answers null, because it has no format to check against.
+    ///
+    /// A code that has no table yet is answered from its rematch reservation: the two players agreed on another
+    /// match, the table is waiting to be claimed, and they have to be able to check their decks before they join it.
     /// </summary>
     [HttpGet("{gameId}/ruleset")]
     [ProducesResponseType(typeof(GameRulesetBindingResponse), StatusCodes.Status200OK)]
@@ -159,6 +164,24 @@ public sealed class GamesController(
     public ActionResult<GameRulesetBindingResponse?> GetGameRuleset(string gameId)
     {
         var result = gameReadService.GetById(gameId);
+
+        if (result.IsError && rematchHandlingService is not null)
+        {
+            var reservationResult = rematchHandlingService.GetActiveReservation(gameId);
+
+            if (!reservationResult.IsError)
+            {
+                var reservedBinding = reservationResult.Value.Ruleset;
+
+                return reservedBinding is null
+                    ? Ok(null)
+                    : Ok(new GameRulesetBindingResponse(
+                        reservedBinding.Id.ToString(),
+                        reservedBinding.Key,
+                        reservedBinding.Name));
+            }
+        }
+
         if (result.IsError)
         {
             return ProblemFromErrors<GameRulesetBindingResponse?>(result.Errors);

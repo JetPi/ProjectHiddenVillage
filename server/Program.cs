@@ -17,6 +17,7 @@ using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 using ProjectHiddenVillage.Server.Api.Services.Guests;
 using ProjectHiddenVillage.Server.Api.Services.Matchmaking;
 using ProjectHiddenVillage.Server.Api.Services.Presence;
+using ProjectHiddenVillage.Server.Api.Services.Rematch;
 using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
@@ -99,6 +100,33 @@ builder.Services.AddSingleton(serviceProvider =>
         .Bind(options);
     return options;
 });
+// Game codes: one authority on which codes are in use - live tables and the rematch reservations that will become
+// tables - so a code cannot be handed out twice while it is in use, and a retirement sweep that gives the code of a
+// table nobody is using any more back to it. See plans/game-codes-and-rematch.md.
+builder.Services.AddSingleton(serviceProvider =>
+{
+    var options = new GameRetirementOptions();
+    serviceProvider.GetRequiredService<IConfiguration>()
+        .GetSection(GameRetirementOptions.SectionName)
+        .Bind(options);
+    return options;
+});
+builder.Services.AddSingleton<IGameCodeAllocator>(serviceProvider =>
+    new GameCodeAllocator(serviceProvider.GetRequiredService<GameRetirementOptions>().CodeQuarantineSize));
+builder.Services.AddHostedService<GameTableReaper>();
+// Rematch: the offer rides on the finished table's state, while the table it reserves lives in this store until
+// both players have claimed a seat from the login view with the deck they want to bring.
+builder.Services.AddSingleton(serviceProvider =>
+{
+    var options = new RematchOptions();
+    serviceProvider.GetRequiredService<IConfiguration>()
+        .GetSection(RematchOptions.SectionName)
+        .Bind(options);
+    return options;
+});
+builder.Services.AddSingleton<RematchReservationStore>();
+builder.Services.AddHostedService<RematchReservationSweeper>();
+builder.Services.AddScoped<IRematchHandlingService, RematchHandlingService>();
 builder.Services.AddScoped<IGameEffectContextConditionEvaluator, EffectContextConditionEvaluator>();
 builder.Services.AddScoped<IGameEffectTargetResolver, EffectTargetResolver>();
 builder.Services.AddScoped<IGameRuntimeEffectSpecResolver, GameRuntimeEffectSpecResolver>();

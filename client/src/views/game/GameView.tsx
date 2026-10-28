@@ -7,6 +7,7 @@ import { useLoaderData, useNavigate } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
 import { Panel } from '@/components/ui'
 import { useAuthSessionStore } from '@/state/authSession'
+import { storePendingRematch } from '@/state/pendingRematch'
 import { useThemeStore } from '@/state/themeStore'
 import {
   buildLeaderCardFrameClass,
@@ -103,6 +104,9 @@ export function GameView() {
     requestRedo,
     respondToRedo,
     cancelRedo,
+    requestRematch,
+    acceptRematch,
+    declineRematch,
     sendChatMessage,
   } = gameHubState
   const setActionError = useGameHubStore((state) => state.setActionError)
@@ -423,6 +427,17 @@ export function GameView() {
             outcome={gameOutcome}
             authUserId={authUserId}
             onDismiss={dismissGameOverOverlay}
+            rematch={gameState.pendingRematch ?? null}
+            onRequestRematch={requestRematch}
+            onAcceptRematch={acceptRematch}
+            onDeclineRematch={declineRematch}
+            // The rematch does not start from here: the player goes back to the login view, picks the deck they are
+            // bringing to the next match, and joins the reserved code there. The code is remembered so the join
+            // form arrives with it filled in.
+            onChooseRematchDeck={(code, rulesetName) => {
+              storePendingRematch({ code, rulesetName })
+              void navigate('/')
+            }}
           />
         ) : null}
 

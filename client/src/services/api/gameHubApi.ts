@@ -310,6 +310,31 @@ async function cancelRedo(
   return invokeHubStateMethod(connection, 'CancelRedo', gameId)
 }
 
+/**
+ * Offers the opponent another match on the finished board, or answers theirs. A rematch is not a board action: the
+ * game is over, and the answer is a reserved table code rather than a move.
+ */
+async function requestRematch(
+  connection: HubConnection,
+  gameId: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  return invokeHubStateMethod(connection, 'RequestRematch', gameId)
+}
+
+async function acceptRematch(
+  connection: HubConnection,
+  gameId: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  return invokeHubStateMethod(connection, 'AcceptRematch', gameId)
+}
+
+async function declineRematch(
+  connection: HubConnection,
+  gameId: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  return invokeHubStateMethod(connection, 'DeclineRematch', gameId)
+}
+
 async function sendGameChatMessage(
   connection: HubConnection,
   gameId: string,
@@ -407,6 +432,9 @@ export {
   requestRedo,
   respondToRedo,
   cancelRedo,
+  requestRematch,
+  acceptRematch,
+  declineRematch,
   sendGameChatMessage,
   getGameChatHistory,
   declareAttack,

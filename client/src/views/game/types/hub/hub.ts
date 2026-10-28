@@ -55,6 +55,15 @@ export type IUseGameHubStateResult = {
   respondToRedo: (requestId: string, accepted: boolean) => Promise<boolean>
   /** Withdraws this player's own redo request; a request that is already gone is not an error. */
   cancelRedo: () => Promise<boolean>
+  /**
+   * Offers the opponent another match on the finished board, or accepts theirs. Resolves false when the server
+   * refused (the match is not over, a rematch is already reserved) or the call failed.
+   */
+  requestRematch: () => Promise<boolean>
+  /** Accepts the opponent's rematch offer, which reserves the table both players claim from the login view. */
+  acceptRematch: () => Promise<boolean>
+  /** Refuses the offer (or withdraws one's own), settling the rematch for both players. */
+  declineRematch: () => Promise<boolean>
   getCardActionTargets: (
     request: Omit<IGameCardActionTargetsRequest, 'playerId'>,
   ) => Promise<IGameCardActionTargetsResponse | null>

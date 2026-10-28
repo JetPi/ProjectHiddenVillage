@@ -29,6 +29,7 @@ import { Lightbulb, LogIn, X } from 'lucide-react'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { clearAuthSession, useAuthSessionStore, type IAuthSession } from '@/state/authSession'
 import { ensurePlayerIdentity } from '@/state/guestSession'
+import { clearPendingRematch, readPendingRematch } from '@/state/pendingRematch'
 import { useSessionStore } from '@/state/sessionStore'
 import { useThemeStore } from '@/state/themeStore'
 import { useLoginViewModel } from '@/views/login/model/useLoginViewModel'
@@ -193,6 +194,9 @@ export function LoginView() {
   const [activeTicket, setActiveTicket] = useState<IMatchTicket | null>(() => readStoredMatchTicket())
   // A created game exists on the server the moment `Enter Game` runs, so its code is held here while the creator
   // copies it. The board is only opened once they confirm.
+  // A rematch the two players already agreed on: the reserved table code is waiting for this view to claim it, and
+  // the deck chosen here is the one brought to the next match.
+  const [pendingRematch, setPendingRematch] = useState(() => readPendingRematch())
   const [createdGameShare, setCreatedGameShare] = useState<{
     gameId: string
     rulesetName: string
@@ -250,6 +254,19 @@ export function LoginView() {
   const joinGameRulesetQuery = useGameRulesetByCodeQuery(
     gameEntryMode === 'join_or_host' ? joinGameCode : '',
   )
+
+  // Landing here from a finished match: fill the join form in and put the player on the tab that claims the table.
+  // It is a prefill, not a join - the whole point of the detour is that the deck can still change.
+  useEffect(() => {
+    if (!pendingRematch) {
+      return
+    }
+
+    setGameEntryMode('join_or_host')
+    setJoinGameCode(pendingRematch.code)
+    // Deliberately not dependant on the setters alone: this must run when a code arrives, not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingRematch])
 
   useEffect(() => {
     if (isTitleFontReady) {
@@ -1116,6 +1133,10 @@ export function LoginView() {
         ...(deckId ? { deckId } : {}),
       })
 
+      // The reserved code has been claimed: it must not survive to prefill the form for some later match.
+      clearPendingRematch()
+      setPendingRematch(null)
+
       setSession({
         displayName,
         gameCode: joinedGame.id,
@@ -1145,6 +1166,8 @@ export function LoginView() {
         normalizedGameCode.length > 0 &&
         apiMessage.toLowerCase().includes('already part of this game instance')
       ) {
+        clearPendingRematch()
+        setPendingRematch(null)
         setSession({
           displayName,
           gameCode: normalizedGameCode,
@@ -1177,6 +1200,39 @@ export function LoginView() {
   return (
     <PageShell>
       <div className="grid w-full grid-cols-1 gap-4 px-2 sm:px-4">
+        {/* The other player agreed to another match: this banner is the reason the join form arrived filled in, and
+            it stays until the table is claimed so the player knows which code they are sitting down at. */}
+        {pendingRematch ? (
+          <div
+            data-testid="login-rematch-banner"
+            role="status"
+            className="mx-2 flex items-start justify-between gap-3 rounded-xl border border-amber-300/50 bg-amber-100/10 px-3 py-2 text-left"
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-[var(--text-primary)]">
+                {t('auth.rematch.bannerHeadline')}
+              </p>
+              <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+                {t('auth.rematch.bannerHint', {
+                  code: pendingRematch.code,
+                  ruleset: pendingRematch.rulesetName ?? t('game.rematch.noRuleset'),
+                })}
+              </p>
+            </div>
+            <button
+              type="button"
+              data-testid="login-rematch-banner-dismiss"
+              aria-label={t('auth.rematch.dismissAria')}
+              onClick={() => {
+                clearPendingRematch()
+                setPendingRematch(null)
+              }}
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-[var(--text-secondary)] transition-[filter,color] hover:brightness-125 hover:text-[var(--text-primary)]"
+            >
+              <X size={11} strokeWidth={2.5} />
+            </button>
+          </div>
+        ) : null}
         <Panel className="my-2 w-full border-0 bg-transparent px-5 text-center shadow-none">
           <p
             className={`mt-1 font-['Water_Brush'] text-6xl leading-none tracking-wide text-[var(--text-primary)] transition-opacity duration-150 sm:text-7xl ${

@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { HubConnection, HubConnectionState } from '@microsoft/signalr'
 import i18n from '@/i18n'
 import {
+  acceptRematch as acceptRematchOnHub,
   acknowledgePhasePresentation as acknowledgePhasePresentationOnHub,
   cancelRedo as cancelRedoOnHub,
   connectGameHub,
   createGameHubConnection,
+  declineRematch as declineRematchOnHub,
   disconnectGameHub,
   forfeitGame as forfeitGameOnHub,
   getCardActionTargets,
@@ -15,6 +17,7 @@ import {
   onGameParticipantJoined,
   onGameStateInvalidated,
   requestRedo as requestRedoOnHub,
+  requestRematch as requestRematchOnHub,
   respondToRedo as respondToRedoOnHub,
   sendGameChatMessage as sendGameChatMessageOnHub,
   subscribeToGame,
@@ -321,6 +324,95 @@ function useGameHubState(
       }
     },
     [gameId, requestGameStateRefresh, setGameState],
+  )
+
+  /**
+   * Offers the opponent another match on the finished board, or answers theirs. Like the redo handshake this never
+   * goes through `submitHubIntent`: the game is over, and the answer is a reserved table code rather than a move.
+   */
+  const requestRematch = useCallback(
+    async (): Promise<boolean> => {
+      const currentConnection = connectionRef.current
+      if (!currentConnection || !isConnectionConnected(currentConnection)) {
+        return false
+      }
+
+      try {
+        const result = await requestRematchOnHub(currentConnection, gameId)
+        if (!result.succeeded || !result.value) {
+          setActionError(resolveHubErrorMessage(result))
+          requestGameStateRefresh(currentConnection)
+          return false
+        }
+
+        setActionError(null)
+        setGameState(result.value)
+        return true
+      } catch (error) {
+        const message = error instanceof Error ? error.message : i18n.t('game.rematch.requestFailed')
+        setActionError(message)
+        requestGameStateRefresh(currentConnection)
+        return false
+      }
+    },
+    [gameId, requestGameStateRefresh, setActionError, setGameState],
+  )
+
+  const acceptRematch = useCallback(
+    async (): Promise<boolean> => {
+      const currentConnection = connectionRef.current
+      if (!currentConnection || !isConnectionConnected(currentConnection)) {
+        return false
+      }
+
+      try {
+        const result = await acceptRematchOnHub(currentConnection, gameId)
+        if (!result.succeeded || !result.value) {
+          setActionError(resolveHubErrorMessage(result))
+          requestGameStateRefresh(currentConnection)
+          return false
+        }
+
+        setActionError(null)
+        setGameState(result.value)
+        return true
+      } catch (error) {
+        const message = error instanceof Error ? error.message : i18n.t('game.rematch.acceptFailed')
+        setActionError(message)
+        requestGameStateRefresh(currentConnection)
+        return false
+      }
+    },
+    [gameId, requestGameStateRefresh, setActionError, setGameState],
+  )
+
+  const declineRematch = useCallback(
+    async (): Promise<boolean> => {
+      const currentConnection = connectionRef.current
+      if (!currentConnection || !isConnectionConnected(currentConnection)) {
+        return false
+      }
+
+      try {
+        const result = await declineRematchOnHub(currentConnection, gameId)
+        if (!result.succeeded || !result.value) {
+          requestGameStateRefresh(currentConnection)
+          return false
+        }
+
+        setActionError(null)
+        setGameState(result.value)
+        return true
+      } catch (error) {
+        console.warn('[GameHub] declining a rematch threw.', {
+          gameId,
+          message: error instanceof Error ? error.message : 'unknown',
+        })
+        requestGameStateRefresh(currentConnection)
+        return false
+      }
+    },
+    [gameId, requestGameStateRefresh, setActionError, setGameState],
   )
 
   useEffect(() => {
@@ -659,15 +751,20 @@ function useGameHubState(
       requestRedo,
       respondToRedo,
       cancelRedo,
+      requestRematch,
+      acceptRematch,
+      declineRematch,
       getCardActionTargets: getCardActionTargetsForRequest,
       sendChatMessage,
       refreshGameState,
     }),
     [
+      acceptRematch,
       acknowledgePhasePresentation,
       actionError,
       cancelRedo,
       connectionError,
+      declineRematch,
       forfeitGame,
       gameState,
       getCardActionTargetsForRequest,
@@ -675,6 +772,7 @@ function useGameHubState(
       isConnected,
       refreshGameState,
       requestRedo,
+      requestRematch,
       respondToRedo,
       sendChatMessage,
       submitHubIntent,

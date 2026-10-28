@@ -286,6 +286,20 @@ export type IGameStateResponse = {
   lastRewindId?: string | null
   // True when asking for a redo would actually go somewhere.
   canRequestRedo?: boolean
+  // The rematch offer on a finished board. Absent while nothing is on the table; once both players agreed it carries
+  // the code of the table they will claim from the login view.
+  pendingRematch?: IPendingRematchResponse | null
+}
+
+export type IPendingRematchResponse = {
+  requestId: string
+  requestedByPlayerId: string
+  acceptedByPlayerId: string | null
+  declinedByPlayerId: string | null
+  expiresAtUtc: string
+  // The reserved table both players join with the deck they choose on the login view. Null until both agreed.
+  reservedCode: string | null
+  rulesetName: string | null
 }
 
 export type IRedoRequestResponse = {
