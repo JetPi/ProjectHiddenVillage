@@ -605,7 +605,6 @@ function buildActionLogView(
     }
 
     const firstEntry = run[0]
-    const hasTurnStarted = run.some((runEntry) => runEntry.actionType === 'turn_started')
     const phases = [...new Set(run
       .map((runEntry) => runEntry.phase)
       .filter((phase): phase is string => Boolean(phase))
@@ -613,9 +612,7 @@ function buildActionLogView(
 
     viewEntries.push({
       ...toActionLogViewEntry(firstEntry, normalizedAuthUserId, cardById),
-      text: hasTurnStarted
-        ? i18n.t('game.actionLog.event.turnStart')
-        : i18n.t('game.actionLog.event.phaseProgression'),
+      text: i18n.t('game.actionLog.event.turnStart'),
       turnNumber: run.find((runEntry) => runEntry.turnNumber !== null)?.turnNumber ?? null,
       // The phases move into the detail line, so the row stops repeating one of them in its own chip.
       phase: null,

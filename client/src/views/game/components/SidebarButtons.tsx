@@ -39,7 +39,10 @@ export function SideBarButtons(props: IGameZonesProps){
     }
 
     return <>
-      <div className="flex flex-col items-end justify-center gap-1">
+      {/* This root stays the grid item so `justify-center` still centres the rail in the column. It also carries the
+          stacking order that keeps the buttons above the compact action log, which overlaps this column: the log
+          button is the only thing that can close that panel. */}
+      <div className="relative z-40 flex flex-col items-end justify-center gap-1">
         {rulesetName ? (
           <div
             data-testid="game-ruleset-name"

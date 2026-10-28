@@ -34,7 +34,7 @@ flowchart LR
   to the server's `Message` for a type it does not know. That is why a new engine event still appears as text on the
   day it ships.
 - **The engine's own phase plumbing is grouped.** Starting a turn walks the server through several transitions at
-  once, so consecutive `turn_started` / `phase_started` entries collapse into one `Turn start` row whose detail line
+  once, so consecutive `turn_started` / `phase_started` entries collapse into one `Turn Start` row whose detail line
   lists the phases walked (`Main Phase · Draw Phase · Refresh Phase`). A lone transition - the one a player caused by
   declaring an attack, for instance - keeps its own row, so nothing a player did is swallowed. The merge is a view
   concern: the audit trail still holds every transition.

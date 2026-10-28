@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { createFixtureDeck } from './helpers/multiplayer/fixtures'
 import {
   closeMultiplayerPages,
   openMultiplayerPages,
@@ -15,8 +16,21 @@ const SUMMONABLE_CHARACTER_CARD_DEFINITION_ID = 'N-007'
 test.describe('GameView multiplayer action log', () => {
   test.describe.configure({ timeout: 240_000 })
 
+  let summonDeckOne = ''
+  let summonDeckTwo = ''
+
+  test.beforeAll(async ({ request }) => {
+    // 24 copies in a 25-card deck makes a summonable character in the opening hand a certainty rather than the
+    // shuffle bet the seeded default deck would be.
+    summonDeckOne = await createFixtureDeck(request, ['1x N-001', '24x N-007'])
+    summonDeckTwo = await createFixtureDeck(request, ['1x N-012', '24x N-007'])
+  })
+
   test('opens from the sidebar, records a summon and collapses on an outside click', async ({ browser, request }) => {
-    const setup = await setupMultiplayerGame(request)
+    const setup = await setupMultiplayerGame(request, 'default', {
+      one: { deckId: summonDeckOne },
+      two: { deckId: summonDeckTwo },
+    })
     const pages = await openMultiplayerPages(browser, setup)
 
     try {
@@ -74,7 +88,8 @@ test.describe('GameView multiplayer action log', () => {
       await expect(panel).toHaveAttribute('data-mode', 'compact')
       await expect(panel).toBeVisible()
 
-      await panel.locator('[data-testid="action-log-close"]').click()
+      // The board's log button is the only open/close affordance: the panel itself only expands and collapses.
+      await logToggle.click()
       await expect(panel).toBeHidden()
     } finally {
       await closeMultiplayerPages(pages)
