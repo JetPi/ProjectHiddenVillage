@@ -1,7 +1,10 @@
 import i18n from '@/i18n'
+import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import { PhaseValues } from "@/views/game/components/constants/gamePhaseActionRow"
 import type { IGameOutcomeResponse, IGameStateResponse, ISupportChainEntryResponse } from "@/services/api/gameApi"
 import type {
+  IActionLogViewActor,
+  IActionLogViewEntry,
   IEffectTargetingState,
   IGameOutcomePresentation,
   IGameOutcomeStanding,
@@ -10,6 +13,7 @@ import type {
   ISupportChainViewEntry,
   ISupportChainViewNegatedTarget,
 } from '@/views/game/types'
+import { SUPPORT_CHAIN_VISIBLE_ROW_COUNT } from '@/views/game/utils/contants'
 import { canConfirmEffectTargetSelection, resolveEffectTargetRequiredCount } from '@/views/game/utils/functions/gameState/canConfirmEffectTargetSelection'
 import { canConfirmSummonTargetSelection } from '@/views/game/utils/functions/gameState/canConfirmSummonTargetSelection'
 
@@ -434,6 +438,195 @@ function shouldShowSupportChainBubble(entries: ISupportChainViewEntry[]): boolea
 }
 
 /**
+ * Whether the chain has outgrown the height budget the action log below it depends on. The bubble keeps its heading,
+ * count and LIFO note fixed; only the list scrolls, and only once it would otherwise push the panel past five rows.
+ */
+function shouldSupportChainScroll(entries: ISupportChainViewEntry[]): boolean {
+  return entries.length > SUPPORT_CHAIN_VISIBLE_ROW_COUNT
+}
+
+const ACTION_LOG_ACTOR_LABEL_KEYS = {
+  you: 'game.actionLog.actorYou',
+  opponent: 'game.actionLog.actorOpponent',
+  system: 'game.actionLog.actorSystem',
+} as const satisfies Record<IActionLogViewActor, string>
+
+/**
+ * The wordings the client knows how to build. An action type that is not listed here is not lost: the server's own
+ * `message` is rendered instead, which is what keeps a newly logged engine event readable before anyone writes a
+ * template for it.
+ */
+const ACTION_LOG_EVENT_TEXT_KEYS = {
+  game_created: 'game.actionLog.event.gameCreated',
+  player_joined: 'game.actionLog.event.playerJoined',
+  starting_player_assigned: 'game.actionLog.event.startingPlayerChosen',
+  starting_player_prompted: 'game.actionLog.event.startingPlayerPrompted',
+  turn_started: 'game.actionLog.event.turnStarted',
+  phase_started: 'game.actionLog.event.phaseStarted',
+  action_step_action_declared: 'game.actionLog.event.actionDeclared',
+  action_step_pass_declared: 'game.actionLog.event.actionPassed',
+  support_window_pass_declared: 'game.actionLog.event.supportWindowPassed',
+  end_step_declared: 'game.actionLog.event.endStepDeclared',
+  prompt_resolved: 'game.actionLog.event.promptResolved',
+  mulligan_prompted: 'game.actionLog.event.mulliganPrompted',
+  card_summoned: 'game.actionLog.event.cardSummoned',
+  card_summoned_with_requirement: 'game.actionLog.event.cardSummonedWithRequirement',
+  support_set: 'game.actionLog.event.supportSet',
+  support_activated: 'game.actionLog.event.supportActivated',
+  attack_declared: 'game.actionLog.event.attackDeclared',
+  leader_ability_used: 'game.actionLog.event.leaderAbilityUsed',
+  character_ability_used: 'game.actionLog.event.characterAbilityUsed',
+  clock_timed_out: 'game.actionLog.event.clockTimedOut',
+  game_ended: 'game.actionLog.event.gameEnded',
+} as const
+
+type TActionLogKnownActionType = keyof typeof ACTION_LOG_EVENT_TEXT_KEYS
+
+function isKnownActionLogActionType(actionType: string): actionType is TActionLogKnownActionType {
+  return Object.prototype.hasOwnProperty.call(ACTION_LOG_EVENT_TEXT_KEYS, actionType)
+}
+
+/**
+ * Engine tokens arrive as `MainPhase` / `AttackResolution`; the log wants prose, not the enum name, and there is no
+ * translation key per phase because the phase names are shared engine vocabulary rather than player-facing copy.
+ */
+function formatActionLogEngineToken(token: string): string {
+  return token
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .trim()
+}
+
+function resolveActionLogActor(playerId: string | null, normalizedAuthUserId: string): IActionLogViewActor {
+  const normalizedPlayerId = normalizeId(playerId ?? undefined)
+  if (normalizedPlayerId.length === 0) {
+    return 'system'
+  }
+
+  if (normalizedAuthUserId.length === 0) {
+    return 'opponent'
+  }
+
+  return normalizedPlayerId === normalizedAuthUserId ? 'you' : 'opponent'
+}
+
+/**
+ * The engine's own phase bookkeeping.
+ *
+ * Starting a turn walks the server through several transitions in one go (main, draw, refresh), and publishing each
+ * as its own line fills the panel with rows nobody acted on. Consecutive runs of these entries collapse into one row
+ * that lists the phases instead; a lone transition - the one a player caused by declaring an attack, for instance -
+ * keeps its own row.
+ */
+const ACTION_LOG_BOOKKEEPING_ACTION_TYPES = new Set<string>(['turn_started', 'phase_started'])
+
+function toActionLogViewEntry(
+  entry: NonNullable<IGameStateResponse['actionLog']>[number],
+  normalizedAuthUserId: string,
+  cardById?: ReadonlyMap<string, ICardCatalogItemResponse>,
+): IActionLogViewEntry {
+  const actor = resolveActionLogActor(entry.playerId, normalizedAuthUserId)
+  const catalogCard = entry.cardDefinitionId
+    ? cardById?.get(entry.cardDefinitionId.trim().toLowerCase()) ?? null
+    : null
+  const displayName = entry.displayName ?? catalogCard?.displayName ?? null
+  const targetDisplayName = entry.targetDisplayName ?? null
+
+  const text = isKnownActionLogActionType(entry.actionType)
+    ? i18n.t(ACTION_LOG_EVENT_TEXT_KEYS[entry.actionType], {
+      actor: i18n.t(ACTION_LOG_ACTOR_LABEL_KEYS[actor]),
+      card: displayName ?? i18n.t('game.actionLog.unknownCard'),
+      target: targetDisplayName ?? i18n.t('game.actionLog.unknownTarget'),
+      phase: entry.phase ? formatActionLogEngineToken(entry.phase) : '',
+      turn: (entry.turnNumber ?? 0).toString(),
+    })
+    : entry.message
+
+  return {
+    entryId: entry.entryId,
+    sequence: entry.sequence,
+    timestampUtc: entry.timestampUtc,
+    actionType: entry.actionType,
+    category: entry.category,
+    actor,
+    cardInstanceId: entry.cardInstanceId,
+    displayName,
+    targetDisplayName,
+    phase: entry.phase,
+    turnNumber: entry.turnNumber,
+    details: null,
+    text,
+  }
+}
+
+/**
+ * The player-facing action log, oldest first.
+ *
+ * The server has already filtered what this player may read (see `GameActionLogPublishing`), so this only phrases it:
+ * the actor is resolved against the viewer, card names come from the entry or the catalog, and an unknown action type
+ * falls back to the server's message rather than vanishing from the panel. Consecutive phase-bookkeeping entries are
+ * merged into a single turn-start row, which is what keeps the panel readable.
+ */
+function buildActionLogView(
+  gameInstance: IGameStateResponse,
+  authUserId?: string,
+  cardById?: ReadonlyMap<string, ICardCatalogItemResponse>,
+): IActionLogViewEntry[] {
+  const log = gameInstance.actionLog ?? []
+  if (log.length === 0) {
+    return []
+  }
+
+  const normalizedAuthUserId = normalizeId(authUserId)
+  const sortedEntries = [...log].sort((left, right) => left.sequence - right.sequence)
+  const viewEntries: IActionLogViewEntry[] = []
+
+  for (let index = 0; index < sortedEntries.length; index += 1) {
+    const entry = sortedEntries[index]
+
+    if (!ACTION_LOG_BOOKKEEPING_ACTION_TYPES.has(entry.actionType)) {
+      viewEntries.push(toActionLogViewEntry(entry, normalizedAuthUserId, cardById))
+      continue
+    }
+
+    let runEnd = index
+    while (
+      runEnd + 1 < sortedEntries.length
+      && ACTION_LOG_BOOKKEEPING_ACTION_TYPES.has(sortedEntries[runEnd + 1].actionType)
+    ) {
+      runEnd += 1
+    }
+
+    const run = sortedEntries.slice(index, runEnd + 1)
+    index = runEnd
+
+    if (run.length === 1) {
+      viewEntries.push(toActionLogViewEntry(run[0], normalizedAuthUserId, cardById))
+      continue
+    }
+
+    const firstEntry = run[0]
+    const hasTurnStarted = run.some((runEntry) => runEntry.actionType === 'turn_started')
+    const phases = [...new Set(run
+      .map((runEntry) => runEntry.phase)
+      .filter((phase): phase is string => Boolean(phase))
+      .map(formatActionLogEngineToken))]
+
+    viewEntries.push({
+      ...toActionLogViewEntry(firstEntry, normalizedAuthUserId, cardById),
+      text: hasTurnStarted
+        ? i18n.t('game.actionLog.event.turnStart')
+        : i18n.t('game.actionLog.event.phaseProgression'),
+      turnNumber: run.find((runEntry) => runEntry.turnNumber !== null)?.turnNumber ?? null,
+      // The phases move into the detail line, so the row stops repeating one of them in its own chip.
+      phase: null,
+      details: phases.length > 0 ? phases.join(' · ') : null,
+    })
+  }
+
+  return viewEntries
+}
+
+/**
  * Why the game ended, worded for the player reading it. The same `GameEndReason` reads very differently from the
  * winner's and the loser's side ("your opponent ran out of time" vs "you ran out of time"), and a timeout ending is
  * not the same story as a leader's life reaching 0, so every reason carries one line per standing.
@@ -514,6 +707,9 @@ export {
   getTributeSelectionPhaseValue,
   buildSupportChainView,
   shouldShowSupportChainBubble,
+  shouldSupportChainScroll,
+  buildActionLogView,
+  formatActionLogEngineToken,
   buildGameOutcomePresentation,
 }
 export type { ITributeMaterialRequirementGroup, ITributeRequirementSummary }

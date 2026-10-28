@@ -25,7 +25,8 @@ public static partial class GameStateResponseMapper
             pendingPresentation: ToPhasePresentationResponse(game.PendingPhasePresentation),
             ruleset: game.Ruleset,
             clock: ToGameClockResponse(game),
-            modifiers: game.Modifiers.Count == 0 ? null : game.Modifiers);
+            modifiers: game.Modifiers.Count == 0 ? null : game.Modifiers,
+            actionLog: BuildActionLog(game, requestingPlayerId));
     }
 
     public static GameStateResponse ToGameStateResponse(GameState state, string requestingPlayerId)
@@ -39,7 +40,8 @@ public static partial class GameStateResponseMapper
             pendingPresentation: null,
             ruleset: null,
             clock: null,
-            modifiers: null);
+            modifiers: null,
+            actionLog: null);
     }
 
     private static PhasePresentationResponse? ToPhasePresentationResponse(PendingPhasePresentation? presentation)
@@ -64,7 +66,8 @@ public static partial class GameStateResponseMapper
         PhasePresentationResponse? pendingPresentation,
         GameRulesetBinding? ruleset,
         GameClockResponse? clock,
-        IReadOnlyList<string>? modifiers)
+        IReadOnlyList<string>? modifiers,
+        IReadOnlyList<ActionLogEntryResponse>? actionLog)
     {
         var phaseData = PhaseStateService.GetPhaseData(state.Phase);
         var hasOutcome = GameEndRules.IsGameOver(state);
@@ -122,7 +125,8 @@ public static partial class GameStateResponseMapper
             // A finished game has no clock left to run. An untimed table still publishes the block with
             // IsEnabled = false, so the client distinguishes it from a game whose clock has not started.
             Clock: hasOutcome ? null : clock,
-            Modifiers: modifiers);
+            Modifiers: modifiers,
+            ActionLog: actionLog);
     }
 
     /// <summary>
@@ -154,6 +158,65 @@ public static partial class GameStateResponseMapper
 
         notices.Reverse();
         return notices;
+    }
+
+    /// <summary>
+    /// Projects the tail of the game's action log into the lines the requesting player may read, oldest first.
+    ///
+    /// <see cref="GameActionLogPublishing"/> decides what is published at all and who may see it: the log is the
+    /// engine's audit trail, and it contains entries (a face-down support being set, a skipped effect with a raw
+    /// instance id) that would hand the opponent information the board deliberately hides. Sequence numbers are
+    /// the entry's index in the full log, not in this tail, so a truncated tail still orders correctly.
+    /// </summary>
+    private static IReadOnlyList<ActionLogEntryResponse> BuildActionLog(GameInstance game, string requestingPlayerId)
+    {
+        var log = game.ActionLog;
+        var firstPublishedIndex = Math.Max(0, log.Count - GameActionLogPublishing.MaxPublishedEntries);
+        var entries = new List<ActionLogEntryResponse>();
+
+        for (var index = firstPublishedIndex; index < log.Count; index++)
+        {
+            var entry = log[index];
+
+            if (!GameActionLogPublishing.IsVisibleTo(entry, requestingPlayerId))
+            {
+                continue;
+            }
+
+            entries.Add(ToActionLogEntryResponse(entry, sequence: index + 1));
+        }
+
+        return entries;
+    }
+
+    private static ActionLogEntryResponse ToActionLogEntryResponse(GameActionLogEntry entry, int sequence)
+    {
+        return new ActionLogEntryResponse(
+            EntryId: entry.EntryId,
+            Sequence: sequence,
+            TimestampUtc: entry.TimestampUtc.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            ActionType: entry.ActionType,
+            Category: entry.Category.ToString(),
+            PlayerId: string.IsNullOrWhiteSpace(entry.PlayerId) ? null : entry.PlayerId,
+            // The two key spellings are both in use: the board-action entries speak of a card, the older effect
+            // notices speak of a source card. Reading both keeps this projection a pure view of the log.
+            CardInstanceId: ReadMetadataValue(entry, "cardInstanceId") ?? ReadMetadataValue(entry, "sourceCardInstanceId"),
+            CardDefinitionId: ReadMetadataValue(entry, "cardDefinitionId"),
+            DisplayName: ReadMetadataValue(entry, "displayName") ?? ReadMetadataValue(entry, "sourceCardDisplayName"),
+            TargetInstanceId: ReadMetadataValue(entry, "targetInstanceId"),
+            TargetDisplayName: ReadMetadataValue(entry, "targetDisplayName"),
+            // Phase entries carry `toPhase` (a transition names both ends), every other entry carries `phase`.
+            Phase: ReadMetadataValue(entry, "phase") ?? ReadMetadataValue(entry, "toPhase"),
+            TurnNumber: ReadMetadataIntValue(entry, "turnNumber"),
+            Message: entry.Message);
+    }
+
+    private static int? ReadMetadataIntValue(GameActionLogEntry entry, string key)
+    {
+        return entry.Metadata.TryGetValue(key, out var value)
+            && int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : null;
     }
 
     private static EffectNoticeResponse ToEffectNoticeResponse(GameActionLogEntry entry)

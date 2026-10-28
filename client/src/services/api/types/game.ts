@@ -172,6 +172,28 @@ export type IEffectNoticeResponse = {
   selectionPromptKind: string | null
 }
 
+/**
+ * One published line of the game's action log. `sequence` is the entry's position in the server's own log, so the
+ * client can order the tail it receives without trusting timestamps or array indices, and `message` is only the
+ * fallback wording for an `actionType` the client does not know how to phrase itself.
+ */
+export type IActionLogEntryResponse = {
+  entryId: string
+  sequence: number
+  timestampUtc: string
+  actionType: string
+  category: string
+  playerId: string | null
+  cardInstanceId: string | null
+  cardDefinitionId: string | null
+  displayName: string | null
+  targetInstanceId: string | null
+  targetDisplayName: string | null
+  phase: string | null
+  turnNumber: number | null
+  message: string
+}
+
 export type IGameOutcomeResponse = {
   winnerPlayerId: string | null
   loserPlayerIds: string[]
@@ -229,6 +251,9 @@ export type IGameStateResponse = {
   isSupportResponseWindowOpen?: boolean
   supportChain?: ISupportChainEntryResponse[] | null
   effectNotices?: IEffectNoticeResponse[] | null
+  // The tail of the game's action log, oldest first, already filtered for this player. Absent for a finished
+  // game only if the server never recorded anything the player may read.
+  actionLog?: IActionLogEntryResponse[] | null
   gameOutcome?: IGameOutcomeResponse | null
   pendingPresentation?: IPhasePresentationResponse | null
   animationEvents?: IAnimationEventResponse[] | null

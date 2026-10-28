@@ -110,13 +110,15 @@ public sealed class InterruptAttackEffect(
         context.Game.State.ConsecutivePasses = 0;
 
         context.Game.AddActionLogEntry(
-            actionType: "attack_interrupted",
+            actionType: GameActionLogActionTypes.AttackInterrupted,
             message: $"{context.ActingPlayer.Id} interrupted the pending attack.",
             playerId: context.ActingPlayer.Id,
             metadata: new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["phase"] = context.Game.State.Phase.ToString(),
-            });
+                ["turnNumber"] = context.Game.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            },
+            category: GameActionLogCategory.Effect);
 
         return Result.Success;
     }

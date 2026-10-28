@@ -85,7 +85,7 @@ export function CardAdminPassiveSettingsPanel({
                 }))}
             >
               {PASSIVE_TRIGGER_KIND_OPTIONS.map((option) => (
-                <option key={option} value={option}>{optionLabel(t, PASSIVE_TRIGGER_KIND_LABEL_KEYS, option)}</option>
+                <option key={option} value={option}>{optionLabel(t, PASSIVE_TRIGGER_KIND_LABEL_KEYS, option) + "a"}</option>
               ))}
             </CardAdminSelect>
           </div>

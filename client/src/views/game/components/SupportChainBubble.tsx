@@ -1,7 +1,13 @@
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import type { ISupportChainBubbleProps, ISupportChainViewActor, ISupportChainViewEntry } from '@/views/game/types'
-import { buildSupportChainView, shouldShowSupportChainBubble } from '@/views/game/utils/functions/helpers'
+import { buildSupportChainView, shouldShowSupportChainBubble, shouldSupportChainScroll } from '@/views/game/utils/functions/helpers'
+import {
+  HUD_PANEL_WIDTH_CLASS,
+  SUPPORT_CHAIN_LIST_MAX_HEIGHT_REM,
+  SUPPORT_CHAIN_TOP_REM,
+} from '@/views/game/utils/contants'
 
 const ACTOR_LABEL_KEYS = {
   you: 'game.supportChain.actorYou',
@@ -20,6 +26,19 @@ const NEGATE_ACCENT_CLASS = 'text-rose-200'
 function SupportChainBubble({ gameInstance, authUserId }: ISupportChainBubbleProps) {
   const { t } = useTranslation()
   const entries = buildSupportChainView(gameInstance, authUserId)
+  const isScrollable = shouldSupportChainScroll(entries)
+  const listRef = useRef<HTMLOListElement | null>(null)
+
+  // The newest activation is the one the opponent has to answer, so a chain that outgrew its height budget starts
+  // scrolled to the bottom instead of hiding the entry everybody is waiting on.
+  useEffect(() => {
+    const list = listRef.current
+    if (!isScrollable || !list) {
+      return
+    }
+
+    list.scrollTop = list.scrollHeight
+  }, [isScrollable, entries.length])
 
   if (!shouldShowSupportChainBubble(entries)) {
     return null
@@ -28,7 +47,12 @@ function SupportChainBubble({ gameInstance, authUserId }: ISupportChainBubblePro
   return (
     <div
       data-testid="support-chain-bubble"
-      className="support-chain-bubble-enter pointer-events-none fixed right-2 top-2 z-40 flex w-[252px] max-w-[46vw] flex-col gap-1 rounded-xl border border-cyan-300/45 bg-slate-950/90 p-2 text-[10px] leading-tight text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm"
+      data-scrollable={isScrollable ? 'true' : 'false'}
+      style={{ top: `${SUPPORT_CHAIN_TOP_REM}rem` }}
+      className={twMerge(
+        'support-chain-bubble-enter pointer-events-none fixed right-2 z-40 flex flex-col gap-1 rounded-xl border border-cyan-300/45 bg-slate-950/90 p-2 text-[10px] leading-tight text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm',
+        HUD_PANEL_WIDTH_CLASS,
+      )}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-cyan-200">
@@ -44,7 +68,17 @@ function SupportChainBubble({ gameInstance, authUserId }: ISupportChainBubblePro
         </span>
       </div>
 
-      <ol className="flex flex-col gap-1">
+      {/* Only the list scrolls: the heading, count and LIFO note stay put, and the bubble stays click-through for
+          the board until there is actually something to scroll. */}
+      <ol
+        ref={listRef}
+        data-testid="support-chain-list"
+        style={isScrollable ? { maxHeight: `${SUPPORT_CHAIN_LIST_MAX_HEIGHT_REM}rem` } : undefined}
+        className={twMerge(
+          'flex flex-col gap-1',
+          isScrollable ? 'pointer-events-auto overflow-y-auto overscroll-contain pr-0.5' : '',
+        )}
+      >
         {entries.map((entry) => (
           <SupportChainBubbleRow key={entry.entryId} entry={entry} />
         ))}

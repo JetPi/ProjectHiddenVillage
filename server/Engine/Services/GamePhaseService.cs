@@ -231,7 +231,13 @@ public sealed class GamePhaseService(IGamePhaseStateService phaseStateService)
             _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
         };
 
-        instance.AddActionLogEntry(actionType, message, playerId, metadata);
+        // Everything this service records is either a phase/turn transition or a declaration made inside one,
+        // except the mulligan prompt, which the log panel groups with the other prompts the players answer.
+        var category = string.Equals(actionType, "mulligan_prompted", StringComparison.Ordinal)
+            ? GameActionLogCategory.Prompt
+            : GameActionLogCategory.Phase;
+
+        instance.AddActionLogEntry(actionType, message, playerId, metadata, category: category);
     }
 
     private static IReadOnlyDictionary<string, string> CreateMetadata(params (string Key, string Value)[] entries)

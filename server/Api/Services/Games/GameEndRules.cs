@@ -141,7 +141,8 @@ public static class GameEndRules
                 ["winnerPlayerId"] = outcome.WinnerPlayerId ?? string.Empty,
                 ["loserPlayerIds"] = string.Join(",", outcome.LoserPlayerIds),
                 ["turnNumber"] = outcome.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            });
+            },
+            category: GameActionLogCategory.Outcome);
     }
 
     public static string DescribeOutcome(GameOutcome outcome)

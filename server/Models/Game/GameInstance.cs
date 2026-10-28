@@ -154,7 +154,8 @@ public sealed class GameInstance
                 ["turnNumber"] = State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["requiredAckPlayerIds"] = string.Join(",", presentation.RequiredAckPlayerIds),
             },
-            timestampUtc: timestampUtc);
+            timestampUtc: timestampUtc,
+            category: GameActionLogCategory.Phase);
 
         return presentation;
     }
@@ -185,7 +186,8 @@ public sealed class GameInstance
                 ["presentationId"] = presentation.PresentationId,
                 ["presentationKind"] = presentation.Kind.ToString(),
                 ["phase"] = presentation.Phase.ToString(),
-            });
+            },
+            category: GameActionLogCategory.Phase);
 
         return true;
     }
@@ -211,7 +213,9 @@ public sealed class GameInstance
         string message,
         string? playerId = null,
         IReadOnlyDictionary<string, string>? metadata = null,
-        DateTimeOffset? timestampUtc = null)
+        DateTimeOffset? timestampUtc = null,
+        GameActionLogCategory category = GameActionLogCategory.Lifecycle,
+        GameActionLogVisibility visibility = GameActionLogVisibility.Public)
     {
         if (string.IsNullOrWhiteSpace(actionType))
         {
@@ -232,12 +236,22 @@ public sealed class GameInstance
                 $"Log player '{resolvedPlayerId}' was not found in game players.");
         }
 
+        // An owner-only entry nobody owns could never be shown to anyone, which is almost certainly a mistake at
+        // the call site rather than a deliberate "record it and hide it from everybody".
+        if (visibility == GameActionLogVisibility.OwnerOnly && string.IsNullOrWhiteSpace(resolvedPlayerId))
+        {
+            throw new InvalidOperationException(
+                "An owner-only action log entry must name the player it belongs to.");
+        }
+
         var entry = new GameActionLogEntry
         {
             ActionType = actionType,
             Message = message,
             PlayerId = resolvedPlayerId,
             TimestampUtc = timestampUtc ?? DateTimeOffset.UtcNow,
+            Category = category,
+            Visibility = visibility,
             Metadata = metadata is null
                 ? []
                 : new Dictionary<string, string>(metadata, StringComparer.Ordinal)
@@ -721,7 +735,14 @@ public sealed class GameInstance
             _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
         };
 
-        instance.AddActionLogEntry(actionType, message, playerId, metadata);
+        instance.AddActionLogEntry(
+            actionType,
+            message,
+            playerId,
+            metadata,
+            category: string.Equals(actionType, "prompt_resolved", StringComparison.Ordinal)
+                ? GameActionLogCategory.Prompt
+                : GameActionLogCategory.Phase);
     }
 
     private static string BuildPromptResolvedMessage(

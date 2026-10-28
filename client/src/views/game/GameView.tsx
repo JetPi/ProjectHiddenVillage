@@ -1,9 +1,9 @@
-import { X } from 'lucide-react'
+import { ArrowLeft, X } from 'lucide-react'
 import { MotionConfig } from 'motion/react'
 import { useGameCardsQuery } from '@/services/queries/cardQueries'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLoaderData } from 'react-router-dom'
+import { useLoaderData, useNavigate } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
 import { Panel } from '@/components/ui'
 import { useAuthSessionStore } from '@/state/authSession'
@@ -16,7 +16,7 @@ import {
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IAttackTargetingState, IEffectTargetingState, IGameLoaderData, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
-import { BottomHandReorderRow, EffectNoticeBanner, GameHandRow, GamePromptOverlay, GameOverOverlay, GameZones, MatchModifierBadge, PromptSelectionBanner, SupportChainBubble } from '@/views/game/components'
+import { ActionLog, BottomHandReorderRow, EffectNoticeBanner, GameHandRow, GamePromptOverlay, GameOverOverlay, GameZones, MatchModifierBadge, PromptSelectionBanner, SupportChainBubble } from '@/views/game/components'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
@@ -43,6 +43,7 @@ import {
 
 export function GameView() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { joinCode, gameCards, gameState: initialGameState } = useLoaderData() as IGameLoaderData
   const authUserId = useAuthSessionStore((state) => state.session?.userId)
   const toggleTheme = useThemeStore((state) => state.toggleTheme)
@@ -58,6 +59,9 @@ export function GameView() {
   const pendingEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting)
   const pendingPromptSelection = useGameUIStore((state) => state.pendingPromptSelection)
   const clearPromptSelection = useGameUIStore((state) => state.clearPromptSelection)
+  const isGameOverOverlayDismissed = useGameUIStore((state) => state.isGameOverOverlayDismissed)
+  const dismissGameOverOverlay = useGameUIStore((state) => state.dismissGameOverOverlay)
+  const setGameOverOverlayDismissed = useGameUIStore((state) => state.setGameOverOverlayDismissed)
   const setBottomHandFaceUpByInstanceId = useGameUIStore((state) => state.setBottomHandFaceUpByInstanceId)
   const setIsMulliganAnimationPending = useGameUIStore((state) => state.setIsMulliganAnimationPending)
   const setPendingCardTargeting = useGameUIStore((state) => state.setPendingCardTargeting)
@@ -125,6 +129,14 @@ export function GameView() {
   const promptPresentation = toPromptPresentation(gameState.pendingPrompt)
 
   const gameOutcome = gameState.gameOutcome ?? null
+
+  // A dismissal belongs to the result it dismissed. A fresh game (or a state that has not ended yet) must show the
+  // overlay again, otherwise finishing a second game in the same session would open on a bare board.
+  useEffect(() => {
+    if (!gameOutcome) {
+      setGameOverOverlayDismissed(false)
+    }
+  }, [gameOutcome, setGameOverOverlayDismissed])
 
   const shouldShowPromptOverlay =
     gameOutcome === null
@@ -358,7 +370,36 @@ export function GameView() {
 
         <EffectNoticeBanner notices={gameState.effectNotices} />
 
-        {gameOutcome ? <GameOverOverlay outcome={gameOutcome} authUserId={authUserId} /> : null}
+        <ActionLog
+          gameState={gameState}
+          authUserId={authUserId}
+          cardById={derivedGameState.cardById}
+          isConnected={isConnected}
+        />
+
+        {gameOutcome && !isGameOverOverlayDismissed ? (
+          <GameOverOverlay
+            outcome={gameOutcome}
+            authUserId={authUserId}
+            onDismiss={dismissGameOverOverlay}
+          />
+        ) : null}
+
+        {/* Once the result is off the board, leaving is still one click away - at the corner the overlay's own button
+            used to occupy - so the finished position and the action log can be studied without losing the exit. */}
+        {gameOutcome && isGameOverOverlayDismissed ? (
+          <button
+            type="button"
+            data-testid="game-over-review-return-button"
+            onClick={() => {
+              void navigate('/')
+            }}
+            className="fixed left-2 top-2 z-40 inline-flex items-center gap-1 rounded-lg border border-white/25 bg-slate-950/90 px-2.5 py-1 text-[11px] font-semibold text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-[filter] hover:brightness-125"
+          >
+            <ArrowLeft size={12} strokeWidth={2.5} />
+            {t('game.outcome.returnToMainPage')}
+          </button>
+        ) : null}
 
         {actionError ? (
           <div

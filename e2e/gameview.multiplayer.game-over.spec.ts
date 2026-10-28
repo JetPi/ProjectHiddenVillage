@@ -64,16 +64,29 @@ test.describe('GameView multiplayer game over', () => {
       await expect(loserPage.getByTestId('game-over-reason')).toHaveText('Lost by deck out.')
       await expect(winnerPage.getByTestId('game-over-reason')).toHaveText('Won by deck out.')
 
-      // The engine publishes no action, no prompt and no support window once the game is over, so the loser
-      // has nothing left to click but the overlay's "Return to main page" button.
+      // The engine publishes no action, no prompt and no support window once the game is over.
       const winnerState = await fetchGameState(request, setup.gameCode, winner.session.accessToken)
       expect(winnerState.availableActions).toHaveLength(0)
       expect(winnerState.pendingPrompt).toBeNull()
       expect(normalizeUserId(winnerState.gameOutcome?.winnerPlayerId ?? '')).toBe(winnerId)
 
-      await loserPage.getByTestId('game-over-return-button').click()
-      await loserPage.waitForURL((url) => url.pathname === '/')
+      // Undoing is a live-game affordance, so the sidebar drops it once an outcome exists.
+      await expect(loserPage.getByTestId('undo-action-button')).toHaveCount(0)
+
+      // The result no longer traps the board: reviewing it leaves the finished position readable, with the action
+      // log still one click away, and leaving is offered at the corner the overlay used to occupy.
+      await loserPage.getByTestId('game-over-review-button').click()
       await expect(loserPage.getByTestId('game-over-overlay')).toHaveCount(0)
+      await expect(loserPage.getByTestId('game-over-review-return-button')).toBeVisible()
+
+      await loserPage.getByTestId('action-log-toggle').click()
+      const reviewLog = loserPage.getByTestId('action-log-panel')
+      await expect(reviewLog).toBeVisible()
+      await expect(reviewLog.getByTestId('action-log-entry').first()).toBeVisible()
+
+      await loserPage.getByTestId('game-over-review-return-button').click()
+      await loserPage.waitForURL((url) => url.pathname === '/')
+      await expect(loserPage.getByTestId('game-over-review-return-button')).toHaveCount(0)
     } finally {
       await closeMultiplayerPages(pages)
     }
