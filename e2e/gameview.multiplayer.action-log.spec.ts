@@ -79,6 +79,15 @@ test.describe('GameView multiplayer action log', () => {
       await expect(summonEntry).toBeVisible()
       await expect(summonEntry).toContainText(/summoned/i)
 
+      // Nothing the panel renders may carry an engine identifier. The audit message is only a development aid, so a
+      // row showing a player or entry id means the phrasing path regressed.
+      const renderedEntries = await panel.getByTestId('action-log-entry').allInnerTexts()
+      expect(renderedEntries.length).toBeGreaterThan(0)
+      for (const renderedEntry of renderedEntries) {
+        expect(renderedEntry).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
+        expect(renderedEntry).not.toMatch(/\b[0-9a-f]{20,}\b/i)
+      }
+
       // Expanding is the panel's own affordance. An outside click returns it to the compact column - the log stays
       // open, because only the board's button closes it.
       await panel.locator('[data-testid="action-log-expand"]').click()

@@ -191,7 +191,8 @@ export type IActionLogEntryResponse = {
   targetDisplayName: string | null
   phase: string | null
   turnNumber: number | null
-  message: string
+  /** Development aid only: null whenever the audit text carried an identifier. Never shown in production. */
+  message: string | null
 }
 
 export type IGameOutcomeResponse = {

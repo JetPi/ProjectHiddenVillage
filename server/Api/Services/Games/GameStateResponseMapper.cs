@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using ErrorOr;
 using ProjectHiddenVillage.Server.Engine;
 using ProjectHiddenVillage.Server.Engine.Interfaces;
@@ -208,7 +209,27 @@ public static partial class GameStateResponseMapper
             // Phase entries carry `toPhase` (a transition names both ends), every other entry carries `phase`.
             Phase: ReadMetadataValue(entry, "phase") ?? ReadMetadataValue(entry, "toPhase"),
             TurnNumber: ReadMetadataIntValue(entry, "turnNumber"),
-            Message: entry.Message);
+            Message: SanitizePublishedMessage(entry.Message));
+    }
+
+    /// <summary>
+    /// A GUID in either wire form (hyphenated or the 32-character "N" form an entry id uses). Published messages are
+    /// the server's audit sentences, so an identifier here means someone wrote a log line for a log file rather than
+    /// for a player. Rather than rewrite the sentence at the boundary - which would mean guessing what the token meant
+    /// - the message is withheld, and the client shows its own wording or a neutral line.
+    /// </summary>
+    private static readonly Regex PublishedMessageIdentifierPattern = new(
+        @"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b|\b[0-9a-fA-F]{32}\b",
+        RegexOptions.Compiled);
+
+    private static string? SanitizePublishedMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return null;
+        }
+
+        return PublishedMessageIdentifierPattern.IsMatch(message) ? null : message;
     }
 
     private static int? ReadMetadataIntValue(GameActionLogEntry entry, string key)

@@ -109,14 +109,18 @@ public sealed class InterruptAttackEffect(
         context.Game.State.PriorityPlayerId = string.Empty;
         context.Game.State.ConsecutivePasses = 0;
 
+        // The message names nobody: the entry's `PlayerId` is the interrupter, and the card that did it travels as
+        // metadata so the client can name it without the audit sentence carrying an id.
         context.Game.AddActionLogEntry(
             actionType: GameActionLogActionTypes.AttackInterrupted,
-            message: $"{context.ActingPlayer.Id} interrupted the pending attack.",
+            message: "The pending attack was interrupted.",
             playerId: context.ActingPlayer.Id,
             metadata: new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["phase"] = context.Game.State.Phase.ToString(),
                 ["turnNumber"] = context.Game.State.TurnNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["cardInstanceId"] = context.SourceCardInstance?.InstanceId ?? string.Empty,
+                ["displayName"] = context.SourceCardDefinition.DisplayName,
             },
             category: GameActionLogCategory.Effect);
 

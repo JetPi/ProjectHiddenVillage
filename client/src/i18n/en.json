@@ -444,10 +444,14 @@
         "supportSet": "{{actor}} set a support card",
         "supportActivated": "{{actor}} activated {{card}}",
         "attackDeclared": "{{actor}} attacked {{target}} with {{card}}",
+        "attackInterrupted": "{{actor}} interrupted the pending attack",
+        "supportActivationSkipped": "A support activation fizzled because its card had left play",
+        "supportActivationFailed": "A support activation fizzled",
         "leaderAbilityUsed": "{{actor}} used {{card}}'s ability",
         "characterAbilityUsed": "{{actor}} used {{card}}'s ability",
         "clockTimedOut": "{{actor}} ran out of time",
-        "gameEnded": "The game ended"
+        "gameEnded": "The game ended",
+        "unknownEvent": "An event was recorded"
       }
     },
     "supportChain": {

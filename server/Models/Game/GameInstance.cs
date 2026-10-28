@@ -716,10 +716,8 @@ public sealed class GameInstance
         {
             "prompt_resolved" => BuildPromptResolvedMessage(
                 promptType ?? throw new InvalidOperationException("Prompt type is required."),
-                playerId ?? throw new InvalidOperationException("Player id is required for prompt resolution."),
-                selectedOption ?? throw new InvalidOperationException("Selected option is required for prompt resolution."),
-                selectedPlayerId),
-            "phase_started" => $"{playerId} starts turn {instance.State.TurnNumber} in {instance.State.Phase}.",
+                selectedOption ?? throw new InvalidOperationException("Selected option is required for prompt resolution.")),
+            "phase_started" => $"Turn {instance.State.TurnNumber} started in {instance.State.Phase}.",
             _ => throw new InvalidOperationException($"Unsupported action log type '{actionType}'.")
         };
 
@@ -745,20 +743,17 @@ public sealed class GameInstance
                 : GameActionLogCategory.Phase);
     }
 
-    private static string BuildPromptResolvedMessage(
-        GamePromptType promptType,
-        string requestedPlayerId,
-        string selectedOption,
-        string? selectedPlayerId)
+    /// <summary>
+    /// The audit sentence for a resolved prompt, deliberately free of identifiers: who answered is the entry's
+    /// <see cref="GameActionLogEntry.PlayerId"/>, and the answer itself lives in the metadata.
+    /// </summary>
+    private static string BuildPromptResolvedMessage(GamePromptType promptType, string selectedOption)
     {
         return promptType switch
         {
-            GamePromptType.ChooseStartingPlayer =>
-                $"{requestedPlayerId} selected {selectedOption} and {selectedPlayerId ?? throw new InvalidOperationException("Selected player id is required.")} will start.",
-            GamePromptType.Mulligan =>
-                $"{requestedPlayerId} selected {selectedOption} for mulligan.",
-            GamePromptType.Effect =>
-                $"{requestedPlayerId} selected {selectedOption} for {promptType}.",
+            GamePromptType.ChooseStartingPlayer => $"The starting player was chosen: {selectedOption}.",
+            GamePromptType.Mulligan => $"A mulligan choice was made: {selectedOption}.",
+            GamePromptType.Effect => "An effect selection was made.",
             _ => throw new InvalidOperationException($"Unsupported prompt type '{promptType}'.")
         };
     }

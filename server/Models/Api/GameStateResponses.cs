@@ -101,8 +101,12 @@ public sealed record GameOutcomeResponse(
 /// One published line of the game's action log. <see cref="Sequence"/> is the entry's position in the game's own
 /// log, so the client can order and de-duplicate entries without trusting timestamps or list indices; the rest is
 /// the shape the log panel renders, lifted out of the entry's metadata so the client never has to parse
-/// <see cref="Message"/>. <see cref="Message"/> itself remains as the fallback for an action type the client does
-/// not know how to phrase.
+/// <see cref="Message"/>.
+///
+/// <see cref="Message"/> is a development aid, not a shipping path: it is the server's audit sentence, so it may name
+/// players by id, and it is published as null whenever it carries an identifier (see
+/// <c>GameStateResponseMapper.SanitizePublishedMessage</c>). The client phrases every known action type itself and
+/// shows a neutral line otherwise, so nothing player-facing depends on this field.
 /// </summary>
 public sealed record ActionLogEntryResponse(
     string EntryId,
@@ -118,7 +122,7 @@ public sealed record ActionLogEntryResponse(
     string? TargetDisplayName,
     string? Phase,
     int? TurnNumber,
-    string Message);
+    string? Message);
 
 /// <summary>
 /// One "the effect resolved, but it had nothing to act on" notice, projected from the game's action log so the

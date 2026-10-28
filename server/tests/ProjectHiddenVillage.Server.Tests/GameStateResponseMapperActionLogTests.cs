@@ -152,6 +152,41 @@ public sealed class GameStateResponseMapperActionLogTests
                 visibility: GameActionLogVisibility.OwnerOnly));
     }
 
+    [TestMethod]
+    public void ToGameStateResponse_WithholdsAuditMessagesThatCarryIdentifiers()
+    {
+        var game = CreateGame();
+
+        // A hyphenated id (a player) and a compact id (an entry id) are both engine identifiers, and neither may
+        // reach a player: the message is a fallback, the metadata is where ids belong.
+        game.AddActionLogEntry(
+            actionType: GameActionLogActionTypes.AttackInterrupted,
+            message: "20000000-0000-0000-0000-000000000001 interrupted the pending attack.",
+            playerId: "p1",
+            category: GameActionLogCategory.Effect);
+
+        game.AddActionLogEntry(
+            actionType: GameActionLogActionTypes.SupportActivationSkipped,
+            message: "Skipped support activation '9f8e7d6c5b4a39281706f5e4d3c2b1a0'.",
+            playerId: "p1",
+            category: GameActionLogCategory.Effect);
+
+        game.AddActionLogEntry(
+            actionType: GameActionLogActionTypes.CardSummoned,
+            message: "Naruto was summoned.",
+            playerId: "p1",
+            metadata: CreateCardMetadata("summon-1", "Naruto"),
+            category: GameActionLogCategory.Action);
+
+        var response = GameStateResponseMapper.ToGameStateResponse(game, "p1");
+
+        Assert.IsNotNull(response.ActionLog);
+        Assert.AreEqual(3, response.ActionLog!.Count);
+        Assert.IsNull(response.ActionLog[0].Message);
+        Assert.IsNull(response.ActionLog[1].Message);
+        Assert.AreEqual("Naruto was summoned.", response.ActionLog[2].Message);
+    }
+
     private static Dictionary<string, string> CreateCardMetadata(string instanceId, string displayName)
     {
         return new Dictionary<string, string>(StringComparer.Ordinal)

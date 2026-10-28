@@ -27,6 +27,18 @@ public sealed class InterruptAttackEffectTests
         Assert.AreEqual(string.Empty, context.Game.State.PriorityPlayerId);
         Assert.AreEqual(0, context.Game.State.ConsecutivePasses);
         Assert.IsTrue(context.Game.ActionLog.Any(entry => entry.ActionType == "attack_interrupted"));
+
+        var interruptEntry = context.Game.ActionLog.Single(entry =>
+            entry.ActionType == GameActionLogActionTypes.AttackInterrupted);
+        // The entry can be published to a player, so its sentence names nobody: the interrupter is the entry's player
+        // and the card that did it travels as metadata.
+        Assert.AreEqual("The pending attack was interrupted.", interruptEntry.Message);
+        Assert.IsFalse(
+            System.Text.RegularExpressions.Regex.IsMatch(interruptEntry.Message, "[0-9a-fA-F]{8}"),
+            "The audit sentence must not carry an engine identifier.");
+        Assert.AreEqual("p2", interruptEntry.PlayerId);
+        Assert.IsTrue(interruptEntry.Metadata.ContainsKey("cardInstanceId"));
+        Assert.IsTrue(interruptEntry.Metadata.ContainsKey("displayName"));
     }
 
     [TestMethod]

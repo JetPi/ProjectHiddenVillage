@@ -29,10 +29,16 @@ flowchart LR
 - **The tail is bounded.** `MaxPublishedEntries` (120) entries, oldest first, each carrying `Sequence` = its index in
   the full log. The client re-reads the whole tail on every push, so the response cannot grow with the game; the
   sequence means truncation cannot reorder or duplicate anything.
-- **The client phrases, the server provides.** [`buildActionLogView`](client/src/views/game/utils/functions/helpers/index.ts:1)
-  builds the sentence from `ActionType` plus the card the entry names, through `game.actionLog.*` keys, and falls back
-  to the server's `Message` for a type it does not know. That is why a new engine event still appears as text on the
-  day it ships.
+- **The client phrases; the server only supplies the data.** [`buildActionLogView`](client/src/views/game/utils/functions/helpers/index.ts:1)
+  builds the sentence from `ActionType` plus the card the entry names, through `game.actionLog.*` keys. The server's
+  `Message` is a development aid, not a shipping path: it is the audit sentence, so it may name players by id, it is
+  published as null whenever it matches an identifier (`GameStateResponseMapper.SanitizePublishedMessage`), and the
+  client only shows it in a development build. An unphrased type renders a neutral line in production, which is
+  visible rather than wrong - and the contract check below means it should never happen.
+- **The client contract is enforced, not remembered.** `client/src/views/game/actionLog.contract.json` lists the
+  published action types. A server test (`GameActionLogPublishingContractTests`) fails when `GameActionLogPublishing`
+  and the file disagree, and the client fails `tsc -b` when a contract type has no wording template. Adding a
+  published type therefore requires its client wording in the same change.
 - **The engine's own phase plumbing is grouped.** Starting a turn walks the server through several transitions at
   once, so consecutive `turn_started` / `phase_started` entries collapse into one `Turn Start` row whose detail line
   lists the phases walked (`Main Phase · Draw Phase · Refresh Phase`). A lone transition - the one a player caused by
@@ -119,9 +125,14 @@ rendered by the view.
 ## Coverage
 
 - Server: [`GameStateResponseMapperActionLogTests`](server/tests/ProjectHiddenVillage.Server.Tests/GameStateResponseMapperActionLogTests.cs:1)
-  covers ordering, absolute sequences, the publication allow-list, owner-only filtering, metadata lifting, and the
-  owner-only-without-a-player guard. The registry tests assert that a summon names its card and that a set support does
-  not.
+  covers ordering, absolute sequences, the publication allow-list, owner-only filtering, metadata lifting, the
+  owner-only-without-a-player guard, and the rule that an audit message carrying a hyphenated or compact identifier is
+  published as null. The registry tests assert that a summon names its card and that a set support does not, and the
+  interrupt test pins its exact sentence and the card metadata. The two support-activation failures are covered by the
+  boundary scrub rather than by a producer assertion, because their only reachable path needs a whole resolution
+  chain to fail mid-replay.
+- Contract: `GameActionLogPublishingContractTests` fails when the allow-list and `actionLog.contract.json` disagree,
+  and the client's `tsc -b` fails when a contract type has no wording template.
 - Client: the repo has no client unit-test runner, so helper behaviour is covered through the panel's e2e spec
   ([`e2e/gameview.multiplayer.action-log.spec.ts`](e2e/gameview.multiplayer.action-log.spec.ts:1)) rather than by
   adding a runner just for it. That spec opens the log from the sidebar, asserts a real summon produced a

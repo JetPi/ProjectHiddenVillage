@@ -2008,10 +2008,16 @@ public sealed class InMemoryGameInstanceRegistry
             || sourceCardInstance is null
             || !instance.State.CardDefinitions.TryGetValue(sourceCardInstance.CardDefinitionId, out var sourceCardDefinition))
         {
+            // The stack entry id moves into metadata: the message can reach a player as fallback wording, and an
+            // engine id there would be noise at best.
             instance.AddActionLogEntry(
                 actionType: GameActionLogActionTypes.SupportActivationSkipped,
-                message: $"Skipped support activation '{entry.EntryId}': its source card is no longer in play.",
+                message: "A support activation fizzled because its card had left play.",
                 playerId: entry.SourcePlayerId,
+                metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["stackEntryId"] = entry.EntryId,
+                },
                 category: GameActionLogCategory.Effect);
             return;
         }
@@ -2052,8 +2058,13 @@ public sealed class InMemoryGameInstanceRegistry
                     // A single unresolvable activation must not strand both players: log it and continue.
                     instance.AddActionLogEntry(
                         actionType: GameActionLogActionTypes.SupportActivationFailed,
-                        message: $"Support activation '{entry.EntryId}' failed: {executeResult.FirstError.Description}",
+                        message: "A support activation fizzled.",
                         playerId: entry.SourcePlayerId,
+                        metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+                        {
+                            ["stackEntryId"] = entry.EntryId,
+                            ["failureDescription"] = executeResult.FirstError.Description,
+                        },
                         category: GameActionLogCategory.Effect);
                 }
             }
@@ -3313,7 +3324,7 @@ public sealed class InMemoryGameInstanceRegistry
 
             instance.AddActionLogEntry(
                 actionType: ClockTimedOutActionType,
-                message: $"Player '{ownerPlayerId}' ran out of time in {instance.State.Phase}.",
+                message: $"A player ran out of time in {instance.State.Phase}.",
                 playerId: ownerPlayerId,
                 metadata: new Dictionary<string, string>(StringComparer.Ordinal)
                 {

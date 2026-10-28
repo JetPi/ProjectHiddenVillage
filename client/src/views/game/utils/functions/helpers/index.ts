@@ -1,4 +1,5 @@
 import i18n from '@/i18n'
+import actionLogContract from '@/views/game/actionLog.contract.json'
 import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import { PhaseValues } from "@/views/game/components/constants/gamePhaseActionRow"
 import type { IGameOutcomeResponse, IGameStateResponse, ISupportChainEntryResponse } from "@/services/api/gameApi"
@@ -476,11 +477,30 @@ const ACTION_LOG_EVENT_TEXT_KEYS = {
   attack_declared: 'game.actionLog.event.attackDeclared',
   leader_ability_used: 'game.actionLog.event.leaderAbilityUsed',
   character_ability_used: 'game.actionLog.event.characterAbilityUsed',
+  attack_interrupted: 'game.actionLog.event.attackInterrupted',
+  support_activation_skipped: 'game.actionLog.event.supportActivationSkipped',
+  support_activation_failed: 'game.actionLog.event.supportActivationFailed',
   clock_timed_out: 'game.actionLog.event.clockTimedOut',
   game_ended: 'game.actionLog.event.gameEnded',
 } as const
 
 type TActionLogKnownActionType = keyof typeof ACTION_LOG_EVENT_TEXT_KEYS
+
+type TActionLogContractActionType = (typeof actionLogContract)['publishedActionTypes'][number]
+
+/**
+ * Fails `tsc -b` when the server publishes an action type this client cannot phrase. The contract file is the shared
+ * list - a server test keeps it equal to `GameActionLogPublishing` - so a new published type has to arrive with its
+ * wording in the same change instead of silently rendering the neutral unknown-event line.
+ */
+type TActionLogMissingPhrasing = Exclude<TActionLogContractActionType, TActionLogKnownActionType>
+
+function assertActionLogPhrasingCoversContract(_assertion: Record<TActionLogMissingPhrasing, never>): void {
+  // Type-only: the empty object is assignable exactly when every contract type has a template.
+  void _assertion
+}
+
+assertActionLogPhrasingCoversContract({})
 
 function isKnownActionLogActionType(actionType: string): actionType is TActionLogKnownActionType {
   return Object.prototype.hasOwnProperty.call(ACTION_LOG_EVENT_TEXT_KEYS, actionType)
@@ -539,7 +559,9 @@ function toActionLogViewEntry(
       phase: entry.phase ? formatActionLogEngineToken(entry.phase) : '',
       turn: (entry.turnNumber ?? 0).toString(),
     })
-    : entry.message
+    : import.meta.env.DEV && entry.message
+      ? entry.message
+      : i18n.t('game.actionLog.event.unknownEvent')
 
   return {
     entryId: entry.entryId,
@@ -562,9 +584,10 @@ function toActionLogViewEntry(
  * The player-facing action log, oldest first.
  *
  * The server has already filtered what this player may read (see `GameActionLogPublishing`), so this only phrases it:
- * the actor is resolved against the viewer, card names come from the entry or the catalog, and an unknown action type
- * falls back to the server's message rather than vanishing from the panel. Consecutive phase-bookkeeping entries are
- * merged into a single turn-start row, which is what keeps the panel readable.
+ * the actor is resolved against the viewer and card names come from the entry or the catalog. An action type with no
+ * wording renders a neutral line in production, because the server's audit message is written for a log file and may
+ * name players by id; only a development build shows that raw text. Consecutive phase-bookkeeping entries are merged
+ * into a single turn-start row, which is what keeps the panel readable.
  */
 function buildActionLogView(
   gameInstance: IGameStateResponse,
