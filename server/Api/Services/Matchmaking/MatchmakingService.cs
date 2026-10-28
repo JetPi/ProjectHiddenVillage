@@ -71,6 +71,16 @@ public sealed class MatchmakingService : IMatchmakingService
 
         var ruleset = rulesetResult.Value;
 
+        // A host-only format is refused before the deck is resolved, so it can never take a queue slot. The client
+        // also hides it from the quick-match select; this is the rule that actually holds when a stale client or a
+        // direct call asks anyway.
+        if (!ruleset.AvailableInQuickMatch)
+        {
+            return Error.Validation(
+                code: "Matchmaking.Enqueue.RulesetNotQuickMatch",
+                description: $"'{ruleset.Name}' is not available in quick match. Host a game to play this format.");
+        }
+
         var deckResult = await gameReadService.ResolvePlayerDeckData(
             request.UserId,
             request.DeckId,
@@ -147,7 +157,9 @@ public sealed class MatchmakingService : IMatchmakingService
                 return ToResponse(ticket);
             }
 
-            game.Ruleset = new GameRulesetBinding(ruleset.Id, ruleset.Key, ruleset.Name);
+            // The clock policy travels with the binding: a ranked ruleset can tighten or switch off the clock
+            // without the matchmaker knowing anything about timers.
+            game.Ruleset = new GameRulesetBinding(ruleset.Id, ruleset.Key, ruleset.Name, ruleset.Clock);
             OpeningSupportSeeding.EnsureSupportCardSeededIntoOpeningDrawWindow(game, opponentDeck.Player.Id, opponent.DeckId);
             OpeningSupportSeeding.EnsureSupportCardSeededIntoOpeningDrawWindow(game, deck.Player.Id, ticket.DeckId);
 

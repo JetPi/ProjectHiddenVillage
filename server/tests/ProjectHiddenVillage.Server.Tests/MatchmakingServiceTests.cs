@@ -92,6 +92,42 @@ public sealed class MatchmakingServiceTests
     }
 
     [TestMethod]
+    public async Task EnqueueAsync_RefusesARulesetThatIsNotQuickMatchable()
+    {
+        var clock = new StubTimeProvider(ReferenceNow);
+        await using var dbContext = CreateDbContext();
+        var harness = CreateHarness(dbContext, clock);
+        var (playerOne, _) = SeedPlayers(dbContext);
+        await dbContext.SaveChangesAsync();
+
+        // Same deck rules as the standard format, but the admin marked it host-only: playable through hosting and
+        // invites, never offered by the matchmaker.
+        var hostOnly = await harness.Rulesets.CreateRuleset(new CreateDeckRulesetRequest(
+            Key: "invite-only",
+            Name: "Invite Only",
+            IsActive: true,
+            LeaderCount: 1,
+            NonLeaderCardCount: StandardDeckSize,
+            MaxCopiesPerNonLeaderCard: 4,
+            RequireLeaderColorMatch: false,
+            AllowChakraCards: true,
+            AllowSummonCards: true,
+            SortOrder: 2,
+            CardRestrictions: [],
+            AvailableInQuickMatch: false));
+
+        Assert.IsFalse(hostOnly.IsError, hostOnly.IsError ? hostOnly.FirstError.Description : string.Empty);
+
+        var result = await harness.Matchmaking.EnqueueAsync(new EnqueueMatchRequest(
+            playerOne.Id,
+            await DeckIdForAsync(dbContext, playerOne.Id),
+            hostOnly.Value.Id));
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Matchmaking.Enqueue.RulesetNotQuickMatch", result.FirstError.Code);
+    }
+
+    [TestMethod]
     public async Task EnqueueAsync_RejectsADeckThatDoesNotFitTheRuleset()
     {
         var clock = new StubTimeProvider(ReferenceNow);
@@ -245,7 +281,11 @@ public sealed class MatchmakingServiceTests
 
         Assert.IsFalse(hostDeckResult.IsError);
         var boundGame = harness.Registry.Create([hostDeckResult.Value.Player], hostDeckResult.Value.CardDefinitions);
-        boundGame.Ruleset = new GameRulesetBinding(ruleset.PreReleaseId, "pre-release", "Pre-Release");
+        boundGame.Ruleset = new GameRulesetBinding(
+            ruleset.PreReleaseId,
+            "pre-release",
+            "Pre-Release",
+            GameClockPolicy.Standard);
 
         var illegalJoin = await harness.InstanceService.JoinGameForUser(
             boundGame.Id,

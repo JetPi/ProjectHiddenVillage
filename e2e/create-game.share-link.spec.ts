@@ -20,6 +20,7 @@ const MOCKED_RULESET = {
   key: 'e2e-format',
   name: 'E2E Format',
   isActive: true,
+  availableInQuickMatch: true,
   leaderCount: 1,
   nonLeaderCardCount: 2,
   maxCopiesPerNonLeaderCard: 4,
@@ -47,6 +48,7 @@ type CreateGamePayload = {
   userId?: string
   deckId?: string
   rulesetId?: string
+  modifiers?: string[]
 }
 
 type CreateGameMockOptions = {
@@ -198,6 +200,31 @@ test('create binds the game to the selected format and shows its code and invite
   expect(createPayloads).toHaveLength(1)
   expect(createPayloads[0].rulesetId).toBe(RULESET_ID)
   expect(createPayloads[0].deckId).toBe('e2e-deck-id')
+  // Nothing is sent for a plain timed table, so the server keeps its own defaults.
+  expect(createPayloads[0].modifiers).toBeUndefined()
+})
+
+test('hosting a time relaxed table sends the modifier and says so in the share dialog', async ({ page }) => {
+  const { createPayloads } = await mockCreateGameNetwork(page)
+
+  await seedImportedDeck(page, '1x L-001\n2x N-001')
+  await page.goto('/')
+  await page.getByLabel('Display Name').fill('Guest One')
+  await page.getByRole('radio', { name: 'Join or Host' }).click()
+
+  // The toggle lives on the hosting half of the tab only: quick match has no way to ask for it.
+  await expect(page.getByTestId('host-time-relaxed')).not.toBeChecked()
+  await page.getByTestId('host-time-relaxed').check()
+  await page.getByRole('button', { name: 'Host' }).click()
+
+  const shareDialog = page.getByRole('dialog', { name: /Your E2E Format game is ready/ })
+  await expect(shareDialog).toBeVisible()
+  // The host sees the rule they shared, so the invite is not silently an untimed table.
+  await expect(page.getByTestId('create-game-modifiers')).toHaveText('Time relaxed')
+
+  expect(createPayloads).toHaveLength(1)
+  expect(createPayloads[0].rulesetId).toBe(RULESET_ID)
+  expect(createPayloads[0].modifiers).toEqual(['time-relaxed'])
 })
 
 test('the share dialog copies the code and the link, and Enter Game opens the board', async ({ page }) => {

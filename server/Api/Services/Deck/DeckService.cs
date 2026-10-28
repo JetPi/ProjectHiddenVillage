@@ -1056,6 +1056,7 @@ public sealed partial class DeckService : IDeckService
                 Id: ruleset.Id,
                 Key: ruleset.Key,
                 Name: ruleset.Name,
+                AvailableInQuickMatch: ruleset.AvailableInQuickMatch,
                 LeaderCount: ruleset.LeaderCount,
                 NonLeaderCardCount: ruleset.NonLeaderCardCount,
                 MaxCopiesPerNonLeaderCard: ruleset.MaxCopiesPerNonLeaderCard,
@@ -1065,7 +1066,15 @@ public sealed partial class DeckService : IDeckService
                 MaxCopiesByCardId: ruleset.CardRestrictions.ToDictionary(
                     restriction => restriction.CardCatalogEntry.CardId.Trim().ToUpperInvariant(),
                     restriction => restriction.MaxCopies,
-                    comparer: StringComparer.Ordinal)))
+                    comparer: StringComparer.Ordinal),
+                // Deck validation never reads the clock, but the definition is the single shape a ruleset is
+                // projected into, so it carries the policy rather than leaving an implicit untimed default.
+                Clock: GameClockPolicy.FromSeconds(
+                    enabled: ruleset.ClockEnabled,
+                    mainPhaseSeconds: ruleset.MainPhaseSeconds,
+                    otherPhaseSeconds: ruleset.OtherPhaseSeconds,
+                    playerPoolSeconds: ruleset.PlayerPoolSeconds,
+                    timeoutsBeforeForfeit: ruleset.TimeoutsBeforeForfeit)))
             .ToList();
     }
 

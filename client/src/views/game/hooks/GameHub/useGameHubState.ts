@@ -6,6 +6,7 @@ import {
   connectGameHub,
   createGameHubConnection,
   disconnectGameHub,
+  forfeitGame as forfeitGameOnHub,
   getCardActionTargets,
   getCurrentGameState,
   onGameParticipantJoined,
@@ -151,6 +152,41 @@ function useGameHubState(
           presentationId,
           message,
         })
+        requestGameStateRefresh(currentConnection)
+        return false
+      }
+    },
+    [gameId, requestGameStateRefresh, setGameState],
+  )
+
+  /**
+   * Resigns. It deliberately does not go through `submitHubIntent`: it is not a game action, so it must not be
+   * blocked by the HUD's action gate, and the state the engine returns is already the result overlay's payload.
+   */
+  const forfeitGame = useCallback(
+    async (): Promise<boolean> => {
+      const currentConnection = connectionRef.current
+      if (!currentConnection || !isConnectionConnected(currentConnection)) {
+        return false
+      }
+
+      try {
+        const result = await forfeitGameOnHub(currentConnection, gameId)
+        if (!result.succeeded || !result.value) {
+          console.warn('[GameHub] forfeit was refused.', {
+            gameId,
+            errorCode: result.errorCode,
+            errorDescription: result.errorDescription,
+          })
+          requestGameStateRefresh(currentConnection)
+          return false
+        }
+
+        setGameState(result.value)
+        return true
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Forfeit failed.'
+        console.warn('[GameHub] forfeit threw.', { gameId, message })
         requestGameStateRefresh(currentConnection)
         return false
       }
@@ -436,6 +472,7 @@ function useGameHubState(
       actionError,
       submitHubIntent,
       acknowledgePhasePresentation,
+      forfeitGame,
       getCardActionTargets: getCardActionTargetsForRequest,
       refreshGameState,
     }),
@@ -443,6 +480,7 @@ function useGameHubState(
       acknowledgePhasePresentation,
       actionError,
       connectionError,
+      forfeitGame,
       gameState,
       getCardActionTargetsForRequest,
       isActionPending,

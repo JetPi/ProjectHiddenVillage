@@ -88,6 +88,31 @@ public static class GameEndRules
     }
 
     /// <summary>
+    /// Resolves a non-board ending: the named player loses because they stopped answering (the action clock ran
+    /// out on them back to back) or because their time pool is spent, and the other player wins whatever the board
+    /// looks like. This is deliberately separate from <see cref="TryResolveLeaderDefeat"/> so the outcome carries
+    /// the reason the players will read, while still going through the one write-once resolution path.
+    /// </summary>
+    public static bool ResolveForfeit(GameState state, string losingPlayerId, GameEndReason reason)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        if (IsGameOver(state))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(losingPlayerId)
+            || !state.Players.Any(player => string.Equals(player.PlayerId, losingPlayerId, StringComparison.Ordinal)))
+        {
+            return false;
+        }
+
+        Resolve(state, [losingPlayerId], reason);
+        return true;
+    }
+
+    /// <summary>
     /// Records the game's single end in the action log, exactly once (the flag can be written by the
     /// engine's draw path, which has no <see cref="GameInstance"/> to log on).
     /// </summary>
@@ -126,6 +151,9 @@ public static class GameEndRules
         var reason = outcome.Reason switch
         {
             GameEndReason.DeckOut => "a player ran out of cards to draw",
+            GameEndReason.ForfeitByTimeout => "a player stopped responding to the game",
+            GameEndReason.ClockExpired => "a player used up their time",
+            GameEndReason.Resigned => "a player resigned",
             _ => "a leader's life points reached 0",
         };
 

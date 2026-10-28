@@ -131,4 +131,48 @@ public sealed partial class GamesHub
 
         return HubOperationResult<GameStateResponse>.Success(stateResponse);
     }
+
+    /// <summary>
+    /// A player ends the game on their own request; their opponent wins. This has its own path for the same reason
+    /// the acknowledgement does: <see cref="ExecuteAuthorizedGameMutation"/> refuses every mutation while a phase
+    /// presentation is outstanding, and a player must be able to leave mid-transition (or while it is not even their
+    /// turn). The engine resolves the outcome, so both clients get the result overlay from the same push.
+    /// </summary>
+    public async Task<HubOperationResult<GameStateResponse>> ForfeitGame(string gameId)
+    {
+        var requesterIdResult = GetRequestingPlayerId();
+        if (requesterIdResult.IsError)
+        {
+            return HubOperationResult<GameStateResponse>.FromErrors(requesterIdResult.Errors);
+        }
+
+        var gameResult = GetAuthorizedGameInstance(gameId, requesterIdResult.Value);
+        if (gameResult.IsError)
+        {
+            return HubOperationResult<GameStateResponse>.FromErrors(gameResult.Errors);
+        }
+
+        ErrorOr<GameInstance> result;
+
+        try
+        {
+            result = gamePhaseHandlingService.ForfeitGame(gameId, requesterIdResult.Value);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Forfeiting game {GameId} threw.", gameId);
+            result = Error.Unexpected(code: "Game.ForfeitGame.Unexpected", description: ex.Message);
+        }
+
+        if (result.IsError)
+        {
+            await NotifyGameStateInvalidatedAsync(gameResult.Value);
+            return HubOperationResult<GameStateResponse>.FromErrors(result.Errors);
+        }
+
+        var stateResponse = GameStateResponseMapper.ToGameStateResponse(result.Value, requesterIdResult.Value);
+        await NotifyGameStateInvalidatedAsync(result.Value);
+
+        return HubOperationResult<GameStateResponse>.Success(stateResponse);
+    }
 }

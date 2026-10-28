@@ -17,6 +17,7 @@ import {
   AdaptiveFormField,
   Form,
   FormActions,
+  FormCheckboxField,
   FormErrorText,
   FormField,
   FormLabel,
@@ -35,6 +36,7 @@ import { selectRulesetWaitingCount, usePresenceSnapshot } from '@/services/prese
 import type { ILoginActionData } from '@/views/login/types/routeHandlers'
 import type { IGameIntent } from '@/types/login'
 import type { IDeckRuleset } from '@/types/deckRuleset'
+import { matchModifierLabelKeys, TIME_RELAXED_MODIFIER } from '@/types/gameModifiers'
 import type { IPresenceSnapshot } from '@/types/presence'
 import { createGameForUser, fetchGameRuleset, joinGameAsPlayer } from '@/services/api/gameApi'
 import { getApiErrorMessage, isApiBadRequestError } from '@/views/utils/getApiErrorMessage'
@@ -189,6 +191,7 @@ export function LoginView() {
   const [createdGameShare, setCreatedGameShare] = useState<{
     gameId: string
     rulesetName: string
+    modifierLabels: string[]
   } | null>(null)
   const [isTitleFontReady, setIsTitleFontReady] = useState(() => {
     const fontSet = getFontFaceSet()
@@ -207,12 +210,14 @@ export function LoginView() {
     displayName,
     gameEntryMode,
     hostRulesetId,
+    hostTimeRelaxed,
     joinGameCode,
     quickmatchRulesetId,
     setDeckOptionsMode,
     setDeckOptionValue,
     setDisplayName,
     setGameEntryMode,
+    setHostTimeRelaxed,
     setJoinGameCode,
     setRulesetId,
     showDisplayNameError,
@@ -415,9 +420,17 @@ export function LoginView() {
     [t],
   )
 
+  // Quick match only offers formats the admin left quick-matchable. A host-only format is still fully playable through
+  // hosting and invites, and the queue endpoint refuses it server-side, so hiding it here is the good path rather
+  // than the only guard.
+  const quickmatchRulesets = useMemo(
+    () => (activeDeckRulesetsQuery.data ?? []).filter((ruleset) => ruleset.availableInQuickMatch !== false),
+    [activeDeckRulesetsQuery.data],
+  )
+
   const quickmatchRulesetChoices = useMemo(
-    () => toRulesetChoices(activeDeckRulesetsQuery.data ?? [], presenceSnapshot, true),
-    [activeDeckRulesetsQuery.data, presenceSnapshot],
+    () => toRulesetChoices(quickmatchRulesets, presenceSnapshot, true),
+    [quickmatchRulesets, presenceSnapshot],
   )
 
   const hostRulesetChoices = useMemo(
@@ -441,8 +454,8 @@ export function LoginView() {
   )
 
   const selectedQuickmatchRuleset = useMemo(
-    () => (activeDeckRulesetsQuery.data ?? []).find((ruleset) => ruleset.id === quickmatchRulesetId) ?? null,
-    [activeDeckRulesetsQuery.data, quickmatchRulesetId],
+    () => quickmatchRulesets.find((ruleset) => ruleset.id === quickmatchRulesetId) ?? null,
+    [quickmatchRulesets, quickmatchRulesetId],
   )
 
   const selectedHostRuleset = useMemo(
@@ -468,16 +481,16 @@ export function LoginView() {
     [activeDeckRulesetsQuery.data],
   )
 
-  // Both format-driven actions default to the first active format, each in its own slot so switching tabs or changing
-  // the host format never moves the quick-match queue target.
+  // Both format-driven actions default to the first format they can actually offer, each in its own slot so switching
+  // tabs or changing the host format never moves the quick-match queue target. Quick match defaults from the
+  // quick-matchable list only: a host-only format must never become the queue target.
   useEffect(() => {
-    const rulesets = activeDeckRulesetsQuery.data ?? []
-    if (rulesets.length === 0 || rulesets.some((ruleset) => ruleset.id === quickmatchRulesetId)) {
+    if (quickmatchRulesets.length === 0 || quickmatchRulesets.some((ruleset) => ruleset.id === quickmatchRulesetId)) {
       return
     }
 
-    setRulesetId('quickmatch', rulesets[0].id)
-  }, [activeDeckRulesetsQuery.data, quickmatchRulesetId, setRulesetId])
+    setRulesetId('quickmatch', quickmatchRulesets[0].id)
+  }, [quickmatchRulesets, quickmatchRulesetId, setRulesetId])
 
   useEffect(() => {
     const rulesets = activeDeckRulesetsQuery.data ?? []
@@ -1013,14 +1026,24 @@ export function LoginView() {
         }
 
         // Hosting mints a real, already-joinable game and then holds the host on the code: the invite has to be
-        // shareable before the board takes over the screen.
+        // shareable before the board takes over the screen. The "time relaxed" toggle only exists on this path, so a
+        // relaxed table can only ever be opened here - quick match has no modifier to send.
+        const createdModifiers = hostTimeRelaxed ? [TIME_RELAXED_MODIFIER] : []
         const createdGame = await createGameForUser({
           userId: identity.userId,
           deckId,
           rulesetId: ruleset.id,
+          ...(createdModifiers.length > 0 ? { modifiers: createdModifiers } : {}),
         })
 
-        setCreatedGameShare({ gameId: createdGame.id, rulesetName: ruleset.name })
+        setCreatedGameShare({
+          gameId: createdGame.id,
+          rulesetName: ruleset.name,
+          modifierLabels: createdModifiers
+            .map((modifier) => matchModifierLabelKeys[modifier])
+            .filter((key): key is string => Boolean(key))
+            .map((key) => translateKey(t, key)),
+        })
         return
       }
 
@@ -1187,7 +1210,7 @@ export function LoginView() {
                     type="submit"
                     name="intent"
                     value="quickmatch"
-                    disabled={pendingIntent !== null}
+                    disabled={pendingIntent !== null || quickmatchRulesets.length === 0}
                     className="w-full justify-center py-1.5"
                   >
                     {t('auth.findMatch')}
@@ -1233,6 +1256,16 @@ export function LoginView() {
                     >
                       {t('auth.host')}
                     </AppButton>
+                    {/* Host-only: an invite table may run without the action clock. Quick match never offers it.
+                        It sits under the button so the format select and the Host button stay level with the code
+                        field and Join on the other half of the tab. */}
+                    <FormCheckboxField
+                      id="hostTimeRelaxed"
+                      data-testid="host-time-relaxed"
+                      label={t('auth.hostTimeRelaxed')}
+                      checked={hostTimeRelaxed}
+                      onChange={(event) => setHostTimeRelaxed(event.target.checked)}
+                    />
                   </div>
                 </div>
               )}
@@ -1456,6 +1489,7 @@ export function LoginView() {
         <CreateGameShareDialog
           gameId={createdGameShare.gameId}
           rulesetName={createdGameShare.rulesetName}
+          modifierLabels={createdGameShare.modifierLabels}
           onEnterGame={handleEnterCreatedGame}
           onLeave={() => setCreatedGameShare(null)}
         />

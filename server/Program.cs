@@ -71,6 +71,18 @@ builder.Services.AddSingleton(serviceProvider =>
         .Bind(options);
     return options;
 });
+// The action clock's deployment defaults and kill switch, plus the clock the registry arms its deadlines with.
+// TimeProvider is injected rather than read from the ambient clock so the timeout paths can be driven by a fake
+// clock in tests instead of by real waits (see plans/game-action-clocks.md).
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(serviceProvider =>
+{
+    var options = new ProjectHiddenVillage.Server.Engine.GameClockOptions();
+    serviceProvider.GetRequiredService<IConfiguration>()
+        .GetSection(ProjectHiddenVillage.Server.Engine.GameClockOptions.SectionName)
+        .Bind(options);
+    return options;
+});
 builder.Services.AddScoped<IGameEffectContextConditionEvaluator, EffectContextConditionEvaluator>();
 builder.Services.AddScoped<IGameEffectTargetResolver, EffectTargetResolver>();
 builder.Services.AddScoped<IGameRuntimeEffectSpecResolver, GameRuntimeEffectSpecResolver>();
@@ -384,6 +396,18 @@ startupLogger.LogInformation(
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
+
+    // `npm run dev` never migrated on its own, so a schema change surfaced as a runtime
+    // "column ... does not exist" on the first ruleset query (the seeded DevelopmentGameInstanceSeeder and the
+    // ruleset endpoints both read tables at boot). Development applies the pending migrations itself now, which is
+    // exactly what the e2e stack was already doing in scripts/e2e-start-server.sh. Production keeps owning this
+    // through `npm run db:migrate`; `Database:MigrateOnStartup=false` opts a development machine out.
+    if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await dbContext.Database.MigrateAsync();
+    }
+
     var deckSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentDeckSeeder>();
     var userSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentUserSeeder>();
     var gameInstanceSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentGameInstanceSeeder>();

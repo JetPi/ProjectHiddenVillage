@@ -8,6 +8,11 @@ export type IDeckRuleset = {
   key: string
   name: string
   isActive: boolean
+  /**
+   * Whether quick match may pair players on this format. A host-only format stays fully playable through hosting,
+   * invites and joins; it is simply never offered by the matchmaker.
+   */
+  availableInQuickMatch: boolean
   leaderCount: number
   nonLeaderCardCount: number
   maxCopiesPerNonLeaderCard: number
@@ -16,6 +21,16 @@ export type IDeckRuleset = {
   allowSummonCards: boolean
   sortOrder: number
   cardRestrictions: IDeckRulesetCardRestriction[]
+  /** Whether games created under this ruleset run the action clock at all. */
+  clockEnabled: boolean
+  /** Seconds a player gets for one main-phase stop. */
+  mainPhaseSeconds: number
+  /** Seconds a player gets for any other interactive stop. */
+  otherPhaseSeconds: number
+  /** The player's whole-game time pool, in seconds. Running out of it loses the game. */
+  playerPoolSeconds: number
+  /** Consecutive timeouts that forfeit the game to the opponent. */
+  timeoutsBeforeForfeit: number
 }
 
 export type ICreateDeckRulesetRequest = Omit<IDeckRuleset, 'id'>

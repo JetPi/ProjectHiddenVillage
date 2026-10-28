@@ -3,8 +3,11 @@ namespace ProjectHiddenVillage.Server;
 /// <summary>
 /// The deck ruleset a game was created under. A game with a binding is a quick-match game: every participant's
 /// deck was validated against it, and anyone joining by code is validated too.
+///
+/// <see cref="Clock"/> is the action-clock policy the ruleset binds, snapshotted here at creation time so editing
+/// the ruleset later cannot retune a running game.
 /// </summary>
-public sealed record GameRulesetBinding(Guid Id, string Key, string Name);
+public sealed record GameRulesetBinding(Guid Id, string Key, string Name, GameClockPolicy Clock);
 
 public sealed class GameInstance
 {
@@ -50,6 +53,16 @@ public sealed class GameInstance
     /// </summary>
     public GameRulesetBinding? Ruleset { get; set; }
 
+    /// <summary>
+    /// The modifiers the host opened this table with (see <see cref="GameModifierKeys"/>). They are stamped at
+    /// creation and never changed, so a running game keeps the rules its players agreed to. Quick match never sets
+    /// them: the queue request has no modifier field.
+    /// </summary>
+    public IReadOnlyList<string> Modifiers { get; set; } = [];
+
+    /// <summary>True when this table was hosted as "time relaxed": the action clock never runs here.</summary>
+    public bool IsTimeRelaxed => GameModifierKeys.IsTimeRelaxed(Modifiers);
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     public string Id => State.GameId;
@@ -71,6 +84,41 @@ public sealed class GameInstance
     /// when it is: driving the phases is the engine's job then, and the client's is to present and acknowledge.
     /// </summary>
     public bool IsPhaseAutomationEnabled { get; set; }
+
+    /// <summary>
+    /// The action clock of this game, or <c>null</c> until the first mutation boundary creates it. It lives on the
+    /// instance (not in <see cref="GameState"/>) because it is time, not board state: the state is what the board
+    /// renders, while this is bookkeeping the engine charges players against. See <see cref="GameClock"/>.
+    /// </summary>
+    public GameClock? Clock { get; private set; }
+
+    /// <summary>
+    /// Creates the clock for <paramref name="policy"/> the first time it is called, or replaces it when the policy
+    /// changed (which only happens when a ruleset binding is stamped on right after creation). Pools are seeded
+    /// for every player currently in the game; calling it again adds players who joined since, without disturbing
+    /// an armed deadline.
+    /// </summary>
+    public GameClock StartClock(GameClockPolicy policy, TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
+        if (Clock is null
+            || !Equals(Clock.Policy, policy)
+            || !ReferenceEquals(Clock.TimeProvider, timeProvider))
+        {
+            Clock = new GameClock(policy, timeProvider);
+        }
+
+        Clock.Start(State.Players.Select(player => player.PlayerId));
+        return Clock;
+    }
+
+    /// <summary>Stops the clock for good: the game is over, or nothing else can be charged.</summary>
+    public void StopClock()
+    {
+        Clock?.Stop();
+    }
 
     /// <summary>
     /// Stops the phase automation on the transition that was just performed and records who has to present it.

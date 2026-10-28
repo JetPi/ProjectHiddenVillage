@@ -136,6 +136,7 @@
     "format": "Format",
     "join": "Join",
     "host": "Host",
+    "hostTimeRelaxed": "Time relaxed (no action clock)",
     "findMatch": "Find Match",
     "deckOptions": "Deck Options",
     "deckOptionsModeAria": "Deck options input mode",
@@ -272,6 +273,12 @@
     }
   },
   "game": {
+    "clock": {
+      "yourClock": "Your clock",
+      "opponentClock": "Opponent's clock",
+      "paused": "--:--",
+      "strikes": "{{count}}/{{max}} timeouts"
+    },
     "phase": {
       "waitingForPlayers": "Waiting for player",
       "waitingForOpponent": "Waiting for opponent",
@@ -370,9 +377,38 @@
       "victory": "Victory",
       "defeat": "Defeat",
       "draw": "Draw",
-      "reasonDeckOut": "A player ran out of cards to draw.",
-      "reasonLeaderLifeDepleted": "A leader's life points reached 0.",
-      "reasonDefault": "The game ended.",
+      "reason": {
+        "leaderLifeDepleted": {
+          "victory": "Opponent leader hit 0 life.",
+          "defeat": "Your leader hit 0 life.",
+          "draw": "Both leaders hit 0 life at the same time."
+        },
+        "deckOut": {
+          "victory": "Won by deck out.",
+          "defeat": "Lost by deck out.",
+          "draw": "Both players ran out of cards at the same time."
+        },
+        "forfeitByTimeout": {
+          "victory": "Opponent has left the game.",
+          "defeat": "You stopped playing.",
+          "draw": "A player stopped responding"
+        },
+        "clockExpired": {
+          "victory": "Won by timeout.",
+          "defeat": "Lost by tiemout.",
+          "draw": "A player ran out of time."
+        },
+        "resigned": {
+          "victory": "Your opponent forfeited the game.",
+          "defeat": "You forfeited the game.",
+          "draw": "A player forfeited the game."
+        },
+        "unknown": {
+          "victory": "You won.",
+          "defeat": "You lost.",
+          "draw": "The game ended in a draw."
+        }
+      },
       "returnToMainPage": "Return to main page"
     },
     "supportChain": {
@@ -435,19 +471,32 @@
       "cardCountOne": "{{n}} card",
       "cardCountOther": "{{n}} cards"
     },
+    "matchModifier": {
+      "timeRelaxed": "Time relaxed"
+    },
+    "matchInfo": {
+      "joinCode": "Join code"
+    },
     "sidebar": {
       "toggleThemeAria": "Toggle light and dark mode",
-      "passTurnAria": "Pass turn",
+      "forfeitAria": "Forfeit the game",
+      "forfeitTooltip": "Forfeit Game",
       "cancelAttackAria": "Cancel attack target selection",
       "cancelTargetAria": "Cancel target selection",
       "undoAria": "Undo action",
       "openLogAria": "Open log",
       "toggleThemeTooltip": "Toggle Theme",
-      "passTurnTooltip": "Do Nothing / Pass",
       "cancelAttackTooltip": "Cancel Attack Target",
       "cancelTargetTooltip": "Cancel Target Selection",
       "undoTooltip": "Undo Action",
       "openLogTooltip": "Open Log"
+    },
+    "forfeit": {
+      "title": "Forfeit the game?",
+      "body": "Your opponent wins immediately and this cannot be undone.",
+      "confirm": "Forfeit",
+      "resigning": "Forfeiting…",
+      "cancel": "Keep playing"
     },
     "actionRow": {
       "cancel": "Cancel",
@@ -679,6 +728,15 @@
         "allowChakra": "Allow Chakra cards",
         "allowSummon": "Allow Summon cards",
         "sortOrder": "Sort order",
+        "availableInQuickMatch": "Available in Quick Match",
+        "availableInQuickMatchHint": "Uncheck to keep this format out of quick match. It stays playable when hosting and through invites.",
+        "clockTitle": "Action clock",
+        "clockHint": "A game created under this format plays under these timings. Editing them never changes a game that already started.",
+        "clockEnabled": "Time the game",
+        "mainPhaseSeconds": "Main phase budget (seconds)",
+        "otherPhaseSeconds": "Other stops budget (seconds)",
+        "playerPoolSeconds": "Player pool (seconds)",
+        "timeoutsBeforeForfeit": "Timeouts before forfeit",
         "restrictionsTitle": "Banned and limited cards",
         "restrictionsEmpty": "No card restrictions.",
         "restrictionsHint": "A max of 0 bans the card; a value below the copy cap limits it.",
@@ -700,6 +758,9 @@
         "cardCount": "The non-leader card count must be between 1 and {{max}}.",
         "maxCopies": "The copy cap must be between 1 and {{max}}.",
         "sortOrder": "Sort order cannot be negative.",
+        "clockBudget": "Clock budgets must be whole positive seconds.",
+        "clockBudgetAbovePool": "A single stop's budget cannot exceed the player's whole-game pool.",
+        "clockTimeouts": "Timeouts before forfeit must be between 1 and {{max}}.",
         "restrictionDuplicates": "Each card may appear only once in the restriction list.",
         "restrictionMaxCopies": "A restriction must allow between 0 and {{max}} copies."
       },

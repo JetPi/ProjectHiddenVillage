@@ -23,7 +23,9 @@ public static partial class GameStateResponseMapper
             BuildEffectNotices(game, requestingPlayerId),
             isPhaseAutomationEnabled: game.IsPhaseAutomationEnabled,
             pendingPresentation: ToPhasePresentationResponse(game.PendingPhasePresentation),
-            ruleset: game.Ruleset);
+            ruleset: game.Ruleset,
+            clock: ToGameClockResponse(game),
+            modifiers: game.Modifiers.Count == 0 ? null : game.Modifiers);
     }
 
     public static GameStateResponse ToGameStateResponse(GameState state, string requestingPlayerId)
@@ -35,7 +37,9 @@ public static partial class GameStateResponseMapper
             effectNotices: null,
             isPhaseAutomationEnabled: false,
             pendingPresentation: null,
-            ruleset: null);
+            ruleset: null,
+            clock: null,
+            modifiers: null);
     }
 
     private static PhasePresentationResponse? ToPhasePresentationResponse(PendingPhasePresentation? presentation)
@@ -58,7 +62,9 @@ public static partial class GameStateResponseMapper
         IReadOnlyList<EffectNoticeResponse>? effectNotices,
         bool isPhaseAutomationEnabled,
         PhasePresentationResponse? pendingPresentation,
-        GameRulesetBinding? ruleset)
+        GameRulesetBinding? ruleset,
+        GameClockResponse? clock,
+        IReadOnlyList<string>? modifiers)
     {
         var phaseData = PhaseStateService.GetPhaseData(state.Phase);
         var hasOutcome = GameEndRules.IsGameOver(state);
@@ -112,7 +118,11 @@ public static partial class GameStateResponseMapper
                 : new GameRulesetBindingResponse(
                     Id: ruleset.Id.ToString(),
                     Key: ruleset.Key,
-                    Name: ruleset.Name));
+                    Name: ruleset.Name),
+            // A finished game has no clock left to run. An untimed table still publishes the block with
+            // IsEnabled = false, so the client distinguishes it from a game whose clock has not started.
+            Clock: hasOutcome ? null : clock,
+            Modifiers: modifiers);
     }
 
     /// <summary>

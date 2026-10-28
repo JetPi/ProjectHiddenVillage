@@ -10,6 +10,8 @@ import { buildGameInviteLink } from '@/views/login/utils/gameInviteLink'
 export type ICreateGameShareDialogProps = {
   gameId: string
   rulesetName: string
+  /** The host-only rules this table was opened with, already worded - empty for a plain table. */
+  modifierLabels?: string[]
   onEnterGame: () => void
   /** Leaves the created game behind - only offered when the wait can no longer be trusted. */
   onLeave: () => void
@@ -28,6 +30,7 @@ type TCopyTarget = 'code' | 'link'
 export function CreateGameShareDialog({
   gameId,
   rulesetName,
+  modifierLabels = [],
   onEnterGame,
   onLeave,
 }: ICreateGameShareDialogProps) {
@@ -82,6 +85,14 @@ export function CreateGameShareDialog({
         >
           {t('auth.createGame.title', { ruleset: rulesetName })}
         </h2>
+        {modifierLabels.length > 0 ? (
+          <p
+            data-testid="create-game-modifiers"
+            className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]"
+          >
+            {modifierLabels.join(' · ')}
+          </p>
+        ) : null}
         <p className="mt-2 text-sm text-[var(--text-secondary)]">
           {t('auth.createGame.body')}
         </p>

@@ -62,6 +62,7 @@ public sealed class DeckRulesetService : IDeckRulesetService
             Id: ruleset.Id,
             Key: ruleset.Key,
             Name: ruleset.Name,
+            AvailableInQuickMatch: ruleset.AvailableInQuickMatch,
             LeaderCount: ruleset.LeaderCount,
             NonLeaderCardCount: ruleset.NonLeaderCardCount,
             MaxCopiesPerNonLeaderCard: ruleset.MaxCopiesPerNonLeaderCard,
@@ -73,7 +74,8 @@ public sealed class DeckRulesetService : IDeckRulesetService
                 .ToDictionary(
                     group => group.Key,
                     group => group.Last().MaxCopies,
-                    StringComparer.OrdinalIgnoreCase));
+                    StringComparer.OrdinalIgnoreCase),
+            Clock: ToClockPolicy(ruleset));
     }
 
     public async Task<ErrorOr<DeckRulesetResponse>> CreateRuleset(CreateDeckRulesetRequest request)
@@ -91,6 +93,16 @@ public sealed class DeckRulesetService : IDeckRulesetService
                 description: $"A ruleset with the key '{key}' already exists.");
         }
 
+        var clockValidation = ValidateClockSettings(
+            request.MainPhaseSeconds,
+            request.OtherPhaseSeconds,
+            request.PlayerPoolSeconds,
+            request.TimeoutsBeforeForfeit);
+        if (clockValidation.IsError)
+        {
+            return clockValidation.Errors;
+        }
+
         var restrictionResult = await ResolveRestrictionsAsync(request.CardRestrictions);
         if (restrictionResult.IsError)
         {
@@ -103,12 +115,18 @@ public sealed class DeckRulesetService : IDeckRulesetService
             Key = key,
             Name = request.Name.Trim(),
             IsActive = request.IsActive,
+            AvailableInQuickMatch = request.AvailableInQuickMatch,
             LeaderCount = request.LeaderCount,
             NonLeaderCardCount = request.NonLeaderCardCount,
             MaxCopiesPerNonLeaderCard = request.MaxCopiesPerNonLeaderCard,
             RequireLeaderColorMatch = request.RequireLeaderColorMatch,
             AllowChakraCards = request.AllowChakraCards,
             AllowSummonCards = request.AllowSummonCards,
+            ClockEnabled = request.ClockEnabled,
+            MainPhaseSeconds = request.MainPhaseSeconds,
+            OtherPhaseSeconds = request.OtherPhaseSeconds,
+            PlayerPoolSeconds = request.PlayerPoolSeconds,
+            TimeoutsBeforeForfeit = request.TimeoutsBeforeForfeit,
             SortOrder = request.SortOrder,
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
@@ -166,6 +184,16 @@ public sealed class DeckRulesetService : IDeckRulesetService
             }
         }
 
+        var clockValidation = ValidateClockSettings(
+            request.MainPhaseSeconds,
+            request.OtherPhaseSeconds,
+            request.PlayerPoolSeconds,
+            request.TimeoutsBeforeForfeit);
+        if (clockValidation.IsError)
+        {
+            return clockValidation.Errors;
+        }
+
         var restrictionResult = await ResolveRestrictionsAsync(request.CardRestrictions);
         if (restrictionResult.IsError)
         {
@@ -174,12 +202,18 @@ public sealed class DeckRulesetService : IDeckRulesetService
 
         ruleset.Name = request.Name.Trim();
         ruleset.IsActive = request.IsActive;
+        ruleset.AvailableInQuickMatch = request.AvailableInQuickMatch;
         ruleset.LeaderCount = request.LeaderCount;
         ruleset.NonLeaderCardCount = request.NonLeaderCardCount;
         ruleset.MaxCopiesPerNonLeaderCard = request.MaxCopiesPerNonLeaderCard;
         ruleset.RequireLeaderColorMatch = request.RequireLeaderColorMatch;
         ruleset.AllowChakraCards = request.AllowChakraCards;
         ruleset.AllowSummonCards = request.AllowSummonCards;
+        ruleset.ClockEnabled = request.ClockEnabled;
+        ruleset.MainPhaseSeconds = request.MainPhaseSeconds;
+        ruleset.OtherPhaseSeconds = request.OtherPhaseSeconds;
+        ruleset.PlayerPoolSeconds = request.PlayerPoolSeconds;
+        ruleset.TimeoutsBeforeForfeit = request.TimeoutsBeforeForfeit;
         ruleset.SortOrder = request.SortOrder;
         ruleset.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
@@ -360,6 +394,58 @@ public sealed class DeckRulesetService : IDeckRulesetService
                 .Select(restriction => new DeckRulesetCardRestrictionResponse(
                     CardId: restriction.CardCatalogEntry.CardId,
                     MaxCopies: restriction.MaxCopies))
-                .ToList());
+                .ToList(),
+            ClockEnabled: ruleset.ClockEnabled,
+            MainPhaseSeconds: ruleset.MainPhaseSeconds,
+            OtherPhaseSeconds: ruleset.OtherPhaseSeconds,
+            PlayerPoolSeconds: ruleset.PlayerPoolSeconds,
+            TimeoutsBeforeForfeit: ruleset.TimeoutsBeforeForfeit,
+            AvailableInQuickMatch: ruleset.AvailableInQuickMatch);
+    }
+
+    /// <summary>The persisted columns as the policy a created game snapshots.</summary>
+    private static GameClockPolicy ToClockPolicy(DeckRuleset ruleset)
+    {
+        return GameClockPolicy.FromSeconds(
+            enabled: ruleset.ClockEnabled,
+            mainPhaseSeconds: ruleset.MainPhaseSeconds,
+            otherPhaseSeconds: ruleset.OtherPhaseSeconds,
+            playerPoolSeconds: ruleset.PlayerPoolSeconds,
+            timeoutsBeforeForfeit: ruleset.TimeoutsBeforeForfeit);
+    }
+
+    /// <summary>
+    /// Rejects a clock configuration a game cannot run with. The budgets have to be positive because a zero
+    /// budget arms an already-expired deadline, and at least one timeout has to be allowed or a player could never
+    /// be forfeited for stalling.
+    /// </summary>
+    private static ErrorOr<Success> ValidateClockSettings(
+        int mainPhaseSeconds,
+        int otherPhaseSeconds,
+        int playerPoolSeconds,
+        int timeoutsBeforeForfeit)
+    {
+        if (mainPhaseSeconds <= 0 || otherPhaseSeconds <= 0 || playerPoolSeconds <= 0)
+        {
+            return Error.Validation(
+                code: "Deck.Rulesets.InvalidClock",
+                description: "Clock budgets must be positive: main phase, other phase and player pool are in seconds.");
+        }
+
+        if (mainPhaseSeconds > playerPoolSeconds || otherPhaseSeconds > playerPoolSeconds)
+        {
+            return Error.Validation(
+                code: "Deck.Rulesets.InvalidClock",
+                description: "A single stop's budget cannot exceed the player's whole-game pool.");
+        }
+
+        if (timeoutsBeforeForfeit <= 0)
+        {
+            return Error.Validation(
+                code: "Deck.Rulesets.InvalidClock",
+                description: "Timeouts before forfeit must be at least 1.");
+        }
+
+        return Result.Success;
     }
 }

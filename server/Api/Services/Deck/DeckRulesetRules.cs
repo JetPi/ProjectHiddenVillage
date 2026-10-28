@@ -8,13 +8,19 @@ public sealed record DeckRulesetDefinition(
     Guid Id,
     string Key,
     string Name,
+    // Whether quick match may pair players on this format. Hosting, invites and joins ignore it: a host-only
+    // format is still fully playable, it is simply never offered by the matchmaker.
+    bool AvailableInQuickMatch,
     int LeaderCount,
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,
     bool RequireLeaderColorMatch,
     bool AllowChakraCards,
     bool AllowSummonCards,
-    IReadOnlyDictionary<string, int> MaxCopiesByCardId);
+    IReadOnlyDictionary<string, int> MaxCopiesByCardId,
+    // The timing rules a game created under this ruleset plays under. It is carried with the definition because
+    // creating a game reads exactly this object, and the clock must be snapshotted at that moment.
+    GameClockPolicy Clock);
 
 public sealed record DeckRuleViolation(
     string Code,

@@ -159,6 +159,124 @@ public sealed class DeckRulesetServiceTests
     }
 
     [TestMethod]
+    public async Task CreateRuleset_PersistsTheActionClockSettings()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new DeckRulesetService(dbContext);
+
+        var result = await service.CreateRuleset(new CreateDeckRulesetRequest(
+            Key: "untimed",
+            Name: "Untimed",
+            IsActive: true,
+            LeaderCount: 1,
+            NonLeaderCardCount: 50,
+            MaxCopiesPerNonLeaderCard: 4,
+            RequireLeaderColorMatch: true,
+            AllowChakraCards: false,
+            AllowSummonCards: false,
+            SortOrder: 0,
+            CardRestrictions: [],
+            ClockEnabled: false,
+            MainPhaseSeconds: 45,
+            OtherPhaseSeconds: 20,
+            PlayerPoolSeconds: 900,
+            TimeoutsBeforeForfeit: 2));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        Assert.IsFalse(result.Value.ClockEnabled);
+        Assert.AreEqual(45, result.Value.MainPhaseSeconds);
+        Assert.AreEqual(20, result.Value.OtherPhaseSeconds);
+        Assert.AreEqual(900, result.Value.PlayerPoolSeconds);
+        Assert.AreEqual(2, result.Value.TimeoutsBeforeForfeit);
+
+        // The definition a created game reads carries the same policy, which is what it snapshots.
+        var definitionResult = await service.GetActiveRulesetDefinition(result.Value.Id);
+        Assert.IsFalse(definitionResult.IsError);
+        Assert.IsFalse(definitionResult.Value.Clock.Enabled);
+        Assert.AreEqual(TimeSpan.FromSeconds(45), definitionResult.Value.Clock.MainPhaseBudget);
+        Assert.AreEqual(TimeSpan.FromSeconds(20), definitionResult.Value.Clock.OtherPhaseBudget);
+        Assert.AreEqual(TimeSpan.FromSeconds(900), definitionResult.Value.Clock.PlayerPoolBudget);
+        Assert.AreEqual(2, definitionResult.Value.Clock.TimeoutsBeforeForfeit);
+    }
+
+    [TestMethod]
+    public async Task CreateRuleset_PersistsQuickMatchAvailability()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new DeckRulesetService(dbContext);
+
+        var hostOnly = await service.CreateRuleset(CreateRequest(key: "invite-only", availableInQuickMatch: false));
+
+        Assert.IsFalse(hostOnly.IsError, hostOnly.IsError ? hostOnly.FirstError.Description : string.Empty);
+        Assert.IsFalse(hostOnly.Value.AvailableInQuickMatch);
+
+        // The queue reads the definition, so that projection has to carry the flag too.
+        var definitionResult = await service.GetActiveRulesetDefinition(hostOnly.Value.Id);
+        Assert.IsFalse(definitionResult.IsError);
+        Assert.IsFalse(definitionResult.Value.AvailableInQuickMatch);
+
+        // Flipping it back makes the format quick-matchable again without touching anything else.
+        var updated = await service.UpdateRuleset(hostOnly.Value.Id.ToString(), new UpdateDeckRulesetRequest(
+            Name: "Invite Only",
+            IsActive: true,
+            LeaderCount: 1,
+            NonLeaderCardCount: 50,
+            MaxCopiesPerNonLeaderCard: 4,
+            RequireLeaderColorMatch: true,
+            AllowChakraCards: false,
+            AllowSummonCards: false,
+            SortOrder: 0,
+            CardRestrictions: [],
+            AvailableInQuickMatch: true));
+
+        Assert.IsFalse(updated.IsError, updated.IsError ? updated.FirstError.Description : string.Empty);
+        Assert.IsTrue(updated.Value.AvailableInQuickMatch);
+        Assert.IsTrue(await dbContext.DeckRulesets
+            .Where(ruleset => ruleset.Id == hostOnly.Value.Id)
+            .Select(ruleset => ruleset.AvailableInQuickMatch)
+            .SingleAsync());
+    }
+
+    [TestMethod]
+    public async Task CreateRuleset_IsQuickMatchableByDefault()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new DeckRulesetService(dbContext);
+
+        var result = await service.CreateRuleset(CreateRequest(key: "standard"));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        Assert.IsTrue(
+            result.Value.AvailableInQuickMatch,
+            "A new format joins the queue unless the admin deliberately marks it host-only.");
+    }
+
+    [TestMethod]
+    public async Task CreateRuleset_RejectsAClockBudgetThatCannotRun()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new DeckRulesetService(dbContext);
+
+        var result = await service.CreateRuleset(new CreateDeckRulesetRequest(
+            Key: "broken",
+            Name: "Broken",
+            IsActive: true,
+            LeaderCount: 1,
+            NonLeaderCardCount: 50,
+            MaxCopiesPerNonLeaderCard: 4,
+            RequireLeaderColorMatch: true,
+            AllowChakraCards: false,
+            AllowSummonCards: false,
+            SortOrder: 0,
+            CardRestrictions: [],
+            MainPhaseSeconds: 0));
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Deck.Rulesets.InvalidClock", result.FirstError.Code);
+        Assert.AreEqual(0, await dbContext.DeckRulesets.CountAsync());
+    }
+
+    [TestMethod]
     public async Task GetRulesets_ReturnsOnlyActiveRulesetsByDefault()
     {
         await using var dbContext = CreateDbContext();
@@ -181,7 +299,8 @@ public sealed class DeckRulesetServiceTests
 
     private static CreateDeckRulesetRequest CreateRequest(
         string key = "standard",
-        IReadOnlyList<DeckRulesetCardRestrictionRequest>? restrictions = null)
+        IReadOnlyList<DeckRulesetCardRestrictionRequest>? restrictions = null,
+        bool availableInQuickMatch = true)
     {
         return new CreateDeckRulesetRequest(
             Key: key,
@@ -194,7 +313,8 @@ public sealed class DeckRulesetServiceTests
             AllowChakraCards: false,
             AllowSummonCards: false,
             SortOrder: 0,
-            CardRestrictions: restrictions ?? []);
+            CardRestrictions: restrictions ?? [],
+            AvailableInQuickMatch: availableInQuickMatch);
     }
 
     private static DeckRuleset CreateRulesetEntity(

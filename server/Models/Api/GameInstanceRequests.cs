@@ -5,7 +5,10 @@ public sealed record CreateGameForUserRequest(
     Guid DeckId,
     // Optional: a game created for an invite carries the format it was created for, so anyone holding the code
     // is admitted only with a deck that fits it.
-    Guid? RulesetId = null);
+    Guid? RulesetId = null,
+    // Host-only table rules (see GameModifierKeys). Quick match has no modifier field at all, which is what keeps a
+    // "time relaxed" table unrequestable from the queue rather than merely hidden from its UI.
+    IReadOnlyList<string>? Modifiers = null);
 
 public sealed record JoinGameAsPlayer(
     Guid UserId,

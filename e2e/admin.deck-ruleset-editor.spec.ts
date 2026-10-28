@@ -12,6 +12,7 @@ type MockRuleset = {
   key: string
   name: string
   isActive: boolean
+  availableInQuickMatch: boolean
   leaderCount: number
   nonLeaderCardCount: number
   maxCopiesPerNonLeaderCard: number
@@ -162,6 +163,9 @@ test('the ruleset admin creates, edits, deactivates and deletes a format', async
   await page.getByTestId('admin-ruleset-name').fill('Draft Format')
   await page.getByTestId('admin-ruleset-card-count').fill('40')
   await page.getByTestId('admin-ruleset-max-copies').fill('2')
+  // A new format is quick-matchable by default; this one is deliberately kept out of the queue.
+  await expect(page.getByTestId('admin-ruleset-quick-match')).toBeChecked()
+  await page.getByTestId('admin-ruleset-quick-match').uncheck()
 
   await page.getByTestId('admin-ruleset-restriction-card-id').fill('C-003')
   await page.getByTestId('admin-ruleset-restriction-add').click()
@@ -176,10 +180,13 @@ test('the ruleset admin creates, edits, deactivates and deletes a format', async
   expect(created?.nonLeaderCardCount).toBe(40)
   expect(created?.maxCopiesPerNonLeaderCard).toBe(2)
   expect(created?.cardRestrictions).toEqual([{ cardId: 'C-003', maxCopies: 1 }])
+  expect(created?.availableInQuickMatch).toBe(false)
 
   await rulesetRailItem(page, 'draft-format').click()
+  await expect(page.getByTestId('admin-ruleset-quick-match')).not.toBeChecked()
   await page.getByTestId('admin-ruleset-name').fill('Draft Format Updated')
   await page.getByTestId('admin-ruleset-active').uncheck()
+  await page.getByTestId('admin-ruleset-quick-match').check()
   await page.getByTestId('admin-ruleset-save').click()
 
   await expect
@@ -187,6 +194,7 @@ test('the ruleset admin creates, edits, deactivates and deletes a format', async
     .toBe(1)
   await expect(rulesetRailItem(page, 'draft-format')).toHaveAttribute('data-active', 'false')
   expect(rulesets.find((ruleset) => ruleset.key === 'draft-format')?.name).toBe('Draft Format Updated')
+  expect(rulesets.find((ruleset) => ruleset.key === 'draft-format')?.availableInQuickMatch).toBe(true)
 
   page.once('dialog', (dialog) => {
     void dialog.accept()

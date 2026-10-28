@@ -125,6 +125,20 @@ public sealed class GamePhaseHandlingService(
             operation: () => registry.ReleasePhasePresentationRequirement(gameId, playerId));
     }
 
+    public ErrorOr<GameInstance> ForfeitGame(string gameId, string playerId)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return Error.Validation(
+                code: "Game.ForfeitGame.InvalidRequest",
+                description: "A player id is required.");
+        }
+
+        return ExecuteRegistryOperation(
+            operationName: "Game.ForfeitGame",
+            operation: () => registry.ForfeitGame(gameId, playerId));
+    }
+
     private ErrorOr<GameInstance> ExecuteRegistryOperation(string operationName, Func<GameInstance> operation)
     {
         try

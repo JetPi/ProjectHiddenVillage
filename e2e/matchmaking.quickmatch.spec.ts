@@ -16,6 +16,7 @@ const MOCKED_RULESET = {
   key: 'e2e-format',
   name: 'E2E Format',
   isActive: true,
+  availableInQuickMatch: true,
   leaderCount: 1,
   nonLeaderCardCount: 2,
   maxCopiesPerNonLeaderCard: 4,
@@ -24,6 +25,16 @@ const MOCKED_RULESET = {
   allowSummonCards: true,
   sortOrder: 0,
   cardRestrictions: [],
+}
+
+/** The same deck rules, marked host-only: playable through hosting and invites, never queued for. */
+const HOST_ONLY_RULESET = {
+  ...MOCKED_RULESET,
+  id: '20000000-0000-0000-0000-0000000000e4',
+  key: 'e2e-invite-only',
+  name: 'Invite Only Format',
+  availableInQuickMatch: false,
+  sortOrder: 1,
 }
 
 const MOCKED_CARDS = [
@@ -42,6 +53,8 @@ const MOCKED_PRESENCE = {
 type MatchmakingMockOptions = {
   /** Ticket state the status endpoint reports. `waiting` keeps the search dialog open. */
   statusState?: 'waiting' | 'matched'
+  /** Active formats the list endpoint returns. Defaults to the one format every other test queues for. */
+  rulesets?: unknown[]
 }
 
 async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
@@ -60,7 +73,9 @@ async function mockQuickmatchNetwork(page: Page, options: MatchmakingMockOptions
   const cancelRequests: string[] = []
   const enqueuedAtUtc = new Date().toISOString()
 
-  await page.route(/\/api\/deck-rulesets$/, (route) => fulfillJson(route, [MOCKED_RULESET]))
+  await page.route(/\/api\/deck-rulesets$/, (route) =>
+    fulfillJson(route, options.rulesets ?? [MOCKED_RULESET]),
+  )
 
   // Presence is mocked too, and its socket is refused: a live snapshot would overwrite the figures under test.
   await page.route(/\/api\/presence$/, (route) => fulfillJson(route, MOCKED_PRESENCE))
@@ -178,6 +193,33 @@ test('quick match queues under the selected format and joins the matched game', 
   // The polled ticket sends the player into the matched game as soon as it reports matched.
   await page.waitForURL(new RegExp(`/game/${MATCHED_GAME_CODE}$`))
   expect(queueRequests).toHaveLength(1)
+})
+
+test('a host-only format is missing from quick match but offered by hosting', async ({ page }) => {
+  const { queueRequests } = await mockQuickmatchNetwork(page, {
+    rulesets: [MOCKED_RULESET, HOST_ONLY_RULESET],
+  })
+
+  await page.goto('/')
+
+  // Quick match offers only the format the admin left quick-matchable.
+  const quickmatchFormat = page.getByRole('combobox', { name: 'Format' })
+  await expect(quickmatchFormat).toContainText(MOCKED_RULESET.name)
+  await quickmatchFormat.click()
+  await expect(page.getByRole('option', { name: new RegExp(MOCKED_RULESET.name) })).toBeVisible()
+  await expect(page.getByRole('option', { name: new RegExp(HOST_ONLY_RULESET.name) })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  // Hosting lists every active format: a host-only format is exactly what an invite is for.
+  await page.getByRole('radio', { name: 'Join or Host' }).click()
+  const hostFormat = page.getByRole('combobox', { name: 'Format' })
+  await expect(hostFormat).toContainText(MOCKED_RULESET.name)
+  await hostFormat.click()
+  await expect(page.getByRole('option', { name: new RegExp(HOST_ONLY_RULESET.name) })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  // Nothing was queued: the point is that the host-only format was never a queue target.
+  expect(queueRequests).toHaveLength(0)
 })
 
 test('quick match refuses a deck that does not fit the selected format without queueing', async ({ page }) => {

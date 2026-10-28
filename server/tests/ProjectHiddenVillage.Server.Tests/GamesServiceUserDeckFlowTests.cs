@@ -116,6 +116,56 @@ public sealed class GamesServiceUserDeckFlowTests
 
         Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
         Assert.IsNull(result.Value.Ruleset);
+        Assert.AreEqual(0, result.Value.Modifiers.Count, "A plain hosted game carries no modifiers.");
+    }
+
+    [TestMethod]
+    public async Task CreateGameForUser_WithTimeRelaxedModifier_StampsItOnTheInstance()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var user = CreateUser("relaxed@example.com", "relaxed");
+        var card = CreateCatalogEntry("N-001", "Card A");
+
+        dbContext.Users.Add(user);
+        dbContext.Decks.Add(CreateDeck(user.Id, [(card, 2)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
+        var services = CreateServices(dbContext);
+
+        var result = await services.InstanceService.CreateGameForUser(
+            new CreateGameForUserRequest(user.Id, deckId, Modifiers: [GameModifierKeys.TimeRelaxed]));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        CollectionAssert.AreEqual(new[] { GameModifierKeys.TimeRelaxed }, result.Value.Modifiers.ToArray());
+        Assert.IsTrue(result.Value.IsTimeRelaxed);
+        Assert.IsNull(result.Value.Ruleset, "The modifier is the host's choice, not a format.");
+    }
+
+    [TestMethod]
+    public async Task CreateGameForUser_WithAnUnknownModifier_IsRefused()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var user = CreateUser("unknown-modifier@example.com", "unknown-modifier");
+        var card = CreateCatalogEntry("N-001", "Card A");
+
+        dbContext.Users.Add(user);
+        dbContext.Decks.Add(CreateDeck(user.Id, [(card, 2)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
+        var services = CreateServices(dbContext);
+
+        var result = await services.InstanceService.CreateGameForUser(
+            new CreateGameForUserRequest(user.Id, deckId, Modifiers: ["no-such-modifier"]));
+
+        Assert.IsTrue(result.IsError, "A modifier this deployment does not know must not be silently dropped.");
+        Assert.AreEqual("Game.CreateForUser.UnknownModifier", result.FirstError.Code);
+        Assert.IsTrue(
+            result.FirstError.Description.Contains(GameModifierKeys.TimeRelaxed, StringComparison.Ordinal),
+            "The refusal names the modifiers that would have been accepted.");
     }
 
     [TestMethod]
