@@ -386,7 +386,9 @@ export function GameView() {
         ) : null}
 
         {/* Once the result is off the board, leaving is still one click away - at the corner the overlay's own button
-            used to occupy - so the finished position and the action log can be studied without losing the exit. */}
+            used to occupy - so the finished position and the action log can be studied without losing the exit. Its
+            z-index clears the expanded log's backdrop (z-[270]) and panel (z-[280]): review mode is exactly when the
+            log gets expanded, and an exit that the panel buries would contradict the point of staying. */}
         {gameOutcome && isGameOverOverlayDismissed ? (
           <button
             type="button"
@@ -394,7 +396,7 @@ export function GameView() {
             onClick={() => {
               void navigate('/')
             }}
-            className="fixed left-2 top-2 z-40 inline-flex items-center gap-1 rounded-lg border border-white/25 bg-slate-950/90 px-2.5 py-1 text-[11px] font-semibold text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-[filter] hover:brightness-125"
+            className="fixed left-2 top-2 z-[290] inline-flex items-center gap-1 rounded-lg border border-white/25 bg-slate-950/90 px-2.5 py-1 text-[11px] font-semibold text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-[filter] hover:brightness-125"
           >
             <ArrowLeft size={12} strokeWidth={2.5} />
             {t('game.outcome.returnToMainPage')}

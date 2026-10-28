@@ -84,6 +84,13 @@ test.describe('GameView multiplayer game over', () => {
       await expect(reviewLog).toBeVisible()
       await expect(reviewLog.getByTestId('action-log-entry').first()).toBeVisible()
 
+      // Review mode is exactly when the log is worth reading at length: the result overlay is gone, so nothing is
+      // left for the expanded panel to bury and the expand control has to work instead of sitting disabled.
+      const reviewExpand = reviewLog.getByTestId('action-log-expand')
+      await expect(reviewExpand).toBeEnabled()
+      await reviewExpand.click()
+      await expect(reviewLog).toHaveAttribute('data-mode', 'expanded')
+
       await loserPage.getByTestId('game-over-review-return-button').click()
       await loserPage.waitForURL((url) => url.pathname === '/')
       await expect(loserPage.getByTestId('game-over-review-return-button')).toHaveCount(0)

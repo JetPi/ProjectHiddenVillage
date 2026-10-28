@@ -40,6 +40,7 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
   const isOpen = useGameUIStore((state) => state.isActionLogOpen)
   const isExpanded = useGameUIStore((state) => state.isActionLogExpanded)
   const setActionLogExpanded = useGameUIStore((state) => state.setActionLogExpanded)
+  const isGameOverOverlayDismissed = useGameUIStore((state) => state.isGameOverOverlayDismissed)
 
   const entries = useMemo(
     () => buildActionLogView(gameState, authUserId, cardById),
@@ -50,16 +51,20 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
   const isPinnedToNewestRef = useRef(true)
 
   const isPromptAwaiting = gameState.pendingPrompt?.isAwaitingRequestingPlayer === true
-  const isGameOver = Boolean(gameState.gameOutcome)
+  // Both the prompt overlay and the result overlay sit *below* the expanded panel, so the panel would bury the one
+  // control the reader has to click. Review mode is the exception: the reader dismissed the result overlay on purpose
+  // to look at the finished board, so there is nothing left to bury and the log is theirs to expand.
+  const isOutcomeOverlayShowing = Boolean(gameState.gameOutcome) && !isGameOverOverlayDismissed
+  const mustStepAside = isPromptAwaiting || isOutcomeOverlayShowing
   const collapse = useCallback(() => setActionLogExpanded(false), [setActionLogExpanded])
 
-  // The expanded panel must never be the reason a question is missed: an answerable prompt or the result overlay
-  // drops it back to the compact column, where it can no longer sit over anything that needs a click.
+  // The expanded panel must never be the reason a question is missed: an answerable prompt, or the result overlay
+  // while it is still up, drops it back to the compact column where it can no longer cover anything clickable.
   useEffect(() => {
-    if (isExpanded && (isPromptAwaiting || isGameOver)) {
+    if (isExpanded && mustStepAside) {
       collapse()
     }
-  }, [isExpanded, isPromptAwaiting, isGameOver, collapse])
+  }, [isExpanded, mustStepAside, collapse])
 
   useEffect(() => {
     if (!isOpen || !isExpanded) {
@@ -155,7 +160,7 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
               data-testid="action-log-expand"
               aria-label={isExpanded ? t('game.actionLog.collapseAria') : t('game.actionLog.expandAria')}
               aria-pressed={isExpanded}
-              disabled={!isExpanded && (isPromptAwaiting || isGameOver)}
+              disabled={!isExpanded && mustStepAside}
               onClick={() => setActionLogExpanded(!isExpanded)}
               className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border border-white/25 bg-white/10 text-white/85 transition-[filter] hover:brightness-125 disabled:opacity-40"
             >

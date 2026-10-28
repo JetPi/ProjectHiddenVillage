@@ -110,7 +110,7 @@ stateDiagram-v2
     Compact --> Expanded: maximise button inside the panel
     Expanded --> Compact: outside click
     Expanded --> Compact: Escape
-    Expanded --> Compact: prompt awaiting the player, or the game ends
+    Expanded --> Compact: prompt awaiting the player, or the result overlay appears
     Compact --> Closed: log button or panel close
     Closed --> [*]
 ```
@@ -119,9 +119,14 @@ stateDiagram-v2
 - Clicking outside the expanded panel collapses it back to compact; the log stays open. The listener is a
   capture-phase `pointerdown` and also a `keydown` for Escape, so a board handler that stops propagation cannot trap
   the reader in the expanded panel.
-- The expanded panel drops back to compact on its own when a prompt starts waiting on this player or the game produces
-  an outcome, so the log can never sit over something that needs an answer. For the same reason the maximise button is
-  disabled while such a prompt is outstanding.
+- The expanded panel drops back to compact on its own while a prompt is waiting on this player, or while the result
+  overlay is still up, so the log can never sit over something that needs a click. Both overlays sit below the panel,
+  which is what forces the step-aside. For the same reason the maximise button is disabled in exactly those two states.
+- Review mode is the one finished-game state that is *not* blocked: the reader dismissed the overlay on purpose to study
+  the board, so there is nothing left to bury and the panel expands normally. Tying the guard to the outcome instead of
+  the overlay meant the maximise button was dead for the whole review - the one moment a long read is worth having.
+- The corner `Return to main page` control sits above the panel and its backdrop (`z-[290]`): leaving has to survive
+  expanding the log, which is precisely what a reader does in review mode.
 - The list follows the newest entry only while the reader is already at the bottom, so rereading the start of a turn is
   not undone by the next push.
 
@@ -156,7 +161,9 @@ rendered by the view.
   adding a runner just for it. That spec opens the log from the sidebar, asserts a real summon produced a
   `card_summoned` entry, asserts the board's geometry is unchanged while the panel is docked, then expands, clicks
   outside to return to compact with the log still open, and closes it. The support-chain suite still passes unchanged,
-  which is what pins the bounded bubble.
+  which is what pins the bounded bubble. The game-over spec covers the review case the panel must not block: after
+  `Review board` dismisses the overlay, expanding has to work *and* the corner exit has to remain clickable while the
+  panel is expanded.
 - The set-support no-leak rule is asserted in the registry test (no `displayName` / `cardDefinitionId` in the entry),
   not in the browser: a browser assertion could only prove the rendered text, while the invariant belongs to the log.
 
