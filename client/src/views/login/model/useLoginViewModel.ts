@@ -13,6 +13,8 @@ export function useLoginViewModel() {
       hostRulesetId: state.rulesetIdByMode.host,
       hostTimeRelaxed: state.hostTimeRelaxed,
       activeDeckOption: state.deckOptionsByMode[state.deckOptionsMode],
+      savedDeckOption: state.deckOptionsByMode.saved_decks,
+      starterDeckOption: state.deckOptionsByMode.starter_decks,
       setDisplayName: state.setDisplayName,
       setGameEntryMode: state.setGameEntryMode,
       setDeckOptionsMode: state.setDeckOptionsMode,
@@ -20,6 +22,7 @@ export function useLoginViewModel() {
       setJoinGameCode: state.setJoinGameCode,
       setRulesetId: state.setRulesetId,
       setDeckOptionValue: state.setDeckOptionValue,
+      setDeckOptionValueForMode: state.setDeckOptionValueForMode,
       validateDisplayName: state.validateDisplayName,
     })),
   )

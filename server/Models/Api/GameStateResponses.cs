@@ -48,7 +48,27 @@ public sealed record GameStateResponse(
     // The tail of the game's action log, oldest first, already filtered for the requesting player. This is the
     // player-facing record of what happened (see ActionLogEntryResponse and GameActionLogPublishing); the engine
     // keeps the full, unfiltered log for auditing.
-    IReadOnlyList<ActionLogEntryResponse>? ActionLog = null);
+    IReadOnlyList<ActionLogEntryResponse>? ActionLog = null,
+    // A player asked to take a move back and the table is frozen until the other player answers. Both clients
+    // render it: the requester waits, the approver accepts or declines.
+    RedoRequestResponse? PendingRedo = null,
+    // The request whose approval moved the board. When it changes the client paints the payload instead of
+    // animating the difference between the two boards.
+    string? LastRewindId = null,
+    // True when asking for a redo would actually go somewhere, so the control is offered only while it can do
+    // something.
+    bool CanRequestRedo = false);
+
+/// <summary>
+/// A redo waiting for the other player's answer. It is not a prompt: the whole table is frozen while it is set, and
+/// the only way out is acceptance, refusal, a withdrawal or the response timeout.
+/// </summary>
+public sealed record RedoRequestResponse(
+    string RequestId,
+    string RequestedByPlayerId,
+    string ApproverPlayerId,
+    int TurnNumber,
+    string Phase);
 
 /// <summary>
 /// The action clock as a client renders it. <see cref="DeadlineUtc"/> is absolute on purpose: the client counts

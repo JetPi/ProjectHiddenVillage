@@ -110,6 +110,29 @@ job is therefore no longer to advance anything: it is to *present* the transitio
   presentation, so nothing of the game in progress outlives the result; a second resignation on a finished game is
   a no-op.
 
+## Taking a move back (redo)
+
+Contract: `plans/game-redo.md`. Rules to keep:
+
+- **A rewind point is captured before every player-initiated mutation** (prompt resolution, phase advance, pass,
+  card action, end step) and committed only when the mutation changed the board (`GameStateFingerprint`), so a
+  refused action leaves nothing to "take back". The newest committed point IS the last moment either player was in
+  control, which is what an approval restores.
+- **The table freezes while a request waits.** `RequestRedo` mints it, and the only calls allowed through are
+  `RespondToRedo`, `CancelRedo` and the timeout/disconnect release - they have their own hub paths
+  (`GamesHub.RedoActions`) because the request is what raises the freeze. Every other mutation is refused, both by
+  the registry guard and by `Game.Redo.Pending` on the hub gate; the clock is stopped for the same reason.
+- **One approval consumes one point** and drops the newer ones; older points stay, so repeated approvals step
+  further back (bounded by `GameRedo:MaxRewindPoints`). A point whose board is already the live one is skipped.
+- **A rewind restores the board, never the record.** The action log stays append-only and the card-movement id
+  counter keeps counting - the client de-duplicates animation events by id, so restoring the counter would make the
+  next real move look like a replay.
+- **Adding a `GameState` member means adding it to `GameStateSnapshot`** (copied or deliberately shared).
+  `GameStateSnapshotTests` reflects over the state and fails until it is listed, because a forgotten field is a
+  piece of the board a redo silently keeps from the future it just took back.
+- **`lastRewindId` marks a rewind push**: `useAdoptRewindPush` adopts its movement tail as already seen and drops
+  the stale hand snapshot, so the restored board is painted where it belongs instead of played back.
+
 ## The action clock (per-stop deadlines, per-player pools, stall forfeiture)
 
 The contract is `plans/game-action-clocks.md`. Rules to keep:

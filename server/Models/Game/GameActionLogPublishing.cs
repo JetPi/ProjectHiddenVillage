@@ -73,6 +73,12 @@ public static class GameActionLogActionTypes
     public const string CharacterAbilityUsed = "character_ability_used";
     public const string OptionalAttackEffectAnswered = "optional_attack_effect_answered";
 
+    // Taking a move back. The board is restored, so both players need the record of why it jumped.
+    public const string RedoRequested = "redo_requested";
+    public const string RedoAccepted = "redo_accepted";
+    public const string RedoDeclined = "redo_declined";
+    public const string RedoCancelled = "redo_cancelled";
+
     // Resolution trouble worth telling the players about: an attack that was stopped, supports that never ran.
     public const string AttackInterrupted = "attack_interrupted";
     public const string SupportActivationSkipped = "support_activation_skipped";
@@ -131,6 +137,12 @@ public static class GameActionLogPublishing
         GameActionLogActionTypes.LeaderAbilityUsed,
         GameActionLogActionTypes.CharacterAbilityUsed,
         GameActionLogActionTypes.OptionalAttackEffectAnswered,
+
+        // Taking a move back.
+        GameActionLogActionTypes.RedoRequested,
+        GameActionLogActionTypes.RedoAccepted,
+        GameActionLogActionTypes.RedoDeclined,
+        GameActionLogActionTypes.RedoCancelled,
 
         // Resolution trouble.
         GameActionLogActionTypes.AttackInterrupted,

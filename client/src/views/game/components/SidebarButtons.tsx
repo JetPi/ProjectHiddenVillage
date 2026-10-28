@@ -26,6 +26,11 @@ export function SideBarButtons(props: IGameZonesProps){
    
     const rulesetName = props.gameState.ruleset?.name ?? null
     const isGameOver = Boolean(props.gameState.gameOutcome)
+    const isRedoPending = Boolean(props.gameState.pendingRedo)
+    // The button is only offered while asking would actually go somewhere: the engine decides when a rewind point
+    // exists, and a request cannot be raised mid-transition or while one is already waiting.
+    const canRequestRedo =
+      props.gameState.canRequestRedo === true && !props.isPresentationPending && !isRedoPending
 
     const confirmForfeit = async () => {
       setIsForfeiting(true)
@@ -140,16 +145,19 @@ export function SideBarButtons(props: IGameZonesProps){
               type="button"
               variant="ghost"
               data-testid="undo-action-button"
-              aria-label={t('game.sidebar.undoAria')}
-              disabled={props.isActionBlocked}
-              aria-disabled={props.isPresentationPending || undefined}
-              tabIndex={props.isPresentationPending ? -1 : undefined}
+              aria-label={t('game.redo.sidebarAria')}
+              onClick={() => {
+                void props.onRequestRedo()
+              }}
+              disabled={!canRequestRedo}
+              aria-disabled={props.isPresentationPending || isRedoPending || undefined}
+              tabIndex={props.isPresentationPending || isRedoPending ? -1 : undefined}
               className={`h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]${frozenClassName}`}
             >
               <RotateCcw size={10} />
             </AppButton>
             <span className={SIDEBAR_TOOLTIP_CLASS_NAME}>
-              {t('game.sidebar.undoTooltip')}
+              {t('game.redo.sidebarTooltip')}
             </span>
           </div>
         )}

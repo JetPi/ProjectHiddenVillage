@@ -17,6 +17,8 @@ public static partial class GameStateResponseMapper
     {
         ArgumentNullException.ThrowIfNull(game);
 
+        var hasOutcome = GameEndRules.IsGameOver(game.State);
+
         return ToGameStateResponse(
             game.State,
             requestingPlayerId,
@@ -27,7 +29,13 @@ public static partial class GameStateResponseMapper
             ruleset: game.Ruleset,
             clock: ToGameClockResponse(game),
             modifiers: game.Modifiers.Count == 0 ? null : game.Modifiers,
-            actionLog: BuildActionLog(game, requestingPlayerId));
+            actionLog: BuildActionLog(game, requestingPlayerId),
+            pendingRedo: hasOutcome ? null : ToRedoRequestResponse(game.PendingRedoRequest),
+            lastRewindId: game.LastRewindId,
+            canRequestRedo: !hasOutcome
+                && game.PendingRedoRequest is null
+                && game.PendingPhasePresentation is null
+                && game.HasRewindTarget);
     }
 
     public static GameStateResponse ToGameStateResponse(GameState state, string requestingPlayerId)
@@ -42,7 +50,22 @@ public static partial class GameStateResponseMapper
             ruleset: null,
             clock: null,
             modifiers: null,
-            actionLog: null);
+            actionLog: null,
+            pendingRedo: null,
+            lastRewindId: null,
+            canRequestRedo: false);
+    }
+
+    private static RedoRequestResponse? ToRedoRequestResponse(PendingRedoRequest? request)
+    {
+        return request is null
+            ? null
+            : new RedoRequestResponse(
+                RequestId: request.RequestId,
+                RequestedByPlayerId: request.RequestedByPlayerId,
+                ApproverPlayerId: request.ApproverPlayerId,
+                TurnNumber: request.TurnNumber,
+                Phase: request.Phase);
     }
 
     private static PhasePresentationResponse? ToPhasePresentationResponse(PendingPhasePresentation? presentation)
@@ -68,7 +91,10 @@ public static partial class GameStateResponseMapper
         GameRulesetBinding? ruleset,
         GameClockResponse? clock,
         IReadOnlyList<string>? modifiers,
-        IReadOnlyList<ActionLogEntryResponse>? actionLog)
+        IReadOnlyList<ActionLogEntryResponse>? actionLog,
+        RedoRequestResponse? pendingRedo,
+        string? lastRewindId,
+        bool canRequestRedo)
     {
         var phaseData = PhaseStateService.GetPhaseData(state.Phase);
         var hasOutcome = GameEndRules.IsGameOver(state);
@@ -127,7 +153,10 @@ public static partial class GameStateResponseMapper
             // IsEnabled = false, so the client distinguishes it from a game whose clock has not started.
             Clock: hasOutcome ? null : clock,
             Modifiers: modifiers,
-            ActionLog: actionLog);
+            ActionLog: actionLog,
+            PendingRedo: pendingRedo,
+            LastRewindId: lastRewindId,
+            CanRequestRedo: canRequestRedo);
     }
 
     /// <summary>

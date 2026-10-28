@@ -259,6 +259,40 @@ async function getCardActionTargets(
   return result
 }
 
+/**
+ * Asks the opponent to let the board go back one move. It is not a game action: the request itself freezes the
+ * table, so it must not be blocked by the HUD's action gate.
+ */
+async function requestRedo(
+  connection: HubConnection,
+  gameId: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  return invokeHubStateMethod(connection, 'RequestRedo', gameId)
+}
+
+async function respondToRedo(
+  connection: HubConnection,
+  gameId: string,
+  requestId: string,
+  accepted: boolean,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  const result = await connection.invoke<IHubOperationResult<IGameStateResponse>>(
+    'RespondToRedo',
+    normalizeGameId(gameId),
+    requestId,
+    accepted,
+  )
+
+  return result
+}
+
+async function cancelRedo(
+  connection: HubConnection,
+  gameId: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  return invokeHubStateMethod(connection, 'CancelRedo', gameId)
+}
+
 async function createGameForUserViaHub(
   request: ICreateGameForUserRequest,
   preferredGameCode?: string,
@@ -324,6 +358,9 @@ export {
   getCurrentGameState,
   acknowledgePhasePresentation,
   forfeitGame,
+  requestRedo,
+  respondToRedo,
+  cancelRedo,
   declareAttack,
   declareEndStep,
   completeEndStep,

@@ -3,6 +3,7 @@ import { HubConnection, HubConnectionState } from '@microsoft/signalr'
 import i18n from '@/i18n'
 import {
   acknowledgePhasePresentation as acknowledgePhasePresentationOnHub,
+  cancelRedo as cancelRedoOnHub,
   connectGameHub,
   createGameHubConnection,
   disconnectGameHub,
@@ -11,6 +12,8 @@ import {
   getCurrentGameState,
   onGameParticipantJoined,
   onGameStateInvalidated,
+  requestRedo as requestRedoOnHub,
+  respondToRedo as respondToRedoOnHub,
   subscribeToGame,
   unsubscribeFromGame,
   type IHubOperationResult,
@@ -187,6 +190,94 @@ function useGameHubState(
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Forfeit failed.'
         console.warn('[GameHub] forfeit threw.', { gameId, message })
+        requestGameStateRefresh(currentConnection)
+        return false
+      }
+    },
+    [gameId, requestGameStateRefresh, setGameState],
+  )
+
+  /**
+   * Asks the opponent to let the board go back one move. Like the forfeit it never goes through
+   * `submitHubIntent`: it is not a board action, so the HUD gate must not be able to swallow it.
+   */
+  const requestRedo = useCallback(
+    async (): Promise<boolean> => {
+      const currentConnection = connectionRef.current
+      if (!currentConnection || !isConnectionConnected(currentConnection)) {
+        return false
+      }
+
+      try {
+        const result = await requestRedoOnHub(currentConnection, gameId)
+        if (!result.succeeded || !result.value) {
+          setActionError(resolveHubErrorMessage(result))
+          requestGameStateRefresh(currentConnection)
+          return false
+        }
+
+        setActionError(null)
+        setGameState(result.value)
+        return true
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Redo request failed.'
+        setActionError(message)
+        requestGameStateRefresh(currentConnection)
+        return false
+      }
+    },
+    [gameId, requestGameStateRefresh, setActionError, setGameState],
+  )
+
+  const respondToRedo = useCallback(
+    async (requestId: string, accepted: boolean): Promise<boolean> => {
+      const currentConnection = connectionRef.current
+      if (!currentConnection || !isConnectionConnected(currentConnection)) {
+        return false
+      }
+
+      try {
+        const result = await respondToRedoOnHub(currentConnection, gameId, requestId, accepted)
+        if (!result.succeeded || !result.value) {
+          setActionError(resolveHubErrorMessage(result))
+          requestGameStateRefresh(currentConnection)
+          return false
+        }
+
+        setActionError(null)
+        setGameState(result.value)
+        return true
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Answering the redo request failed.'
+        setActionError(message)
+        requestGameStateRefresh(currentConnection)
+        return false
+      }
+    },
+    [gameId, requestGameStateRefresh, setActionError, setGameState],
+  )
+
+  const cancelRedo = useCallback(
+    async (): Promise<boolean> => {
+      const currentConnection = connectionRef.current
+      if (!currentConnection || !isConnectionConnected(currentConnection)) {
+        return false
+      }
+
+      try {
+        const result = await cancelRedoOnHub(currentConnection, gameId)
+        if (!result.succeeded || !result.value) {
+          requestGameStateRefresh(currentConnection)
+          return false
+        }
+
+        setGameState(result.value)
+        return true
+      } catch (error) {
+        console.warn('[GameHub] withdrawing a redo request threw.', {
+          gameId,
+          message: error instanceof Error ? error.message : 'unknown',
+        })
         requestGameStateRefresh(currentConnection)
         return false
       }
@@ -473,12 +564,16 @@ function useGameHubState(
       submitHubIntent,
       acknowledgePhasePresentation,
       forfeitGame,
+      requestRedo,
+      respondToRedo,
+      cancelRedo,
       getCardActionTargets: getCardActionTargetsForRequest,
       refreshGameState,
     }),
     [
       acknowledgePhasePresentation,
       actionError,
+      cancelRedo,
       connectionError,
       forfeitGame,
       gameState,
@@ -486,6 +581,8 @@ function useGameHubState(
       isActionPending,
       isConnected,
       refreshGameState,
+      requestRedo,
+      respondToRedo,
       submitHubIntent,
     ],
   )

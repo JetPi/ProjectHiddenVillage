@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SubmitEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -58,6 +58,7 @@ import { MatchmakingSearchDialog } from '@/views/login/components/MatchmakingSea
 import { QueuedPlayersBadge } from '@/views/login/components/QueuedPlayersBadge'
 import { writeCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
 import { buildDefaultSavedDeckName } from '@/views/login/utils/defaultDeckName'
+import { resolvePersistedDeckSelection } from '@/views/login/utils/persistedDeckSelection'
 import type { IDeckCardMetadata, IDeckListParseError } from '@/domain/deck/types'
 import type { IDeckCardInput, IDeckResponse } from '@/types/deck'
 import type { IMatchTicket } from '@/types/matchmaking'
@@ -178,6 +179,10 @@ export function LoginView() {
     { value: '', label: t('auth.deckChoice.loadingPublic') },
   ])
   const [starterDeckFetchFailed, setStarterDeckFetchFailed] = useState(false)
+  // Separate from the choice lists on purpose: an account with no saved decks and a list that has not arrived yet both
+  // leave a single placeholder choice, and only the flag can tell "that deck is gone" from "wait for it".
+  const [hasLoadedSavedDecks, setHasLoadedSavedDecks] = useState(false)
+  const [hasLoadedStarterDecks, setHasLoadedStarterDecks] = useState(false)
   const [starterDeckRetryToken, setStarterDeckRetryToken] = useState(0)
   const [savedDeckCardIdsByDeckId, setSavedDeckCardIdsByDeckId] = useState<Record<string, string[]>>({})
   const [starterDeckCardIdsByDeckId, setStarterDeckCardIdsByDeckId] = useState<Record<string, string[]>>({})
@@ -213,14 +218,17 @@ export function LoginView() {
     hostTimeRelaxed,
     joinGameCode,
     quickmatchRulesetId,
+    savedDeckOption,
     setDeckOptionsMode,
     setDeckOptionValue,
+    setDeckOptionValueForMode,
     setDisplayName,
     setGameEntryMode,
     setHostTimeRelaxed,
     setJoinGameCode,
     setRulesetId,
     showDisplayNameError,
+    starterDeckOption,
     validateDisplayName,
   } = useLoginViewModel()
 
@@ -315,6 +323,7 @@ export function LoginView() {
           setStarterDeckCardIdsByDeckId(toDeckCardIdsByDeckId(publicDecks))
           setStarterDeckCardsByDeckId(toDeckCardsByDeckId(publicDecks))
           setStarterDeckFetchFailed(false)
+          setHasLoadedStarterDecks(true)
         }
       } catch {
         if (!isCancelled) {
@@ -332,6 +341,7 @@ export function LoginView() {
           setSavedDeckChoices([{ value: '', label: t('auth.deckChoice.loginToLoad') }])
           setSavedDeckCardIdsByDeckId({})
           setSavedDeckCardsByDeckId({})
+          setHasLoadedSavedDecks(false)
         }
 
         return
@@ -345,6 +355,7 @@ export function LoginView() {
           setSavedDeckChoices(toDeckChoices(userDecks, t('auth.deckChoice.noSaved')))
           setSavedDeckCardIdsByDeckId(toDeckCardIdsByDeckId(userDecks))
           setSavedDeckCardsByDeckId(toDeckCardsByDeckId(userDecks))
+          setHasLoadedSavedDecks(true)
         }
       } catch {
         if (!isCancelled) {
@@ -500,6 +511,54 @@ export function LoginView() {
 
     setRulesetId('host', rulesets[0].id)
   }, [activeDeckRulesetsQuery.data, hostRulesetId, setRulesetId])
+
+  // A remembered deck is kept only while the deck still exists: a deleted saved deck or a withdrawn public deck clears
+  // the selection instead of quietly choosing another one, so the submit's own "choose a deck" prompt answers it. The
+  // loaded flags are what stop a pending fetch from wiping a selection it has not had a chance to see yet.
+  useEffect(() => {
+    const correctedValue = resolvePersistedDeckSelection(
+      savedDeckOption,
+      savedDecks.map((deck) => deck.id),
+      hasLoadedSavedDecks,
+    )
+
+    if (correctedValue === savedDeckOption) {
+      return
+    }
+
+    setDeckOptionValueForMode('saved_decks', correctedValue)
+  }, [hasLoadedSavedDecks, savedDeckOption, savedDecks, setDeckOptionValueForMode])
+
+  useEffect(() => {
+    const correctedValue = resolvePersistedDeckSelection(
+      starterDeckOption,
+      starterDecks.map((deck) => deck.id),
+      hasLoadedStarterDecks,
+    )
+
+    if (correctedValue === starterDeckOption) {
+      return
+    }
+
+    setDeckOptionValueForMode('starter_decks', correctedValue)
+  }, [hasLoadedStarterDecks, setDeckOptionValueForMode, starterDeckOption, starterDecks])
+
+  // A remembered deck source can outlive the session that could use it: guests cannot load saved decks, so a restored
+  // "saved decks" mode would open on a picker that can never fill. This runs once per mount and only over what was
+  // restored - choosing that mode by hand still shows the sign-in hint the panel renders for guests.
+  const hasAppliedGuestDeckModeRef = useRef(false)
+
+  useEffect(() => {
+    if (!isGuestSession || hasAppliedGuestDeckModeRef.current) {
+      return
+    }
+
+    hasAppliedGuestDeckModeRef.current = true
+
+    if (deckOptionsMode === 'saved_decks') {
+      setDeckOptionsMode('starter_decks')
+    }
+  }, [deckOptionsMode, isGuestSession, setDeckOptionsMode])
 
   const importedDeckParse = useMemo(() => {
     if (deckOptionsMode !== 'import' || activeDeckOption.trim().length === 0) {

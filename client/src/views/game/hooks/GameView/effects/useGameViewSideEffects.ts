@@ -16,7 +16,7 @@ import type { useGameRefs } from '@/views/game/hooks/GameView/memos/useGameRefs'
 import type { IGameUIStoreState, IPendingPromptSelectionState } from '@/state/types/gameUIStore'
 import { useBattlefieldCardReorderEffect } from './useBattleFieldCards'
 import { useGetMainPhaseActions } from './useGetMainPhaseActions'
-import { useAdoptRecordedAnimationEventsOnMount, useCardCatalogPreload, useCardMoveGhostAnimationEffect, useDeckSummonFlightEffect, useHandZoneAnimationEffects, usePhasePresentationAckEffect, useSupportSummonFlightEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
+import { useAdoptRecordedAnimationEventsOnMount, useAdoptRewindPush, useCardCatalogPreload, useCardMoveGhostAnimationEffect, useDeckSummonFlightEffect, useHandZoneAnimationEffects, usePhasePresentationAckEffect, useSupportSummonFlightEffect, useTrashRecallSummonFlightEffect } from './useGameViewEffects'
 import { useAttackLungeEffect } from './useAttackLungeEffect'
 
 function useGameViewSideEffects({
@@ -87,6 +87,13 @@ function useGameViewSideEffects({
   // animate. Without this, a reload replays the recorded tail - summons fly out of the deck again, draws fly into
   // a hand that already holds the card - so the board only reaches its real layout after animating towards it.
   useAdoptRecordedAnimationEventsOnMount({
+    animationEvents: gameState.animationEvents,
+    animControllerRef,
+  })
+
+  // An approved redo is the same case at runtime: the restored board is a position, not a sequence of moves.
+  useAdoptRewindPush({
+    lastRewindId: gameState.lastRewindId,
     animationEvents: gameState.animationEvents,
     animControllerRef,
   })
