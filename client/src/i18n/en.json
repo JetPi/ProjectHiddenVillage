@@ -426,8 +426,7 @@
       "incomingOffer": "Your opponent wants another match.",
       "declined": "The rematch was declined. You can offer another one.",
       "reservedHeadline": "Both players agreed to a rematch",
-      "reservedHint": "Table {{code}} is reserved for you in {{ruleset}}. Choose the deck you want to bring and join it.",
-      "chooseDeckAndRejoin": "Choose a deck and rejoin",
+      "reservedHint": "Table {{code}} is reserved for you in {{ruleset}}. Taking you to pick the deck you are bringing...",
       "noRuleset": "no format",
       "requestFailed": "The rematch could not be offered.",
       "acceptFailed": "The rematch could not be accepted."

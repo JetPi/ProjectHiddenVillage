@@ -27,7 +27,6 @@ function GameOverOverlay({
   onRequestRematch,
   onAcceptRematch,
   onDeclineRematch,
-  onChooseRematchDeck,
 }: IGameOverOverlayProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -97,6 +96,9 @@ function GameOverOverlay({
           {presentation.reason}
         </p>
 
+        {/* Both players agreed: the board has nothing left to offer. This note is the last thing they read here -
+            the view is already taking them to the login view with the reserved code, where the deck for the next
+            match is chosen. */}
         {isReserved ? (
           <div data-testid="rematch-reserved-note" className="mt-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-left">
             <p className="text-xs font-semibold text-[var(--text-primary)]">
@@ -130,17 +132,6 @@ function GameOverOverlay({
         ) : null}
 
         <div className="mt-4 flex flex-col gap-2">
-          {isReserved && rematch?.reservedCode ? (
-            <AppButton
-              type="button"
-              data-testid="rematch-rejoin-button"
-              className="w-full justify-center"
-              onClick={() => onChooseRematchDeck?.(rematch.reservedCode!, rematch.rulesetName ?? null)}
-            >
-              {t('game.rematch.chooseDeckAndRejoin')}
-            </AppButton>
-          ) : null}
-
           {!isReserved && rematch && !isOwnOffer ? (
             <>
               <AppButton

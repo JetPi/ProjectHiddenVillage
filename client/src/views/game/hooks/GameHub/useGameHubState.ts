@@ -43,6 +43,11 @@ function isConnectionConnected(connection: HubConnection): boolean {
   return connection.state === HubConnectionState.Connected
 }
 
+/** The store and the route spell game codes the same way, but the hub normalizes; compare defensively. */
+function isSameGameId(left: string | null | undefined, right: string | null | undefined): boolean {
+  return (left ?? '').trim().toLowerCase() === (right ?? '').trim().toLowerCase()
+}
+
 function resolveHubErrorMessage(result: IHubOperationResult<IGameStateResponse>): string {
   if (result.errorDescription) {
     return result.errorDescription
@@ -94,7 +99,13 @@ function useGameHubState(
   const setChatSending = useGameChatStore((state) => state.setSending)
   const setChatError = useGameChatStore((state) => state.setError)
 
-  const gameState = gameStateFromStore ?? initialGameState
+  // The store outlives a route change and is only reset by an effect, which runs after the first render. Reading it
+  // unconditionally therefore paints this board with the *previous* game's state for one render - and anything that
+  // reacts to that state (the rematch hand-off, for instance) would then act on a game the player already left.
+  // A store state that belongs to another game is not this board's state; the loader's snapshot is.
+  const gameState = gameStateFromStore && isSameGameId(gameStateFromStore.gameId, gameId)
+    ? gameStateFromStore
+    : initialGameState
   const hubConnectionScopeKey = `${gameId}|${authUserId?.trim().toLowerCase() ?? ''}`
 
   useEffect(() => {

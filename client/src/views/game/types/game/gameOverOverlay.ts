@@ -25,9 +25,4 @@ export type IGameOverOverlayProps = {
   onRequestRematch?: () => Promise<boolean>
   onAcceptRematch?: () => Promise<boolean>
   onDeclineRematch?: () => Promise<boolean>
-  /**
-   * Hands the reserved code to the login view so this player can pick the deck they bring to the next match and
-   * claim a seat. The board does not seat anybody by itself: the deck choice is the point of the detour.
-   */
-  onChooseRematchDeck?: (code: string, rulesetName: string | null) => void
 }

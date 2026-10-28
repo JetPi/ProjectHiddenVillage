@@ -39,7 +39,7 @@ it, so the allocator has to know about reservations as well as live tables.
 |---|----------|-----------|
 | D1 | Rematch requires mutual consent on the finished board | One player must not be able to open a table in the other's name |
 | D2 | Consent mints a **reserved table code** - the lobby - which is not a game instance yet | The engine only starts a game with two players, so a lobby cannot be a `GameInstance` |
-| D3 | Both players go back to the login view with the reserved code prefilled, pick a deck, and press Join | Reuses the existing deck selection, import and join validation instead of building a second deck picker |
+| D3 | Both players are **taken** back to the login view as soon as the table is reserved, with the code prefilled; they pick a deck there and press Join | Reuses the existing deck selection, import and join validation instead of building a second deck picker, and leaves nobody waiting on a click |
 | D4 | The first claim creates the table with the reserved code and the seat; the second starts the game | Exactly the create-then-join path the engine already supports |
 | D5 | The reservation carries the source table's `GameRulesetBinding` including `Clock`, plus `Modifiers` | The format cannot change between matches; time-relaxed stays time-relaxed |
 | D6 | Deck legality is judged against the **live definition** of that same ruleset | A ruleset edited between matches must still bind the new decks; a deactivated ruleset refuses the rematch |
@@ -158,9 +158,10 @@ Error codes: `Game.Rematch.NotFinished`, `Game.Rematch.NotFound`, `Game.Rematch.
 
 **Login view**
 
+- The view is reached without a click: `GameView` navigates as soon as the reserved code is on the state.
 - `GET /api/games/{code}/ruleset` answers a reserved code from its reservation, so
   `useGameRulesetByCodeQuery` can judge the deck before the claim - the same pre-check any join gets today.
-- The login store keeps `pendingRematch: { code, opponentName, rulesetName, expiresAtUtc }`, persisted in
+- The login store keeps `pendingRematch: { code, rulesetName }` (`client/src/state/pendingRematch.ts`), persisted in
   `sessionStorage` next to the deck selection, so the reservation survives a reload. The join field is prefilled,
   and a banner names the opponent and the format.
 - Clearing rules: claim succeeds, reservation expires, user switches entry mode, or the user dismisses the banner.
@@ -169,9 +170,18 @@ Error codes: `Game.Rematch.NotFinished`, `Game.Rematch.NotFound`, `Game.Rematch.
 
 - `GameOverOverlay` (`client/src/views/game/components/GameOverOverlay.tsx:17`) gains the rematch states: idle
   `Rematch`, waiting for the opponent, opponent asked you with `Accept` and `Decline`, and a note when the opponent
-  declined or when the offer expired.
-- Dismissing the overlay keeps a compact rematch affordance in `SidebarButtons` so a player reviewing the final
-  board can still answer.
+  declined. Withdrawing one's own offer is the same call as declining.
+- **Agreeing is the whole interaction.** `GameView` watches `pendingRematch.reservedCode` and, the moment it appears,
+  records the code and navigates to the login view - for the player who accepted and for the one who offered alike,
+  whether or not the overlay was still on screen. There is no "rejoin" button: the reserved code is the answer, and
+  the login view is where the deck for the next match is chosen. A ref keyed by the code keeps a re-render from
+  navigating twice.
+- **The hand-off only fires for its own board.** `gameState.gameId` must equal the route's code, and the game must
+  have an outcome. Without that, claiming the reserved table bounced straight back to the login view: the hub store
+  outlives a route change and is only reset by an effect, so the first render of the *new* table was painted with
+  the previous game's finished state - which still carried the reserved code - and the hand-off replayed. The same
+  guard was put where the stale read came from: `useGameHubState` now ignores a store state whose `gameId` is not
+  this route's game and falls back to the loader's snapshot.
 - Guests may rematch: their decks are normal transient rows, and the claim path validates them like any join.
 
 **Expiry and the abandoned rematch**
@@ -231,4 +241,5 @@ Error codes: `Game.Rematch.NotFinished`, `Game.Rematch.NotFound`, `Game.Rematch.
 - `server/tests/ProjectHiddenVillage.Server.Tests/GamesControllerGameRulesetTests.cs`: the reserved code answering
   the join form's format pre-check, the unbound reservation answering `null`, and the expired one answering 404.
 - `e2e/gameview.multiplayer.rematch.spec.ts`: the offer on both finished boards, the acceptance, the reserved code on
-  both state payloads, and "Choose a deck and rejoin" landing on the login view with the code in the form.
+  both state payloads, both players landing on the login view with the code in the form, and - the regression that
+  followed the automatic hand-off - claiming the table and staying on the new board instead of bouncing back.

@@ -1,7 +1,7 @@
 import { ArrowLeft, X } from 'lucide-react'
 import { MotionConfig } from 'motion/react'
 import { useGameCardsQuery } from '@/services/queries/cardQueries'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLoaderData, useNavigate } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
@@ -48,6 +48,12 @@ function isSamePlayerId(left: string | null | undefined, right: string | null | 
   const normalizedLeft = normalize(left)
 
   return normalizedLeft.length > 0 && normalizedLeft === normalize(right)
+}
+
+function isSameGameCode(left: string | null | undefined, right: string | null | undefined): boolean {
+  const normalizedLeft = (left ?? '').trim().toLowerCase()
+
+  return normalizedLeft.length > 0 && normalizedLeft === (right ?? '').trim().toLowerCase()
 }
 
 export function GameView() {
@@ -153,6 +159,31 @@ export function GameView() {
       setGameOverOverlayDismissed(false)
     }
   }, [gameOutcome, setGameOverOverlayDismissed])
+
+  const reservedRematchCode = gameState.pendingRematch?.reservedCode ?? null
+  const reservedRematchRulesetName = gameState.pendingRematch?.rulesetName ?? null
+  // The state must be *this* board's, or the hand-off below would replay the previous game's agreement as soon as
+  // this route mounts - which is exactly what sent players back to the login view right after claiming the table.
+  const isCurrentBoardState = isSameGameCode(gameState.gameId, joinCode)
+  // A rematch is agreed: there is nothing left to do on this board. Both players are taken to the login view with
+  // the reserved code already in hand, because the deck each of them brings to the next match is chosen there,
+  // before anybody claims a seat. The ref is what keeps a re-render from navigating twice on the same code.
+  const handledReservedRematchRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!gameOutcome || !isCurrentBoardState || !reservedRematchCode) {
+      handledReservedRematchRef.current = null
+      return
+    }
+
+    if (handledReservedRematchRef.current === reservedRematchCode) {
+      return
+    }
+
+    handledReservedRematchRef.current = reservedRematchCode
+    storePendingRematch({ code: reservedRematchCode, rulesetName: reservedRematchRulesetName })
+    void navigate('/')
+  }, [gameOutcome, isCurrentBoardState, navigate, reservedRematchCode, reservedRematchRulesetName])
 
   const shouldShowPromptOverlay =
     gameOutcome === null
@@ -431,13 +462,6 @@ export function GameView() {
             onRequestRematch={requestRematch}
             onAcceptRematch={acceptRematch}
             onDeclineRematch={declineRematch}
-            // The rematch does not start from here: the player goes back to the login view, picks the deck they are
-            // bringing to the next match, and joins the reserved code there. The code is remembered so the join
-            // form arrives with it filled in.
-            onChooseRematchDeck={(code, rulesetName) => {
-              storePendingRematch({ code, rulesetName })
-              void navigate('/')
-            }}
           />
         ) : null}
 
