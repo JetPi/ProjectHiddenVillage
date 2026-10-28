@@ -44,6 +44,21 @@ flowchart LR
   lists the phases walked (`Main Phase · Draw Phase · Refresh Phase`). A lone transition - the one a player caused by
   declaring an attack, for instance - keeps its own row, so nothing a player did is swallowed. The merge is a view
   concern: the audit trail still holds every transition.
+- **Turn context is stamped once, at the append boundary.** `AddActionLogEntry` fills `turnNumber`, `phase`,
+  `activePlayerId` and `turnOwnerTurnCount` (the active player's own `TurnCount`) on every entry. Grouping by the
+  global turn number cannot express "all of your turn 4, then all of theirs", because that number counts every turn
+  in sequence; the owner plus their ordinal can. Stamping here rather than at each call site means no future log line
+  can lose the context and split a group, which is what produced duplicated turn headers.
+- **A resolved prompt is not automatically an answer.** A reveal presentation is modelled as a prompt only so the
+  engine can pause the table while a card is shown, and the client acknowledges it by itself; it logs
+  `reveal_presented` with the card's instance and display name instead of `prompt_resolved`. Genuine prompts log their
+  kind and answer, and an answer the engine gave because the clock ran out carries `resolvedByTimeout` so the log can
+  say the time ran out instead of attributing a decision. The client phrases each kind separately: going first or
+  second, keeping a hand, a chosen card, a reveal.
+- **A chosen card is named only when naming it is safe.** The selection prompt's option is a card instance, and the
+  engine resolves it at log time so the entry can carry the card's name. That name is recorded only when the card sat
+  in a zone both players can see (field, support area, trash, leader); a selection from a hand or a deck keeps the
+  instance and stays generic, because the log is shared and the card is not public yet.
 
 ## Visibility
 
@@ -133,6 +148,9 @@ rendered by the view.
   chain to fail mid-replay.
 - Contract: `GameActionLogPublishingContractTests` fails when the allow-list and `actionLog.contract.json` disagree,
   and the client's `tsc -b` fails when a contract type has no wording template.
+- Prompts: `GameActionLogPromptTests` pins the reveal-versus-answer split, the timeout flag, and that every entry
+  carries its turn owner and that owner's ordinal. The action-log e2e asserts one header per turn and that no row
+  reads as an answered prompt.
 - Client: the repo has no client unit-test runner, so helper behaviour is covered through the panel's e2e spec
   ([`e2e/gameview.multiplayer.action-log.spec.ts`](e2e/gameview.multiplayer.action-log.spec.ts:1)) rather than by
   adding a runner just for it. That spec opens the log from the sidebar, asserts a real summon produced a

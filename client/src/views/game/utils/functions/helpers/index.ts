@@ -4,6 +4,7 @@ import type { ICardCatalogItemResponse } from '@/types/cardCatalog'
 import { PhaseValues } from "@/views/game/components/constants/gamePhaseActionRow"
 import type { IGameOutcomeResponse, IGameStateResponse, ISupportChainEntryResponse } from "@/services/api/gameApi"
 import type {
+  IActionLogTurnOwner,
   IActionLogViewActor,
   IActionLogViewEntry,
   IEffectTargetingState,
@@ -468,8 +469,9 @@ const ACTION_LOG_EVENT_TEXT_KEYS = {
   action_step_pass_declared: 'game.actionLog.event.actionPassed',
   support_window_pass_declared: 'game.actionLog.event.supportWindowPassed',
   end_step_declared: 'game.actionLog.event.endStepDeclared',
-  prompt_resolved: 'game.actionLog.event.promptResolved',
+  prompt_resolved: 'game.actionLog.event.madeSelection',
   mulligan_prompted: 'game.actionLog.event.mulliganPrompted',
+  reveal_presented: 'game.actionLog.event.cardRevealed',
   card_summoned: 'game.actionLog.event.cardSummoned',
   card_summoned_with_requirement: 'game.actionLog.event.cardSummonedWithRequirement',
   support_set: 'game.actionLog.event.supportSet',
@@ -516,6 +518,58 @@ function formatActionLogEngineToken(token: string): string {
     .trim()
 }
 
+function resolveActionLogTurnOwner(activePlayerId: string | null, normalizedAuthUserId: string): IActionLogTurnOwner {
+  const normalizedPlayerId = normalizeId(activePlayerId ?? undefined)
+  if (normalizedPlayerId.length === 0 || normalizedAuthUserId.length === 0) {
+    return 'unknown'
+  }
+
+  return normalizedPlayerId === normalizedAuthUserId ? 'you' : 'opponent'
+}
+
+/**
+ * A resolved prompt is not one thing: going first, keeping a hand, picking a card and a reveal the client merely
+ * acknowledged all arrive as prompts, and the log has to say which happened. Returns null for anything that is not a
+ * prompt resolution, so the caller falls back to the per-action-type wording.
+ */
+function buildActionLogPromptText(
+  entry: NonNullable<IGameStateResponse['actionLog']>[number],
+  actorLabel: string,
+  displayName: string | null,
+): string | null {
+  if (entry.actionType === 'reveal_presented') {
+    return i18n.t('game.actionLog.event.cardRevealed', {
+      actor: actorLabel,
+      card: displayName ?? i18n.t('game.actionLog.unknownCard'),
+    })
+  }
+
+  if (entry.actionType !== 'prompt_resolved') {
+    return null
+  }
+
+  if (entry.resolvedByTimeout === true) {
+    return i18n.t('game.actionLog.event.promptTimedOut', { actor: actorLabel })
+  }
+
+  switch (entry.selectedOption) {
+    case 'goFirst':
+      return i18n.t('game.actionLog.event.choseFirst', { actor: actorLabel })
+    case 'goSecond':
+      return i18n.t('game.actionLog.event.choseSecond', { actor: actorLabel })
+    case 'mulligan':
+      return i18n.t('game.actionLog.event.tookMulligan', { actor: actorLabel })
+    case 'noMulligan':
+      return i18n.t('game.actionLog.event.keptHand', { actor: actorLabel })
+    default:
+      // The server names the chosen card only when it sat in a zone both players can see; a hidden selection keeps
+      // its generic wording rather than leaking what was picked.
+      return displayName
+        ? i18n.t('game.actionLog.event.choseCard', { actor: actorLabel, card: displayName })
+        : i18n.t('game.actionLog.event.madeSelection', { actor: actorLabel })
+  }
+}
+
 function resolveActionLogActor(playerId: string | null, normalizedAuthUserId: string): IActionLogViewActor {
   const normalizedPlayerId = normalizeId(playerId ?? undefined)
   if (normalizedPlayerId.length === 0) {
@@ -551,9 +605,12 @@ function toActionLogViewEntry(
   const displayName = entry.displayName ?? catalogCard?.displayName ?? null
   const targetDisplayName = entry.targetDisplayName ?? null
 
-  const text = isKnownActionLogActionType(entry.actionType)
+  const actorLabel = i18n.t(ACTION_LOG_ACTOR_LABEL_KEYS[actor])
+
+  const promptText = buildActionLogPromptText(entry, actorLabel, displayName)
+  const text = promptText ?? (isKnownActionLogActionType(entry.actionType)
     ? i18n.t(ACTION_LOG_EVENT_TEXT_KEYS[entry.actionType], {
-      actor: i18n.t(ACTION_LOG_ACTOR_LABEL_KEYS[actor]),
+      actor: actorLabel,
       card: displayName ?? i18n.t('game.actionLog.unknownCard'),
       target: targetDisplayName ?? i18n.t('game.actionLog.unknownTarget'),
       phase: entry.phase ? formatActionLogEngineToken(entry.phase) : '',
@@ -561,7 +618,7 @@ function toActionLogViewEntry(
     })
     : import.meta.env.DEV && entry.message
       ? entry.message
-      : i18n.t('game.actionLog.event.unknownEvent')
+      : i18n.t('game.actionLog.event.unknownEvent'))
 
   return {
     entryId: entry.entryId,
@@ -575,6 +632,8 @@ function toActionLogViewEntry(
     targetDisplayName,
     phase: entry.phase,
     turnNumber: entry.turnNumber,
+    turnOwner: resolveActionLogTurnOwner(entry.activePlayerId, normalizedAuthUserId),
+    turnOrdinal: entry.turnOwnerTurnCount,
     details: null,
     text,
   }
@@ -643,7 +702,23 @@ function buildActionLogView(
     })
   }
 
-  return viewEntries
+  // Entries written before the first turn - the table coming into existence - carry no turn owner or ordinal. Carry
+  // the last known pair forward so they join the current group instead of starting one of their own, which is what
+  // made the header repeat between two entries of the same turn.
+  let currentTurnOwner: IActionLogTurnOwner = 'unknown'
+  let currentTurnOrdinal: number | null = null
+
+  return viewEntries.map((entry) => {
+    if (entry.turnOrdinal !== null) {
+      currentTurnOrdinal = entry.turnOrdinal
+      currentTurnOwner = entry.turnOwner
+      return entry
+    }
+
+    return currentTurnOrdinal === null
+      ? entry
+      : { ...entry, turnOwner: currentTurnOwner, turnOrdinal: currentTurnOrdinal }
+  })
 }
 
 /**

@@ -80,12 +80,20 @@ test.describe('GameView multiplayer action log', () => {
       await expect(summonEntry).toContainText(/summoned/i)
 
       // Nothing the panel renders may carry an engine identifier. The audit message is only a development aid, so a
-      // row showing a player or entry id means the phrasing path regressed.
+      // row showing a player or entry id means the phrasing path regressed. No row may claim a prompt was answered
+      // either: reveals are acknowledged by the client, and the log has to say what happened instead.
       const renderedEntries = await panel.getByTestId('action-log-entry').allInnerTexts()
       expect(renderedEntries.length).toBeGreaterThan(0)
       for (const renderedEntry of renderedEntries) {
         expect(renderedEntry).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
         expect(renderedEntry).not.toMatch(/\b[0-9a-f]{20,}\b/i)
+        expect(renderedEntry).not.toMatch(/answered a prompt/i)
+      }
+
+      // One header per turn: a repeated header means an entry lost its turn context and split the group.
+      const turnHeaders = await panel.getByTestId('action-log-turn').allInnerTexts()
+      for (let index = 1; index < turnHeaders.length; index += 1) {
+        expect(turnHeaders[index]).not.toBe(turnHeaders[index - 1])
       }
 
       // Expanding is the panel's own affordance. An outside click returns it to the compact column - the log stays

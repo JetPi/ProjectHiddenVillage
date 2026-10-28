@@ -191,6 +191,14 @@ export type IActionLogEntryResponse = {
   targetDisplayName: string | null
   phase: string | null
   turnNumber: number | null
+  /** Whose turn this happened in, and which of that player's own turns it was. */
+  activePlayerId: string | null
+  turnOwnerTurnCount: number | null
+  /** For a prompt resolution: the prompt's kind and what was answered. Null for everything else. */
+  promptType: string | null
+  selectionPromptKind: string | null
+  selectedOption: string | null
+  resolvedByTimeout: boolean | null
   /** Development aid only: null whenever the audit text carried an identifier. Never shown in production. */
   message: string | null
 }

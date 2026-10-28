@@ -57,6 +57,12 @@ public static class GameActionLogActionTypes
     public const string PromptResolved = "prompt_resolved";
     public const string MulliganPrompted = "mulligan_prompted";
 
+    /// <summary>
+    /// A card was shown and acknowledged. A reveal is modelled as a prompt whose only answer is "continue", and the
+    /// client acknowledges it on its own, so it must not be reported as a choice somebody made.
+    /// </summary>
+    public const string RevealPresented = "reveal_presented";
+
     // Things a player did with their board. These are the entries the log panel exists for.
     public const string CardSummoned = "card_summoned";
     public const string CardSummonedWithRequirement = "card_summoned_with_requirement";
@@ -114,6 +120,7 @@ public static class GameActionLogPublishing
         // Prompts.
         GameActionLogActionTypes.PromptResolved,
         GameActionLogActionTypes.MulliganPrompted,
+        GameActionLogActionTypes.RevealPresented,
 
         // Player actions.
         GameActionLogActionTypes.CardSummoned,

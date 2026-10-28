@@ -3389,7 +3389,7 @@ public sealed class InMemoryGameInstanceRegistry
             }
 
             var phaseBeforeResolve = state.Phase;
-            instance.ResolvePrompt(ownerPlayerId, safeOption);
+            instance.ResolvePrompt(ownerPlayerId, safeOption, resolvedByTimeout: true);
 
             if (ShouldAdvanceAfterPromptResolution(phaseBeforeResolve, instance.GetPendingPrompt()))
             {

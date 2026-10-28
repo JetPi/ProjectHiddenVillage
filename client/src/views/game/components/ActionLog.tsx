@@ -181,16 +181,23 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
             onScroll={handleScroll}
             className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5 py-1"
           >
-            {entries.map((entry, index) => (
-              <ActionLogEntryRow
-                key={entry.entryId}
-                entry={entry}
-                showTurnHeader={
-                  entry.turnNumber !== null
-                  && entry.turnNumber !== (index === 0 ? null : entries[index - 1].turnNumber)
-                }
-              />
-            ))}
+            {entries.map((entry, index) => {
+              const previousEntry = index === 0 ? null : entries[index - 1]
+              // A turn is one player's turn: the header changes only when the owner or their own turn ordinal does,
+              // never because an entry happened to be written without turn context.
+              const showTurnHeader = entry.turnOrdinal !== null
+                && (previousEntry === null
+                  || previousEntry.turnOrdinal !== entry.turnOrdinal
+                  || previousEntry.turnOwner !== entry.turnOwner)
+
+              return (
+                <ActionLogEntryRow
+                  key={entry.entryId}
+                  entry={entry}
+                  showTurnHeader={showTurnHeader}
+                />
+              )
+            })}
           </ol>
         )}
       </div>
@@ -208,7 +215,11 @@ function ActionLogEntryRow({ entry, showTurnHeader }: { entry: IActionLogViewEnt
           data-testid="action-log-turn"
           className="mt-1 text-[8px] font-bold uppercase tracking-[0.14em] text-white/45"
         >
-          {t('game.actionLog.turn', { turn: entry.turnNumber })}
+          {entry.turnOwner === 'you'
+            ? t('game.actionLog.yourTurn', { turn: entry.turnOrdinal ?? entry.turnNumber })
+            : entry.turnOwner === 'opponent'
+              ? t('game.actionLog.opponentTurn', { turn: entry.turnOrdinal ?? entry.turnNumber })
+              : t('game.actionLog.turn', { turn: entry.turnNumber })}
         </span>
       ) : null}
 

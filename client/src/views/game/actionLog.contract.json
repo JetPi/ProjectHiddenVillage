@@ -13,6 +13,7 @@
     "end_step_declared",
     "prompt_resolved",
     "mulligan_prompted",
+    "reveal_presented",
     "card_summoned",
     "card_summoned_with_requirement",
     "support_set",

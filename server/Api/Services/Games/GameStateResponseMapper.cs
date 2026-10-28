@@ -209,6 +209,12 @@ public static partial class GameStateResponseMapper
             // Phase entries carry `toPhase` (a transition names both ends), every other entry carries `phase`.
             Phase: ReadMetadataValue(entry, "phase") ?? ReadMetadataValue(entry, "toPhase"),
             TurnNumber: ReadMetadataIntValue(entry, "turnNumber"),
+            ActivePlayerId: ReadMetadataValue(entry, "activePlayerId"),
+            TurnOwnerTurnCount: ReadMetadataIntValue(entry, "turnOwnerTurnCount"),
+            PromptType: ReadMetadataValue(entry, "promptType"),
+            SelectionPromptKind: ReadMetadataValue(entry, "selectionPromptKind"),
+            SelectedOption: ReadMetadataValue(entry, "selectedOption"),
+            ResolvedByTimeout: ReadMetadataBoolValue(entry, "resolvedByTimeout"),
             Message: SanitizePublishedMessage(entry.Message));
     }
 
@@ -230,6 +236,13 @@ public static partial class GameStateResponseMapper
         }
 
         return PublishedMessageIdentifierPattern.IsMatch(message) ? null : message;
+    }
+
+    private static bool? ReadMetadataBoolValue(GameActionLogEntry entry, string key)
+    {
+        return entry.Metadata.TryGetValue(key, out var value) && bool.TryParse(value, out var parsed)
+            ? parsed
+            : null;
     }
 
     private static int? ReadMetadataIntValue(GameActionLogEntry entry, string key)

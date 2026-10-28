@@ -4,6 +4,9 @@ import type { IGameStateResponse } from '@/services/api/gameApi'
 /** Who an entry is about. Engine bookkeeping (a turn starting, a clock expiring) belongs to nobody. */
 export type IActionLogViewActor = 'you' | 'opponent' | 'system'
 
+/** Whose turn an entry happened in. A pre-game entry belongs to no turn at all. */
+export type IActionLogTurnOwner = 'you' | 'opponent' | 'unknown'
+
 /**
  * One rendered line of the action log.
  *
@@ -23,6 +26,12 @@ export type IActionLogViewEntry = {
   targetDisplayName: string | null
   phase: string | null
   turnNumber: number | null
+  /**
+   * The turn this entry belongs to, as the player experienced it: whose turn it was plus that player's own turn
+   * ordinal. The global turn number counts every player's turn in sequence, so it cannot group "all of your turn 4".
+   */
+  turnOwner: IActionLogTurnOwner
+  turnOrdinal: number | null
   /** A grouped row's second line: the phases a merged turn-start run walked through. Null for a plain entry. */
   details: string | null
   text: string

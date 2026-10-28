@@ -122,6 +122,18 @@ public sealed record ActionLogEntryResponse(
     string? TargetDisplayName,
     string? Phase,
     int? TurnNumber,
+    // Whose turn this entry happened in, and which of that player's own turns it was. The global turn number counts
+    // every player's turn in sequence, so only this pair can group "all of your turn 4, then all of theirs".
+    string? ActivePlayerId,
+    int? TurnOwnerTurnCount,
+    // For a resolved prompt: which kind of prompt it was and what was answered, so the client can say what happened
+    // instead of "a prompt was answered". All null for entries that are not prompt resolutions.
+    string? PromptType,
+    string? SelectionPromptKind,
+    string? SelectedOption,
+    // True when the engine answered on the player's behalf because their clock ran out: the entry keeps the player,
+    // the client must not phrase it as their decision.
+    bool? ResolvedByTimeout,
     string? Message);
 
 /// <summary>
