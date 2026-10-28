@@ -45,6 +45,11 @@ export type IGameUIStoreState = {
   openActionLog: () => void
   closeActionLog: () => void
   setActionLogExpanded: (value: SetStateAction<boolean>) => void
+  /** Whether the chat panel is on screen. It and the action log share the same column, so only one is open. */
+  isGameChatOpen: boolean
+  toggleGameChat: () => void
+  openGameChat: () => void
+  closeGameChat: () => void
   /** Whether the result overlay was taken off the board so the finished position can be reviewed. */
   isGameOverOverlayDismissed: boolean
   dismissGameOverOverlay: () => void

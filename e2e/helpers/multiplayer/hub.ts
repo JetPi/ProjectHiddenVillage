@@ -24,6 +24,7 @@ function buildHubConnection(accessToken: string, userId: string) {
   // broadcasts these connections never asked for cannot surface as unhandled method warnings.
   connection.on('GameStateInvalidated', () => {})
   connection.on('GameParticipantJoined', () => {})
+  connection.on('GameChatMessagePosted', () => {})
 
   return connection
 }
@@ -334,4 +335,31 @@ export async function getCardActionTargetsViaHub(
   expect(targetsResult.succeeded, `${targetsResult.errorCode ?? 'Hub.GetCardActionTargets'}: ${targetsResult.errorDescription ?? 'Unknown error'}`).toBeTruthy()
 
   return targetsResult.value?.validTargets ?? []
+}
+
+export type GameChatMessageResponse = {
+  sequence: number
+  messageId: string
+  senderPlayerId: string
+  sentAtUtc: string
+  text: string
+}
+
+export async function sendGameChatMessageViaHub(
+  gameCode: string,
+  player: PlayerAuth,
+  text: string,
+): Promise<HubInvocationResult<GameChatMessageResponse>> {
+  return await invokeGameHubMethod<GameChatMessageResponse>(player, 'SendGameChatMessage', [
+    gameCode.toUpperCase(),
+    { text },
+  ])
+}
+
+export async function getGameChatHistoryViaHub(
+  gameCode: string,
+  player: PlayerAuth,
+  sinceSequence = 0,
+): Promise<HubInvocationResult<{ gameId: string; latestSequence: number; messages: GameChatMessageResponse[] }>> {
+  return await invokeGameHubMethod(player, 'GetGameChatHistory', [gameCode.toUpperCase(), sinceSequence])
 }

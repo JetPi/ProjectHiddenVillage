@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Flag, Lightbulb, RotateCcw, ScrollText, X } from "lucide-react";
+import { Flag, Lightbulb, MessageSquare, RotateCcw, ScrollText, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { IGameZonesProps } from "@/views/game/types";
 import { AppButton } from "@/components/ui";
+import { useGameChatStore } from "@/state/gameChatStore";
 import { useGameUIStore } from "@/state/gameUIStore";
 import { ForfeitConfirmDialog } from './ForfeitConfirmDialog'
 
@@ -19,6 +20,9 @@ export function SideBarButtons(props: IGameZonesProps){
     const isEffectTargeting = useGameUIStore((state) => state.pendingEffectTargeting !== null)
     const isActionLogOpen = useGameUIStore((state) => state.isActionLogOpen)
     const toggleActionLog = useGameUIStore((state) => state.toggleActionLog)
+    const isGameChatOpen = useGameUIStore((state) => state.isGameChatOpen)
+    const toggleGameChat = useGameUIStore((state) => state.toggleGameChat)
+    const unreadChatCount = useGameChatStore((state) => state.unreadCount)
     const [isForfeitDialogOpen, setIsForfeitDialogOpen] = useState(false)
     const [isForfeiting, setIsForfeiting] = useState(false)
 
@@ -178,6 +182,31 @@ export function SideBarButtons(props: IGameZonesProps){
           </AppButton>
           <span className={SIDEBAR_TOOLTIP_CLASS_NAME}>
             {t('game.sidebar.openLogTooltip')}
+          </span>
+        </div>
+
+        <div className="group relative">
+          {/* Chat, like the log, is not a game action: it stays available while the board is frozen. */}
+          <AppButton
+            type="button"
+            variant="ghost"
+            data-testid="game-chat-toggle"
+            aria-label={t('game.sidebar.openChatAria')}
+            aria-pressed={isGameChatOpen}
+            onClick={toggleGameChat}
+            className="relative h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+          >
+            <MessageSquare size={10} />
+            {unreadChatCount > 0 && !isGameChatOpen ? (
+              <span
+                data-testid="game-chat-unread"
+                aria-hidden="true"
+                className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-orange-400"
+              />
+            ) : null}
+          </AppButton>
+          <span className={SIDEBAR_TOOLTIP_CLASS_NAME}>
+            {t('game.sidebar.openChatTooltip')}
           </span>
         </div>
       </div>

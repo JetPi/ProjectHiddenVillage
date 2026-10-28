@@ -10,10 +10,13 @@ import {
   forfeitGame as forfeitGameOnHub,
   getCardActionTargets,
   getCurrentGameState,
+  getGameChatHistory,
+  onGameChatMessagePosted,
   onGameParticipantJoined,
   onGameStateInvalidated,
   requestRedo as requestRedoOnHub,
   respondToRedo as respondToRedoOnHub,
+  sendGameChatMessage as sendGameChatMessageOnHub,
   subscribeToGame,
   unsubscribeFromGame,
   type IHubOperationResult,
@@ -21,6 +24,7 @@ import {
 import { useGameStateQuery } from '@/services/queries/gameStateQueries'
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGameCardActionTargetsResponse } from '@/services/api/types/gameHub'
+import { useGameChatStore } from '@/state/gameChatStore'
 import { useGameHubStore } from '@/state/gameHubStore'
 import type { IUseGameHubStateResult } from '@/views/game/types'
 import { useSubmitHubIntent } from './useSubmitHubIntent'
@@ -81,6 +85,11 @@ function useGameHubState(
   const setActionPending = useGameHubStore((state) => state.setActionPending)
   const resetConnectionState = useGameHubStore((state) => state.resetConnectionState)
   const { refetch: refetchGameStateSnapshot } = useGameStateQuery(gameId, { enabled: false })
+  const initializeChatSession = useGameChatStore((state) => state.initializeChatSession)
+  const appendChatMessage = useGameChatStore((state) => state.appendMessage)
+  const applyChatHistory = useGameChatStore((state) => state.applyHistory)
+  const setChatSending = useGameChatStore((state) => state.setSending)
+  const setChatError = useGameChatStore((state) => state.setError)
 
   const gameState = gameStateFromStore ?? initialGameState
   const hubConnectionScopeKey = `${gameId}|${authUserId?.trim().toLowerCase() ?? ''}`
@@ -88,6 +97,10 @@ function useGameHubState(
   useEffect(() => {
     initializeGameSession(gameId, initialGameState)
   }, [gameId, initialGameState, initializeGameSession])
+
+  useEffect(() => {
+    initializeChatSession(gameId)
+  }, [gameId, initializeChatSession])
 
   const refreshCurrentGameState = useCallback(
     async (currentConnection: HubConnection): Promise<boolean> => {
@@ -124,6 +137,31 @@ function useGameHubState(
       })()
     },
     [refreshCurrentGameState],
+  )
+
+  /**
+   * Reads whatever the socket missed - the initial join and every reconnect - from the last sequence this client
+   * holds. The push path still carries new messages, so a failed catch-up is not an error the player needs.
+   */
+  const catchUpChatHistory = useCallback(
+    async (currentConnection: HubConnection): Promise<void> => {
+      const { lastKnownSequence } = useGameChatStore.getState()
+
+      try {
+        const result = await getGameChatHistory(currentConnection, gameId, lastKnownSequence)
+        if (!result.succeeded || !result.value) {
+          return
+        }
+
+        applyChatHistory(result.value.messages, result.value.latestSequence, false)
+      } catch (error) {
+        console.warn('[GameHub] chat catch-up failed.', {
+          gameId,
+          message: error instanceof Error ? error.message : 'unknown',
+        })
+      }
+    },
+    [applyChatHistory, gameId],
   )
 
   const acknowledgePhasePresentation = useCallback(
@@ -318,6 +356,15 @@ function useGameHubState(
       requestGameStateRefresh(nextConnection)
     })
 
+    // Own messages come back through the same broadcast as the opponent's, so the echo is the only append path.
+    const disposeChatMessageHandler = onGameChatMessagePosted(nextConnection, (postedGameId, message) => {
+      if (postedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
+        return
+      }
+
+      appendChatMessage(message, true)
+    })
+
     const handleReconnected = async (): Promise<void> => {
       if (isDisposed) {
         return
@@ -325,6 +372,11 @@ function useGameHubState(
 
       try {
         await subscribeToGame(nextConnection, gameId)
+        if (isDisposed) {
+          return
+        }
+
+        await catchUpChatHistory(nextConnection)
         if (isDisposed) {
           return
         }
@@ -403,6 +455,11 @@ function useGameHubState(
           return
         }
 
+        await catchUpChatHistory(nextConnection)
+        if (isDisposed) {
+          return
+        }
+
         const refreshed = await refreshCurrentGameState(nextConnection)
         if (isDisposed) {
           return
@@ -458,6 +515,7 @@ function useGameHubState(
       resetConnectionState()
       disposeInvalidationHandler()
       disposeParticipantJoinedHandler()
+      disposeChatMessageHandler()
       connectionRef.current = null
 
       void (async () => {
@@ -473,7 +531,7 @@ function useGameHubState(
         await disconnectGameHub(nextConnection)
       })()
     }
-  }, [authUserId, gameId, hubConnectionScopeKey, refreshCurrentGameState, refetchGameStateSnapshot, requestGameStateRefresh, resetConnectionState, setActionError, setConnected, setConnectionError, setGameState])
+  }, [appendChatMessage, authUserId, catchUpChatHistory, gameId, hubConnectionScopeKey, refreshCurrentGameState, refetchGameStateSnapshot, requestGameStateRefresh, resetConnectionState, setActionError, setConnected, setConnectionError, setGameState])
 
   useEffect(() => {
     if (!isActionPending) {
@@ -544,6 +602,40 @@ function useGameHubState(
     [authUserId, gameId, setActionError],
   )
 
+  /**
+   * The message is appended when its own broadcast comes back, not here: the server decides the sequence, the id
+   * and the timestamp, so a locally appended copy would have to be reconciled with the real one.
+   */
+  const sendChatMessage = useCallback(
+    async (text: string): Promise<boolean> => {
+      const currentConnection = connectionRef.current
+
+      if (!currentConnection || !isConnectionConnected(currentConnection)) {
+        setChatError('Chat is unavailable while the game connection is down.')
+        return false
+      }
+
+      setChatSending(true)
+
+      try {
+        const result = await sendGameChatMessageOnHub(currentConnection, gameId, text)
+        if (!result.succeeded) {
+          setChatError(resolveGenericHubErrorMessage(result as IHubOperationResult<unknown>))
+          return false
+        }
+
+        setChatError(null)
+        return true
+      } catch (error) {
+        setChatError(error instanceof Error ? error.message : 'Sending the message failed.')
+        return false
+      } finally {
+        setChatSending(false)
+      }
+    },
+    [gameId, setChatError, setChatSending],
+  )
+
   const refreshGameState = useCallback(async (): Promise<boolean> => {
     const currentConnection = connectionRef.current
     if (!currentConnection || currentConnection.state !== HubConnectionState.Connected) {
@@ -568,6 +660,7 @@ function useGameHubState(
       respondToRedo,
       cancelRedo,
       getCardActionTargets: getCardActionTargetsForRequest,
+      sendChatMessage,
       refreshGameState,
     }),
     [
@@ -583,6 +676,7 @@ function useGameHubState(
       refreshGameState,
       requestRedo,
       respondToRedo,
+      sendChatMessage,
       submitHubIntent,
     ],
   )

@@ -52,6 +52,7 @@ const initialState = {
   isPhasePresentationPending: false,
   isActionLogOpen: false,
   isActionLogExpanded: false,
+  isGameChatOpen: false,
   isGameOverOverlayDismissed: false,
   retainedInteractiveAvailableActions: [],
   retainedIsActionBlocked: false,
@@ -140,11 +141,25 @@ export const useGameUIStore = create<IGameUIStoreState>()((set) => ({
     set((state) => ({
       isActionLogOpen: !state.isActionLogOpen,
       isActionLogExpanded: state.isActionLogOpen ? false : state.isActionLogExpanded,
+      isGameChatOpen: state.isActionLogOpen ? state.isGameChatOpen : false,
     })),
-  openActionLog: () => set({ isActionLogOpen: true }),
+  openActionLog: () => set({ isActionLogOpen: true, isGameChatOpen: false }),
   closeActionLog: () => set({ isActionLogOpen: false, isActionLogExpanded: false }),
   setActionLogExpanded: (value) =>
     set((state) => ({ isActionLogExpanded: resolveUpdate(value, state.isActionLogExpanded) })),
+  // Chat and the log share one column, so opening one closes the other rather than stacking two panes.
+  toggleGameChat: () =>
+    set((state) => {
+      const isOpening = !state.isGameChatOpen
+
+      return {
+        isGameChatOpen: isOpening,
+        isActionLogOpen: isOpening ? false : state.isActionLogOpen,
+        isActionLogExpanded: isOpening ? false : state.isActionLogExpanded,
+      }
+    }),
+  openGameChat: () => set({ isGameChatOpen: true, isActionLogOpen: false, isActionLogExpanded: false }),
+  closeGameChat: () => set({ isGameChatOpen: false }),
   dismissGameOverOverlay: () => set({ isGameOverOverlayDismissed: true }),
   setGameOverOverlayDismissed: (value) =>
     set((state) => ({ isGameOverOverlayDismissed: resolveUpdate(value, state.isGameOverOverlayDismissed) })),

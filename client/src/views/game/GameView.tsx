@@ -16,7 +16,7 @@ import {
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IAttackTargetingState, IEffectTargetingState, IGameLoaderData, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
-import { ActionLog, BottomHandReorderRow, EffectNoticeBanner, GameHandRow, GamePromptOverlay, GameOverOverlay, GameZones, MatchModifierBadge, PromptSelectionBanner, RedoConsentDialog, RedoWaitingBanner, SupportChainBubble } from '@/views/game/components'
+import { ActionLog, BottomHandReorderRow, EffectNoticeBanner, GameChatPanel, GameHandRow, GamePromptOverlay, GameOverOverlay, GameZones, MatchModifierBadge, PromptSelectionBanner, RedoConsentDialog, RedoWaitingBanner, SupportChainBubble } from '@/views/game/components'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
@@ -103,6 +103,7 @@ export function GameView() {
     requestRedo,
     respondToRedo,
     cancelRedo,
+    sendChatMessage,
   } = gameHubState
   const setActionError = useGameHubStore((state) => state.setActionError)
 
@@ -408,6 +409,12 @@ export function GameView() {
           authUserId={authUserId}
           cardById={derivedGameState.cardById}
           isConnected={isConnected}
+        />
+
+        <GameChatPanel
+          authUserId={authUserId}
+          isConnected={isConnected}
+          onSendMessage={sendChatMessage}
         />
 
         {gameOutcome && !isGameOverOverlayDismissed ? (

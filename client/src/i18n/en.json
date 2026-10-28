@@ -467,6 +467,16 @@
         "unknownEvent": "An event was recorded"
       }
     },
+    "chat": {
+      "heading": "Chat",
+      "empty": "No messages yet.",
+      "offline": "Reconnecting - messages will resume.",
+      "you": "You",
+      "opponent": "Opponent",
+      "placeholder": "Message your opponent",
+      "inputAria": "Chat message",
+      "sendAria": "Send the message"
+    },
     "supportChain": {
       "heading": "Support chain",
       "countOne": "1 activation",
@@ -541,11 +551,13 @@
       "cancelTargetAria": "Cancel target selection",
       "undoAria": "Undo action",
       "openLogAria": "Open log",
+      "openChatAria": "Open chat",
       "toggleThemeTooltip": "Toggle Theme",
       "cancelAttackTooltip": "Cancel Attack Target",
       "cancelTargetTooltip": "Cancel Target Selection",
       "undoTooltip": "Undo Action",
-      "openLogTooltip": "Open Log"
+      "openLogTooltip": "Open Log",
+      "openChatTooltip": "Open Chat"
     },
     "forfeit": {
       "title": "Forfeit the game?",

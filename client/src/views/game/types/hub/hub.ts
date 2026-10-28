@@ -58,5 +58,7 @@ export type IUseGameHubStateResult = {
   getCardActionTargets: (
     request: Omit<IGameCardActionTargetsRequest, 'playerId'>,
   ) => Promise<IGameCardActionTargetsResponse | null>
+  /** Posts one chat message; resolves false when the server refused it or the call failed. */
+  sendChatMessage: (text: string) => Promise<boolean>
   refreshGameState: () => Promise<boolean>
 }
