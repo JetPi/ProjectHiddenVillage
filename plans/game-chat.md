@@ -98,6 +98,10 @@ Client
   `isGameChatOpen`, `toggleGameChat`, `closeGameChat` (same shape as the action-log flags).
 - `client/src/views/game/components/SidebarButtons.tsx` — `MessageSquare` button with unread dot,
   `data-testid="game-chat-toggle"`, next to the log button.
+- `client/src/views/game/hooks/GameView/useHasRoomForChatColumn.ts` — the `matchMedia` dock decision, used by the
+  panel, the action log (bottom offset) and the sidebar (whether the button exists at all).
+- `client/src/views/game/utils/contants.ts` — the strip height, the dock breakpoint and the log's bottom offsets.
+- `client/src/views/game/components/ActionLog.tsx` — stops above the docked strip.
 - `client/src/views/game/components/index.ts` — barrel export.
 - `client/src/views/game/GameView.tsx` — render `<GameChatPanel />` beside `<ActionLog />`.
 - `client/src/i18n/en.json` — `game.chat.*` block plus `game.sidebar.openChatAria` / `toggleChatTooltip`.
@@ -106,8 +110,18 @@ Client
 
 ## Panel behaviour
 
-- Compact column only, no expanded mode in v1: an overlay that buries a waiting prompt is the documented
-  hazard the action log already had to solve.
+- A short strip in the bottom-right corner (`GAME_CHAT_PANEL_HEIGHT_REM`, about the hand row), not a column:
+  an overlay that buries a waiting prompt is the documented hazard the action log already had to solve.
+- Docked only while it clears the board: the strip is fixed to the viewport's right edge and the board is
+  centred, so `useHasRoomForChatColumn` measures the board's rect against the strip's would-be rect (width + gap +
+  clearance) - and re-measures on a window or board resize. With room the panel is always on screen and the
+  sidebar has no chat button; without it the panel starts hidden and the button (with the unread dot) is the only
+  way in, so nothing is covered unless the player asks for it. On a 1280px window the board plus a 252px strip do
+  not fit, so that case is the button; it takes roughly 1590px to dock.
+- The measurement runs in `useLayoutEffect`, so the first correction lands before paint and the strip never
+  flashes over the board for a frame.
+- While docked, the compact action log stops above the strip (`ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_REM`), so the
+  two HUD panels never overlap; the narrow mode keeps the existing one-slot mutual exclusion.
 - Follow the newest message only while the reader is already at the bottom (same threshold idea as the log).
 - Composer: Enter sends, Shift+Enter newline, `maxLength` = cap, disabled while `!isConnected || isSending`;
   character counter appears past 80% of the cap.
@@ -149,9 +163,11 @@ Hub (`GamesHubNormalizationTests` additions)
 
 e2e (`gameview.multiplayer.chat.spec.ts`)
 
-- A message from one page reaches the other, badges as unread while the panel is closed, and shows the right
-  ownership on both sides.
-- Chat stays out of the action log, and opening the log closes the chat panel.
+- On a 1680px viewport the panel is docked (`data-dock="docked"`) with no sidebar button, a message from one page
+  reaches the other with the right ownership on both sides, and the opened action log sits entirely above the strip
+  instead of over it.
+- At the default 1280px viewport the panel is absent and the sidebar button is offered instead; widening the same
+  page docks it and its left edge clears the board's right edge.
 - A reload keeps the backlog; over-length and blank sends are refused by the server; helper connections can read
   the history.
 
@@ -161,8 +177,9 @@ e2e (`gameview.multiplayer.chat.spec.ts`)
 npm run typecheck      # clean
 npm run lint           # clean
 npm run test:server    # 910 passed
-npx playwright test gameview.multiplayer.chat.spec.ts               # 2 passed
-npx playwright test gameview.spec.ts gameview.multiplayer.action-log.spec.ts   # 7 passed
+npx playwright test gameview.multiplayer.chat.spec.ts               # 3 passed
+npx playwright test gameview.spec.ts gameview.multiplayer.action-log.spec.ts gameview.multiplayer.prompts.spec.ts
+                       # 11 passed
 ```
 
 Do not run the build/test commands while `npm run dev` is live (the watch process holds the server output DLL).

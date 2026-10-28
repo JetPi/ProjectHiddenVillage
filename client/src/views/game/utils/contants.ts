@@ -39,6 +39,20 @@ const HUD_PANEL_WIDTH_CLASS = 'w-[252px] max-w-[46vw]'
 const ACTION_LOG_COMPACT_TOP_REM = SUPPORT_CHAIN_TOP_REM + SUPPORT_CHAIN_PANEL_MAX_HEIGHT_REM + 0.5
 // Below this the compact log would be a sliver; it collapses to scrolling inside a floor instead.
 const ACTION_LOG_COMPACT_MIN_HEIGHT_REM = 7
+const ACTION_LOG_COMPACT_BOTTOM_REM = 0.5
+
+// The chat is a strip in the bottom-right corner, about the height of the hand row, not a column.
+//
+// It only docks there while it would clear the board: the panel is fixed and the board is centred, so on a viewport
+// that cannot give the strip its own margin the panel would hang over the zones. There it hides behind the
+// sidebar's chat button instead. While the chat is docked the action log stops above it, so the two HUD panels
+// never overlap.
+const GAME_CHAT_PANEL_WIDTH_PX = 252
+const GAME_CHAT_PANEL_GAP_PX = 8
+const GAME_CHAT_PANEL_CLEARANCE_PX = 8
+const GAME_CHAT_PANEL_HEIGHT_REM = 9
+const GAME_CHAT_COLUMN_GAP_REM = 0.5
+const ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_REM = GAME_CHAT_PANEL_HEIGHT_REM + (2 * GAME_CHAT_COLUMN_GAP_REM)
 
 export {
   GAME_CARD_PRELOAD_POLL_INTERVAL_MS,
@@ -53,6 +67,13 @@ export {
   HUD_PANEL_WIDTH_CLASS,
   ACTION_LOG_COMPACT_TOP_REM,
   ACTION_LOG_COMPACT_MIN_HEIGHT_REM,
+  ACTION_LOG_COMPACT_BOTTOM_REM,
+  ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_REM,
+  GAME_CHAT_PANEL_WIDTH_PX,
+  GAME_CHAT_PANEL_GAP_PX,
+  GAME_CHAT_PANEL_CLEARANCE_PX,
+  GAME_CHAT_PANEL_HEIGHT_REM,
+  GAME_CHAT_COLUMN_GAP_REM,
   DRAW_TO_HAND_STAGGER_MS,
   DRAW_TO_HAND_REVEAL_DELAY_MS,
   HAND_TO_PILE_STAGGER_MS,

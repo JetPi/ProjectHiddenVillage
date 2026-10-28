@@ -5,6 +5,7 @@ import type { IGameZonesProps } from "@/views/game/types";
 import { AppButton } from "@/components/ui";
 import { useGameChatStore } from "@/state/gameChatStore";
 import { useGameUIStore } from "@/state/gameUIStore";
+import { useHasRoomForChatColumn } from "@/views/game/hooks";
 import { ForfeitConfirmDialog } from './ForfeitConfirmDialog'
 
 // Tooltips are rendered outside the sidebar's own column, straight over the board, so they need both an opaque
@@ -23,6 +24,8 @@ export function SideBarButtons(props: IGameZonesProps){
     const isGameChatOpen = useGameUIStore((state) => state.isGameChatOpen)
     const toggleGameChat = useGameUIStore((state) => state.toggleGameChat)
     const unreadChatCount = useGameChatStore((state) => state.unreadCount)
+    // With room for the docked panel the chat is always on screen, so there is nothing to toggle.
+    const hasRoomForChat = useHasRoomForChatColumn()
     const [isForfeitDialogOpen, setIsForfeitDialogOpen] = useState(false)
     const [isForfeiting, setIsForfeiting] = useState(false)
 
@@ -185,30 +188,32 @@ export function SideBarButtons(props: IGameZonesProps){
           </span>
         </div>
 
-        <div className="group relative">
-          {/* Chat, like the log, is not a game action: it stays available while the board is frozen. */}
-          <AppButton
-            type="button"
-            variant="ghost"
-            data-testid="game-chat-toggle"
-            aria-label={t('game.sidebar.openChatAria')}
-            aria-pressed={isGameChatOpen}
-            onClick={toggleGameChat}
-            className="relative h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-          >
-            <MessageSquare size={10} />
-            {unreadChatCount > 0 && !isGameChatOpen ? (
-              <span
-                data-testid="game-chat-unread"
-                aria-hidden="true"
-                className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-orange-400"
-              />
-            ) : null}
-          </AppButton>
-          <span className={SIDEBAR_TOOLTIP_CLASS_NAME}>
-            {t('game.sidebar.openChatTooltip')}
-          </span>
-        </div>
+        {hasRoomForChat ? null : (
+          <div className="group relative">
+            {/* Chat, like the log, is not a game action: it stays available while the board is frozen. */}
+            <AppButton
+              type="button"
+              variant="ghost"
+              data-testid="game-chat-toggle"
+              aria-label={t('game.sidebar.openChatAria')}
+              aria-pressed={isGameChatOpen}
+              onClick={toggleGameChat}
+              className="relative h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+            >
+              <MessageSquare size={10} />
+              {unreadChatCount > 0 && !isGameChatOpen ? (
+                <span
+                  data-testid="game-chat-unread"
+                  aria-hidden="true"
+                  className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-orange-400"
+                />
+              ) : null}
+            </AppButton>
+            <span className={SIDEBAR_TOOLTIP_CLASS_NAME}>
+              {t('game.sidebar.openChatTooltip')}
+            </span>
+          </div>
+        )}
       </div>
 
       {isForfeitDialogOpen ? (

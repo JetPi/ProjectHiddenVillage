@@ -8,9 +8,10 @@ import { useGameChatStore } from '@/state/gameChatStore'
 import { useGameUIStore } from '@/state/gameUIStore'
 import type { IGameChatMessage } from '@/services/api/types/gameChat'
 import type { IGameChatPanelProps } from '@/views/game/types'
+import { useHasRoomForChatColumn } from '@/views/game/hooks'
 import {
-  ACTION_LOG_COMPACT_MIN_HEIGHT_REM,
-  ACTION_LOG_COMPACT_TOP_REM,
+  ACTION_LOG_COMPACT_BOTTOM_REM,
+  GAME_CHAT_PANEL_HEIGHT_REM,
   HUD_PANEL_WIDTH_CLASS,
 } from '@/views/game/utils/contants'
 
@@ -38,8 +39,10 @@ function formatSentAt(sentAtUtc: string): string {
 /**
  * The player chat.
  *
- * Compact column only: an overlay that could cover a waiting prompt is the hazard the action log had to solve, and
- * chat has no reason to take that risk. It and the log share one slot, which the UI store enforces.
+ * A short strip in the bottom-right corner, about the height of the hand row: an overlay that grows over the board
+ * is the hazard the action log had to solve, and chat has no reason to take that risk. Where the board has room it
+ * is always on screen and the sidebar offers no button for it; where it does not, the button is the only way in and
+ * the log and the chat share one slot, which the UI store enforces.
  */
 function GameChatPanel({ authUserId, isConnected, onSendMessage }: IGameChatPanelProps) {
   const { t } = useTranslation()
@@ -49,32 +52,35 @@ function GameChatPanel({ authUserId, isConnected, onSendMessage }: IGameChatPane
   const isSending = useGameChatStore((state) => state.isSending)
   const error = useGameChatStore((state) => state.error)
   const clearUnread = useGameChatStore((state) => state.clearUnread)
+  const hasRoom = useHasRoomForChatColumn()
 
   const [draft, setDraft] = useState('')
   const listRef = useRef<HTMLOListElement | null>(null)
   const isPinnedToNewestRef = useRef(true)
 
+  const isVisible = hasRoom || isOpen
   const isCounterVisible = draft.length >= GAME_CHAT_MAX_TEXT_LENGTH * COUNTER_VISIBILITY_RATIO
   const canSend = isConnected && !isSending && draft.trim().length > 0
 
   useEffect(() => {
-    if (isOpen) {
+    if (isVisible) {
       clearUnread()
     }
-  }, [clearUnread, isOpen, messages.length])
+  }, [clearUnread, isVisible, messages.length])
 
   // Follow the newest message, but only while the reader is already at the bottom.
   useEffect(() => {
     const list = listRef.current
-    if (!isOpen || !list || !isPinnedToNewestRef.current) {
+    if (!isVisible || !list || !isPinnedToNewestRef.current) {
       return
     }
 
     list.scrollTop = list.scrollHeight
-  }, [isOpen, messages.length])
+  }, [isVisible, messages.length])
 
+  // A docked panel has no close affordance, so Escape belongs to the toggled one only.
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || hasRoom) {
       return
     }
 
@@ -89,7 +95,7 @@ function GameChatPanel({ authUserId, isConnected, onSendMessage }: IGameChatPane
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [closeGameChat, isOpen])
+  }, [closeGameChat, hasRoom, isOpen])
 
   const handleScroll = () => {
     const list = listRef.current
@@ -123,17 +129,17 @@ function GameChatPanel({ authUserId, isConnected, onSendMessage }: IGameChatPane
     [authUserId, messages],
   )
 
-  if (!isOpen) {
+  if (!isVisible) {
     return null
   }
 
   return (
     <div
       data-testid="game-chat-panel"
+      data-dock={hasRoom ? 'docked' : 'toggled'}
       style={{
-        top: `${ACTION_LOG_COMPACT_TOP_REM}rem`,
-        bottom: '0.5rem',
-        minHeight: `${ACTION_LOG_COMPACT_MIN_HEIGHT_REM}rem`,
+        bottom: `${ACTION_LOG_COMPACT_BOTTOM_REM}rem`,
+        height: `${GAME_CHAT_PANEL_HEIGHT_REM}rem`,
       }}
       className={twMerge(
         'fixed right-2 z-30 flex flex-col overflow-hidden rounded-xl border border-cyan-300/45 bg-slate-950/92 text-[10px] leading-tight text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm',

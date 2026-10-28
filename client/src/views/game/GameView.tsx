@@ -269,6 +269,7 @@ export function GameView() {
     >
       <MotionConfig reducedMotion="user">
       <div
+        data-game-board="true"
         className={`mx-auto h-full min-h-0 w-full overflow-visible gap-1.5 rounded-2xl ${GAMEBOARD_MAX_WIDTH_CLASS} ${GAMEBOARD_COLUMNS_CLASS}`}
       >
         {/* Only the table's modifiers ride here as a solid overlay. The format name and join code keep their
