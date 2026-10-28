@@ -43,6 +43,16 @@ public sealed partial class GamesHub
                 description: "Cannot act while a phase presentation is pending.");
         }
 
+        // A redo is waiting for the opponent to agree: the board is frozen so the point it would return to cannot
+        // move. The answer and the withdrawal have their own paths (see GamesHub.RedoActions) for the same reason
+        // the acknowledgement does.
+        if (gameResult.Value.PendingRedoRequest is not null)
+        {
+            return HubOperationResult<GameStateResponse>.Failure(
+                code: "Game.Redo.Pending",
+                description: "Cannot act while a redo request is waiting for an answer.");
+        }
+
         ErrorOr<GameInstance> result;
 
         try

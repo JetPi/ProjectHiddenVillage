@@ -458,6 +458,10 @@
         "supportActivationFailed": "A support activation fizzled",
         "leaderAbilityUsed": "{{actor}} used {{card}}'s ability",
         "characterAbilityUsed": "{{actor}} used {{card}}'s ability",
+        "redoRequested": "{{actor}} asked to take a move back",
+        "redoAccepted": "{{actor}} agreed to take the move back",
+        "redoDeclined": "{{actor}} declined taking the move back",
+        "redoWithdrawn": "The redo request did not go through",
         "clockTimedOut": "{{actor}} ran out of time",
         "gameEnded": "The game ended",
         "unknownEvent": "An event was recorded"
@@ -549,6 +553,19 @@
       "confirm": "Forfeit",
       "resigning": "Forfeiting…",
       "cancel": "Keep playing"
+    },
+    "redo": {
+      "sidebarAria": "Ask to take the last move back",
+      "sidebarTooltip": "Take Back Move",
+      "requestTitle": "Take the move back?",
+      "requestBody": "Both players have to agree before the board goes back.",
+      "waitingTitle": "Waiting for your opponent",
+      "waitingBody": "The board will go back as soon as they agree.",
+      "accept": "Agree",
+      "decline": "Keep playing",
+      "cancel": "Withdraw request",
+      "requesting": "Asking…",
+      "answering": "Answering…"
     },
     "actionRow": {
       "cancel": "Cancel",

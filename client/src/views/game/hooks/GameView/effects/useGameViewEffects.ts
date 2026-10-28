@@ -13,6 +13,7 @@ import type {
   IPlayerCardZoneInstanceIds,
   IRevalidatorState,
   IUseAdoptRecordedAnimationEventsOnMountArgs,
+  IUseAdoptRewindPushArgs,
   IUseCardMoveGhostAnimationEffectArgs,
   IUseHandZoneAnimationEffectsArgs,
   IUsePhasePresentationAckEffectArgs,
@@ -138,6 +139,46 @@ function useAdoptRecordedAnimationEventsOnMount({
       animControllerRef.current.handledAnimationEventIds.add(animationEvent.eventId)
     }
   }, [animationEvents, animControllerRef])
+}
+
+/**
+ * An approved redo hands the board a position it did not reach by moving: the restored payload's movement tail is
+ * history the client already played. The mount rule is applied again on the push that changed `lastRewindId`, and
+ * the previous hand snapshot is dropped, so cards the rewind put back are painted where they now belong instead of
+ * flying into a hand that already holds them.
+ */
+function useAdoptRewindPush({
+  lastRewindId,
+  animationEvents,
+  animControllerRef,
+}: IUseAdoptRewindPushArgs): void {
+  const lastSeenRewindIdRef = useRef<string | null>(lastRewindId ?? null)
+
+  useLayoutEffect(() => {
+    const nextRewindId = lastRewindId ?? null
+
+    if (lastSeenRewindIdRef.current === nextRewindId) {
+      return
+    }
+
+    lastSeenRewindIdRef.current = nextRewindId
+
+    const animController = animControllerRef.current
+
+    for (const animationEvent of animationEvents ?? []) {
+      animController.handledAnimationEventIds.add(animationEvent.eventId)
+    }
+
+    animController.previousHandZoneSnapshot = {
+      topHandInstanceIds: new Set(),
+      bottomHandInstanceIds: new Set(),
+      topDeckCount: 0,
+      bottomDeckCount: 0,
+      topTrashCount: 0,
+      bottomTrashCount: 0,
+      isInitialized: false,
+    }
+  }, [animationEvents, animControllerRef, lastRewindId])
 }
 
 function snapshotRenderedCardGhosts({
@@ -1197,6 +1238,7 @@ function usePhasePresentationAckEffect({
 export {
   useIdleRevalidationPoll,
   useAdoptRecordedAnimationEventsOnMount,
+  useAdoptRewindPush,
   useCardCatalogPreload,
   useHandZoneAnimationEffects,
   useCardMoveGhostAnimationEffect,

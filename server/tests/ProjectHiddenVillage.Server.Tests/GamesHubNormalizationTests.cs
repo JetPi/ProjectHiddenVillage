@@ -204,6 +204,7 @@ public sealed class GamesHubNormalizationTests
         var hub = new GamesHub(
             instanceService,
             phaseHandlingService,
+            new StubGameRedoHandlingService(),
             gameReadService,
             new GamePresenceTracker(),
             NullLogger<GamesHub>.Instance)
@@ -329,6 +330,22 @@ public sealed class GamesHubNormalizationTests
         public Task<ErrorOr<GameInstance>> JoinGameForUser(string gameCode, JoinGameAsPlayer request)
             => JoinHandler?.Invoke(gameCode, request)
                ?? throw new InvalidOperationException("JoinHandler not configured.");
+    }
+
+    private sealed class StubGameRedoHandlingService : IGameRedoHandlingService
+    {
+        public ErrorOr<GameInstance> RequestRedo(string gameId, string playerId)
+            => throw new NotImplementedException();
+
+        public ErrorOr<GameInstance> RespondToRedo(string gameId, string playerId, string requestId, bool accepted)
+            => throw new NotImplementedException();
+
+        public ErrorOr<GameInstance> CancelRedo(string gameId, string playerId)
+            => throw new NotImplementedException();
+
+        // A disconnect releases whatever request was outstanding; these tests never raise one.
+        public ErrorOr<GameInstance> ReleaseRedoRequest(string gameId, string playerId)
+            => Error.NotFound(code: "Game.ReleaseRedoRequest.NotFound", description: "stub");
     }
 
     private sealed class StubGamePhaseHandlingService : IGamePhaseHandlingService

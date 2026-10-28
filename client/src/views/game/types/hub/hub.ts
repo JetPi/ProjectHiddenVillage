@@ -49,6 +49,12 @@ export type IUseGameHubStateResult = {
   acknowledgePhasePresentation: (presentationId: string) => Promise<boolean>
   /** Ends the game on this player's own request; resolves false when the server refused or the call failed. */
   forfeitGame: () => Promise<boolean>
+  /** Asks the opponent to let the board go back one move; resolves false when the server refused the request. */
+  requestRedo: () => Promise<boolean>
+  /** Answers the opponent's redo request; resolves false when the server refused or the call failed. */
+  respondToRedo: (requestId: string, accepted: boolean) => Promise<boolean>
+  /** Withdraws this player's own redo request; a request that is already gone is not an error. */
+  cancelRedo: () => Promise<boolean>
   getCardActionTargets: (
     request: Omit<IGameCardActionTargetsRequest, 'playerId'>,
   ) => Promise<IGameCardActionTargetsResponse | null>

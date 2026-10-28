@@ -16,7 +16,7 @@ import {
 import { toPromptPresentation } from '@/views/game/utils/functions/prompts'
 import type { IAttackTargetingState, IEffectTargetingState, IGameLoaderData, ISummonTargetingState } from '@/views/game/types'
 import type { IGameActionOptionResponse } from '@/services/api/types/game'
-import { ActionLog, BottomHandReorderRow, EffectNoticeBanner, GameHandRow, GamePromptOverlay, GameOverOverlay, GameZones, MatchModifierBadge, PromptSelectionBanner, SupportChainBubble } from '@/views/game/components'
+import { ActionLog, BottomHandReorderRow, EffectNoticeBanner, GameHandRow, GamePromptOverlay, GameOverOverlay, GameZones, MatchModifierBadge, PromptSelectionBanner, RedoConsentDialog, RedoWaitingBanner, SupportChainBubble } from '@/views/game/components'
 import {
   GAMEBOARD_MAX_WIDTH_CLASS,
   GAMEBOARD_COLUMNS_CLASS,
@@ -40,6 +40,14 @@ import {
   useGameCardsBackfill,
   useGameViewSideEffects
 } from '@/views/game/hooks'
+
+function isSamePlayerId(left: string | null | undefined, right: string | null | undefined): boolean {
+  const normalize = (value: string | null | undefined): string =>
+    (value ?? '').trim().toLowerCase().replace(/-/g, '')
+  const normalizedLeft = normalize(left)
+
+  return normalizedLeft.length > 0 && normalizedLeft === normalize(right)
+}
 
 export function GameView() {
   const { t } = useTranslation()
@@ -92,6 +100,9 @@ export function GameView() {
     submitHubIntent,
     getCardActionTargets,
     forfeitGame,
+    requestRedo,
+    respondToRedo,
+    cancelRedo,
   } = gameHubState
   const setActionError = useGameHubStore((state) => state.setActionError)
 
@@ -166,8 +177,13 @@ export function GameView() {
     setBottomBattlefieldDisplayOrder,
   })
 
+  const pendingRedo = gameOutcome === null ? gameState.pendingRedo ?? null : null
+  const isRedoPending = pendingRedo !== null
+  const isAnsweringRedo = pendingRedo !== null && isSamePlayerId(pendingRedo.approverPlayerId, authUserId)
+  const isWaitingForRedoAnswer = isRedoPending && !isAnsweringRedo
+
   const { isHolding } = useRetainedPhaseActionSource(mappedAvailableActions)
-  const { isActionBlocked } = useRetainedActionBlocked(!isConnected || isActionPending)
+  const { isActionBlocked } = useRetainedActionBlocked(!isConnected || isActionPending || isRedoPending)
 
   function beginBattleTargeting(targeting: IAttackTargetingState): void {
     setActiveAttackLink(null)
@@ -327,6 +343,7 @@ export function GameView() {
               onConfirmEffectTargetSelection={submitEffectTargetSelection}
               onToggleTheme={toggleTheme}
               onForfeit={forfeitGame}
+              onRequestRedo={requestRedo}
             />
 
             <BottomHandReorderRow
@@ -364,6 +381,22 @@ export function GameView() {
         <PromptSelectionBanner
           promptKey={shouldShowPromptSelectionBanner ? gameState.pendingPrompt?.promptId ?? null : null}
           title={shouldShowPromptSelectionBanner ? promptPresentation?.title ?? null : null}
+        />
+
+        <RedoWaitingBanner
+          isOpen={isWaitingForRedoAnswer}
+          onCancel={cancelRedo}
+        />
+
+        <RedoConsentDialog
+          isOpen={isAnsweringRedo}
+          onRespond={async (accepted) => {
+            if (!pendingRedo) {
+              return false
+            }
+
+            return respondToRedo(pendingRedo.requestId, accepted)
+          }}
         />
 
         <SupportChainBubble gameInstance={gameState} authUserId={authUserId} />

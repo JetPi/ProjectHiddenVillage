@@ -7,7 +7,7 @@ using ProjectHiddenVillage.Server.Engine;
 
 namespace ProjectHiddenVillage.Server;
 
-public sealed class InMemoryGameInstanceRegistry
+public sealed partial class InMemoryGameInstanceRegistry
 {
     private const int GameCodeLength = 5;
     // Upper case only, deliberately. The hub normalizes every incoming game id with
@@ -66,6 +66,7 @@ public sealed class InMemoryGameInstanceRegistry
     private readonly IGamePresenceTracker? presenceTracker;
     private readonly IGameStateBroadcaster? stateBroadcaster;
     private readonly GameClockOptions clockOptions;
+    private readonly GameRedoOptions redoOptions;
     private readonly TimeProvider timeProvider;
 
     public InMemoryGameInstanceRegistry(
@@ -75,7 +76,8 @@ public sealed class InMemoryGameInstanceRegistry
         IGamePresenceTracker? presenceTracker = null,
         IGameStateBroadcaster? stateBroadcaster = null,
         GameClockOptions? clockOptions = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        GameRedoOptions? redoOptions = null)
     {
         this.factory = factory;
         this.phaseService = phaseService;
@@ -88,6 +90,7 @@ public sealed class InMemoryGameInstanceRegistry
         // Timers are driven by the injected clock, not the ambient one, so the timeout paths can be tested by
         // advancing a fake clock instead of waiting for real minutes to pass.
         this.clockOptions = clockOptions ?? new GameClockOptions();
+        this.redoOptions = redoOptions ?? new GameRedoOptions();
         this.timeProvider = timeProvider ?? TimeProvider.System;
         runtimeDeckService = new Api.Services.Games.GameRuntimeDeckService(new GameEffectHandlingService());
     }
@@ -208,7 +211,9 @@ public sealed class InMemoryGameInstanceRegistry
         lock (instance)
         {
             GameEndRules.ThrowIfGameOver(instance.State);
+            ThrowIfRedoRequestPending(instance);
 
+            var rewindPoint = CaptureRedoPoint(instance, requestedPlayerId);
             var phaseBeforeResolve = instance.State.Phase;
             // Captured before resolving: the continuation lives on the prompt, which the resolve dequeues.
             var resolvedPrompt = instance.GetPendingPrompt();
@@ -228,6 +233,7 @@ public sealed class InMemoryGameInstanceRegistry
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
             SyncClock(instance, requestedPlayerId);
+            CommitRedoPoint(instance, rewindPoint);
             return instance;
         }
     }
@@ -334,12 +340,14 @@ public sealed class InMemoryGameInstanceRegistry
         lock (instance)
         {
             GameEndRules.ThrowIfGameOver(instance.State);
+            ThrowIfRedoRequestPending(instance);
 
             if (instance.GetPendingPrompt() is not null)
             {
                 throw new InvalidOperationException("Cannot advance phase while a prompt is pending.");
             }
 
+            var rewindPoint = CaptureRedoPoint(instance, instance.State.ActivePlayerId);
             var previousPhase = instance.State.Phase;
             phaseService.AdvancePhase(instance);
             // Leaving the cut-in ActionStep closes the window, so anything still pending resolves now.
@@ -355,6 +363,7 @@ public sealed class InMemoryGameInstanceRegistry
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
             SyncClock(instance);
+            CommitRedoPoint(instance, rewindPoint);
             return instance;
         }
     }
@@ -370,7 +379,9 @@ public sealed class InMemoryGameInstanceRegistry
         lock (instance)
         {
             GameEndRules.ThrowIfGameOver(instance.State);
+            ThrowIfRedoRequestPending(instance);
 
+            var rewindPoint = CaptureRedoPoint(instance, playerId);
             var previousPhase = instance.State.Phase;
 
             // MainPhase support reactions reuse the pass mechanism: a single decline by the priority
@@ -390,6 +401,7 @@ public sealed class InMemoryGameInstanceRegistry
                 instance.ValidateInvariants();
                 EvaluateGameEnd(instance);
                 SyncClock(instance, playerId);
+                CommitRedoPoint(instance, rewindPoint);
                 return instance;
             }
 
@@ -410,6 +422,7 @@ public sealed class InMemoryGameInstanceRegistry
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
             SyncClock(instance, playerId);
+            CommitRedoPoint(instance, rewindPoint);
             return instance;
         }
     }
@@ -421,13 +434,16 @@ public sealed class InMemoryGameInstanceRegistry
         lock (instance)
         {
             GameEndRules.ThrowIfGameOver(instance.State);
+            ThrowIfRedoRequestPending(instance);
 
+            var rewindPoint = CaptureRedoPoint(instance, playerId);
             phaseService.DeclareActionInActionStep(instance, playerId);
             AutoAdvanceMainPhaseIfNoLegalActions(instance);
             DrainIdlePhases(instance);
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
             SyncClock(instance, playerId);
+            CommitRedoPoint(instance, rewindPoint);
             return instance;
         }
     }
@@ -446,6 +462,9 @@ public sealed class InMemoryGameInstanceRegistry
         lock (instance)
         {
             GameEndRules.ThrowIfGameOver(instance.State);
+            ThrowIfRedoRequestPending(instance);
+
+            var rewindPoint = CaptureRedoPoint(instance, request.PlayerId);
 
             if (instance.GetPendingPrompt() is not null)
             {
@@ -532,6 +551,7 @@ public sealed class InMemoryGameInstanceRegistry
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
             SyncClock(instance, request.PlayerId);
+            CommitRedoPoint(instance, rewindPoint);
             return instance;
         }
     }
@@ -784,6 +804,9 @@ public sealed class InMemoryGameInstanceRegistry
         lock (instance)
         {
             GameEndRules.ThrowIfGameOver(instance.State);
+            ThrowIfRedoRequestPending(instance);
+
+            var rewindPoint = CaptureRedoPoint(instance, instance.State.ActivePlayerId);
 
             // Leaving the MainPhase closes any open support reaction window.
             ResolvePendingActivations(instance, sequentialEffectExecutor);
@@ -793,6 +816,7 @@ public sealed class InMemoryGameInstanceRegistry
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
             SyncClock(instance, instance.State.ActivePlayerId);
+            CommitRedoPoint(instance, rewindPoint);
             return instance;
         }
     }
@@ -807,9 +831,11 @@ public sealed class InMemoryGameInstanceRegistry
         lock (instance)
         {
             GameEndRules.ThrowIfGameOver(instance.State);
+            ThrowIfRedoRequestPending(instance);
 
             // The player whose turn is ending: the clock must credit the input to them before the turn swaps.
             var completingPlayerId = instance.State.ActivePlayerId;
+            var rewindPoint = CaptureRedoPoint(instance, completingPlayerId);
 
             // A turn can never end with an activation still waiting to resolve.
             ResolvePendingActivations(instance, sequentialEffectExecutor);
@@ -819,6 +845,7 @@ public sealed class InMemoryGameInstanceRegistry
             instance.ValidateInvariants();
             EvaluateGameEnd(instance);
             SyncClock(instance, completingPlayerId);
+            CommitRedoPoint(instance, rewindPoint);
             return instance;
         }
     }
@@ -3148,11 +3175,13 @@ public sealed class InMemoryGameInstanceRegistry
                 throw new InvalidOperationException($"Player '{playerId}' was not found in game.");
             }
 
-            // Nothing may outlive the game: the stop in progress, the presentation the clients owe an ack for, and
-            // the acknowledgement watchdog that would otherwise fire on a finished table.
+            // Nothing may outlive the game: the stop in progress, the presentation the clients owe an ack for, a
+            // redo request nobody can answer now, and the watchdogs that would otherwise fire on a finished table.
             ClearClockWatchdog(instance.Id);
             ClearPresentationWatchdog(instance.Id);
+            ClearRedoWatchdog(instance.Id);
             instance.ClearPhasePresentation();
+            instance.ClearRedoRequest();
             instance.StopClock();
 
             GameEndRules.ResolveForfeit(instance.State, playerId, GameEndReason.Resigned);

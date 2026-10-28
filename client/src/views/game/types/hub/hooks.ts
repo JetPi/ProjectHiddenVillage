@@ -94,6 +94,13 @@ export type IUseAdoptRecordedAnimationEventsOnMountArgs = {
   animControllerRef: RefObject<IGameViewAnimController>
 }
 
+export type IUseAdoptRewindPushArgs = {
+  /** Changes only when an approved redo moved the board: that push is a position, not a sequence of moves. */
+  lastRewindId?: string | null
+  animationEvents?: IAnimationEventResponse[] | null
+  animControllerRef: RefObject<IGameViewAnimController>
+}
+
 export type IUseSupportSummonFlightEffectArgs = {
   boardZoneRef: RefObject<HTMLDivElement | null>
   /**

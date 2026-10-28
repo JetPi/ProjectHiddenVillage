@@ -83,6 +83,15 @@ builder.Services.AddSingleton(serviceProvider =>
         .Bind(options);
     return options;
 });
+// Taking a move back: the kill switch, the consent timeout and how deep a rewind chain may go.
+builder.Services.AddSingleton(serviceProvider =>
+{
+    var options = new ProjectHiddenVillage.Server.Engine.GameRedoOptions();
+    serviceProvider.GetRequiredService<IConfiguration>()
+        .GetSection(ProjectHiddenVillage.Server.Engine.GameRedoOptions.SectionName)
+        .Bind(options);
+    return options;
+});
 builder.Services.AddScoped<IGameEffectContextConditionEvaluator, EffectContextConditionEvaluator>();
 builder.Services.AddScoped<IGameEffectTargetResolver, EffectTargetResolver>();
 builder.Services.AddScoped<IGameRuntimeEffectSpecResolver, GameRuntimeEffectSpecResolver>();
@@ -113,6 +122,7 @@ builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGame
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameEffectTargetSpecificationRegistry, ProjectHiddenVillage.Server.Api.Services.Games.GameEffectTargetSpecificationRegistry>();
 builder.Services.AddScoped<IGameRuntimeDeckService, GameRuntimeDeckService>();
 builder.Services.AddScoped<IGamePhaseHandlingService, GamePhaseHandlingService>();
+builder.Services.AddScoped<IGameRedoHandlingService, GameRedoHandlingService>();
 builder.Services.AddScoped<IGameInstanceService, GameInstanceService>();
 builder.Services.AddSingleton<MatchmakingQueue>();
 builder.Services.AddScoped<IMatchmakingService, MatchmakingService>();

@@ -9,7 +9,7 @@ namespace ProjectHiddenVillage.Server;
 /// </summary>
 public sealed record GameRulesetBinding(Guid Id, string Key, string Name, GameClockPolicy Clock);
 
-public sealed class GameInstance
+public sealed partial class GameInstance
 {
     private static readonly IReadOnlyDictionary<GamePromptType, PromptTemplate> PromptTemplates =
         new Dictionary<GamePromptType, PromptTemplate>

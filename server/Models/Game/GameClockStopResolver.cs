@@ -49,6 +49,13 @@ public static class GameClockStopResolver
             return GameClockStop.None;
         }
 
+        // The table is frozen while a redo request waits for the other player's answer: no decision is being made,
+        // so neither side is charged for the deliberation.
+        if (instance.PendingRedoRequest is not null)
+        {
+            return GameClockStop.None;
+        }
+
         if (state.Players.Count < 2)
         {
             return GameClockStop.None;

@@ -390,6 +390,14 @@ covered by the bottom trash pile (`elementFromPoint` at the card's centre return
 | 35 / 36 | the attack-link arrow (`ATTACK_LINK_OVERLAY_Z_INDEX` / `ATTACK_LINK_HEAD_Z_INDEX`) |
 | 40 | transient banners and prompt modals (`GamePromptOverlay`, `CardListOverlay`, `PromptSelectionBanner`, notices) |
 | 50-70 | card preview, game over · 120: route transition |
+| 300 | floats that must clear every board layer: sidebar tooltips, the match-modifier badge |
+| 400 | the redo consent modal and its requester banner - a modal that freezes the table |
+
+- **A modal that freezes the table owns the upper half of the viewport.** The redo dialog is anchored with
+  `items-start pt-[18vh]` at `z-[400]`; centred at `z-[80]` it was painted *under* the turn banner and its own
+  title was clipped by it, which read as a broken overlay. Anything that must be answered before the board can be
+  touched goes above 300 and above the centre line, and `e2e/gameview.multiplayer.redo.spec.ts` asserts both the
+  placement (`box.y` in the upper half) and its wording, so a raw translation key cannot pass as a dialog.
 
 - **A card mounts *in* its pose; only a state change animates.** The rested tilt lives on a Motion wrapper
   (`BattleFieldRow`, `animate={{ rotate: isCardRested ? 14 : 0 }}`) and needs `initial={false}` - without it Motion

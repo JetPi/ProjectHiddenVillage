@@ -279,6 +279,21 @@ export type IGameStateResponse = {
   // Host-only table rules this game runs with (see GameModifierKeys on the server). Absent for a plain table and
   // always absent in quick match.
   modifiers?: string[] | null
+  // A redo waiting for the other player's answer. While it is set the table is frozen for both players.
+  pendingRedo?: IRedoRequestResponse | null
+  // The request whose approval moved the board. When it changes, the board paints the payload instead of animating
+  // the difference between the two positions.
+  lastRewindId?: string | null
+  // True when asking for a redo would actually go somewhere.
+  canRequestRedo?: boolean
+}
+
+export type IRedoRequestResponse = {
+  requestId: string
+  requestedByPlayerId: string
+  approverPlayerId: string
+  turnNumber: number
+  phase: string
 }
 
 export type IGameRulesetBindingResponse = {

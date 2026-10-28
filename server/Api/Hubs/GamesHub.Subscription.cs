@@ -33,7 +33,7 @@ public sealed partial class GamesHub
         }
 
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, NormalizeGameId(gameId));
-        ReleasePhasePresentationsForConnection(gamePresenceTracker.RemoveConnection(Context.ConnectionId));
+        ReleasePendingRequirementsForConnection(gamePresenceTracker.RemoveConnection(Context.ConnectionId));
     }
 
     /// <summary>
@@ -42,15 +42,15 @@ public sealed partial class GamesHub
     /// </summary>
     public override Task OnDisconnectedAsync(Exception? exception)
     {
-        ReleasePhasePresentationsForConnection(gamePresenceTracker.RemoveConnection(Context.ConnectionId));
+        ReleasePendingRequirementsForConnection(gamePresenceTracker.RemoveConnection(Context.ConnectionId));
         return base.OnDisconnectedAsync(exception);
     }
 
     /// <summary>
-    /// Releases a connection that went away from the phase presentations it was expected to acknowledge, so a
-    /// closed tab can never hold the table until the acknowledgement watchdog fires.
+    /// Releases a connection that went away from the phase presentations it was expected to acknowledge and from a
+    /// redo request it can no longer answer, so a closed tab can never hold the table until a watchdog fires.
     /// </summary>
-    private void ReleasePhasePresentationsForConnection(IReadOnlyList<GamePresenceAddress> watchedGames)
+    private void ReleasePendingRequirementsForConnection(IReadOnlyList<GamePresenceAddress> watchedGames)
     {
         if (watchedGames.Count == 0)
         {
@@ -76,6 +76,17 @@ public sealed partial class GamesHub
                     address.GameId,
                     result.FirstError.Code,
                     result.FirstError.Description);
+            }
+
+            var redoResult = gameRedoHandlingService.ReleaseRedoRequest(address.GameId, requesterIdResult.Value);
+
+            if (redoResult.IsError)
+            {
+                logger.LogWarning(
+                    "Releasing the redo request of game {GameId} failed: {ErrorCode} - {ErrorDescription}",
+                    address.GameId,
+                    redoResult.FirstError.Code,
+                    redoResult.FirstError.Description);
             }
         }
     }
