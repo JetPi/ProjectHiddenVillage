@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { twMerge } from 'tailwind-merge'
 import { AppButton, Panel } from '@/components/ui'
 import { CardImage } from '@/components/ui/cards'
+import { CARD_ART_ASPECT_CLASS, CARD_SIZES } from '@/components/ui/cards/constants'
 import { OVERLAY_ENTER_SPRING, OVERLAY_EXIT_TRANSITION } from '@/views/game/animation/tuning'
 import type { IGamePromptOverlayProps } from '@/views/game/types'
 
@@ -86,10 +87,11 @@ function GamePromptOverlayPanel({
                   title={card.displayName}
                   className="group flex flex-col items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-1 transition-colors duration-150 hover:border-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <span className="block aspect-[600/831] w-full overflow-hidden rounded">
+                  <span className={twMerge('block w-full overflow-hidden rounded', CARD_ART_ASPECT_CLASS)}>
                     <CardImage
                       card={card.card ?? null}
                       variant="board"
+                      sizes={CARD_SIZES.promptTile}
                       alt={card.displayName}
                       loading="eager"
                       className="h-full w-full object-cover"

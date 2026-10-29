@@ -30,8 +30,12 @@ public sealed class CardArtServiceTests
     public async Task ResolveAsync_ServesTheMasterItselfAtTheCapWidth()
     {
         using var fixture = await ArtFixture.CreateAsync();
+        // The cap comes from the configured ladder, not from a literal: it moved from 600 to 900 when the board
+        // started asking for a denser file on high-DPR screens, and this test is about the "at or above the cap"
+        // rule rather than about any particular number.
+        var capWidth = new CardArtOptions().ResolveMasterWidth();
 
-        var payload = await fixture.Service.ResolveAsync(CardId, 600, Version, CancellationToken.None);
+        var payload = await fixture.Service.ResolveAsync(CardId, capWidth, Version, CancellationToken.None);
 
         Assert.IsNotNull(payload);
         var servedBytes = await ReadAsync(payload!);

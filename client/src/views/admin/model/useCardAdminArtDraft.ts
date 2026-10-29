@@ -5,7 +5,7 @@ import { useUpdateCardCatalogImageMutation } from '@/services/queries/cardQuerie
 import { getCardAdminRequestErrorMessage } from '@/views/admin/model/cardAdminEffectPayload'
 import {
   CARD_ART_WIDTHS,
-  cardArtUrl,
+  buildCardArtSrcSet,
   isExternalCardArtReference,
   resolveCardArtSourceHref,
   resolveCardArtUrl,
@@ -157,12 +157,9 @@ export function useCardAdminArtDraft(card: ICardCatalogItemResponse): ICardAdmin
         ? ''
         : resolveCardArtUrl(card, CARD_ART_WIDTHS.preview)
 
-  const storedPreviewSrcSet = card.id
-    ? [
-        `${cardArtUrl(card.id, CARD_ART_WIDTHS.board, card.imageVersion)} ${CARD_ART_WIDTHS.board}w`,
-        `${cardArtUrl(card.id, CARD_ART_WIDTHS.preview, card.imageVersion)} ${CARD_ART_WIDTHS.preview}w`,
-      ].join(', ')
-    : null
+  // The picker draws the art at 160px, so it takes the same ladder as every other card surface rather than a
+  // hand-picked pair of widths - which is what let the board fall behind the preview in resolution.
+  const storedPreviewSrcSet = card.id ? (buildCardArtSrcSet(card) ?? null) : null
 
   return {
     previewSrc,

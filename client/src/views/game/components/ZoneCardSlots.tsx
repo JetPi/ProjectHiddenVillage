@@ -1,6 +1,7 @@
 import { twMerge } from 'tailwind-merge'
 import { useMemo } from 'react'
 import { CardBack, CardImage } from '@/components/ui/cards'
+import { CARD_SIZES } from '@/components/ui/cards/constants'
 import {PlayCard } from '@/components/ui/game'
 import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
 import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
@@ -146,6 +147,8 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               {isShownFaceUp ? (
                 <CardImage
                   src={card.image}
+                  srcSet={card.imageSrcSet || undefined}
+                  sizes={zone === 'support' ? CARD_SIZES.supportSlot : CARD_SIZES.battlefieldCard}
                   alt={card.displayName}
                   loading="lazy"
                   decoding="async"

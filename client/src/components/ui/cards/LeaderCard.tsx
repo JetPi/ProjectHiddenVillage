@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { CardImage } from '@/components/ui/cards/CardImage'
 import { CardOverlayBadge } from '@/components/ui/cards/CardOverlayBadge'
+import { CARD_SIZES } from '@/components/ui/cards/constants'
 import { CardPreviewCard } from '@/components/ui/cards/CardPreviewCard'
 import { PlayCard } from '@/components/ui/game/PlayCard'
 import type { ILeaderCardProps } from '@/components/ui/types'
@@ -86,6 +87,8 @@ export function LeaderCard({
       <PlayCard className={twMerge('group', className, surfaceClassName)} {...surfaceRestProps}>
         <CardImage
           src={leaderCard.image}
+          srcSet={leaderCard.imageSrcSet || undefined}
+          sizes={CARD_SIZES.leader}
           alt={leaderCard.displayName || leaderCard.id}
           loading="eager"
           className={imageClassName}

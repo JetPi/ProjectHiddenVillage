@@ -21,6 +21,17 @@ export type ICardOverlayBadgeProps = {
   testId?: string
 }
 
+/**
+ * Card art sizing rules live here rather than at each call site:
+ *
+ * - `card` is the only way to get a responsive image. With it, the component emits the whole width ladder as
+ *   `srcset` and the browser downloads the step that covers the rendered box at this pixel ratio. A bare `src`
+ *   (a bundled asset, a staged admin upload) stays a single file.
+ * - `sizes` declares how wide the surface draws the card; `CARD_SIZES` holds one token per surface. Omitting it
+ *   falls back to the board variant's width.
+ * - `imageRendering` is deliberately absent. `pixelated` / `crisp-edges` were what made upscaled card art look
+ *   blocky; art is now served at a size that does not need nearest-neighbour help.
+ */
 export type ICardImageProps = Omit<
   ImgHTMLAttributes<HTMLImageElement>,
   'src' | 'alt' | 'loading' | 'decoding' | 'width' | 'height' | 'fetchPriority'
@@ -29,7 +40,6 @@ export type ICardImageProps = Omit<
   alt: string
   card?: Pick<ICardCatalogItemResponse, 'id' | 'image' | 'imageVersion'> | null
   variant?: 'board' | 'preview'
-  imageRendering?: 'auto' | 'pixelated' | 'crisp-edges'
   loading?: 'lazy' | 'eager'
   decoding?: 'async' | 'sync' | 'auto'
   fetchPriority?: 'high' | 'low' | 'auto'
@@ -142,6 +152,8 @@ export type ILeaderCardProps = {
     cardDefinitionId: string
     displayName: string
     image: string
+    /** Art width ladder for `srcset`; the leader is the largest card on the board. */
+    imageSrcSet?: string
     currentLife: number | null
     currentPower: number
     currentDamage: number

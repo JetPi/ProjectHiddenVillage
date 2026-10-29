@@ -12,7 +12,12 @@ public sealed class CardArtOptions
     /// </summary>
     public string UploadDirectory { get; set; } = "card-art-uploads";
 
-    public List<int> AllowedWidths { get; set; } = [80, 120, 240, 600];
+    /// <summary>
+    /// Widths the art endpoint will serve. The client asks for a ladder it can hand to `srcset`
+    /// (`CARD_ART_WIDTH_LADDER`), so every step has to be here or the browser's chosen candidate is a 400.
+    /// The largest entry is also the width a stored master is capped at - see <see cref="ResolveMasterWidth"/>.
+    /// </summary>
+    public List<int> AllowedWidths { get; set; } = [80, 120, 240, 360, 600, 900];
 
     public long MaxSourceBytes { get; set; } = 20 * 1024 * 1024;
 

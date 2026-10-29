@@ -1,11 +1,12 @@
 import { Reorder, motion } from 'motion/react'
 import { twMerge } from 'tailwind-merge'
 import { PlayRow } from '@/components/ui/game'
+import { CARD_ART_ASPECT_CLASS } from '@/components/ui/cards/constants'
 import { BOARD_LAYOUT_SPRING } from '@/views/game/animation/tuning'
 import { HandCardItem } from './HandCardItem'
 import type { IGameHandRowProps } from '@/views/game/types'
 
-const HAND_CARD_SLOT_CLASSNAME = 'h-full w-auto shrink-0 aspect-[200/277]'
+const HAND_CARD_SLOT_CLASSNAME = `h-full w-auto shrink-0 ${CARD_ART_ASPECT_CLASS}`
 const CARDS_CONTAINER_CLASSNAME =
   'flex h-full min-h-0 items-center justify-center gap-px overflow-visible [&_[data-hand-instance-id]]:h-[100%] [&_[data-hand-instance-id]_*]:outline-none [&_[data-hand-instance-id]_.border]:border-transparent [&_[data-hand-instance-id]_.border]:shadow-none'
 

@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { CardImage } from '@/components/ui/cards/CardImage'
+import { CARD_ART_ASPECT_CLASS, CARD_ART_FIT_CLASS, CARD_SIZES } from '@/components/ui/cards/constants'
 import { resolveKeywordDescription } from '@/components/ui/cards/utils'
 import { getPrimaryName, renderDescriptionLineWithKeywordPills, splitDescriptionLines } from '@/components/ui/cards/utils'
 import type { ICardPreviewCardProps } from '@/components/ui/types'
@@ -142,13 +143,16 @@ export function CardPreviewCard({
                           </div>
 
                           <div className="shrink-0">
-                              <div className="aspect-[600/831] w-full max-h-[70vh]">
+                              {/* The one surface that shows the whole card: cropping here would hide the art the
+                                  player opened the panel to inspect. */}
+                              <div className={twMerge('w-full max-h-[70vh]', CARD_ART_ASPECT_CLASS)}>
                                   <CardImage
                                       card={card}
                                       variant="preview"
+                                      sizes={CARD_SIZES.previewPanel}
                                       alt={primaryName}
                                       loading="eager"
-                                      className="h-full w-full rounded-lg object-contain"
+                                      className={`h-full w-full rounded-lg ${CARD_ART_FIT_CLASS}`}
                                   />
                               </div>
                           </div>

@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import type { IResourceSummonCardProps } from '@/components/ui/types'
 
 const RESOURCE_CARD_FRAME_CLASS = 'h-full max-h-full overflow-hidden rounded-sm border border-[var(--border-subtle)] bg-[var(--surface-muted)]'
-const RESOURCE_CARD_IMAGE_CLASS = 'h-full w-full rounded-none object-contain p-[1px] [image-rendering:auto]'
+const RESOURCE_CARD_IMAGE_CLASS = 'h-full w-full rounded-none object-contain p-[1px]'
 
 export function ResourceSummonCard({ isSummonCardReady = true, className }: IResourceSummonCardProps) {
   const { t } = useTranslation()
