@@ -237,6 +237,43 @@ test('the deck builder exports the draft in the format the import window reads',
   await context.close()
 })
 
+test('the catalog filters keep a removable pill for every active filter', async ({ browser, request }) => {
+  const { context, page } = await openDeckBuilder(browser, request, '/admin/decks')
+
+  const typeFilter = page.getByRole('combobox', { name: 'Type' })
+  const colorFilter = page.getByRole('combobox', { name: 'Color' })
+  const pills = page.getByTestId('admin-filter-pills')
+
+  await expect(pills).toHaveCount(0)
+
+  // A colour on its own has to leave a pill: once a dropdown is consumed it reads "All selected", and a pill is the
+  // only way back out of that state.
+  await colorFilter.click()
+  await page.getByTestId('admin-select-listbox').getByRole('option', { name: 'Red' }).click()
+
+  await expect(page.getByRole('button', { name: 'Remove color Red' })).toBeVisible()
+  await expect(pills).toHaveCount(1)
+
+  await typeFilter.click()
+  await page.getByTestId('admin-select-listbox').getByRole('option', { name: 'Leader' }).click()
+  await expect(page.getByRole('button', { name: 'Remove type Leader' })).toBeVisible()
+
+  // Removing the type must not take the colour pill with it.
+  await page.getByRole('button', { name: 'Remove type Leader' }).click()
+  await expect(page.getByRole('button', { name: 'Remove type Leader' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Remove color Red' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Remove color Red' }).click()
+  await expect(pills).toHaveCount(0)
+
+  // The colour is offered again, so the filter is genuinely neutral rather than stuck.
+  await colorFilter.click()
+  await expect(page.getByTestId('admin-select-listbox').getByRole('option', { name: 'Red' })).toHaveCount(1)
+  await page.keyboard.press('Escape')
+
+  await context.close()
+})
+
 test('the deck builder has nothing to export on an empty new deck', async ({ browser, request }) => {
   const { context, page } = await openDeckBuilder(browser, request, '/admin/decks')
 
