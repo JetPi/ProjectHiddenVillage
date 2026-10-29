@@ -1,0 +1,15 @@
+# Build context for the API image. The client is built by client/Dockerfile.
+.git
+.github
+.agents
+.clinerules
+.vscode
+node_modules
+client
+e2e
+plans
+playwright-report
+test-results
+test-data/*.json.bak
+json
+*.md
