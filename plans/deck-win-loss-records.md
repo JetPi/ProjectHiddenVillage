@@ -118,6 +118,21 @@ import dialog with the deck's list loaded and turns Save into an overwrite.
 - **Response.** `GetDeck` takes the viewer id, so `UpdateDeckAsync` answers with the caller's own record - a leader swap
   shows its reset immediately, a ratio tweak keeps the badge.
 
+## Exporting a deck from the admin editor
+
+The admin deck editor gained an **Export List** button that copies the deck on screen in exactly the text the import
+window reads (`1x N-001` per line), so a deck built in the admin view can be pasted straight into the import tab or
+shared with a player.
+
+- The formatter is [`formatDeckAsImportText()`](../client/src/domain/deck/deckListFormat.ts:11), placed next to the
+  import parser it inverts so the two cannot drift. The login picker's edit prefill uses the same helper, which makes
+  the admin export, the edit prefill and the import parser one format with three entry points.
+- The button exports the **draft**, not the saved rows - an unsaved edit is the list somebody might want to hand over -
+  and it includes the leader, which the editor holds apart from the rest of the draft. Card ids keep their catalog
+  casing rather than the draft's normalized lowercase.
+- It is disabled on an empty new deck, and the copy goes through the existing
+  [`copyTextToClipboard()`](../client/src/views/utils/clipboard.ts:6) helper so plain-http deployments still work.
+
 ## Deleting a saved deck from the picker
 
 A player can remove one of their own decks from the list they pick it from: an X on the row, a confirmation, then the
@@ -181,3 +196,5 @@ removal. The pieces:
   and removes the deck on confirm while the other deck stays selected.
 - `e2e/login.deck-edit.spec.ts`: the pencil opens the import tab loaded with the deck's list and name, offers no Use,
   and gives the player's import draft back on cancel while keeping the deck selected.
+- `e2e/admin.deck-builder.spec.ts`: the export copies the draft as `Nx CARD` lines, the copied text pastes back into
+  the import dialog and still validates, and the button is disabled on an empty new deck.

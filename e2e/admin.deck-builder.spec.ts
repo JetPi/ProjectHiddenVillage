@@ -202,6 +202,49 @@ test('the deck builder loads a deck, replaces it from an import and updates it',
   await context.close()
 })
 
+test('the deck builder exports the draft in the format the import window reads', async ({ browser, request }) => {
+  const seededCards = legalDeck(50)
+  const { context, page } = await openDeckBuilder(browser, request, '/admin/decks/mock-export', {
+    decks: [
+      {
+        id: 'mock-export',
+        name: 'Exportable',
+        cards: seededCards,
+      },
+    ],
+  })
+
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await expect(page.getByTestId('admin-deck-export')).toBeEnabled()
+
+  await page.getByTestId('admin-deck-export').click()
+  await expect(page.getByText(/Copied \d+ card lines/)).toBeVisible({ timeout: 10_000 })
+
+  const clipboardText = await page.evaluate(() => navigator.clipboard.readText())
+  const exportedLines = clipboardText.split('\n').map((line) => line.trim()).filter(Boolean).sort()
+  const expectedLines = toMockDeckListText(seededCards).split('\n').sort()
+
+  expect(exportedLines).toEqual(expectedLines)
+  expect(exportedLines.every((line) => /^\d+x [A-Z0-9-]+$/.test(line))).toBe(true)
+
+  // The round trip is the point of the format: the exported text goes straight back into the import dialog.
+  await page.getByTestId('admin-deck-import').click()
+  await page.getByTestId('admin-deck-import-payload').fill(clipboardText)
+  await expect(page.getByTestId('admin-deck-import-confirm')).toBeEnabled()
+  await page.getByTestId('admin-deck-import-confirm').click()
+  await expect(rulesetStatus(page, 'standard')).toHaveAttribute('data-ruleset-legal', 'true')
+
+  await context.close()
+})
+
+test('the deck builder has nothing to export on an empty new deck', async ({ browser, request }) => {
+  const { context, page } = await openDeckBuilder(browser, request, '/admin/decks')
+
+  await expect(page.getByTestId('admin-deck-export')).toBeDisabled()
+
+  await context.close()
+})
+
 test('the deck builder deletes a deck, and reports a deck a game still uses', async ({ browser, request }) => {
   const { context, page, state } = await openDeckBuilder(browser, request, '/admin/decks/mock-in-use', {
     decks: [

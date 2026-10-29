@@ -18,6 +18,8 @@ import {
 import { useDeckAdminModel } from '@/views/admin/model/useDeckAdminModel'
 import { useDeckableTypeFilter } from '@/views/admin/model/useDeckableTypeFilter'
 import { COLOR_FILTER_OPTIONS, SORT_OPTIONS } from '@/views/admin/constants'
+import { formatDeckAsImportText } from '@/domain/deck/deckListFormat'
+import { copyTextToClipboard } from '@/views/utils/clipboard'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
 import type { IDeckCardInput } from '@/types/deck'
 import type { ICardCatalogListItemResponse } from '@/types/cardCatalog'
@@ -177,6 +179,37 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
     })
   }
 
+  /**
+   * Copies the draft in the import window's format. The draft is what is exported, not the saved rows: an unsaved
+   * edit is exactly the list somebody might want to hand to a player, or paste into the import tab themselves.
+   */
+  const handleExport = async () => {
+    // The leader is held apart from the rest of the draft, and the draft keys cards by their normalized id; the
+    // catalog's own casing is what a player reads and pastes.
+    const text = formatDeckAsImportText(
+      [...(model.leaderCard ? [model.leaderCard] : []), ...model.selectedCards].map((card) => ({
+        cardId: card.metadata?.id ?? card.cardId,
+        quantity: card.quantity,
+      })),
+    )
+
+    if (!text) {
+      showAppInfoToast(t('admin.decks.toasts.exportEmpty'), { id: TOAST_ID, position: 'top-right' })
+      return
+    }
+
+    const wasCopied = await copyTextToClipboard(text)
+    if (!wasCopied) {
+      showAppInfoToast(t('admin.decks.toasts.exportFailed'), { id: TOAST_ID, position: 'top-right' })
+      return
+    }
+
+    showAppSuccessToast(
+      t('admin.decks.toasts.exported', { count: text.split('\n').length }),
+      { id: TOAST_ID, position: 'top-right' },
+    )
+  }
+
   return (
     <PageShell compact fullBleed edgeToEdge className="h-dvh overflow-hidden">
       <div className="h-full w-full">
@@ -261,6 +294,9 @@ function DeckAdminScreen({ deckId }: { deckId: string | null }) {
               }}
               onOpenImport={() => setIsImportOpen(true)}
               onOpenDelete={() => setIsDeleteOpen(true)}
+              onExport={() => {
+                void handleExport()
+              }}
             />
           </Panel>
         </div>

@@ -28,6 +28,8 @@ export type IDeckAdminEditorPaneProps = {
   onSave: () => void
   onOpenImport: () => void
   onOpenDelete: () => void
+  /** Copies the current draft as the `Nx CARD` text the import window and the deck endpoint read. */
+  onExport: () => void
 }
 
 export type IDeckAdminDeleteDialogProps = {

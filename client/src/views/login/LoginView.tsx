@@ -53,6 +53,7 @@ import { preloadCardsByIds } from '@/services/cardPreloadService'
 import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
 import { useActiveDeckRulesetsQuery } from '@/services/queries/deckRulesetQueries'
 import { evaluateDeckRulesets, evaluateRuleset } from '@/domain/deck/evaluateDeckRulesets'
+import { formatDeckAsImportText } from '@/domain/deck/deckListFormat'
 import {
   buildDeckCardSignature,
   deckCardsFromSignature,
@@ -584,7 +585,7 @@ export function LoginView() {
     setEditingDeckId(deck.id)
     setImportDeckName(deck.name)
     setDeckOptionsMode('import')
-    setDeckOptionValueForMode('import', toDeckListPayload(deck.cards))
+    setDeckOptionValueForMode('import', formatDeckAsImportText(deck.cards))
     setIsImportModalOpen(true)
   }, [importDeckOption, savedDecks, setDeckOptionValueForMode, setDeckOptionsMode])
 
@@ -2030,14 +2031,6 @@ function omitDeckEntry<T>(entries: Record<string, T>, deckId: string): Record<st
   delete next[deckId]
 
   return next
-}
-
-/** A stored deck as the import tab's text, so editing starts from the list the deck already has. */
-function toDeckListPayload(cards: readonly IDeckCardInput[]): string {
-  return cards
-    .filter((card) => card.quantity > 0 && card.cardId.trim().length > 0)
-    .map((card) => `${card.quantity}x ${card.cardId.trim()}`)
-    .join('\n')
 }
 
 /** Whether a record has anything on it; the reset toast only fires when it had something to lose. */
