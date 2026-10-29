@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
 import { useGameHubStore } from '@/state/gameHubStore'
-import { preloadCardArtInPriorityBatches, type ICardArtPreloadEntry } from '@/services/cardPreloadService'
+import {
+  preloadCardArtInPriorityBatches,
+  resolveVisibleCardArtPreloadWidth,
+  type ICardArtPreloadEntry,
+} from '@/services/cardPreloadService'
 import { preloadImageSources } from '@/services/imagePreloadCache'
 import { CARD_ART_WIDTHS } from '@/services/api/cardArt'
 import type { IAnimationEventResponse, IGameStateResponse, IGamePlayerStateResponse } from '@/services/api/types/game'
@@ -369,10 +373,13 @@ function useCardCatalogPreload(
   )
 
   const preloadGameImages = useCallback((): void => {
+    // Three tiers, matching what `CardImage`'s `srcset` will ask for: a cheap board-sized pass so every visible
+    // card paints immediately, then the step this display actually needs (DPR aware, so a 3x screen warms the
+    // master instead of hoping the browser upgrades in time), then thumbnails for the rest of the deck.
     void preloadCardArtInPriorityBatches([
       { cards: preloadPlan.visibleCards, width: CARD_ART_WIDTHS.board },
-      { cards: preloadPlan.visibleCards, width: CARD_ART_WIDTHS.preview },
-      { cards: preloadPlan.remainingCards, width: CARD_ART_WIDTHS.board },
+      { cards: preloadPlan.visibleCards, width: resolveVisibleCardArtPreloadWidth() },
+      { cards: preloadPlan.remainingCards, width: CARD_ART_WIDTHS.thumb },
     ]).catch(() => {
     })
 

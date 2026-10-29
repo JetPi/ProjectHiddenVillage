@@ -25,6 +25,7 @@ import {
 } from '@/views/game/utils/contants'
 import { PROMPT_RESOLVE_ACTION_ID_PREFIX, buildPromptCandidateCards, handlePromptResolve as resolvePromptAction, submitCardTargetSelection as submitCardTargetAction, submitEffectTargetSelection as submitEffectTargetAction, submitMappedAction as submitMappedGameAction, submitSummonTargetSelection as submitSummonTargetAction } from '@/views/game/utils/functions'
 import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
+import { CARD_SIZES } from '@/components/ui/cards/constants'
 import { resolveBoardPromptCandidateInstanceIds, useGameUIStore } from '@/state/gameUIStore'
 import { useGameHubStore } from '@/state/gameHubStore'
 import {
@@ -347,6 +348,7 @@ export function GameView() {
                           <CardImage
                             card={revealedCard}
                             variant="board"
+                            sizes={CARD_SIZES.handCard}
                             alt={revealedCard.displayName}
                             loading="lazy"
                             decoding="async"

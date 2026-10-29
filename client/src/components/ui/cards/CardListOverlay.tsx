@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { CardImage } from '@/components/ui/cards/CardImage'
 import { CardPreviewCard } from '@/components/ui/cards/CardPreviewCard'
+import { CARD_ART_ASPECT_CLASS, CARD_SIZES } from '@/components/ui/cards/constants'
 import { Panel } from '@/components/ui/Panel'
 import type { ICardListOverlayEntry, ICardListOverlayProps } from '@/components/ui/types'
 
@@ -33,10 +34,11 @@ function CardListOverlayTile({ entry }: { entry: ICardListOverlayEntry }) {
           canOpenPreview ? 'hover:border-[var(--focus-ring)]' : 'cursor-default',
         )}
       >
-        <span className="block aspect-[600/831] w-full overflow-hidden rounded">
+        <span className={twMerge('block w-full overflow-hidden rounded', CARD_ART_ASPECT_CLASS)}>
           <CardImage
             card={entry.card}
             variant="board"
+            sizes={CARD_SIZES.listRow}
             alt={entry.displayName}
             loading="lazy"
             className="h-full w-full object-cover"

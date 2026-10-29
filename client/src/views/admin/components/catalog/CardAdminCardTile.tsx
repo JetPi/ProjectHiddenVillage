@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { translateKey } from '@/i18n'
 import { CardImage } from '@/components/ui/cards'
 import type { ICardAdminCardTileProps } from '@/views/admin/types/cardAdminViewTypes'
-import { CARD_ART_IMAGE_CLASS } from '@/components/ui/cards'
+import { CARD_ART_ASPECT_CLASS, CARD_ART_IMAGE_CLASS, CARD_SIZES } from '@/components/ui/cards'
 import { resolveDeckCardColorStyling } from '@/views/admin/utils/deckCardColorStyles'
 
 export function CardAdminCardTile({
@@ -100,10 +100,11 @@ export function CardAdminCardTile({
         aria-hidden="true"
       >
         <div className="w-80 overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-2 shadow-2xl">
-          <div className="aspect-[5/7] w-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)]">
+          <div className={`${CARD_ART_ASPECT_CLASS} w-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)]`}>
             <CardImage
               card={card}
               variant="preview"
+              sizes={CARD_SIZES.adminTile}
               alt={translateKey(t, 'admin.catalog.cardArtPreviewAlt', { name: card.displayName })}
               loading="lazy"
               decoding="async"
@@ -142,10 +143,11 @@ export function CardAdminCardTile({
             } ${colorStyling.surfaceClassName} ${isMarked ? '' : colorStyling.hoverClassName}`}
         >
           <div className="space-y-2">
-            <div className={`aspect-[5/7] w-full overflow-hidden rounded-lg border bg-[var(--surface-muted)] ${colorStyling.mediaBorderClassName}`}>
+            <div className={`${CARD_ART_ASPECT_CLASS} w-full overflow-hidden rounded-lg border bg-[var(--surface-muted)] ${colorStyling.mediaBorderClassName}`}>
               <CardImage
                 card={card}
                 variant="board"
+                sizes={CARD_SIZES.adminThumb}
                 alt={translateKey(t, 'admin.catalog.cardArtAlt', { name: card.displayName })}
                 loading="lazy"
                 decoding="async"

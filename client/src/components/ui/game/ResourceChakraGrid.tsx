@@ -7,10 +7,11 @@ import { twMerge } from 'tailwind-merge'
 import { useTranslation } from 'react-i18next'
 
 const RESOURCE_CARD_FRAME_CLASS = 'overflow-hidden rounded-sm border border-[var(--border-subtle)] bg-[var(--surface-muted)]'
-const CHAKRA_CARD_IMAGE_CLASS = 'h-full w-full rounded-none object-cover p-0 [image-rendering:auto]'
+const CHAKRA_CARD_IMAGE_CLASS = 'h-full w-full rounded-none object-cover p-0'
 const CHAKRA_HUD_WIDTH = 70
-const CHAKRA_FACE_HUD_HEIGHT = 98
-const CHAKRA_BACK_HUD_HEIGHT = 97
+// Both HUD assets are drawn in the same frame, so they declare the same intrinsic box. They used to be 98 and 97,
+// which made the back render one pixel shorter than the face it replaces.
+const CHAKRA_HUD_HEIGHT = 98
 // The chakra pool used to be pinned to a fixed rem width, so it ignored the viewport while every other card
 // grew and shrank with the board. The size now follows the row, capped by a third of the row's width, and the
 // width itself comes from `PlayCard`'s aspect ratio - so the cards scale with the board, keep their shape and
@@ -41,7 +42,7 @@ export function ResourceChakraGrid({ currentChakra = 5, cardClassName, className
               src={slotIndex < currentChakra  ? chakraCardImage : cardBackImage}
               alt={t('components.game.chakraCard.alt')}
               width={CHAKRA_HUD_WIDTH}
-              height={slotIndex < currentChakra ? CHAKRA_FACE_HUD_HEIGHT : CHAKRA_BACK_HUD_HEIGHT}
+              height={CHAKRA_HUD_HEIGHT}
               className={CHAKRA_CARD_IMAGE_CLASS}
             />
           </PlayCard>
@@ -57,7 +58,7 @@ export function ResourceChakraGrid({ currentChakra = 5, cardClassName, className
               src={slotIndex < currentChakra  ? chakraCardImage : cardBackImage}
               alt={t('components.game.chakraCard.alt')}
               width={CHAKRA_HUD_WIDTH}
-              height={slotIndex < currentChakra ? CHAKRA_FACE_HUD_HEIGHT : CHAKRA_BACK_HUD_HEIGHT}
+              height={CHAKRA_HUD_HEIGHT}
               className={CHAKRA_CARD_IMAGE_CLASS}
             />
           </PlayCard>

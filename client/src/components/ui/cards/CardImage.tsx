@@ -2,26 +2,26 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ImgHTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
+import { CARD_SIZES } from '@/components/ui/cards/constants'
 import type { ICardImageProps } from '@/components/ui/types'
 import { preloadImageSource } from '@/services/imagePreloadCache'
-import { CARD_ART_WIDTHS, cardArtUrl } from '@/services/api/cardArt'
-
-const IMAGE_RENDERING_CLASS: Record<NonNullable<ICardImageProps['imageRendering']>, string> = {
-  auto: '[image-rendering:auto]',
-  pixelated: '[image-rendering:pixelated]',
-  'crisp-edges': '[image-rendering:crisp-edges]',
-}
+import {
+  CARD_ART_ASPECT,
+  CARD_ART_WIDTHS,
+  buildCardArtSrcSet,
+  cardArtUrl,
+} from '@/services/api/cardArt'
 
 function buildFallbackImageSrc(title: string, unavailableLabel: string): string {
   const fallbackSvg = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="500" viewBox="0 0 360 500">
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_ART_ASPECT.width}" height="${CARD_ART_ASPECT.height}" viewBox="0 0 ${CARD_ART_ASPECT.width} ${CARD_ART_ASPECT.height}">
     <defs>
       <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stop-color="#1f2937" />
         <stop offset="100%" stop-color="#0f172a" />
       </linearGradient>
     </defs>
-    <rect x="0" y="0" width="360" height="500" fill="url(#g)" rx="22" ry="22" />
+    <rect x="0" y="0" width="${CARD_ART_ASPECT.width}" height="${CARD_ART_ASPECT.height}" fill="url(#g)" rx="22" ry="22" />
     <text x="50%" y="48%" font-family="Segoe UI, sans-serif" text-anchor="middle" fill="#e5e7eb" font-size="20">${title}</text>
     <text x="50%" y="54%" font-family="Segoe UI, sans-serif" text-anchor="middle" fill="#9ca3af" font-size="15">${unavailableLabel}</text>
   </svg>`,
@@ -35,7 +35,7 @@ export function CardImage({
   alt,
   card,
   variant = 'board',
-  imageRendering = 'auto',
+  sizes,
   loading = 'lazy',
   decoding = 'async',
   fetchPriority = 'auto',
@@ -44,6 +44,7 @@ export function CardImage({
   height,
   fallbackLabel,
   onError,
+  srcSet,
   ...imageProps
 }: ICardImageProps) {
   const { t } = useTranslation()
@@ -52,9 +53,19 @@ export function CardImage({
     : (src?.trim() ?? '')
   const normalizedSrc = resolvedSource.trim()
   const hasSource = normalizedSrc.length > 0
+  // A card that knows its catalogue id gets the whole ladder, so the browser can pick the step that matches the
+  // box it is actually drawn in at this device pixel ratio. Callers that hand over a ready-made srcSet (a staged
+  // admin upload, for instance) keep theirs.
+  const resolvedSrcSet = srcSet ?? (card?.id ? buildCardArtSrcSet(card) : undefined)
+  const resolvedSizes = resolvedSrcSet
+    ? (sizes ?? (variant === 'preview' ? CARD_SIZES.previewPanel : CARD_SIZES.boardFallback))
+    : undefined
+  // Reserving the art's own ratio up front stops a card from reflowing (and looking squashed for a frame) when
+  // the image finally decodes. Explicit dimensions from the caller still win.
+  const intrinsicWidth = width ?? (card?.id ? CARD_ART_ASPECT.width : undefined)
+  const intrinsicHeight = height ?? (card?.id ? CARD_ART_ASPECT.height : undefined)
   const [failedSource, setFailedSource] = useState<string | null>(null)
   const hasLoadError = !hasSource || failedSource === normalizedSrc
-  const imageRenderingClass = IMAGE_RENDERING_CLASS[imageRendering]
 
   useEffect(() => {
     if (hasSource) {
@@ -130,18 +141,20 @@ export function CardImage({
     <img
       {...imageProps}
       src={normalizedSrc}
+      srcSet={resolvedSrcSet}
+      sizes={resolvedSizes}
       alt={alt}
       draggable={false}
       onDragStart={(event) => {
         event.preventDefault()
       }}
-      width={width}
-      height={height}
+      width={intrinsicWidth}
+      height={intrinsicHeight}
       loading={loading}
       decoding={decoding}
       fetchPriority={fetchPriority}
       onError={handleError}
-      className={twMerge('rounded-xl object-cover', imageRenderingClass, className)}
+      className={twMerge('rounded-xl object-cover', className)}
     />
   )
 }

@@ -1,4 +1,5 @@
 import { CardBack, CardImage, FlippableCard } from '@/components/ui/cards'
+import { CARD_SIZES } from '@/components/ui/cards/constants'
 import { GameHandRow } from './GameHandRow'
 import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
 import { useGameUIStore } from '@/state/gameUIStore'
@@ -73,6 +74,7 @@ export function BottomHandReorderRow({
                   <CardImage
                     card={previewCard}
                     variant="board"
+                    sizes={CARD_SIZES.handCard}
                     alt={previewCard?.displayName ?? 'Hand card'}
                     loading="lazy"
                     decoding="async"

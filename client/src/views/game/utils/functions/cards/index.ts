@@ -1,7 +1,7 @@
 import type { IGameActionOptionResponse, IGameCardInstanceResponse, IGamePlayerStateResponse } from "@/services/api/types/game"
 import type { ICardListOverlayEntry } from '@/components/ui/types'
 import type { IGameLoaderData, IGameCard, ILeaderCardViewModel, INonLeaderCardViewModel } from "@/views/game/types"
-import { CARD_ART_WIDTHS, resolveCardArtUrl } from '@/services/api/cardArt'
+import { CARD_ART_WIDTHS, buildCardArtSrcSet, resolveCardArtUrl } from '@/services/api/cardArt'
 
 function buildCardListEntries(
   cards: IGameCardInstanceResponse[],
@@ -79,6 +79,7 @@ function resolveLeaderCard(
     isExhausted: player?.leader?.isExhausted ?? false,
     id: leaderId,
     image: resolveCardArtUrl(catalogCard, CARD_ART_WIDTHS.board),
+    imageSrcSet: buildCardArtSrcSet(catalogCard) ?? '',
     name: catalogCard.name,
     displayName: catalogCard.displayName,
     type: catalogCard.type,
@@ -122,6 +123,7 @@ function resolveNonLeaderCards(
       controllerPlayerId: card.controllerPlayerId,
       id: catalogCard.id,
       image: resolveCardArtUrl(catalogCard, CARD_ART_WIDTHS.board),
+      imageSrcSet: buildCardArtSrcSet(catalogCard) ?? '',
       displayName: catalogCard.displayName,
       type: catalogCard.type,
       isFaceUp: card.isFaceUp,

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppButton, CardImage } from '@/components/ui'
+import { CARD_SIZES } from '@/components/ui/cards/constants'
 import { CardAdminArtSourceDialog } from './CardAdminArtSourceDialog'
 import type { ICardAdminStoredArt } from '@/views/admin/types/cardAdminDetailTypes'
 
@@ -50,7 +51,7 @@ export function CardAdminArtPicker({
         <CardImage
           src={previewSrc}
           srcSet={previewSrcSet ?? undefined}
-          sizes="160px"
+          sizes={CARD_SIZES.adminThumb}
           alt={t('admin.art.previewAlt')}
           className="h-auto w-40 object-contain"
         />

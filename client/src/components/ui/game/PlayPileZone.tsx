@@ -4,6 +4,7 @@ import { twMerge } from 'tailwind-merge'
 import { PlayCard } from '@/components/ui/game/PlayCard'
 import { CardBack } from '@/components/ui/cards/CardBack'
 import { CardImage } from '@/components/ui/cards/CardImage'
+import { CARD_SIZES } from '@/components/ui/cards/constants'
 import { CardOverlayBadge } from '@/components/ui/cards/CardOverlayBadge'
 import { FlippableCard } from '@/components/ui/cards/FlippableCard'
 import type { IPlayPileZoneProps } from '@/components/ui/types'
@@ -107,6 +108,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                       <CardImage
                         card={revealedDeckCard}
                         variant="board"
+                        sizes={CARD_SIZES.pileCard}
                         alt={t('components.game.revealedDeckCard.alt')}
                         className="h-full w-full rounded-lg object-cover"
                       />
@@ -117,6 +119,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                 <CardImage
                   card={latestTrashCard}
                   variant="board"
+                  sizes={CARD_SIZES.pileCard}
                   alt={t('components.game.trashCard.alt')}
                   className="h-full w-full rounded-lg object-cover"
                 />

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { CardBack, CardImage } from '@/components/ui/cards'
+import { CARD_SIZES } from '@/components/ui/cards/constants'
 import { PlayCard } from '@/components/ui/game'
 import {
   BOARD_LAYOUT_SPRING,
@@ -18,6 +19,7 @@ import type { ICardDepartureZone } from '@/views/game/animation'
 import { twMerge } from 'tailwind-merge'
 import type { IGameZonesProps } from '@/views/game/types'
 import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
+import { CARD_ART_ASPECT_CLASS } from '@/components/ui/cards/constants'
 import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
 import { useGameUIStore } from '@/state/gameUIStore'
 import { getBattleTargetHighlightClass, getSummonTargetHighlightClass, toAnchorId, resolveCardActionOptionsForInstanceId, resolveNonLeaderCards } from '@/views/game/utils/functions'
@@ -80,6 +82,8 @@ function BattlefieldCardBody({
       {card.isFaceUp ? (
         <CardImage
           src={card.image}
+          srcSet={card.imageSrcSet || undefined}
+          sizes={CARD_SIZES.battlefieldCard}
           alt={card.displayName}
           loading="lazy"
           decoding="async"
@@ -159,7 +163,8 @@ function BattlefieldCard({ data, card, index }: { data: IBattleFieldRowProps; ca
       transition={BOARD_LAYOUT_SPRING}
       layout="position"
       className={twMerge(
-        'h-full w-auto shrink-0 origin-center aspect-[200/277]',
+        'h-full w-auto shrink-0 origin-center',
+        CARD_ART_ASPECT_CLASS,
         isAttackLinkEndpoint ? 'relative z-[240]' : '',
       )}
     >
@@ -215,7 +220,7 @@ function DepartingBattlefieldCard({
     <motion.div
       ref={setElement}
       data-departing-instance-id={card.instanceId}
-      className="pointer-events-none h-full w-auto shrink-0 origin-center aspect-[200/277] z-[250]"
+      className={`pointer-events-none h-full w-auto shrink-0 origin-center z-[250] ${CARD_ART_ASPECT_CLASS}`}
     >
       <BattlefieldCardBody data={data} card={card} index={0} side={side} isDeparting />
     </motion.div>
