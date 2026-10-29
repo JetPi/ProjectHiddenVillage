@@ -1,4 +1,4 @@
-import type { IGameOutcomeResponse } from '@/services/api/types/game'
+import type { IGameOutcomeResponse, IPendingRematchResponse } from '@/services/api/types/game'
 
 export type IGameOutcomeStanding = 'victory' | 'defeat' | 'draw'
 
@@ -16,4 +16,13 @@ export type IGameOverOverlayProps = {
    * readable. Leaving is the board's own return button once the overlay is gone.
    */
   onDismiss: () => void
+  /**
+   * The rematch offer travelling on the finished game's state, or null while nobody has offered one. Once both
+   * players agreed it carries the reserved table code.
+   */
+  rematch?: IPendingRematchResponse | null
+  /** Offers the opponent another match, or accepts theirs when the offer already exists. */
+  onRequestRematch?: () => Promise<boolean>
+  onAcceptRematch?: () => Promise<boolean>
+  onDeclineRematch?: () => Promise<boolean>
 }

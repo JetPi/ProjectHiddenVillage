@@ -29,6 +29,7 @@ import { Lightbulb, LogIn, X } from 'lucide-react'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { clearAuthSession, useAuthSessionStore, type IAuthSession } from '@/state/authSession'
 import { ensurePlayerIdentity } from '@/state/guestSession'
+import { clearPendingRematch, readPendingRematch } from '@/state/pendingRematch'
 import { useSessionStore } from '@/state/sessionStore'
 import { useThemeStore } from '@/state/themeStore'
 import { useLoginViewModel } from '@/views/login/model/useLoginViewModel'
@@ -38,7 +39,13 @@ import type { IGameIntent } from '@/types/login'
 import type { IDeckRuleset } from '@/types/deckRuleset'
 import { matchModifierLabelKeys, TIME_RELAXED_MODIFIER } from '@/types/gameModifiers'
 import type { IPresenceSnapshot } from '@/types/presence'
-import { createGameForUser, fetchGameRuleset, joinGameAsPlayer } from '@/services/api/gameApi'
+import {
+  createGameForUser,
+  fetchGameRuleset,
+  fetchRematchReservation,
+  joinGameAsPlayer,
+  releaseRematchReservation,
+} from '@/services/api/gameApi'
 import { getApiErrorMessage, isApiBadRequestError } from '@/views/utils/getApiErrorMessage'
 import { createUserDeck, fetchDecks } from '@/services/api/deckApi'
 import { preloadCardsByIds } from '@/services/cardPreloadService'
@@ -193,6 +200,13 @@ export function LoginView() {
   const [activeTicket, setActiveTicket] = useState<IMatchTicket | null>(() => readStoredMatchTicket())
   // A created game exists on the server the moment `Enter Game` runs, so its code is held here while the creator
   // copies it. The board is only opened once they confirm.
+  // A rematch the two players already agreed on: the reserved table code is waiting for this view to claim it, and
+  // the deck chosen here is the one brought to the next match.
+  const [pendingRematch, setPendingRematch] = useState(() => readPendingRematch())
+  // The release the view fires when the player leaves is only worth sending while the reservation is unclaimed, and
+  // the unmount cleanup cannot read the state it captured at mount - hence the refs.
+  const pendingRematchCodeRef = useRef(pendingRematch?.code ?? null)
+  const didClaimRematchRef = useRef(false)
   const [createdGameShare, setCreatedGameShare] = useState<{
     gameId: string
     rulesetName: string
@@ -250,6 +264,107 @@ export function LoginView() {
   const joinGameRulesetQuery = useGameRulesetByCodeQuery(
     gameEntryMode === 'join_or_host' ? joinGameCode : '',
   )
+
+  // Landing here from a finished match: fill the join form in and put the player on the tab that claims the table.
+  // It is a prefill, not a join - the whole point of the detour is that the deck can still change.
+  useEffect(() => {
+    if (!pendingRematch) {
+      return
+    }
+
+    setGameEntryMode('join_or_host')
+    setJoinGameCode(pendingRematch.code)
+    // Deliberately not dependant on the setters alone: this must run when a code arrives, not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingRematch])
+
+  useEffect(() => {
+    pendingRematchCodeRef.current = pendingRematch?.code ?? null
+  }, [pendingRematch])
+
+  /**
+   * The banner is only as trustworthy as the reservation behind it. It is probed once when the view appears and once
+   * when the player comes back to the tab - never on a timer - and cleared when the server says the rematch is gone:
+   * lapsed, released by the other player, or bound to a format that was deactivated in between.
+   */
+  useEffect(() => {
+    if (!pendingRematch) {
+      return
+    }
+
+    const code = pendingRematch.code
+    let isCancelled = false
+
+    const checkReservation = async (): Promise<void> => {
+      try {
+        await fetchRematchReservation(code)
+      } catch {
+        if (isCancelled) {
+          return
+        }
+
+        // Any refusal means the same thing here: there is nothing left to claim.
+        clearPendingRematch()
+        setPendingRematch(null)
+        showAppInfoToast(t('auth.rematch.lapsed'))
+      }
+    }
+
+    // Asking again is also what cancels a release this player's own last visit left behind.
+    void checkReservation()
+
+    const handleReturn = (): void => {
+      if (document.visibilityState !== 'hidden') {
+        void checkReservation()
+      }
+    }
+
+    window.addEventListener('focus', handleReturn)
+    document.addEventListener('visibilitychange', handleReturn)
+
+    return () => {
+      isCancelled = true
+      window.removeEventListener('focus', handleReturn)
+      document.removeEventListener('visibilitychange', handleReturn)
+    }
+  }, [pendingRematch, t])
+
+  /**
+   * Leaving is not the same as abandoning: unmounting fires on a refresh too. The release is therefore deferred
+   * server side, and the probe above cancels it as soon as the player is back - which is why this can be fired
+   * generously, from the unmount and from `pagehide` alike.
+   */
+  useEffect(() => {
+    const releaseIfAbandoned = (): void => {
+      const code = pendingRematchCodeRef.current
+
+      if (!code || didClaimRematchRef.current) {
+        return
+      }
+
+      pendingRematchCodeRef.current = null
+      releaseRematchReservation(code)
+    }
+
+    window.addEventListener('pagehide', releaseIfAbandoned)
+
+    return () => {
+      window.removeEventListener('pagehide', releaseIfAbandoned)
+      releaseIfAbandoned()
+    }
+  }, [])
+
+  const dismissPendingRematch = (): void => {
+    const code = pendingRematch?.code ?? null
+
+    clearPendingRematch()
+    setPendingRematch(null)
+    pendingRematchCodeRef.current = null
+
+    if (code) {
+      releaseRematchReservation(code)
+    }
+  }
 
   useEffect(() => {
     if (isTitleFontReady) {
@@ -984,6 +1099,15 @@ export function LoginView() {
     const normalizedGameCode = joinGameCode.trim()
     let joinFormat: IDeckRuleset | null = null
 
+    // Hosting, queueing, or joining some other table is this player moving on: the stored rematch goes here, and
+    // the server drops the reservation for that player on the corresponding path. Claiming the reserved code with a
+    // fresh deck is the one intent that keeps it.
+    if (intent !== 'join' || (pendingRematch && pendingRematch.code !== joinGameCode.trim().toUpperCase())) {
+      clearPendingRematch()
+      setPendingRematch(null)
+      pendingRematchCodeRef.current = null
+    }
+
     setPendingIntent(intent)
 
     try {
@@ -1116,6 +1240,12 @@ export function LoginView() {
         ...(deckId ? { deckId } : {}),
       })
 
+      // The reserved code has been claimed: it must not survive to prefill the form for some later match, and the
+      // view must not release it on the way out.
+      didClaimRematchRef.current = true
+      clearPendingRematch()
+      setPendingRematch(null)
+
       setSession({
         displayName,
         gameCode: joinedGame.id,
@@ -1145,12 +1275,28 @@ export function LoginView() {
         normalizedGameCode.length > 0 &&
         apiMessage.toLowerCase().includes('already part of this game instance')
       ) {
+        didClaimRematchRef.current = true
+        clearPendingRematch()
+        setPendingRematch(null)
         setSession({
           displayName,
           gameCode: normalizedGameCode,
         })
         navigate(toGameRoutePath(normalizedGameCode))
         return
+      }
+
+      // A claim refused for a rematch that is gone leaves nothing to retry, so the banner goes with the message
+      // instead of sitting there until the next focus probe notices.
+      if (
+        intent === 'join' &&
+        pendingRematch &&
+        pendingRematch.code === normalizedGameCode.toUpperCase() &&
+        isApiBadRequestError(error)
+      ) {
+        clearPendingRematch()
+        setPendingRematch(null)
+        pendingRematchCodeRef.current = null
       }
 
       showAppInfoToast(apiMessage)
@@ -1177,6 +1323,36 @@ export function LoginView() {
   return (
     <PageShell>
       <div className="grid w-full grid-cols-1 gap-4 px-2 sm:px-4">
+        {/* The other player agreed to another match: this banner is the reason the join form arrived filled in, and
+            it stays until the table is claimed so the player knows which code they are sitting down at. */}
+        {pendingRematch ? (
+          <div
+            data-testid="login-rematch-banner"
+            role="status"
+            className="mx-2 flex items-start justify-between gap-3 rounded-xl border border-amber-300/50 bg-amber-100/10 px-3 py-2 text-left"
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-[var(--text-primary)]">
+                {t('auth.rematch.bannerHeadline')}
+              </p>
+              <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+                {t('auth.rematch.bannerHint', {
+                  code: pendingRematch.code,
+                  ruleset: pendingRematch.rulesetName ?? t('game.rematch.noRuleset'),
+                })}
+              </p>
+            </div>
+            <button
+              type="button"
+              data-testid="login-rematch-banner-dismiss"
+              aria-label={t('auth.rematch.dismissAria')}
+              onClick={dismissPendingRematch}
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-[var(--text-secondary)] transition-[filter,color] hover:brightness-125 hover:text-[var(--text-primary)]"
+            >
+              <X size={11} strokeWidth={2.5} />
+            </button>
+          </div>
+        ) : null}
         <Panel className="my-2 w-full border-0 bg-transparent px-5 text-center shadow-none">
           <p
             className={`mt-1 font-['Water_Brush'] text-6xl leading-none tracking-wide text-[var(--text-primary)] transition-opacity duration-150 sm:text-7xl ${

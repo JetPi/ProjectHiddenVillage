@@ -15,6 +15,7 @@ import type {
   IGameStateInvalidatedHandler,
   IHubOperationResult,
   IPlayerPhaseActionRequest,
+  IRematchReleasedHandler,
   IResolvePromptRequest,
 } from '@/services/api/types/gameHub'
 import type {
@@ -26,6 +27,7 @@ import type {
 const EVENT_GAME_STATE_INVALIDATED = 'GameStateInvalidated'
 const EVENT_GAME_PARTICIPANT_JOINED = 'GameParticipantJoined'
 const EVENT_GAME_CHAT_MESSAGE_POSTED = 'GameChatMessagePosted'
+const EVENT_REMATCH_RELEASED = 'RematchReleased'
 const HUB_ENDPOINT_PATH = '/hubs/games'
 
 function normalizePlayerId(value: string): string {
@@ -106,6 +108,18 @@ function onGameChatMessagePosted(
 
   return () => {
     connection.off(EVENT_GAME_CHAT_MESSAGE_POSTED, handler)
+  }
+}
+
+/** The rematch a table was opened from is gone: the opponent released it, or it lapsed. */
+function onRematchReleased(
+  connection: HubConnection,
+  handler: IRematchReleasedHandler,
+): () => void {
+  connection.on(EVENT_REMATCH_RELEASED, handler)
+
+  return () => {
+    connection.off(EVENT_REMATCH_RELEASED, handler)
   }
 }
 
@@ -310,6 +324,31 @@ async function cancelRedo(
   return invokeHubStateMethod(connection, 'CancelRedo', gameId)
 }
 
+/**
+ * Offers the opponent another match on the finished board, or answers theirs. A rematch is not a board action: the
+ * game is over, and the answer is a reserved table code rather than a move.
+ */
+async function requestRematch(
+  connection: HubConnection,
+  gameId: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  return invokeHubStateMethod(connection, 'RequestRematch', gameId)
+}
+
+async function acceptRematch(
+  connection: HubConnection,
+  gameId: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  return invokeHubStateMethod(connection, 'AcceptRematch', gameId)
+}
+
+async function declineRematch(
+  connection: HubConnection,
+  gameId: string,
+): Promise<IHubOperationResult<IGameStateResponse>> {
+  return invokeHubStateMethod(connection, 'DeclineRematch', gameId)
+}
+
 async function sendGameChatMessage(
   connection: HubConnection,
   gameId: string,
@@ -399,6 +438,7 @@ export {
   onGameStateInvalidated,
   onGameParticipantJoined,
   onGameChatMessagePosted,
+  onRematchReleased,
   subscribeToGame,
   unsubscribeFromGame,
   getCurrentGameState,
@@ -407,6 +447,9 @@ export {
   requestRedo,
   respondToRedo,
   cancelRedo,
+  requestRematch,
+  acceptRematch,
+  declineRematch,
   sendGameChatMessage,
   getGameChatHistory,
   declareAttack,

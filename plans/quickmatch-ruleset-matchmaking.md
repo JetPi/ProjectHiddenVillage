@@ -108,3 +108,10 @@ Added after the queue landed, see
   covers the format select, an illegal deck being refused with no queue call, the wait dialog with its elapsed
   timer, cancelling a ticket, and the hand-off into the matched game. The server-side pairing rules stay covered by
   `MatchmakingServiceTests`.
+
+## Related
+
+Game codes now have a life cycle, and two players who just finished can play again on a table bound to the same
+format: see [`plans/game-codes-and-rematch.md`](plans/game-codes-and-rematch.md:1). The binding this plan stamps on a
+game is what a rematch inherits, and the code it was created under is only handed out again once that table has
+retired.

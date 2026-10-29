@@ -16,6 +16,11 @@ connection, surfaced in the game view HUD.
 | D7 | No database, no migration | Games are in-memory and die with the process; chat matching that is consistent, not a regression |
 | D8 | Post-game chat allowed until the room is evicted | Rematch talk is normal; there is no `Game.Chat.Closed` |
 
+> D8's "until the room is evicted" now has a concrete trigger: table retirement. See
+> [`plans/game-codes-and-rematch.md`](plans/game-codes-and-rematch.md:1). A finished table and its chat room live as
+> long as somebody is watching the board, the rematch offer included, and both go away together when the retirement
+> sweep collects the table.
+
 ## Contract
 
 Hub methods (new partial `GamesHub.Chat.cs`):

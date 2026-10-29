@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { HubConnection, HubConnectionState } from '@microsoft/signalr'
 import i18n from '@/i18n'
 import {
+  acceptRematch as acceptRematchOnHub,
   acknowledgePhasePresentation as acknowledgePhasePresentationOnHub,
   cancelRedo as cancelRedoOnHub,
   connectGameHub,
   createGameHubConnection,
+  declineRematch as declineRematchOnHub,
   disconnectGameHub,
   forfeitGame as forfeitGameOnHub,
   getCardActionTargets,
@@ -14,7 +16,9 @@ import {
   onGameChatMessagePosted,
   onGameParticipantJoined,
   onGameStateInvalidated,
+  onRematchReleased,
   requestRedo as requestRedoOnHub,
+  requestRematch as requestRematchOnHub,
   respondToRedo as respondToRedoOnHub,
   sendGameChatMessage as sendGameChatMessageOnHub,
   subscribeToGame,
@@ -22,6 +26,7 @@ import {
   type IHubOperationResult,
 } from '@/services/api/gameHubApi'
 import { useGameStateQuery } from '@/services/queries/gameStateQueries'
+import { clearPendingRematch } from '@/state/pendingRematch'
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGameCardActionTargetsResponse } from '@/services/api/types/gameHub'
 import { useGameChatStore } from '@/state/gameChatStore'
@@ -38,6 +43,11 @@ const ACTION_PENDING_WATCHDOG_MS = 15_000
 
 function isConnectionConnected(connection: HubConnection): boolean {
   return connection.state === HubConnectionState.Connected
+}
+
+/** The store and the route spell game codes the same way, but the hub normalizes; compare defensively. */
+function isSameGameId(left: string | null | undefined, right: string | null | undefined): boolean {
+  return (left ?? '').trim().toLowerCase() === (right ?? '').trim().toLowerCase()
 }
 
 function resolveHubErrorMessage(result: IHubOperationResult<IGameStateResponse>): string {
@@ -91,7 +101,13 @@ function useGameHubState(
   const setChatSending = useGameChatStore((state) => state.setSending)
   const setChatError = useGameChatStore((state) => state.setError)
 
-  const gameState = gameStateFromStore ?? initialGameState
+  // The store outlives a route change and is only reset by an effect, which runs after the first render. Reading it
+  // unconditionally therefore paints this board with the *previous* game's state for one render - and anything that
+  // reacts to that state (the rematch hand-off, for instance) would then act on a game the player already left.
+  // A store state that belongs to another game is not this board's state; the loader's snapshot is.
+  const gameState = gameStateFromStore && isSameGameId(gameStateFromStore.gameId, gameId)
+    ? gameStateFromStore
+    : initialGameState
   const hubConnectionScopeKey = `${gameId}|${authUserId?.trim().toLowerCase() ?? ''}`
 
   useEffect(() => {
@@ -323,6 +339,95 @@ function useGameHubState(
     [gameId, requestGameStateRefresh, setGameState],
   )
 
+  /**
+   * Offers the opponent another match on the finished board, or answers theirs. Like the redo handshake this never
+   * goes through `submitHubIntent`: the game is over, and the answer is a reserved table code rather than a move.
+   */
+  const requestRematch = useCallback(
+    async (): Promise<boolean> => {
+      const currentConnection = connectionRef.current
+      if (!currentConnection || !isConnectionConnected(currentConnection)) {
+        return false
+      }
+
+      try {
+        const result = await requestRematchOnHub(currentConnection, gameId)
+        if (!result.succeeded || !result.value) {
+          setActionError(resolveHubErrorMessage(result))
+          requestGameStateRefresh(currentConnection)
+          return false
+        }
+
+        setActionError(null)
+        setGameState(result.value)
+        return true
+      } catch (error) {
+        const message = error instanceof Error ? error.message : i18n.t('game.rematch.requestFailed')
+        setActionError(message)
+        requestGameStateRefresh(currentConnection)
+        return false
+      }
+    },
+    [gameId, requestGameStateRefresh, setActionError, setGameState],
+  )
+
+  const acceptRematch = useCallback(
+    async (): Promise<boolean> => {
+      const currentConnection = connectionRef.current
+      if (!currentConnection || !isConnectionConnected(currentConnection)) {
+        return false
+      }
+
+      try {
+        const result = await acceptRematchOnHub(currentConnection, gameId)
+        if (!result.succeeded || !result.value) {
+          setActionError(resolveHubErrorMessage(result))
+          requestGameStateRefresh(currentConnection)
+          return false
+        }
+
+        setActionError(null)
+        setGameState(result.value)
+        return true
+      } catch (error) {
+        const message = error instanceof Error ? error.message : i18n.t('game.rematch.acceptFailed')
+        setActionError(message)
+        requestGameStateRefresh(currentConnection)
+        return false
+      }
+    },
+    [gameId, requestGameStateRefresh, setActionError, setGameState],
+  )
+
+  const declineRematch = useCallback(
+    async (): Promise<boolean> => {
+      const currentConnection = connectionRef.current
+      if (!currentConnection || !isConnectionConnected(currentConnection)) {
+        return false
+      }
+
+      try {
+        const result = await declineRematchOnHub(currentConnection, gameId)
+        if (!result.succeeded || !result.value) {
+          requestGameStateRefresh(currentConnection)
+          return false
+        }
+
+        setActionError(null)
+        setGameState(result.value)
+        return true
+      } catch (error) {
+        console.warn('[GameHub] declining a rematch threw.', {
+          gameId,
+          message: error instanceof Error ? error.message : 'unknown',
+        })
+        requestGameStateRefresh(currentConnection)
+        return false
+      }
+    },
+    [gameId, requestGameStateRefresh, setActionError, setGameState],
+  )
+
   useEffect(() => {
     if (!authUserId) {
       setConnected(false)
@@ -363,6 +468,17 @@ function useGameHubState(
       }
 
       appendChatMessage(message, true)
+    })
+
+    // The rematch this table was opened from is gone - the opponent released it, or it lapsed. That table is about to
+    // be retired under this player, so say why instead of leaving them on a board that stops accepting anything.
+    const disposeRematchReleasedHandler = onRematchReleased(nextConnection, (releasedGameId) => {
+      if (releasedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
+        return
+      }
+
+      clearPendingRematch()
+      setActionError(i18n.t('game.rematch.opponentLeft'))
     })
 
     const handleReconnected = async (): Promise<void> => {
@@ -516,6 +632,7 @@ function useGameHubState(
       disposeInvalidationHandler()
       disposeParticipantJoinedHandler()
       disposeChatMessageHandler()
+      disposeRematchReleasedHandler()
       connectionRef.current = null
 
       void (async () => {
@@ -659,15 +776,20 @@ function useGameHubState(
       requestRedo,
       respondToRedo,
       cancelRedo,
+      requestRematch,
+      acceptRematch,
+      declineRematch,
       getCardActionTargets: getCardActionTargetsForRequest,
       sendChatMessage,
       refreshGameState,
     }),
     [
+      acceptRematch,
       acknowledgePhasePresentation,
       actionError,
       cancelRedo,
       connectionError,
+      declineRematch,
       forfeitGame,
       gameState,
       getCardActionTargetsForRequest,
@@ -675,6 +797,7 @@ function useGameHubState(
       isConnected,
       refreshGameState,
       requestRedo,
+      requestRematch,
       respondToRedo,
       sendChatMessage,
       submitHubIntent,

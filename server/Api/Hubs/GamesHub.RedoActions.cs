@@ -12,7 +12,7 @@ public sealed partial class GamesHub
 {
     public async Task<HubOperationResult<GameStateResponse>> RequestRedo(string gameId)
     {
-        return await ExecuteRedoOperation(
+        return await ExecuteParticipantOperation(
             gameId,
             operationName: "Game.RequestRedo",
             operation: playerId => gameRedoHandlingService.RequestRedo(NormalizeGameId(gameId), playerId));
@@ -20,7 +20,7 @@ public sealed partial class GamesHub
 
     public async Task<HubOperationResult<GameStateResponse>> RespondToRedo(string gameId, string requestId, bool accepted)
     {
-        return await ExecuteRedoOperation(
+        return await ExecuteParticipantOperation(
             gameId,
             operationName: "Game.RespondToRedo",
             operation: playerId => gameRedoHandlingService.RespondToRedo(
@@ -32,13 +32,18 @@ public sealed partial class GamesHub
 
     public async Task<HubOperationResult<GameStateResponse>> CancelRedo(string gameId)
     {
-        return await ExecuteRedoOperation(
+        return await ExecuteParticipantOperation(
             gameId,
             operationName: "Game.CancelRedo",
             operation: playerId => gameRedoHandlingService.CancelRedo(NormalizeGameId(gameId), playerId));
     }
 
-    private async Task<HubOperationResult<GameStateResponse>> ExecuteRedoOperation(
+    /// <summary>
+    /// Runs an authorized operation that only a seated player may perform and that is not a board action - the redo
+    /// handshake and the rematch handshake both live here, because neither goes through the gate that refuses
+    /// mutations while the table is frozen.
+    /// </summary>
+    private async Task<HubOperationResult<GameStateResponse>> ExecuteParticipantOperation(
         string gameId,
         string operationName,
         Func<string, ErrorOr<GameInstance>> operation)

@@ -57,7 +57,24 @@ public sealed record GameStateResponse(
     string? LastRewindId = null,
     // True when asking for a redo would actually go somewhere, so the control is offered only while it can do
     // something.
-    bool CanRequestRedo = false);
+    bool CanRequestRedo = false,
+    // The rematch offer on a finished board: who asked, whether the other seat agreed, and - once it did - the code
+    // of the table both players will claim from the login view. Null while nothing is on the table.
+    PendingRematchResponse? PendingRematch = null);
+
+/// <summary>
+/// A rematch offered on a finished game. <see cref="ReservedCode"/> is the lobby both players go back to the login
+/// view with: it is reserved for them, bound to the same ruleset and modifiers as the match that just ended, and it
+/// becomes a playable table as soon as both of them have claimed a seat with a deck that fits.
+/// </summary>
+public sealed record PendingRematchResponse(
+    string RequestId,
+    string RequestedByPlayerId,
+    string? AcceptedByPlayerId,
+    string? DeclinedByPlayerId,
+    string ExpiresAtUtc,
+    string? ReservedCode,
+    string? RulesetName);
 
 /// <summary>
 /// A redo waiting for the other player's answer. It is not a prompt: the whole table is frozen while it is set, and

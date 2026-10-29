@@ -237,6 +237,12 @@
       "deckSavedAs": "Deck saved as \"{{name}}\".",
       "deckSaveFailed": "The deck could not be saved."
     },
+    "rematch": {
+      "bannerHeadline": "Rematch agreed - pick the deck you are bringing",
+      "bannerHint": "Table {{code}} is reserved for you in {{ruleset}}. The code is already filled in; choose a deck and join.",
+      "dismissAria": "Dismiss the rematch reminder",
+      "lapsed": "That rematch is no longer available. Your opponent left, or the table expired."
+    },
     "errors": {
       "emailAndPasswordRequired": "Email and password are required.",
       "loginFailed": "Login failed. Please try again.",
@@ -411,6 +417,21 @@
       },
       "reviewBoard": "Review board",
       "returnToMainPage": "Return to main page"
+    },
+    "rematch": {
+      "offer": "Rematch",
+      "accept": "Accept rematch",
+      "decline": "Decline",
+      "withdraw": "Withdraw request",
+      "waitingForOpponent": "Waiting for your opponent to answer.",
+      "incomingOffer": "Your opponent wants another match.",
+      "declined": "The rematch was declined. You can offer another one.",
+      "reservedHeadline": "Both players agreed to a rematch",
+      "reservedHint": "Table {{code}} is reserved for you in {{ruleset}}. Taking you to pick the deck you are bringing...",
+      "noRuleset": "no format",
+      "requestFailed": "The rematch could not be offered.",
+      "acceptFailed": "The rematch could not be accepted.",
+      "opponentLeft": "Your opponent left, so this rematch is no longer available."
     },
     "actionLog": {
       "heading": "Action log",

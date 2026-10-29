@@ -1,12 +1,13 @@
 import { ArrowLeft, X } from 'lucide-react'
 import { MotionConfig } from 'motion/react'
 import { useGameCardsQuery } from '@/services/queries/cardQueries'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLoaderData, useNavigate } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
 import { Panel } from '@/components/ui'
 import { useAuthSessionStore } from '@/state/authSession'
+import { storePendingRematch } from '@/state/pendingRematch'
 import { useThemeStore } from '@/state/themeStore'
 import {
   buildLeaderCardFrameClass,
@@ -47,6 +48,12 @@ function isSamePlayerId(left: string | null | undefined, right: string | null | 
   const normalizedLeft = normalize(left)
 
   return normalizedLeft.length > 0 && normalizedLeft === normalize(right)
+}
+
+function isSameGameCode(left: string | null | undefined, right: string | null | undefined): boolean {
+  const normalizedLeft = (left ?? '').trim().toLowerCase()
+
+  return normalizedLeft.length > 0 && normalizedLeft === (right ?? '').trim().toLowerCase()
 }
 
 export function GameView() {
@@ -103,6 +110,9 @@ export function GameView() {
     requestRedo,
     respondToRedo,
     cancelRedo,
+    requestRematch,
+    acceptRematch,
+    declineRematch,
     sendChatMessage,
   } = gameHubState
   const setActionError = useGameHubStore((state) => state.setActionError)
@@ -149,6 +159,36 @@ export function GameView() {
       setGameOverOverlayDismissed(false)
     }
   }, [gameOutcome, setGameOverOverlayDismissed])
+
+  const reservedRematchCode = gameState.pendingRematch?.reservedCode ?? null
+  const reservedRematchRulesetName = gameState.pendingRematch?.rulesetName ?? null
+  const reservedRematchExpiresAtUtc = gameState.pendingRematch?.expiresAtUtc ?? null
+  // The state must be *this* board's, or the hand-off below would replay the previous game's agreement as soon as
+  // this route mounts - which is exactly what sent players back to the login view right after claiming the table.
+  const isCurrentBoardState = isSameGameCode(gameState.gameId, joinCode)
+  // A rematch is agreed: there is nothing left to do on this board. Both players are taken to the login view with
+  // the reserved code already in hand, because the deck each of them brings to the next match is chosen there,
+  // before anybody claims a seat. The ref is what keeps a re-render from navigating twice on the same code.
+  const handledReservedRematchRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!gameOutcome || !isCurrentBoardState || !reservedRematchCode) {
+      handledReservedRematchRef.current = null
+      return
+    }
+
+    if (handledReservedRematchRef.current === reservedRematchCode) {
+      return
+    }
+
+    handledReservedRematchRef.current = reservedRematchCode
+    storePendingRematch({
+      code: reservedRematchCode,
+      rulesetName: reservedRematchRulesetName,
+      expiresAtUtc: reservedRematchExpiresAtUtc,
+    })
+    void navigate('/')
+  }, [gameOutcome, isCurrentBoardState, navigate, reservedRematchCode, reservedRematchExpiresAtUtc, reservedRematchRulesetName])
 
   const shouldShowPromptOverlay =
     gameOutcome === null
@@ -423,6 +463,10 @@ export function GameView() {
             outcome={gameOutcome}
             authUserId={authUserId}
             onDismiss={dismissGameOverOverlay}
+            rematch={gameState.pendingRematch ?? null}
+            onRequestRematch={requestRematch}
+            onAcceptRematch={acceptRematch}
+            onDeclineRematch={declineRematch}
           />
         ) : null}
 
