@@ -59,6 +59,8 @@ public sealed class GameInstanceService(
                 modifiers: modifiers);
             gameInstance.Ruleset = rulesetBindingResult.Value;
             OpeningSupportSeeding.EnsureSupportCardSeededIntoOpeningDrawWindow(gameInstance, playerDeck.Player.Id, request.DeckId);
+            // Hosting a new table is the player saying where they went: any rematch they were still holding is over.
+            rematchHandlingService?.ReleaseReservationsForPlayer(request.UserId.ToString("N"));
             return gameInstance;
         }
         catch (ArgumentException ex)
@@ -92,6 +94,16 @@ public sealed class GameInstanceService(
 
         var joinResult = await JoinExistingGameAsync(game, normalizedGameCode, request);
         CompleteRematchReservationIfStarted(joinResult, normalizedGameCode);
+
+        if (!joinResult.IsError)
+        {
+            // Joining another table means they moved on. The code they just joined is excluded: claiming a rematch
+            // seat is not moving on from that rematch.
+            rematchHandlingService?.ReleaseReservationsForPlayer(
+                request.UserId.ToString("N"),
+                exceptGameCode: normalizedGameCode);
+        }
+
         return joinResult;
     }
 
@@ -178,7 +190,13 @@ public sealed class GameInstanceService(
                 description: $"Game instance '{gameCode}' was not found.");
         }
 
-        var reservationResult = rematchHandlingService.GetActiveReservation(gameCode);
+        // Claiming cancels any release either seat asked for: the agreement is being acted on, whoever got here
+        // first. A release that already landed answers Game.Rematch.Released and the player is told the opponent left.
+        var reservationResult = rematchHandlingService.GetActiveReservation(
+            gameCode,
+            request.UserId.ToString("N"),
+            cancelsPendingRelease: true);
+
         if (reservationResult.IsError)
         {
             return reservationResult.Errors;

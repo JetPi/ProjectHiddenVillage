@@ -39,6 +39,15 @@ public sealed class RematchReservation
     /// </summary>
     public SemaphoreSlim ClaimLock { get; } = new(1, 1);
 
+    /// <summary>
+    /// The release a player asked for, waiting out its grace. A departure and a refresh unmount the login view the
+    /// same way, so a release is recorded rather than applied: it only lands if nobody comes back before its due
+    /// time. Mutated under <c>lock (reservation)</c>, which is the monitor the store and the service share.
+    /// </summary>
+    public string? PendingReleasePlayerId { get; private set; }
+
+    public DateTimeOffset? PendingReleaseDueAtUtc { get; private set; }
+
     public bool HasSeat(string playerId)
     {
         return PlayerIds.Any(id => string.Equals(id, playerId, StringComparison.Ordinal));
@@ -47,5 +56,42 @@ public sealed class RematchReservation
     public bool IsExpired(DateTimeOffset now)
     {
         return now >= ExpiresAtUtc;
+    }
+
+    /// <summary>
+    /// Records the caller's release. Idempotent on purpose: a page can fire it twice (unmount and <c>pagehide</c>),
+    /// and the second call is the same request rather than a reason to fail.
+    /// </summary>
+    public void RequestRelease(string playerId, DateTimeOffset now, TimeSpan grace)
+    {
+        PendingReleasePlayerId = playerId;
+        PendingReleaseDueAtUtc = now.Add(grace);
+    }
+
+    /// <summary>
+    /// Clears the release when the player who asked for it proves they are still there. Only that player can: the
+    /// opponent watching a banner is not a commitment to the rematch.
+    /// </summary>
+    public bool CancelPendingRelease(string playerId)
+    {
+        if (!string.Equals(PendingReleasePlayerId, playerId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        ClearPendingRelease();
+        return true;
+    }
+
+    /// <summary>A claim by either seat makes the release moot: the agreement is being acted on.</summary>
+    public void ClearPendingRelease()
+    {
+        PendingReleasePlayerId = null;
+        PendingReleaseDueAtUtc = null;
+    }
+
+    public bool IsReleaseDue(DateTimeOffset now)
+    {
+        return PendingReleaseDueAtUtc is { } dueAtUtc && now >= dueAtUtc;
     }
 }

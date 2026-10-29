@@ -16,6 +16,7 @@ import {
   onGameChatMessagePosted,
   onGameParticipantJoined,
   onGameStateInvalidated,
+  onRematchReleased,
   requestRedo as requestRedoOnHub,
   requestRematch as requestRematchOnHub,
   respondToRedo as respondToRedoOnHub,
@@ -25,6 +26,7 @@ import {
   type IHubOperationResult,
 } from '@/services/api/gameHubApi'
 import { useGameStateQuery } from '@/services/queries/gameStateQueries'
+import { clearPendingRematch } from '@/state/pendingRematch'
 import type { IGameStateResponse } from '@/services/api/gameApi'
 import type { IGameCardActionTargetsResponse } from '@/services/api/types/gameHub'
 import { useGameChatStore } from '@/state/gameChatStore'
@@ -468,6 +470,17 @@ function useGameHubState(
       appendChatMessage(message, true)
     })
 
+    // The rematch this table was opened from is gone - the opponent released it, or it lapsed. That table is about to
+    // be retired under this player, so say why instead of leaving them on a board that stops accepting anything.
+    const disposeRematchReleasedHandler = onRematchReleased(nextConnection, (releasedGameId) => {
+      if (releasedGameId.trim().toLowerCase() !== gameId.trim().toLowerCase()) {
+        return
+      }
+
+      clearPendingRematch()
+      setActionError(i18n.t('game.rematch.opponentLeft'))
+    })
+
     const handleReconnected = async (): Promise<void> => {
       if (isDisposed) {
         return
@@ -619,6 +632,7 @@ function useGameHubState(
       disposeInvalidationHandler()
       disposeParticipantJoinedHandler()
       disposeChatMessageHandler()
+      disposeRematchReleasedHandler()
       connectionRef.current = null
 
       void (async () => {

@@ -15,6 +15,7 @@ import type {
   IGameStateInvalidatedHandler,
   IHubOperationResult,
   IPlayerPhaseActionRequest,
+  IRematchReleasedHandler,
   IResolvePromptRequest,
 } from '@/services/api/types/gameHub'
 import type {
@@ -26,6 +27,7 @@ import type {
 const EVENT_GAME_STATE_INVALIDATED = 'GameStateInvalidated'
 const EVENT_GAME_PARTICIPANT_JOINED = 'GameParticipantJoined'
 const EVENT_GAME_CHAT_MESSAGE_POSTED = 'GameChatMessagePosted'
+const EVENT_REMATCH_RELEASED = 'RematchReleased'
 const HUB_ENDPOINT_PATH = '/hubs/games'
 
 function normalizePlayerId(value: string): string {
@@ -106,6 +108,18 @@ function onGameChatMessagePosted(
 
   return () => {
     connection.off(EVENT_GAME_CHAT_MESSAGE_POSTED, handler)
+  }
+}
+
+/** The rematch a table was opened from is gone: the opponent released it, or it lapsed. */
+function onRematchReleased(
+  connection: HubConnection,
+  handler: IRematchReleasedHandler,
+): () => void {
+  connection.on(EVENT_REMATCH_RELEASED, handler)
+
+  return () => {
+    connection.off(EVENT_REMATCH_RELEASED, handler)
   }
 }
 
@@ -424,6 +438,7 @@ export {
   onGameStateInvalidated,
   onGameParticipantJoined,
   onGameChatMessagePosted,
+  onRematchReleased,
   subscribeToGame,
   unsubscribeFromGame,
   getCurrentGameState,

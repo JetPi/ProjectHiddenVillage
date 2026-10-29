@@ -162,6 +162,7 @@ export function GameView() {
 
   const reservedRematchCode = gameState.pendingRematch?.reservedCode ?? null
   const reservedRematchRulesetName = gameState.pendingRematch?.rulesetName ?? null
+  const reservedRematchExpiresAtUtc = gameState.pendingRematch?.expiresAtUtc ?? null
   // The state must be *this* board's, or the hand-off below would replay the previous game's agreement as soon as
   // this route mounts - which is exactly what sent players back to the login view right after claiming the table.
   const isCurrentBoardState = isSameGameCode(gameState.gameId, joinCode)
@@ -181,9 +182,13 @@ export function GameView() {
     }
 
     handledReservedRematchRef.current = reservedRematchCode
-    storePendingRematch({ code: reservedRematchCode, rulesetName: reservedRematchRulesetName })
+    storePendingRematch({
+      code: reservedRematchCode,
+      rulesetName: reservedRematchRulesetName,
+      expiresAtUtc: reservedRematchExpiresAtUtc,
+    })
     void navigate('/')
-  }, [gameOutcome, isCurrentBoardState, navigate, reservedRematchCode, reservedRematchRulesetName])
+  }, [gameOutcome, isCurrentBoardState, navigate, reservedRematchCode, reservedRematchExpiresAtUtc, reservedRematchRulesetName])
 
   const shouldShowPromptOverlay =
     gameOutcome === null

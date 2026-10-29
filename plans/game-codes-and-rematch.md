@@ -243,3 +243,11 @@ Error codes: `Game.Rematch.NotFinished`, `Game.Rematch.NotFound`, `Game.Rematch.
 - `e2e/gameview.multiplayer.rematch.spec.ts`: the offer on both finished boards, the acceptance, the reserved code on
   both state payloads, both players landing on the login view with the code in the form, and - the regression that
   followed the automatic hand-off - claiming the table and staying on the new board instead of bouncing back.
+
+## Abandonment
+
+What happens when the agreement stops being true - a player leaves and does not come back, or neither of them starts
+the next game within the half hour - is a follow-up with its own lifecycle:
+[`plans/rematch-abandonment.md`](plans/rematch-abandonment.md:1). It raises the reservation ceiling to 30 minutes,
+adds a deferred release so a refresh is not mistaken for a departure, and retires a one-player table whose opponent
+walked away.

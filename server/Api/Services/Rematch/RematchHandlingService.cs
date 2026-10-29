@@ -143,7 +143,10 @@ public sealed class RematchHandlingService(
         }
     }
 
-    public ErrorOr<RematchReservation> GetActiveReservation(string gameCode)
+    public ErrorOr<RematchReservation> GetActiveReservation(
+        string gameCode,
+        string? requestingPlayerId = null,
+        bool cancelsPendingRelease = false)
     {
         if (string.IsNullOrWhiteSpace(gameCode))
         {
@@ -156,25 +159,112 @@ public sealed class RematchHandlingService(
 
         if (reservations.TryGet(normalizedCode, out var reservation) && reservation is not null)
         {
-            if (!reservation.IsExpired(timeProvider.GetUtcNow()))
+            var now = timeProvider.GetUtcNow();
+            RematchReservationDropReason? dropReason = null;
+
+            lock (reservation)
             {
-                return reservation;
+                if (reservation.IsExpired(now))
+                {
+                    dropReason = RematchReservationDropReason.Expired;
+                }
+                else if (reservation.IsReleaseDue(now))
+                {
+                    dropReason = RematchReservationDropReason.Released;
+                }
+                else if (!string.IsNullOrWhiteSpace(requestingPlayerId))
+                {
+                    // The seat that walked away changing its mind, or either seat actually claiming: both are proof
+                    // the agreement is live. The opponent merely looking does not cancel anything.
+                    if (cancelsPendingRelease)
+                    {
+                        reservation.ClearPendingRelease();
+                    }
+                    else
+                    {
+                        reservation.CancelPendingRelease(requestingPlayerId);
+                    }
+                }
             }
 
-            // Expired but still in the store: answer "expired" rather than "unknown", because the player holding
-            // the code needs to be told which of the two it is.
-            reservations.PruneExpired();
+            // Dropped but still in the store for a moment: answer why rather than "unknown", because the player
+            // holding the code needs to be told which case they hit.
+            if (dropReason is { } reason)
+            {
+                reservations.Finalize(reservation, reason, reservation.PendingReleasePlayerId);
 
-            return Error.Validation(
-                code: "Game.Rematch.Expired",
-                description: "This rematch table has expired. Open a new game or queue again.");
+                return reason == RematchReservationDropReason.Expired
+                    ? Error.Validation(
+                        code: "Game.Rematch.Expired",
+                        description: "This rematch table has expired. Open a new game or queue again.")
+                    : Error.Validation(
+                        code: "Game.Rematch.Released",
+                        description: "The other player left, so this rematch is no longer available.");
+            }
+
+            return reservation;
         }
 
-        reservations.PruneExpired();
+        reservations.Prune();
 
         return Error.NotFound(
             code: "Game.Rematch.NotFound",
             description: $"No rematch table is reserved under '{normalizedCode}'.");
+    }
+
+    public ErrorOr<Success> ReleaseReservation(string gameCode, string playerId)
+    {
+        if (string.IsNullOrWhiteSpace(gameCode))
+        {
+            return Error.Validation(
+                code: "Game.Rematch.MissingCode",
+                description: "Game code is required.");
+        }
+
+        if (!reservations.TryGet(gameCode.Trim(), out var reservation) || reservation is null)
+        {
+            return Error.NotFound(
+                code: "Game.Rematch.NotFound",
+                description: $"No rematch table is reserved under '{gameCode.Trim()}'.");
+        }
+
+        if (!reservation.HasSeat(playerId))
+        {
+            return Error.Unauthorized(
+                code: "Game.Rematch.Forbidden",
+                description: "This rematch table is reserved for the two players of the previous match.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+
+        lock (reservation)
+        {
+            reservation.RequestRelease(playerId, now, ReleaseGrace);
+        }
+
+        return Result.Success;
+    }
+
+    public IReadOnlyList<string> ReleaseReservationsForPlayer(string playerId, string? exceptGameCode = null)
+    {
+        var dropped = new List<string>();
+        var exceptCode = (exceptGameCode ?? string.Empty).Trim();
+
+        foreach (var reservation in reservations.Snapshot())
+        {
+            if (!reservation.HasSeat(playerId)
+                || string.Equals(reservation.Code, exceptCode, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            // Immediate, not deferred: the player has just said where they went by hosting, joining or queueing,
+            // so there is no refresh to protect against.
+            reservations.Finalize(reservation, RematchReservationDropReason.Released, playerId);
+            dropped.Add(reservation.Code);
+        }
+
+        return dropped;
     }
 
     public void CompleteReservation(string gameCode)
@@ -185,6 +275,8 @@ public sealed class RematchHandlingService(
     private TimeSpan ConsentLifetime => TimeSpan.FromSeconds(Math.Max(1, options.ConsentLifetimeSeconds));
 
     private TimeSpan ReservationLifetime => TimeSpan.FromSeconds(Math.Max(30, options.ReservationLifetimeSeconds));
+
+    private TimeSpan ReleaseGrace => TimeSpan.FromSeconds(Math.Max(0, options.ReleaseGraceSeconds));
 
     /// <summary>
     /// Agrees to the offer, then reserves the next table. A code that cannot be reserved leaves no half-agreed

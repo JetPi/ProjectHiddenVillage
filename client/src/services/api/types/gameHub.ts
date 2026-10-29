@@ -65,3 +65,9 @@ export type IGameCardActionTargetsResponse = {
 
 export type IGameStateInvalidatedHandler = (gameId: string) => void
 export type IGameParticipantJoinedHandler = (gameId: string) => void
+
+/**
+ * The rematch table this board was opened from has been dropped: the opponent released it, or it lapsed. Fired at the
+ * table's group before the table is retired, so the seated player is told why the board is going away.
+ */
+export type IRematchReleasedHandler = (gameId: string, reason: string) => void

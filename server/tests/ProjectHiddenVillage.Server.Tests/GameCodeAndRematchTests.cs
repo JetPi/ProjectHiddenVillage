@@ -452,6 +452,159 @@ public sealed class RematchHandlingTests
         Assert.IsTrue(harness.Allocator.IsClaimed(reservedCode));
     }
 
+    [TestMethod]
+    public void AReleaseIsDeferred_AndOnlyTheSweepAppliesIt()
+    {
+        var harness = CreateHarness();
+        var reservedCode = ReserveTable(harness);
+
+        Assert.IsFalse(harness.Service.ReleaseReservation(reservedCode, "p1").IsError);
+
+        // Inside the grace nothing happens: this is the window a refresh lives in.
+        harness.Time.Advance(TimeSpan.FromSeconds(5));
+        Assert.AreEqual(0, harness.Reservations.Prune().Count);
+        Assert.IsTrue(harness.Service.GetActiveReservation(reservedCode).Value is not null);
+
+        harness.Time.Advance(TimeSpan.FromSeconds(ReleaseGraceSeconds + 1));
+
+        var drops = harness.Reservations.Prune();
+
+        Assert.AreEqual(1, drops.Count);
+        Assert.AreEqual(RematchReservationDropReason.Released, drops[0].Reason);
+        Assert.AreEqual("p1", drops[0].ReleasedByPlayerId);
+        Assert.IsFalse(drops[0].TableRetired);
+        Assert.IsFalse(harness.Allocator.IsClaimed(reservedCode));
+        Assert.IsTrue(harness.Service.GetActiveReservation(reservedCode).IsError);
+    }
+
+    [TestMethod]
+    public void AClaimInsideTheGrace_CancelsTheRelease()
+    {
+        var harness = CreateHarness();
+        var reservedCode = ReserveTable(harness);
+
+        harness.Service.ReleaseReservation(reservedCode, "p1");
+        harness.Time.Advance(TimeSpan.FromSeconds(5));
+
+        var claim = harness.Service.GetActiveReservation(reservedCode, "p2", cancelsPendingRelease: true);
+        Assert.IsFalse(claim.IsError);
+
+        harness.Time.Advance(TimeSpan.FromSeconds(ReleaseGraceSeconds + 1));
+
+        Assert.AreEqual(0, harness.Reservations.Prune().Count);
+        Assert.IsTrue(harness.Allocator.IsClaimed(reservedCode));
+    }
+
+    [TestMethod]
+    public void TheReleasingPlayerComingBack_CancelsTheRelease()
+    {
+        var harness = CreateHarness();
+        var reservedCode = ReserveTable(harness);
+
+        harness.Service.ReleaseReservation(reservedCode, "p1");
+        harness.Time.Advance(TimeSpan.FromSeconds(5));
+
+        // A reload: the same player probes the reservation again, with no claim involved.
+        Assert.IsFalse(harness.Service.GetActiveReservation(reservedCode, "p1").IsError);
+
+        harness.Time.Advance(TimeSpan.FromSeconds(ReleaseGraceSeconds + 1));
+
+        Assert.AreEqual(0, harness.Reservations.Prune().Count);
+    }
+
+    [TestMethod]
+    public void TheOpponentLooking_DoesNotCancelTheRelease()
+    {
+        var harness = CreateHarness();
+        var reservedCode = ReserveTable(harness);
+
+        harness.Service.ReleaseReservation(reservedCode, "p1");
+        harness.Time.Advance(TimeSpan.FromSeconds(5));
+
+        // Watching a banner is not a commitment, so the opponent's own probe changes nothing.
+        Assert.IsFalse(harness.Service.GetActiveReservation(reservedCode, "p2").IsError);
+
+        harness.Time.Advance(TimeSpan.FromSeconds(ReleaseGraceSeconds + 1));
+
+        var drops = harness.Reservations.Prune();
+
+        Assert.AreEqual(1, drops.Count);
+        Assert.AreEqual(RematchReservationDropReason.Released, drops[0].Reason);
+    }
+
+    [TestMethod]
+    public void AReleaseWhileATableWaitsForItsOpponent_RetiresThatTable()
+    {
+        var harness = CreateHarness();
+        var reservedCode = ReserveTable(harness);
+
+        // The first claim opened the table: one seat is taken and the opponent walked away instead of joining.
+        harness.Registry.CreateWithReservedCode(
+            [new Player { Id = "p1", Deck = ["card-1"] }],
+            GameCodeLifecycleTests.BuildDefinitions(),
+            reservedCode,
+            random: new GameCodeLifecycleTests.FixedIndexRandom(0));
+
+        harness.Service.ReleaseReservation(reservedCode, "p2");
+        harness.Time.Advance(TimeSpan.FromSeconds(ReleaseGraceSeconds + 1));
+
+        var drops = harness.Reservations.Prune();
+
+        Assert.AreEqual(1, drops.Count);
+        Assert.IsTrue(drops[0].TableRetired, "The abandoned table must go with the agreement.");
+        Assert.IsFalse(harness.Registry.TryGet(reservedCode, out _));
+        Assert.IsFalse(harness.Allocator.IsClaimed(reservedCode));
+    }
+
+    [TestMethod]
+    public void APlayerOutsideThePair_CannotReleaseTheReservation()
+    {
+        var harness = CreateHarness();
+        var reservedCode = ReserveTable(harness);
+
+        var result = harness.Service.ReleaseReservation(reservedCode, "intruder");
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Game.Rematch.Forbidden", result.FirstError.Code);
+        Assert.AreEqual(0, harness.Reservations.Prune().Count);
+    }
+
+    [TestMethod]
+    public void ReleasingTwice_IsNotAnError()
+    {
+        var harness = CreateHarness();
+        var reservedCode = ReserveTable(harness);
+
+        Assert.IsFalse(harness.Service.ReleaseReservation(reservedCode, "p1").IsError);
+        Assert.IsFalse(harness.Service.ReleaseReservation(reservedCode, "p1").IsError);
+    }
+
+    [TestMethod]
+    public void MovingOn_DropsOnlyThatPlayersReservations_ExceptTheCodeBeingClaimed()
+    {
+        var harness = CreateHarness();
+        var first = ReserveTable(harness);
+        var second = ReserveTable(harness);
+
+        var dropped = harness.Service.ReleaseReservationsForPlayer("p1", exceptGameCode: second);
+
+        CollectionAssert.AreEqual(new[] { first }, dropped.ToArray());
+        Assert.IsFalse(harness.Allocator.IsClaimed(first));
+        Assert.IsTrue(harness.Allocator.IsClaimed(second), "The code being claimed must survive the move-on rule.");
+    }
+
+    /// <summary>Reserves a table the same way the handshake does, and returns its code.</summary>
+    private static string ReserveTable(RematchHarness harness)
+    {
+        var game = GameTableReaperTests.CreateFinishedGame(harness.Registry);
+        harness.Service.RequestRematch(game.Id, "p1");
+        harness.Service.AcceptRematch(game.Id, "p2");
+
+        return game.PendingRematch!.ReservedCode!;
+    }
+
+    private const int ReleaseGraceSeconds = 20;
+
     private static GameRulesetBinding CreateBinding()
     {
         return new GameRulesetBinding(
@@ -478,15 +631,17 @@ public sealed class RematchHandlingTests
             {
                 ConsentLifetimeSeconds = consentLifetimeSeconds,
                 ReservationLifetimeSeconds = reservationLifetimeSeconds,
+                ReleaseGraceSeconds = ReleaseGraceSeconds,
             },
             time);
 
-        return new RematchHarness(registry, allocator, service, time);
+        return new RematchHarness(registry, allocator, reservations, service, time);
     }
 
     private sealed record RematchHarness(
         InMemoryGameInstanceRegistry Registry,
         IGameCodeAllocator Allocator,
+        RematchReservationStore Reservations,
         RematchHandlingService Service,
         GameCodeLifecycleTests.MutableTimeProvider Time);
 }

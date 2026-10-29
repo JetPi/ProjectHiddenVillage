@@ -21,6 +21,7 @@ public sealed class MatchmakingService : IMatchmakingService
     private readonly MatchmakingOptions options;
     private readonly TimeProvider timeProvider;
     private readonly IGuestUserService? guestUserService;
+    private readonly IRematchHandlingService? rematchHandlingService;
 
     public MatchmakingService(
         InMemoryGameInstanceRegistry registry,
@@ -30,7 +31,8 @@ public sealed class MatchmakingService : IMatchmakingService
         MatchmakingQueue queue,
         IOptions<MatchmakingOptions> options,
         TimeProvider timeProvider,
-        IGuestUserService? guestUserService = null)
+        IGuestUserService? guestUserService = null,
+        IRematchHandlingService? rematchHandlingService = null)
     {
         this.registry = registry;
         this.gameReadService = gameReadService;
@@ -40,6 +42,7 @@ public sealed class MatchmakingService : IMatchmakingService
         this.options = options.Value;
         this.timeProvider = timeProvider;
         this.guestUserService = guestUserService;
+        this.rematchHandlingService = rematchHandlingService;
     }
 
     public async Task<ErrorOr<MatchTicketResponse>> EnqueueAsync(
@@ -105,6 +108,10 @@ public sealed class MatchmakingService : IMatchmakingService
         {
             await guestUserService.TouchAsync(request.UserId.ToString("N"), cancellationToken);
         }
+
+        // Queueing is this player saying where they went, so a rematch they were still holding is over. Done before
+        // the ticket exists, so nobody is ever queued while a reserved table waits for them.
+        rematchHandlingService?.ReleaseReservationsForPlayer(request.UserId.ToString("N"));
 
         var now = timeProvider.GetUtcNow();
         var ticket = new MatchTicket

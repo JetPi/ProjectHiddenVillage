@@ -434,8 +434,17 @@ public sealed class GamesHubNormalizationTests
         public ErrorOr<GameInstance> DeclineRematch(string gameId, string playerId)
             => throw new NotImplementedException();
 
-        public ErrorOr<RematchReservation> GetActiveReservation(string gameCode)
+        public ErrorOr<RematchReservation> GetActiveReservation(
+            string gameCode,
+            string? requestingPlayerId = null,
+            bool cancelsPendingRelease = false)
             => Error.NotFound(code: "Game.Rematch.NotFound", description: "stub");
+
+        public ErrorOr<Success> ReleaseReservation(string gameCode, string playerId)
+            => Error.NotFound(code: "Game.Rematch.NotFound", description: "stub");
+
+        public IReadOnlyList<string> ReleaseReservationsForPlayer(string playerId, string? exceptGameCode = null)
+            => [];
 
         public void CompleteReservation(string gameCode)
         {
