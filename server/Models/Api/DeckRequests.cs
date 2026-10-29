@@ -23,7 +23,8 @@ public sealed record DeckResponse(
     Guid? UserId,
     string? LeaderColor,
     IReadOnlyList<DeckCardResponse> Cards,
-    DeckRecordResponse? Record = null);
+    DeckRecordResponse? Record = null,
+    string? LeaderCardId = null);
 
 public sealed record DeckCardRequest(string CardId, int Quantity);
 

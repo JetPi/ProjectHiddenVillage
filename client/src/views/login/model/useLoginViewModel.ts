@@ -13,6 +13,7 @@ export function useLoginViewModel() {
       hostRulesetId: state.rulesetIdByMode.host,
       hostTimeRelaxed: state.hostTimeRelaxed,
       activeDeckOption: state.deckOptionsByMode[state.deckOptionsMode],
+      importDeckOption: state.deckOptionsByMode.import,
       savedDeckOption: state.deckOptionsByMode.saved_decks,
       starterDeckOption: state.deckOptionsByMode.starter_decks,
       setDisplayName: state.setDisplayName,

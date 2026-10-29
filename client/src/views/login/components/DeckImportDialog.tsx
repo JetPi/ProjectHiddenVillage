@@ -24,6 +24,13 @@ export type IDeckImportDialogProps = {
   onClose: () => void
   onUse: () => void
   onSave: () => void
+  /**
+   * Set when the dialog is overwriting an existing deck instead of creating one. The import tab is the editor, so the
+   * same parser, ruleset evaluation and card payload serve both - only the wording and the available actions differ.
+   */
+  editDeckName?: string | null
+  /** True while the edited list carries a different leader, which is the one change that resets the deck's record. */
+  leaderWillResetRecord?: boolean
 }
 
 const DEFAULT_IMPORT_WINDOW_STYLE = {
@@ -47,8 +54,11 @@ export function DeckImportDialog({
   onClose,
   onUse,
   onSave,
+  editDeckName = null,
+  leaderWillResetRecord = false,
 }: IDeckImportDialogProps) {
   const { t } = useTranslation()
+  const isEditing = Boolean(editDeckName)
   const overlayRef = useRef<HTMLDivElement | null>(null)
   const mainWindowRef = useRef<HTMLDivElement | null>(null)
   const appliedWindowHeightRef = useRef(0)
@@ -129,12 +139,23 @@ export function DeckImportDialog({
           >
             <div className="mb-3 flex items-center justify-between">
               <h2 id="import-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
-                {t('auth.importModalTitle')}
+                {isEditing
+                  ? t('auth.deckEdit.title', { name: editDeckName })
+                  : t('auth.importModalTitle')}
               </h2>
             </div>
             <p className="mb-2 text-sm text-[var(--text-secondary)]">
-              {t('auth.importModalBody')}
+              {isEditing ? t('auth.deckEdit.body') : t('auth.importModalBody')}
             </p>
+            {isEditing && leaderWillResetRecord ? (
+              <p
+                role="status"
+                data-testid="deck-edit-leader-warning"
+                className="mb-2 rounded-lg bg-[var(--button-primary-bg)]/15 px-2 py-1.5 text-xs font-medium leading-5 text-[var(--button-primary-bg)]"
+              >
+                {t('auth.deckEdit.leaderWarning')}
+              </p>
+            ) : null}
             <FormTextarea
               id="deckImportPayload"
               value={payload}
@@ -165,9 +186,11 @@ export function DeckImportDialog({
                   onChange={(event) => onDeckNameChange(event.target.value)}
                   className="py-2"
                 />
-                <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-                  {t('auth.importDeckNameHint', { name: defaultDeckName })}
-                </p>
+                {isEditing ? null : (
+                  <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                    {t('auth.importDeckNameHint', { name: defaultDeckName })}
+                  </p>
+                )}
               </div>
             ) : null}
 
@@ -176,15 +199,18 @@ export function DeckImportDialog({
                 {t('auth.close')}
               </AppButton>
 
-              <AppButton
-                type="button"
-                variant="ghost"
-                onClick={onUse}
-                disabled={!canUse}
-                data-testid="import-deck-use"
-              >
-                {t('auth.importUse')}
-              </AppButton>
+              {/* "Use" is about a draft being good enough for the next game; an overwrite has nothing to use. */}
+              {isEditing ? null : (
+                <AppButton
+                  type="button"
+                  variant="ghost"
+                  onClick={onUse}
+                  disabled={!canUse}
+                  data-testid="import-deck-use"
+                >
+                  {t('auth.importUse')}
+                </AppButton>
+              )}
 
               {isAuthenticated ? (
                 <AppButton
@@ -193,7 +219,13 @@ export function DeckImportDialog({
                   disabled={!canUse || isSaving}
                   data-testid="import-deck-save"
                 >
-                  {isSaving ? t('auth.importSaving') : t('auth.importSave')}
+                  {isEditing
+                    ? isSaving
+                      ? t('auth.deckEdit.saving')
+                      : t('auth.deckEdit.save')
+                    : isSaving
+                      ? t('auth.importSaving')
+                      : t('auth.importSave')}
                 </AppButton>
               ) : null}
             </div>

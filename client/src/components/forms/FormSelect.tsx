@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, X } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import type { IFormSelectProps } from '@/components/forms/types'
@@ -97,7 +97,6 @@ export function FormSelect({
         >
           {options.map((option) => {
             const isSelected = option.value === value
-            const action = option.action
 
             return (
               <li key={option.value} role="presentation">
@@ -125,8 +124,9 @@ export function FormSelect({
                     <span className="min-w-0 truncate">{option.label}</span>
                     {option.trailing ? <span className="shrink-0">{option.trailing}</span> : null}
                   </button>
-                  {action ? (
+                  {option.actions?.map((action) => (
                     <button
+                      key={action.label}
                       type="button"
                       aria-label={action.label}
                       title={action.label}
@@ -141,9 +141,9 @@ export function FormSelect({
                           : 'text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]'
                       }`}
                     >
-                      {action.icon ?? <X size={14} aria-hidden="true" />}
+                      {action.icon ?? null}
                     </button>
-                  ) : null}
+                  ))}
                 </div>
               </li>
             )

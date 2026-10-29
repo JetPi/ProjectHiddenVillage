@@ -123,7 +123,8 @@ public sealed class DeckRecordTests
 
         var result = await new DeckService(dbContext).UpdateDeckAsync(
             deck.Id.ToString(),
-            new UpdateDeckRequest(Name: "After", Cards: [new DeckCardRequest("C-700", 2)]));
+            new UpdateDeckRequest(Name: "After", Cards: [new DeckCardRequest("C-700", 2)]),
+            requestingUserId: owner.Id);
 
         Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
         Assert.IsTrue(
@@ -150,21 +151,58 @@ public sealed class DeckRecordTests
 
         var result = await new DeckService(dbContext).UpdateDeckAsync(
             deck.Id.ToString(),
-            new UpdateDeckRequest(Name: "Same", Cards: [new DeckCardRequest("C-701", 3)]));
+            new UpdateDeckRequest(Name: "Same", Cards: [new DeckCardRequest("C-701", 3)]),
+            requestingUserId: owner.Id);
 
         Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
         Assert.IsTrue(await dbContext.DeckRecords.AnyAsync(record => record.DeckId == deck.Id));
     }
 
     [TestMethod]
-    public async Task UpdateDeck_ClearsEveryRecordForTheDeckWhenTheCardsChange()
+    public async Task UpdateDeck_KeepsTheRecordWhenOnlyTheCardRatiosChange()
+    {
+        await using var dbContext = CreateDbContext();
+        var owner = SeedUser(dbContext, "owner");
+        var card = SeedCatalogEntry(dbContext, "C-703");
+        var deck = SeedDeck(dbContext, owner, DeckType.User, "Tuned", card, quantity: 2);
+        AddPermissiveRuleset(dbContext, nonLeaderCardCount: 3);
+        dbContext.DeckRecords.Add(new DeckRecord
+        {
+            DeckId = deck.Id,
+            UserId = owner.Id,
+            Wins = 6,
+            Losses = 4,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var result = await new DeckService(dbContext).UpdateDeckAsync(
+            deck.Id.ToString(),
+            new UpdateDeckRequest(Name: "Tuned", Cards: [new DeckCardRequest("C-703", 3)]),
+            requestingUserId: owner.Id);
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        Assert.IsTrue(
+            await dbContext.DeckRecords.AnyAsync(record => record.DeckId == deck.Id),
+            "tuning a list that has already been played does not start it over");
+    }
+
+    [TestMethod]
+    public async Task UpdateDeck_ClearsEveryRecordForTheDeckWhenTheLeaderChanges()
     {
         await using var dbContext = CreateDbContext();
         var first = SeedUser(dbContext, "first");
         var second = SeedUser(dbContext, "second");
-        var card = SeedCatalogEntry(dbContext, "C-702");
-        var deck = SeedDeck(dbContext, user: null, DeckType.Public, "Shared", card, quantity: 2);
-        AddPermissiveRuleset(dbContext, nonLeaderCardCount: 3);
+        var oldLeader = SeedCatalogEntry(dbContext, "L-710", CardType.Leader);
+        var newLeader = SeedCatalogEntry(dbContext, "L-711", CardType.Leader);
+        var character = SeedCatalogEntry(dbContext, "C-710");
+        var deck = SeedDeckWithCards(
+            dbContext,
+            user: null,
+            DeckType.Public,
+            "Shared",
+            (oldLeader, 1),
+            (character, 1));
+        AddPermissiveRuleset(dbContext, nonLeaderCardCount: 1, leaderCount: 1);
         dbContext.DeckRecords.AddRange(
             new DeckRecord { DeckId = deck.Id, UserId = first.Id, Wins = 5, Losses = 2 },
             new DeckRecord { DeckId = deck.Id, UserId = second.Id, Wins = 0, Losses = 3 });
@@ -172,27 +210,76 @@ public sealed class DeckRecordTests
 
         var result = await new DeckService(dbContext).UpdateDeckAsync(
             deck.Id.ToString(),
-            new UpdateDeckRequest(Name: "Shared", Cards: [new DeckCardRequest("C-702", 3)]));
+            new UpdateDeckRequest(
+                Name: "Shared",
+                Cards: [new DeckCardRequest("L-711", 1), new DeckCardRequest("C-710", 1)]),
+            isAdmin: true);
 
         Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
         Assert.AreEqual(
             0,
             await dbContext.DeckRecords.CountAsync(record => record.DeckId == deck.Id),
-            "a changed card list starts the deck's record over for every player who played it");
+            "the leader defines the deck, so swapping it starts the record over for everyone who played it");
+    }
+
+    [TestMethod]
+    public async Task UpdateDeck_WhenTheDeckBelongsToAnotherPlayer_ReturnsForbidden()
+    {
+        await using var dbContext = CreateDbContext();
+        var owner = SeedUser(dbContext, "owner");
+        var outsider = SeedUser(dbContext, "outsider");
+        var card = SeedCatalogEntry(dbContext, "C-711");
+        var deck = SeedDeck(dbContext, owner, DeckType.User, "Mine", card, quantity: 1);
+        AddPermissiveRuleset(dbContext, nonLeaderCardCount: 1);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new DeckService(dbContext).UpdateDeckAsync(
+            deck.Id.ToString(),
+            new UpdateDeckRequest(Name: "Stolen", Cards: [new DeckCardRequest("C-711", 1)]),
+            requestingUserId: outsider.Id);
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Deck.Update.Forbidden", result.FirstError.Code);
+        Assert.AreEqual(
+            "Mine",
+            (await dbContext.Decks.SingleAsync(record => record.Id == deck.Id)).Name,
+            "a refused edit changes nothing");
+    }
+
+    [TestMethod]
+    public async Task UpdateDeck_WhenAnAdminOverwritesAPublicDeck_IsAllowed()
+    {
+        await using var dbContext = CreateDbContext();
+        var card = SeedCatalogEntry(dbContext, "C-713");
+        var deck = SeedDeck(dbContext, user: null, DeckType.Public, "Catalogue deck", card, quantity: 1);
+        AddPermissiveRuleset(dbContext, nonLeaderCardCount: 1);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new DeckService(dbContext).UpdateDeckAsync(
+            deck.Id.ToString(),
+            new UpdateDeckRequest(Name: "Curated", Cards: [new DeckCardRequest("C-713", 1)]),
+            requestingUserId: Guid.NewGuid(),
+            isAdmin: true);
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        Assert.AreEqual("Curated", result.Value.Name);
     }
 
     /// <summary>
     /// The update path re-validates the deck against the active formats, so the tests that exercise it need one that
     /// accepts the list they send: no leader, no colour match, and exactly the non-leader count they expect.
     /// </summary>
-    private static void AddPermissiveRuleset(ApplicationDbContext dbContext, int nonLeaderCardCount)
+    private static void AddPermissiveRuleset(
+        ApplicationDbContext dbContext,
+        int nonLeaderCardCount,
+        int leaderCount = 0)
     {
         dbContext.DeckRulesets.Add(new DeckRuleset
         {
             Key = $"test-{Guid.NewGuid():N}",
             Name = "Test Ruleset",
             IsActive = true,
-            LeaderCount = 0,
+            LeaderCount = leaderCount,
             NonLeaderCardCount = nonLeaderCardCount,
             MaxCopiesPerNonLeaderCard = 4,
             RequireLeaderColorMatch = false,
@@ -246,13 +333,44 @@ public sealed class DeckRecordTests
         return deck;
     }
 
-    private static CardCatalogEntry SeedCatalogEntry(ApplicationDbContext dbContext, string cardId)
+    private static Deck SeedDeckWithCards(
+        ApplicationDbContext dbContext,
+        User? user,
+        DeckType type,
+        string name,
+        params (CardCatalogEntry Card, int Quantity)[] cards)
+    {
+        var deck = new Deck
+        {
+            Type = type,
+            Name = name,
+            UserId = user?.Id,
+            User = user,
+        };
+
+        foreach (var (card, quantity) in cards)
+        {
+            deck.Cards.Add(new DeckCard
+            {
+                CardCatalogEntry = card,
+                Quantity = quantity,
+            });
+        }
+
+        dbContext.Decks.Add(deck);
+        return deck;
+    }
+
+    private static CardCatalogEntry SeedCatalogEntry(
+        ApplicationDbContext dbContext,
+        string cardId,
+        CardType type = CardType.Character)
     {
         var entry = new CardCatalogEntry
         {
             CardId = cardId,
             DisplayName = cardId,
-            Type = CardType.Character,
+            Type = type,
             Color = CardColor.Red,
             Description = "desc",
             NameJson = "[]",

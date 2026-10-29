@@ -72,11 +72,13 @@ flowchart LR
    a record is only ever returned when the caller is the player it belongs to. Without that, `?userId=` would let
    anyone read anyone's record.
 
-6. **Reset on a changed list.** [`UpdateDeckAsync()`](../server/Api/Services/Deck/DeckService.cs:241) compares the
-   requested cards with the stored ones. When they differ it deletes every record for that deck in the same
-   `SaveChangesAsync` as the card reconciliation, so a record always describes the list that earned it. A pure rename,
-   or a save that sends the same list back, keeps the record. The delete is by deck, not by owner: editing a public deck
-   changes its identity for everyone who played it.
+6. **Reset when the leader changes.** [`UpdateDeckAsync()`](../server/Api/Services/Deck/DeckService.cs:241) compares
+   the set of leader card ids the deck has with the set the save brings. Only a different leader deletes every record
+   for that deck, in the same `SaveChangesAsync` as the card reconciliation. Ratios, tech cards and the name are
+   deliberately outside the comparison: a player tuning a list they have already played should not lose what it earned
+   on the way, and being stingy here made the record misleading. The delete is by deck, not by owner: a public deck's
+   leader change is a new identity for everyone who played the old one. [`DeckResponse.LeaderCardId`](../server/Models/Api/DeckRequests.cs:19)
+   exposes the stored leader so the client can warn before saving.
 
 ## Client changes
 
@@ -95,6 +97,27 @@ flowchart LR
   never played reads `No games yet`, not `0%`.
 - The win rate is `wins / (wins + losses)`: a draw is not a defeat, so it never lowers the percentage.
 
+## Editing a saved deck (overwrite through the import flow)
+
+A player can rewrite one of their own decks without the admin deck manager: the pencil on the picker row opens the
+import dialog with the deck's list loaded and turns Save into an overwrite.
+
+- **Same code path as importing.** The import tab is the editor: its parser, its ruleset evaluation, its card metadata
+  query and its dialog are reused unchanged, so an overwrite is judged by exactly the rules a new deck would be.
+  [`DeckImportDialog`](../client/src/views/login/components/DeckImportDialog.tsx:10) gained `editDeckName` and
+  `leaderWillResetRecord`: the title and primary button say "overwrite", Use is hidden, and the old name hint is gone.
+- **The draft is the player's.** Opening the editor snapshots `deckOptionsByMode.import`; saving or cancelling writes it
+  back (and back to the `phv-imported-deck` cache). Switching tabs by hand while editing is a cancel, so no orphan
+  editor state survives.
+- **The warning is honest.** The client compares the deck's `leaderCardId` with the leader in the edited list (read from
+  the same catalog metadata the ruleset evaluation uses) and shows an inline warning only when they differ, waiting for
+  the metadata so it cannot flash while the cards resolve. The success toast names the reset only when the returned
+  record shows it actually happened.
+- **Authorization.** `PUT /api/deck/{deckId}` was admin-only too; it is now authentication-only with the ownership
+  decision in the service, the same shape as delete. The name length limit is enforced now that players can rename.
+- **Response.** `GetDeck` takes the viewer id, so `UpdateDeckAsync` answers with the caller's own record - a leader swap
+  shows its reset immediately, a ratio tweak keeps the badge.
+
 ## Deleting a saved deck from the picker
 
 A player can remove one of their own decks from the list they pick it from: an X on the row, a confirmation, then the
@@ -110,10 +133,11 @@ removal. The pieces:
   is deliberate: a record without the list it describes is meaningless.
 - **A deck still used by a stored game is refused.** The existing `Deck.Delete.InUse` conflict stays; the client keeps
   the deck and reports it, because silently dropping a deck the player can still see would be worse than the error.
-- **The X needs a component change.** [`FormSelect`](../client/src/components/forms/FormSelect.tsx:98) used to render
-  each option as a single button, so an X inside it would have been a nested button (invalid markup) and would have
-  selected the row on its way to the action. Options may now carry an `action`, rendered as a sibling button inside the
-  row, and only the saved-deck list supplies one - a public deck is nobody's to delete.
+- **The actions need a component change.** [`FormSelect`](../client/src/components/forms/FormSelect.tsx:98) used to
+  render each option as a single button, so an X inside it would have been a nested button (invalid markup) and would
+  have selected the row on its way to the action. Options may now carry `actions` (edit and delete), each rendered as a
+  sibling button inside the row, and only the saved-deck list supplies them - a public deck is nobody's to rewrite or
+  remove.
 - **Only the id is held while confirming.** [`LoginView`](../client/src/views/login/LoginView.tsx:176) keeps
   `deckPendingDeletionId` and reads the deck from the list that is on screen, so the dialog can never act on a stale
   copy. On success the deck leaves the list, the choices and the preloaded card caches, and the selection is cleared if
@@ -137,8 +161,9 @@ removal. The pieces:
 - Two accounts can trade forfeits to inflate a deck's record. A unique-opponent rule or a per-day cap is the fix.
 - Game codes are reused after retirement, so idempotency lives on the live instance and not on a game-id ledger. A
   future match-history table would need its own instance id.
-- The deck editor is admin-only today, so in practice the reset fires there; if players ever edit saved decks, the same
-  path already does the right thing.
+- The overwrite path has no e2e that actually saves: a save needs a deck that is legal in an active format, which the
+  mocked picker cannot provide without also mocking the ruleset and catalog endpoints. The server tests cover the
+  overwrite and the reset; the client spec covers entering the editor, the loaded list and the draft restore.
 
 ## Tests
 
@@ -146,10 +171,13 @@ removal. The pieces:
 - `GameDeckResultRecordingTests`: deck ids remembered on create and join, forfeit hands the game over once, a running
   game is never handed over, legacy deck-less seats stay uncredited.
 - `DeckRecordTests`: the record travels only to its owner, a public deck keeps one row per player, unplayed decks have
-  no record, and the reset fires on a card change but not on a rename or an unchanged list.
+  no record, the reset fires when the leader changes but not on a rename, an unchanged list or a ratio tweak, and an
+  edit from another player is refused.
 - Server deletion tests: the owner's deck and its record are removed, another player is refused, an admin can remove a
   public deck, and a deck assigned to a game still returns the conflict.
 - `e2e/login.deck-records.spec.ts`: picker option badges (played, draws-only and never-played) plus the collapsed
   control and summary rendering, against a mocked deck listing.
 - `e2e/login.deck-delete.spec.ts`: the X exists only on saved decks, never moves the selection, asks for confirmation,
   and removes the deck on confirm while the other deck stays selected.
+- `e2e/login.deck-edit.spec.ts`: the pencil opens the import tab loaded with the deck's list and name, offers no Use,
+  and gives the player's import draft back on cancel while keeping the deck selected.

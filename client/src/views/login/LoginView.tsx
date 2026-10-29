@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SubmitEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -25,7 +25,7 @@ import {
   OptionToggle,
 } from '@/components/forms'
 import type { IAdaptiveFieldConfig, ISelectChoice } from '@/components/forms'
-import { Lightbulb, LogIn, X } from 'lucide-react'
+import { Lightbulb, LogIn, Pencil, X } from 'lucide-react'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { clearAuthSession, useAuthSessionStore, type IAuthSession } from '@/state/authSession'
 import { ensurePlayerIdentity } from '@/state/guestSession'
@@ -35,7 +35,7 @@ import { useThemeStore } from '@/state/themeStore'
 import { useLoginViewModel } from '@/views/login/model/useLoginViewModel'
 import { selectRulesetWaitingCount, usePresenceSnapshot } from '@/services/presence/usePresence'
 import type { ILoginActionData } from '@/views/login/types/routeHandlers'
-import type { IGameIntent } from '@/types/login'
+import type { IDeckOptionsEntryMode, IGameIntent } from '@/types/login'
 import type { IDeckRuleset } from '@/types/deckRuleset'
 import { matchModifierLabelKeys, TIME_RELAXED_MODIFIER } from '@/types/gameModifiers'
 import type { IPresenceSnapshot } from '@/types/presence'
@@ -48,7 +48,7 @@ import {
 } from '@/services/api/gameApi'
 import { getApiErrorMessage, isApiBadRequestError } from '@/views/utils/getApiErrorMessage'
 import { createUserDeck, fetchDecks } from '@/services/api/deckApi'
-import { useDeleteDeckMutation } from '@/services/queries/deckQueries'
+import { useDeleteDeckMutation, useUpdateDeckMutation } from '@/services/queries/deckQueries'
 import { preloadCardsByIds } from '@/services/cardPreloadService'
 import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
 import { useActiveDeckRulesetsQuery } from '@/services/queries/deckRulesetQueries'
@@ -185,6 +185,10 @@ export function LoginView() {
   // Only the id is held: the deck itself is read from the list the player is looking at, so a stale copy of a deck
   // that was just removed can never reach the confirmation.
   const [deckPendingDeletionId, setDeckPendingDeletionId] = useState<string | null>(null)
+  // The saved deck being overwritten through the import tab, plus the import draft that was there before the edit so
+  // saving or cancelling can give it back untouched.
+  const [editingDeckId, setEditingDeckId] = useState<string | null>(null)
+  const importDraftBeforeEditRef = useRef<string | null>(null)
   const [savedDeckChoices, setSavedDeckChoices] = useState<ISelectChoice[]>([
     { value: '', label: t('auth.deckChoice.loginToLoad') },
   ])
@@ -238,6 +242,7 @@ export function LoginView() {
     hostTimeRelaxed,
     joinGameCode,
     quickmatchRulesetId,
+    importDeckOption,
     savedDeckOption,
     setDeckOptionsMode,
     setDeckOptionValue,
@@ -562,19 +567,79 @@ export function LoginView() {
     )
   }
 
+  const updateDeckMutation = useUpdateDeckMutation()
+
+  /**
+   * Editing a saved deck reuses the import tab: same parser, same ruleset evaluation, same dialog, with the deck's
+   * list loaded and the save turned into an overwrite. The import text belongs to the player, so the draft that is
+   * there before the edit is snapshotted and restored when the edit is saved or cancelled.
+   */
+  const openDeckEditor = useCallback((deckId: string) => {
+    const deck = savedDecks.find((candidate) => candidate.id === deckId)
+    if (!deck) {
+      return
+    }
+
+    importDraftBeforeEditRef.current = importDeckOption
+    setEditingDeckId(deck.id)
+    setImportDeckName(deck.name)
+    setDeckOptionsMode('import')
+    setDeckOptionValueForMode('import', toDeckListPayload(deck.cards))
+    setIsImportModalOpen(true)
+  }, [importDeckOption, savedDecks, setDeckOptionValueForMode, setDeckOptionsMode])
+
+  /** Leaves the editor, giving the import draft back. The mode is chosen by the caller: a save lands on the list. */
+  const closeDeckEditor = (nextMode: IDeckOptionsEntryMode | null = 'saved_decks') => {
+    if (editingDeckId === null) {
+      setIsImportModalOpen(false)
+      return
+    }
+
+    const draft = importDraftBeforeEditRef.current ?? ''
+    importDraftBeforeEditRef.current = null
+    setEditingDeckId(null)
+    setDeckOptionValueForMode('import', draft)
+    writeCachedImportedDeck(draft)
+    setIsImportModalOpen(false)
+
+    if (nextMode) {
+      setDeckOptionsMode(nextMode)
+    }
+  }
+
+  // Switching tabs by hand while editing is a cancel: the player moved on, and the editor has no orphan state to keep.
+  const handleDeckOptionsModeChange = (nextMode: IDeckOptionsEntryMode) => {
+    if (editingDeckId !== null) {
+      closeDeckEditor(null)
+    }
+
+    setDeckOptionsMode(nextMode)
+    if (nextMode === 'import') {
+      setIsImportModalOpen(true)
+    }
+  }
+
   const activeDeckFieldConfig = useMemo(() => {
     if (deckOptionsMode === 'saved_decks') {
       return {
         type: 'select' as const,
-        // The X is offered on the player's own list only, and never on the placeholder row: a public deck is nobody's
-        // to delete, and this list is exactly the player's own.
+        // Edit and delete are offered on the player's own list only, and never on the placeholder row: a public deck
+        // is nobody's to rewrite or remove, and this list is exactly the player's own.
         choices: savedDeckChoices.map((choice) => ({
           ...choice,
-          action: choice.value
-            ? {
-                label: t('auth.deckChoice.deleteAria', { name: choice.label }),
-                onActivate: () => setDeckPendingDeletionId(choice.value),
-              }
+          actions: choice.value
+            ? [
+                {
+                  label: t('auth.deckEdit.actionAria', { name: choice.label }),
+                  onActivate: () => openDeckEditor(choice.value),
+                  icon: <Pencil size={13} aria-hidden="true" />,
+                },
+                {
+                  label: t('auth.deckChoice.deleteAria', { name: choice.label }),
+                  onActivate: () => setDeckPendingDeletionId(choice.value),
+                  icon: <X size={14} aria-hidden="true" />,
+                },
+              ]
             : undefined,
         })),
       }
@@ -591,7 +656,7 @@ export function LoginView() {
       type: 'select' as const,
       choices: starterDeckChoices,
     }
-  }, [deckOptionsMode, savedDeckChoices, starterDeckChoices, t])
+  }, [deckOptionsMode, savedDeckChoices, starterDeckChoices, openDeckEditor, t])
 
   const translatedGameEntryModeOptions = useMemo(
     () => gameEntryModeOptions.map((option) => ({ ...option, label: translateKey(t, option.label) })),
@@ -916,6 +981,30 @@ export function LoginView() {
     return decks.find((deck) => deck.id === selectedDeckId)?.record ?? null
   }, [activeDeckOption, deckOptionsMode, savedDecks, starterDecks])
 
+  // The one change that resets a deck's record is a different leader. The stored leader comes from the deck itself,
+  // the edited one from the same metadata the ruleset evaluation uses, and the comparison waits for that metadata so
+  // the warning cannot flash while the card list is still resolving.
+  const editingDeck = useMemo(
+    () => savedDecks.find((deck) => deck.id === editingDeckId) ?? null,
+    [editingDeckId, savedDecks],
+  )
+
+  const editedLeaderCardId = useMemo(() => {
+    const leaderCard = importedDeckCards.find(
+      (card) => importedDeckCardsById.get(normalizeDeckCardId(card.cardId))?.type.trim().toLowerCase() === 'leader',
+    )
+
+    return leaderCard ? normalizeDeckCardId(leaderCard.cardId) : ''
+  }, [importedDeckCards, importedDeckCardsById])
+
+  const leaderWillResetRecord = useMemo(() => {
+    if (!editingDeck || (importedDeckCards.length > 0 && importedDeckCardsById.size === 0)) {
+      return false
+    }
+
+    return normalizeDeckCardId(editingDeck.leaderCardId ?? '') !== editedLeaderCardId
+  }, [editedLeaderCardId, editingDeck, importedDeckCards.length, importedDeckCardsById.size])
+
   const isCheckingDeckSummary = isCheckingActiveDeck || joinGameRulesetQuery.isChecking
 
   const describeImportedDeckParseError = (error: IDeckListParseError): string => {
@@ -998,6 +1087,46 @@ export function LoginView() {
 
     try {
       const deckName = importDeckName.trim() || defaultImportDeckName
+
+      if (editingDeckId) {
+        const previousRecord = savedDecks.find((deck) => deck.id === editingDeckId)?.record
+        const updatedDeck = await updateDeckMutation.mutateAsync({
+          deckId: editingDeckId,
+          name: deckName,
+          cards: resolvedDeck.cards,
+        })
+        const nextSavedDecks = savedDecks.map((deck) => (
+          deck.id === editingDeckId ? updatedDeck : deck
+        ))
+
+        setSavedDecks(nextSavedDecks)
+        setSavedDeckChoices(toDeckChoices(nextSavedDecks, t('auth.deckChoice.noSaved')))
+        setSavedDeckCardIdsByDeckId((current) => ({
+          ...current,
+          [updatedDeck.id]: resolvedDeck.cards.map((card) => card.cardId),
+        }))
+        setSavedDeckCardsByDeckId((current) => ({
+          ...current,
+          [updatedDeck.id]: resolvedDeck.cards,
+        }))
+
+        // The response carries the deck's own record, so "the leader changed" is read from the server's answer
+        // instead of being inferred: the record is reset only when it actually was.
+        const recordWasReset = hasPlayedGames(previousRecord) && !hasPlayedGames(updatedDeck.record)
+
+        closeDeckEditor()
+        setDeckOptionValue(updatedDeck.id)
+        showAppSuccessToast(
+          t(
+            recordWasReset ? 'auth.deckEdit.savedWithReset' : 'auth.deckEdit.saved',
+            { name: describeDeckName(updatedDeck) },
+          ),
+          { id: 'auth-deck-import-status' },
+        )
+
+        return
+      }
+
       const deckId = await createUserDeck(resolvedDeck.cardsPayload, authUser.userId, deckName)
       const savedDeck: IDeckResponse = {
         id: deckId,
@@ -1024,7 +1153,10 @@ export function LoginView() {
       )
     } catch (error) {
       showAppInfoToast(
-        getApiErrorMessage(error, t('auth.toasts.deckSaveFailed')),
+        getApiErrorMessage(
+          error,
+          editingDeckId ? t('auth.deckEdit.failed') : t('auth.toasts.deckSaveFailed'),
+        ),
         { id: 'auth-deck-import-status' },
       )
     } finally {
@@ -1587,12 +1719,7 @@ export function LoginView() {
                   value={deckOptionsMode}
                   options={translatedDeckOptionsModeOptions}
                   optionClassName="py-1"
-                  onChange={(nextMode) => {
-                    setDeckOptionsMode(nextMode)
-                    if (nextMode === 'import') {
-                      setIsImportModalOpen(true)
-                    }
-                  }}
+                  onChange={handleDeckOptionsModeChange}
                 />
                 {starterDeckFetchFailed && deckOptionsMode === 'starter_decks' ? (
                   <div className="flex justify-end">
@@ -1838,11 +1965,13 @@ export function LoginView() {
         defaultDeckName={defaultImportDeckName}
         canUse={isImportedDeckReady}
         isSaving={isSavingImportedDeck}
-        onClose={() => setIsImportModalOpen(false)}
+        onClose={() => closeDeckEditor()}
         onUse={handleUseImportedDeck}
         onSave={() => {
           void handleSaveImportedDeck()
         }}
+        editDeckName={editingDeck ? describeDeckName(editingDeck) : null}
+        leaderWillResetRecord={leaderWillResetRecord}
       />
     </PageShell>
   )
@@ -1901,6 +2030,21 @@ function omitDeckEntry<T>(entries: Record<string, T>, deckId: string): Record<st
   delete next[deckId]
 
   return next
+}
+
+/** A stored deck as the import tab's text, so editing starts from the list the deck already has. */
+function toDeckListPayload(cards: readonly IDeckCardInput[]): string {
+  return cards
+    .filter((card) => card.quantity > 0 && card.cardId.trim().length > 0)
+    .map((card) => `${card.quantity}x ${card.cardId.trim()}`)
+    .join('\n')
+}
+
+/** Whether a record has anything on it; the reset toast only fires when it had something to lose. */
+function hasPlayedGames(record: IDeckRecord | null | undefined): boolean {
+  return normalizeRecordCount(record?.wins)
+    + normalizeRecordCount(record?.losses)
+    + normalizeRecordCount(record?.draws) > 0
 }
 
 /**

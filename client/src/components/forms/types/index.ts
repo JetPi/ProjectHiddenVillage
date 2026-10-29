@@ -27,9 +27,9 @@ export type IOptionToggleProps<T extends string> = {
   Omit<HTMLAttributes<HTMLDivElement>, 'onChange'>
 
 /**
- * A per-row action, e.g. the X that deletes a saved deck. It renders as its own button beside the option rather than
- * inside it: an interactive control nested in the option button would both be invalid markup and select the row on
- * the way to the action.
+ * A per-row action, e.g. the pencil that edits or the X that deletes a saved deck. Actions render as their own
+ * buttons beside the option rather than inside it: an interactive control nested in the option button would both be
+ * invalid markup and select the row on the way to the action.
  */
 export type IFormSelectAction = {
   label: string
@@ -42,7 +42,7 @@ export type IFormSelectOption = {
   label: string
   /** Rendered at the far right of the row and of the collapsed control, e.g. a queue-depth badge. */
   trailing?: ReactNode
-  action?: IFormSelectAction
+  actions?: IFormSelectAction[]
   disabled?: boolean
 }
 
@@ -63,7 +63,7 @@ export type ISelectChoice = {
   value: string
   label: string
   trailing?: ReactNode
-  action?: IFormSelectAction
+  actions?: IFormSelectAction[]
 }
 
 export type IAdaptiveInputConfig = {

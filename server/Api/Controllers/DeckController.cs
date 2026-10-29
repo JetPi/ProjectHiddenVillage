@@ -54,8 +54,9 @@ public sealed class DeckController : ApiControllerBase
         return Created($"/api/deck/{result.Value.Id}", result.Value);
     }
 
-    // Admin-only already excludes guests (a guest token never carries the admin claim), so this stays as it was.
-    [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
+    // Authentication-only, like the delete: a player overwrites their own deck from the login picker, while the
+    // service decides whether the caller owns it and an admin keeps the catalogue-wide edit they had before.
+    [Authorize]
     [HttpPut("{deckId}")]
     [ProducesResponseType(typeof(DeckResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
@@ -64,7 +65,12 @@ public sealed class DeckController : ApiControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<DeckResponse>> UpdateDeck(string deckId, [FromBody] UpdateDeckRequest request)
     {
-        var result = await deckService.UpdateDeckAsync(deckId, request);
+        var result = await deckService.UpdateDeckAsync(
+            deckId,
+            request,
+            GetRequestingUserId(),
+            IsCardCatalogAdmin());
+
         if (result.IsError)
         {
             return ProblemFromErrors<DeckResponse>(result.Errors);

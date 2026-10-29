@@ -690,7 +690,7 @@ public sealed class DeckServiceTests
             [
                 new DeckCardRequest("L-200", 1),
                 new DeckCardRequest("C-200", 3),
-            ]));
+            ]), isAdmin: true);
 
         Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
         Assert.AreEqual("After", result.Value.Name);
@@ -740,7 +740,7 @@ public sealed class DeckServiceTests
             [
                 new DeckCardRequest("L-300", 1),
                 new DeckCardRequest("C-300", 1),
-            ]));
+            ]), isAdmin: true);
 
         Assert.IsTrue(result.IsError);
         Assert.AreEqual("Deck.Ruleset.NotLegalInAnyRuleset", result.FirstError.Code);
@@ -840,7 +840,7 @@ public sealed class DeckServiceTests
             [
                 new DeckCardRequest("L-350", 1),
                 new DeckCardRequest("C-350", 4),
-            ]));
+            ]), isAdmin: true);
 
         Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
 

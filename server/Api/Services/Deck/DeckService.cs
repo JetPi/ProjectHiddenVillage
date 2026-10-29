@@ -205,7 +205,11 @@ public sealed partial class DeckService : IDeckService
         return await GetDeck(deck.Id.ToString(), populate: false);
     }
 
-    public async Task<ErrorOr<DeckResponse>> UpdateDeckAsync(string deckId, UpdateDeckRequest request)
+    public async Task<ErrorOr<DeckResponse>> UpdateDeckAsync(
+            string deckId,
+            UpdateDeckRequest request,
+            Guid? requestingUserId = null,
+            bool isAdmin = false)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -218,6 +222,7 @@ public sealed partial class DeckService : IDeckService
 
         var deck = await dbContext.Decks
                 .Include(record => record.Cards)
+                .ThenInclude(card => card.CardCatalogEntry)
                 .SingleOrDefaultAsync(record => record.Id == parsedDeckId);
 
         if (deck is null)
@@ -227,18 +232,36 @@ public sealed partial class DeckService : IDeckService
                     description: $"Deck '{deckId}' was not found.");
         }
 
+        // The same rule the delete endpoint uses: a player edits their own deck, an admin curates the catalogue.
+        if (!isAdmin && (requestingUserId is null || deck.UserId != requestingUserId))
+        {
+            return Error.Forbidden(
+                    code: "Deck.Update.Forbidden",
+                    description: "This deck does not belong to you.");
+        }
+
+        var deckName = request.Name.Trim();
+        if (deckName.Length > 128)
+        {
+            return Error.Validation(
+                    code: "Deck.Update.NameTooLong",
+                    description: "Deck name cannot exceed 128 characters.");
+        }
+
         var resolveResult = await ResolveDeckCardsAsync(request.Cards);
         if (resolveResult.IsError)
         {
             return resolveResult.Errors;
         }
 
-        deck.Name = request.Name.Trim();
+        // The leader is what makes a deck *that deck*: swapping it is a new deck wearing the old name, so the record
+        // starts over. Everything else - a ratio tweak, a tech card, a different name - keeps the record, because a
+        // player tuning a list they have already played should not lose what it earned on the way. Computed before
+        // the reconciliation below mutates the stored rows.
+        var requestedLeaderCardIds = await ResolveRequestedLeaderCardIdsAsync(request.Cards);
+        var leaderChanged = HasLeaderChanged(deck.Cards, requestedLeaderCardIds);
 
-        // A record describes the list that earned it, so an actual change to the cards starts the deck over. This is
-        // computed before the reconciliation below mutates the stored rows, and a rename (or a save that sends the
-        // same list back) leaves the record alone.
-        var cardListChanged = HasCardListChanged(deck.Cards, resolveResult.Value);
+        deck.Name = deckName;
 
         var existingCardsByCatalogEntryId = deck.Cards.ToDictionary(card => card.CardCatalogEntryId);
 
@@ -259,9 +282,9 @@ public sealed partial class DeckService : IDeckService
             dbContext.DeckCards.RemoveRange(existingCardsByCatalogEntryId.Values);
         }
 
-        if (cardListChanged)
+        if (leaderChanged)
         {
-            // Every player's row for this deck goes, not just the owner's: the cards define the deck, so a public
+            // Every player's row for this deck goes, not just the owner's: the leader defines the deck, so a public
             // deck edited by an admin has a new identity for everyone who played the old one. The delete rides in the
             // same SaveChanges as the card reconciliation, so a reset can never land without the edit.
             var records = await dbContext.DeckRecords
@@ -285,7 +308,7 @@ public sealed partial class DeckService : IDeckService
                     description: "The deck could not be updated.");
         }
 
-        return await GetDeck(deck.Id.ToString(), populate: false);
+        return await GetDeck(deck.Id.ToString(), populate: false, viewerUserId: requestingUserId);
     }
 
     public async Task<ErrorOr<bool>> DeleteDeck(string deckId, Guid? requestingUserId = null, bool isAdmin = false)
@@ -351,7 +374,10 @@ public sealed partial class DeckService : IDeckService
         return true;
     }
 
-    public async Task<ErrorOr<DeckResponse>> GetDeck(string deckId, bool populate = false)
+    public async Task<ErrorOr<DeckResponse>> GetDeck(
+            string deckId,
+            bool populate = false,
+            Guid? viewerUserId = null)
     {
         if (!Guid.TryParse(deckId, out var parsedDeckId))
         {
@@ -375,7 +401,7 @@ public sealed partial class DeckService : IDeckService
                         description: $"Deck '{deckId}' was not found.");
             }
 
-            return ToDeckResponse(deck, record: null);
+            return ToDeckResponse(deck, await LoadViewerRecordAsync(parsedDeckId, viewerUserId));
         }
 
         var deckWithCards = await dbContext.Decks
@@ -391,7 +417,10 @@ public sealed partial class DeckService : IDeckService
                     description: $"Deck '{deckId}' was not found.");
         }
 
-        return ToDeckResponse(deckWithCards, populate: true);
+        return ToDeckResponse(
+                deckWithCards,
+                populate: true,
+                await LoadViewerRecordAsync(parsedDeckId, viewerUserId));
     }
 
     public async Task<ErrorOr<List<DeckResponse>>> GetDecks(
@@ -496,33 +525,57 @@ public sealed partial class DeckService : IDeckService
                 record => new DeckRecordResponse(record.Wins, record.Losses, record.Draws));
     }
 
-    /// <summary>
-    /// True when the requested list is not the stored one. Only the card identities and their quantities matter: the
-    /// deck's name is deliberately not part of it, because renaming a deck does not change the deck it plays.
-    /// </summary>
-    private static bool HasCardListChanged(
-            IReadOnlyCollection<DeckCard> storedCards,
-            IReadOnlyCollection<DeckCard> requestedCards)
+    /// <summary>The requesting player's record for one deck, if they have one.</summary>
+    private async Task<DeckRecordResponse?> LoadViewerRecordAsync(Guid deckId, Guid? viewerUserId)
     {
-        if (storedCards.Count != requestedCards.Count)
+        var records = await LoadViewerRecordsAsync([deckId], viewerUserId);
+
+        return records.GetValueOrDefault(deckId);
+    }
+
+    /// <summary>
+    /// The leader cards among the requested cards. It answers the one question the record depends on: does this save
+    /// replace the deck's leader? Quantities, the rest of the list and the name are deliberately outside it.
+    /// </summary>
+    private async Task<List<string>> ResolveRequestedLeaderCardIdsAsync(
+            IReadOnlyList<DeckCardRequest>? requestedCards)
+    {
+        var requestedCardIds = (requestedCards ?? [])
+                .Where(card => !string.IsNullOrWhiteSpace(card.CardId))
+                .Select(card => card.CardId.Trim().ToUpperInvariant())
+                .ToHashSet(StringComparer.Ordinal);
+
+        if (requestedCardIds.Count == 0)
         {
-            return true;
+            return [];
         }
 
-        var requestedQuantities = requestedCards.ToDictionary(
-                card => card.CardCatalogEntryId,
-                card => card.Quantity);
+        return await dbContext.CardCatalogEntries
+                .AsNoTracking()
+                .Where(entry => entry.Type == CardType.Leader && requestedCardIds.Contains(entry.CardId.ToUpper()))
+                .Select(entry => entry.CardId)
+                .ToListAsync();
+    }
 
-        foreach (var storedCard in storedCards)
-        {
-            if (!requestedQuantities.TryGetValue(storedCard.CardCatalogEntryId, out var requestedQuantity)
-                || requestedQuantity != storedCard.Quantity)
-            {
-                return true;
-            }
-        }
+    /// <summary>
+    /// True when the set of leader cards is not the one the deck already had. Identities only: swapping the leader,
+    /// adding one or dropping it is a new deck, while tuning the rest of the list is still the same deck.
+    /// </summary>
+    private static bool HasLeaderChanged(
+            IReadOnlyCollection<DeckCard> storedCards,
+            IReadOnlyCollection<string> requestedLeaderCardIds)
+    {
+        var storedLeaderCardIds = storedCards
+                .Select(card => card.CardCatalogEntry)
+                .Where(entry => entry.Type == CardType.Leader)
+                .Select(entry => entry.CardId.Trim().ToUpperInvariant())
+                .ToHashSet(StringComparer.Ordinal);
 
-        return false;
+        var requestedLeaders = requestedLeaderCardIds
+                .Select(cardId => cardId.Trim().ToUpperInvariant())
+                .ToHashSet(StringComparer.Ordinal);
+
+        return !storedLeaderCardIds.SetEquals(requestedLeaders);
     }
 
     private static System.Linq.Expressions.Expression<Func<Deck, DeckProjection>> ToDeckProjectionExpression()
@@ -537,6 +590,11 @@ public sealed partial class DeckService : IDeckService
                         .Where(card => card.CardCatalogEntry.Type == CardType.Leader)
                         .OrderBy(card => card.CardCatalogEntry.CardId)
                         .Select(card => card.CardCatalogEntry.Color)
+                        .FirstOrDefault(),
+                LeaderCardId: deck.Cards
+                        .Where(card => card.CardCatalogEntry.Type == CardType.Leader)
+                        .OrderBy(card => card.CardCatalogEntry.CardId)
+                        .Select(card => card.CardCatalogEntry.CardId)
                         .FirstOrDefault(),
                 Cards: deck.Cards
                         .OrderBy(card => card.CardCatalogEntry.CardId)
@@ -555,7 +613,8 @@ public sealed partial class DeckService : IDeckService
                 UserId: deck.UserId,
                 LeaderColor: deck.HasLeader ? ToReadableCardColor(deck.LeaderColor) : null,
                 Cards: deck.Cards,
-                Record: record);
+                Record: record,
+                LeaderCardId: deck.LeaderCardId);
     }
 
     private static DeckResponse ToDeckResponse(Deck deck, bool populate, DeckRecordResponse? record = null)
@@ -578,7 +637,8 @@ public sealed partial class DeckService : IDeckService
                                 Quantity: card.Quantity,
                                 Card: populate ? ToCatalogResponse(card.CardCatalogEntry) : null))
                         .ToList(),
-                Record: record);
+                Record: record,
+                LeaderCardId: leaderEntry?.CardId);
     }
 
     private sealed record DeckProjection(
@@ -588,6 +648,7 @@ public sealed partial class DeckService : IDeckService
         Guid? UserId,
         bool HasLeader,
         CardColor LeaderColor,
+        string? LeaderCardId,
         List<DeckCardResponse> Cards);
 
     private static CardCatalogItemResponse ToCatalogResponse(CardCatalogEntry entry)

@@ -26,6 +26,8 @@ export type IDeckResponse = {
   leaderColor?: string | null
   cards: IDeckCardResponse[]
   record?: IDeckRecord | null
+  /** The leader card the deck is built around; the one card that decides whether an overwrite keeps its record. */
+  leaderCardId?: string | null
 }
 
 export type IDeckCardInput = {

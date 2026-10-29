@@ -36,9 +36,15 @@ test.describe('deck deletion', () => {
     await expect(page.getByRole('combobox', { name: DECK_OPTIONS })).toContainText(KEPT_DECK.name)
 
     await openSavedDeckOptions(page)
-    await expect(page.getByTestId('deckOptions-option-action')).toHaveCount(2)
+    // Each saved deck row carries its own edit and delete actions.
+    await expect(
+      deletionRow(page, KEPT_DECK.name).getByRole('button', { name: `Edit ${KEPT_DECK.name}` }),
+    ).toHaveCount(1)
+    await expect(
+      deletionRow(page, DELETED_DECK.name).getByRole('button', { name: `Delete ${DELETED_DECK.name}` }),
+    ).toHaveCount(1)
 
-    await deletionRow(page, DELETED_DECK.name).getByTestId('deckOptions-option-action').click()
+    await deletionRow(page, DELETED_DECK.name).getByRole('button', { name: `Delete ${DELETED_DECK.name}` }).click()
 
     const dialog = page.getByTestId('delete-deck-confirm-dialog')
     await expect(dialog).toBeVisible()
@@ -51,7 +57,7 @@ test.describe('deck deletion', () => {
     await openSavedDeckOptions(page)
     await expect(page.getByRole('listbox').getByRole('option').filter({ hasText: DELETED_DECK.name })).toHaveCount(1)
 
-    await deletionRow(page, DELETED_DECK.name).getByTestId('deckOptions-option-action').click()
+    await deletionRow(page, DELETED_DECK.name).getByRole('button', { name: `Delete ${DELETED_DECK.name}` }).click()
     await page.getByTestId('delete-deck-confirm-button').click()
 
     await expect(page.getByTestId('delete-deck-confirm-dialog')).toBeHidden()

@@ -187,6 +187,17 @@
       "confirm": "Delete deck",
       "deleting": "Deleting..."
     },
+    "deckEdit": {
+      "title": "Edit {{name}}",
+      "body": "Paste the deck's new card list. Saving overwrites this deck instead of adding a new one; keeping the same leader keeps its win/loss record.",
+      "leaderWarning": "The leader changed, so this deck's win/loss record will be reset when you save.",
+      "save": "Overwrite deck",
+      "saving": "Overwriting...",
+      "actionAria": "Edit {{name}}",
+      "saved": "Deck \"{{name}}\" overwritten.",
+      "savedWithReset": "Deck \"{{name}}\" overwritten. Its win/loss record was reset because the leader changed.",
+      "failed": "The deck could not be overwritten. Please try again."
+    },
     "deckMode": {
       "saved": "saved deck",
       "public": "public deck"
