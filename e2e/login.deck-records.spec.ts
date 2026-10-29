@@ -50,16 +50,24 @@ test.describe('deck records', () => {
 
     const options = await openSavedDeckOptions(page)
 
-    await expect(options.filter({ hasText: 'Recorded deck · 7W–3L (70%)' })).toHaveCount(1)
-    await expect(options.filter({ hasText: 'Drawn deck · 2D' })).toHaveCount(1)
-    await expect(options.filter({ hasText: 'Unplayed deck' })).toHaveCount(1)
-    await expect(options.filter({ hasText: 'Unplayed deck ·' })).toHaveCount(0)
+    // The record rides on each option as a badge, so the numbers are visible while the list is open.
+    const recordedRow = options.filter({ hasText: 'Recorded deck' })
+    const drawnRow = options.filter({ hasText: 'Drawn deck' })
+    const unplayedRow = options.filter({ hasText: 'Unplayed deck' })
 
-    await options.filter({ hasText: 'Recorded deck' }).click()
+    await expect(recordedRow).toHaveCount(1)
+    await expect(recordedRow).toContainText('7W–3L (70%)')
+    await expect(drawnRow).toContainText('2D')
+    // A deck nobody has played still reports its counters instead of staying silent.
+    await expect(unplayedRow).toContainText('0W–0L')
+
+    await recordedRow.click()
+    await expect(page.getByRole('combobox', { name: DECK_OPTIONS })).toContainText('7W–3L (70%)')
     await expect(page.getByTestId('login-deck-record')).toHaveText('7W–3L · 70% win rate')
 
     await openSavedDeckOptions(page)
     await page.getByRole('listbox').getByRole('option').filter({ hasText: 'Unplayed deck' }).click()
+    await expect(page.getByRole('combobox', { name: DECK_OPTIONS })).toContainText('0W–0L')
     await expect(page.getByTestId('login-deck-record')).toHaveText('No games yet')
   })
 })

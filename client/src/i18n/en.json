@@ -177,7 +177,15 @@
       "failedPublic": "Failed to load public decks.",
       "noSaved": "No saved decks found for this user.",
       "failedSaved": "Failed to load your decks.",
-      "unnamedDeck": "Deck {{shortId}}"
+      "unnamedDeck": "Deck {{shortId}}",
+      "deleteAria": "Delete {{name}}"
+    },
+    "deckDelete": {
+      "title": "Delete this deck?",
+      "body": "\"{{name}}\" and its win/loss record will be removed. This cannot be undone.",
+      "cancel": "Keep deck",
+      "confirm": "Delete deck",
+      "deleting": "Deleting..."
     },
     "deckMode": {
       "saved": "saved deck",
@@ -188,6 +196,7 @@
       "illegalPill": "Not legal",
       "importedDeck": "Imported deck",
       "recordNone": "No games yet",
+      "recordZero": "0W–0L",
       "recordFull": "{{wins}}W–{{losses}}L · {{rate}}% win rate",
       "recordFullWithDraws": "{{wins}}W–{{losses}}L–{{draws}}D · {{rate}}% win rate",
       "recordDrawsOnly": "{{draws}}D",
@@ -222,6 +231,8 @@
       "accountCreated": "Account created successfully.",
       "loggedInAs": "Logged in as {{username}}",
       "loggedOut": "Logged out successfully.",
+      "deckDeleted": "Deck \"{{name}}\" deleted.",
+      "deckDeleteFailed": "The deck could not be deleted. Please try again.",
       "loginRequired": "Please log in before creating or joining a game.",
       "selectRuleset": "Please choose a format before searching for a match.",
       "deckNotLegalForRuleset": "This deck is not legal in {{ruleset}}. Fix the issues shown and try again.",

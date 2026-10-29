@@ -73,7 +73,9 @@ public sealed class DeckController : ApiControllerBase
         return Ok(result.Value);
     }
 
-    [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
+    // Deliberately authentication-only: a player must be able to remove their own saved deck. The service decides
+    // whether the caller owns it, and an admin keeps the catalogue-wide delete they had before.
+    [Authorize]
     [HttpDelete("{deckId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
@@ -83,7 +85,11 @@ public sealed class DeckController : ApiControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<bool>> DeleteDeck(string deckId)
     {
-        var result = await deckService.DeleteDeck(deckId);
+        var result = await deckService.DeleteDeck(
+            deckId,
+            GetRequestingUserId(),
+            IsCardCatalogAdmin());
+
         if (result.IsError)
         {
             return ProblemFromErrors<bool>(result.Errors);
@@ -135,5 +141,12 @@ public sealed class DeckController : ApiControllerBase
             ?? User?.FindFirstValue(JwtRegisteredClaimNames.Sub);
 
         return Guid.TryParse(rawUserId, out var userId) ? userId : null;
+    }
+
+    private bool IsCardCatalogAdmin()
+    {
+        return User?.HasClaim(
+            AuthorizationPolicies.CardCatalogAdminClaimType,
+            AuthorizationPolicies.CardCatalogAdminClaimValue) == true;
     }
 }

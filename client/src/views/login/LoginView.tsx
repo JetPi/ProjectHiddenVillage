@@ -24,7 +24,7 @@ import {
   FormInput,
   OptionToggle,
 } from '@/components/forms'
-import type { IAdaptiveFieldConfig } from '@/components/forms'
+import type { IAdaptiveFieldConfig, ISelectChoice } from '@/components/forms'
 import { Lightbulb, LogIn, X } from 'lucide-react'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { clearAuthSession, useAuthSessionStore, type IAuthSession } from '@/state/authSession'
@@ -48,6 +48,7 @@ import {
 } from '@/services/api/gameApi'
 import { getApiErrorMessage, isApiBadRequestError } from '@/views/utils/getApiErrorMessage'
 import { createUserDeck, fetchDecks } from '@/services/api/deckApi'
+import { useDeleteDeckMutation } from '@/services/queries/deckQueries'
 import { preloadCardsByIds } from '@/services/cardPreloadService'
 import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
 import { useActiveDeckRulesetsQuery } from '@/services/queries/deckRulesetQueries'
@@ -61,6 +62,7 @@ import {
 } from '@/domain/deck/parseDeckList'
 import { CreateGameShareDialog } from '@/views/login/components/CreateGameShareDialog'
 import { DeckImportDialog } from '@/views/login/components/DeckImportDialog'
+import { DeleteDeckConfirmDialog } from '@/views/login/components/DeleteDeckConfirmDialog'
 import { MatchmakingSearchDialog } from '@/views/login/components/MatchmakingSearchDialog'
 import { QueuedPlayersBadge } from '@/views/login/components/QueuedPlayersBadge'
 import { writeCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
@@ -180,10 +182,13 @@ export function LoginView() {
   const [isSavingImportedDeck, setIsSavingImportedDeck] = useState(false)
   // Hosting mints a real game on the click, so every action button is held shut while one submission is in flight.
   const [pendingIntent, setPendingIntent] = useState<IGameIntent | null>(null)
-  const [savedDeckChoices, setSavedDeckChoices] = useState<{ value: string; label: string }[]>([
+  // Only the id is held: the deck itself is read from the list the player is looking at, so a stale copy of a deck
+  // that was just removed can never reach the confirmation.
+  const [deckPendingDeletionId, setDeckPendingDeletionId] = useState<string | null>(null)
+  const [savedDeckChoices, setSavedDeckChoices] = useState<ISelectChoice[]>([
     { value: '', label: t('auth.deckChoice.loginToLoad') },
   ])
-  const [starterDeckChoices, setStarterDeckChoices] = useState<{ value: string; label: string }[]>([
+  const [starterDeckChoices, setStarterDeckChoices] = useState<ISelectChoice[]>([
     { value: '', label: t('auth.deckChoice.loadingPublic') },
   ])
   const [starterDeckFetchFailed, setStarterDeckFetchFailed] = useState(false)
@@ -435,7 +440,7 @@ export function LoginView() {
         if (!isCancelled) {
           const publicDecks = allDecks.filter((deck) => deck.type === 'Public')
           setStarterDecks(publicDecks)
-          setStarterDeckChoices(toDeckChoices(publicDecks, t('auth.deckChoice.noPublic')))
+          setStarterDeckChoices(toDeckChoices(publicDecks, t('auth.deckChoice.noPublic'), false))
           setStarterDeckCardIdsByDeckId(toDeckCardIdsByDeckId(publicDecks))
           setStarterDeckCardsByDeckId(toDeckCardsByDeckId(publicDecks))
           setStarterDeckFetchFailed(false)
@@ -516,11 +521,62 @@ export function LoginView() {
     starterDeckCardIdsByDeckId,
   ])
 
+  const pendingDeletionDeck = useMemo(
+    () => savedDecks.find((deck) => deck.id === deckPendingDeletionId) ?? null,
+    [deckPendingDeletionId, savedDecks],
+  )
+
+  const deleteDeckMutation = useDeleteDeckMutation()
+
+  const confirmDeckDeletion = async () => {
+    const deck = pendingDeletionDeck
+    if (!deck) {
+      return
+    }
+
+    try {
+      await deleteDeckMutation.mutateAsync(deck.id)
+    } catch (error) {
+      // The list is the truth: the deck stays, the dialog stays open, and the toast explains why (usually "this deck
+      // is still assigned to a game").
+      showAppInfoToast(getApiErrorMessage(error, t('auth.toasts.deckDeleteFailed')))
+      return
+    }
+
+    const remainingDecks = savedDecks.filter((candidate) => candidate.id !== deck.id)
+
+    setDeckPendingDeletionId(null)
+    setSavedDecks(remainingDecks)
+    setSavedDeckChoices(toDeckChoices(remainingDecks, t('auth.deckChoice.noSaved')))
+    setSavedDeckCardIdsByDeckId((current) => omitDeckEntry(current, deck.id))
+    setSavedDeckCardsByDeckId((current) => omitDeckEntry(current, deck.id))
+
+    // The picker must stop pointing at a deck that no longer exists; anything selected for the next match is that deck.
+    if (savedDeckOption.trim() === deck.id) {
+      setDeckOptionValueForMode('saved_decks', '')
+    }
+
+    showAppSuccessToast(
+      t('auth.toasts.deckDeleted', { name: describeDeckName(deck) }),
+      { id: 'auth-deck-delete-status' },
+    )
+  }
+
   const activeDeckFieldConfig = useMemo(() => {
     if (deckOptionsMode === 'saved_decks') {
       return {
         type: 'select' as const,
-        choices: savedDeckChoices,
+        // The X is offered on the player's own list only, and never on the placeholder row: a public deck is nobody's
+        // to delete, and this list is exactly the player's own.
+        choices: savedDeckChoices.map((choice) => ({
+          ...choice,
+          action: choice.value
+            ? {
+                label: t('auth.deckChoice.deleteAria', { name: choice.label }),
+                onActivate: () => setDeckPendingDeletionId(choice.value),
+              }
+            : undefined,
+        })),
       }
     }
 
@@ -535,7 +591,7 @@ export function LoginView() {
       type: 'select' as const,
       choices: starterDeckChoices,
     }
-  }, [deckOptionsMode, savedDeckChoices, starterDeckChoices])
+  }, [deckOptionsMode, savedDeckChoices, starterDeckChoices, t])
 
   const translatedGameEntryModeOptions = useMemo(
     () => gameEntryModeOptions.map((option) => ({ ...option, label: translateKey(t, option.label) })),
@@ -1757,6 +1813,17 @@ export function LoginView() {
         />
       ) : null}
 
+      {pendingDeletionDeck ? (
+        <DeleteDeckConfirmDialog
+          deckName={describeDeckName(pendingDeletionDeck)}
+          isDeleting={deleteDeckMutation.isPending}
+          onCancel={() => setDeckPendingDeletionId(null)}
+          onConfirm={() => {
+            void confirmDeckDeletion()
+          }}
+        />
+      ) : null}
+
       <DeckImportDialog
         isOpen={isImportModalOpen}
         payload={activeDeckOption}
@@ -1786,39 +1853,70 @@ function toGameRoutePath(joinCode: string): string {
 }
 
 /**
- * Deck choices carry the name and the player's own record: the list is where a deck is picked, so it is also where
- * "this one is 7-3" belongs. A deck that was never played (or one the server returned no record for) stays a plain
- * name.
+ * Deck choices carry the name and, as a trailing badge, the player's own record: the list is where a deck is picked,
+ * so it is also where "this one is 7-3" belongs. The badge is its own element rather than part of the label, so a long
+ * name truncates without eating the numbers, and the collapsed control shows it too - the record stays visible while
+ * picking and after.
+ *
+ * `showEmptyRecord` is on for the player's own decks (a deck nobody has played yet reads 0W–0L) and off for the
+ * public list, where an untouched deck would only add noise.
  */
-function toDeckChoices(decks: IDeckResponse[], emptyStateLabel: string): { value: string; label: string }[] {
+function toDeckChoices(
+  decks: IDeckResponse[],
+  emptyStateLabel: string,
+  showEmptyRecord = true,
+): ISelectChoice[] {
   if (decks.length === 0) {
     return [{ value: '', label: emptyStateLabel }]
   }
 
   return decks.map((deck) => {
-    const deckName = deck.name.trim()
-    const name = deckName || i18n.t('auth.deckChoice.unnamedDeck', { shortId: deck.id.slice(0, 8) })
-    const recordSuffix = formatDeckRecordSuffix(deck.record)
+    const recordLabel = formatDeckRecordSuffix(deck.record, showEmptyRecord)
 
     return {
       value: deck.id,
-      label: recordSuffix ? `${name} · ${recordSuffix}` : name,
+      label: describeDeckName(deck),
+      trailing: recordLabel ? (
+        <span
+          data-testid="deck-option-record"
+          className="rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums dark:bg-white/15"
+        >
+          {recordLabel}
+        </span>
+      ) : undefined,
     }
   })
 }
 
-/** The compact form the option list has room for, empty when the deck has never been played. */
-function formatDeckRecordSuffix(record: IDeckRecord | null | undefined): string {
-  if (!record) {
-    return ''
-  }
+/** A deck's display name: the player's own, or a short id for the unnamed rows the import path creates. */
+function describeDeckName(deck: Pick<IDeckResponse, 'id' | 'name'>): string {
+  const name = deck.name.trim()
 
-  const wins = normalizeRecordCount(record.wins)
-  const losses = normalizeRecordCount(record.losses)
-  const draws = normalizeRecordCount(record.draws)
+  return name || i18n.t('auth.deckChoice.unnamedDeck', { shortId: deck.id.slice(0, 8) })
+}
+
+/** The per-deck caches with one deck removed, used when that deck leaves the picker. */
+function omitDeckEntry<T>(entries: Record<string, T>, deckId: string): Record<string, T> {
+  const next = { ...entries }
+  delete next[deckId]
+
+  return next
+}
+
+/**
+ * The compact form the picker shows next to a deck. A deck nobody has played yet is 0W–0L rather than an empty
+ * space - the player is choosing a deck, and "no games" is part of what they are choosing between.
+ */
+function formatDeckRecordSuffix(
+  record: IDeckRecord | null | undefined,
+  showEmptyRecord = true,
+): string {
+  const wins = normalizeRecordCount(record?.wins)
+  const losses = normalizeRecordCount(record?.losses)
+  const draws = normalizeRecordCount(record?.draws)
 
   if (wins + losses + draws === 0) {
-    return ''
+    return showEmptyRecord ? i18n.t('auth.deckSummary.recordZero') : ''
   }
 
   // A deck that only ever drew has no win rate to show, and "0%" next to one draw would read as a losing streak.

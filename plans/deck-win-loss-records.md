@@ -81,13 +81,43 @@ flowchart LR
 ## Client changes
 
 - [`IDeckResponse.record`](../client/src/types/deck.ts:23) mirrors the server shape.
-- The picker option carries a compact line (`Deck name · 7W–3L (70%)`), built by
-  [`formatDeckRecordSuffix()`](../client/src/views/login/LoginView.tsx:1811). A deck with no record keeps its plain
-  name; a deck that only ever drew shows `2D` because `0%` next to one draw would read as a losing streak.
+- The picker option carries the record as a **trailing badge** rather than as part of the name, built by
+  [`toDeckChoices()`](../client/src/views/login/LoginView.tsx:1864) and
+  [`formatDeckRecordSuffix()`](../client/src/views/login/LoginView.tsx:1910). A long name truncates without eating the
+  numbers, and because `FormSelect` renders `trailing` in the collapsed control as well, the record stays visible while
+  the list is open and after a deck is chosen.
+- A saved deck always shows its counters - a deck nobody has played reads `0W–0L`, because "no games yet" is part of
+  what the player is choosing between. The public list passes `showEmptyRecord: false`, so untouched public decks stay
+  plain and only played ones carry the badge.
+- A deck that only ever drew shows `2D`, because `0%` next to one draw would read as a losing streak.
 - The selected deck's summary line shows the spelled-out form
-  ([`describeDeckRecord()`](../client/src/views/login/LoginView.tsx:1837)) as `login-deck-record`. A deck that was
+  ([`describeDeckRecord()`](../client/src/views/login/LoginView.tsx:1935)) as `login-deck-record`. A deck that was
   never played reads `No games yet`, not `0%`.
 - The win rate is `wins / (wins + losses)`: a draw is not a defeat, so it never lowers the percentage.
+
+## Deleting a saved deck from the picker
+
+A player can remove one of their own decks from the list they pick it from: an X on the row, a confirmation, then the
+removal. The pieces:
+
+- **Authorization was the real gap.** `DELETE /api/deck/{deckId}` was admin-only, so a player could not remove their
+  own deck at all. The endpoint is now authentication-only and the ownership decision moved into
+  [`DeleteDeck()`](../server/Api/Services/Deck/DeckService.cs:291): the owner may delete their deck, an administrator
+  may delete any, and a public deck (which belongs to nobody) needs the administrator. The refusal is a real
+  `Error.Forbidden`, mapped to a 403 in [`ApiControllerBase`](../server/Api/Controllers/ApiControllerBase.cs:12) rather
+  than collapsed into a 400.
+- **The record goes with the deck.** `deck_records` cascades from `decks`, so deleting a deck removes its record. That
+  is deliberate: a record without the list it describes is meaningless.
+- **A deck still used by a stored game is refused.** The existing `Deck.Delete.InUse` conflict stays; the client keeps
+  the deck and reports it, because silently dropping a deck the player can still see would be worse than the error.
+- **The X needs a component change.** [`FormSelect`](../client/src/components/forms/FormSelect.tsx:98) used to render
+  each option as a single button, so an X inside it would have been a nested button (invalid markup) and would have
+  selected the row on its way to the action. Options may now carry an `action`, rendered as a sibling button inside the
+  row, and only the saved-deck list supplies one - a public deck is nobody's to delete.
+- **Only the id is held while confirming.** [`LoginView`](../client/src/views/login/LoginView.tsx:176) keeps
+  `deckPendingDeletionId` and reads the deck from the list that is on screen, so the dialog can never act on a stale
+  copy. On success the deck leaves the list, the choices and the preloaded card caches, and the selection is cleared if
+  it pointed at the deleted deck; on failure the dialog stays open so the player can retry or cancel.
 
 ## Decisions that did not follow from the request
 
@@ -117,4 +147,9 @@ flowchart LR
   game is never handed over, legacy deck-less seats stay uncredited.
 - `DeckRecordTests`: the record travels only to its owner, a public deck keeps one row per player, unplayed decks have
   no record, and the reset fires on a card change but not on a rename or an unchanged list.
-- `e2e/login.deck-records.spec.ts`: picker option and summary rendering against a mocked deck listing.
+- Server deletion tests: the owner's deck and its record are removed, another player is refused, an admin can remove a
+  public deck, and a deck assigned to a game still returns the conflict.
+- `e2e/login.deck-records.spec.ts`: picker option badges (played, draws-only and never-played) plus the collapsed
+  control and summary rendering, against a mocked deck listing.
+- `e2e/login.deck-delete.spec.ts`: the X exists only on saved decks, never moves the selection, asks for confirmation,
+  and removes the deck on confirm while the other deck stays selected.

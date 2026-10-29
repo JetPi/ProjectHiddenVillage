@@ -288,7 +288,7 @@ public sealed partial class DeckService : IDeckService
         return await GetDeck(deck.Id.ToString(), populate: false);
     }
 
-    public async Task<ErrorOr<bool>> DeleteDeck(string deckId)
+    public async Task<ErrorOr<bool>> DeleteDeck(string deckId, Guid? requestingUserId = null, bool isAdmin = false)
     {
         if (!Guid.TryParse(deckId, out var parsedDeckId))
         {
@@ -306,6 +306,16 @@ public sealed partial class DeckService : IDeckService
             return Error.NotFound(
                     code: "Deck.Delete.NotFound",
                     description: $"Deck '{deckId}' was not found.");
+        }
+
+        // A saved deck belongs to exactly one player, and a public deck belongs to nobody: only the owner (or an
+        // administrator, who curates the shared catalogue) may remove it. Guests own no decks, so they always land
+        // on the refusal.
+        if (!isAdmin && (requestingUserId is null || deck.UserId != requestingUserId))
+        {
+            return Error.Forbidden(
+                    code: "Deck.Delete.Forbidden",
+                    description: "This deck does not belong to you.");
         }
 
         // A game instance keeps a restricting FK to both deck slots, so deleting a deck out from under a game

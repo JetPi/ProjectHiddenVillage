@@ -18,7 +18,11 @@ public interface IDeckService
 
     Task<ErrorOr<DeckResponse>> UpdateDeckAsync(string deckId, UpdateDeckRequest request);
 
-    Task<ErrorOr<bool>> DeleteDeck(string deckId);
+    /// <summary>
+    /// Removes a deck and, by cascade, its records. A player may only delete their own deck: <paramref name="requestingUserId"/>
+    /// is the authenticated caller and <paramref name="isAdmin"/> is the one override that can remove somebody else's.
+    /// </summary>
+    Task<ErrorOr<bool>> DeleteDeck(string deckId, Guid? requestingUserId = null, bool isAdmin = false);
 
     Task<ErrorOr<DeckResponse>> GetDeck(string deckId, bool populate = false);
 
