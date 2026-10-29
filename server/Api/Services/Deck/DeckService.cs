@@ -235,6 +235,11 @@ public sealed partial class DeckService : IDeckService
 
         deck.Name = request.Name.Trim();
 
+        // A record describes the list that earned it, so an actual change to the cards starts the deck over. This is
+        // computed before the reconciliation below mutates the stored rows, and a rename (or a save that sends the
+        // same list back) leaves the record alone.
+        var cardListChanged = HasCardListChanged(deck.Cards, resolveResult.Value);
+
         var existingCardsByCatalogEntryId = deck.Cards.ToDictionary(card => card.CardCatalogEntryId);
 
         foreach (var requestedCard in resolveResult.Value)
@@ -252,6 +257,21 @@ public sealed partial class DeckService : IDeckService
         if (existingCardsByCatalogEntryId.Count > 0)
         {
             dbContext.DeckCards.RemoveRange(existingCardsByCatalogEntryId.Values);
+        }
+
+        if (cardListChanged)
+        {
+            // Every player's row for this deck goes, not just the owner's: the cards define the deck, so a public
+            // deck edited by an admin has a new identity for everyone who played the old one. The delete rides in the
+            // same SaveChanges as the card reconciliation, so a reset can never land without the edit.
+            var records = await dbContext.DeckRecords
+                    .Where(record => record.DeckId == deck.Id)
+                    .ToListAsync();
+
+            if (records.Count > 0)
+            {
+                dbContext.DeckRecords.RemoveRange(records);
+            }
         }
 
         try
@@ -345,7 +365,7 @@ public sealed partial class DeckService : IDeckService
                         description: $"Deck '{deckId}' was not found.");
             }
 
-            return ToDeckResponse(deck);
+            return ToDeckResponse(deck, record: null);
         }
 
         var deckWithCards = await dbContext.Decks
@@ -367,7 +387,8 @@ public sealed partial class DeckService : IDeckService
     public async Task<ErrorOr<List<DeckResponse>>> GetDecks(
         Guid? userId = null,
         bool populate = false,
-        DeckType? type = null)
+        DeckType? type = null,
+        Guid? viewerUserId = null)
     {
         if (!populate)
         {
@@ -388,7 +409,13 @@ public sealed partial class DeckService : IDeckService
                     .Select(ToDeckProjectionExpression())
                     .ToListAsync();
 
-            return deckProjections.Select(ToDeckResponse).ToList();
+            var recordsByDeckId = await LoadViewerRecordsAsync(
+                    deckProjections.Select(deck => deck.Id),
+                    viewerUserId);
+
+            return deckProjections
+                    .Select(deck => ToDeckResponse(deck, recordsByDeckId.GetValueOrDefault(deck.Id)))
+                    .ToList();
         }
 
         var populatedQuery = dbContext.Decks
@@ -411,7 +438,81 @@ public sealed partial class DeckService : IDeckService
                 .OrderBy(record => record.Id)
                 .ToListAsync();
 
-        return decks.Select(deck => ToDeckResponse(deck, populate: true)).ToList();
+        var populatedRecordsByDeckId = await LoadViewerRecordsAsync(
+                decks.Select(deck => deck.Id),
+                viewerUserId);
+
+        return decks
+                .Select(deck => ToDeckResponse(
+                        deck,
+                        populate: true,
+                        record: populatedRecordsByDeckId.GetValueOrDefault(deck.Id)))
+                .ToList();
+    }
+
+    /// <summary>
+    /// The requesting player's records for the listed decks, keyed by deck. Without a viewer this is empty: a deck
+    /// listing is public, but a win/loss record is the player's own, so it is only ever read for the viewer.
+    /// </summary>
+    private async Task<Dictionary<Guid, DeckRecordResponse>> LoadViewerRecordsAsync(
+            IEnumerable<Guid> deckIds,
+            Guid? viewerUserId)
+    {
+        if (viewerUserId is not { } viewerId)
+        {
+            return [];
+        }
+
+        var ids = deckIds.Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var records = await dbContext.DeckRecords
+                .AsNoTracking()
+                .Where(record => record.UserId == viewerId && ids.Contains(record.DeckId))
+                .Select(record => new
+                {
+                    record.DeckId,
+                    record.Wins,
+                    record.Losses,
+                    record.Draws,
+                })
+                .ToListAsync();
+
+        return records.ToDictionary(
+                record => record.DeckId,
+                record => new DeckRecordResponse(record.Wins, record.Losses, record.Draws));
+    }
+
+    /// <summary>
+    /// True when the requested list is not the stored one. Only the card identities and their quantities matter: the
+    /// deck's name is deliberately not part of it, because renaming a deck does not change the deck it plays.
+    /// </summary>
+    private static bool HasCardListChanged(
+            IReadOnlyCollection<DeckCard> storedCards,
+            IReadOnlyCollection<DeckCard> requestedCards)
+    {
+        if (storedCards.Count != requestedCards.Count)
+        {
+            return true;
+        }
+
+        var requestedQuantities = requestedCards.ToDictionary(
+                card => card.CardCatalogEntryId,
+                card => card.Quantity);
+
+        foreach (var storedCard in storedCards)
+        {
+            if (!requestedQuantities.TryGetValue(storedCard.CardCatalogEntryId, out var requestedQuantity)
+                || requestedQuantity != storedCard.Quantity)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static System.Linq.Expressions.Expression<Func<Deck, DeckProjection>> ToDeckProjectionExpression()
@@ -435,7 +536,7 @@ public sealed partial class DeckService : IDeckService
                         .ToList());
     }
 
-    private static DeckResponse ToDeckResponse(DeckProjection deck)
+    private static DeckResponse ToDeckResponse(DeckProjection deck, DeckRecordResponse? record)
     {
         return new DeckResponse(
                 Id: deck.Id,
@@ -443,10 +544,11 @@ public sealed partial class DeckService : IDeckService
                 Type: deck.Type.ToString(),
                 UserId: deck.UserId,
                 LeaderColor: deck.HasLeader ? ToReadableCardColor(deck.LeaderColor) : null,
-                Cards: deck.Cards);
+                Cards: deck.Cards,
+                Record: record);
     }
 
-    private static DeckResponse ToDeckResponse(Deck deck, bool populate)
+    private static DeckResponse ToDeckResponse(Deck deck, bool populate, DeckRecordResponse? record = null)
     {
         var leaderEntry = deck.Cards
                 .OrderBy(card => card.CardCatalogEntry.CardId)
@@ -465,7 +567,8 @@ public sealed partial class DeckService : IDeckService
                                 CardId: card.CardCatalogEntry.CardId,
                                 Quantity: card.Quantity,
                                 Card: populate ? ToCatalogResponse(card.CardCatalogEntry) : null))
-                        .ToList());
+                        .ToList(),
+                Record: record);
     }
 
     private sealed record DeckProjection(

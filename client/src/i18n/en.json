@@ -186,7 +186,13 @@
     "deckSummary": {
       "legalPill": "Legal",
       "illegalPill": "Not legal",
-      "importedDeck": "Imported deck"
+      "importedDeck": "Imported deck",
+      "recordNone": "No games yet",
+      "recordFull": "{{wins}}W–{{losses}}L · {{rate}}% win rate",
+      "recordFullWithDraws": "{{wins}}W–{{losses}}L–{{draws}}D · {{rate}}% win rate",
+      "recordDrawsOnly": "{{draws}}D",
+      "recordSuffix": "{{wins}}W–{{losses}}L ({{rate}}%)",
+      "recordSuffixWithDraws": "{{wins}}W–{{losses}}L–{{draws}}D ({{rate}}%)"
     },
     "matchmaking": {
       "searchingTitle": "Searching for a {{ruleset}} opponent",

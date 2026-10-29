@@ -63,6 +63,45 @@ public sealed partial class GameInstance
     /// <summary>True when this table was hosted as "time relaxed": the action clock never runs here.</summary>
     public bool IsTimeRelaxed => GameModifierKeys.IsTimeRelaxed(Modifiers);
 
+    private readonly Dictionary<string, Guid> playerDeckIds = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The stored deck each seated player sat down with, keyed by player id.
+    ///
+    /// Like <see cref="Ruleset"/> this is matchmaking metadata, not board state: the board never renders it, and
+    /// keeping it out of <see cref="GameState"/> means the redo snapshots and the state fingerprint are untouched
+    /// by it. The result recorder reads it to credit a finished game to the right deck/player pair.
+    /// </summary>
+    public IReadOnlyDictionary<string, Guid> PlayerDeckIds => playerDeckIds;
+
+    /// <summary>
+    /// True once the finished game has been handed to the result recorder. It is the once-per-game guard that keeps
+    /// a table from being credited twice however many boundaries observe its outcome.
+    /// </summary>
+    public bool IsResultRecorded { get; set; }
+
+    /// <summary>
+    /// Remembers the deck of every player who takes a seat. Players without a stored deck (engine fixtures built
+    /// from bare card ids) are simply absent, which is why they are never credited.
+    /// </summary>
+    public void CapturePlayerDecks(IEnumerable<Player> players)
+    {
+        ArgumentNullException.ThrowIfNull(players);
+
+        foreach (var player in players)
+        {
+            if (player is null
+                || string.IsNullOrWhiteSpace(player.Id)
+                || player.DeckId is not { } deckId
+                || deckId == Guid.Empty)
+            {
+                continue;
+            }
+
+            playerDeckIds[player.Id] = deckId;
+        }
+    }
+
     public DateTimeOffset CreatedAtUtc { get; }
 
     public string Id => State.GameId;

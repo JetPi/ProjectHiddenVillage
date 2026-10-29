@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
 using ProjectHiddenVillage.Server.Engine;
@@ -59,6 +60,7 @@ public sealed partial class InMemoryGameInstanceRegistry
     private readonly GamePhaseAutomationOptions phaseAutomation;
     private readonly IGamePresenceTracker? presenceTracker;
     private readonly IGameStateBroadcaster? stateBroadcaster;
+    private readonly IGameResultRecorder? resultRecorder;
     private readonly GameClockOptions clockOptions;
     private readonly GameRedoOptions redoOptions;
     private readonly TimeProvider timeProvider;
@@ -72,7 +74,8 @@ public sealed partial class InMemoryGameInstanceRegistry
         GameClockOptions? clockOptions = null,
         TimeProvider? timeProvider = null,
         GameRedoOptions? redoOptions = null,
-        IGameCodeAllocator? codeAllocator = null)
+        IGameCodeAllocator? codeAllocator = null,
+        IGameResultRecorder? resultRecorder = null)
     {
         this.factory = factory;
         // The allocator is the one authority on which codes are in use, shared with the rematch reservations so a
@@ -86,6 +89,10 @@ public sealed partial class InMemoryGameInstanceRegistry
         this.phaseAutomation = phaseAutomation ?? new GamePhaseAutomationOptions();
         this.presenceTracker = presenceTracker;
         this.stateBroadcaster = stateBroadcaster;
+        // A finished game is credited to the decks that played it. Nothing about it may travel back into the
+        // engine's decision making, so the recorder is a sink: it is handed the outcome and the deck ids and
+        // never asked anything.
+        this.resultRecorder = resultRecorder;
         // Timers are driven by the injected clock, not the ambient one, so the timeout paths can be tested by
         // advancing a fake clock instead of waiting for real minutes to pass.
         this.clockOptions = clockOptions ?? new GameClockOptions();
@@ -180,6 +187,8 @@ public sealed partial class InMemoryGameInstanceRegistry
         // The payload has to say who owns the non-interactive phases: with the automation on the client must not
         // be offered the system action at all (see GameInstance.IsPhaseAutomationEnabled).
         instance.IsPhaseAutomationEnabled = phaseAutomation.Enabled;
+        // Remember which stored deck each seat brought: the finished game is credited to exactly those decks.
+        instance.CapturePlayerDecks(players);
 
         if (modifiers is { Count: > 0 })
         {
@@ -271,6 +280,7 @@ public sealed partial class InMemoryGameInstanceRegistry
             }
 
             factory.JoinPlayer(instance, player, random);
+            instance.CapturePlayerDecks([player]);
             // The second player is in: the clock now has somebody to wait on, so this is where a game starts being
             // charged for its time.
             SyncClock(instance);
@@ -3254,6 +3264,7 @@ public sealed partial class InMemoryGameInstanceRegistry
 
             GameEndRules.ResolveForfeit(instance.State, playerId, GameEndReason.Resigned);
             GameEndRules.EnsureGameEndLogged(instance);
+            RecordDeckResultsIfNeeded(instance);
             instance.ValidateInvariants();
 
             return instance;
@@ -3303,6 +3314,7 @@ public sealed partial class InMemoryGameInstanceRegistry
             // A spent pool is a loss: the player who ran out of time cannot win by refusing to play.
             GameEndRules.ResolveForfeit(instance.State, result.ExhaustedPlayerId!, GameEndReason.ClockExpired);
             GameEndRules.EnsureGameEndLogged(instance);
+            RecordDeckResultsIfNeeded(instance);
             clock.Stop();
             ClearClockWatchdog(instance.Id);
             return;
@@ -3442,6 +3454,7 @@ public sealed partial class InMemoryGameInstanceRegistry
                     ownerPlayerId,
                     isPoolExhausted ? GameEndReason.ClockExpired : GameEndReason.ForfeitByTimeout);
                 GameEndRules.EnsureGameEndLogged(instance);
+                RecordDeckResultsIfNeeded(instance);
                 clock.Stop();
                 ClearClockWatchdog(gameId);
                 instance.ValidateInvariants();
@@ -3582,10 +3595,31 @@ public sealed partial class InMemoryGameInstanceRegistry
     /// through it. The outcome is written once; <see cref="GameEndRules.EnsureGameEndLogged"/> records it
     /// in the action log the first time it is observed.
     /// </summary>
-    private static void EvaluateGameEnd(GameInstance instance)
+    private void EvaluateGameEnd(GameInstance instance)
     {
         GameEndRules.TryResolveLeaderDefeat(instance.State);
         GameEndRules.EnsureGameEndLogged(instance);
+        RecordDeckResultsIfNeeded(instance);
+    }
+
+    /// <summary>
+    /// Hands a finished game to the deck-record recorder exactly once.
+    ///
+    /// Every ending funnels through this: the leader defeat and deck-out resolved at a mutation boundary, a
+    /// resignation, a spent time pool and the action-clock watchdog, which ends a game with no hub call in sight.
+    /// The once-flag is set before the write is started, so two boundaries observing the same finished game cannot
+    /// credit it twice, and the write itself is fire-and-forget: a statistics failure must never surface as a
+    /// failure of a game that is already over.
+    /// </summary>
+    private void RecordDeckResultsIfNeeded(GameInstance instance)
+    {
+        if (resultRecorder is null || instance.IsResultRecorded || instance.State.Outcome is null)
+        {
+            return;
+        }
+
+        instance.IsResultRecorded = true;
+        _ = resultRecorder.RecordAsync(instance);
     }
 
     private void ExecuteSummonToFieldAction(

@@ -173,6 +173,36 @@ namespace ProjectHiddenVillage.Server.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.DeckRecord", b =>
+                {
+                    b.Property<Guid>("DeckId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Draws")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Losses")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("DeckId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("deck_records", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_deck_records_counters_non_negative", "\"Wins\" >= 0 AND \"Losses\" >= 0 AND \"Draws\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.DeckRuleset", b =>
                 {
                     b.Property<Guid>("Id")
@@ -779,6 +809,25 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.Navigation("CardCatalogEntry");
 
                     b.Navigation("Deck");
+                });
+
+            modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.DeckRecord", b =>
+                {
+                    b.HasOne("ProjectHiddenVillage.Server.Data.Entities.Deck", "Deck")
+                        .WithMany()
+                        .HasForeignKey("DeckId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectHiddenVillage.Server.Data.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Deck");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.DeckRulesetCardRestriction", b =>

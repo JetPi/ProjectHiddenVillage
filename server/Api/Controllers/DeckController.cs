@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
@@ -112,12 +114,26 @@ public sealed class DeckController : ApiControllerBase
         [FromQuery] bool populate = false,
         [FromQuery] DeckType? type = null)
     {
-        var result = await deckService.GetDecks(userId, populate, type);
+        // The listing itself is public, but the wins and losses in it are not: they travel only when the caller is
+        // the player they belong to.
+        var result = await deckService.GetDecks(userId, populate, type, GetRequestingUserId());
         if (result.IsError)
         {
             return ProblemFromErrors<List<DeckResponse>>(result.Errors);
         }
 
         return Ok(result.Value);
+    }
+
+    /// <summary>
+    /// The authenticated caller, when the request carries a valid token. Anonymous listings are still served - the
+    /// public decks are readable without an account - they simply carry no record.
+    /// </summary>
+    private Guid? GetRequestingUserId()
+    {
+        var rawUserId = User?.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User?.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        return Guid.TryParse(rawUserId, out var userId) ? userId : null;
     }
 }

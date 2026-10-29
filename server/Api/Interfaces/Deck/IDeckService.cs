@@ -22,8 +22,13 @@ public interface IDeckService
 
     Task<ErrorOr<DeckResponse>> GetDeck(string deckId, bool populate = false);
 
+    /// <summary>
+    /// Lists decks. <paramref name="viewerUserId"/> is the requesting player, when there is one: the records in the
+    /// response belong to that player alone, so a listing never exposes somebody else's wins and losses.
+    /// </summary>
     Task<ErrorOr<List<DeckResponse>>> GetDecks(
         Guid? userId = null,
         bool populate = false,
-        DeckType? type = null);
+        DeckType? type = null,
+        Guid? viewerUserId = null);
 }

@@ -163,7 +163,10 @@ public sealed class GamesReadService(
             Id = playerId,
             Name = user.Username,
             DisplayName = user.Username,
-            Deck = deckCardIds
+            Deck = deckCardIds,
+            // The seat remembers which stored deck it is playing, so the finished game can be credited to that
+            // deck for that player (see DeckRecord / GameResultRecorder).
+            DeckId = deckId
         };
 
         return new ResolvedPlayerDeck(player, cardDefinitions);

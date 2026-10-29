@@ -67,10 +67,11 @@ import { writeCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
 import { buildDefaultSavedDeckName } from '@/views/login/utils/defaultDeckName'
 import { resolvePersistedDeckSelection } from '@/views/login/utils/persistedDeckSelection'
 import type { IDeckCardMetadata, IDeckListParseError } from '@/domain/deck/types'
-import type { IDeckCardInput, IDeckResponse } from '@/types/deck'
+import type { IDeckCardInput, IDeckRecord, IDeckResponse } from '@/types/deck'
 import type { IMatchTicket } from '@/types/matchmaking'
 import { useEnqueueMatchMutation } from '@/services/queries/matchmakingQueries'
 import { useGameRulesetByCodeQuery } from '@/services/queries/gameStateQueries'
+const EMPTY_DECK_RECORD: IDeckRecord = { wins: 0, losses: 0, draws: 0 }
 const STARTER_DECK_FETCH_RETRY_ATTEMPTS = 3
 const STARTER_DECK_FETCH_RETRY_DELAY_MS = 700
 const TITLE_FONT_LOAD_QUERY = '1em "Water Brush"'
@@ -843,6 +844,22 @@ export function LoginView() {
     t,
   ])
 
+  // The record belongs to the player - the server only returns the caller's own - so the summary can show it for a
+  // saved deck and for a public one alike, and an imported list simply has none.
+  const activeDeckRecord = useMemo<IDeckRecord | null>(() => {
+    if (deckOptionsMode === 'import') {
+      return null
+    }
+
+    const selectedDeckId = activeDeckOption.trim()
+    if (!selectedDeckId) {
+      return null
+    }
+
+    const decks = deckOptionsMode === 'saved_decks' ? savedDecks : starterDecks
+    return decks.find((deck) => deck.id === selectedDeckId)?.record ?? null
+  }, [activeDeckOption, deckOptionsMode, savedDecks, starterDecks])
+
   const isCheckingDeckSummary = isCheckingActiveDeck || joinGameRulesetQuery.isChecking
 
   const describeImportedDeckParseError = (error: IDeckListParseError): string => {
@@ -1594,6 +1611,16 @@ export function LoginView() {
                       </span>
                     ) : null}
                     <span className="min-w-0 truncate text-[var(--text-secondary)]">{summaryDeckName}</span>
+                    {/* A stored deck always reports a record: the server sends one for a deck that was played, and a
+                        deck nobody has played yet is exactly "no games", not a missing line. */}
+                    {activeDeckOption.trim() && deckOptionsMode !== 'import' ? (
+                      <span
+                        data-testid="login-deck-record"
+                        className="shrink-0 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+                      >
+                        {describeDeckRecord(activeDeckRecord ?? EMPTY_DECK_RECORD)}
+                      </span>
+                    ) : null}
                   </div>
                 ) : null}
               </FormField>
@@ -1758,7 +1785,11 @@ function toGameRoutePath(joinCode: string): string {
   return `/game/${encodeURIComponent(joinCode.trim())}`
 }
 
-/** Deck choices carry the name and nothing else: counts belong to the deck itself, not to the picker. */
+/**
+ * Deck choices carry the name and the player's own record: the list is where a deck is picked, so it is also where
+ * "this one is 7-3" belongs. A deck that was never played (or one the server returned no record for) stays a plain
+ * name.
+ */
 function toDeckChoices(decks: IDeckResponse[], emptyStateLabel: string): { value: string; label: string }[] {
   if (decks.length === 0) {
     return [{ value: '', label: emptyStateLabel }]
@@ -1766,12 +1797,65 @@ function toDeckChoices(decks: IDeckResponse[], emptyStateLabel: string): { value
 
   return decks.map((deck) => {
     const deckName = deck.name.trim()
+    const name = deckName || i18n.t('auth.deckChoice.unnamedDeck', { shortId: deck.id.slice(0, 8) })
+    const recordSuffix = formatDeckRecordSuffix(deck.record)
 
     return {
       value: deck.id,
-      label: deckName || i18n.t('auth.deckChoice.unnamedDeck', { shortId: deck.id.slice(0, 8) }),
+      label: recordSuffix ? `${name} · ${recordSuffix}` : name,
     }
   })
+}
+
+/** The compact form the option list has room for, empty when the deck has never been played. */
+function formatDeckRecordSuffix(record: IDeckRecord | null | undefined): string {
+  if (!record) {
+    return ''
+  }
+
+  const wins = normalizeRecordCount(record.wins)
+  const losses = normalizeRecordCount(record.losses)
+  const draws = normalizeRecordCount(record.draws)
+
+  if (wins + losses + draws === 0) {
+    return ''
+  }
+
+  // A deck that only ever drew has no win rate to show, and "0%" next to one draw would read as a losing streak.
+  if (wins + losses === 0) {
+    return i18n.t('auth.deckSummary.recordDrawsOnly', { draws })
+  }
+
+  const rate = Math.round((wins / (wins + losses)) * 100)
+
+  return draws > 0
+    ? i18n.t('auth.deckSummary.recordSuffixWithDraws', { wins, losses, draws, rate })
+    : i18n.t('auth.deckSummary.recordSuffix', { wins, losses, rate })
+}
+
+/** The selected deck's record, spelled out for the summary line under the picker. */
+function describeDeckRecord(record: IDeckRecord): string {
+  const wins = normalizeRecordCount(record.wins)
+  const losses = normalizeRecordCount(record.losses)
+  const draws = normalizeRecordCount(record.draws)
+
+  if (wins + losses + draws === 0) {
+    return i18n.t('auth.deckSummary.recordNone')
+  }
+
+  if (wins + losses === 0) {
+    return i18n.t('auth.deckSummary.recordDrawsOnly', { draws })
+  }
+
+  const rate = Math.round((wins / (wins + losses)) * 100)
+
+  return draws > 0
+    ? i18n.t('auth.deckSummary.recordFullWithDraws', { wins, losses, draws, rate })
+    : i18n.t('auth.deckSummary.recordFull', { wins, losses, rate })
+}
+
+function normalizeRecordCount(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0
 }
 
 function toDeckCardIdsByDeckId(decks: IDeckResponse[]): Record<string, string[]> {

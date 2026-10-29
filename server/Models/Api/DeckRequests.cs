@@ -7,13 +7,23 @@ public sealed record DeckCardResponse(
     int Quantity,
     CardCatalogItemResponse? Card = null);
 
+/// <summary>
+/// The requesting player's record with one deck. It is returned only to that player: the deck itself may be public,
+/// but "7 wins, 3 losses" belongs to the player who played it, not to the deck.
+/// </summary>
+public sealed record DeckRecordResponse(
+    int Wins,
+    int Losses,
+    int Draws);
+
 public sealed record DeckResponse(
     Guid Id,
     string Name,
     string Type,
     Guid? UserId,
     string? LeaderColor,
-    IReadOnlyList<DeckCardResponse> Cards);
+    IReadOnlyList<DeckCardResponse> Cards,
+    DeckRecordResponse? Record = null);
 
 public sealed record DeckCardRequest(string CardId, int Quantity);
 
