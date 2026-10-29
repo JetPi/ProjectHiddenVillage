@@ -55,6 +55,8 @@ export function CardAdminFilterPanel({
           {t('admin.filters.type')}
         </FormLabel>
         <CardAdminSelect
+          id="card-admin-type-filter"
+          aria-label={t('admin.filters.type')}
           value={pendingTypeSelection}
           disabled={availableTypeOptions.length === 0}
           onValueChange={(value) => {
@@ -87,6 +89,8 @@ export function CardAdminFilterPanel({
           {t('admin.filters.color')}
         </FormLabel>
         <CardAdminSelect
+          id="card-admin-color-filter"
+          aria-label={t('admin.filters.color')}
           value={pendingColorSelection}
           disabled={availableColorOptions.length === 0}
           onValueChange={(value) => {
@@ -114,40 +118,44 @@ export function CardAdminFilterPanel({
         </CardAdminSelect>
       </div>
 
-      { selectedTypeOptions.length > 0 ? <div className="col-span-3 flex min-h-6 flex-wrap items-center gap-1.5">
-        {selectedTypeOptions.map((option) => (
-          <div
-            key={`type-${option.value}`}
-            className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--text-primary)]"
-          >
-            <span className="text-[var(--text-secondary)]">{t('admin.filters.typePrefix')}</span>
-            <span>{option.label}</span>
-            <CardAdminRemoveButton
-              variant="chip"
-              onClick={() => onTypeChange(typeValues.filter((value) => value !== option.value))}
-              ariaLabel={translateKey(t, 'admin.filters.removeType', { name: option.label })}
-            />
-          </div>
-        ))}
+      {/* One pill per active filter, and the only way back out of a fully-consumed dropdown: "All selected" with no
+          pill leaves the filter stuck on, so the row has to appear for colours alone as well as types. */}
+      {selectedTypeOptions.length + selectedColorOptions.length > 0 ? (
+        <div
+          data-testid="admin-filter-pills"
+          className="col-span-3 flex min-h-6 flex-wrap items-center gap-1.5"
+        >
+          {selectedTypeOptions.map((option) => (
+            <div
+              key={`type-${option.value}`}
+              className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--text-primary)]"
+            >
+              <span className="text-[var(--text-secondary)]">{t('admin.filters.typePrefix')}</span>
+              <span>{option.label}</span>
+              <CardAdminRemoveButton
+                variant="chip"
+                onClick={() => onTypeChange(typeValues.filter((value) => value !== option.value))}
+                ariaLabel={translateKey(t, 'admin.filters.removeType', { name: option.label })}
+              />
+            </div>
+          ))}
 
-        {selectedColorOptions.map((option) => (
-          <div
-            key={`color-${option.value}`}
-            className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--text-primary)]"
-          >
-            <span className="text-[var(--text-secondary)]">{t('admin.filters.colorPrefix')}</span>
-            <span>{option.label}</span>
-            <CardAdminRemoveButton
-              variant="chip"
-              onClick={() => onColorChange(colorValues.filter((value) => value !== option.value))}
-              ariaLabel={translateKey(t, 'admin.filters.removeColor', { name: option.label })}
-            />
-          </div>
-        ))}
-      </div> : null}
-
-      
-
+          {selectedColorOptions.map((option) => (
+            <div
+              key={`color-${option.value}`}
+              className="inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--text-primary)]"
+            >
+              <span className="text-[var(--text-secondary)]">{t('admin.filters.colorPrefix')}</span>
+              <span>{option.label}</span>
+              <CardAdminRemoveButton
+                variant="chip"
+                onClick={() => onColorChange(colorValues.filter((value) => value !== option.value))}
+                ariaLabel={translateKey(t, 'admin.filters.removeColor', { name: option.label })}
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="col-span-3 flex items-end gap-3">
         <div className="min-w-0 flex-1 space-y-1">
           <FormLabel htmlFor="card-admin-sort" className="text-[10px] tracking-[0.12em]">

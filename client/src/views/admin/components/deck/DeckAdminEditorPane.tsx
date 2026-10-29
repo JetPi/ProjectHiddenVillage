@@ -30,6 +30,7 @@ export function DeckAdminEditorPane({
   onSave,
   onOpenImport,
   onOpenDelete,
+  onExport,
 }: IDeckAdminEditorPaneProps) {
   const { t } = useTranslation()
 
@@ -51,6 +52,19 @@ export function DeckAdminEditorPane({
 
           <AppButton type="button" variant="ghost" onClick={onOpenImport} data-testid="admin-deck-import">
             {t('admin.decks.editor.import')}
+          </AppButton>
+
+          {/* The draft, not the saved deck: whatever is on screen is what gets copied, so an unsaved edit can be
+              pasted into the import window (or shared) before it is saved. */}
+          <AppButton
+            type="button"
+            variant="ghost"
+            onClick={onExport}
+            disabled={selectedCards.length === 0 && !leaderCard}
+            title={selectedCards.length === 0 && !leaderCard ? t('admin.decks.editor.exportDisabledHint') : undefined}
+            data-testid="admin-deck-export"
+          >
+            {t('admin.decks.editor.export')}
           </AppButton>
 
           {!isNew ? (

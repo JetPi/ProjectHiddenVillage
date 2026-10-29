@@ -99,22 +99,52 @@ export function FormSelect({
             const isSelected = option.value === value
 
             return (
-              <li key={option.value}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  disabled={option.disabled}
-                  onClick={() => handleSelect(option.value)}
-                  className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm normal-case transition-colors duration-150 ${
+              <li key={option.value} role="presentation">
+                {/* The action is a sibling of the option, never a child of it: a button inside the option button is
+                    invalid markup and would select the row on the way to the action. */}
+                <div
+                  className={`flex items-center gap-1 rounded-lg pr-1 transition-colors duration-150 ${
                     isSelected
-                      ? 'bg-[var(--button-primary-bg)] text-[var(--button-primary-text)]'
-                      : 'text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'
-                  } ${option.value ? 'font-semibold' : 'font-normal'} disabled:cursor-not-allowed disabled:opacity-50`}
+                      ? 'bg-[var(--button-primary-bg)]'
+                      : 'hover:bg-[var(--surface-hover)]'
+                  }`}
                 >
-                  <span className="min-w-0 truncate">{option.label}</span>
-                  {option.trailing ? <span className="shrink-0">{option.trailing}</span> : null}
-                </button>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    disabled={option.disabled}
+                    onClick={() => handleSelect(option.value)}
+                    className={`flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm normal-case ${
+                      isSelected
+                        ? 'text-[var(--button-primary-text)]'
+                        : 'text-[var(--text-primary)]'
+                    } ${option.value ? 'font-semibold' : 'font-normal'} disabled:cursor-not-allowed disabled:opacity-50`}
+                  >
+                    <span className="min-w-0 truncate">{option.label}</span>
+                    {option.trailing ? <span className="shrink-0">{option.trailing}</span> : null}
+                  </button>
+                  {option.actions?.map((action) => (
+                    <button
+                      key={action.label}
+                      type="button"
+                      aria-label={action.label}
+                      title={action.label}
+                      data-testid={`${id}-option-action`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        action.onActivate()
+                      }}
+                      className={`shrink-0 rounded-full p-1 transition-colors duration-150 ${
+                        isSelected
+                          ? 'text-[var(--button-primary-text)] hover:bg-black/15'
+                          : 'text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      {action.icon ?? null}
+                    </button>
+                  ))}
+                </div>
               </li>
             )
           })}

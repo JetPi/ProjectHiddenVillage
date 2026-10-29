@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SubmitEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -24,8 +24,8 @@ import {
   FormInput,
   OptionToggle,
 } from '@/components/forms'
-import type { IAdaptiveFieldConfig } from '@/components/forms'
-import { Lightbulb, LogIn, X } from 'lucide-react'
+import type { IAdaptiveFieldConfig, ISelectChoice } from '@/components/forms'
+import { Lightbulb, LogIn, Pencil, X } from 'lucide-react'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { clearAuthSession, useAuthSessionStore, type IAuthSession } from '@/state/authSession'
 import { ensurePlayerIdentity } from '@/state/guestSession'
@@ -35,7 +35,7 @@ import { useThemeStore } from '@/state/themeStore'
 import { useLoginViewModel } from '@/views/login/model/useLoginViewModel'
 import { selectRulesetWaitingCount, usePresenceSnapshot } from '@/services/presence/usePresence'
 import type { ILoginActionData } from '@/views/login/types/routeHandlers'
-import type { IGameIntent } from '@/types/login'
+import type { IDeckOptionsEntryMode, IGameIntent } from '@/types/login'
 import type { IDeckRuleset } from '@/types/deckRuleset'
 import { matchModifierLabelKeys, TIME_RELAXED_MODIFIER } from '@/types/gameModifiers'
 import type { IPresenceSnapshot } from '@/types/presence'
@@ -48,10 +48,12 @@ import {
 } from '@/services/api/gameApi'
 import { getApiErrorMessage, isApiBadRequestError } from '@/views/utils/getApiErrorMessage'
 import { createUserDeck, fetchDecks } from '@/services/api/deckApi'
+import { useDeleteDeckMutation, useUpdateDeckMutation } from '@/services/queries/deckQueries'
 import { preloadCardsByIds } from '@/services/cardPreloadService'
 import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
 import { useActiveDeckRulesetsQuery } from '@/services/queries/deckRulesetQueries'
 import { evaluateDeckRulesets, evaluateRuleset } from '@/domain/deck/evaluateDeckRulesets'
+import { formatDeckAsImportText } from '@/domain/deck/deckListFormat'
 import {
   buildDeckCardSignature,
   deckCardsFromSignature,
@@ -61,16 +63,18 @@ import {
 } from '@/domain/deck/parseDeckList'
 import { CreateGameShareDialog } from '@/views/login/components/CreateGameShareDialog'
 import { DeckImportDialog } from '@/views/login/components/DeckImportDialog'
+import { DeleteDeckConfirmDialog } from '@/views/login/components/DeleteDeckConfirmDialog'
 import { MatchmakingSearchDialog } from '@/views/login/components/MatchmakingSearchDialog'
 import { QueuedPlayersBadge } from '@/views/login/components/QueuedPlayersBadge'
 import { writeCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
 import { buildDefaultSavedDeckName } from '@/views/login/utils/defaultDeckName'
 import { resolvePersistedDeckSelection } from '@/views/login/utils/persistedDeckSelection'
 import type { IDeckCardMetadata, IDeckListParseError } from '@/domain/deck/types'
-import type { IDeckCardInput, IDeckResponse } from '@/types/deck'
+import type { IDeckCardInput, IDeckRecord, IDeckResponse } from '@/types/deck'
 import type { IMatchTicket } from '@/types/matchmaking'
 import { useEnqueueMatchMutation } from '@/services/queries/matchmakingQueries'
 import { useGameRulesetByCodeQuery } from '@/services/queries/gameStateQueries'
+const EMPTY_DECK_RECORD: IDeckRecord = { wins: 0, losses: 0, draws: 0 }
 const STARTER_DECK_FETCH_RETRY_ATTEMPTS = 3
 const STARTER_DECK_FETCH_RETRY_DELAY_MS = 700
 const TITLE_FONT_LOAD_QUERY = '1em "Water Brush"'
@@ -179,10 +183,17 @@ export function LoginView() {
   const [isSavingImportedDeck, setIsSavingImportedDeck] = useState(false)
   // Hosting mints a real game on the click, so every action button is held shut while one submission is in flight.
   const [pendingIntent, setPendingIntent] = useState<IGameIntent | null>(null)
-  const [savedDeckChoices, setSavedDeckChoices] = useState<{ value: string; label: string }[]>([
+  // Only the id is held: the deck itself is read from the list the player is looking at, so a stale copy of a deck
+  // that was just removed can never reach the confirmation.
+  const [deckPendingDeletionId, setDeckPendingDeletionId] = useState<string | null>(null)
+  // The saved deck being overwritten through the import tab, plus the import draft that was there before the edit so
+  // saving or cancelling can give it back untouched.
+  const [editingDeckId, setEditingDeckId] = useState<string | null>(null)
+  const importDraftBeforeEditRef = useRef<string | null>(null)
+  const [savedDeckChoices, setSavedDeckChoices] = useState<ISelectChoice[]>([
     { value: '', label: t('auth.deckChoice.loginToLoad') },
   ])
-  const [starterDeckChoices, setStarterDeckChoices] = useState<{ value: string; label: string }[]>([
+  const [starterDeckChoices, setStarterDeckChoices] = useState<ISelectChoice[]>([
     { value: '', label: t('auth.deckChoice.loadingPublic') },
   ])
   const [starterDeckFetchFailed, setStarterDeckFetchFailed] = useState(false)
@@ -232,6 +243,7 @@ export function LoginView() {
     hostTimeRelaxed,
     joinGameCode,
     quickmatchRulesetId,
+    importDeckOption,
     savedDeckOption,
     setDeckOptionsMode,
     setDeckOptionValue,
@@ -434,7 +446,7 @@ export function LoginView() {
         if (!isCancelled) {
           const publicDecks = allDecks.filter((deck) => deck.type === 'Public')
           setStarterDecks(publicDecks)
-          setStarterDeckChoices(toDeckChoices(publicDecks, t('auth.deckChoice.noPublic')))
+          setStarterDeckChoices(toDeckChoices(publicDecks, t('auth.deckChoice.noPublic'), false))
           setStarterDeckCardIdsByDeckId(toDeckCardIdsByDeckId(publicDecks))
           setStarterDeckCardsByDeckId(toDeckCardsByDeckId(publicDecks))
           setStarterDeckFetchFailed(false)
@@ -515,11 +527,122 @@ export function LoginView() {
     starterDeckCardIdsByDeckId,
   ])
 
+  const pendingDeletionDeck = useMemo(
+    () => savedDecks.find((deck) => deck.id === deckPendingDeletionId) ?? null,
+    [deckPendingDeletionId, savedDecks],
+  )
+
+  const deleteDeckMutation = useDeleteDeckMutation()
+
+  const confirmDeckDeletion = async () => {
+    const deck = pendingDeletionDeck
+    if (!deck) {
+      return
+    }
+
+    try {
+      await deleteDeckMutation.mutateAsync(deck.id)
+    } catch (error) {
+      // The list is the truth: the deck stays, the dialog stays open, and the toast explains why (usually "this deck
+      // is still assigned to a game").
+      showAppInfoToast(getApiErrorMessage(error, t('auth.toasts.deckDeleteFailed')))
+      return
+    }
+
+    const remainingDecks = savedDecks.filter((candidate) => candidate.id !== deck.id)
+
+    setDeckPendingDeletionId(null)
+    setSavedDecks(remainingDecks)
+    setSavedDeckChoices(toDeckChoices(remainingDecks, t('auth.deckChoice.noSaved')))
+    setSavedDeckCardIdsByDeckId((current) => omitDeckEntry(current, deck.id))
+    setSavedDeckCardsByDeckId((current) => omitDeckEntry(current, deck.id))
+
+    // The picker must stop pointing at a deck that no longer exists; anything selected for the next match is that deck.
+    if (savedDeckOption.trim() === deck.id) {
+      setDeckOptionValueForMode('saved_decks', '')
+    }
+
+    showAppSuccessToast(
+      t('auth.toasts.deckDeleted', { name: describeDeckName(deck) }),
+      { id: 'auth-deck-delete-status' },
+    )
+  }
+
+  const updateDeckMutation = useUpdateDeckMutation()
+
+  /**
+   * Editing a saved deck reuses the import tab: same parser, same ruleset evaluation, same dialog, with the deck's
+   * list loaded and the save turned into an overwrite. The import text belongs to the player, so the draft that is
+   * there before the edit is snapshotted and restored when the edit is saved or cancelled.
+   */
+  const openDeckEditor = useCallback((deckId: string) => {
+    const deck = savedDecks.find((candidate) => candidate.id === deckId)
+    if (!deck) {
+      return
+    }
+
+    importDraftBeforeEditRef.current = importDeckOption
+    setEditingDeckId(deck.id)
+    setImportDeckName(deck.name)
+    setDeckOptionsMode('import')
+    setDeckOptionValueForMode('import', formatDeckAsImportText(deck.cards))
+    setIsImportModalOpen(true)
+  }, [importDeckOption, savedDecks, setDeckOptionValueForMode, setDeckOptionsMode])
+
+  /** Leaves the editor, giving the import draft back. The mode is chosen by the caller: a save lands on the list. */
+  const closeDeckEditor = (nextMode: IDeckOptionsEntryMode | null = 'saved_decks') => {
+    if (editingDeckId === null) {
+      setIsImportModalOpen(false)
+      return
+    }
+
+    const draft = importDraftBeforeEditRef.current ?? ''
+    importDraftBeforeEditRef.current = null
+    setEditingDeckId(null)
+    setDeckOptionValueForMode('import', draft)
+    writeCachedImportedDeck(draft)
+    setIsImportModalOpen(false)
+
+    if (nextMode) {
+      setDeckOptionsMode(nextMode)
+    }
+  }
+
+  // Switching tabs by hand while editing is a cancel: the player moved on, and the editor has no orphan state to keep.
+  const handleDeckOptionsModeChange = (nextMode: IDeckOptionsEntryMode) => {
+    if (editingDeckId !== null) {
+      closeDeckEditor(null)
+    }
+
+    setDeckOptionsMode(nextMode)
+    if (nextMode === 'import') {
+      setIsImportModalOpen(true)
+    }
+  }
+
   const activeDeckFieldConfig = useMemo(() => {
     if (deckOptionsMode === 'saved_decks') {
       return {
         type: 'select' as const,
-        choices: savedDeckChoices,
+        // Edit and delete are offered on the player's own list only, and never on the placeholder row: a public deck
+        // is nobody's to rewrite or remove, and this list is exactly the player's own.
+        choices: savedDeckChoices.map((choice) => ({
+          ...choice,
+          actions: choice.value
+            ? [
+                {
+                  label: t('auth.deckEdit.actionAria', { name: choice.label }),
+                  onActivate: () => openDeckEditor(choice.value),
+                  icon: <Pencil size={13} aria-hidden="true" />,
+                },
+                {
+                  label: t('auth.deckChoice.deleteAria', { name: choice.label }),
+                  onActivate: () => setDeckPendingDeletionId(choice.value),
+                  icon: <X size={14} aria-hidden="true" />,
+                },
+              ]
+            : undefined,
+        })),
       }
     }
 
@@ -534,7 +657,7 @@ export function LoginView() {
       type: 'select' as const,
       choices: starterDeckChoices,
     }
-  }, [deckOptionsMode, savedDeckChoices, starterDeckChoices])
+  }, [deckOptionsMode, savedDeckChoices, starterDeckChoices, openDeckEditor, t])
 
   const translatedGameEntryModeOptions = useMemo(
     () => gameEntryModeOptions.map((option) => ({ ...option, label: translateKey(t, option.label) })),
@@ -843,6 +966,46 @@ export function LoginView() {
     t,
   ])
 
+  // The record belongs to the player - the server only returns the caller's own - so the summary can show it for a
+  // saved deck and for a public one alike, and an imported list simply has none.
+  const activeDeckRecord = useMemo<IDeckRecord | null>(() => {
+    if (deckOptionsMode === 'import') {
+      return null
+    }
+
+    const selectedDeckId = activeDeckOption.trim()
+    if (!selectedDeckId) {
+      return null
+    }
+
+    const decks = deckOptionsMode === 'saved_decks' ? savedDecks : starterDecks
+    return decks.find((deck) => deck.id === selectedDeckId)?.record ?? null
+  }, [activeDeckOption, deckOptionsMode, savedDecks, starterDecks])
+
+  // The one change that resets a deck's record is a different leader. The stored leader comes from the deck itself,
+  // the edited one from the same metadata the ruleset evaluation uses, and the comparison waits for that metadata so
+  // the warning cannot flash while the card list is still resolving.
+  const editingDeck = useMemo(
+    () => savedDecks.find((deck) => deck.id === editingDeckId) ?? null,
+    [editingDeckId, savedDecks],
+  )
+
+  const editedLeaderCardId = useMemo(() => {
+    const leaderCard = importedDeckCards.find(
+      (card) => importedDeckCardsById.get(normalizeDeckCardId(card.cardId))?.type.trim().toLowerCase() === 'leader',
+    )
+
+    return leaderCard ? normalizeDeckCardId(leaderCard.cardId) : ''
+  }, [importedDeckCards, importedDeckCardsById])
+
+  const leaderWillResetRecord = useMemo(() => {
+    if (!editingDeck || (importedDeckCards.length > 0 && importedDeckCardsById.size === 0)) {
+      return false
+    }
+
+    return normalizeDeckCardId(editingDeck.leaderCardId ?? '') !== editedLeaderCardId
+  }, [editedLeaderCardId, editingDeck, importedDeckCards.length, importedDeckCardsById.size])
+
   const isCheckingDeckSummary = isCheckingActiveDeck || joinGameRulesetQuery.isChecking
 
   const describeImportedDeckParseError = (error: IDeckListParseError): string => {
@@ -925,6 +1088,46 @@ export function LoginView() {
 
     try {
       const deckName = importDeckName.trim() || defaultImportDeckName
+
+      if (editingDeckId) {
+        const previousRecord = savedDecks.find((deck) => deck.id === editingDeckId)?.record
+        const updatedDeck = await updateDeckMutation.mutateAsync({
+          deckId: editingDeckId,
+          name: deckName,
+          cards: resolvedDeck.cards,
+        })
+        const nextSavedDecks = savedDecks.map((deck) => (
+          deck.id === editingDeckId ? updatedDeck : deck
+        ))
+
+        setSavedDecks(nextSavedDecks)
+        setSavedDeckChoices(toDeckChoices(nextSavedDecks, t('auth.deckChoice.noSaved')))
+        setSavedDeckCardIdsByDeckId((current) => ({
+          ...current,
+          [updatedDeck.id]: resolvedDeck.cards.map((card) => card.cardId),
+        }))
+        setSavedDeckCardsByDeckId((current) => ({
+          ...current,
+          [updatedDeck.id]: resolvedDeck.cards,
+        }))
+
+        // The response carries the deck's own record, so "the leader changed" is read from the server's answer
+        // instead of being inferred: the record is reset only when it actually was.
+        const recordWasReset = hasPlayedGames(previousRecord) && !hasPlayedGames(updatedDeck.record)
+
+        closeDeckEditor()
+        setDeckOptionValue(updatedDeck.id)
+        showAppSuccessToast(
+          t(
+            recordWasReset ? 'auth.deckEdit.savedWithReset' : 'auth.deckEdit.saved',
+            { name: describeDeckName(updatedDeck) },
+          ),
+          { id: 'auth-deck-import-status' },
+        )
+
+        return
+      }
+
       const deckId = await createUserDeck(resolvedDeck.cardsPayload, authUser.userId, deckName)
       const savedDeck: IDeckResponse = {
         id: deckId,
@@ -951,7 +1154,10 @@ export function LoginView() {
       )
     } catch (error) {
       showAppInfoToast(
-        getApiErrorMessage(error, t('auth.toasts.deckSaveFailed')),
+        getApiErrorMessage(
+          error,
+          editingDeckId ? t('auth.deckEdit.failed') : t('auth.toasts.deckSaveFailed'),
+        ),
         { id: 'auth-deck-import-status' },
       )
     } finally {
@@ -1514,12 +1720,7 @@ export function LoginView() {
                   value={deckOptionsMode}
                   options={translatedDeckOptionsModeOptions}
                   optionClassName="py-1"
-                  onChange={(nextMode) => {
-                    setDeckOptionsMode(nextMode)
-                    if (nextMode === 'import') {
-                      setIsImportModalOpen(true)
-                    }
-                  }}
+                  onChange={handleDeckOptionsModeChange}
                 />
                 {starterDeckFetchFailed && deckOptionsMode === 'starter_decks' ? (
                   <div className="flex justify-end">
@@ -1594,6 +1795,16 @@ export function LoginView() {
                       </span>
                     ) : null}
                     <span className="min-w-0 truncate text-[var(--text-secondary)]">{summaryDeckName}</span>
+                    {/* A stored deck always reports a record: the server sends one for a deck that was played, and a
+                        deck nobody has played yet is exactly "no games", not a missing line. */}
+                    {activeDeckOption.trim() && deckOptionsMode !== 'import' ? (
+                      <span
+                        data-testid="login-deck-record"
+                        className="shrink-0 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+                      >
+                        {describeDeckRecord(activeDeckRecord ?? EMPTY_DECK_RECORD)}
+                      </span>
+                    ) : null}
                   </div>
                 ) : null}
               </FormField>
@@ -1730,6 +1941,17 @@ export function LoginView() {
         />
       ) : null}
 
+      {pendingDeletionDeck ? (
+        <DeleteDeckConfirmDialog
+          deckName={describeDeckName(pendingDeletionDeck)}
+          isDeleting={deleteDeckMutation.isPending}
+          onCancel={() => setDeckPendingDeletionId(null)}
+          onConfirm={() => {
+            void confirmDeckDeletion()
+          }}
+        />
+      ) : null}
+
       <DeckImportDialog
         isOpen={isImportModalOpen}
         payload={activeDeckOption}
@@ -1744,11 +1966,13 @@ export function LoginView() {
         defaultDeckName={defaultImportDeckName}
         canUse={isImportedDeckReady}
         isSaving={isSavingImportedDeck}
-        onClose={() => setIsImportModalOpen(false)}
+        onClose={() => closeDeckEditor()}
         onUse={handleUseImportedDeck}
         onSave={() => {
           void handleSaveImportedDeck()
         }}
+        editDeckName={editingDeck ? describeDeckName(editingDeck) : null}
+        leaderWillResetRecord={leaderWillResetRecord}
       />
     </PageShell>
   )
@@ -1758,20 +1982,115 @@ function toGameRoutePath(joinCode: string): string {
   return `/game/${encodeURIComponent(joinCode.trim())}`
 }
 
-/** Deck choices carry the name and nothing else: counts belong to the deck itself, not to the picker. */
-function toDeckChoices(decks: IDeckResponse[], emptyStateLabel: string): { value: string; label: string }[] {
+/**
+ * Deck choices carry the name and, as a trailing badge, the player's own record: the list is where a deck is picked,
+ * so it is also where "this one is 7-3" belongs. The badge is its own element rather than part of the label, so a long
+ * name truncates without eating the numbers, and the collapsed control shows it too - the record stays visible while
+ * picking and after.
+ *
+ * `showEmptyRecord` is on for the player's own decks (a deck nobody has played yet reads 0W–0L) and off for the
+ * public list, where an untouched deck would only add noise.
+ */
+function toDeckChoices(
+  decks: IDeckResponse[],
+  emptyStateLabel: string,
+  showEmptyRecord = true,
+): ISelectChoice[] {
   if (decks.length === 0) {
     return [{ value: '', label: emptyStateLabel }]
   }
 
   return decks.map((deck) => {
-    const deckName = deck.name.trim()
+    const recordLabel = formatDeckRecordSuffix(deck.record, showEmptyRecord)
 
     return {
       value: deck.id,
-      label: deckName || i18n.t('auth.deckChoice.unnamedDeck', { shortId: deck.id.slice(0, 8) }),
+      label: describeDeckName(deck),
+      trailing: recordLabel ? (
+        <span
+          data-testid="deck-option-record"
+          className="rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums dark:bg-white/15"
+        >
+          {recordLabel}
+        </span>
+      ) : undefined,
     }
   })
+}
+
+/** A deck's display name: the player's own, or a short id for the unnamed rows the import path creates. */
+function describeDeckName(deck: Pick<IDeckResponse, 'id' | 'name'>): string {
+  const name = deck.name.trim()
+
+  return name || i18n.t('auth.deckChoice.unnamedDeck', { shortId: deck.id.slice(0, 8) })
+}
+
+/** The per-deck caches with one deck removed, used when that deck leaves the picker. */
+function omitDeckEntry<T>(entries: Record<string, T>, deckId: string): Record<string, T> {
+  const next = { ...entries }
+  delete next[deckId]
+
+  return next
+}
+
+/** Whether a record has anything on it; the reset toast only fires when it had something to lose. */
+function hasPlayedGames(record: IDeckRecord | null | undefined): boolean {
+  return normalizeRecordCount(record?.wins)
+    + normalizeRecordCount(record?.losses)
+    + normalizeRecordCount(record?.draws) > 0
+}
+
+/**
+ * The compact form the picker shows next to a deck. A deck nobody has played yet is 0W–0L rather than an empty
+ * space - the player is choosing a deck, and "no games" is part of what they are choosing between.
+ */
+function formatDeckRecordSuffix(
+  record: IDeckRecord | null | undefined,
+  showEmptyRecord = true,
+): string {
+  const wins = normalizeRecordCount(record?.wins)
+  const losses = normalizeRecordCount(record?.losses)
+  const draws = normalizeRecordCount(record?.draws)
+
+  if (wins + losses + draws === 0) {
+    return showEmptyRecord ? i18n.t('auth.deckSummary.recordZero') : ''
+  }
+
+  // A deck that only ever drew has no win rate to show, and "0%" next to one draw would read as a losing streak.
+  if (wins + losses === 0) {
+    return i18n.t('auth.deckSummary.recordDrawsOnly', { draws })
+  }
+
+  const rate = Math.round((wins / (wins + losses)) * 100)
+
+  return draws > 0
+    ? i18n.t('auth.deckSummary.recordSuffixWithDraws', { wins, losses, draws, rate })
+    : i18n.t('auth.deckSummary.recordSuffix', { wins, losses, rate })
+}
+
+/** The selected deck's record, spelled out for the summary line under the picker. */
+function describeDeckRecord(record: IDeckRecord): string {
+  const wins = normalizeRecordCount(record.wins)
+  const losses = normalizeRecordCount(record.losses)
+  const draws = normalizeRecordCount(record.draws)
+
+  if (wins + losses + draws === 0) {
+    return i18n.t('auth.deckSummary.recordNone')
+  }
+
+  if (wins + losses === 0) {
+    return i18n.t('auth.deckSummary.recordDrawsOnly', { draws })
+  }
+
+  const rate = Math.round((wins / (wins + losses)) * 100)
+
+  return draws > 0
+    ? i18n.t('auth.deckSummary.recordFullWithDraws', { wins, losses, draws, rate })
+    : i18n.t('auth.deckSummary.recordFull', { wins, losses, rate })
+}
+
+function normalizeRecordCount(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0
 }
 
 function toDeckCardIdsByDeckId(decks: IDeckResponse[]): Record<string, string[]> {

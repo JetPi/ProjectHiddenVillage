@@ -458,13 +458,15 @@ public sealed class DeckServiceTests
     }
 
     [TestMethod]
-    public async Task DeleteDeck_RemovesTheDeckAndItsCardRows()
+    public async Task DeleteDeck_RemovesTheOwnersDeckAndItsCardRows()
     {
         await using var dbContext = CreateDbContext();
 
+        var ownerId = Guid.NewGuid();
         var deck = new Deck
         {
-            Type = DeckType.Public,
+            Type = DeckType.User,
+            UserId = ownerId,
             Cards =
             [
                 new DeckCard
@@ -479,12 +481,78 @@ public sealed class DeckServiceTests
         await dbContext.SaveChangesAsync();
 
         var service = new DeckService(dbContext);
-        var result = await service.DeleteDeck(deck.Id.ToString());
+        var result = await service.DeleteDeck(deck.Id.ToString(), requestingUserId: ownerId);
 
         Assert.IsFalse(result.IsError);
         Assert.IsTrue(result.Value);
         Assert.AreEqual(0, await dbContext.Decks.CountAsync());
         Assert.AreEqual(0, await dbContext.DeckCards.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task DeleteDeck_RemovesTheRecordOfTheDeletedDeck()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var ownerId = Guid.NewGuid();
+        var deck = new Deck { Type = DeckType.User, UserId = ownerId };
+        dbContext.Decks.Add(deck);
+        dbContext.DeckRecords.Add(new DeckRecord
+        {
+            DeckId = deck.Id,
+            UserId = ownerId,
+            Wins = 4,
+            Losses = 2,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var result = await new DeckService(dbContext).DeleteDeck(
+            deck.Id.ToString(),
+            requestingUserId: ownerId);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(
+            0,
+            await dbContext.DeckRecords.CountAsync(),
+            "a record cannot outlive the deck it belongs to");
+    }
+
+    [TestMethod]
+    public async Task DeleteDeck_WhenTheDeckBelongsToAnotherPlayer_ReturnsForbidden()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var ownerId = Guid.NewGuid();
+        var outsiderId = Guid.NewGuid();
+        var deck = new Deck { Type = DeckType.User, UserId = ownerId };
+        dbContext.Decks.Add(deck);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new DeckService(dbContext).DeleteDeck(
+            deck.Id.ToString(),
+            requestingUserId: outsiderId);
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Deck.Delete.Forbidden", result.FirstError.Code);
+        Assert.AreEqual(1, await dbContext.Decks.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task DeleteDeck_WhenAnAdminDeletesAPublicDeck_RemovesIt()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var deck = new Deck { Type = DeckType.Public };
+        dbContext.Decks.Add(deck);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new DeckService(dbContext).DeleteDeck(
+            deck.Id.ToString(),
+            requestingUserId: Guid.NewGuid(),
+            isAdmin: true);
+
+        Assert.IsFalse(result.IsError);
+        Assert.AreEqual(0, await dbContext.Decks.CountAsync());
     }
 
     [TestMethod]
@@ -519,7 +587,10 @@ public sealed class DeckServiceTests
         await dbContext.SaveChangesAsync();
 
         var service = new DeckService(dbContext);
-        var result = await service.DeleteDeck(deck.Id.ToString());
+        var result = await service.DeleteDeck(
+            deck.Id.ToString(),
+            requestingUserId: Guid.NewGuid(),
+            isAdmin: true);
 
         Assert.IsTrue(result.IsError);
         Assert.AreEqual("Deck.Delete.InUse", result.FirstError.Code);
@@ -619,7 +690,7 @@ public sealed class DeckServiceTests
             [
                 new DeckCardRequest("L-200", 1),
                 new DeckCardRequest("C-200", 3),
-            ]));
+            ]), isAdmin: true);
 
         Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
         Assert.AreEqual("After", result.Value.Name);
@@ -669,7 +740,7 @@ public sealed class DeckServiceTests
             [
                 new DeckCardRequest("L-300", 1),
                 new DeckCardRequest("C-300", 1),
-            ]));
+            ]), isAdmin: true);
 
         Assert.IsTrue(result.IsError);
         Assert.AreEqual("Deck.Ruleset.NotLegalInAnyRuleset", result.FirstError.Code);
@@ -769,7 +840,7 @@ public sealed class DeckServiceTests
             [
                 new DeckCardRequest("L-350", 1),
                 new DeckCardRequest("C-350", 4),
-            ]));
+            ]), isAdmin: true);
 
         Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
 

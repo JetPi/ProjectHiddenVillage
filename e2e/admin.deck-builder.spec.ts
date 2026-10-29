@@ -202,6 +202,86 @@ test('the deck builder loads a deck, replaces it from an import and updates it',
   await context.close()
 })
 
+test('the deck builder exports the draft in the format the import window reads', async ({ browser, request }) => {
+  const seededCards = legalDeck(50)
+  const { context, page } = await openDeckBuilder(browser, request, '/admin/decks/mock-export', {
+    decks: [
+      {
+        id: 'mock-export',
+        name: 'Exportable',
+        cards: seededCards,
+      },
+    ],
+  })
+
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await expect(page.getByTestId('admin-deck-export')).toBeEnabled()
+
+  await page.getByTestId('admin-deck-export').click()
+  await expect(page.getByText(/Copied \d+ card lines/)).toBeVisible({ timeout: 10_000 })
+
+  const clipboardText = await page.evaluate(() => navigator.clipboard.readText())
+  const exportedLines = clipboardText.split('\n').map((line) => line.trim()).filter(Boolean).sort()
+  const expectedLines = toMockDeckListText(seededCards).split('\n').sort()
+
+  expect(exportedLines).toEqual(expectedLines)
+  expect(exportedLines.every((line) => /^\d+x [A-Z0-9-]+$/.test(line))).toBe(true)
+
+  // The round trip is the point of the format: the exported text goes straight back into the import dialog.
+  await page.getByTestId('admin-deck-import').click()
+  await page.getByTestId('admin-deck-import-payload').fill(clipboardText)
+  await expect(page.getByTestId('admin-deck-import-confirm')).toBeEnabled()
+  await page.getByTestId('admin-deck-import-confirm').click()
+  await expect(rulesetStatus(page, 'standard')).toHaveAttribute('data-ruleset-legal', 'true')
+
+  await context.close()
+})
+
+test('the catalog filters keep a removable pill for every active filter', async ({ browser, request }) => {
+  const { context, page } = await openDeckBuilder(browser, request, '/admin/decks')
+
+  const typeFilter = page.getByRole('combobox', { name: 'Type' })
+  const colorFilter = page.getByRole('combobox', { name: 'Color' })
+  const pills = page.getByTestId('admin-filter-pills')
+
+  await expect(pills).toHaveCount(0)
+
+  // A colour on its own has to leave a pill: once a dropdown is consumed it reads "All selected", and a pill is the
+  // only way back out of that state.
+  await colorFilter.click()
+  await page.getByTestId('admin-select-listbox').getByRole('option', { name: 'Red' }).click()
+
+  await expect(page.getByRole('button', { name: 'Remove color Red' })).toBeVisible()
+  await expect(pills).toHaveCount(1)
+
+  await typeFilter.click()
+  await page.getByTestId('admin-select-listbox').getByRole('option', { name: 'Leader' }).click()
+  await expect(page.getByRole('button', { name: 'Remove type Leader' })).toBeVisible()
+
+  // Removing the type must not take the colour pill with it.
+  await page.getByRole('button', { name: 'Remove type Leader' }).click()
+  await expect(page.getByRole('button', { name: 'Remove type Leader' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Remove color Red' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Remove color Red' }).click()
+  await expect(pills).toHaveCount(0)
+
+  // The colour is offered again, so the filter is genuinely neutral rather than stuck.
+  await colorFilter.click()
+  await expect(page.getByTestId('admin-select-listbox').getByRole('option', { name: 'Red' })).toHaveCount(1)
+  await page.keyboard.press('Escape')
+
+  await context.close()
+})
+
+test('the deck builder has nothing to export on an empty new deck', async ({ browser, request }) => {
+  const { context, page } = await openDeckBuilder(browser, request, '/admin/decks')
+
+  await expect(page.getByTestId('admin-deck-export')).toBeDisabled()
+
+  await context.close()
+})
+
 test('the deck builder deletes a deck, and reports a deck a game still uses', async ({ browser, request }) => {
   const { context, page, state } = await openDeckBuilder(browser, request, '/admin/decks/mock-in-use', {
     decks: [

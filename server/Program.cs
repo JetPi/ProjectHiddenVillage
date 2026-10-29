@@ -63,6 +63,11 @@ builder.Services.AddSingleton<
 builder.Services.AddSingleton<
     ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameStateBroadcaster,
     ProjectHiddenVillage.Server.Api.Services.Games.GamesHubStateBroadcaster>();
+// A finished game is credited to the stored decks that played it. The recorder is a singleton because the
+// registry that hands it the result is one, so it opens its own scope for the DbContext instead of holding one.
+builder.Services.AddSingleton<
+    ProjectHiddenVillage.Server.Api.Interfaces.Deck.IGameResultRecorder,
+    ProjectHiddenVillage.Server.Api.Services.Deck.GameResultRecorder>();
 // Chat is per-process and per-game, like the games it belongs to: it never reaches the database and never touches
 // the engine's per-game lock.
 builder.Services.Configure<GameChatOptions>(builder.Configuration.GetSection(GameChatOptions.SectionName));

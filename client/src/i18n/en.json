@@ -177,7 +177,26 @@
       "failedPublic": "Failed to load public decks.",
       "noSaved": "No saved decks found for this user.",
       "failedSaved": "Failed to load your decks.",
-      "unnamedDeck": "Deck {{shortId}}"
+      "unnamedDeck": "Deck {{shortId}}",
+      "deleteAria": "Delete {{name}}"
+    },
+    "deckDelete": {
+      "title": "Delete this deck?",
+      "body": "\"{{name}}\" and its win/loss record will be removed. This cannot be undone.",
+      "cancel": "Keep deck",
+      "confirm": "Delete deck",
+      "deleting": "Deleting..."
+    },
+    "deckEdit": {
+      "title": "Edit {{name}}",
+      "body": "Paste the deck's new card list. Saving overwrites this deck instead of adding a new one; keeping the same leader keeps its win/loss record.",
+      "leaderWarning": "The leader changed, so this deck's win/loss record will be reset when you save.",
+      "save": "Overwrite deck",
+      "saving": "Overwriting...",
+      "actionAria": "Edit {{name}}",
+      "saved": "Deck \"{{name}}\" overwritten.",
+      "savedWithReset": "Deck \"{{name}}\" overwritten. Its win/loss record was reset because the leader changed.",
+      "failed": "The deck could not be overwritten. Please try again."
     },
     "deckMode": {
       "saved": "saved deck",
@@ -186,7 +205,14 @@
     "deckSummary": {
       "legalPill": "Legal",
       "illegalPill": "Not legal",
-      "importedDeck": "Imported deck"
+      "importedDeck": "Imported deck",
+      "recordNone": "No games yet",
+      "recordZero": "0W–0L",
+      "recordFull": "{{wins}}W–{{losses}}L · {{rate}}% win rate",
+      "recordFullWithDraws": "{{wins}}W–{{losses}}L–{{draws}}D · {{rate}}% win rate",
+      "recordDrawsOnly": "{{draws}}D",
+      "recordSuffix": "{{wins}}W–{{losses}}L ({{rate}}%)",
+      "recordSuffixWithDraws": "{{wins}}W–{{losses}}L–{{draws}}D ({{rate}}%)"
     },
     "matchmaking": {
       "searchingTitle": "Searching for a {{ruleset}} opponent",
@@ -216,6 +242,8 @@
       "accountCreated": "Account created successfully.",
       "loggedInAs": "Logged in as {{username}}",
       "loggedOut": "Logged out successfully.",
+      "deckDeleted": "Deck \"{{name}}\" deleted.",
+      "deckDeleteFailed": "The deck could not be deleted. Please try again.",
       "loginRequired": "Please log in before creating or joining a game.",
       "selectRuleset": "Please choose a format before searching for a match.",
       "deckNotLegalForRuleset": "This deck is not legal in {{ruleset}}. Fix the issues shown and try again.",
@@ -751,6 +779,8 @@
         "saving": "Saving...",
         "saveDisabledHint": "This deck must be legal in at least one active format before saving.",
         "import": "Import List",
+        "export": "Export List",
+        "exportDisabledHint": "Add at least one card to export the list.",
         "formats": "Formats",
         "delete": "Delete Deck"
       },
@@ -797,6 +827,9 @@
         "updated": "Deck \"{{name}}\" saved.",
         "deleted": "Deck deleted.",
         "imported": "Replaced the draft with {{count}} card lines.",
+        "exported": "Copied {{count}} card lines for the import window.",
+        "exportEmpty": "This deck has no cards to export.",
+        "exportFailed": "Copying is not available here. Select the list and copy it manually.",
         "saveFailed": "The deck could not be saved.",
         "deleteFailed": "The deck could not be deleted."
       }
