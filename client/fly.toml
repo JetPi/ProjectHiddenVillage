@@ -1,0 +1,28 @@
+app = "proud-summit-765"
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+  # The Vite build inlines this, so it must be the API app's public URL.
+  [build.args]
+    VITE_API_BASE_URL = "https://dawn-meadowstone-955.fly.dev"
+
+[http_service]
+  internal_port = 80
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

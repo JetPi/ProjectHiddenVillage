@@ -1,0 +1,44 @@
+app = "dawn-meadowstone-955"
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  DOTNET_ENVIRONMENT = "Production"
+  ASPNETCORE_URLS = "http://0.0.0.0:8080"
+  CardArt__CacheDirectory = "/data/card-art-cache"
+  CardArt__UploadDirectory = "/data/card-art-uploads"
+
+# Plain TCP check on purpose: the API has no /health route (the README's health URL
+# is stale) and /docs/v1.json throws in SwaggerGen for UploadCardArt's [FromForm]
+# IFormFile, so an HTTP check would report the app unhealthy while it serves traffic.
+[services]
+  internal_port = 8080
+  protocol = "tcp"
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "20s"
+
+[[mounts]]
+  source = "phv_card_art"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

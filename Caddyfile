@@ -1,0 +1,21 @@
+# TLS + routing for the two hostnames. Caddy obtains and renews Let's Encrypt
+# certificates automatically, and proxies WebSocket upgrades (SignalR) without extra config.
+
+{
+	email {$ACME_EMAIL}
+}
+
+# The .NET API, including /hubs/games and /hubs/presence over wss://.
+{$API_HOST} {
+	encode zstd gzip
+	reverse_proxy api:8080 {
+		# Stream immediately: hub traffic must never sit in a buffer.
+		flush_interval -1
+	}
+}
+
+# The React client, served by nginx.
+{$GAME_HOST} {
+	encode zstd gzip
+	reverse_proxy web:80
+}

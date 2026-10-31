@@ -1,0 +1,128 @@
+# Production stack for the Hetzner CPX02 box (1 vCPU / ~927 MiB).
+# Images are built by .github/workflows/publish-images.yml and pulled from GHCR here;
+# nothing is built on the server. See plans/small-box-deployment-tuning.md.
+
+name: phv
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    mem_limit: 400m
+    shm_size: 128mb
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Sized for 927 MiB, not for the defaults' 8 GB assumption (booster B5).
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=32MB
+      -c effective_cache_size=256MB
+      -c max_connections=20
+      -c random_page_cost=1.1
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    image: ghcr.io/jetpi/phv-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    mem_limit: 500m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://0.0.0.0:8080
+      # Booster B4: workstation GC inside a hard heap cap, so a GC burst cannot take the box.
+      DOTNET_gcServer: "0"
+      DOTNET_GCHeapHardLimitPercent: "40"
+      DOTNET_GCConserveMemory: "5"
+      Jwt__Key: ${JWT_KEY}
+      # Booster B6: the pool can never exceed the 20 Postgres connections we allow.
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Maximum Pool Size=20;Timeout=15;Command Timeout=30"
+      # The browser origin of the client app.
+      Cors__AllowedOrigins__0: https://${GAME_HOST}
+      CardArt__CacheDirectory: /data/card-art-cache
+      CardArt__UploadDirectory: /data/card-art-uploads
+      # Booster B3: the single most likely one-click OOM on a 1 GiB box.
+      CardArt__MaxUploadPixels: "8000000"
+      CardArt__MaxSourceBytes: "5242880"
+      # Booster B1: rewind points are full board clones.
+      GameRedo__MaxRewindPoints: "8"
+      # Booster B2.
+      GameChat__MaxMessagesPerGame: "50"
+      GameChat__MaxRooms: "200"
+      # Booster B11: the schema is created/updated by the app, in any environment.
+      Database__MigrateOnStartup: "true"
+    volumes:
+      - cardart:/data
+    healthcheck:
+      # The API has no /health route, so probe the listening socket. bash ships in the aspnet image.
+      test: ["CMD-SHELL", "timeout 3 bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web:
+    image: ghcr.io/jetpi/phv-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    mem_limit: 80m
+    depends_on:
+      - api
+      - web
+    environment:
+      GAME_HOST: ${GAME_HOST}
+      API_HOST: ${API_HOST}
+      ACME_EMAIL: ${ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  pgdata:
+  cardart:
+  caddy_data:
+  caddy_config:
