@@ -443,30 +443,34 @@ startupLogger.LogInformation(
     "CORS policy 'ClientDev' allows configured origins [{ConfiguredOrigins}] plus localhost/127.0.0.1 on any port for local development.",
     configuredCorsOrigins.Length == 0 ? "none" : string.Join(", ", configuredCorsOrigins));
 
-if (app.Environment.IsDevelopment())
+// Migrating the schema is a deployment concern, not a development one. The environment gate used
+// to make production schema changes impossible without a local SDK running `dotnet ef`, which is
+// exactly the tool a bare container does not have; `Database:MigrateOnStartup=true` (see
+// docker-compose.yml) lets the app bring its own database up to date on boot. The default keeps the
+// previous behaviour - on in Development, off everywhere else - so production never migrates by
+// accident, and `Database:MigrateOnStartup=false` still opts a development machine out.
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
-
-    // `npm run dev` never migrated on its own, so a schema change surfaced as a runtime
-    // "column ... does not exist" on the first ruleset query (the seeded DevelopmentGameInstanceSeeder and the
-    // ruleset endpoints both read tables at boot). Development applies the pending migrations itself now, which is
-    // exactly what the e2e stack was already doing in scripts/e2e-start-server.sh. Production keeps owning this
-    // through `npm run db:migrate`; `Database:MigrateOnStartup=false` opts a development machine out.
-    if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
+    if (app.Configuration.GetValue("Database:MigrateOnStartup", app.Environment.IsDevelopment()))
     {
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await dbContext.Database.MigrateAsync();
     }
 
-    var deckSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentDeckSeeder>();
-    var userSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentUserSeeder>();
-    var gameInstanceSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentGameInstanceSeeder>();
-    var runtimeGameSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentRuntimeGameSeeder>();
+    // Fabricated content (users, decks, in-flight games) stays a development-only concern. A
+    // deployment that wants rows to play with seeds reference data on purpose, not by accident.
+    if (app.Environment.IsDevelopment())
+    {
+        var deckSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentDeckSeeder>();
+        var userSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentUserSeeder>();
+        var gameInstanceSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentGameInstanceSeeder>();
+        var runtimeGameSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentRuntimeGameSeeder>();
 
-    await deckSeeder.SeedAsync();
-    await userSeeder.SeedAsync();
-    await gameInstanceSeeder.SeedAsync();
-    await runtimeGameSeeder.SeedAsync();
+        await deckSeeder.SeedAsync();
+        await userSeeder.SeedAsync();
+        await gameInstanceSeeder.SeedAsync();
+        await runtimeGameSeeder.SeedAsync();
+    }
 }
 
 app.UseSwagger(options =>
