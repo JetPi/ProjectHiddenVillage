@@ -25,6 +25,7 @@ using ProjectHiddenVillage.Server.Api.Interfaces.User;
 using ProjectHiddenVillage.Server.Api.Serialization;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Seeding.Development;
+using ProjectHiddenVillage.Server.Data.Seeding.Reference;
 using ProjectHiddenVillage.Server.Data.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -192,6 +193,7 @@ builder.Services.AddScoped<DevelopmentDeckSeeder>();
 builder.Services.AddScoped<DevelopmentUserSeeder>();
 builder.Services.AddScoped<DevelopmentGameInstanceSeeder>();
 builder.Services.AddScoped<DevelopmentRuntimeGameSeeder>();
+builder.Services.AddScoped<ReferenceCatalogSeeder>();
 builder.Services.AddSingleton<IAuthTokenService, AuthTokenService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services
@@ -455,6 +457,16 @@ using (var scope = app.Services.CreateScope())
     {
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await dbContext.Database.MigrateAsync();
+    }
+
+    // Reference data is the deliberate half: a deployment that wants a playable catalogue asks for it and gets
+    // catalogue rows only - never the demo users, decks and games the Development block below creates. Both flags
+    // exist because "production has no schema" and "production has no cards" are two different failures, and the
+    // first deployment hit both.
+    if (app.Configuration.GetValue("Database:SeedReferenceData", false))
+    {
+        var referenceCatalogSeeder = scope.ServiceProvider.GetRequiredService<ReferenceCatalogSeeder>();
+        await referenceCatalogSeeder.SeedAsync();
     }
 
     // Fabricated content (users, decks, in-flight games) stays a development-only concern. A

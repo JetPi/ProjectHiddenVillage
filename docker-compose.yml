@@ -67,6 +67,8 @@ services:
       GameChat__MaxRooms: "200"
       # Booster B11: the schema is created/updated by the app, in any environment.
       Database__MigrateOnStartup: "true"
+      # B12: catalogue rows only (no demo users/decks/games), inserted once when missing.
+      Database__SeedReferenceData: "true"
     volumes:
       - cardart:/data
     healthcheck:

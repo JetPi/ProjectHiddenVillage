@@ -358,32 +358,10 @@ public sealed class DevelopmentDeckSeeder
             Cards: manifestDeck.Cards.Select(card => new SeedDeckCardDefinition(card.CardId, card.Quantity)).ToList());
     }
 
-    private static CardCatalogEntry ToCardCatalogEntry(SeedCatalogEntryDefinition definition)
-    {
-        var utcNow = DateTimeOffset.UtcNow;
-        return new CardCatalogEntry
-        {
-            CardId = definition.CardId,
-            DisplayName = definition.DisplayName,
-            Image = definition.Image,
-            Type = definition.Type,
-            Color = definition.Color,
-            Description = definition.Description,
-            NameJson = JsonSerializer.Serialize(definition.Name),
-            TraitsJson = JsonSerializer.Serialize(definition.Traits),
-            ConditionsJson = JsonSerializer.Serialize(definition.Conditions),
-            EffectsJson = JsonSerializer.Serialize(definition.Effects, SeedManifestSerializerOptions),
-            Damage = definition.Damage,
-            Power = definition.Power,
-            Life = definition.Life,
-            Health = definition.Health,
-            SupportName = definition.SupportName,
-            SupportEffect = definition.SupportEffect,
-            CannotBeNormalSummoned = definition.CannotBeNormalSummoned,
-            CreatedAtUtc = utcNow,
-            UpdatedAtUtc = utcNow,
-        };
-    }
+    // One mapping, shared with the deployment-facing ReferenceCatalogSeeder: a card row written two different
+    // ways would render correctly in development and wrongly in production.
+    private static CardCatalogEntry ToCardCatalogEntry(SeedCatalogEntryDefinition definition) =>
+        CatalogManifest.ToCardCatalogEntry(definition);
 
     private async Task SeedPlaceholderCatalogEntriesAsync(
         IReadOnlyList<string> missingCardIds,
@@ -472,25 +450,6 @@ public sealed class DevelopmentDeckSeeder
         IReadOnlyList<SeedCardManifest> Cards);
 
     private sealed record SeedCardManifest(string CardId, int Quantity);
-
-    private sealed record SeedCatalogEntryDefinition(
-        string CardId,
-        string DisplayName,
-        string Image,
-        CardType Type,
-        CardColor Color,
-        string Description,
-        IReadOnlyList<string> Name,
-        IReadOnlyList<string> Traits,
-        IReadOnlyList<string> Conditions,
-        IReadOnlyList<EffectSpec> Effects,
-        int Damage,
-        int Power,
-        int? Life,
-        int? Health,
-        string SupportName,
-        string SupportEffect,
-        bool CannotBeNormalSummoned);
 
     private static CardNormalizationResult NormalizeCards(IReadOnlyList<SeedDeckCardDefinition> cards)
     {

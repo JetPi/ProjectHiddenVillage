@@ -57,7 +57,7 @@ Per live table, for reference: `GameState` ≈ 150–400 KB, plus up to [`MaxRew
 | B9 | Art-cache warming | cold after deploy | one warm pass | deploy script |
 | B10 | Swap posture | 4 GB swapfile, swappiness default 60 | `vm.swappiness=10`, optional 1 GB zram | sysctl |
 | B11 | Migrate on startup | Development-only gate | `Database__MigrateOnStartup=true` honored in any env | code |
-| B12 | Reference-data seeding | Development-only seeders | prod-safe catalog + rulesets behind a flag | code |
+| B12 | Reference-data seeding | Development-only seeders | catalogue rows behind `Database:SeedReferenceData` — **done**, see `ReferenceCatalogSeeder` | code |
 | B13 | Observability | none | `docker stats` snapshot + OOM watch | ops |
 | B14 | Docker disk hygiene | none | weekly prune of unused images/build cache | timer |
 | B15 | Card art off-box | local volume | object storage (future) | future |
@@ -156,11 +156,11 @@ Per live table, for reference: `GameState` ≈ 150–400 KB, plus up to [`MaxRew
 
 ## 6. Execution order
 
-- [ ] **Phase 0 — box (no app involvement):** B10 swappiness, B14 prune timer, confirm swap in `/etc/fstab`, record B13 baseline (`free -m`, `docker stats` before anything runs).
-- [ ] **Phase 1 — compose stack:** `docker-compose.yml` (api, web, postgres, caddy), `Caddyfile` for the two hostnames, `.env`, `deploy.sh` implementing B8 + B9, B5 + B6 + B7 settings baked in.
-- [ ] **Phase 2 — code/config flags:** B11 migrate-on-startup, B12 reference-data seeding, B1 + B2 + B3 appsettings values.
-- [ ] **Phase 3 — CI:** GH Actions workflow building + pushing both images to GHCR (the repo already runs Actions via [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml:1)).
-- [ ] **Phase 4 — prove it:** deploy, warm the cache (B9), run 4–6 concurrent games, capture `docker stats` and `free -m`, then leave the box idle for an hour and confirm no swap growth and no OOM in `journalctl`.
+- [x] **Phase 0 — box (no app involvement):** B10 swappiness, B14 prune timer, confirm swap in `/etc/fstab`, record B13 baseline — via [`scripts/hetzner-bootstrap.sh`](../../scripts/hetzner-bootstrap.sh:1).
+- [x] **Phase 1 — compose stack:** [`docker-compose.yml`](../../docker-compose.yml:1), [`Caddyfile`](../../Caddyfile:1), `.env`, [`scripts/deploy.sh`](../../scripts/deploy.sh:1), with B5 + B6 + B7 baked in.
+- [x] **Phase 2 — code/config flags:** B11 migrate-on-startup, B12 reference-data seeding, B1 + B2 + B3 as container env.
+- [x] **Phase 3 — CI:** [`publish-images.yml`](../../.github/workflows/publish-images.yml:1) builds and pushes both images to GHCR; the packages are publicly pullable, so the box needs no registry credentials.
+- [ ] **Phase 4 — prove it:** deployed 31 Oct (live on `game.shinobitactics.dev`), but the load half is still open: run 4–6 concurrent games, capture `docker stats` and `free -m`, then leave the box idle for an hour and confirm no swap growth and no OOM in `journalctl`.
 
 ## 7. Rejected options (and why they stay documented)
 
