@@ -19,6 +19,7 @@ import {
   setupMultiplayerGame,
   waitForActorMainPhaseNumber,
 } from './helpers/gameviewMultiplayerHelpers'
+import { createDeadline } from './helpers/multiplayer/deadline'
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -67,11 +68,21 @@ const RESPONDER_PLAIN_SUMMON_CARD_DEFINITION_IDS = [
   'N-020',
 ] as const
 
-// Neither player is guaranteed to hold their half (three copies in a 30+ card deck), and a game whose draw
-const ROLE_SEARCH_CYCLE_COUNT = 30
+// Neither player is guaranteed to hold their half (three copies in a 30+ card deck), so the role searches and
+// the chain passes walk decision windows until their condition is met. Those budgets are wall-clock, not attempt
+// counts: with the phase-presentation gate closed a cycle is a no-op, so an attempt count can expire while the
+// engine never had the chance to offer the action being looked for (see helpers/multiplayer/deadline.ts, and the
+// one-failure-per-94-runs at raised worker counts recorded in playwright.config.ts).
+const ROLE_SEARCH_BUDGET_MS = 150_000
+// Resolving a queued support chain waits on phase automation acks (GamePhaseAutomation:PresentationAckTimeoutMs is
+// 4 s per presentation, and a chain may drain up to 16 steps), so the old 20 x 400 ms budget - 8 s - was the
+// tightest link in this spec and the most likely thing to expire on a busy CI machine.
+const CHAIN_RESOLUTION_BUDGET_MS = 60_000
 
 let answererDeckId = ''
 let openerDeckId = ''
+let koOpenerDeckId = ''
+let shieldingResponderDeckId = ''
 
 test.describe('GameView multiplayer quick support cut-in', () => {
   test.describe.configure({ timeout: 300_000 })
@@ -81,6 +92,14 @@ test.describe('GameView multiplayer quick support cut-in', () => {
     // summonable characters so the role search always finds both halves.
     answererDeckId = await createFixtureDeck(request, ['1x N-001', '10x N-002', '8x N-007'])
     openerDeckId = await createFixtureDeck(request, ['1x N-012', '10x N-021', '8x N-015'])
+    // The mirrored scenario needs the same guarantee, and it used to rely on the *seeded* decks happening to
+    // deal the right halves: ten copies of the K.O. support (N-004) for player one and ten of the shielding
+    // [Quick] support (N-021) for player two. When the draw did not cooperate the search walked phases until its
+    // budget expired and failed with "No 'Set Support' action found in bottom hand" - the flake that made this
+    // spec red in CI while passing locally. N-007 and N-015 are the same proven summonable characters the
+    // sibling scenario uses.
+    koOpenerDeckId = await createFixtureDeck(request, ['1x N-001', '10x N-004', '8x N-007'])
+    shieldingResponderDeckId = await createFixtureDeck(request, ['1x N-012', '10x N-021', '8x N-015'])
   })
 
   test('a [Quick] support answers a queued MainPhase activation from the support area', async ({ browser, request }) => {
@@ -95,7 +114,10 @@ test.describe('GameView multiplayer quick support cut-in', () => {
   })
 
   test('a [Quick] support answered from the support area shields its target from the queued effect', async ({ browser, request }) => {
-          const setup = await setupMultiplayerGame(request)
+    const setup = await setupMultiplayerGame(request, 'default', {
+      one: { deckId: koOpenerDeckId },
+      two: { deckId: shieldingResponderDeckId },
+    })
       const pages = await openMultiplayerPages(browser, setup)
 
       try {
@@ -236,7 +258,9 @@ async function resolveQuickSupportRoles(
   request: APIRequestContext,
   setup: MultiplayerSetup,
 ): Promise<string> {
-  for (let cycle = 0; cycle < ROLE_SEARCH_CYCLE_COUNT; cycle += 1) {
+  const deadline = createDeadline(ROLE_SEARCH_BUDGET_MS)
+
+  while (!deadline.expired) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -258,7 +282,9 @@ async function resolveQuickSupportRoles(
     await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
   }
 
-  throw new Error('The Quick-support cut-in play did not come together within the search window.')
+  throw new Error(
+    `The Quick-support cut-in play did not come together within the search window (${deadline.elapsedMs} ms of ${deadline.budgetMs} ms).`,
+  )
 }
 
 /** Advances decision windows until it is the actor's MainPhase (where their setup actions are legal). */
@@ -267,7 +293,9 @@ async function waitForMainPhase(
   setup: MultiplayerSetup,
   actor: PlayerAuth,
 ): Promise<void> {
-  for (let cycle = 0; cycle < 60; cycle += 1) {
+  const deadline = createDeadline(ROLE_SEARCH_BUDGET_MS)
+
+  while (!deadline.expired) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -282,7 +310,9 @@ async function waitForMainPhase(
     await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
   }
 
-  throw new Error("The actor never reached their MainPhase within the search window.")
+  throw new Error(
+    `The actor never reached their MainPhase within the search window (${deadline.elapsedMs} ms of ${deadline.budgetMs} ms).`,
+  )
 }
 
 /** Summons a hand character through its hover chip and returns the card instance id. */
@@ -397,7 +427,9 @@ async function passUntilQuickSupportResolves(
   owner: PlayerAuth,
   supportInstanceId: string,
 ): Promise<void> {
-  for (let step = 0; step < 20; step += 1) {
+  const deadline = createDeadline(CHAIN_RESOLUTION_BUDGET_MS)
+
+  while (!deadline.expired) {
     const ownerState = await fetchGameState(request, setup.gameCode, owner.session.accessToken)
     const resolvedOwnerState = resolvePlayerState(ownerState, owner)
     const leftSupportZone = !resolvedOwnerState.supportZone
@@ -426,7 +458,9 @@ async function passUntilQuickSupportResolves(
     await wait(400)
   }
 
-  throw new Error('The Quick-support chain did not resolve within the search window.')
+  throw new Error(
+    `The Quick-support chain did not resolve within the search window (${deadline.elapsedMs} ms of ${deadline.budgetMs} ms).`,
+  )
 }
 
 /**
@@ -550,7 +584,9 @@ async function summonFirstAvailableCharacter(
   actor: PlayerAuth,
   candidateDefinitionIds: readonly string[],
 ): Promise<string> {
-  for (let cycle = 0; cycle < ROLE_SEARCH_CYCLE_COUNT; cycle += 1) {
+  const deadline = createDeadline(ROLE_SEARCH_BUDGET_MS)
+
+  while (!deadline.expired) {
     const [playerOneState, playerTwoState] = await Promise.all([
       fetchGameState(request, setup.gameCode, setup.playerOne.session.accessToken),
       fetchGameState(request, setup.gameCode, setup.playerTwo.session.accessToken),
@@ -586,7 +622,9 @@ async function summonFirstAvailableCharacter(
     await progressToNextDecisionWindow(setup, playerOneState, playerTwoState)
   }
 
-  throw new Error('None of the whitelisted characters could be summoned within the search window.')
+  throw new Error(
+    `None of the whitelisted characters could be summoned within the search window (${deadline.elapsedMs} ms of ${deadline.budgetMs} ms).`,
+  )
 }
 
 /** Activates a support from the hand through its hover chip (label "Support"). */
@@ -619,7 +657,9 @@ async function passUntilChainCloses(
   setup: MultiplayerSetup,
   passer: PlayerAuth,
 ): Promise<void> {
-  for (let step = 0; step < 20; step += 1) {
+  const deadline = createDeadline(CHAIN_RESOLUTION_BUDGET_MS)
+
+  while (!deadline.expired) {
     const state = await fetchGameState(request, setup.gameCode, passer.session.accessToken)
 
     if (state.isSupportResponseWindowOpen !== true) {
@@ -636,7 +676,9 @@ async function passUntilChainCloses(
     await wait(400)
   }
 
-  throw new Error('The support window did not close within the search window.')
+  throw new Error(
+    `The support window did not close within the search window (${deadline.elapsedMs} ms of ${deadline.budgetMs} ms).`,
+  )
 }
 
 /**
