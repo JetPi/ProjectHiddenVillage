@@ -498,7 +498,6 @@ public sealed class GamesServiceUserDeckFlowTests
             NonLeaderCardCount: 2,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: false,
-            SortOrder: 0,
             CardRestrictions: []));
 
         Assert.IsFalse(ruleset.IsError, ruleset.IsError ? ruleset.FirstError.Description : string.Empty);

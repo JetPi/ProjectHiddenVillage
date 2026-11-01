@@ -57,8 +57,7 @@ public sealed class CreateDeckRulesetRequestValidator : AbstractValidator<Create
             request => request.Name,
             request => request.LeaderCount,
             request => request.NonLeaderCardCount,
-            request => request.MaxCopiesPerNonLeaderCard,
-            request => request.SortOrder);
+            request => request.MaxCopiesPerNonLeaderCard);
 
         DeckRulesetShapeRules.AddCardPoolRules(this, request => request.CardPoolMode);
 
@@ -77,14 +76,34 @@ public sealed class UpdateDeckRulesetRequestValidator : AbstractValidator<Update
             request => request.Name,
             request => request.LeaderCount,
             request => request.NonLeaderCardCount,
-            request => request.MaxCopiesPerNonLeaderCard,
-            request => request.SortOrder);
+            request => request.MaxCopiesPerNonLeaderCard);
 
         DeckRulesetShapeRules.AddCardPoolRules(this, request => request.CardPoolMode);
 
         DeckRulesetShapeRules.AddClockRules(this);
 
         DeckRulesetShapeRules.AddRestrictionRules(this, request => request.CardRestrictions);
+    }
+}
+
+/// <summary>
+/// The display order request. The order itself is the list, so the only things to reject are an empty list and a
+/// format named twice: either would leave the stored order ambiguous.
+/// </summary>
+public sealed class ReorderDeckRulesetsRequestValidator : AbstractValidator<ReorderDeckRulesetsRequest>
+{
+    public ReorderDeckRulesetsRequestValidator()
+    {
+        RuleFor(request => request.RulesetIds)
+            .Must(ids => ids is { Count: > 0 })
+            .WithMessage("A reorder request needs at least one format id.")
+            .Must(HaveDistinctIds)
+            .WithMessage("A format may appear only once in a reorder request.");
+    }
+
+    private static bool HaveDistinctIds(IReadOnlyList<Guid>? ids)
+    {
+        return ids is null || ids.Distinct().Count() == ids.Count;
     }
 }
 
@@ -99,8 +118,7 @@ internal static class DeckRulesetShapeRules
         System.Linq.Expressions.Expression<Func<T, string>> nameSelector,
         System.Linq.Expressions.Expression<Func<T, int>> leaderCountSelector,
         System.Linq.Expressions.Expression<Func<T, int>> nonLeaderCardCountSelector,
-        System.Linq.Expressions.Expression<Func<T, int>> maxCopiesSelector,
-        System.Linq.Expressions.Expression<Func<T, int>> sortOrderSelector)
+        System.Linq.Expressions.Expression<Func<T, int>> maxCopiesSelector)
     {
         validator.RuleFor(nameSelector)
             .Must(name => !string.IsNullOrWhiteSpace(name))
@@ -119,10 +137,6 @@ internal static class DeckRulesetShapeRules
         validator.RuleFor(maxCopiesSelector)
             .InclusiveBetween(1, MaxCopiesPerCard)
             .WithMessage($"A ruleset copy cap must be between 1 and {MaxCopiesPerCard}.");
-
-        validator.RuleFor(sortOrderSelector)
-            .GreaterThanOrEqualTo(0)
-            .WithMessage("Sort order cannot be negative.");
     }
 
     internal const int MaxClockSeconds = 21_600;

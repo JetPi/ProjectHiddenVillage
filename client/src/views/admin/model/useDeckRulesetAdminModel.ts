@@ -3,6 +3,7 @@ import {
   useAllDeckRulesetsQuery,
   useCreateDeckRulesetMutation,
   useDeleteDeckRulesetMutation,
+  useReorderDeckRulesetsMutation,
   useUpdateDeckRulesetMutation,
 } from '@/services/queries/deckRulesetQueries'
 import type {
@@ -64,7 +65,6 @@ const EMPTY_DRAFT: IDeckRulesetDraft = {
   nonLeaderCardCount: 50,
   maxCopiesPerNonLeaderCard: 4,
   requireLeaderColorMatch: true,
-  sortOrder: 0,
   clockEnabled: true,
   mainPhaseSeconds: 60,
   otherPhaseSeconds: 30,
@@ -84,7 +84,6 @@ function toDraft(ruleset: IDeckRuleset): IDeckRulesetDraft {
     nonLeaderCardCount: ruleset.nonLeaderCardCount,
     maxCopiesPerNonLeaderCard: ruleset.maxCopiesPerNonLeaderCard,
     requireLeaderColorMatch: ruleset.requireLeaderColorMatch,
-    sortOrder: ruleset.sortOrder,
     clockEnabled: ruleset.clockEnabled,
     mainPhaseSeconds: ruleset.mainPhaseSeconds,
     otherPhaseSeconds: ruleset.otherPhaseSeconds,
@@ -121,7 +120,6 @@ function toCreatePayload(draft: IDeckRulesetDraft): ICreateDeckRulesetRequest {
     nonLeaderCardCount: draft.nonLeaderCardCount,
     maxCopiesPerNonLeaderCard: draft.maxCopiesPerNonLeaderCard,
     requireLeaderColorMatch: draft.requireLeaderColorMatch,
-    sortOrder: draft.sortOrder,
     clockEnabled: draft.clockEnabled,
     mainPhaseSeconds: draft.mainPhaseSeconds,
     otherPhaseSeconds: draft.otherPhaseSeconds,
@@ -145,7 +143,6 @@ function toUpdatePayload(draft: IDeckRulesetDraft): IUpdateDeckRulesetRequest {
     nonLeaderCardCount: draft.nonLeaderCardCount,
     maxCopiesPerNonLeaderCard: draft.maxCopiesPerNonLeaderCard,
     requireLeaderColorMatch: draft.requireLeaderColorMatch,
-    sortOrder: draft.sortOrder,
     clockEnabled: draft.clockEnabled,
     mainPhaseSeconds: draft.mainPhaseSeconds,
     otherPhaseSeconds: draft.otherPhaseSeconds,
@@ -205,10 +202,6 @@ function buildViolations(
       messageKey: 'admin.rulesets.validation.maxCopies',
       params: { max: MAX_COPIES_PER_CARD },
     })
-  }
-
-  if (!Number.isInteger(draft.sortOrder) || draft.sortOrder < 0) {
-    violations.push({ messageKey: 'admin.rulesets.validation.sortOrder' })
   }
 
   // The action clock: a zero budget arms an already-expired deadline, and a stop longer than the whole-game pool
@@ -307,6 +300,7 @@ export function useDeckRulesetAdminModel() {
   const createMutation = useCreateDeckRulesetMutation()
   const updateMutation = useUpdateDeckRulesetMutation()
   const deleteMutation = useDeleteDeckRulesetMutation()
+  const reorderMutation = useReorderDeckRulesetsMutation()
 
   const [selectedRulesetId, setSelectedRulesetId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -435,6 +429,29 @@ export function useDeckRulesetAdminModel() {
     return savedRuleset
   }
 
+  /**
+   * Moves one format to another slot and sends the resulting order. The rail has already moved the row; this only
+   * has to name the order it produced.
+   */
+  const reorderRulesets = async (fromIndex: number, toIndex: number): Promise<void> => {
+    const rulesetIds = rulesets.map((ruleset) => ruleset.id)
+
+    if (
+      fromIndex === toIndex
+      || fromIndex < 0
+      || toIndex < 0
+      || fromIndex >= rulesetIds.length
+      || toIndex >= rulesetIds.length
+    ) {
+      return
+    }
+
+    const [moved] = rulesetIds.splice(fromIndex, 1)
+    rulesetIds.splice(toIndex, 0, moved)
+
+    await reorderMutation.mutateAsync(rulesetIds)
+  }
+
   const remove = async (): Promise<void> => {
     if (!selectedRulesetId) {
       return
@@ -467,6 +484,7 @@ export function useDeckRulesetAdminModel() {
     selectRuleset,
     startCreate,
     save,
+    reorderRulesets,
     remove,
   }
 }

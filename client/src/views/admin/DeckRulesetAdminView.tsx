@@ -61,6 +61,21 @@ export function DeckRulesetAdminView() {
     }
   }
 
+  const handleReorder = async (fromIndex: number, toIndex: number) => {
+    try {
+      await model.reorderRulesets(fromIndex, toIndex)
+      showAppSuccessToast(t('admin.rulesets.toasts.reordered'), {
+        id: TOAST_ID,
+        position: 'top-right',
+      })
+    } catch (error) {
+      showAppInfoToast(getApiErrorMessage(error, t('admin.rulesets.rail.reorderFailed')), {
+        id: TOAST_ID,
+        position: 'top-right',
+      })
+    }
+  }
+
   const handleDelete = async () => {
     const rulesetName = model.selectedRuleset?.name ?? model.draft.name
     const confirmed = window.confirm(
@@ -110,6 +125,9 @@ export function DeckRulesetAdminView() {
             isError={model.isError}
             onSelect={model.selectRuleset}
             onCreate={model.startCreate}
+            onReorder={(fromIndex, toIndex) => {
+              void handleReorder(fromIndex, toIndex)
+            }}
           />
 
           <section className="h-full min-h-0 overflow-hidden">

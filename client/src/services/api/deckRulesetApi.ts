@@ -40,6 +40,15 @@ export async function deleteDeckRuleset(rulesetId: string): Promise<void> {
 }
 
 /**
+ * Saves the rail's display order: the format ids in the order they now appear. One drop is one request, and ids
+ * the server does not recognise are ignored there.
+ */
+export async function reorderDeckRulesets(rulesetIds: string[]): Promise<IDeckRuleset[]> {
+  const { data } = await api.put<IDeckRuleset[]>('/api/deck-rulesets/order', { rulesetIds })
+  return data
+}
+
+/**
  * The set codes the catalogue holds, with card counts. Admin-only, because it exists to feed the rule editor with
  * real set codes instead of making the admin guess them.
  */

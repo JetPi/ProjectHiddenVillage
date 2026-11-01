@@ -105,7 +105,6 @@ public sealed class DeckRulesetRequestValidatorTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            SortOrder: 0,
             CardRestrictions: []));
 
         Assert.IsTrue(result.IsValid, result.ToString());
@@ -135,6 +134,36 @@ public sealed class DeckRulesetRequestValidatorTests
             result.ToString());
     }
 
+    [TestMethod]
+    public void Validate_RejectsAnEmptyReorderRequest()
+    {
+        var result = new ReorderDeckRulesetsRequestValidator().Validate(
+            new ReorderDeckRulesetsRequest([]));
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.PropertyName == nameof(ReorderDeckRulesetsRequest.RulesetIds)));
+    }
+
+    [TestMethod]
+    public void Validate_RejectsAFormatNamedTwiceInAReorderRequest()
+    {
+        var rulesetId = Guid.NewGuid();
+        var result = new ReorderDeckRulesetsRequestValidator().Validate(
+            new ReorderDeckRulesetsRequest([rulesetId, Guid.NewGuid(), rulesetId]));
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.PropertyName == nameof(ReorderDeckRulesetsRequest.RulesetIds)));
+    }
+
+    [TestMethod]
+    public void Validate_AcceptsAReorderRequest()
+    {
+        var result = new ReorderDeckRulesetsRequestValidator().Validate(
+            new ReorderDeckRulesetsRequest([Guid.NewGuid(), Guid.NewGuid()]));
+
+        Assert.IsTrue(result.IsValid, result.ToString());
+    }
+
     private static CreateDeckRulesetRequest CreateRequest(
         string key = "standard",
         int leaderCount = 1,
@@ -151,7 +180,6 @@ public sealed class DeckRulesetRequestValidatorTests
             NonLeaderCardCount: nonLeaderCardCount,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            SortOrder: 0,
             CardRestrictions: restrictions ?? []);
     }
 }

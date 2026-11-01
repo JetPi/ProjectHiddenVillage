@@ -31,6 +31,10 @@ export type IDeckRuleset = {
   nonLeaderCardCount: number
   maxCopiesPerNonLeaderCard: number
   requireLeaderColorMatch: boolean
+  /**
+   * Server-owned display position: a new format is appended and the admin rail's drag rewrites it. It is read here
+   * but never sent, which is why the request types below omit it.
+   */
   sortOrder: number
   cardRestrictions: IDeckRulesetCardRestriction[]
   /** Whether games created under this ruleset run the action clock at all. */
@@ -51,6 +55,6 @@ export type IDeckRulesetSetCode = {
   cardCount: number
 }
 
-export type ICreateDeckRulesetRequest = Omit<IDeckRuleset, 'id'>
+export type ICreateDeckRulesetRequest = Omit<IDeckRuleset, 'id' | 'sortOrder'>
 
-export type IUpdateDeckRulesetRequest = Omit<IDeckRuleset, 'id' | 'key'>
+export type IUpdateDeckRulesetRequest = Omit<IDeckRuleset, 'id' | 'key' | 'sortOrder'>

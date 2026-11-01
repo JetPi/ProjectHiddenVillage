@@ -107,6 +107,11 @@ public sealed class DeckRulesetService : IDeckRulesetService
             return cardPoolValidation.Errors;
         }
 
+        // A new format joins the end of the display order; the rail's drag is what moves it afterwards.
+        var nextSortOrder = await dbContext.DeckRulesets
+            .Select(record => (int?)record.SortOrder)
+            .MaxAsync() ?? -1;
+
         var now = DateTimeOffset.UtcNow;
         var ruleset = new DeckRuleset
         {
@@ -124,7 +129,7 @@ public sealed class DeckRulesetService : IDeckRulesetService
             OtherPhaseSeconds = request.OtherPhaseSeconds,
             PlayerPoolSeconds = request.PlayerPoolSeconds,
             TimeoutsBeforeForfeit = request.TimeoutsBeforeForfeit,
-            SortOrder = request.SortOrder,
+            SortOrder = nextSortOrder + 1,
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
             CardRestrictions = restrictionResult.Value,
@@ -216,7 +221,6 @@ public sealed class DeckRulesetService : IDeckRulesetService
         ruleset.OtherPhaseSeconds = request.OtherPhaseSeconds;
         ruleset.PlayerPoolSeconds = request.PlayerPoolSeconds;
         ruleset.TimeoutsBeforeForfeit = request.TimeoutsBeforeForfeit;
-        ruleset.SortOrder = request.SortOrder;
         ruleset.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
         var existingRestrictionsByMatcher = ruleset.CardRestrictions
@@ -307,6 +311,64 @@ public sealed class DeckRulesetService : IDeckRulesetService
         }
 
         return true;
+    }
+
+    public async Task<ErrorOr<List<DeckRulesetResponse>>> ReorderRulesets(ReorderDeckRulesetsRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Tracked on purpose: the whole point of this call is to write the new sort orders back.
+        var rulesets = await dbContext.DeckRulesets
+            .Include(record => record.CardRestrictions)
+            .OrderBy(record => record.SortOrder)
+            .ThenBy(record => record.Name)
+            .ToListAsync();
+
+        var ordered = new List<DeckRuleset>(rulesets.Count);
+        var listedIds = new HashSet<Guid>();
+
+        foreach (var rulesetId in request.RulesetIds.Distinct())
+        {
+            var ruleset = rulesets.FirstOrDefault(record => record.Id == rulesetId);
+
+            if (ruleset is null)
+            {
+                continue;
+            }
+
+            ordered.Add(ruleset);
+            listedIds.Add(rulesetId);
+        }
+
+        // Anything the request did not name - a format created in another tab, say - keeps its relative order and
+        // follows the listed ones, so a stale client can never drop a format out of the list.
+        ordered.AddRange(rulesets.Where(record => !listedIds.Contains(record.Id)));
+
+        var now = DateTimeOffset.UtcNow;
+
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            if (ordered[index].SortOrder == index)
+            {
+                continue;
+            }
+
+            ordered[index].SortOrder = index;
+            ordered[index].UpdatedAtUtc = now;
+        }
+
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return Error.Failure(
+                code: "Deck.Rulesets.PersistFailed",
+                description: "The format order could not be saved.");
+        }
+
+        return ordered.Select(ToResponse).ToList();
     }
 
     public async Task<ErrorOr<List<DeckRulesetSetCodeResponse>>> GetCardPoolSetCodes()

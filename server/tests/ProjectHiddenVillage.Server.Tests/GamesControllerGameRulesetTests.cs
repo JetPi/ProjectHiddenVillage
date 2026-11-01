@@ -330,6 +330,11 @@ public sealed class GamesControllerGameRulesetTests
             throw new NotImplementedException();
         }
 
+        public Task<ErrorOr<List<DeckRulesetResponse>>> ReorderRulesets(ReorderDeckRulesetsRequest request)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<ErrorOr<DeckRulesetResponse>> CreateRuleset(CreateDeckRulesetRequest request)
         {
             throw new NotImplementedException();

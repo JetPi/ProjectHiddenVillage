@@ -69,7 +69,6 @@ public sealed record CreateDeckRulesetRequest(
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,
     bool RequireLeaderColorMatch,
-    int SortOrder,
     IReadOnlyList<DeckRulesetCardRestrictionRequest> CardRestrictions,
     bool ClockEnabled = true,
     int MainPhaseSeconds = 60,
@@ -77,6 +76,12 @@ public sealed record CreateDeckRulesetRequest(
     int PlayerPoolSeconds = 1800,
     int TimeoutsBeforeForfeit = 3,
     bool AvailableInQuickMatch = true) : IDeckRulesetClockRequest;
+
+/// <summary>
+/// The new display order: the format ids in the order they should appear. An id the request does not name keeps
+/// its relative position after the listed ones, so a stale admin tab can never drop a format out of the list.
+/// </summary>
+public sealed record ReorderDeckRulesetsRequest(IReadOnlyList<Guid> RulesetIds);
 
 public sealed record UpdateDeckRulesetRequest(
     string Name,
@@ -86,7 +91,6 @@ public sealed record UpdateDeckRulesetRequest(
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,
     bool RequireLeaderColorMatch,
-    int SortOrder,
     IReadOnlyList<DeckRulesetCardRestrictionRequest> CardRestrictions,
     bool ClockEnabled = true,
     int MainPhaseSeconds = 60,

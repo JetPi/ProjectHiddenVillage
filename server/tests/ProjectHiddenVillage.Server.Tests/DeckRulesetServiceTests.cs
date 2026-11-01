@@ -109,7 +109,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            SortOrder: 0,
             CardRestrictions:
             [
                 new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Card, "C-002", 3),
@@ -147,7 +146,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            SortOrder: 0,
             CardRestrictions: []));
 
         Assert.IsTrue(result.IsError);
@@ -186,7 +184,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            SortOrder: 0,
             CardRestrictions: [],
             ClockEnabled: false,
             MainPhaseSeconds: 45,
@@ -236,7 +233,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            SortOrder: 0,
             CardRestrictions: [],
             AvailableInQuickMatch: true));
 
@@ -277,7 +273,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            SortOrder: 0,
             CardRestrictions: [],
             MainPhaseSeconds: 0));
 
@@ -305,6 +300,74 @@ public sealed class DeckRulesetServiceTests
 
         Assert.IsFalse(allResult.IsError);
         Assert.AreEqual(2, allResult.Value.Count);
+    }
+
+    [TestMethod]
+    public async Task CreateRuleset_AppendsTheNewFormatToTheEndOfTheOrder()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.DeckRulesets.AddRange(
+            CreateRulesetEntity("standard", sortOrder: 0),
+            CreateRulesetEntity("pre-release", sortOrder: 7));
+        await dbContext.SaveChangesAsync();
+
+        var service = new DeckRulesetService(dbContext);
+        var result = await service.CreateRuleset(CreateRequest(key: "unrestricted"));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        Assert.AreEqual(8, result.Value.SortOrder, "a new format joins the end, it never asks the admin for a number");
+    }
+
+    [TestMethod]
+    public async Task ReorderRulesets_WritesTheRequestedOrder()
+    {
+        await using var dbContext = CreateDbContext();
+        var first = CreateRulesetEntity("first", sortOrder: 0);
+        var second = CreateRulesetEntity("second", sortOrder: 1);
+        var third = CreateRulesetEntity("third", sortOrder: 2);
+        dbContext.DeckRulesets.AddRange(first, second, third);
+        await dbContext.SaveChangesAsync();
+
+        var service = new DeckRulesetService(dbContext);
+        var result = await service.ReorderRulesets(
+            new ReorderDeckRulesetsRequest([third.Id, first.Id, second.Id]));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        CollectionAssert.AreEqual(
+            new[] { "third", "first", "second" },
+            result.Value.Select(ruleset => ruleset.Key).ToList());
+        CollectionAssert.AreEqual(
+            new[] { 0, 1, 2 },
+            result.Value.Select(ruleset => ruleset.SortOrder).ToList());
+
+        var persisted = await dbContext.DeckRulesets
+            .AsNoTracking()
+            .OrderBy(ruleset => ruleset.SortOrder)
+            .Select(ruleset => ruleset.Key)
+            .ToListAsync();
+
+        CollectionAssert.AreEqual(new[] { "third", "first", "second" }, persisted);
+    }
+
+    [TestMethod]
+    public async Task ReorderRulesets_AppendsFormatsTheRequestMissed()
+    {
+        await using var dbContext = CreateDbContext();
+        var first = CreateRulesetEntity("first", sortOrder: 0);
+        var second = CreateRulesetEntity("second", sortOrder: 1);
+        var third = CreateRulesetEntity("third", sortOrder: 2);
+        dbContext.DeckRulesets.AddRange(first, second, third);
+        await dbContext.SaveChangesAsync();
+
+        var service = new DeckRulesetService(dbContext);
+
+        // A stale admin tab only knows about one format; the other two keep their relative order behind it.
+        var result = await service.ReorderRulesets(new ReorderDeckRulesetsRequest([third.Id]));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        CollectionAssert.AreEqual(
+            new[] { "third", "first", "second" },
+            result.Value.Select(ruleset => ruleset.Key).ToList());
     }
 
     [TestMethod]
@@ -378,7 +441,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            SortOrder: 0,
             CardRestrictions: restrictions ?? [],
             AvailableInQuickMatch: availableInQuickMatch);
     }
@@ -386,7 +448,8 @@ public sealed class DeckRulesetServiceTests
     private static DeckRuleset CreateRulesetEntity(
         string key,
         bool isActive = true,
-        IReadOnlyList<DeckRulesetCardRestriction>? restrictions = null)
+        IReadOnlyList<DeckRulesetCardRestriction>? restrictions = null,
+        int sortOrder = 0)
     {
         var now = DateTimeOffset.UtcNow;
 
@@ -400,7 +463,7 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount = 50,
             MaxCopiesPerNonLeaderCard = 4,
             RequireLeaderColorMatch = true,
-            SortOrder = 0,
+            SortOrder = sortOrder,
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
             CardRestrictions = restrictions?.ToList() ?? [],

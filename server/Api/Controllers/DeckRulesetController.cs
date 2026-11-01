@@ -82,6 +82,28 @@ public sealed class DeckRulesetController : ApiControllerBase
         return Created($"/api/deck-rulesets/{result.Value.Id}", result.Value);
     }
 
+    /// <summary>
+    /// Rewrites the display order. The body is the whole order, so one drop in the admin rail is one request
+    /// rather than one per row.
+    /// </summary>
+    [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
+    [HttpPut("order")]
+    [ProducesResponseType(typeof(List<DeckRulesetResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<List<DeckRulesetResponse>>> ReorderRulesets(
+        [FromBody] ReorderDeckRulesetsRequest request)
+    {
+        var result = await deckRulesetService.ReorderRulesets(request);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<List<DeckRulesetResponse>>(result.Errors);
+        }
+
+        return Ok(result.Value);
+    }
+
     [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
     [HttpPut("{rulesetId}")]
     [ProducesResponseType(typeof(DeckRulesetResponse), StatusCodes.Status200OK)]

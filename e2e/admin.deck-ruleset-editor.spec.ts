@@ -102,10 +102,32 @@ async function openRulesetAdmin(
     }
 
     if (method === 'POST') {
-      const body = route.request().postDataJSON() as Omit<MockRuleset, 'id'>
-      const created: MockRuleset = { id: `ruleset-created-${rulesets.length}`, ...body }
+      // The server owns the position: a new format is appended, so the body never carries one.
+      const body = route.request().postDataJSON() as Omit<MockRuleset, 'id' | 'sortOrder'>
+      const created: MockRuleset = {
+        id: `ruleset-created-${rulesets.length}`,
+        sortOrder: rulesets.length,
+        ...body,
+      }
       rulesets.push(created)
       await fulfillJson(route, 201, created)
+      return
+    }
+
+    if (method === 'PUT' && url.pathname.endsWith('/deck-rulesets/order')) {
+      const body = route.request().postDataJSON() as { rulesetIds: string[] }
+      const byId = new Map(rulesets.map((ruleset) => [ruleset.id, ruleset]))
+      const ordered = body.rulesetIds
+        .map((rulesetId) => byId.get(rulesetId))
+        .filter((ruleset): ruleset is MockRuleset => ruleset !== undefined)
+      const rest = rulesets.filter((ruleset) => !body.rulesetIds.includes(ruleset.id))
+
+      rulesets.splice(0, rulesets.length, ...ordered, ...rest)
+      rulesets.forEach((ruleset, index) => {
+        ruleset.sortOrder = index
+      })
+
+      await fulfillJson(route, 200, rulesets)
       return
     }
 
@@ -223,6 +245,26 @@ test('the ruleset admin creates, edits, deactivates and deletes a format', async
     .poll(() => requests.filter((entry) => entry.startsWith('DELETE /api/deck-rulesets/')).length)
     .toBe(1)
   await expect(rulesetRailItem(page, 'draft-format')).toHaveCount(0)
+})
+
+test('dragging a format in the rail saves the new order', async ({ browser, request }) => {
+  const { page, rulesets, requests } = await openRulesetAdmin(browser, request)
+
+  await expect(page.getByTestId('admin-ruleset-item').nth(0)).toHaveAttribute('data-ruleset-key', 'standard')
+
+  // No save button and no dialog: the handle moves the row, and the order is saved on its own.
+  await page
+    .getByTestId('admin-ruleset-drag-handle')
+    .nth(1)
+    .dragTo(page.getByTestId('admin-ruleset-row').nth(0))
+
+  await expect(page.getByTestId('admin-ruleset-item').nth(0)).toHaveAttribute('data-ruleset-key', 'pre-release')
+  await expect
+    .poll(() => requests.filter((entry) => entry === 'PUT /api/deck-rulesets/order').length)
+    .toBe(1)
+
+  expect(rulesets.map((ruleset) => ruleset.key)).toEqual(['pre-release', 'standard'])
+  expect(rulesets.map((ruleset) => ruleset.sortOrder)).toEqual([0, 1])
 })
 
 test('an allow-list format saves a set rule instead of a card rule', async ({ browser, request }) => {

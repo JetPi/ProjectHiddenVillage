@@ -226,33 +226,24 @@ export function DeckRulesetEditorPane({
           />
         </div>
 
-        <div>
-          <FormLabel htmlFor="admin-ruleset-sort-order">{t('admin.rulesets.editor.sortOrder')}</FormLabel>
-          <FormInput
-            id="admin-ruleset-sort-order"
-            data-testid="admin-ruleset-sort-order"
-            type="number"
-            min={0}
-            value={draft.sortOrder}
-            className="max-w-32"
-            onChange={(event) => onPatch({ sortOrder: Number.parseInt(event.target.value, 10) || 0 })}
-          />
-        </div>
-
         <section>
+          <div className='flex flex-row'>
+
           <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
             {t('admin.rulesets.editor.clockTitle')}
           </h2>
           <p className="text-[10px] text-[var(--text-muted)]">{t('admin.rulesets.editor.clockHint')}</p>
-
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
             <FormCheckboxField
+              className='mx-2'
               id="admin-ruleset-clock-enabled"
               data-testid="admin-ruleset-clock-enabled"
               label={t('admin.rulesets.editor.clockEnabled')}
               checked={draft.clockEnabled}
               onChange={(event) => onPatch({ clockEnabled: event.target.checked })}
             />
+          </div>
+
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
 
             <div>
               <FormLabel htmlFor="admin-ruleset-main-phase-seconds">

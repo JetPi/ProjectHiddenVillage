@@ -849,7 +849,9 @@
         "empty": "No formats yet.",
         "active": "Active",
         "inactive": "Inactive",
-        "cardCount": "{{count}} non-leader cards"
+        "cardCount": "{{count}} non-leader cards",
+        "dragToReorder": "Drag to reorder",
+        "reorderFailed": "The format order could not be saved."
       },
       "editor": {
         "newTitle": "New Format",
@@ -864,7 +866,6 @@
         "nonLeaderCardCount": "Non-leader cards required",
         "maxCopies": "Max copies per card",
         "requireColorMatch": "Cards must match the leader's colour",
-        "sortOrder": "Sort order",
         "availableInQuickMatch": "Available in Quick Match",
         "availableInQuickMatchHint": "Uncheck to keep this format out of quick match. It stays playable when hosting and through invites.",
         "clockTitle": "Action clock",
@@ -908,7 +909,6 @@
         "leaderCount": "A ruleset must require exactly one leader card.",
         "cardCount": "The non-leader card count must be between 1 and {{max}}.",
         "maxCopies": "The copy cap must be between 1 and {{max}}.",
-        "sortOrder": "Sort order cannot be negative.",
         "clockBudget": "Clock budgets must be whole positive seconds.",
         "clockBudgetAbovePool": "A single stop's budget cannot exceed the player's whole-game pool.",
         "playerPoolMinutes": "The player pool must be between {{min}} and {{max}} minutes.",
@@ -930,6 +930,7 @@
         "created": "Format \"{{name}}\" created.",
         "updated": "Format \"{{name}}\" saved.",
         "deleted": "Format deleted.",
+        "reordered": "Format order saved.",
         "saveFailed": "The format could not be saved.",
         "deleteFailed": "The format could not be deleted."
       }

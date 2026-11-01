@@ -24,7 +24,6 @@ export type IDeckRulesetDraft = {
   nonLeaderCardCount: number
   maxCopiesPerNonLeaderCard: number
   requireLeaderColorMatch: boolean
-  sortOrder: number
   clockEnabled: boolean
   mainPhaseSeconds: number
   otherPhaseSeconds: number

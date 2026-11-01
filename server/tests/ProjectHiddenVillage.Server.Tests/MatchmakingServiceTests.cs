@@ -111,7 +111,6 @@ public sealed class MatchmakingServiceTests
             NonLeaderCardCount: StandardDeckSize,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: false,
-            SortOrder: 2,
             CardRestrictions: [],
             AvailableInQuickMatch: false));
 
@@ -384,7 +383,6 @@ public sealed class MatchmakingServiceTests
             NonLeaderCardCount: StandardDeckSize,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: false,
-            SortOrder: 0,
             CardRestrictions: []));
 
         var preRelease = await harness.Rulesets.CreateRuleset(new CreateDeckRulesetRequest(
@@ -396,7 +394,6 @@ public sealed class MatchmakingServiceTests
             NonLeaderCardCount: PreReleaseDeckSize,
             MaxCopiesPerNonLeaderCard: 3,
             RequireLeaderColorMatch: false,
-            SortOrder: 1,
             CardRestrictions: []));
 
         Assert.IsFalse(standard.IsError, standard.IsError ? standard.FirstError.Description : string.Empty);
