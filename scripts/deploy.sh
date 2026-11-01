@@ -44,6 +44,11 @@ for _ in $(seq 1 30); do
     sleep 4
 done
 
+echo "== what is running now =="
+ssh -o BatchMode=yes "$SSH_TARGET" "docker inspect phv-api-1 --format 'api image:   {{.Config.Image}}'; \
+    docker inspect phv-api-1 --format 'api started: {{.State.StartedAt}}'; \
+    docker inspect phv-web-1 --format 'web image:   {{.Config.Image}}'"
+
 # The first board load after a deploy would otherwise decode dozens of images on the single
 # core at once. Warm the cache from the catalog instead.
 game_host="$(ssh -o BatchMode=yes "$SSH_TARGET" "grep -E '^GAME_HOST=' '$APP_DIR/.env' | cut -d= -f2-")"

@@ -269,6 +269,9 @@ export function LoginView() {
 
   const presenceSnapshot = usePresenceSnapshot()
   const onlineViewers = presenceSnapshot?.onlineViewers ?? null
+  const isMaintenance = presenceSnapshot?.maintenanceEnabled === true
+  const maintenanceMessage =
+    presenceSnapshot?.maintenanceMessage?.trim() || t('auth.maintenance.fallback')
 
   const activeDeckRulesetsQuery = useActiveDeckRulesetsQuery()
   const enqueueMatchMutation = useEnqueueMatchMutation()
@@ -1518,6 +1521,11 @@ export function LoginView() {
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
 
+    if (isMaintenance) {
+      showAppInfoToast(maintenanceMessage)
+      return
+    }
+
     const submitter = event.nativeEvent.submitter
     const pressedIntent = submitter instanceof HTMLButtonElement && isGameIntent(submitter.value)
       ? submitter.value
@@ -1571,6 +1579,16 @@ export function LoginView() {
             {t('auth.tagline')}
           </p>
         </Panel>
+        {isMaintenance ? (
+          <div
+            data-testid="login-maintenance-banner"
+            role="status"
+            className="mx-2 rounded-xl border border-amber-300/50 bg-amber-100/10 px-3 py-2 text-left"
+          >
+            <p className="text-xs font-semibold text-[var(--text-primary)]">{t('auth.maintenance.title')}</p>
+            <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{maintenanceMessage}</p>
+          </div>
+        ) : null}
         <Panel className="my-2 w-full px-5 pt-3">
           <Form className="mt-0 grid grid-cols-2 items-stretch gap-x-4" onSubmit={handleSubmit}>
 
@@ -1651,7 +1669,7 @@ export function LoginView() {
                     type="submit"
                     name="intent"
                     value="quickmatch"
-                    disabled={pendingIntent !== null || quickmatchRulesets.length === 0}
+                    disabled={pendingIntent !== null || quickmatchRulesets.length === 0 || isMaintenance}
                     className="w-full justify-center py-1.5"
                   >
                     {t('auth.findMatch')}
@@ -1672,7 +1690,7 @@ export function LoginView() {
                       type="submit"
                       name="intent"
                       value="join"
-                      disabled={pendingIntent !== null}
+                      disabled={pendingIntent !== null || isMaintenance}
                       className="w-full justify-center py-1.5"
                     >
                       {t('auth.join')}
@@ -1692,7 +1710,7 @@ export function LoginView() {
                       type="submit"
                       name="intent"
                       value="host"
-                      disabled={pendingIntent !== null}
+                      disabled={pendingIntent !== null || isMaintenance}
                       className="w-full justify-center py-1.5"
                     >
                       {t('auth.host')}

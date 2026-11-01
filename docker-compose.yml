@@ -74,6 +74,9 @@ services:
       AdminBootstrap__Email: ${ADMIN_BOOTSTRAP_EMAIL:-}
       AdminBootstrap__Username: ${ADMIN_BOOTSTRAP_USERNAME:-}
       AdminBootstrap__Password: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+      # B14: maintenance boots closed when asked, and POST /api/maintenance/disable opens the site again.
+      Maintenance__Enabled: ${MAINTENANCE_ENABLED:-false}
+      Maintenance__Message: ${MAINTENANCE_MESSAGE:-The server is restarting for a scheduled update. New games resume shortly.}
     volumes:
       - cardart:/data
     healthcheck:

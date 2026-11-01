@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Interfaces.User;
+using ProjectHiddenVillage.Server.Api.Services.Maintenance;
 
 namespace ProjectHiddenVillage.Server.Api.Services.Matchmaking;
 
@@ -22,6 +23,7 @@ public sealed class MatchmakingService : IMatchmakingService
     private readonly TimeProvider timeProvider;
     private readonly IGuestUserService? guestUserService;
     private readonly IRematchHandlingService? rematchHandlingService;
+    private readonly MaintenanceState? maintenanceState;
 
     public MatchmakingService(
         InMemoryGameInstanceRegistry registry,
@@ -32,7 +34,8 @@ public sealed class MatchmakingService : IMatchmakingService
         IOptions<MatchmakingOptions> options,
         TimeProvider timeProvider,
         IGuestUserService? guestUserService = null,
-        IRematchHandlingService? rematchHandlingService = null)
+        IRematchHandlingService? rematchHandlingService = null,
+        MaintenanceState? maintenanceState = null)
     {
         this.registry = registry;
         this.gameReadService = gameReadService;
@@ -43,6 +46,7 @@ public sealed class MatchmakingService : IMatchmakingService
         this.timeProvider = timeProvider;
         this.guestUserService = guestUserService;
         this.rematchHandlingService = rematchHandlingService;
+        this.maintenanceState = maintenanceState;
     }
 
     public async Task<ErrorOr<MatchTicketResponse>> EnqueueAsync(
@@ -50,6 +54,11 @@ public sealed class MatchmakingService : IMatchmakingService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        if (MaintenanceGate.BlockedError(maintenanceState) is { } blocked)
+        {
+            return blocked;
+        }
 
         if (request.UserId == Guid.Empty)
         {

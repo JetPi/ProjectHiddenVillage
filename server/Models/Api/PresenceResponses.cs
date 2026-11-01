@@ -9,4 +9,7 @@ public sealed record PresenceSnapshot(
     int OnlineViewers,
     IReadOnlyList<WaitingPlayersByRuleset> WaitingByRuleset,
     int AuthenticatedViewers = 0,
-    int AnonymousViewers = 0);
+    int AnonymousViewers = 0,
+    bool MaintenanceEnabled = false,
+    string? MaintenanceMessage = null,
+    int ActiveGames = 0);

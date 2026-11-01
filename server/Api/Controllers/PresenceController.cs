@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using ProjectHiddenVillage.Server.Api.Services.Maintenance;
 using ProjectHiddenVillage.Server.Api.Services.Presence;
 
 namespace ProjectHiddenVillage.Server;
@@ -12,7 +13,8 @@ namespace ProjectHiddenVillage.Server;
 [Route("api/presence")]
 public sealed class PresenceController(
     PresenceRegistry presenceRegistry,
-    IMatchmakingService matchmakingService) : ControllerBase
+    IMatchmakingService matchmakingService,
+    MaintenanceReporter maintenanceReporter) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PresenceSnapshot), StatusCodes.Status200OK)]
@@ -20,6 +22,7 @@ public sealed class PresenceController(
     {
         return Ok(PresenceSnapshotFactory.Create(
             presenceRegistry.GetCounts(),
-            matchmakingService.GetQueueSummary()));
+            matchmakingService.GetQueueSummary(),
+            maintenanceReporter.GetSnapshot()));
     }
 }

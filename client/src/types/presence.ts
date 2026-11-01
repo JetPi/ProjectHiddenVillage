@@ -13,4 +13,7 @@ export type IPresenceSnapshot = {
   waitingByRuleset: IWaitingPlayersByRuleset[]
   authenticatedViewers: number
   anonymousViewers: number
+  maintenanceEnabled?: boolean
+  maintenanceMessage?: string | null
+  activeGames?: number
 }

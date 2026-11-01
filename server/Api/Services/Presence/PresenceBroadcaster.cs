@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using ProjectHiddenVillage.Server.Api.Hubs;
+using ProjectHiddenVillage.Server.Api.Services.Maintenance;
 using ProjectHiddenVillage.Server.Api.Services.Matchmaking;
 
 namespace ProjectHiddenVillage.Server.Api.Services.Presence;
@@ -14,6 +15,7 @@ public sealed class PresenceBroadcaster : BackgroundService
 {
     private readonly PresenceRegistry presenceRegistry;
     private readonly MatchmakingQueue matchmakingQueue;
+    private readonly MaintenanceReporter maintenanceReporter;
     private readonly IHubContext<PresenceHub> hubContext;
     private readonly MatchmakingOptions matchmakingOptions;
     private readonly PresenceOptions options;
@@ -23,6 +25,7 @@ public sealed class PresenceBroadcaster : BackgroundService
     public PresenceBroadcaster(
         PresenceRegistry presenceRegistry,
         MatchmakingQueue matchmakingQueue,
+        MaintenanceReporter maintenanceReporter,
         IHubContext<PresenceHub> hubContext,
         IOptions<PresenceOptions> options,
         IOptions<MatchmakingOptions> matchmakingOptions,
@@ -31,6 +34,7 @@ public sealed class PresenceBroadcaster : BackgroundService
     {
         this.presenceRegistry = presenceRegistry;
         this.matchmakingQueue = matchmakingQueue;
+        this.maintenanceReporter = maintenanceReporter;
         this.hubContext = hubContext;
         this.options = options.Value;
         this.matchmakingOptions = matchmakingOptions.Value;
@@ -87,6 +91,9 @@ public sealed class PresenceBroadcaster : BackgroundService
             TimeSpan.FromSeconds(Math.Max(1, matchmakingOptions.TicketLifetimeSeconds)),
             TimeSpan.FromSeconds(Math.Max(1, matchmakingOptions.FinishedTicketRetentionSeconds)));
 
-        return PresenceSnapshotFactory.Create(presenceRegistry.GetCounts(), waitingByRuleset);
+        return PresenceSnapshotFactory.Create(
+            presenceRegistry.GetCounts(),
+            waitingByRuleset,
+            maintenanceReporter.GetSnapshot());
     }
 }

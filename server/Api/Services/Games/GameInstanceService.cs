@@ -2,6 +2,7 @@ using ErrorOr;
 using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Interfaces.User;
+using ProjectHiddenVillage.Server.Api.Services.Maintenance;
 using ProjectHiddenVillage.Server.Api.Services.Rematch;
 
 namespace ProjectHiddenVillage.Server;
@@ -12,7 +13,8 @@ public sealed class GameInstanceService(
     IDeckRulesetService? deckRulesetService = null,
     IGameRulesetDeckValidator? deckValidator = null,
     IGuestUserService? guestUserService = null,
-    IRematchHandlingService? rematchHandlingService = null) : IGameInstanceService
+    IRematchHandlingService? rematchHandlingService = null,
+    MaintenanceState? maintenanceState = null) : IGameInstanceService
 {
     public Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request)
     {
@@ -22,6 +24,11 @@ public sealed class GameInstanceService(
     public async Task<ErrorOr<GameInstance>> CreateGameForUser(CreateGameForUserRequest request, string? preferredGameCode)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        if (BlockedByMaintenance() is { } blocked)
+        {
+            return blocked;
+        }
 
         // The table's modifiers are validated before anything is loaded: a host who asks for a rule this deployment
         // does not know must be told, not quietly hosted a different game.
@@ -88,7 +95,12 @@ public sealed class GameInstanceService(
         {
             // A code with no table yet may still be a rematch reservation: the two players agreed on another match
             // and each is coming back from the login view with the deck they chose. Opening the table here is what
-            // turns that reservation into a game.
+            // turns that reservation into a game, so maintenance refuses it like any other new table.
+            if (BlockedByMaintenance() is { } blockedClaim)
+            {
+                return blockedClaim;
+            }
+
             return await ClaimReservedRematchTableAsync(normalizedGameCode, request);
         }
 
@@ -130,6 +142,12 @@ public sealed class GameInstanceService(
             return Error.Validation(
                 code: "Game.JoinForUser.MissingStoredDeck",
                 description: "User is already part of this game instance, but no stored deck was found for that player.");
+        }
+
+        // A player already seated is admitted above: maintenance stops new seats, not a reload of a running game.
+        if (BlockedByMaintenance() is { } blockedJoin)
+        {
+            return blockedJoin;
         }
 
         if (!request.DeckId.HasValue || request.DeckId.Value == Guid.Empty)
@@ -406,6 +424,11 @@ public sealed class GameInstanceService(
         return guestUserService is null
             ? Task.CompletedTask
             : guestUserService.TouchAsync(userId.ToString("N"));
+    }
+
+    private Error? BlockedByMaintenance()
+    {
+        return MaintenanceGate.BlockedError(maintenanceState);
     }
 
     private static bool HasStoredDeck(PlayerState playerState)

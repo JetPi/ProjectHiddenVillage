@@ -21,6 +21,7 @@ using ProjectHiddenVillage.Server.Api.Services.Rematch;
 using ProjectHiddenVillage.Server.Api.Hubs;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
+using ProjectHiddenVillage.Server.Api.Services.Maintenance;
 using ProjectHiddenVillage.Server.Api.Interfaces.User;
 using ProjectHiddenVillage.Server.Api.Serialization;
 using ProjectHiddenVillage.Server.Data;
@@ -169,6 +170,10 @@ builder.Services.AddScoped<IGameInstanceService, GameInstanceService>();
 builder.Services.AddSingleton<MatchmakingQueue>();
 builder.Services.AddScoped<IMatchmakingService, MatchmakingService>();
 builder.Services.Configure<MatchmakingOptions>(builder.Configuration.GetSection(MatchmakingOptions.SectionName));
+// Maintenance is in process on purpose: a restart ends it, which is what makes a deploy self-closing.
+builder.Services.Configure<MaintenanceOptions>(builder.Configuration.GetSection(MaintenanceOptions.SectionName));
+builder.Services.AddSingleton<MaintenanceState>();
+builder.Services.AddSingleton<MaintenanceReporter>();
 // Viewer presence is per-process, like the games it sits next to, and is deliberately separate from the game
 // presence tracker: that one decides who must acknowledge a phase presentation.
 builder.Services.Configure<PresenceOptions>(builder.Configuration.GetSection(PresenceOptions.SectionName));

@@ -128,6 +128,10 @@
     "tagline": "A free Naruto TCG online simulator",
     "onlinePlayers_one": "{{count}} player online",
     "onlinePlayers_other": "{{count}} players online",
+    "maintenance": {
+      "title": "Deployment in progress",
+      "fallback": "New games are paused while the server updates. Games already on the board keep running."
+    },
     "displayName": "Display Name",
     "displayNamePlaceholder": "Enter name here",
     "displayNameRequired": "Please enter a display name.",

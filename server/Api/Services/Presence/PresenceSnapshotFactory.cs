@@ -1,3 +1,4 @@
+using ProjectHiddenVillage.Server.Api.Services.Maintenance;
 using ProjectHiddenVillage.Server.Api.Services.Matchmaking;
 
 namespace ProjectHiddenVillage.Server.Api.Services.Presence;
@@ -10,13 +11,17 @@ internal static class PresenceSnapshotFactory
 {
     internal static PresenceSnapshot Create(
         PresenceCounts counts,
-        IReadOnlyList<WaitingPlayersByRuleset> waitingByRuleset)
+        IReadOnlyList<WaitingPlayersByRuleset> waitingByRuleset,
+        MaintenanceSnapshot? maintenance = null)
     {
         return new PresenceSnapshot(
             OnlineViewers: counts.OnlineViewers,
             WaitingByRuleset: waitingByRuleset,
             AuthenticatedViewers: counts.AuthenticatedViewers,
-            AnonymousViewers: counts.AnonymousViewers);
+            AnonymousViewers: counts.AnonymousViewers,
+            MaintenanceEnabled: maintenance?.Enabled ?? false,
+            MaintenanceMessage: maintenance?.Message,
+            ActiveGames: maintenance?.ActiveGames ?? 0);
     }
 
     /// <summary>
@@ -33,7 +38,10 @@ internal static class PresenceSnapshotFactory
         if (left.OnlineViewers != right.OnlineViewers
             || left.AuthenticatedViewers != right.AuthenticatedViewers
             || left.AnonymousViewers != right.AnonymousViewers
-            || left.WaitingByRuleset.Count != right.WaitingByRuleset.Count)
+            || left.WaitingByRuleset.Count != right.WaitingByRuleset.Count
+            || left.MaintenanceEnabled != right.MaintenanceEnabled
+            || left.ActiveGames != right.ActiveGames
+            || !string.Equals(left.MaintenanceMessage, right.MaintenanceMessage, StringComparison.Ordinal))
         {
             return false;
         }

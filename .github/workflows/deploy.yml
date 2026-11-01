@@ -1,0 +1,127 @@
+name: Deploy
+
+# The button: drains live games, ships the published image to the Hetzner box and reopens the site.
+# There is no push trigger on purpose - a deploy ends every game in memory, so a human picks the moment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy (commit sha or latest). Empty deploys this commit.'
+        required: false
+        default: ''
+      drain_timeout_minutes:
+        description: 'Minutes to wait for live games to finish. A timeout still deploys, with a warning.'
+        required: false
+        default: '10'
+      skip_drain:
+        description: 'Deploy immediately, without maintenance or waiting.'
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PHV_API_HOST: ${{ secrets.PHV_API_HOST || 'api.shinobitactics.dev' }}
+  PHV_GAME_HOST: ${{ secrets.PHV_GAME_HOST || 'game.shinobitactics.dev' }}
+
+jobs:
+  deploy:
+    name: Deploy to Hetzner
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve the image tag
+        id: tag
+        run: |
+          tag="${{ inputs.image_tag }}"
+          if [ -z "$tag" ]; then
+            tag="${{ github.sha }}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Deploying $tag"
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          SSH_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          host="${SSH_HOST:-167.233.251.253}"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$host" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "SSH_TARGET=root@$host" >> "$GITHUB_ENV"
+          echo "ssh target: root@$host"
+
+      - name: Sign in as the ops account
+        if: ${{ !inputs.skip_drain }}
+        env:
+          OPS_EMAIL: ${{ secrets.PHV_OPS_EMAIL }}
+          OPS_PASSWORD: ${{ secrets.PHV_OPS_PASSWORD }}
+        run: |
+          token="$(curl -fsS -X POST "https://$PHV_API_HOST/api/user/login" \
+            -H 'Content-Type: application/json' \
+            -d "{\"email\":\"$OPS_EMAIL\",\"password\":\"$OPS_PASSWORD\"}" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')"
+          echo "::add-mask::$token"
+          printf 'PHV_TOKEN=%s\n' "$token" >> "$GITHUB_ENV"
+
+      - name: Enable maintenance
+        if: ${{ !inputs.skip_drain }}
+        run: |
+          curl -fsS -X POST "https://$PHV_API_HOST/api/maintenance/enable" \
+            -H "Authorization: Bearer $PHV_TOKEN"
+          echo
+
+      - name: Wait for live games to finish
+        if: ${{ !inputs.skip_drain }}
+        run: |
+          deadline=$(( SECONDS + ${{ inputs.drain_timeout_minutes }} * 60 ))
+          while :; do
+            snapshot="$(curl -fsS "https://$PHV_API_HOST/api/maintenance")"
+            echo "$snapshot"
+            read -r active waiting < <(printf '%s' "$snapshot" \
+              | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["activeGames"], d["waitingPlayers"])')
+            if [ "$active" = "0" ] && [ "$waiting" = "0" ]; then
+              echo "drained: no table in play and nobody queued"
+              exit 0
+            fi
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::warning::drain timed out with $active table(s) in play and $waiting queued; deploying anyway"
+              exit 0
+            fi
+            sleep 15
+          done
+
+      - name: Deploy
+        env:
+          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+        run: ./scripts/deploy.sh "$IMAGE_TAG"
+
+      - name: Disable maintenance
+        if: always() && !inputs.skip_drain
+        run: |
+          curl -fsS -X POST "https://$PHV_API_HOST/api/maintenance/disable" \
+            -H "Authorization: Bearer $PHV_TOKEN" \
+            || echo "::warning::maintenance could not be disabled over the API; the restart already reopened the site"
+
+      - name: Verify
+        if: always()
+        run: |
+          ssh "$SSH_TARGET" "docker inspect phv-api-1 --format 'api image:   {{.Config.Image}}'; \
+            docker inspect phv-api-1 --format 'api started: {{.State.StartedAt}}'; \
+            docker inspect phv-web-1 --format 'web image:   {{.Config.Image}}'"
+          curl -fsS "https://$PHV_API_HOST/api/maintenance" || true
+          echo
+          curl -fsS "https://$PHV_API_HOST/api/card/catalog?page=1&pageSize=1" | head -c 200
+          echo
+          echo "client: https://$PHV_GAME_HOST/"

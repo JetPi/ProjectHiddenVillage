@@ -1,6 +1,7 @@
 using ErrorOr;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 using ProjectHiddenVillage.Server.Api.Services.Games;
+using ProjectHiddenVillage.Server.Api.Services.Maintenance;
 
 namespace ProjectHiddenVillage.Server.Api.Services.Rematch;
 
@@ -19,10 +20,17 @@ public sealed class RematchHandlingService(
     RematchReservationStore reservations,
     ProjectHiddenVillage.Server.Api.Services.Games.IGameCodeAllocator codeAllocator,
     RematchOptions options,
-    TimeProvider timeProvider) : IRematchHandlingService
+    TimeProvider timeProvider,
+    MaintenanceState? maintenanceState = null) : IRematchHandlingService
 {
     public ErrorOr<GameInstance> RequestRematch(string gameId, string requestingPlayerId)
     {
+        // A rematch reserves a table, so maintenance refuses the offer rather than let it expire unused.
+        if (MaintenanceGate.BlockedError(maintenanceState) is { } blocked)
+        {
+            return blocked;
+        }
+
         var gameResult = GetSeatedGame(gameId, requestingPlayerId);
         if (gameResult.IsError)
         {
