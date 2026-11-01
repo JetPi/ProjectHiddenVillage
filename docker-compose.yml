@@ -69,6 +69,11 @@ services:
       Database__MigrateOnStartup: "true"
       # B12: catalogue rows only (no demo users/decks/games), inserted once when missing.
       Database__SeedReferenceData: "true"
+      # B13: one-shot first admin. Turn ADMIN_BOOTSTRAP_ENABLED on in .env for a single boot.
+      AdminBootstrap__Enabled: ${ADMIN_BOOTSTRAP_ENABLED:-false}
+      AdminBootstrap__Email: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      AdminBootstrap__Username: ${ADMIN_BOOTSTRAP_USERNAME:-}
+      AdminBootstrap__Password: ${ADMIN_BOOTSTRAP_PASSWORD:-}
     volumes:
       - cardart:/data
     healthcheck:

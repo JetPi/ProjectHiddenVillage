@@ -17,10 +17,16 @@ namespace ProjectHiddenVillage.Server.Data.Seeding;
 public static class CatalogManifest
 {
     /// <summary>
-    /// Relative to the content root. <c>ProjectHiddenVillage.Server.csproj</c> links the file in as
-    /// <c>test-data/seed-profiles.json</c>, which is why the path starts with the parent directory.
+    /// The repository layout, relative to the content root: running from <c>server/</c> puts the manifest in the
+    /// sibling <c>test-data/</c> directory.
     /// </summary>
     public const string RelativePath = "../test-data/seed-profiles.json";
+
+    /// <summary>
+    /// The published layout: <c>ProjectHiddenVillage.Server.csproj</c> links the file in as
+    /// <c>test-data/seed-profiles.json</c>, so it sits *inside* the app directory of the container.
+    /// </summary>
+    public const string PublishedRelativePath = "test-data/seed-profiles.json";
 
     public static JsonSerializerOptions CreateSerializerOptions()
     {
@@ -35,12 +41,7 @@ public static class CatalogManifest
     /// </summary>
     public static IReadOnlyList<SeedCatalogEntryDefinition> LoadCatalogEntries(string contentRootPath)
     {
-        var manifestPath = Path.GetFullPath(Path.Combine(contentRootPath, RelativePath));
-        if (!File.Exists(manifestPath))
-        {
-            throw new InvalidOperationException($"Seed manifest '{manifestPath}' was not found.");
-        }
-
+        var manifestPath = ResolveManifestPath(contentRootPath);
         var json = File.ReadAllText(manifestPath);
         var manifest = JsonSerializer.Deserialize<CatalogManifestDefinition>(json, CreateSerializerOptions());
         if (manifest is null)
@@ -49,6 +50,31 @@ public static class CatalogManifest
         }
 
         return manifest.CatalogEntries;
+    }
+
+    /// <summary>
+    /// Both layouts are tried: the repository one first, so a developer's working copy wins, then the published one,
+    /// which is the only one a container has. Resolving against the content root alone put a container's manifest at
+    /// <c>/test-data/seed-profiles.json</c> while the publish step wrote it to <c>/app/test-data/seed-profiles.json</c>.
+    /// </summary>
+    public static string ResolveManifestPath(string contentRootPath)
+    {
+        var candidates = new[]
+        {
+            Path.GetFullPath(Path.Combine(contentRootPath, RelativePath)),
+            Path.GetFullPath(Path.Combine(contentRootPath, PublishedRelativePath)),
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Seed manifest was not found. Looked for '{string.Join("' and '", candidates)}'.");
     }
 
     public static CardCatalogEntry ToCardCatalogEntry(SeedCatalogEntryDefinition definition)

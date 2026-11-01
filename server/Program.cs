@@ -24,6 +24,7 @@ using ProjectHiddenVillage.Server.Api.Services.Games;
 using ProjectHiddenVillage.Server.Api.Interfaces.User;
 using ProjectHiddenVillage.Server.Api.Serialization;
 using ProjectHiddenVillage.Server.Data;
+using ProjectHiddenVillage.Server.Data.Seeding.Bootstrap;
 using ProjectHiddenVillage.Server.Data.Seeding.Development;
 using ProjectHiddenVillage.Server.Data.Seeding.Reference;
 using ProjectHiddenVillage.Server.Data.Entities;
@@ -194,6 +195,8 @@ builder.Services.AddScoped<DevelopmentUserSeeder>();
 builder.Services.AddScoped<DevelopmentGameInstanceSeeder>();
 builder.Services.AddScoped<DevelopmentRuntimeGameSeeder>();
 builder.Services.AddScoped<ReferenceCatalogSeeder>();
+builder.Services.Configure<AdminBootstrapOptions>(builder.Configuration.GetSection(AdminBootstrapOptions.SectionName));
+builder.Services.AddScoped<AdminBootstrapSeeder>();
 builder.Services.AddSingleton<IAuthTokenService, AuthTokenService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services
@@ -467,6 +470,13 @@ using (var scope = app.Services.CreateScope())
     {
         var referenceCatalogSeeder = scope.ServiceProvider.GetRequiredService<ReferenceCatalogSeeder>();
         await referenceCatalogSeeder.SeedAsync();
+    }
+
+    // One-shot first admin: promotes (or creates, when a password is configured) exactly one account.
+    if (app.Configuration.GetValue("AdminBootstrap:Enabled", false))
+    {
+        var adminBootstrapSeeder = scope.ServiceProvider.GetRequiredService<AdminBootstrapSeeder>();
+        await adminBootstrapSeeder.SeedAsync();
     }
 
     // Fabricated content (users, decks, in-flight games) stays a development-only concern. A
