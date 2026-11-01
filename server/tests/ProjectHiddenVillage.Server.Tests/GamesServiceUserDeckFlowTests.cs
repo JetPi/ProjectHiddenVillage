@@ -493,13 +493,11 @@ public sealed class GamesServiceUserDeckFlowTests
             Key: "standard",
             Name: "Standard",
             IsActive: true,
+            CardPoolMode: CardPoolMode.Open,
             LeaderCount: 1,
             NonLeaderCardCount: 2,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: false,
-            AllowChakraCards: true,
-            AllowSummonCards: true,
-            SortOrder: 0,
             CardRestrictions: []));
 
         Assert.IsFalse(ruleset.IsError, ruleset.IsError ? ruleset.FirstError.Description : string.Empty);

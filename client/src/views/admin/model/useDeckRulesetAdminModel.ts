@@ -3,11 +3,13 @@ import {
   useAllDeckRulesetsQuery,
   useCreateDeckRulesetMutation,
   useDeleteDeckRulesetMutation,
+  useReorderDeckRulesetsMutation,
   useUpdateDeckRulesetMutation,
 } from '@/services/queries/deckRulesetQueries'
 import type {
   ICreateDeckRulesetRequest,
   IDeckRuleset,
+  IDeckRulesetCardRestrictionMatchType,
   IUpdateDeckRulesetRequest,
 } from '@/types/deckRuleset'
 import type {
@@ -17,28 +19,56 @@ import type {
 
 const KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const MAX_NAME_LENGTH = 64
+const MAX_KEY_LENGTH = 64
 const MAX_DECK_CARD_COUNT = 200
 const MAX_COPIES_PER_CARD = 99
 const MAX_RESTRICTION_COPIES = 99
 const MAX_TIMEOUTS_BEFORE_FORFEIT = 10
+/** Mirrors the `Code` column of a card rule. */
+const MAX_RESTRICTION_CODE_LENGTH = 32
+const RESTRICTION_CODE_PATTERN = /^[A-Z0-9]+(?:-[A-Z0-9]+)*$/
+/** Mirrors `DeckRulesetShapeRules.MaxPoolSeconds` on the server, which caps the pool at four hours. */
+const MAX_PLAYER_POOL_MINUTES = 240
+const MIN_PLAYER_POOL_MINUTES = 0.5
+
+/**
+ * The machine-readable key a new format gets before the admin touches anything: the name, lower-cased, with every
+ * run of other characters collapsed into a single dash. Creating a format therefore never means typing a slug; the
+ * field stays editable for the rare case where a hand-picked key matters.
+ */
+function toRulesetKey(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, MAX_KEY_LENGTH)
+    .replace(/-+$/g, '')
+}
+
+function secondsToMinutes(seconds: number): number {
+  return Math.round((seconds / 60) * 10) / 10
+}
+
+function minutesToSeconds(minutes: number): number {
+  return Math.round(minutes * 60)
+}
 
 const EMPTY_DRAFT: IDeckRulesetDraft = {
   key: '',
   name: '',
   isActive: true,
+  cardPoolMode: 'Open',
   // A new format joins the quick-match queue unless the admin deliberately marks it host-only.
   availableInQuickMatch: true,
   leaderCount: 1,
   nonLeaderCardCount: 50,
   maxCopiesPerNonLeaderCard: 4,
   requireLeaderColorMatch: true,
-  allowChakraCards: false,
-  allowSummonCards: false,
-  sortOrder: 0,
   clockEnabled: true,
   mainPhaseSeconds: 60,
   otherPhaseSeconds: 30,
-  playerPoolSeconds: 1800,
+  playerPoolMinutes: 30,
   timeoutsBeforeForfeit: 3,
   restrictions: [],
 }
@@ -48,18 +78,16 @@ function toDraft(ruleset: IDeckRuleset): IDeckRulesetDraft {
     key: ruleset.key,
     name: ruleset.name,
     isActive: ruleset.isActive,
+    cardPoolMode: ruleset.cardPoolMode,
     availableInQuickMatch: ruleset.availableInQuickMatch,
     leaderCount: ruleset.leaderCount,
     nonLeaderCardCount: ruleset.nonLeaderCardCount,
     maxCopiesPerNonLeaderCard: ruleset.maxCopiesPerNonLeaderCard,
     requireLeaderColorMatch: ruleset.requireLeaderColorMatch,
-    allowChakraCards: ruleset.allowChakraCards,
-    allowSummonCards: ruleset.allowSummonCards,
-    sortOrder: ruleset.sortOrder,
     clockEnabled: ruleset.clockEnabled,
     mainPhaseSeconds: ruleset.mainPhaseSeconds,
     otherPhaseSeconds: ruleset.otherPhaseSeconds,
-    playerPoolSeconds: ruleset.playerPoolSeconds,
+    playerPoolMinutes: secondsToMinutes(ruleset.playerPoolSeconds),
     timeoutsBeforeForfeit: ruleset.timeoutsBeforeForfeit,
     restrictions: ruleset.cardRestrictions.map((restriction) => ({ ...restriction })),
   }
@@ -72,10 +100,12 @@ function buildDraftSignature(draft: IDeckRulesetDraft): string {
     name: draft.name.trim(),
     restrictions: [...draft.restrictions]
       .map((restriction) => ({
-        cardId: restriction.cardId.trim().toLowerCase(),
+        matchType: restriction.matchType,
+        code: restriction.code.trim().toUpperCase(),
         maxCopies: restriction.maxCopies,
       }))
-      .sort((left, right) => left.cardId.localeCompare(right.cardId)),
+      .sort((left, right) =>
+        `${left.matchType}:${left.code}`.localeCompare(`${right.matchType}:${right.code}`)),
   })
 }
 
@@ -84,22 +114,22 @@ function toCreatePayload(draft: IDeckRulesetDraft): ICreateDeckRulesetRequest {
     key: draft.key.trim().toLowerCase(),
     name: draft.name.trim(),
     isActive: draft.isActive,
+    cardPoolMode: draft.cardPoolMode,
     availableInQuickMatch: draft.availableInQuickMatch,
     leaderCount: draft.leaderCount,
     nonLeaderCardCount: draft.nonLeaderCardCount,
     maxCopiesPerNonLeaderCard: draft.maxCopiesPerNonLeaderCard,
     requireLeaderColorMatch: draft.requireLeaderColorMatch,
-    allowChakraCards: draft.allowChakraCards,
-    allowSummonCards: draft.allowSummonCards,
-    sortOrder: draft.sortOrder,
     clockEnabled: draft.clockEnabled,
     mainPhaseSeconds: draft.mainPhaseSeconds,
     otherPhaseSeconds: draft.otherPhaseSeconds,
-    playerPoolSeconds: draft.playerPoolSeconds,
+    playerPoolSeconds: minutesToSeconds(draft.playerPoolMinutes),
     timeoutsBeforeForfeit: draft.timeoutsBeforeForfeit,
     cardRestrictions: draft.restrictions.map((restriction) => ({
-      cardId: restriction.cardId.trim(),
-      maxCopies: restriction.maxCopies,
+      matchType: restriction.matchType,
+      code: restriction.code.trim().toUpperCase(),
+      // A set rule has no count; the server derives it from the pool mode.
+      maxCopies: restriction.matchType === 'Set' ? 0 : restriction.maxCopies,
     })),
   }
 }
@@ -108,22 +138,22 @@ function toUpdatePayload(draft: IDeckRulesetDraft): IUpdateDeckRulesetRequest {
   return {
     name: draft.name.trim(),
     isActive: draft.isActive,
+    cardPoolMode: draft.cardPoolMode,
     availableInQuickMatch: draft.availableInQuickMatch,
     leaderCount: draft.leaderCount,
     nonLeaderCardCount: draft.nonLeaderCardCount,
     maxCopiesPerNonLeaderCard: draft.maxCopiesPerNonLeaderCard,
     requireLeaderColorMatch: draft.requireLeaderColorMatch,
-    allowChakraCards: draft.allowChakraCards,
-    allowSummonCards: draft.allowSummonCards,
-    sortOrder: draft.sortOrder,
     clockEnabled: draft.clockEnabled,
     mainPhaseSeconds: draft.mainPhaseSeconds,
     otherPhaseSeconds: draft.otherPhaseSeconds,
-    playerPoolSeconds: draft.playerPoolSeconds,
+    playerPoolSeconds: minutesToSeconds(draft.playerPoolMinutes),
     timeoutsBeforeForfeit: draft.timeoutsBeforeForfeit,
     cardRestrictions: draft.restrictions.map((restriction) => ({
-      cardId: restriction.cardId.trim(),
-      maxCopies: restriction.maxCopies,
+      matchType: restriction.matchType,
+      code: restriction.code.trim().toUpperCase(),
+      // A set rule has no count; the server derives it from the pool mode.
+      maxCopies: restriction.matchType === 'Set' ? 0 : restriction.maxCopies,
     })),
   }
 }
@@ -176,24 +206,30 @@ function buildViolations(
     })
   }
 
-  if (!Number.isInteger(draft.sortOrder) || draft.sortOrder < 0) {
-    violations.push({ messageKey: 'admin.rulesets.validation.sortOrder' })
-  }
-
   // The action clock: a zero budget arms an already-expired deadline, and a stop longer than the whole-game pool
-  // would make the pool the only limit.
+  // would make the pool the only limit. The pool is edited in minutes but compared in seconds, so the two fields
+  // keep the unit the server evaluates.
   if (
     !Number.isInteger(draft.mainPhaseSeconds)
     || draft.mainPhaseSeconds < 1
     || !Number.isInteger(draft.otherPhaseSeconds)
     || draft.otherPhaseSeconds < 1
-    || !Number.isInteger(draft.playerPoolSeconds)
-    || draft.playerPoolSeconds < 1
   ) {
     violations.push({ messageKey: 'admin.rulesets.validation.clockBudget' })
+  }
+
+  if (
+    !Number.isFinite(draft.playerPoolMinutes)
+    || draft.playerPoolMinutes < MIN_PLAYER_POOL_MINUTES
+    || draft.playerPoolMinutes > MAX_PLAYER_POOL_MINUTES
+  ) {
+    violations.push({
+      messageKey: 'admin.rulesets.validation.playerPoolMinutes',
+      params: { min: MIN_PLAYER_POOL_MINUTES, max: MAX_PLAYER_POOL_MINUTES },
+    })
   } else if (
-    draft.mainPhaseSeconds > draft.playerPoolSeconds
-    || draft.otherPhaseSeconds > draft.playerPoolSeconds
+    draft.mainPhaseSeconds > minutesToSeconds(draft.playerPoolMinutes)
+    || draft.otherPhaseSeconds > minutesToSeconds(draft.playerPoolMinutes)
   ) {
     violations.push({ messageKey: 'admin.rulesets.validation.clockBudgetAbovePool' })
   }
@@ -209,25 +245,55 @@ function buildViolations(
     })
   }
 
-  const seenCardIds = new Set<string>()
-  for (const restriction of draft.restrictions) {
-    const cardId = restriction.cardId.trim().toLowerCase()
+  // A closed pool with no allowing rule would fail every deck, so it is refused before it is saved rather than
+  // looking like a broken format afterwards. A set rule counts as allowing: in a closed pool its whole meaning is
+  // that the set is in the pool, which is why it carries no count.
+  const hasAllowingRule = draft.restrictions.some(
+    (restriction) => restriction.matchType === 'Set' || restriction.maxCopies > 0,
+  )
 
-    if (cardId.length === 0) {
+  if (draft.cardPoolMode === 'AllowList' && !hasAllowingRule) {
+    violations.push({ messageKey: 'admin.rulesets.validation.allowListEmpty' })
+  }
+
+  const seenMatchers = new Set<string>()
+  for (const restriction of draft.restrictions) {
+    const code = restriction.code.trim().toUpperCase()
+
+    if (code.length === 0) {
       continue
     }
 
-    if (seenCardIds.has(cardId)) {
+    if (code.length > MAX_RESTRICTION_CODE_LENGTH || !RESTRICTION_CODE_PATTERN.test(code)) {
+      violations.push({
+        messageKey: 'admin.rulesets.validation.restrictionCodeFormat',
+        params: { max: MAX_RESTRICTION_CODE_LENGTH },
+      })
+      break
+    }
+
+    // A set is the segment before the first dash, so a dash inside a set rule would match nothing.
+    if (restriction.matchType === 'Set' && code.includes('-')) {
+      violations.push({ messageKey: 'admin.rulesets.validation.restrictionSetCodeHasDash' })
+      break
+    }
+
+    const matcherKey = `${restriction.matchType}:${code}`
+    if (seenMatchers.has(matcherKey)) {
       violations.push({ messageKey: 'admin.rulesets.validation.restrictionDuplicates' })
       break
     }
 
-    seenCardIds.add(cardId)
+    seenMatchers.add(matcherKey)
 
+    // Only a whole-card rule carries a count; a set rule's value belongs to the pool mode.
     if (
-      !Number.isInteger(restriction.maxCopies)
-      || restriction.maxCopies < 0
-      || restriction.maxCopies > MAX_RESTRICTION_COPIES
+      restriction.matchType === 'Card'
+      && (
+        !Number.isInteger(restriction.maxCopies)
+        || restriction.maxCopies < 0
+        || restriction.maxCopies > MAX_RESTRICTION_COPIES
+      )
     ) {
       violations.push({
         messageKey: 'admin.rulesets.validation.restrictionMaxCopies',
@@ -245,6 +311,7 @@ export function useDeckRulesetAdminModel() {
   const createMutation = useCreateDeckRulesetMutation()
   const updateMutation = useUpdateDeckRulesetMutation()
   const deleteMutation = useDeleteDeckRulesetMutation()
+  const reorderMutation = useReorderDeckRulesetsMutation()
 
   const [selectedRulesetId, setSelectedRulesetId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -277,39 +344,71 @@ export function useDeckRulesetAdminModel() {
   const canSave = violations.length === 0 && isDirty && !isSaving
 
   const patchDraft = (patch: Partial<IDeckRulesetDraft>) => {
-    setEditedDraft({ ...draft, ...patch })
+    const nextDraft = { ...draft, ...patch }
+
+    // While a format is new its key follows the name, so creating one never means typing a slug. A key the admin
+    // typed by hand stops following: the derivation only runs while the key still equals the previous name's slug.
+    if (isCreating && patch.name !== undefined && draft.key === toRulesetKey(draft.name)) {
+      nextDraft.key = toRulesetKey(patch.name)
+    }
+
+    setEditedDraft(nextDraft)
   }
 
-  const addRestriction = (cardId: string) => {
-    const trimmedCardId = cardId.trim()
-    if (!trimmedCardId) {
+  const addRestriction = (
+    matchType: IDeckRulesetCardRestrictionMatchType,
+    code: string,
+    maxCopies?: number,
+  ) => {
+    const normalizedCode = code.trim().toUpperCase()
+    if (!normalizedCode) {
       return
     }
 
     const alreadyPresent = draft.restrictions.some(
-      (restriction) => restriction.cardId.trim().toLowerCase() === trimmedCardId.toLowerCase(),
+      (restriction) =>
+        restriction.matchType === matchType
+        && restriction.code.trim().toUpperCase() === normalizedCode,
     )
 
     if (alreadyPresent) {
       return
     }
 
+    // A new card rule in an open pool is a ban until the admin raises it, and in a closed pool it has to allow
+    // something or it would remove cards from a pool they are already not in. A set rule has no count at all: it
+    // goes in at 0 and the server derives its meaning from the pool mode.
+    const defaultMaxCopies = matchType === 'Set'
+      ? 0
+      : maxCopies ?? (draft.cardPoolMode === 'AllowList' ? draft.maxCopiesPerNonLeaderCard : 0)
+
     patchDraft({
-      restrictions: [...draft.restrictions, { cardId: trimmedCardId, maxCopies: 0 }],
+      restrictions: [
+        ...draft.restrictions,
+        { matchType, code: normalizedCode, maxCopies: defaultMaxCopies },
+      ],
     })
   }
 
-  const updateRestrictionMaxCopies = (cardId: string, maxCopies: number) => {
+  const updateRestrictionMaxCopies = (
+    matchType: IDeckRulesetCardRestrictionMatchType,
+    code: string,
+    maxCopies: number,
+  ) => {
     patchDraft({
       restrictions: draft.restrictions.map((restriction) =>
-        restriction.cardId === cardId ? { ...restriction, maxCopies } : restriction,
+        restriction.matchType === matchType && restriction.code === code
+          ? { ...restriction, maxCopies }
+          : restriction,
       ),
     })
   }
 
-  const removeRestriction = (cardId: string) => {
+  const removeRestriction = (matchType: IDeckRulesetCardRestrictionMatchType, code: string) => {
     patchDraft({
-      restrictions: draft.restrictions.filter((restriction) => restriction.cardId !== cardId),
+      restrictions: draft.restrictions.filter(
+        (restriction) => !(restriction.matchType === matchType && restriction.code === code),
+      ),
     })
   }
 
@@ -341,6 +440,29 @@ export function useDeckRulesetAdminModel() {
     setSavedSignature(null)
 
     return savedRuleset
+  }
+
+  /**
+   * Moves one format to another slot and sends the resulting order. The rail has already moved the row; this only
+   * has to name the order it produced.
+   */
+  const reorderRulesets = async (fromIndex: number, toIndex: number): Promise<void> => {
+    const rulesetIds = rulesets.map((ruleset) => ruleset.id)
+
+    if (
+      fromIndex === toIndex
+      || fromIndex < 0
+      || toIndex < 0
+      || fromIndex >= rulesetIds.length
+      || toIndex >= rulesetIds.length
+    ) {
+      return
+    }
+
+    const [moved] = rulesetIds.splice(fromIndex, 1)
+    rulesetIds.splice(toIndex, 0, moved)
+
+    await reorderMutation.mutateAsync(rulesetIds)
   }
 
   const remove = async (): Promise<void> => {
@@ -375,6 +497,7 @@ export function useDeckRulesetAdminModel() {
     selectRuleset,
     startCreate,
     save,
+    reorderRulesets,
     remove,
   }
 }

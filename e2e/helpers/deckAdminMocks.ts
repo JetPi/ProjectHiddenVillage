@@ -53,36 +53,52 @@ export type IDeckAdminMockOptions = {
   undeletableDeckId?: string
 }
 
+/** The catalogue's set codes as the rule editor sees them. */
+export const MOCK_SET_CODES = [
+  { code: 'C', cardCount: 14 },
+  { code: 'K', cardCount: 1 },
+  { code: 'L', cardCount: 2 },
+  { code: 'SAMPLE', cardCount: 3 },
+]
+
 export const MOCK_RULESETS = [
   {
     id: 'ruleset-standard',
     key: 'standard',
     name: 'Standard',
     isActive: true,
+    cardPoolMode: 'Open',
     availableInQuickMatch: true,
     leaderCount: 1,
     nonLeaderCardCount: 50,
     maxCopiesPerNonLeaderCard: 4,
     requireLeaderColorMatch: true,
-    allowChakraCards: false,
-    allowSummonCards: false,
     sortOrder: 0,
     cardRestrictions: [],
+    clockEnabled: true,
+    mainPhaseSeconds: 60,
+    otherPhaseSeconds: 30,
+    playerPoolSeconds: 1800,
+    timeoutsBeforeForfeit: 3,
   },
   {
     id: 'ruleset-pre-release',
     key: 'pre-release',
     name: 'Pre-Release',
     isActive: true,
+    cardPoolMode: 'Open',
     availableInQuickMatch: true,
     leaderCount: 1,
     nonLeaderCardCount: 30,
     maxCopiesPerNonLeaderCard: 3,
     requireLeaderColorMatch: true,
-    allowChakraCards: false,
-    allowSummonCards: false,
     sortOrder: 1,
     cardRestrictions: [],
+    clockEnabled: true,
+    mainPhaseSeconds: 60,
+    otherPhaseSeconds: 30,
+    playerPoolSeconds: 1800,
+    timeoutsBeforeForfeit: 3,
   },
 ]
 
@@ -334,6 +350,12 @@ export async function installDeckAdminMocks(
     }
 
     const url = new URL(route.request().url())
+
+    if (url.pathname.endsWith('/card-pool/set-codes')) {
+      await fulfillJson(route, 200, MOCK_SET_CODES)
+      return
+    }
+
     const includeInactive = url.pathname.endsWith('/all')
 
     await fulfillJson(

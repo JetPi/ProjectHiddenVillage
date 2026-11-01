@@ -283,8 +283,6 @@ public sealed class DeckRecordTests
             NonLeaderCardCount = nonLeaderCardCount,
             MaxCopiesPerNonLeaderCard = 4,
             RequireLeaderColorMatch = false,
-            AllowChakraCards = false,
-            AllowSummonCards = false,
             SortOrder = 0,
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow,

@@ -209,14 +209,11 @@ namespace ProjectHiddenVillage.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("AllowChakraCards")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("AllowSummonCards")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("AvailableInQuickMatch")
                         .HasColumnType("boolean");
+
+                    b.Property<int>("CardPoolMode")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("ClockEnabled")
                         .HasColumnType("boolean");
@@ -287,9 +284,8 @@ namespace ProjectHiddenVillage.Server.Migrations
                         new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000001"),
-                            AllowChakraCards = false,
-                            AllowSummonCards = false,
                             AvailableInQuickMatch = true,
+                            CardPoolMode = 0,
                             ClockEnabled = true,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
@@ -309,9 +305,8 @@ namespace ProjectHiddenVillage.Server.Migrations
                         new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000002"),
-                            AllowChakraCards = false,
-                            AllowSummonCards = false,
                             AvailableInQuickMatch = true,
+                            CardPoolMode = 1,
                             ClockEnabled = true,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
@@ -327,6 +322,27 @@ namespace ProjectHiddenVillage.Server.Migrations
                             SortOrder = 1,
                             TimeoutsBeforeForfeit = 3,
                             UpdatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000003"),
+                            AvailableInQuickMatch = false,
+                            CardPoolMode = 0,
+                            ClockEnabled = true,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "unrestricted",
+                            LeaderCount = 1,
+                            MainPhaseSeconds = 60,
+                            MaxCopiesPerNonLeaderCard = 4,
+                            Name = "Unrestricted",
+                            NonLeaderCardCount = 50,
+                            OtherPhaseSeconds = 30,
+                            PlayerPoolSeconds = 1800,
+                            RequireLeaderColorMatch = true,
+                            SortOrder = 2,
+                            TimeoutsBeforeForfeit = 3,
+                            UpdatedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
                         });
                 });
 
@@ -336,25 +352,62 @@ namespace ProjectHiddenVillage.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("CardCatalogEntryId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<Guid>("DeckRulesetId")
                         .HasColumnType("uuid");
+
+                    b.Property<int>("MatchType")
+                        .HasColumnType("integer");
 
                     b.Property<int>("MaxCopies")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CardCatalogEntryId");
-
-                    b.HasIndex("DeckRulesetId", "CardCatalogEntryId")
+                    b.HasIndex("DeckRulesetId", "MatchType", "Code")
                         .IsUnique();
 
                     b.ToTable("deck_ruleset_card_restrictions", null, t =>
                         {
                             t.HasCheckConstraint("CK_deck_ruleset_card_restrictions_max_copies_non_negative", "\"MaxCopies\" >= 0");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000001"),
+                            Code = "N",
+                            DeckRulesetId = new Guid("20000000-0000-0000-0000-000000000002"),
+                            MatchType = 1,
+                            MaxCopies = 2147483647
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000002"),
+                            Code = "C",
+                            DeckRulesetId = new Guid("20000000-0000-0000-0000-000000000002"),
+                            MatchType = 1,
+                            MaxCopies = 2147483647
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000003"),
+                            Code = "CP",
+                            DeckRulesetId = new Guid("20000000-0000-0000-0000-000000000002"),
+                            MatchType = 1,
+                            MaxCopies = 2147483647
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000004"),
+                            Code = "S",
+                            DeckRulesetId = new Guid("20000000-0000-0000-0000-000000000002"),
+                            MatchType = 1,
+                            MaxCopies = 2147483647
                         });
                 });
 
@@ -832,19 +885,11 @@ namespace ProjectHiddenVillage.Server.Migrations
 
             modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.DeckRulesetCardRestriction", b =>
                 {
-                    b.HasOne("ProjectHiddenVillage.Server.Data.Entities.CardCatalogEntry", "CardCatalogEntry")
-                        .WithMany()
-                        .HasForeignKey("CardCatalogEntryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("ProjectHiddenVillage.Server.Data.Entities.DeckRuleset", "DeckRuleset")
                         .WithMany("CardRestrictions")
                         .HasForeignKey("DeckRulesetId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("CardCatalogEntry");
 
                     b.Navigation("DeckRuleset");
                 });

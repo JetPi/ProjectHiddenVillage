@@ -15,8 +15,6 @@ type IEvaluatableDeckCard = {
 }
 
 const LEADER_TYPE = 'leader'
-const CHAKRA_TYPE = 'chakra'
-const SUMMON_TYPE = 'summon'
 
 export type IEvaluateDeckRulesetsOptions = {
   cards: readonly IDeckCardInput[]
@@ -65,15 +63,6 @@ function evaluateRulesetFromNormalized(
     (card): card is IEvaluatableDeckCard & { metadata: IDeckCardMetadata } => card.metadata !== null,
   )
 
-  const prohibitedCards = knownCards.filter((card) => isProhibitedType(card.metadata, ruleset))
-  if (prohibitedCards.length > 0) {
-    violations.push({
-      code: 'unsupportedCardType',
-      messageKey: 'deckRules.validation.unsupportedCardType',
-      params: { cardIds: prohibitedCards.map((card) => card.cardId).join(', ') },
-    })
-  }
-
   const leaders = knownCards.filter((card) => isLeader(card.metadata))
   const nonLeaders = knownCards.filter((card) => !isLeader(card.metadata))
   const leaderCopies = leaders.reduce((total, card) => total + card.quantity, 0)
@@ -103,13 +92,20 @@ function evaluateRulesetFromNormalized(
     })
   }
 
-  violations.push(...collectRestrictionViolations(leaders, ruleset))
-  violations.push(...collectRestrictionViolations(nonLeaders, ruleset))
+  const cardRules = buildRuleIndex(ruleset, 'Card')
+  const setRules = buildRuleIndex(ruleset, 'Set')
+
+  violations.push(...collectRestrictionViolations(leaders, ruleset, cardRules, setRules))
+  violations.push(...collectRestrictionViolations(nonLeaders, ruleset, cardRules, setRules))
 
   if (ruleset.requireLeaderColorMatch && leaders.length === 1) {
     const leaderColor = leaders[0].metadata.color
+    // Cards with no colour of their own - Chakra and Summon cards - cannot match a leader's colour and are
+    // governed by the type flags instead, exactly as the server evaluates them.
     const mismatchedCards = nonLeaders.filter(
-      (card) => card.metadata.color.trim().toLowerCase() !== leaderColor.trim().toLowerCase(),
+      (card) =>
+        hasColor(card.metadata.color)
+        && card.metadata.color.trim().toLowerCase() !== leaderColor.trim().toLowerCase(),
     )
 
     if (mismatchedCards.length > 0) {
@@ -133,22 +129,79 @@ function evaluateRulesetFromNormalized(
   }
 }
 
+/**
+ * The set a card belongs to: the text before the first dash, upper-cased. A segment comparison rather than a
+ * prefix test, because `S` is a prefix of `SAMPLE` and a set rule must never swallow a different set.
+ */
+export function getDeckCardSetCode(cardId: string): string {
+  const normalizedCardId = cardId.trim().toUpperCase()
+  const separatorIndex = normalizedCardId.indexOf('-')
+
+  return separatorIndex > 0 ? normalizedCardId.slice(0, separatorIndex) : normalizedCardId
+}
+
+function buildRuleIndex(
+  ruleset: IDeckRuleset,
+  matchType: 'Card' | 'Set',
+): Map<string, number> {
+  const index = new Map<string, number>()
+
+  for (const restriction of ruleset.cardRestrictions) {
+    if (restriction.matchType !== matchType) {
+      continue
+    }
+
+    const code = restriction.code.trim().toUpperCase()
+    if (!code) {
+      continue
+    }
+
+    index.set(code, restriction.maxCopies)
+  }
+
+  return index
+}
+
 function collectRestrictionViolations(
   cards: readonly (IEvaluatableDeckCard & { metadata: IDeckCardMetadata })[],
   ruleset: IDeckRuleset,
+  cardRules: ReadonlyMap<string, number>,
+  setRules: ReadonlyMap<string, number>,
 ): IDeckRuleViolation[] {
   const violations: IDeckRuleViolation[] = []
-  const restrictionsByCardId = new Map(
-    ruleset.cardRestrictions.map((restriction) => [
-      normalizeDeckCardId(restriction.cardId),
-      restriction.maxCopies,
-    ]),
-  )
 
   for (const card of cards) {
-    const restrictedMax = restrictionsByCardId.get(normalizeDeckCardId(card.cardId))
+    const cardCode = card.cardId.trim().toUpperCase()
+    // A rule naming the whole code always beats a rule naming its set.
+    const restrictedMax = cardRules.get(cardCode) ?? setRules.get(getDeckCardSetCode(cardCode))
 
-    if (restrictedMax === 0) {
+    if (restrictedMax === undefined) {
+      if (ruleset.cardPoolMode === 'AllowList') {
+        violations.push({
+          code: 'notInCardPool',
+          messageKey: 'deckRules.validation.notInCardPool',
+          params: { cardId: card.cardId },
+        })
+        continue
+      }
+
+      // An open pool still caps copies: a rule is an override, never the only limit.
+      if (card.quantity > ruleset.maxCopiesPerNonLeaderCard) {
+        violations.push({
+          code: 'tooManyCopies',
+          messageKey: 'deckRules.validation.tooManyCopies',
+          params: {
+            cardId: card.cardId,
+            max: ruleset.maxCopiesPerNonLeaderCard,
+            quantity: card.quantity,
+          },
+        })
+      }
+
+      continue
+    }
+
+    if (restrictedMax <= 0) {
       violations.push({
         code: 'bannedCard',
         messageKey: 'deckRules.validation.bannedCard',
@@ -157,15 +210,13 @@ function collectRestrictionViolations(
       continue
     }
 
-    const effectiveMax = restrictedMax === undefined
-      ? ruleset.maxCopiesPerNonLeaderCard
-      : Math.min(ruleset.maxCopiesPerNonLeaderCard, restrictedMax)
+    const effectiveMax = Math.min(ruleset.maxCopiesPerNonLeaderCard, restrictedMax)
 
     if (card.quantity <= effectiveMax) {
       continue
     }
 
-    if (restrictedMax !== undefined && restrictedMax < ruleset.maxCopiesPerNonLeaderCard) {
+    if (restrictedMax < ruleset.maxCopiesPerNonLeaderCard) {
       violations.push({
         code: 'limitedCard',
         messageKey: 'deckRules.validation.limitedCard',
@@ -182,6 +233,10 @@ function collectRestrictionViolations(
   }
 
   return violations
+}
+
+function hasColor(color: string): boolean {
+  return color.trim().toLowerCase() !== 'n/a'
 }
 
 function normalizeCards(
@@ -210,20 +265,6 @@ function normalizeCards(
 
 function isLeader(metadata: IDeckCardMetadata): boolean {
   return normalizeType(metadata.type) === LEADER_TYPE
-}
-
-function isProhibitedType(metadata: IDeckCardMetadata, ruleset: IDeckRuleset): boolean {
-  const type = normalizeType(metadata.type)
-
-  if (type === CHAKRA_TYPE) {
-    return !ruleset.allowChakraCards
-  }
-
-  if (type === SUMMON_TYPE) {
-    return !ruleset.allowSummonCards
-  }
-
-  return false
 }
 
 function normalizeType(type: string): string {

@@ -1,5 +1,17 @@
+/** Whether a ruleset's rules restrict an otherwise open pool or define a closed one. */
+export type IDeckRulesetCardPoolMode = 'Open' | 'AllowList'
+
+/** What a rule compares against: the whole card code, or the set code before the first dash. */
+export type IDeckRulesetCardRestrictionMatchType = 'Card' | 'Set'
+
+/**
+ * One card-pool rule. It names a code rather than a catalogue row, so a rule survives a catalogue edit and can
+ * name a set whose cards do not exist yet. `maxCopies` of 0 bans the matched cards; in an allow-list ruleset a
+ * value of at least 1 is what puts them in the pool.
+ */
 export type IDeckRulesetCardRestriction = {
-  cardId: string
+  matchType: IDeckRulesetCardRestrictionMatchType
+  code: string
   maxCopies: number
 }
 
@@ -8,6 +20,8 @@ export type IDeckRuleset = {
   key: string
   name: string
   isActive: boolean
+  /** Open restricts nothing by default; AllowList denies every card no rule allows. */
+  cardPoolMode: IDeckRulesetCardPoolMode
   /**
    * Whether quick match may pair players on this format. A host-only format stays fully playable through hosting,
    * invites and joins; it is simply never offered by the matchmaker.
@@ -17,8 +31,10 @@ export type IDeckRuleset = {
   nonLeaderCardCount: number
   maxCopiesPerNonLeaderCard: number
   requireLeaderColorMatch: boolean
-  allowChakraCards: boolean
-  allowSummonCards: boolean
+  /**
+   * Server-owned display position: a new format is appended and the admin rail's drag rewrites it. It is read here
+   * but never sent, which is why the request types below omit it.
+   */
   sortOrder: number
   cardRestrictions: IDeckRulesetCardRestriction[]
   /** Whether games created under this ruleset run the action clock at all. */
@@ -33,6 +49,12 @@ export type IDeckRuleset = {
   timeoutsBeforeForfeit: number
 }
 
-export type ICreateDeckRulesetRequest = Omit<IDeckRuleset, 'id'>
+/** A set code the catalogue holds, with how many cards carry it. */
+export type IDeckRulesetSetCode = {
+  code: string
+  cardCount: number
+}
 
-export type IUpdateDeckRulesetRequest = Omit<IDeckRuleset, 'id' | 'key'>
+export type ICreateDeckRulesetRequest = Omit<IDeckRuleset, 'id' | 'sortOrder'>
+
+export type IUpdateDeckRulesetRequest = Omit<IDeckRuleset, 'id' | 'key' | 'sortOrder'>

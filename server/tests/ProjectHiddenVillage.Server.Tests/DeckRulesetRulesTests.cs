@@ -163,18 +163,136 @@ public sealed class DeckRulesetRulesTests
     }
 
     [TestMethod]
-    public void Evaluate_ReportsDisallowedCardTypes()
+    public void Evaluate_AlwaysAllowsChakraAndSummonCards()
     {
-        var cards = BuildCards(30, maxCopies: 3);
-        cards = cards.Where(card => card.CardId != "C-001").ToList();
-        cards.Add(new DeckRuleCard("K-001", 3));
+        // Chakra and Summon cards are part of the game's fundamentals, so no format gates them: they are only
+        // bound by the usual size, copy and colour rules.
+        var cards = new List<DeckRuleCard>
+        {
+            new(LeaderCardId, 1),
+            new("K-001", 2),
+            new("S-001", 2),
+        };
+        var catalog = BuildCatalog(cards);
+        catalog["K-001"] = new DeckRuleCardMetadata("K-001", CardType.Chakra, CardColor.NotApplicable);
+        catalog["S-001"] = new DeckRuleCardMetadata("S-001", CardType.Summon, CardColor.NotApplicable);
+
+        var evaluation = DeckRulesetRules.EvaluateRuleset(
+            cards,
+            catalog,
+            CreateRuleset(nonLeaderCardCount: 4, maxCopies: 4));
+
+        Assert.IsTrue(evaluation.IsValid, evaluation.Violations.FirstOrDefault()?.Description);
+    }
+
+    [TestMethod]
+    public void GetSetCode_TakesTheSegmentBeforeTheFirstDash()
+    {
+        Assert.AreEqual("SAMPLE", DeckRulesetRules.GetSetCode("SAMPLE-12"));
+        Assert.AreEqual("N", DeckRulesetRules.GetSetCode("n-001"));
+        Assert.AreEqual("PLAIN", DeckRulesetRules.GetSetCode("plain"));
+    }
+
+    [TestMethod]
+    public void Evaluate_SetRuleBansEveryCardInThatSetOnly()
+    {
+        var cards = new List<DeckRuleCard>
+        {
+            new(LeaderCardId, 1),
+            new("S-001", 1),
+            new("SAMPLE-1", 3),
+        };
+        var catalog = BuildCatalog(cards);
+
+        var evaluation = DeckRulesetRules.EvaluateRuleset(
+            cards,
+            catalog,
+            CreateRuleset(
+                nonLeaderCardCount: 4,
+                setRestrictions: new Dictionary<string, int>(StringComparer.Ordinal) { ["S"] = 0 }));
+
+        var banned = evaluation.Violations.Single(item => item.Code == DeckRulesetRules.BannedCardCode);
+        Assert.AreEqual("S-001", banned.CardIds);
+        Assert.IsFalse(
+            evaluation.Violations.Any(item => item.CardIds?.Contains("SAMPLE", StringComparison.Ordinal) == true),
+            "a set rule must not swallow a different set that merely starts with its code");
+    }
+
+    [TestMethod]
+    public void Evaluate_CardRuleBeatsSetRule()
+    {
+        var cards = new List<DeckRuleCard>
+        {
+            new(LeaderCardId, 1),
+            new("SAMPLE-1", 2),
+            new("SAMPLE-3", 1),
+        };
+        var catalog = BuildCatalog(cards);
+
+        var evaluation = DeckRulesetRules.EvaluateRuleset(
+            cards,
+            catalog,
+            CreateRuleset(
+                nonLeaderCardCount: 3,
+                cardPoolMode: CardPoolMode.AllowList,
+                restrictions: new Dictionary<string, int>(StringComparer.Ordinal) { ["SAMPLE-3"] = 0 },
+                // The leader's own set has to be allowed too: a closed pool covers every card, leaders included.
+                setRestrictions: new Dictionary<string, int>(StringComparer.Ordinal)
+                {
+                    ["SAMPLE"] = 3,
+                    ["L"] = 4,
+                }));
+
+        Assert.AreEqual(1, evaluation.Violations.Count);
+        Assert.AreEqual(DeckRulesetRules.BannedCardCode, evaluation.Violations[0].Code);
+        Assert.AreEqual("SAMPLE-3", evaluation.Violations[0].CardIds);
+    }
+
+    [TestMethod]
+    public void Evaluate_AllowListReportsCardsNoRuleAllows()
+    {
+        var cards = new List<DeckRuleCard>
+        {
+            new(LeaderCardId, 1),
+            new("N-001", 2),
+            new("X-001", 2),
+        };
+        var catalog = BuildCatalog(cards);
+
+        var evaluation = DeckRulesetRules.EvaluateRuleset(
+            cards,
+            catalog,
+            CreateRuleset(
+                nonLeaderCardCount: 4,
+                cardPoolMode: CardPoolMode.AllowList,
+                setRestrictions: new Dictionary<string, int>(StringComparer.Ordinal)
+                {
+                    ["N"] = 4,
+                    ["L"] = 4,
+                }));
+
+        var violation = evaluation.Violations.Single(item => item.Code == DeckRulesetRules.NotInCardPoolCode);
+        Assert.AreEqual("X-001", violation.CardIds);
+    }
+
+    [TestMethod]
+    public void Evaluate_ColorRuleIgnoresCardsWithoutAColor()
+    {
+        var cards = new List<DeckRuleCard>
+        {
+            new(LeaderCardId, 1),
+            new("K-001", 1),
+            new("C-001", 3),
+        };
         var catalog = BuildCatalog(cards);
         catalog["K-001"] = new DeckRuleCardMetadata("K-001", CardType.Chakra, CardColor.NotApplicable);
 
-        var evaluation = DeckRulesetRules.EvaluateRuleset(cards, catalog, CreateRuleset(30, maxCopies: 3));
+        var evaluation = DeckRulesetRules.EvaluateRuleset(
+            cards,
+            catalog,
+            CreateRuleset(nonLeaderCardCount: 4, maxCopies: 3));
 
-        var violation = evaluation.Violations.Single(item => item.Code == DeckRulesetRules.UnsupportedCardTypeCode);
-        Assert.AreEqual("K-001", violation.CardIds);
+        Assert.IsTrue(evaluation.IsValid);
     }
 
     [TestMethod]
@@ -222,8 +340,22 @@ public sealed class DeckRulesetRulesTests
         string key = "standard",
         string name = "Standard",
         Guid? id = null,
-        IReadOnlyDictionary<string, int>? restrictions = null)
+        IReadOnlyDictionary<string, int>? restrictions = null,
+        IReadOnlyDictionary<string, int>? setRestrictions = null,
+        CardPoolMode cardPoolMode = CardPoolMode.Open)
     {
+        var rules = new List<DeckRulesetCardRule>();
+
+        foreach (var restriction in restrictions ?? new Dictionary<string, int>(StringComparer.Ordinal))
+        {
+            rules.Add(new DeckRulesetCardRule(CardRestrictionMatchType.Card, restriction.Key, restriction.Value));
+        }
+
+        foreach (var restriction in setRestrictions ?? new Dictionary<string, int>(StringComparer.Ordinal))
+        {
+            rules.Add(new DeckRulesetCardRule(CardRestrictionMatchType.Set, restriction.Key, restriction.Value));
+        }
+
         return new DeckRulesetDefinition(
             Id: id ?? StandardRulesetId,
             Key: key,
@@ -233,10 +365,8 @@ public sealed class DeckRulesetRulesTests
             NonLeaderCardCount: nonLeaderCardCount,
             MaxCopiesPerNonLeaderCard: maxCopies,
             RequireLeaderColorMatch: true,
-            AllowChakraCards: false,
-            AllowSummonCards: false,
-            MaxCopiesByCardId: restrictions
-                ?? new Dictionary<string, int>(StringComparer.Ordinal),
+            CardPoolMode: cardPoolMode,
+            CardRules: rules,
             Clock: GameClockPolicy.Standard);
     }
 

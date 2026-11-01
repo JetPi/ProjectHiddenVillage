@@ -44,6 +44,26 @@ public sealed class DeckRulesetController : ApiControllerBase
         return Ok(result.Value);
     }
 
+    /// <summary>
+    /// The set codes the catalogue holds, with card counts, so the rule editor can offer them as suggestions
+    /// rather than expecting the admin to know every prefix.
+    /// </summary>
+    [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
+    [HttpGet("card-pool/set-codes")]
+    [ProducesResponseType(typeof(List<DeckRulesetSetCodeResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<List<DeckRulesetSetCodeResponse>>> GetCardPoolSetCodes()
+    {
+        var result = await deckRulesetService.GetCardPoolSetCodes();
+        if (result.IsError)
+        {
+            return ProblemFromErrors<List<DeckRulesetSetCodeResponse>>(result.Errors);
+        }
+
+        return Ok(result.Value);
+    }
+
     [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
     [HttpPost]
     [ProducesResponseType(typeof(DeckRulesetResponse), StatusCodes.Status201Created)]
@@ -60,6 +80,28 @@ public sealed class DeckRulesetController : ApiControllerBase
         }
 
         return Created($"/api/deck-rulesets/{result.Value.Id}", result.Value);
+    }
+
+    /// <summary>
+    /// Rewrites the display order. The body is the whole order, so one drop in the admin rail is one request
+    /// rather than one per row.
+    /// </summary>
+    [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
+    [HttpPut("order")]
+    [ProducesResponseType(typeof(List<DeckRulesetResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<List<DeckRulesetResponse>>> ReorderRulesets(
+        [FromBody] ReorderDeckRulesetsRequest request)
+    {
+        var result = await deckRulesetService.ReorderRulesets(request);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<List<DeckRulesetResponse>>(result.Errors);
+        }
+
+        return Ok(result.Value);
     }
 
     [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]

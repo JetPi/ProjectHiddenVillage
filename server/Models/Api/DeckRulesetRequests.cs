@@ -1,18 +1,27 @@
 namespace ProjectHiddenVillage.Server;
 
-public sealed record DeckRulesetCardRestrictionResponse(string CardId, int MaxCopies);
+/// <summary>
+/// One card-pool rule as the API exposes it. The matcher is a code, not a catalogue id, so a rule can name a set
+/// and can outlive a catalogue edit.
+/// </summary>
+public sealed record DeckRulesetCardRestrictionResponse(
+    CardRestrictionMatchType MatchType,
+    string Code,
+    int MaxCopies);
+
+/// <summary>A set code present in the catalogue, with how many cards carry it. Feeds the rule editor.</summary>
+public sealed record DeckRulesetSetCodeResponse(string Code, int CardCount);
 
 public sealed record DeckRulesetResponse(
     Guid Id,
     string Key,
     string Name,
     bool IsActive,
+    CardPoolMode CardPoolMode,
     int LeaderCount,
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,
     bool RequireLeaderColorMatch,
-    bool AllowChakraCards,
-    bool AllowSummonCards,
     int SortOrder,
     IReadOnlyList<DeckRulesetCardRestrictionResponse> CardRestrictions,
     // The action clock this format binds to the games created under it (see plans/game-action-clocks.md).
@@ -42,19 +51,24 @@ public interface IDeckRulesetClockRequest
     int TimeoutsBeforeForfeit { get; }
 }
 
-public sealed record DeckRulesetCardRestrictionRequest(string CardId, int MaxCopies);
+/// <summary>
+/// A rule the admin screen submits: either a whole card code (<c>SAMPLE-3</c>) or a set code (<c>SAMPLE</c>),
+/// plus the copy cap where zero bans the matched cards.
+/// </summary>
+public sealed record DeckRulesetCardRestrictionRequest(
+    CardRestrictionMatchType MatchType,
+    string Code,
+    int MaxCopies);
 
 public sealed record CreateDeckRulesetRequest(
     string Key,
     string Name,
     bool IsActive,
+    CardPoolMode CardPoolMode,
     int LeaderCount,
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,
     bool RequireLeaderColorMatch,
-    bool AllowChakraCards,
-    bool AllowSummonCards,
-    int SortOrder,
     IReadOnlyList<DeckRulesetCardRestrictionRequest> CardRestrictions,
     bool ClockEnabled = true,
     int MainPhaseSeconds = 60,
@@ -63,16 +77,20 @@ public sealed record CreateDeckRulesetRequest(
     int TimeoutsBeforeForfeit = 3,
     bool AvailableInQuickMatch = true) : IDeckRulesetClockRequest;
 
+/// <summary>
+/// The new display order: the format ids in the order they should appear. An id the request does not name keeps
+/// its relative position after the listed ones, so a stale admin tab can never drop a format out of the list.
+/// </summary>
+public sealed record ReorderDeckRulesetsRequest(IReadOnlyList<Guid> RulesetIds);
+
 public sealed record UpdateDeckRulesetRequest(
     string Name,
     bool IsActive,
+    CardPoolMode CardPoolMode,
     int LeaderCount,
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,
     bool RequireLeaderColorMatch,
-    bool AllowChakraCards,
-    bool AllowSummonCards,
-    int SortOrder,
     IReadOnlyList<DeckRulesetCardRestrictionRequest> CardRestrictions,
     bool ClockEnabled = true,
     int MainPhaseSeconds = 60,

@@ -24,13 +24,13 @@ export type IDeckListParseResult =
 
 export type IDeckRuleViolationCode =
   | 'unknownCards'
-  | 'unsupportedCardType'
   | 'leaderCount'
   | 'leaderCopies'
   | 'deckSize'
   | 'tooManyCopies'
   | 'bannedCard'
   | 'limitedCard'
+  | 'notInCardPool'
   | 'colorMismatch'
 
 export type IDeckRuleViolation = {

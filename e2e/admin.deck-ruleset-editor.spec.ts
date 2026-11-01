@@ -1,24 +1,27 @@
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext, Browser, Page, Route } from '@playwright/test'
 import { createAdminSession } from './helpers/adminSession'
-import { installDeckAdminMocks, MOCK_RULESETS } from './helpers/deckAdminMocks'
+import { installDeckAdminMocks, MOCK_RULESETS, MOCK_SET_CODES } from './helpers/deckAdminMocks'
 
 const AUTH_STORAGE_KEY = 'phv-auth-session'
 
-type MockRestriction = { cardId: string; maxCopies: number }
+type MockRestriction = {
+  matchType: 'Card' | 'Set'
+  code: string
+  maxCopies: number
+}
 
 type MockRuleset = {
   id: string
   key: string
   name: string
   isActive: boolean
+  cardPoolMode: 'Open' | 'AllowList'
   availableInQuickMatch: boolean
   leaderCount: number
   nonLeaderCardCount: number
   maxCopiesPerNonLeaderCard: number
   requireLeaderColorMatch: boolean
-  allowChakraCards: boolean
-  allowSummonCards: boolean
   sortOrder: number
   cardRestrictions: MockRestriction[]
 }
@@ -82,6 +85,13 @@ async function openRulesetAdmin(
     const segments = url.pathname.split('/').filter((segment) => segment.length > 0)
     const rulesetId = segments.length > 2 ? decodeURIComponent(segments[2]) : null
 
+    // The rule editor asks for the catalogue's set codes; without an explicit branch the generic GET below would
+    // answer it with the ruleset list.
+    if (method === 'GET' && url.pathname.endsWith('/card-pool/set-codes')) {
+      await fulfillJson(route, 200, MOCK_SET_CODES)
+      return
+    }
+
     if (method === 'GET') {
       const payload = url.pathname.endsWith('/all')
         ? rulesets
@@ -92,10 +102,32 @@ async function openRulesetAdmin(
     }
 
     if (method === 'POST') {
-      const body = route.request().postDataJSON() as Omit<MockRuleset, 'id'>
-      const created: MockRuleset = { id: `ruleset-created-${rulesets.length}`, ...body }
+      // The server owns the position: a new format is appended, so the body never carries one.
+      const body = route.request().postDataJSON() as Omit<MockRuleset, 'id' | 'sortOrder'>
+      const created: MockRuleset = {
+        id: `ruleset-created-${rulesets.length}`,
+        sortOrder: rulesets.length,
+        ...body,
+      }
       rulesets.push(created)
       await fulfillJson(route, 201, created)
+      return
+    }
+
+    if (method === 'PUT' && url.pathname.endsWith('/deck-rulesets/order')) {
+      const body = route.request().postDataJSON() as { rulesetIds: string[] }
+      const byId = new Map(rulesets.map((ruleset) => [ruleset.id, ruleset]))
+      const ordered = body.rulesetIds
+        .map((rulesetId) => byId.get(rulesetId))
+        .filter((ruleset): ruleset is MockRuleset => ruleset !== undefined)
+      const rest = rulesets.filter((ruleset) => !body.rulesetIds.includes(ruleset.id))
+
+      rulesets.splice(0, rulesets.length, ...ordered, ...rest)
+      rulesets.forEach((ruleset, index) => {
+        ruleset.sortOrder = index
+      })
+
+      await fulfillJson(route, 200, rulesets)
       return
     }
 
@@ -159,17 +191,21 @@ test('the ruleset admin creates, edits, deactivates and deletes a format', async
   await expect(page.getByTestId('admin-ruleset-name')).toHaveValue('Standard')
 
   await page.getByTestId('admin-ruleset-new').click()
-  await page.getByTestId('admin-ruleset-key').fill('draft-format')
+  // The key is derived from the name, so creating a format never means typing a slug.
   await page.getByTestId('admin-ruleset-name').fill('Draft Format')
+  await expect(page.getByTestId('admin-ruleset-key')).toHaveValue('draft-format')
   await page.getByTestId('admin-ruleset-card-count').fill('40')
   await page.getByTestId('admin-ruleset-max-copies').fill('2')
+  // The whole-game pool is edited in minutes; a new format starts at 30.
+  await expect(page.getByTestId('admin-ruleset-player-pool-minutes')).toHaveValue('30')
   // A new format is quick-matchable by default; this one is deliberately kept out of the queue.
   await expect(page.getByTestId('admin-ruleset-quick-match')).toBeChecked()
   await page.getByTestId('admin-ruleset-quick-match').uncheck()
 
-  await page.getByTestId('admin-ruleset-restriction-card-id').fill('C-003')
+  await page.getByTestId('admin-ruleset-restriction-code').fill('C-003')
   await page.getByTestId('admin-ruleset-restriction-add').click()
-  await expect(page.getByTestId('admin-ruleset-restriction').first()).toHaveAttribute('data-card-id', 'C-003')
+  await expect(page.getByTestId('admin-ruleset-restriction').first()).toHaveAttribute('data-code', 'C-003')
+  await expect(page.getByTestId('admin-ruleset-restriction').first()).toHaveAttribute('data-match-type', 'Card')
   await page.getByTestId('admin-ruleset-restriction-max').first().fill('1')
 
   await page.getByTestId('admin-ruleset-save').click()
@@ -179,11 +215,23 @@ test('the ruleset admin creates, edits, deactivates and deletes a format', async
   const created = rulesets.find((ruleset) => ruleset.key === 'draft-format')
   expect(created?.nonLeaderCardCount).toBe(40)
   expect(created?.maxCopiesPerNonLeaderCard).toBe(2)
-  expect(created?.cardRestrictions).toEqual([{ cardId: 'C-003', maxCopies: 1 }])
+  expect(created?.cardRestrictions).toEqual([
+    { matchType: 'Card', code: 'C-003', maxCopies: 1 },
+  ])
   expect(created?.availableInQuickMatch).toBe(false)
+  expect(created?.cardPoolMode).toBe('Open')
 
   await rulesetRailItem(page, 'draft-format').click()
   await expect(page.getByTestId('admin-ruleset-quick-match')).not.toBeChecked()
+  await expect(page.getByTestId('admin-ruleset-active')).toBeChecked()
+
+  // The timing budgets only exist while the clock is on, and come back with it.
+  await expect(page.getByTestId('admin-ruleset-player-pool-minutes')).toBeVisible()
+  await page.getByTestId('admin-ruleset-clock-enabled').uncheck()
+  await expect(page.getByTestId('admin-ruleset-player-pool-minutes')).toHaveCount(0)
+  await page.getByTestId('admin-ruleset-clock-enabled').check()
+  await expect(page.getByTestId('admin-ruleset-player-pool-minutes')).toBeVisible()
+
   await page.getByTestId('admin-ruleset-name').fill('Draft Format Updated')
   await page.getByTestId('admin-ruleset-active').uncheck()
   await page.getByTestId('admin-ruleset-quick-match').check()
@@ -206,4 +254,61 @@ test('the ruleset admin creates, edits, deactivates and deletes a format', async
     .poll(() => requests.filter((entry) => entry.startsWith('DELETE /api/deck-rulesets/')).length)
     .toBe(1)
   await expect(rulesetRailItem(page, 'draft-format')).toHaveCount(0)
+})
+
+test('dragging a format in the rail saves the new order', async ({ browser, request }) => {
+  const { page, rulesets, requests } = await openRulesetAdmin(browser, request)
+
+  await expect(page.getByTestId('admin-ruleset-item').nth(0)).toHaveAttribute('data-ruleset-key', 'standard')
+
+  // No save button and no dialog: the handle moves the row, and the order is saved on its own.
+  await page
+    .getByTestId('admin-ruleset-drag-handle')
+    .nth(1)
+    .dragTo(page.getByTestId('admin-ruleset-row').nth(0))
+
+  await expect(page.getByTestId('admin-ruleset-item').nth(0)).toHaveAttribute('data-ruleset-key', 'pre-release')
+  await expect
+    .poll(() => requests.filter((entry) => entry === 'PUT /api/deck-rulesets/order').length)
+    .toBe(1)
+
+  expect(rulesets.map((ruleset) => ruleset.key)).toEqual(['pre-release', 'standard'])
+  expect(rulesets.map((ruleset) => ruleset.sortOrder)).toEqual([0, 1])
+})
+
+test('an allow-list format saves a set rule instead of a card rule', async ({ browser, request }) => {
+  const { page, rulesets } = await openRulesetAdmin(browser, request)
+
+  await page.getByTestId('admin-ruleset-new').click()
+  await page.getByTestId('admin-ruleset-key').fill('allow-list')
+  await page.getByTestId('admin-ruleset-name').fill('Allow List')
+
+  // A closed pool has to allow something, so the save stays blocked until one rule is added.
+  await page.getByTestId('admin-ruleset-pool-mode').selectOption('AllowList')
+  await expect(page.getByTestId('admin-ruleset-validation')).toContainText('at least one rule')
+  await expect(page.getByTestId('admin-ruleset-save')).toBeDisabled()
+
+  await page.getByTestId('admin-ruleset-restriction-match-type').selectOption('Set')
+  await page.getByTestId('admin-ruleset-restriction-code').fill('sample')
+  await page.getByTestId('admin-ruleset-restriction-add').click()
+
+  const rule = page.getByTestId('admin-ruleset-restriction').first()
+  await expect(rule).toHaveAttribute('data-match-type', 'Set')
+  await expect(rule).toHaveAttribute('data-code', 'SAMPLE')
+
+  // A set rule covers the whole set at once, so it has no copy field: its row states what the mode makes of it,
+  // and adding it is enough to unblock the save.
+  await expect(rule.getByTestId('admin-ruleset-restriction-max')).toHaveCount(0)
+  await expect(rule.getByTestId('admin-ruleset-restriction-set-effect')).toHaveAttribute('data-effect', 'allow')
+  await expect(page.getByTestId('admin-ruleset-save')).toBeEnabled()
+
+  await page.getByTestId('admin-ruleset-save').click()
+  await expect(rulesetRailItem(page, 'allow-list')).toBeVisible()
+
+  const created = rulesets.find((ruleset) => ruleset.key === 'allow-list')
+  expect(created?.cardPoolMode).toBe('AllowList')
+  // The server derives a set rule's value from the pool mode, so the client sends no count at all.
+  expect(created?.cardRestrictions).toEqual([
+    { matchType: 'Set', code: 'SAMPLE', maxCopies: 0 },
+  ])
 })

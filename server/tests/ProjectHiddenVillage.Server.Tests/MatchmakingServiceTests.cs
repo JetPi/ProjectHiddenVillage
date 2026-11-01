@@ -106,13 +106,11 @@ public sealed class MatchmakingServiceTests
             Key: "invite-only",
             Name: "Invite Only",
             IsActive: true,
+            CardPoolMode: CardPoolMode.Open,
             LeaderCount: 1,
             NonLeaderCardCount: StandardDeckSize,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: false,
-            AllowChakraCards: true,
-            AllowSummonCards: true,
-            SortOrder: 2,
             CardRestrictions: [],
             AvailableInQuickMatch: false));
 
@@ -380,26 +378,22 @@ public sealed class MatchmakingServiceTests
             Key: "standard",
             Name: "Standard",
             IsActive: true,
+            CardPoolMode: CardPoolMode.Open,
             LeaderCount: 1,
             NonLeaderCardCount: StandardDeckSize,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: false,
-            AllowChakraCards: true,
-            AllowSummonCards: true,
-            SortOrder: 0,
             CardRestrictions: []));
 
         var preRelease = await harness.Rulesets.CreateRuleset(new CreateDeckRulesetRequest(
             Key: "pre-release",
             Name: "Pre-Release",
             IsActive: true,
+            CardPoolMode: CardPoolMode.Open,
             LeaderCount: 1,
             NonLeaderCardCount: PreReleaseDeckSize,
             MaxCopiesPerNonLeaderCard: 3,
             RequireLeaderColorMatch: false,
-            AllowChakraCards: true,
-            AllowSummonCards: true,
-            SortOrder: 1,
             CardRestrictions: []));
 
         Assert.IsFalse(standard.IsError, standard.IsError ? standard.FirstError.Description : string.Empty);

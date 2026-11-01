@@ -4,6 +4,40 @@ public sealed record DeckRuleCard(string CardId, int Quantity);
 
 public sealed record DeckRuleCardMetadata(string CardId, CardType Type, CardColor Color);
 
+/// <summary>
+/// One card-pool rule of a ruleset, in the shape evaluation reads it. The rule names a code, never a catalogue
+/// row, so it is evaluated by matching the code the deck line carries.
+/// </summary>
+public sealed record DeckRulesetCardRule(
+    CardRestrictionMatchType MatchType,
+    string Code,
+    int MaxCopies)
+{
+    /// <summary>
+    /// What a set rule stores instead of a copy cap. A set rule is binary - it bans the set in an open pool and
+    /// puts it in the pool in an allow list - so it never carries a real count, and this value passes through the
+    /// format's copy cap untouched.
+    /// </summary>
+    public const int UnlimitedCopies = int.MaxValue;
+
+    /// <summary>
+    /// The single place a rule's stored copies are decided. A card rule keeps the number it was given; a set rule
+    /// takes its meaning from the pool mode, so it can never keep a count the admin screen no longer shows.
+    /// </summary>
+    public static int CopiesFor(
+        CardRestrictionMatchType matchType,
+        CardPoolMode cardPoolMode,
+        int requestedMaxCopies)
+    {
+        if (matchType == CardRestrictionMatchType.Card)
+        {
+            return requestedMaxCopies;
+        }
+
+        return cardPoolMode == CardPoolMode.AllowList ? UnlimitedCopies : 0;
+    }
+}
+
 public sealed record DeckRulesetDefinition(
     Guid Id,
     string Key,
@@ -15,9 +49,9 @@ public sealed record DeckRulesetDefinition(
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,
     bool RequireLeaderColorMatch,
-    bool AllowChakraCards,
-    bool AllowSummonCards,
-    IReadOnlyDictionary<string, int> MaxCopiesByCardId,
+    // How the rules below are read: restrictions on an open pool, or the definition of a closed one.
+    CardPoolMode CardPoolMode,
+    IReadOnlyList<DeckRulesetCardRule> CardRules,
     // The timing rules a game created under this ruleset plays under. It is carried with the definition because
     // creating a game reads exactly this object, and the clock must be snapshotted at that moment.
     GameClockPolicy Clock);
@@ -47,14 +81,27 @@ public sealed record DeckRulesetValidation(
 public static class DeckRulesetRules
 {
     public const string UnknownCardsCode = "Deck.Ruleset.UnknownCards";
-    public const string UnsupportedCardTypeCode = "Deck.Ruleset.UnsupportedCardType";
     public const string LeaderCountCode = "Deck.Ruleset.LeaderCount";
     public const string LeaderCopiesCode = "Deck.Ruleset.LeaderCopies";
     public const string DeckSizeCode = "Deck.Ruleset.DeckSize";
     public const string TooManyCopiesCode = "Deck.Ruleset.TooManyCopies";
     public const string BannedCardCode = "Deck.Ruleset.BannedCard";
     public const string LimitedCardCode = "Deck.Ruleset.LimitedCard";
+    public const string NotInCardPoolCode = "Deck.Ruleset.NotInCardPool";
     public const string ColorMismatchCode = "Deck.Ruleset.ColorMismatch";
+
+    /// <summary>
+    /// The set a card belongs to: the text before the first dash, upper-cased. It is deliberately a segment
+    /// comparison rather than a prefix test, because <c>S</c> is a prefix of <c>SAMPLE</c> and a set rule must
+    /// never swallow a different set. A code with no dash is its own set.
+    /// </summary>
+    public static string GetSetCode(string cardId)
+    {
+        var normalizedCardId = cardId.Trim().ToUpperInvariant();
+        var separatorIndex = normalizedCardId.IndexOf('-');
+
+        return separatorIndex > 0 ? normalizedCardId[..separatorIndex] : normalizedCardId;
+    }
 
     public static DeckRulesetValidation Evaluate(
         IEnumerable<DeckRuleCard> cards,
@@ -121,20 +168,6 @@ public static class DeckRulesetRules
             .Select(card => new KnownDeckCard(card.CardId, card.Quantity, catalog[card.CardId]))
             .ToList();
 
-        var prohibitedCards = knownCards
-            .Where(card => IsProhibitedType(card.Metadata.Type, ruleset))
-            .Select(card => card.CardId)
-            .OrderBy(cardId => cardId, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (prohibitedCards.Count > 0)
-        {
-            violations.Add(new DeckRuleViolation(
-                UnsupportedCardTypeCode,
-                $"This ruleset does not allow Chakra or Summon cards: {string.Join(", ", prohibitedCards)}.",
-                CardIds: string.Join(", ", prohibitedCards)));
-        }
-
         var leaders = knownCards
             .Where(card => card.Metadata.Type == CardType.Leader)
             .ToList();
@@ -173,14 +206,20 @@ public static class DeckRulesetRules
                 Actual: nonLeaderCopies));
         }
 
-        AddRestrictionViolations(violations, leaders, ruleset);
-        AddRestrictionViolations(violations, nonLeaders, ruleset);
+        var cardRules = BuildRuleIndex(ruleset, CardRestrictionMatchType.Card);
+        var setRules = BuildRuleIndex(ruleset, CardRestrictionMatchType.Set);
+
+        AddRestrictionViolations(violations, leaders, ruleset, cardRules, setRules);
+        AddRestrictionViolations(violations, nonLeaders, ruleset, cardRules, setRules);
 
         if (ruleset.RequireLeaderColorMatch && leaders.Count == 1)
         {
             var leaderColor = leaders[0].Metadata.Color;
+            // Cards with no colour of their own - every Chakra and Summon card - cannot match a leader's colour
+            // and are governed by the type flags instead. Comparing them would make an open format that allows
+            // those card types legally unusable.
             var mismatchedCardIds = nonLeaders
-                .Where(card => card.Metadata.Color != leaderColor)
+                .Where(card => HasColor(card.Metadata.Color) && card.Metadata.Color != leaderColor)
                 .Select(card => card.CardId)
                 .OrderBy(cardId => cardId, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -209,13 +248,43 @@ public static class DeckRulesetRules
     private static void AddRestrictionViolations(
         List<DeckRuleViolation> violations,
         IReadOnlyList<KnownDeckCard> cards,
-        DeckRulesetDefinition ruleset)
+        DeckRulesetDefinition ruleset,
+        IReadOnlyDictionary<string, int> cardRules,
+        IReadOnlyDictionary<string, int> setRules)
     {
         foreach (var card in cards)
         {
-            var hasRestriction = ruleset.MaxCopiesByCardId.TryGetValue(card.CardId, out var restrictedMax);
+            // A rule naming the whole code always wins over a rule naming its set, so a single card can be
+            // banned out of an otherwise allowed set, or exempted from a set-wide limit.
+            var hasRule = cardRules.TryGetValue(card.CardId, out var restrictedMax)
+                || setRules.TryGetValue(GetSetCode(card.CardId), out restrictedMax);
 
-            if (hasRestriction && restrictedMax <= 0)
+            if (!hasRule)
+            {
+                if (ruleset.CardPoolMode == CardPoolMode.AllowList)
+                {
+                    violations.Add(new DeckRuleViolation(
+                        NotInCardPoolCode,
+                        $"{card.CardId} is not part of this ruleset's card pool.",
+                        CardIds: card.CardId));
+                    continue;
+                }
+
+                // An open pool still caps copies: a rule is an override, never the only limit.
+                if (card.Quantity > ruleset.MaxCopiesPerNonLeaderCard)
+                {
+                    violations.Add(new DeckRuleViolation(
+                        TooManyCopiesCode,
+                        $"{card.CardId} allows at most {ruleset.MaxCopiesPerNonLeaderCard} copies; this deck has {card.Quantity}.",
+                        CardIds: card.CardId,
+                        Max: ruleset.MaxCopiesPerNonLeaderCard,
+                        Actual: card.Quantity));
+                }
+
+                continue;
+            }
+
+            if (restrictedMax <= 0)
             {
                 violations.Add(new DeckRuleViolation(
                     BannedCardCode,
@@ -226,16 +295,14 @@ public static class DeckRulesetRules
                 continue;
             }
 
-            var effectiveMax = hasRestriction
-                ? Math.Min(ruleset.MaxCopiesPerNonLeaderCard, restrictedMax)
-                : ruleset.MaxCopiesPerNonLeaderCard;
+            var effectiveMax = Math.Min(ruleset.MaxCopiesPerNonLeaderCard, restrictedMax);
 
             if (card.Quantity <= effectiveMax)
             {
                 continue;
             }
 
-            if (hasRestriction && restrictedMax < ruleset.MaxCopiesPerNonLeaderCard)
+            if (restrictedMax < ruleset.MaxCopiesPerNonLeaderCard)
             {
                 violations.Add(new DeckRuleViolation(
                     LimitedCardCode,
@@ -256,14 +323,29 @@ public static class DeckRulesetRules
         }
     }
 
-    private static bool IsProhibitedType(CardType type, DeckRulesetDefinition ruleset)
+    private static Dictionary<string, int> BuildRuleIndex(
+        DeckRulesetDefinition ruleset,
+        CardRestrictionMatchType matchType)
     {
-        return type switch
+        var index = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var rule in ruleset.CardRules)
         {
-            CardType.Chakra => !ruleset.AllowChakraCards,
-            CardType.Summon => !ruleset.AllowSummonCards,
-            _ => false,
-        };
+            if (rule.MatchType != matchType || string.IsNullOrWhiteSpace(rule.Code))
+            {
+                continue;
+            }
+
+            // The service refuses duplicates, so the last write only matters for a hand-built definition.
+            index[rule.Code.Trim().ToUpperInvariant()] = rule.MaxCopies;
+        }
+
+        return index;
+    }
+
+    private static bool HasColor(CardColor color)
+    {
+        return color != CardColor.NotApplicable;
     }
 
     private static List<DeckRuleCard> NormalizeCards(IEnumerable<DeckRuleCard> cards)

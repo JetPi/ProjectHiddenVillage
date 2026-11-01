@@ -6,19 +6,44 @@ public sealed class DeckRulesetCardRestrictionRequestValidator : AbstractValidat
 {
     internal const int MaxCopiesPerRestriction = 99;
 
+    /// <summary>Mirrors the <c>Code</c> column.</summary>
+    internal const int MaxCodeLength = 32;
+
     public DeckRulesetCardRestrictionRequestValidator()
     {
-        RuleFor(restriction => restriction.CardId)
-            .NotEmpty()
-            .WithMessage("Card id is required.")
-            .MaximumLength(64)
-            .WithMessage("Card id cannot exceed 64 characters.")
-            .Matches("^[A-Za-z0-9._-]+$")
-            .WithMessage("Card id can only contain letters, digits, dot, dash and underscore.");
+        RuleFor(restriction => restriction.MatchType)
+            .IsInEnum()
+            .WithMessage("A card rule must match either a whole card code or a set code.");
 
-        RuleFor(restriction => restriction.MaxCopies)
-            .InclusiveBetween(0, MaxCopiesPerRestriction)
-            .WithMessage($"A card restriction must allow between 0 and {MaxCopiesPerRestriction} copies.");
+        RuleFor(restriction => restriction.Code)
+            .NotEmpty()
+            .WithMessage("A card rule needs a code.")
+            .MaximumLength(MaxCodeLength)
+            .WithMessage($"A card rule code cannot exceed {MaxCodeLength} characters.")
+            .Matches("^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
+            .WithMessage("A card rule code can only contain letters, digits and single dashes.");
+
+        // A set code is the segment before the first dash, so a dash inside a set rule would never match
+        // anything; the admin almost certainly meant a single card.
+        When(
+            restriction => restriction.MatchType == CardRestrictionMatchType.Set,
+            () =>
+            {
+                RuleFor(restriction => restriction.Code)
+                    .Must(code => code is null || !code.Contains('-'))
+                    .WithMessage("A set rule names the code before the first dash, so it cannot contain a dash.");
+            });
+
+        // Only a whole-card rule carries a copy cap; a set rule is binary and the service derives its value from
+        // the pool mode.
+        When(
+            restriction => restriction.MatchType == CardRestrictionMatchType.Card,
+            () =>
+            {
+                RuleFor(restriction => restriction.MaxCopies)
+                    .InclusiveBetween(0, MaxCopiesPerRestriction)
+                    .WithMessage($"A card rule must allow between 0 and {MaxCopiesPerRestriction} copies.");
+            });
     }
 }
 
@@ -39,8 +64,9 @@ public sealed class CreateDeckRulesetRequestValidator : AbstractValidator<Create
             request => request.Name,
             request => request.LeaderCount,
             request => request.NonLeaderCardCount,
-            request => request.MaxCopiesPerNonLeaderCard,
-            request => request.SortOrder);
+            request => request.MaxCopiesPerNonLeaderCard);
+
+        DeckRulesetShapeRules.AddCardPoolRules(this, request => request.CardPoolMode);
 
         DeckRulesetShapeRules.AddClockRules(this);
 
@@ -57,12 +83,34 @@ public sealed class UpdateDeckRulesetRequestValidator : AbstractValidator<Update
             request => request.Name,
             request => request.LeaderCount,
             request => request.NonLeaderCardCount,
-            request => request.MaxCopiesPerNonLeaderCard,
-            request => request.SortOrder);
+            request => request.MaxCopiesPerNonLeaderCard);
+
+        DeckRulesetShapeRules.AddCardPoolRules(this, request => request.CardPoolMode);
 
         DeckRulesetShapeRules.AddClockRules(this);
 
         DeckRulesetShapeRules.AddRestrictionRules(this, request => request.CardRestrictions);
+    }
+}
+
+/// <summary>
+/// The display order request. The order itself is the list, so the only things to reject are an empty list and a
+/// format named twice: either would leave the stored order ambiguous.
+/// </summary>
+public sealed class ReorderDeckRulesetsRequestValidator : AbstractValidator<ReorderDeckRulesetsRequest>
+{
+    public ReorderDeckRulesetsRequestValidator()
+    {
+        RuleFor(request => request.RulesetIds)
+            .Must(ids => ids is { Count: > 0 })
+            .WithMessage("A reorder request needs at least one format id.")
+            .Must(HaveDistinctIds)
+            .WithMessage("A format may appear only once in a reorder request.");
+    }
+
+    private static bool HaveDistinctIds(IReadOnlyList<Guid>? ids)
+    {
+        return ids is null || ids.Distinct().Count() == ids.Count;
     }
 }
 
@@ -77,8 +125,7 @@ internal static class DeckRulesetShapeRules
         System.Linq.Expressions.Expression<Func<T, string>> nameSelector,
         System.Linq.Expressions.Expression<Func<T, int>> leaderCountSelector,
         System.Linq.Expressions.Expression<Func<T, int>> nonLeaderCardCountSelector,
-        System.Linq.Expressions.Expression<Func<T, int>> maxCopiesSelector,
-        System.Linq.Expressions.Expression<Func<T, int>> sortOrderSelector)
+        System.Linq.Expressions.Expression<Func<T, int>> maxCopiesSelector)
     {
         validator.RuleFor(nameSelector)
             .Must(name => !string.IsNullOrWhiteSpace(name))
@@ -97,10 +144,6 @@ internal static class DeckRulesetShapeRules
         validator.RuleFor(maxCopiesSelector)
             .InclusiveBetween(1, MaxCopiesPerCard)
             .WithMessage($"A ruleset copy cap must be between 1 and {MaxCopiesPerCard}.");
-
-        validator.RuleFor(sortOrderSelector)
-            .GreaterThanOrEqualTo(0)
-            .WithMessage("Sort order cannot be negative.");
     }
 
     internal const int MaxClockSeconds = 21_600;
@@ -136,6 +179,19 @@ internal static class DeckRulesetShapeRules
             .WithMessage("A single stop's budget cannot exceed the player's whole-game pool.");
     }
 
+    /// <summary>
+    /// Which pool the rules are read against. The two values are the only ones evaluation knows, so an unknown
+    /// value has to be refused here rather than silently treated as an open pool.
+    /// </summary>
+    internal static void AddCardPoolRules<T>(
+        AbstractValidator<T> validator,
+        System.Linq.Expressions.Expression<Func<T, CardPoolMode>> cardPoolModeSelector)
+    {
+        validator.RuleFor(cardPoolModeSelector)
+            .IsInEnum()
+            .WithMessage("A ruleset must use a known card pool mode.");
+    }
+
     internal static void AddRestrictionRules<T>(
         AbstractValidator<T> validator,
         System.Linq.Expressions.Expression<Func<T, IEnumerable<DeckRulesetCardRestrictionRequest>>> restrictionsSelector)
@@ -143,31 +199,35 @@ internal static class DeckRulesetShapeRules
         validator.RuleFor(restrictionsSelector)
             .NotNull()
             .WithMessage("Card restrictions are required.")
-            .Must(HaveDistinctCardIds)
-            .WithMessage("Each card may appear only once in a ruleset's restriction list.");
+            .Must(HaveDistinctMatchers)
+            .WithMessage("Each matcher may appear only once in a ruleset's restriction list.");
 
         validator.RuleForEach(restrictionsSelector)
             .SetValidator(new DeckRulesetCardRestrictionRequestValidator());
     }
 
-    private static bool HaveDistinctCardIds(IEnumerable<DeckRulesetCardRestrictionRequest>? restrictions)
+    /// <summary>
+    /// A card code and a set code live in separate match spaces, so <c>SAMPLE</c> as a set and <c>SAMPLE</c> as a
+    /// card are two different rules. Only an exact repeat of the same pair is a duplicate.
+    /// </summary>
+    private static bool HaveDistinctMatchers(IEnumerable<DeckRulesetCardRestrictionRequest>? restrictions)
     {
         if (restrictions is null)
         {
             return true;
         }
 
-        var seenCardIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenMatchers = new HashSet<(CardRestrictionMatchType MatchType, string Code)>();
 
         foreach (var restriction in restrictions)
         {
-            var cardId = restriction.CardId?.Trim();
-            if (string.IsNullOrEmpty(cardId))
+            var code = restriction.Code?.Trim().ToUpperInvariant();
+            if (string.IsNullOrEmpty(code))
             {
                 continue;
             }
 
-            if (!seenCardIds.Add(cardId))
+            if (!seenMatchers.Add((restriction.MatchType, code)))
             {
                 return false;
             }
