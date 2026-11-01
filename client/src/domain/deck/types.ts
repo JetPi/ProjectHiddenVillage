@@ -24,7 +24,6 @@ export type IDeckListParseResult =
 
 export type IDeckRuleViolationCode =
   | 'unknownCards'
-  | 'unsupportedCardType'
   | 'leaderCount'
   | 'leaderCopies'
   | 'deckSize'

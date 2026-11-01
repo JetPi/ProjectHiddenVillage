@@ -24,8 +24,6 @@ public sealed record DeckRulesetDefinition(
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,
     bool RequireLeaderColorMatch,
-    bool AllowChakraCards,
-    bool AllowSummonCards,
     // How the rules below are read: restrictions on an open pool, or the definition of a closed one.
     CardPoolMode CardPoolMode,
     IReadOnlyList<DeckRulesetCardRule> CardRules,
@@ -58,7 +56,6 @@ public sealed record DeckRulesetValidation(
 public static class DeckRulesetRules
 {
     public const string UnknownCardsCode = "Deck.Ruleset.UnknownCards";
-    public const string UnsupportedCardTypeCode = "Deck.Ruleset.UnsupportedCardType";
     public const string LeaderCountCode = "Deck.Ruleset.LeaderCount";
     public const string LeaderCopiesCode = "Deck.Ruleset.LeaderCopies";
     public const string DeckSizeCode = "Deck.Ruleset.DeckSize";
@@ -145,20 +142,6 @@ public static class DeckRulesetRules
             .Where(card => catalog.ContainsKey(card.CardId))
             .Select(card => new KnownDeckCard(card.CardId, card.Quantity, catalog[card.CardId]))
             .ToList();
-
-        var prohibitedCards = knownCards
-            .Where(card => IsProhibitedType(card.Metadata.Type, ruleset))
-            .Select(card => card.CardId)
-            .OrderBy(cardId => cardId, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (prohibitedCards.Count > 0)
-        {
-            violations.Add(new DeckRuleViolation(
-                UnsupportedCardTypeCode,
-                $"This ruleset does not allow Chakra or Summon cards: {string.Join(", ", prohibitedCards)}.",
-                CardIds: string.Join(", ", prohibitedCards)));
-        }
 
         var leaders = knownCards
             .Where(card => card.Metadata.Type == CardType.Leader)
@@ -338,16 +321,6 @@ public static class DeckRulesetRules
     private static bool HasColor(CardColor color)
     {
         return color != CardColor.NotApplicable;
-    }
-
-    private static bool IsProhibitedType(CardType type, DeckRulesetDefinition ruleset)
-    {
-        return type switch
-        {
-            CardType.Chakra => !ruleset.AllowChakraCards,
-            CardType.Summon => !ruleset.AllowSummonCards,
-            _ => false,
-        };
     }
 
     private static List<DeckRuleCard> NormalizeCards(IEnumerable<DeckRuleCard> cards)

@@ -105,8 +105,6 @@ public sealed class DeckRulesetRequestValidatorTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            AllowChakraCards: false,
-            AllowSummonCards: false,
             SortOrder: 0,
             CardRestrictions: []));
 
@@ -153,8 +151,6 @@ public sealed class DeckRulesetRequestValidatorTests
             NonLeaderCardCount: nonLeaderCardCount,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            AllowChakraCards: false,
-            AllowSummonCards: false,
             SortOrder: 0,
             CardRestrictions: restrictions ?? []);
     }

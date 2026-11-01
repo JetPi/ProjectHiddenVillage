@@ -498,8 +498,6 @@ public sealed class GamesServiceUserDeckFlowTests
             NonLeaderCardCount: 2,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: false,
-            AllowChakraCards: true,
-            AllowSummonCards: true,
             SortOrder: 0,
             CardRestrictions: []));
 

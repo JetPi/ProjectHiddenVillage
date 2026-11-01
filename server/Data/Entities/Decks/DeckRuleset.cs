@@ -32,10 +32,6 @@ public sealed class DeckRuleset
 
     public bool RequireLeaderColorMatch { get; set; } = true;
 
-    public bool AllowChakraCards { get; set; }
-
-    public bool AllowSummonCards { get; set; }
-
     /// <summary>
     /// Whether games created under this ruleset run the action clock at all. A tournament ruleset keeps it on and
     /// tightens the budgets; turning it off here makes every game on the format untimed. Per-game "time relaxed"

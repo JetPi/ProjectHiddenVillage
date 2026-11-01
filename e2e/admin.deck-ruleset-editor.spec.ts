@@ -22,8 +22,6 @@ type MockRuleset = {
   nonLeaderCardCount: number
   maxCopiesPerNonLeaderCard: number
   requireLeaderColorMatch: boolean
-  allowChakraCards: boolean
-  allowSummonCards: boolean
   sortOrder: number
   cardRestrictions: MockRestriction[]
 }
@@ -171,10 +169,13 @@ test('the ruleset admin creates, edits, deactivates and deletes a format', async
   await expect(page.getByTestId('admin-ruleset-name')).toHaveValue('Standard')
 
   await page.getByTestId('admin-ruleset-new').click()
-  await page.getByTestId('admin-ruleset-key').fill('draft-format')
+  // The key is derived from the name, so creating a format never means typing a slug.
   await page.getByTestId('admin-ruleset-name').fill('Draft Format')
+  await expect(page.getByTestId('admin-ruleset-key')).toHaveValue('draft-format')
   await page.getByTestId('admin-ruleset-card-count').fill('40')
   await page.getByTestId('admin-ruleset-max-copies').fill('2')
+  // The whole-game pool is edited in minutes; a new format starts at 30.
+  await expect(page.getByTestId('admin-ruleset-player-pool-minutes')).toHaveValue('30')
   // A new format is quick-matchable by default; this one is deliberately kept out of the queue.
   await expect(page.getByTestId('admin-ruleset-quick-match')).toBeChecked()
   await page.getByTestId('admin-ruleset-quick-match').uncheck()

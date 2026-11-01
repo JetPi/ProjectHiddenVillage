@@ -31,8 +31,6 @@ export type IDeckRuleset = {
   nonLeaderCardCount: number
   maxCopiesPerNonLeaderCard: number
   requireLeaderColorMatch: boolean
-  allowChakraCards: boolean
-  allowSummonCards: boolean
   sortOrder: number
   cardRestrictions: IDeckRulesetCardRestriction[]
   /** Whether games created under this ruleset run the action clock at all. */

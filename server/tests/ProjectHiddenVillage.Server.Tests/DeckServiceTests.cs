@@ -106,7 +106,7 @@ public sealed class DeckServiceTests
     }
 
     [TestMethod]
-    public async Task CreateDeck_ReturnsValidationError_WhenDeckContainsChakraOrSummonCards()
+    public async Task CreateDeck_StoresADeckThatContainsChakraCards()
     {
         await using var dbContext = CreateDbContext();
 
@@ -148,9 +148,15 @@ public sealed class DeckServiceTests
             Type: DeckType.Public,
             Cards: "1x N-100\n1x N-101"));
 
-        Assert.IsTrue(result.IsError);
-        Assert.AreEqual("Deck.Ruleset.NotLegalInAnyRuleset", result.FirstError.Code);
-        StringAssert.Contains(result.FirstError.Description, "Chakra");
+        // Chakra and Summon cards are part of the game's fundamentals, so no format may reject them.
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+
+        var deckId = Guid.Parse(result.Value);
+        var persistedDeck = await dbContext.Decks
+            .Include(deck => deck.Cards)
+            .SingleAsync(deck => deck.Id == deckId);
+
+        Assert.AreEqual(2, persistedDeck.Cards.Count);
     }
 
     [TestMethod]
@@ -887,8 +893,6 @@ public sealed class DeckServiceTests
             NonLeaderCardCount = nonLeaderCardCount,
             MaxCopiesPerNonLeaderCard = maxCopies,
             RequireLeaderColorMatch = true,
-            AllowChakraCards = false,
-            AllowSummonCards = false,
             SortOrder = 0,
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow,

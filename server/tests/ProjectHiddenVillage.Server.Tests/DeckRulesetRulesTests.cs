@@ -163,18 +163,26 @@ public sealed class DeckRulesetRulesTests
     }
 
     [TestMethod]
-    public void Evaluate_ReportsDisallowedCardTypes()
+    public void Evaluate_AlwaysAllowsChakraAndSummonCards()
     {
-        var cards = BuildCards(30, maxCopies: 3);
-        cards = cards.Where(card => card.CardId != "C-001").ToList();
-        cards.Add(new DeckRuleCard("K-001", 3));
+        // Chakra and Summon cards are part of the game's fundamentals, so no format gates them: they are only
+        // bound by the usual size, copy and colour rules.
+        var cards = new List<DeckRuleCard>
+        {
+            new(LeaderCardId, 1),
+            new("K-001", 2),
+            new("S-001", 2),
+        };
         var catalog = BuildCatalog(cards);
         catalog["K-001"] = new DeckRuleCardMetadata("K-001", CardType.Chakra, CardColor.NotApplicable);
+        catalog["S-001"] = new DeckRuleCardMetadata("S-001", CardType.Summon, CardColor.NotApplicable);
 
-        var evaluation = DeckRulesetRules.EvaluateRuleset(cards, catalog, CreateRuleset(30, maxCopies: 3));
+        var evaluation = DeckRulesetRules.EvaluateRuleset(
+            cards,
+            catalog,
+            CreateRuleset(nonLeaderCardCount: 4, maxCopies: 4));
 
-        var violation = evaluation.Violations.Single(item => item.Code == DeckRulesetRules.UnsupportedCardTypeCode);
-        Assert.AreEqual("K-001", violation.CardIds);
+        Assert.IsTrue(evaluation.IsValid, evaluation.Violations.FirstOrDefault()?.Description);
     }
 
     [TestMethod]
@@ -282,7 +290,7 @@ public sealed class DeckRulesetRulesTests
         var evaluation = DeckRulesetRules.EvaluateRuleset(
             cards,
             catalog,
-            CreateRuleset(nonLeaderCardCount: 4, maxCopies: 3, allowChakraCards: true));
+            CreateRuleset(nonLeaderCardCount: 4, maxCopies: 3));
 
         Assert.IsTrue(evaluation.IsValid);
     }
@@ -334,9 +342,7 @@ public sealed class DeckRulesetRulesTests
         Guid? id = null,
         IReadOnlyDictionary<string, int>? restrictions = null,
         IReadOnlyDictionary<string, int>? setRestrictions = null,
-        CardPoolMode cardPoolMode = CardPoolMode.Open,
-        bool allowChakraCards = false,
-        bool allowSummonCards = false)
+        CardPoolMode cardPoolMode = CardPoolMode.Open)
     {
         var rules = new List<DeckRulesetCardRule>();
 
@@ -359,8 +365,6 @@ public sealed class DeckRulesetRulesTests
             NonLeaderCardCount: nonLeaderCardCount,
             MaxCopiesPerNonLeaderCard: maxCopies,
             RequireLeaderColorMatch: true,
-            AllowChakraCards: allowChakraCards,
-            AllowSummonCards: allowSummonCards,
             CardPoolMode: cardPoolMode,
             CardRules: rules,
             Clock: GameClockPolicy.Standard);

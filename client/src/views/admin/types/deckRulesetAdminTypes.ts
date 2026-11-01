@@ -24,13 +24,15 @@ export type IDeckRulesetDraft = {
   nonLeaderCardCount: number
   maxCopiesPerNonLeaderCard: number
   requireLeaderColorMatch: boolean
-  allowChakraCards: boolean
-  allowSummonCards: boolean
   sortOrder: number
   clockEnabled: boolean
   mainPhaseSeconds: number
   otherPhaseSeconds: number
-  playerPoolSeconds: number
+  /**
+   * The whole-game pool, in minutes. Seconds are the stored and evaluated unit; the editor only speaks minutes so
+   * an admin does not have to hold "1800" in their head.
+   */
+  playerPoolMinutes: number
   timeoutsBeforeForfeit: number
   restrictions: IDeckRulesetRestrictionDraft[]
 }

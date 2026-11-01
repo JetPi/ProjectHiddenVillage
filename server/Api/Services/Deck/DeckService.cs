@@ -1234,8 +1234,6 @@ public sealed partial class DeckService : IDeckService
                 NonLeaderCardCount: ruleset.NonLeaderCardCount,
                 MaxCopiesPerNonLeaderCard: ruleset.MaxCopiesPerNonLeaderCard,
                 RequireLeaderColorMatch: ruleset.RequireLeaderColorMatch,
-                AllowChakraCards: ruleset.AllowChakraCards,
-                AllowSummonCards: ruleset.AllowSummonCards,
                 CardPoolMode: ruleset.CardPoolMode,
                 CardRules: ruleset.CardRestrictions
                     .OrderBy(restriction => restriction.MatchType)

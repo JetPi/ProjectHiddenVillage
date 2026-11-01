@@ -18,6 +18,7 @@ import type {
 
 const KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const MAX_NAME_LENGTH = 64
+const MAX_KEY_LENGTH = 64
 const MAX_DECK_CARD_COUNT = 200
 const MAX_COPIES_PER_CARD = 99
 const MAX_RESTRICTION_COPIES = 99
@@ -25,6 +26,32 @@ const MAX_TIMEOUTS_BEFORE_FORFEIT = 10
 /** Mirrors the `Code` column of a card rule. */
 const MAX_RESTRICTION_CODE_LENGTH = 32
 const RESTRICTION_CODE_PATTERN = /^[A-Z0-9]+(?:-[A-Z0-9]+)*$/
+/** Mirrors `DeckRulesetShapeRules.MaxPoolSeconds` on the server, which caps the pool at four hours. */
+const MAX_PLAYER_POOL_MINUTES = 240
+const MIN_PLAYER_POOL_MINUTES = 0.5
+
+/**
+ * The machine-readable key a new format gets before the admin touches anything: the name, lower-cased, with every
+ * run of other characters collapsed into a single dash. Creating a format therefore never means typing a slug; the
+ * field stays editable for the rare case where a hand-picked key matters.
+ */
+function toRulesetKey(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, MAX_KEY_LENGTH)
+    .replace(/-+$/g, '')
+}
+
+function secondsToMinutes(seconds: number): number {
+  return Math.round((seconds / 60) * 10) / 10
+}
+
+function minutesToSeconds(minutes: number): number {
+  return Math.round(minutes * 60)
+}
 
 const EMPTY_DRAFT: IDeckRulesetDraft = {
   key: '',
@@ -37,13 +64,11 @@ const EMPTY_DRAFT: IDeckRulesetDraft = {
   nonLeaderCardCount: 50,
   maxCopiesPerNonLeaderCard: 4,
   requireLeaderColorMatch: true,
-  allowChakraCards: false,
-  allowSummonCards: false,
   sortOrder: 0,
   clockEnabled: true,
   mainPhaseSeconds: 60,
   otherPhaseSeconds: 30,
-  playerPoolSeconds: 1800,
+  playerPoolMinutes: 30,
   timeoutsBeforeForfeit: 3,
   restrictions: [],
 }
@@ -59,13 +84,11 @@ function toDraft(ruleset: IDeckRuleset): IDeckRulesetDraft {
     nonLeaderCardCount: ruleset.nonLeaderCardCount,
     maxCopiesPerNonLeaderCard: ruleset.maxCopiesPerNonLeaderCard,
     requireLeaderColorMatch: ruleset.requireLeaderColorMatch,
-    allowChakraCards: ruleset.allowChakraCards,
-    allowSummonCards: ruleset.allowSummonCards,
     sortOrder: ruleset.sortOrder,
     clockEnabled: ruleset.clockEnabled,
     mainPhaseSeconds: ruleset.mainPhaseSeconds,
     otherPhaseSeconds: ruleset.otherPhaseSeconds,
-    playerPoolSeconds: ruleset.playerPoolSeconds,
+    playerPoolMinutes: secondsToMinutes(ruleset.playerPoolSeconds),
     timeoutsBeforeForfeit: ruleset.timeoutsBeforeForfeit,
     restrictions: ruleset.cardRestrictions.map((restriction) => ({ ...restriction })),
   }
@@ -98,13 +121,11 @@ function toCreatePayload(draft: IDeckRulesetDraft): ICreateDeckRulesetRequest {
     nonLeaderCardCount: draft.nonLeaderCardCount,
     maxCopiesPerNonLeaderCard: draft.maxCopiesPerNonLeaderCard,
     requireLeaderColorMatch: draft.requireLeaderColorMatch,
-    allowChakraCards: draft.allowChakraCards,
-    allowSummonCards: draft.allowSummonCards,
     sortOrder: draft.sortOrder,
     clockEnabled: draft.clockEnabled,
     mainPhaseSeconds: draft.mainPhaseSeconds,
     otherPhaseSeconds: draft.otherPhaseSeconds,
-    playerPoolSeconds: draft.playerPoolSeconds,
+    playerPoolSeconds: minutesToSeconds(draft.playerPoolMinutes),
     timeoutsBeforeForfeit: draft.timeoutsBeforeForfeit,
     cardRestrictions: draft.restrictions.map((restriction) => ({
       matchType: restriction.matchType,
@@ -124,13 +145,11 @@ function toUpdatePayload(draft: IDeckRulesetDraft): IUpdateDeckRulesetRequest {
     nonLeaderCardCount: draft.nonLeaderCardCount,
     maxCopiesPerNonLeaderCard: draft.maxCopiesPerNonLeaderCard,
     requireLeaderColorMatch: draft.requireLeaderColorMatch,
-    allowChakraCards: draft.allowChakraCards,
-    allowSummonCards: draft.allowSummonCards,
     sortOrder: draft.sortOrder,
     clockEnabled: draft.clockEnabled,
     mainPhaseSeconds: draft.mainPhaseSeconds,
     otherPhaseSeconds: draft.otherPhaseSeconds,
-    playerPoolSeconds: draft.playerPoolSeconds,
+    playerPoolSeconds: minutesToSeconds(draft.playerPoolMinutes),
     timeoutsBeforeForfeit: draft.timeoutsBeforeForfeit,
     cardRestrictions: draft.restrictions.map((restriction) => ({
       matchType: restriction.matchType,
@@ -193,19 +212,29 @@ function buildViolations(
   }
 
   // The action clock: a zero budget arms an already-expired deadline, and a stop longer than the whole-game pool
-  // would make the pool the only limit.
+  // would make the pool the only limit. The pool is edited in minutes but compared in seconds, so the two fields
+  // keep the unit the server evaluates.
   if (
     !Number.isInteger(draft.mainPhaseSeconds)
     || draft.mainPhaseSeconds < 1
     || !Number.isInteger(draft.otherPhaseSeconds)
     || draft.otherPhaseSeconds < 1
-    || !Number.isInteger(draft.playerPoolSeconds)
-    || draft.playerPoolSeconds < 1
   ) {
     violations.push({ messageKey: 'admin.rulesets.validation.clockBudget' })
+  }
+
+  if (
+    !Number.isFinite(draft.playerPoolMinutes)
+    || draft.playerPoolMinutes < MIN_PLAYER_POOL_MINUTES
+    || draft.playerPoolMinutes > MAX_PLAYER_POOL_MINUTES
+  ) {
+    violations.push({
+      messageKey: 'admin.rulesets.validation.playerPoolMinutes',
+      params: { min: MIN_PLAYER_POOL_MINUTES, max: MAX_PLAYER_POOL_MINUTES },
+    })
   } else if (
-    draft.mainPhaseSeconds > draft.playerPoolSeconds
-    || draft.otherPhaseSeconds > draft.playerPoolSeconds
+    draft.mainPhaseSeconds > minutesToSeconds(draft.playerPoolMinutes)
+    || draft.otherPhaseSeconds > minutesToSeconds(draft.playerPoolMinutes)
   ) {
     violations.push({ messageKey: 'admin.rulesets.validation.clockBudgetAbovePool' })
   }
@@ -310,7 +339,15 @@ export function useDeckRulesetAdminModel() {
   const canSave = violations.length === 0 && isDirty && !isSaving
 
   const patchDraft = (patch: Partial<IDeckRulesetDraft>) => {
-    setEditedDraft({ ...draft, ...patch })
+    const nextDraft = { ...draft, ...patch }
+
+    // While a format is new its key follows the name, so creating one never means typing a slug. A key the admin
+    // typed by hand stops following: the derivation only runs while the key still equals the previous name's slug.
+    if (isCreating && patch.name !== undefined && draft.key === toRulesetKey(draft.name)) {
+      nextDraft.key = toRulesetKey(patch.name)
+    }
+
+    setEditedDraft(nextDraft)
   }
 
   const addRestriction = (

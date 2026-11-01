@@ -65,8 +65,6 @@ public sealed class DeckRulesetService : IDeckRulesetService
             NonLeaderCardCount: ruleset.NonLeaderCardCount,
             MaxCopiesPerNonLeaderCard: ruleset.MaxCopiesPerNonLeaderCard,
             RequireLeaderColorMatch: ruleset.RequireLeaderColorMatch,
-            AllowChakraCards: ruleset.AllowChakraCards,
-            AllowSummonCards: ruleset.AllowSummonCards,
             CardPoolMode: ruleset.CardPoolMode,
             CardRules: ToCardRules(ruleset),
             Clock: ToClockPolicy(ruleset));
@@ -121,8 +119,6 @@ public sealed class DeckRulesetService : IDeckRulesetService
             NonLeaderCardCount = request.NonLeaderCardCount,
             MaxCopiesPerNonLeaderCard = request.MaxCopiesPerNonLeaderCard,
             RequireLeaderColorMatch = request.RequireLeaderColorMatch,
-            AllowChakraCards = request.AllowChakraCards,
-            AllowSummonCards = request.AllowSummonCards,
             ClockEnabled = request.ClockEnabled,
             MainPhaseSeconds = request.MainPhaseSeconds,
             OtherPhaseSeconds = request.OtherPhaseSeconds,
@@ -215,8 +211,6 @@ public sealed class DeckRulesetService : IDeckRulesetService
         ruleset.NonLeaderCardCount = request.NonLeaderCardCount;
         ruleset.MaxCopiesPerNonLeaderCard = request.MaxCopiesPerNonLeaderCard;
         ruleset.RequireLeaderColorMatch = request.RequireLeaderColorMatch;
-        ruleset.AllowChakraCards = request.AllowChakraCards;
-        ruleset.AllowSummonCards = request.AllowSummonCards;
         ruleset.ClockEnabled = request.ClockEnabled;
         ruleset.MainPhaseSeconds = request.MainPhaseSeconds;
         ruleset.OtherPhaseSeconds = request.OtherPhaseSeconds;
@@ -420,8 +414,6 @@ public sealed class DeckRulesetService : IDeckRulesetService
             NonLeaderCardCount: ruleset.NonLeaderCardCount,
             MaxCopiesPerNonLeaderCard: ruleset.MaxCopiesPerNonLeaderCard,
             RequireLeaderColorMatch: ruleset.RequireLeaderColorMatch,
-            AllowChakraCards: ruleset.AllowChakraCards,
-            AllowSummonCards: ruleset.AllowSummonCards,
             SortOrder: ruleset.SortOrder,
             CardRestrictions: ruleset.CardRestrictions
                 .OrderBy(restriction => restriction.MatchType)

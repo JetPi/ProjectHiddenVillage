@@ -15,8 +15,6 @@ type IEvaluatableDeckCard = {
 }
 
 const LEADER_TYPE = 'leader'
-const CHAKRA_TYPE = 'chakra'
-const SUMMON_TYPE = 'summon'
 
 export type IEvaluateDeckRulesetsOptions = {
   cards: readonly IDeckCardInput[]
@@ -64,15 +62,6 @@ function evaluateRulesetFromNormalized(
   const knownCards = cards.filter(
     (card): card is IEvaluatableDeckCard & { metadata: IDeckCardMetadata } => card.metadata !== null,
   )
-
-  const prohibitedCards = knownCards.filter((card) => isProhibitedType(card.metadata, ruleset))
-  if (prohibitedCards.length > 0) {
-    violations.push({
-      code: 'unsupportedCardType',
-      messageKey: 'deckRules.validation.unsupportedCardType',
-      params: { cardIds: prohibitedCards.map((card) => card.cardId).join(', ') },
-    })
-  }
 
   const leaders = knownCards.filter((card) => isLeader(card.metadata))
   const nonLeaders = knownCards.filter((card) => !isLeader(card.metadata))
@@ -276,20 +265,6 @@ function normalizeCards(
 
 function isLeader(metadata: IDeckCardMetadata): boolean {
   return normalizeType(metadata.type) === LEADER_TYPE
-}
-
-function isProhibitedType(metadata: IDeckCardMetadata, ruleset: IDeckRuleset): boolean {
-  const type = normalizeType(metadata.type)
-
-  if (type === CHAKRA_TYPE) {
-    return !ruleset.allowChakraCards
-  }
-
-  if (type === SUMMON_TYPE) {
-    return !ruleset.allowSummonCards
-  }
-
-  return false
 }
 
 function normalizeType(type: string): string {

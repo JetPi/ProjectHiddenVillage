@@ -116,11 +116,14 @@ test('the deck builder gates saves per format and creates a legal deck', async (
   const includeNonDeckableSwitch = page.getByTestId('catalog-nondeckable-toggle').locator('label')
   await includeNonDeckableSwitch.click()
   await cardTile(page, 'K-001').click()
-  await expect(violation(page, 'unsupportedCardType').first()).toBeVisible()
+  // Chakra and Summon cards are fundamental to the game, so no format rejects them: adding one is only blocked by
+  // the deck size (51 non-leader cards where the format wants 50).
+  await expect(violation(page, 'unsupportedCardType')).toHaveCount(0)
+  await expect(rulesetViolation(page, 'standard', 'deckSize')).toHaveCount(1)
   await expect(page.getByTestId('admin-deck-save')).toBeDisabled()
 
   await cardTile(page, 'K-001').getByTestId('catalog-card-remove-copy').click()
-  await expect(violation(page, 'unsupportedCardType')).toHaveCount(0)
+  await expect(rulesetViolation(page, 'standard', 'deckSize')).toHaveCount(0)
   await includeNonDeckableSwitch.click()
 
   await cardTile(page, 'C-002').click()

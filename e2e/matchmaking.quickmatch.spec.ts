@@ -22,8 +22,6 @@ const MOCKED_RULESET = {
   nonLeaderCardCount: 2,
   maxCopiesPerNonLeaderCard: 4,
   requireLeaderColorMatch: false,
-  allowChakraCards: true,
-  allowSummonCards: true,
   sortOrder: 0,
   cardRestrictions: [],
 }

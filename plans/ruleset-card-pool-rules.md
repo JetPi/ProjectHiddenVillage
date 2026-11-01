@@ -29,7 +29,11 @@ ruleset can say, not who may edit it.
 5. Precedence: a card rule beats a set rule. Set `SAMPLE` allowed at 4 plus card `SAMPLE-3` at 0 bans
    `SAMPLE-3`. A card that matches nothing in an allow-list format is outside the pool and is reported with
    its own violation code, not the generic banned-card message.
-6. The type flags stay independent: `AllowChakraCards` and `AllowSummonCards` are checked before the pool.
+6. ~~The type flags stay independent: `AllowChakraCards` and `AllowSummonCards` are checked before the pool.~~
+   Superseded: Chakra and Summon cards are fundamental to the game, so both flags are gone end to end
+   ([migration `RemoveCardTypeGatesFromDeckRulesets`](../server/Migrations/20261101214705_RemoveCardTypeGatesFromDeckRulesets.cs:12))
+   and no format can gate them. They are bound only by size, copy and pool rules, and the colour check skips them
+   because they carry no colour of their own.
 7. Formats seeded with fixed GUIDs through `HasData`, so a fresh database and a migrated database agree:
 
 | Key | CardPoolMode | Leader | Non-leader | Copies | Colour match | Chakra/Summon | Quick match | Rules |

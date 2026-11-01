@@ -111,8 +111,6 @@ public sealed class MatchmakingServiceTests
             NonLeaderCardCount: StandardDeckSize,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: false,
-            AllowChakraCards: true,
-            AllowSummonCards: true,
             SortOrder: 2,
             CardRestrictions: [],
             AvailableInQuickMatch: false));
@@ -386,8 +384,6 @@ public sealed class MatchmakingServiceTests
             NonLeaderCardCount: StandardDeckSize,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: false,
-            AllowChakraCards: true,
-            AllowSummonCards: true,
             SortOrder: 0,
             CardRestrictions: []));
 
@@ -400,8 +396,6 @@ public sealed class MatchmakingServiceTests
             NonLeaderCardCount: PreReleaseDeckSize,
             MaxCopiesPerNonLeaderCard: 3,
             RequireLeaderColorMatch: false,
-            AllowChakraCards: true,
-            AllowSummonCards: true,
             SortOrder: 1,
             CardRestrictions: []));
 

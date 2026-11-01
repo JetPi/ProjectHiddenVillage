@@ -209,12 +209,6 @@ namespace ProjectHiddenVillage.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("AllowChakraCards")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("AllowSummonCards")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("AvailableInQuickMatch")
                         .HasColumnType("boolean");
 
@@ -290,8 +284,6 @@ namespace ProjectHiddenVillage.Server.Migrations
                         new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000001"),
-                            AllowChakraCards = false,
-                            AllowSummonCards = false,
                             AvailableInQuickMatch = true,
                             CardPoolMode = 0,
                             ClockEnabled = true,
@@ -313,8 +305,6 @@ namespace ProjectHiddenVillage.Server.Migrations
                         new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000002"),
-                            AllowChakraCards = false,
-                            AllowSummonCards = false,
                             AvailableInQuickMatch = true,
                             CardPoolMode = 1,
                             ClockEnabled = true,
@@ -336,8 +326,6 @@ namespace ProjectHiddenVillage.Server.Migrations
                         new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000003"),
-                            AllowChakraCards = true,
-                            AllowSummonCards = true,
                             AvailableInQuickMatch = false,
                             CardPoolMode = 0,
                             ClockEnabled = true,

@@ -126,6 +126,8 @@ export function DeckRulesetEditorPane({
 
       <div className="themed-scrollbar mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         <div className="grid gap-2 sm:grid-cols-2">
+         
+
           <div>
             <FormLabel htmlFor="admin-ruleset-key">{t('admin.rulesets.editor.key')}</FormLabel>
             <FormInput
@@ -136,11 +138,11 @@ export function DeckRulesetEditorPane({
               placeholder={t('admin.rulesets.editor.keyPlaceholder')}
               onChange={(event) => onPatch({ key: event.target.value.toLowerCase() })}
             />
-            {!isCreating ? (
-              <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-                {t('admin.rulesets.editor.keyLocked')}
-              </p>
-            ) : null}
+            <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+              {isCreating
+                ? t('admin.rulesets.editor.keyGenerated')
+                : t('admin.rulesets.editor.keyLocked')}
+            </p>
           </div>
 
           <div>
@@ -222,20 +224,6 @@ export function DeckRulesetEditorPane({
             checked={draft.requireLeaderColorMatch}
             onChange={(event) => onPatch({ requireLeaderColorMatch: event.target.checked })}
           />
-          <FormCheckboxField
-            id="admin-ruleset-allow-chakra"
-            data-testid="admin-ruleset-allow-chakra"
-            label={t('admin.rulesets.editor.allowChakra')}
-            checked={draft.allowChakraCards}
-            onChange={(event) => onPatch({ allowChakraCards: event.target.checked })}
-          />
-          <FormCheckboxField
-            id="admin-ruleset-allow-summon"
-            data-testid="admin-ruleset-allow-summon"
-            label={t('admin.rulesets.editor.allowSummon')}
-            checked={draft.allowSummonCards}
-            onChange={(event) => onPatch({ allowSummonCards: event.target.checked })}
-          />
         </div>
 
         <div>
@@ -297,17 +285,21 @@ export function DeckRulesetEditorPane({
             </div>
 
             <div>
-              <FormLabel htmlFor="admin-ruleset-player-pool-seconds">
-                {t('admin.rulesets.editor.playerPoolSeconds')}
+              {/* Edited in minutes; the request still carries seconds, which is what the format stores and what
+                  a created game snapshots. */}
+              <FormLabel htmlFor="admin-ruleset-player-pool-minutes">
+                {t('admin.rulesets.editor.playerPoolMinutes')}
               </FormLabel>
               <FormInput
-                id="admin-ruleset-player-pool-seconds"
-                data-testid="admin-ruleset-player-pool-seconds"
+                id="admin-ruleset-player-pool-minutes"
+                data-testid="admin-ruleset-player-pool-minutes"
                 type="number"
-                min={1}
-                value={draft.playerPoolSeconds}
+                min={0.5}
+                max={240}
+                step={0.5}
+                value={draft.playerPoolMinutes}
                 onChange={(event) =>
-                  onPatch({ playerPoolSeconds: Number.parseInt(event.target.value, 10) || 0 })}
+                  onPatch({ playerPoolMinutes: Number.parseFloat(event.target.value) || 0 })}
               />
             </div>
 

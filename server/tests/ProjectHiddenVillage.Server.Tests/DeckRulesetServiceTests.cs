@@ -109,8 +109,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            AllowChakraCards: false,
-            AllowSummonCards: false,
             SortOrder: 0,
             CardRestrictions:
             [
@@ -149,8 +147,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            AllowChakraCards: false,
-            AllowSummonCards: false,
             SortOrder: 0,
             CardRestrictions: []));
 
@@ -190,8 +186,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            AllowChakraCards: false,
-            AllowSummonCards: false,
             SortOrder: 0,
             CardRestrictions: [],
             ClockEnabled: false,
@@ -242,8 +236,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            AllowChakraCards: false,
-            AllowSummonCards: false,
             SortOrder: 0,
             CardRestrictions: [],
             AvailableInQuickMatch: true));
@@ -285,8 +277,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            AllowChakraCards: false,
-            AllowSummonCards: false,
             SortOrder: 0,
             CardRestrictions: [],
             MainPhaseSeconds: 0));
@@ -388,8 +378,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
             RequireLeaderColorMatch: true,
-            AllowChakraCards: false,
-            AllowSummonCards: false,
             SortOrder: 0,
             CardRestrictions: restrictions ?? [],
             AvailableInQuickMatch: availableInQuickMatch);
@@ -412,8 +400,6 @@ public sealed class DeckRulesetServiceTests
             NonLeaderCardCount = 50,
             MaxCopiesPerNonLeaderCard = 4,
             RequireLeaderColorMatch = true,
-            AllowChakraCards = false,
-            AllowSummonCards = false,
             SortOrder = 0,
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
