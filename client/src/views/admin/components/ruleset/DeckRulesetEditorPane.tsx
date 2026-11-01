@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { translateKey } from '@/i18n'
 import { AppButton } from '@/components/ui'
-import { FormCheckboxField, FormInput, FormLabel } from '@/components/forms'
+import { FormInput, FormLabel } from '@/components/forms'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { normalizeDeckCardId } from '@/domain/deck/parseDeckList'
 import type { IDeckCardMetadata } from '@/domain/deck/types'
 import type {
@@ -199,50 +200,64 @@ export function DeckRulesetEditorPane({
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2">
-          <FormCheckboxField
-            id="admin-ruleset-active"
-            data-testid="admin-ruleset-active"
-            label={t('admin.rulesets.editor.active')}
-            checked={draft.isActive}
-            onChange={(event) => onPatch({ isActive: event.target.checked })}
-          />
-          {/* Unchecked keeps the format playable through hosting and invites; it only removes it from the queue. */}
-          <FormCheckboxField
-            id="admin-ruleset-quick-match"
-            data-testid="admin-ruleset-quick-match"
-            label={t('admin.rulesets.editor.availableInQuickMatch')}
-            checked={draft.availableInQuickMatch}
-            onChange={(event) => onPatch({ availableInQuickMatch: event.target.checked })}
-          />
+          <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+            <CardAdminToggleSwitch
+              dataTestId="admin-ruleset-active"
+              ariaLabel={t('admin.rulesets.editor.active')}
+              checked={draft.isActive}
+              onChange={(checked) => onPatch({ isActive: checked })}
+            />
+            <span>{t('admin.rulesets.editor.active')}</span>
+          </label>
+
+          {/* Off keeps the format playable through hosting and invites; it only removes it from the queue. */}
+          <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+            <CardAdminToggleSwitch
+              dataTestId="admin-ruleset-quick-match"
+              ariaLabel={t('admin.rulesets.editor.availableInQuickMatch')}
+              checked={draft.availableInQuickMatch}
+              onChange={(checked) => onPatch({ availableInQuickMatch: checked })}
+            />
+            <span>{t('admin.rulesets.editor.availableInQuickMatch')}</span>
+          </label>
+
           <p className="text-[10px] leading-4 text-[var(--text-muted)] sm:col-span-2">
             {t('admin.rulesets.editor.availableInQuickMatchHint')}
           </p>
-          <FormCheckboxField
-            id="admin-ruleset-color-match"
-            data-testid="admin-ruleset-color-match"
-            label={t('admin.rulesets.editor.requireColorMatch')}
-            checked={draft.requireLeaderColorMatch}
-            onChange={(event) => onPatch({ requireLeaderColorMatch: event.target.checked })}
-          />
+
+          <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+            <CardAdminToggleSwitch
+              dataTestId="admin-ruleset-color-match"
+              ariaLabel={t('admin.rulesets.editor.requireColorMatch')}
+              checked={draft.requireLeaderColorMatch}
+              onChange={(checked) => onPatch({ requireLeaderColorMatch: checked })}
+            />
+            <span>{t('admin.rulesets.editor.requireColorMatch')}</span>
+          </label>
         </div>
 
         <section>
-          <div className='flex flex-row'>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                {t('admin.rulesets.editor.clockTitle')}
+              </h2>
+              <p className="text-[10px] text-[var(--text-muted)]">{t('admin.rulesets.editor.clockHint')}</p>
+            </div>
 
-          <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-            {t('admin.rulesets.editor.clockTitle')}
-          </h2>
-          <p className="text-[10px] text-[var(--text-muted)]">{t('admin.rulesets.editor.clockHint')}</p>
-            <FormCheckboxField
-              className='mx-2'
-              id="admin-ruleset-clock-enabled"
-              data-testid="admin-ruleset-clock-enabled"
-              label={t('admin.rulesets.editor.clockEnabled')}
-              checked={draft.clockEnabled}
-              onChange={(event) => onPatch({ clockEnabled: event.target.checked })}
-            />
+            <label className="flex shrink-0 items-center gap-2 text-sm text-[var(--text-primary)]">
+              <CardAdminToggleSwitch
+                dataTestId="admin-ruleset-clock-enabled"
+                ariaLabel={t('admin.rulesets.editor.clockEnabled')}
+                checked={draft.clockEnabled}
+                onChange={(checked) => onPatch({ clockEnabled: checked })}
+              />
+              <span>{t('admin.rulesets.editor.clockEnabled')}</span>
+            </label>
           </div>
 
+          {/* The budgets only mean anything while the clock runs, so they disappear with it. */}
+          {draft.clockEnabled ? (
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
 
             <div>
@@ -309,6 +324,7 @@ export function DeckRulesetEditorPane({
               />
             </div>
           </div>
+          ) : null}
         </section>
 
         <section>
@@ -430,21 +446,36 @@ export function DeckRulesetEditorPane({
                       </p>
                     </div>
 
-                    <FormInput
-                      data-testid="admin-ruleset-restriction-max"
-                      data-code={restriction.code}
-                      type="number"
-                      min={0}
-                      max={99}
-                      value={restriction.maxCopies}
-                      className="max-w-20 px-2 py-1 text-xs"
-                      onChange={(event) =>
-                        onUpdateRestrictionMaxCopies(
-                          restriction.matchType,
-                          restriction.code,
-                          Number.parseInt(event.target.value, 10) || 0,
-                        )}
-                    />
+                    {isCardRule ? (
+                      <FormInput
+                        data-testid="admin-ruleset-restriction-max"
+                        data-code={restriction.code}
+                        type="number"
+                        min={0}
+                        max={99}
+                        value={restriction.maxCopies}
+                        className="max-w-20 px-2 py-1 text-xs"
+                        onChange={(event) =>
+                          onUpdateRestrictionMaxCopies(
+                            restriction.matchType,
+                            restriction.code,
+                            Number.parseInt(event.target.value, 10) || 0,
+                          )}
+                      />
+                    ) : (
+                      // A set rule covers a whole set at once, so it carries no count: the pool mode alone decides
+                      // whether the set is banned or admitted.
+                      <span
+                        data-testid="admin-ruleset-restriction-set-effect"
+                        data-effect={draft.cardPoolMode === 'AllowList' ? 'allow' : 'ban'}
+                        className="rounded-full border border-[var(--border-subtle)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]"
+                        title={t('admin.rulesets.editor.setRuleNoCopiesHint')}
+                      >
+                        {draft.cardPoolMode === 'AllowList'
+                          ? t('admin.rulesets.editor.setRuleAllowed')
+                          : t('admin.rulesets.editor.setRuleBanned')}
+                      </span>
+                    )}
 
                     <button
                       type="button"

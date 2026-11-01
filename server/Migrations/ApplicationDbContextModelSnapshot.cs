@@ -383,7 +383,7 @@ namespace ProjectHiddenVillage.Server.Migrations
                             Code = "N",
                             DeckRulesetId = new Guid("20000000-0000-0000-0000-000000000002"),
                             MatchType = 1,
-                            MaxCopies = 3
+                            MaxCopies = 2147483647
                         },
                         new
                         {
@@ -391,7 +391,7 @@ namespace ProjectHiddenVillage.Server.Migrations
                             Code = "C",
                             DeckRulesetId = new Guid("20000000-0000-0000-0000-000000000002"),
                             MatchType = 1,
-                            MaxCopies = 3
+                            MaxCopies = 2147483647
                         },
                         new
                         {
@@ -399,7 +399,7 @@ namespace ProjectHiddenVillage.Server.Migrations
                             Code = "CP",
                             DeckRulesetId = new Guid("20000000-0000-0000-0000-000000000002"),
                             MatchType = 1,
-                            MaxCopies = 3
+                            MaxCopies = 2147483647
                         },
                         new
                         {
@@ -407,7 +407,7 @@ namespace ProjectHiddenVillage.Server.Migrations
                             Code = "S",
                             DeckRulesetId = new Guid("20000000-0000-0000-0000-000000000002"),
                             MatchType = 1,
-                            MaxCopies = 3
+                            MaxCopies = 2147483647
                         });
                 });
 

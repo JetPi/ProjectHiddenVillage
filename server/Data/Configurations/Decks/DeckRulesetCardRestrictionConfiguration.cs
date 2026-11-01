@@ -10,7 +10,8 @@ public sealed class DeckRulesetCardRestrictionConfiguration : IEntityTypeConfigu
     internal const int MaxCodeLength = 32;
 
     // The Pre-Release allow list. Fixed ids so a fresh database and a migrated database agree; the format is
-    // seeded closed, so without them every deck would fail it.
+    // seeded closed, so without them every deck would fail it. A set rule carries no copy cap, so each one stores
+    // DeckRulesetCardRule.UnlimitedCopies - the same value the service would write for an allow-list format.
     private static readonly Guid PreReleaseSetNCardRuleId = Guid.Parse("30000000-0000-0000-0000-000000000001");
     private static readonly Guid PreReleaseSetCCardRuleId = Guid.Parse("30000000-0000-0000-0000-000000000002");
     private static readonly Guid PreReleaseSetCpCardRuleId = Guid.Parse("30000000-0000-0000-0000-000000000003");
@@ -44,7 +45,7 @@ public sealed class DeckRulesetCardRestrictionConfiguration : IEntityTypeConfigu
                 DeckRulesetId = DeckRulesetConfiguration.PreReleaseRulesetId,
                 MatchType = CardRestrictionMatchType.Set,
                 Code = "N",
-                MaxCopies = 3,
+                MaxCopies = DeckRulesetCardRule.UnlimitedCopies,
             },
             new DeckRulesetCardRestriction
             {
@@ -52,7 +53,7 @@ public sealed class DeckRulesetCardRestrictionConfiguration : IEntityTypeConfigu
                 DeckRulesetId = DeckRulesetConfiguration.PreReleaseRulesetId,
                 MatchType = CardRestrictionMatchType.Set,
                 Code = "C",
-                MaxCopies = 3,
+                MaxCopies = DeckRulesetCardRule.UnlimitedCopies,
             },
             new DeckRulesetCardRestriction
             {
@@ -60,7 +61,7 @@ public sealed class DeckRulesetCardRestrictionConfiguration : IEntityTypeConfigu
                 DeckRulesetId = DeckRulesetConfiguration.PreReleaseRulesetId,
                 MatchType = CardRestrictionMatchType.Set,
                 Code = "CP",
-                MaxCopies = 3,
+                MaxCopies = DeckRulesetCardRule.UnlimitedCopies,
             },
             new DeckRulesetCardRestriction
             {
@@ -68,7 +69,7 @@ public sealed class DeckRulesetCardRestrictionConfiguration : IEntityTypeConfigu
                 DeckRulesetId = DeckRulesetConfiguration.PreReleaseRulesetId,
                 MatchType = CardRestrictionMatchType.Set,
                 Code = "S",
-                MaxCopies = 3,
+                MaxCopies = DeckRulesetCardRule.UnlimitedCopies,
             });
     }
 }

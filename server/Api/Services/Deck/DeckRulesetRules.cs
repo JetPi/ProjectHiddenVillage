@@ -11,7 +11,32 @@ public sealed record DeckRuleCardMetadata(string CardId, CardType Type, CardColo
 public sealed record DeckRulesetCardRule(
     CardRestrictionMatchType MatchType,
     string Code,
-    int MaxCopies);
+    int MaxCopies)
+{
+    /// <summary>
+    /// What a set rule stores instead of a copy cap. A set rule is binary - it bans the set in an open pool and
+    /// puts it in the pool in an allow list - so it never carries a real count, and this value passes through the
+    /// format's copy cap untouched.
+    /// </summary>
+    public const int UnlimitedCopies = int.MaxValue;
+
+    /// <summary>
+    /// The single place a rule's stored copies are decided. A card rule keeps the number it was given; a set rule
+    /// takes its meaning from the pool mode, so it can never keep a count the admin screen no longer shows.
+    /// </summary>
+    public static int CopiesFor(
+        CardRestrictionMatchType matchType,
+        CardPoolMode cardPoolMode,
+        int requestedMaxCopies)
+    {
+        if (matchType == CardRestrictionMatchType.Card)
+        {
+            return requestedMaxCopies;
+        }
+
+        return cardPoolMode == CardPoolMode.AllowList ? UnlimitedCopies : 0;
+    }
+}
 
 public sealed record DeckRulesetDefinition(
     Guid Id,

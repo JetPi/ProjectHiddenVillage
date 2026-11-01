@@ -394,16 +394,61 @@ public sealed class DeckRulesetServiceTests
         await using var dbContext = CreateDbContext();
         var service = new DeckRulesetService(dbContext);
 
-        var result = await service.CreateRuleset(CreateRequest(
-            cardPoolMode: CardPoolMode.AllowList,
-            restrictions:
-            [
-                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Set, "SAMPLE", 0),
-            ]));
+        var result = await service.CreateRuleset(CreateRequest(cardPoolMode: CardPoolMode.AllowList));
 
         Assert.IsTrue(result.IsError);
         Assert.AreEqual("Deck.Rulesets.EmptyAllowList", result.FirstError.Code);
         Assert.AreEqual(0, await dbContext.DeckRulesets.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task CreateRuleset_DerivesASetRulesValueFromThePoolMode()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new DeckRulesetService(dbContext);
+
+        // A set rule carries no count: in an allow list it admits the set, whatever number the caller sent.
+        var allowList = await service.CreateRuleset(CreateRequest(
+            key: "allow-list",
+            cardPoolMode: CardPoolMode.AllowList,
+            restrictions:
+            [
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Set, "SAMPLE", 5),
+            ]));
+
+        Assert.IsFalse(allowList.IsError, allowList.IsError ? allowList.FirstError.Description : string.Empty);
+        Assert.AreEqual(
+            DeckRulesetCardRule.UnlimitedCopies,
+            allowList.Value.CardRestrictions.Single().MaxCopies);
+
+        // In an open pool the same rule bans the set.
+        var open = await service.CreateRuleset(CreateRequest(
+            key: "open",
+            restrictions:
+            [
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Set, "SAMPLE", 5),
+            ]));
+
+        Assert.IsFalse(open.IsError, open.IsError ? open.FirstError.Description : string.Empty);
+        Assert.AreEqual(0, open.Value.CardRestrictions.Single().MaxCopies);
+    }
+
+    [TestMethod]
+    public async Task CreateRuleset_KeepsTheSubmittedCopiesForACardRule()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.CardCatalogEntries.Add(CreateCatalogEntry("N-001"));
+        await dbContext.SaveChangesAsync();
+
+        var service = new DeckRulesetService(dbContext);
+        var result = await service.CreateRuleset(CreateRequest(
+            restrictions:
+            [
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Card, "N-001", 2),
+            ]));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        Assert.AreEqual(2, result.Value.CardRestrictions.Single().MaxCopies);
     }
 
     [TestMethod]

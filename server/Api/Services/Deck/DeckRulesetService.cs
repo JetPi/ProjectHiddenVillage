@@ -95,7 +95,7 @@ public sealed class DeckRulesetService : IDeckRulesetService
             return clockValidation.Errors;
         }
 
-        var restrictionResult = await ResolveRestrictionsAsync(request.CardRestrictions);
+        var restrictionResult = await ResolveRestrictionsAsync(request.CardRestrictions, request.CardPoolMode);
         if (restrictionResult.IsError)
         {
             return restrictionResult.Errors;
@@ -196,7 +196,7 @@ public sealed class DeckRulesetService : IDeckRulesetService
             return clockValidation.Errors;
         }
 
-        var restrictionResult = await ResolveRestrictionsAsync(request.CardRestrictions);
+        var restrictionResult = await ResolveRestrictionsAsync(request.CardRestrictions, request.CardPoolMode);
         if (restrictionResult.IsError)
         {
             return restrictionResult.Errors;
@@ -407,7 +407,8 @@ public sealed class DeckRulesetService : IDeckRulesetService
     }
 
     private async Task<ErrorOr<List<DeckRulesetCardRestriction>>> ResolveRestrictionsAsync(
-        IReadOnlyList<DeckRulesetCardRestrictionRequest>? restrictions)
+        IReadOnlyList<DeckRulesetCardRestrictionRequest>? restrictions,
+        CardPoolMode cardPoolMode)
     {
         var requestedRestrictions = (restrictions ?? [])
             .Where(restriction => !string.IsNullOrWhiteSpace(restriction.Code))
@@ -459,7 +460,12 @@ public sealed class DeckRulesetService : IDeckRulesetService
             {
                 MatchType = restriction.MatchType,
                 Code = restriction.Code,
-                MaxCopies = restriction.MaxCopies,
+                // A set rule is binary, so the pool mode owns its value and any number that came with the request
+                // is dropped here rather than stored as something the admin screen cannot show.
+                MaxCopies = DeckRulesetCardRule.CopiesFor(
+                    restriction.MatchType,
+                    cardPoolMode,
+                    restriction.MaxCopies),
             })
             .ToList();
     }

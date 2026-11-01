@@ -128,7 +128,8 @@ function toCreatePayload(draft: IDeckRulesetDraft): ICreateDeckRulesetRequest {
     cardRestrictions: draft.restrictions.map((restriction) => ({
       matchType: restriction.matchType,
       code: restriction.code.trim().toUpperCase(),
-      maxCopies: restriction.maxCopies,
+      // A set rule has no count; the server derives it from the pool mode.
+      maxCopies: restriction.matchType === 'Set' ? 0 : restriction.maxCopies,
     })),
   }
 }
@@ -151,7 +152,8 @@ function toUpdatePayload(draft: IDeckRulesetDraft): IUpdateDeckRulesetRequest {
     cardRestrictions: draft.restrictions.map((restriction) => ({
       matchType: restriction.matchType,
       code: restriction.code.trim().toUpperCase(),
-      maxCopies: restriction.maxCopies,
+      // A set rule has no count; the server derives it from the pool mode.
+      maxCopies: restriction.matchType === 'Set' ? 0 : restriction.maxCopies,
     })),
   }
 }
@@ -244,8 +246,13 @@ function buildViolations(
   }
 
   // A closed pool with no allowing rule would fail every deck, so it is refused before it is saved rather than
-  // looking like a broken format afterwards.
-  if (draft.cardPoolMode === 'AllowList' && !draft.restrictions.some((restriction) => restriction.maxCopies > 0)) {
+  // looking like a broken format afterwards. A set rule counts as allowing: in a closed pool its whole meaning is
+  // that the set is in the pool, which is why it carries no count.
+  const hasAllowingRule = draft.restrictions.some(
+    (restriction) => restriction.matchType === 'Set' || restriction.maxCopies > 0,
+  )
+
+  if (draft.cardPoolMode === 'AllowList' && !hasAllowingRule) {
     violations.push({ messageKey: 'admin.rulesets.validation.allowListEmpty' })
   }
 
@@ -279,10 +286,14 @@ function buildViolations(
 
     seenMatchers.add(matcherKey)
 
+    // Only a whole-card rule carries a count; a set rule's value belongs to the pool mode.
     if (
-      !Number.isInteger(restriction.maxCopies)
-      || restriction.maxCopies < 0
-      || restriction.maxCopies > MAX_RESTRICTION_COPIES
+      restriction.matchType === 'Card'
+      && (
+        !Number.isInteger(restriction.maxCopies)
+        || restriction.maxCopies < 0
+        || restriction.maxCopies > MAX_RESTRICTION_COPIES
+      )
     ) {
       violations.push({
         messageKey: 'admin.rulesets.validation.restrictionMaxCopies',
@@ -364,10 +375,12 @@ export function useDeckRulesetAdminModel() {
       return
     }
 
-    // A new rule in an open pool is a ban until the admin raises it; in a closed pool it has to allow something or
-    // it would be a rule that removes cards from a pool it is already not in.
-    const defaultMaxCopies = maxCopies
-      ?? (draft.cardPoolMode === 'AllowList' ? draft.maxCopiesPerNonLeaderCard : 0)
+    // A new card rule in an open pool is a ban until the admin raises it, and in a closed pool it has to allow
+    // something or it would remove cards from a pool they are already not in. A set rule has no count at all: it
+    // goes in at 0 and the server derives its meaning from the pool mode.
+    const defaultMaxCopies = matchType === 'Set'
+      ? 0
+      : maxCopies ?? (draft.cardPoolMode === 'AllowList' ? draft.maxCopiesPerNonLeaderCard : 0)
 
     patchDraft({
       restrictions: [

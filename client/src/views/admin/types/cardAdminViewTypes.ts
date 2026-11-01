@@ -71,6 +71,8 @@ export type ICardAdminToggleSwitchProps = {
   className?: string
   trackClassName?: string
   thumbClassName?: string
+  /** Carried by the underlying checkbox, so tests can reach the real input. */
+  dataTestId?: string
 }
 
 export type CardAdminRemoveButtonVariant = 'inline' | 'chip'

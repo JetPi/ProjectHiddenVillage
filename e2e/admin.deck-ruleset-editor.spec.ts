@@ -223,6 +223,15 @@ test('the ruleset admin creates, edits, deactivates and deletes a format', async
 
   await rulesetRailItem(page, 'draft-format').click()
   await expect(page.getByTestId('admin-ruleset-quick-match')).not.toBeChecked()
+  await expect(page.getByTestId('admin-ruleset-active')).toBeChecked()
+
+  // The timing budgets only exist while the clock is on, and come back with it.
+  await expect(page.getByTestId('admin-ruleset-player-pool-minutes')).toBeVisible()
+  await page.getByTestId('admin-ruleset-clock-enabled').uncheck()
+  await expect(page.getByTestId('admin-ruleset-player-pool-minutes')).toHaveCount(0)
+  await page.getByTestId('admin-ruleset-clock-enabled').check()
+  await expect(page.getByTestId('admin-ruleset-player-pool-minutes')).toBeVisible()
+
   await page.getByTestId('admin-ruleset-name').fill('Draft Format Updated')
   await page.getByTestId('admin-ruleset-active').uncheck()
   await page.getByTestId('admin-ruleset-quick-match').check()
@@ -286,7 +295,11 @@ test('an allow-list format saves a set rule instead of a card rule', async ({ br
   const rule = page.getByTestId('admin-ruleset-restriction').first()
   await expect(rule).toHaveAttribute('data-match-type', 'Set')
   await expect(rule).toHaveAttribute('data-code', 'SAMPLE')
-  // A set rule allows at the format's copy cap by default, so the save unblocks without touching the cap field.
+
+  // A set rule covers the whole set at once, so it has no copy field: its row states what the mode makes of it,
+  // and adding it is enough to unblock the save.
+  await expect(rule.getByTestId('admin-ruleset-restriction-max')).toHaveCount(0)
+  await expect(rule.getByTestId('admin-ruleset-restriction-set-effect')).toHaveAttribute('data-effect', 'allow')
   await expect(page.getByTestId('admin-ruleset-save')).toBeEnabled()
 
   await page.getByTestId('admin-ruleset-save').click()
@@ -294,7 +307,8 @@ test('an allow-list format saves a set rule instead of a card rule', async ({ br
 
   const created = rulesets.find((ruleset) => ruleset.key === 'allow-list')
   expect(created?.cardPoolMode).toBe('AllowList')
+  // The server derives a set rule's value from the pool mode, so the client sends no count at all.
   expect(created?.cardRestrictions).toEqual([
-    { matchType: 'Set', code: 'SAMPLE', maxCopies: 4 },
+    { matchType: 'Set', code: 'SAMPLE', maxCopies: 0 },
   ])
 })

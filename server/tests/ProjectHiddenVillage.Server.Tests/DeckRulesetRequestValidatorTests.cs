@@ -135,6 +135,20 @@ public sealed class DeckRulesetRequestValidatorTests
     }
 
     [TestMethod]
+    public void Validate_IgnoresTheCopiesOnASetRule()
+    {
+        // A set rule carries no count, so the range that guards card rules does not apply to it.
+        var result = new CreateDeckRulesetRequestValidator().Validate(CreateRequest(
+            cardPoolMode: CardPoolMode.AllowList,
+            restrictions:
+            [
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Set, "SAMPLE", 1000),
+            ]));
+
+        Assert.IsTrue(result.IsValid, result.ToString());
+    }
+
+    [TestMethod]
     public void Validate_RejectsAnEmptyReorderRequest()
     {
         var result = new ReorderDeckRulesetsRequestValidator().Validate(

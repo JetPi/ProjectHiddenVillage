@@ -178,6 +178,10 @@ enforced here as well as in the service.
   established `0 = banned` contract on the server, the client and the translations.
 - Existing restriction rows are migrated by resolving their catalogue id to a `Card` rule, so no format loses
   its bans.
+- The editor's flags are [`CardAdminToggleSwitch`](../client/src/views/admin/components/controls/CardAdminToggleSwitch.tsx:4)
+  rows rather than checkboxes - the same control, and the same visible switch surface, the rest of the admin uses.
+  The four timing budgets render only while the clock toggle is on, since a format with no clock has no budgets to
+  show.
 
 ## As implemented
 

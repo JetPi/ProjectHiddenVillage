@@ -34,9 +34,16 @@ public sealed class DeckRulesetCardRestrictionRequestValidator : AbstractValidat
                     .WithMessage("A set rule names the code before the first dash, so it cannot contain a dash.");
             });
 
-        RuleFor(restriction => restriction.MaxCopies)
-            .InclusiveBetween(0, MaxCopiesPerRestriction)
-            .WithMessage($"A card restriction must allow between 0 and {MaxCopiesPerRestriction} copies.");
+        // Only a whole-card rule carries a copy cap; a set rule is binary and the service derives its value from
+        // the pool mode.
+        When(
+            restriction => restriction.MatchType == CardRestrictionMatchType.Card,
+            () =>
+            {
+                RuleFor(restriction => restriction.MaxCopies)
+                    .InclusiveBetween(0, MaxCopiesPerRestriction)
+                    .WithMessage($"A card rule must allow between 0 and {MaxCopiesPerRestriction} copies.");
+            });
     }
 }
 
