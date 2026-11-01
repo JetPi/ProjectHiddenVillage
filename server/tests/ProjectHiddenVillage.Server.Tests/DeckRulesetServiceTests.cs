@@ -22,14 +22,16 @@ public sealed class DeckRulesetServiceTests
             key: "standard",
             restrictions:
             [
-                new DeckRulesetCardRestrictionRequest("c-001", 0),
-                new DeckRulesetCardRestrictionRequest("C-002", 2),
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Card, "c-001", 0),
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Card, "C-002", 2),
             ]));
 
         Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
         Assert.AreEqual("standard", result.Value.Key);
         Assert.AreEqual(2, result.Value.CardRestrictions.Count);
+        Assert.AreEqual("C-001", result.Value.CardRestrictions[0].Code);
         Assert.AreEqual(0, result.Value.CardRestrictions[0].MaxCopies);
+        Assert.AreEqual("C-002", result.Value.CardRestrictions[1].Code);
         Assert.AreEqual(2, result.Value.CardRestrictions[1].MaxCopies);
 
         var persisted = await dbContext.DeckRulesets
@@ -60,7 +62,10 @@ public sealed class DeckRulesetServiceTests
 
         var service = new DeckRulesetService(dbContext);
         var result = await service.CreateRuleset(CreateRequest(
-            restrictions: [new DeckRulesetCardRestrictionRequest("C-999", 0)]));
+            restrictions:
+            [
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Card, "C-999", 0),
+            ]));
 
         Assert.IsTrue(result.IsError);
         Assert.AreEqual("Deck.Rulesets.UnknownCards", result.FirstError.Code);
@@ -71,16 +76,26 @@ public sealed class DeckRulesetServiceTests
     public async Task UpdateRuleset_ReplacesTheRestrictionList()
     {
         await using var dbContext = CreateDbContext();
-        var first = CreateCatalogEntry("C-001");
-        var second = CreateCatalogEntry("C-002");
-        var third = CreateCatalogEntry("C-003");
-        dbContext.CardCatalogEntries.AddRange(first, second, third);
+        dbContext.CardCatalogEntries.AddRange(
+            CreateCatalogEntry("C-001"),
+            CreateCatalogEntry("C-002"),
+            CreateCatalogEntry("C-003"));
         dbContext.DeckRulesets.Add(CreateRulesetEntity(
             "standard",
             restrictions:
             [
-                new DeckRulesetCardRestriction { CardCatalogEntry = first, MaxCopies = 0 },
-                new DeckRulesetCardRestriction { CardCatalogEntry = second, MaxCopies = 1 },
+                new DeckRulesetCardRestriction
+                {
+                    MatchType = CardRestrictionMatchType.Card,
+                    Code = "C-001",
+                    MaxCopies = 0,
+                },
+                new DeckRulesetCardRestriction
+                {
+                    MatchType = CardRestrictionMatchType.Card,
+                    Code = "C-002",
+                    MaxCopies = 1,
+                },
             ]));
         await dbContext.SaveChangesAsync();
 
@@ -89,6 +104,7 @@ public sealed class DeckRulesetServiceTests
         var result = await service.UpdateRuleset(ruleset.Id.ToString(), new UpdateDeckRulesetRequest(
             Name: "Standard Updated",
             IsActive: true,
+            CardPoolMode: CardPoolMode.Open,
             LeaderCount: 1,
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
@@ -98,8 +114,8 @@ public sealed class DeckRulesetServiceTests
             SortOrder: 0,
             CardRestrictions:
             [
-                new DeckRulesetCardRestrictionRequest("C-002", 3),
-                new DeckRulesetCardRestrictionRequest("C-003", 0),
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Card, "C-002", 3),
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Card, "C-003", 0),
             ]));
 
         Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
@@ -111,9 +127,9 @@ public sealed class DeckRulesetServiceTests
             .ToListAsync();
 
         Assert.AreEqual(2, persisted.Count);
-        Assert.IsTrue(persisted.Any(restriction => restriction.CardCatalogEntryId == second.Id && restriction.MaxCopies == 3));
-        Assert.IsTrue(persisted.Any(restriction => restriction.CardCatalogEntryId == third.Id && restriction.MaxCopies == 0));
-        Assert.IsFalse(persisted.Any(restriction => restriction.CardCatalogEntryId == first.Id));
+        Assert.IsTrue(persisted.Any(restriction => restriction.Code == "C-002" && restriction.MaxCopies == 3));
+        Assert.IsTrue(persisted.Any(restriction => restriction.Code == "C-003" && restriction.MaxCopies == 0));
+        Assert.IsFalse(persisted.Any(restriction => restriction.Code == "C-001"));
     }
 
     [TestMethod]
@@ -128,6 +144,7 @@ public sealed class DeckRulesetServiceTests
         var result = await service.UpdateRuleset(ruleset.Id.ToString(), new UpdateDeckRulesetRequest(
             Name: "Standard",
             IsActive: false,
+            CardPoolMode: CardPoolMode.Open,
             LeaderCount: 1,
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
@@ -168,6 +185,7 @@ public sealed class DeckRulesetServiceTests
             Key: "untimed",
             Name: "Untimed",
             IsActive: true,
+            CardPoolMode: CardPoolMode.Open,
             LeaderCount: 1,
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
@@ -219,6 +237,7 @@ public sealed class DeckRulesetServiceTests
         var updated = await service.UpdateRuleset(hostOnly.Value.Id.ToString(), new UpdateDeckRulesetRequest(
             Name: "Invite Only",
             IsActive: true,
+            CardPoolMode: CardPoolMode.Open,
             LeaderCount: 1,
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
@@ -261,6 +280,7 @@ public sealed class DeckRulesetServiceTests
             Key: "broken",
             Name: "Broken",
             IsActive: true,
+            CardPoolMode: CardPoolMode.Open,
             LeaderCount: 1,
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
@@ -297,15 +317,73 @@ public sealed class DeckRulesetServiceTests
         Assert.AreEqual(2, allResult.Value.Count);
     }
 
+    [TestMethod]
+    public async Task CreateRuleset_AcceptsASetRuleForASetTheCatalogueDoesNotKnowYet()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new DeckRulesetService(dbContext);
+
+        var result = await service.CreateRuleset(CreateRequest(
+            restrictions:
+            [
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Set, "sample", 0),
+            ]));
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        var rule = result.Value.CardRestrictions.Single();
+        Assert.AreEqual(CardRestrictionMatchType.Set, rule.MatchType);
+        Assert.AreEqual("SAMPLE", rule.Code);
+    }
+
+    [TestMethod]
+    public async Task CreateRuleset_RejectsAnAllowListWithoutAnAllowingRule()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new DeckRulesetService(dbContext);
+
+        var result = await service.CreateRuleset(CreateRequest(
+            cardPoolMode: CardPoolMode.AllowList,
+            restrictions:
+            [
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Set, "SAMPLE", 0),
+            ]));
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Deck.Rulesets.EmptyAllowList", result.FirstError.Code);
+        Assert.AreEqual(0, await dbContext.DeckRulesets.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task GetCardPoolSetCodes_GroupsCatalogueIdsByTheirSetSegment()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.CardCatalogEntries.AddRange(
+            CreateCatalogEntry("N-001"),
+            CreateCatalogEntry("N-002"),
+            CreateCatalogEntry("SAMPLE-1"),
+            CreateCatalogEntry("S-001"));
+        await dbContext.SaveChangesAsync();
+
+        var service = new DeckRulesetService(dbContext);
+        var result = await service.GetCardPoolSetCodes();
+
+        Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
+        CollectionAssert.AreEquivalent(
+            new[] { "N:2", "SAMPLE:1", "S:1" },
+            result.Value.Select(setCode => $"{setCode.Code}:{setCode.CardCount}").ToList());
+    }
+
     private static CreateDeckRulesetRequest CreateRequest(
         string key = "standard",
         IReadOnlyList<DeckRulesetCardRestrictionRequest>? restrictions = null,
-        bool availableInQuickMatch = true)
+        bool availableInQuickMatch = true,
+        CardPoolMode cardPoolMode = CardPoolMode.Open)
     {
         return new CreateDeckRulesetRequest(
             Key: key,
             Name: "Standard",
             IsActive: true,
+            CardPoolMode: cardPoolMode,
             LeaderCount: 1,
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
@@ -329,6 +407,7 @@ public sealed class DeckRulesetServiceTests
             Key = key,
             Name = key,
             IsActive = isActive,
+            CardPoolMode = CardPoolMode.Open,
             LeaderCount = 1,
             NonLeaderCardCount = 50,
             MaxCopiesPerNonLeaderCard = 4,

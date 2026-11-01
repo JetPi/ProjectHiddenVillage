@@ -6,23 +6,37 @@ import { FormCheckboxField, FormInput, FormLabel } from '@/components/forms'
 import { normalizeDeckCardId } from '@/domain/deck/parseDeckList'
 import type { IDeckCardMetadata } from '@/domain/deck/types'
 import type {
+  IDeckRulesetCardPoolMode,
+  IDeckRulesetCardRestrictionMatchType,
+  IDeckRulesetSetCode,
+} from '@/types/deckRuleset'
+import type {
   IDeckRulesetDraft,
   IDeckRulesetValidationViolation,
 } from '@/views/admin/types/deckRulesetAdminTypes'
+
+const SELECT_CLASSNAME =
+  'w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--field-bg)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--focus-ring)] focus:outline-none'
 
 export type IDeckRulesetEditorPaneProps = {
   isCreating: boolean
   draft: IDeckRulesetDraft
   violations: IDeckRulesetValidationViolation[]
   cardsById: ReadonlyMap<string, IDeckCardMetadata>
+  /** Set codes the catalogue holds, so a set rule can be picked instead of guessed. */
+  setCodes: readonly IDeckRulesetSetCode[]
   canSave: boolean
   isDirty: boolean
   isSaving: boolean
   isDeleting: boolean
   onPatch: (patch: Partial<IDeckRulesetDraft>) => void
-  onAddRestriction: (cardId: string) => void
-  onUpdateRestrictionMaxCopies: (cardId: string, maxCopies: number) => void
-  onRemoveRestriction: (cardId: string) => void
+  onAddRestriction: (matchType: IDeckRulesetCardRestrictionMatchType, code: string) => void
+  onUpdateRestrictionMaxCopies: (
+    matchType: IDeckRulesetCardRestrictionMatchType,
+    code: string,
+    maxCopies: number,
+  ) => void
+  onRemoveRestriction: (matchType: IDeckRulesetCardRestrictionMatchType, code: string) => void
   onSave: () => void
   onDelete: () => void
 }
@@ -32,6 +46,7 @@ export function DeckRulesetEditorPane({
   draft,
   violations,
   cardsById,
+  setCodes,
   canSave,
   isDirty,
   isSaving,
@@ -44,11 +59,13 @@ export function DeckRulesetEditorPane({
   onDelete,
 }: IDeckRulesetEditorPaneProps) {
   const { t } = useTranslation()
-  const [restrictionCardId, setRestrictionCardId] = useState('')
+  const [restrictionMatchType, setRestrictionMatchType] =
+    useState<IDeckRulesetCardRestrictionMatchType>('Card')
+  const [restrictionCode, setRestrictionCode] = useState('')
 
   const handleAddRestriction = () => {
-    onAddRestriction(restrictionCardId)
-    setRestrictionCardId('')
+    onAddRestriction(restrictionMatchType, restrictionCode)
+    setRestrictionCode('')
   }
 
   return (
@@ -313,25 +330,71 @@ export function DeckRulesetEditorPane({
 
         <section>
           <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-            {t('admin.rulesets.editor.restrictionsTitle')}
+            {t('admin.rulesets.editor.cardPoolTitle')}
           </h2>
+          <p className="text-[10px] text-[var(--text-muted)]">{t('admin.rulesets.editor.cardPoolHint')}</p>
+
+          <div className="mt-2">
+            <FormLabel htmlFor="admin-ruleset-pool-mode">{t('admin.rulesets.editor.cardPoolMode')}</FormLabel>
+            <select
+              id="admin-ruleset-pool-mode"
+              data-testid="admin-ruleset-pool-mode"
+              className={SELECT_CLASSNAME}
+              value={draft.cardPoolMode}
+              onChange={(event) => onPatch({ cardPoolMode: event.target.value as IDeckRulesetCardPoolMode })}
+            >
+              <option value="Open">{t('admin.rulesets.editor.cardPoolModeOpen')}</option>
+              <option value="AllowList">{t('admin.rulesets.editor.cardPoolModeAllowList')}</option>
+            </select>
+            <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+              {draft.cardPoolMode === 'AllowList'
+                ? t('admin.rulesets.editor.cardPoolModeAllowListHint')
+                : t('admin.rulesets.editor.cardPoolModeOpenHint')}
+            </p>
+          </div>
+
+          <h3 className="mt-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+            {t('admin.rulesets.editor.restrictionsTitle')}
+          </h3>
           <p className="text-[10px] text-[var(--text-muted)]">
             {t('admin.rulesets.editor.restrictionsHint')}
           </p>
 
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <select
+              aria-label={t('admin.rulesets.editor.restrictionMatchType')}
+              data-testid="admin-ruleset-restriction-match-type"
+              className={`${SELECT_CLASSNAME} max-w-36`}
+              value={restrictionMatchType}
+              onChange={(event) =>
+                setRestrictionMatchType(event.target.value as IDeckRulesetCardRestrictionMatchType)}
+            >
+              <option value="Card">{t('admin.rulesets.editor.matchTypeCard')}</option>
+              <option value="Set">{t('admin.rulesets.editor.matchTypeSet')}</option>
+            </select>
+
             <FormInput
-              data-testid="admin-ruleset-restriction-card-id"
-              value={restrictionCardId}
-              placeholder="N-001"
+              data-testid="admin-ruleset-restriction-code"
+              value={restrictionCode}
+              list="admin-ruleset-set-codes"
+              placeholder={restrictionMatchType === 'Set' ? 'SAMPLE' : 'SAMPLE-3'}
               className="max-w-48"
-              onChange={(event) => setRestrictionCardId(event.target.value)}
+              onChange={(event) => setRestrictionCode(event.target.value)}
             />
+
+            <datalist id="admin-ruleset-set-codes">
+              {setCodes.map((setCode) => (
+                <option key={setCode.code} value={setCode.code}>
+                  {`${setCode.code} (${setCode.cardCount})`}
+                </option>
+              ))}
+            </datalist>
+
             <AppButton
               type="button"
               variant="ghost"
               onClick={handleAddRestriction}
-              disabled={restrictionCardId.trim().length === 0}
+              disabled={restrictionCode.trim().length === 0}
               data-testid="admin-ruleset-restriction-add"
             >
               {t('admin.rulesets.editor.addRestriction')}
@@ -345,24 +408,48 @@ export function DeckRulesetEditorPane({
           ) : (
             <ul className="mt-2 space-y-1">
               {draft.restrictions.map((restriction) => {
-                const metadata = cardsById.get(normalizeDeckCardId(restriction.cardId)) ?? null
-                const displayName = metadata?.displayName ?? restriction.cardId
+                const isCardRule = restriction.matchType === 'Card'
+                const metadata = isCardRule
+                  ? cardsById.get(normalizeDeckCardId(restriction.code)) ?? null
+                  : null
+                const displayName = isCardRule
+                  ? metadata?.displayName
+                    ?? t('admin.rulesets.editor.restrictionUnknownCard', { code: restriction.code })
+                  : t('admin.rulesets.editor.setRuleName', { code: restriction.code })
+                const setCardCount = setCodes.find(
+                  (setCode) => setCode.code.trim().toUpperCase() === restriction.code.trim().toUpperCase(),
+                )?.cardCount
 
                 return (
                   <li
-                    key={restriction.cardId}
+                    key={`${restriction.matchType}:${restriction.code}`}
                     data-testid="admin-ruleset-restriction"
-                    data-card-id={restriction.cardId}
+                    data-match-type={restriction.matchType}
+                    data-code={restriction.code}
                     className="flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] px-2 py-1.5"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-1 text-sm text-[var(--text-primary)]">{displayName}</p>
-                      <p className="text-[10px] text-[var(--text-muted)]">{restriction.cardId}</p>
+                      <p className="text-[10px] text-[var(--text-muted)]">
+                        <span className="font-semibold uppercase tracking-[0.08em]">
+                          {isCardRule
+                            ? t('admin.rulesets.editor.matchTypeCard')
+                            : t('admin.rulesets.editor.matchTypeSet')}
+                        </span>
+                        {` · ${restriction.code}`}
+                        {isCardRule
+                          ? metadata
+                            ? null
+                            : ` · ${t('admin.rulesets.editor.restrictionUnknownCardHint')}`
+                          : setCardCount === undefined
+                            ? null
+                            : ` · ${t('admin.rulesets.editor.setRuleCardCount', { count: setCardCount })}`}
+                      </p>
                     </div>
 
                     <FormInput
                       data-testid="admin-ruleset-restriction-max"
-                      data-card-id={restriction.cardId}
+                      data-code={restriction.code}
                       type="number"
                       min={0}
                       max={99}
@@ -370,7 +457,8 @@ export function DeckRulesetEditorPane({
                       className="max-w-20 px-2 py-1 text-xs"
                       onChange={(event) =>
                         onUpdateRestrictionMaxCopies(
-                          restriction.cardId,
+                          restriction.matchType,
+                          restriction.code,
                           Number.parseInt(event.target.value, 10) || 0,
                         )}
                     />
@@ -378,7 +466,7 @@ export function DeckRulesetEditorPane({
                     <button
                       type="button"
                       data-testid="admin-ruleset-restriction-remove"
-                      onClick={() => onRemoveRestriction(restriction.cardId)}
+                      onClick={() => onRemoveRestriction(restriction.matchType, restriction.code)}
                       aria-label={translateKey(t, 'admin.rulesets.editor.removeRestriction', {
                         name: displayName,
                       })}

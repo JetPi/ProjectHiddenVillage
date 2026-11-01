@@ -17,6 +17,13 @@ public sealed class DeckRuleset
     /// </summary>
     public bool AvailableInQuickMatch { get; set; } = true;
 
+    /// <summary>
+    /// Whether the card rules below restrict an otherwise open pool or define a closed one. In a closed pool only
+    /// cards matched by an allowing rule may be played, which is what excludes a placeholder set without naming
+    /// every placeholder.
+    /// </summary>
+    public CardPoolMode CardPoolMode { get; set; } = CardPoolMode.Open;
+
     public int LeaderCount { get; set; } = 1;
 
     public int NonLeaderCardCount { get; set; }

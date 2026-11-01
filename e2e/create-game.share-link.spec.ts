@@ -20,6 +20,7 @@ const MOCKED_RULESET = {
   key: 'e2e-format',
   name: 'E2E Format',
   isActive: true,
+  cardPoolMode: 'Open',
   availableInQuickMatch: true,
   leaderCount: 1,
   nonLeaderCardCount: 2,

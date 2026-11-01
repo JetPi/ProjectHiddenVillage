@@ -6,24 +6,69 @@ namespace ProjectHiddenVillage.Server.Data.Configurations;
 
 public sealed class DeckRulesetCardRestrictionConfiguration : IEntityTypeConfiguration<DeckRulesetCardRestriction>
 {
+    /// <summary>Mirrors the <c>Code</c> column. A card code is the longest value a rule ever holds.</summary>
+    internal const int MaxCodeLength = 32;
+
+    // The Pre-Release allow list. Fixed ids so a fresh database and a migrated database agree; the format is
+    // seeded closed, so without them every deck would fail it.
+    private static readonly Guid PreReleaseSetNCardRuleId = Guid.Parse("30000000-0000-0000-0000-000000000001");
+    private static readonly Guid PreReleaseSetCCardRuleId = Guid.Parse("30000000-0000-0000-0000-000000000002");
+    private static readonly Guid PreReleaseSetCpCardRuleId = Guid.Parse("30000000-0000-0000-0000-000000000003");
+    private static readonly Guid PreReleaseSetSCardRuleId = Guid.Parse("30000000-0000-0000-0000-000000000004");
+
     public void Configure(EntityTypeBuilder<DeckRulesetCardRestriction> entity)
     {
         entity.ToTable("deck_ruleset_card_restrictions");
         entity.HasKey(record => record.Id);
 
+        entity.Property(record => record.Code)
+            .IsRequired()
+            .HasMaxLength(MaxCodeLength);
+
         entity.Property(record => record.MaxCopies)
             .IsRequired();
 
-        entity.HasOne(record => record.CardCatalogEntry)
-            .WithMany()
-            .HasForeignKey(record => record.CardCatalogEntryId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        entity.HasIndex(record => new { record.DeckRulesetId, record.CardCatalogEntryId })
+        // A rule names a code, not a catalogue row, so the matcher pair is the natural key. Two rules for the
+        // same (set, card) code would leave precedence undefined.
+        entity.HasIndex(record => new { record.DeckRulesetId, record.MatchType, record.Code })
             .IsUnique();
 
         entity.ToTable(table => table.HasCheckConstraint(
             "CK_deck_ruleset_card_restrictions_max_copies_non_negative",
             "\"MaxCopies\" >= 0"));
+
+        entity.HasData(
+            new DeckRulesetCardRestriction
+            {
+                Id = PreReleaseSetNCardRuleId,
+                DeckRulesetId = DeckRulesetConfiguration.PreReleaseRulesetId,
+                MatchType = CardRestrictionMatchType.Set,
+                Code = "N",
+                MaxCopies = 3,
+            },
+            new DeckRulesetCardRestriction
+            {
+                Id = PreReleaseSetCCardRuleId,
+                DeckRulesetId = DeckRulesetConfiguration.PreReleaseRulesetId,
+                MatchType = CardRestrictionMatchType.Set,
+                Code = "C",
+                MaxCopies = 3,
+            },
+            new DeckRulesetCardRestriction
+            {
+                Id = PreReleaseSetCpCardRuleId,
+                DeckRulesetId = DeckRulesetConfiguration.PreReleaseRulesetId,
+                MatchType = CardRestrictionMatchType.Set,
+                Code = "CP",
+                MaxCopies = 3,
+            },
+            new DeckRulesetCardRestriction
+            {
+                Id = PreReleaseSetSCardRuleId,
+                DeckRulesetId = DeckRulesetConfiguration.PreReleaseRulesetId,
+                MatchType = CardRestrictionMatchType.Set,
+                Code = "S",
+                MaxCopies = 3,
+            });
     }
 }

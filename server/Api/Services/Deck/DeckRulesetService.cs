@@ -20,7 +20,6 @@ public sealed class DeckRulesetService : IDeckRulesetService
         var query = dbContext.DeckRulesets
             .AsNoTracking()
             .Include(ruleset => ruleset.CardRestrictions)
-            .ThenInclude(restriction => restriction.CardCatalogEntry)
             .AsQueryable();
 
         if (!includeInactive)
@@ -41,7 +40,6 @@ public sealed class DeckRulesetService : IDeckRulesetService
         var ruleset = await dbContext.DeckRulesets
             .AsNoTracking()
             .Include(record => record.CardRestrictions)
-            .ThenInclude(restriction => restriction.CardCatalogEntry)
             .SingleOrDefaultAsync(record => record.Id == rulesetId);
 
         if (ruleset is null)
@@ -69,12 +67,8 @@ public sealed class DeckRulesetService : IDeckRulesetService
             RequireLeaderColorMatch: ruleset.RequireLeaderColorMatch,
             AllowChakraCards: ruleset.AllowChakraCards,
             AllowSummonCards: ruleset.AllowSummonCards,
-            MaxCopiesByCardId: ruleset.CardRestrictions
-                .GroupBy(restriction => restriction.CardCatalogEntry.CardId, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group.Last().MaxCopies,
-                    StringComparer.OrdinalIgnoreCase),
+            CardPoolMode: ruleset.CardPoolMode,
+            CardRules: ToCardRules(ruleset),
             Clock: ToClockPolicy(ruleset));
     }
 
@@ -109,12 +103,19 @@ public sealed class DeckRulesetService : IDeckRulesetService
             return restrictionResult.Errors;
         }
 
+        var cardPoolValidation = ValidateCardPool(request.CardPoolMode, restrictionResult.Value);
+        if (cardPoolValidation.IsError)
+        {
+            return cardPoolValidation.Errors;
+        }
+
         var now = DateTimeOffset.UtcNow;
         var ruleset = new DeckRuleset
         {
             Key = key,
             Name = request.Name.Trim(),
             IsActive = request.IsActive,
+            CardPoolMode = request.CardPoolMode,
             AvailableInQuickMatch = request.AvailableInQuickMatch,
             LeaderCount = request.LeaderCount,
             NonLeaderCardCount = request.NonLeaderCardCount,
@@ -200,8 +201,15 @@ public sealed class DeckRulesetService : IDeckRulesetService
             return restrictionResult.Errors;
         }
 
+        var cardPoolValidation = ValidateCardPool(request.CardPoolMode, restrictionResult.Value);
+        if (cardPoolValidation.IsError)
+        {
+            return cardPoolValidation.Errors;
+        }
+
         ruleset.Name = request.Name.Trim();
         ruleset.IsActive = request.IsActive;
+        ruleset.CardPoolMode = request.CardPoolMode;
         ruleset.AvailableInQuickMatch = request.AvailableInQuickMatch;
         ruleset.LeaderCount = request.LeaderCount;
         ruleset.NonLeaderCardCount = request.NonLeaderCardCount;
@@ -217,12 +225,14 @@ public sealed class DeckRulesetService : IDeckRulesetService
         ruleset.SortOrder = request.SortOrder;
         ruleset.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
-        var existingRestrictionsByCardId = ruleset.CardRestrictions
-            .ToDictionary(restriction => restriction.CardCatalogEntryId);
+        var existingRestrictionsByMatcher = ruleset.CardRestrictions
+            .ToDictionary(restriction => (restriction.MatchType, restriction.Code));
 
         foreach (var requestedRestriction in restrictionResult.Value)
         {
-            if (existingRestrictionsByCardId.Remove(requestedRestriction.CardCatalogEntryId, out var existingRestriction))
+            var matcher = (requestedRestriction.MatchType, requestedRestriction.Code);
+
+            if (existingRestrictionsByMatcher.Remove(matcher, out var existingRestriction))
             {
                 existingRestriction.MaxCopies = requestedRestriction.MaxCopies;
                 continue;
@@ -232,9 +242,9 @@ public sealed class DeckRulesetService : IDeckRulesetService
             dbContext.DeckRulesetCardRestrictions.Add(requestedRestriction);
         }
 
-        if (existingRestrictionsByCardId.Count > 0)
+        if (existingRestrictionsByMatcher.Count > 0)
         {
-            dbContext.DeckRulesetCardRestrictions.RemoveRange(existingRestrictionsByCardId.Values);
+            dbContext.DeckRulesetCardRestrictions.RemoveRange(existingRestrictionsByMatcher.Values);
         }
 
         try
@@ -305,12 +315,29 @@ public sealed class DeckRulesetService : IDeckRulesetService
         return true;
     }
 
+    public async Task<ErrorOr<List<DeckRulesetSetCodeResponse>>> GetCardPoolSetCodes()
+    {
+        // Grouped in memory: a set code is a segment of the card id, which SQL cannot group by without
+        // provider-specific string functions, and the catalogue is small enough that reading the ids is cheap.
+        var cardIds = await dbContext.CardCatalogEntries
+            .AsNoTracking()
+            .Select(entry => entry.CardId)
+            .ToListAsync();
+
+        return cardIds
+            .Where(cardId => !string.IsNullOrWhiteSpace(cardId))
+            .Select(DeckRulesetRules.GetSetCode)
+            .GroupBy(setCode => setCode, StringComparer.Ordinal)
+            .Select(group => new DeckRulesetSetCodeResponse(group.Key, group.Count()))
+            .OrderBy(setCode => setCode.Code, StringComparer.Ordinal)
+            .ToList();
+    }
+
     private async Task<ErrorOr<DeckRulesetResponse>> GetRulesetResponseAsync(Guid rulesetId)
     {
         var ruleset = await dbContext.DeckRulesets
             .AsNoTracking()
             .Include(record => record.CardRestrictions)
-            .ThenInclude(restriction => restriction.CardCatalogEntry)
             .SingleOrDefaultAsync(record => record.Id == rulesetId);
 
         if (ruleset is null)
@@ -327,11 +354,12 @@ public sealed class DeckRulesetService : IDeckRulesetService
         IReadOnlyList<DeckRulesetCardRestrictionRequest>? restrictions)
     {
         var requestedRestrictions = (restrictions ?? [])
-            .Where(restriction => !string.IsNullOrWhiteSpace(restriction.CardId))
+            .Where(restriction => !string.IsNullOrWhiteSpace(restriction.Code))
             .Select(restriction => new DeckRulesetCardRestrictionRequest(
-                restriction.CardId.Trim().ToUpperInvariant(),
+                restriction.MatchType,
+                restriction.Code.Trim().ToUpperInvariant(),
                 restriction.MaxCopies))
-            .GroupBy(restriction => restriction.CardId, StringComparer.Ordinal)
+            .GroupBy(restriction => (restriction.MatchType, restriction.Code))
             .Select(group => group.First())
             .ToList();
 
@@ -340,36 +368,41 @@ public sealed class DeckRulesetService : IDeckRulesetService
             return new List<DeckRulesetCardRestriction>();
         }
 
-        var requestedCardIds = requestedRestrictions
-            .Select(restriction => restriction.CardId)
+        // Only whole-card rules are checked against the catalogue, because a typo there would silently do
+        // nothing. A set rule may name a set nobody has published yet, which is exactly how a future placeholder
+        // series is kept out of a format before its cards exist.
+        var requestedCardCodes = requestedRestrictions
+            .Where(restriction => restriction.MatchType == CardRestrictionMatchType.Card)
+            .Select(restriction => restriction.Code)
             .ToHashSet(StringComparer.Ordinal);
 
-        var catalogEntryIdsByCardId = await dbContext.CardCatalogEntries
-            .AsNoTracking()
-            .Where(entry => requestedCardIds.Contains(entry.CardId.ToUpper()))
-            .Select(entry => new { entry.CardId, entry.Id })
-            .ToDictionaryAsync(
-                entry => entry.CardId.ToUpperInvariant(),
-                entry => entry.Id,
-                comparer: StringComparer.Ordinal);
+        var knownCardCodes = requestedCardCodes.Count == 0
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : (await dbContext.CardCatalogEntries
+                .AsNoTracking()
+                .Where(entry => requestedCardCodes.Contains(entry.CardId.ToUpper()))
+                .Select(entry => entry.CardId)
+                .ToListAsync())
+                .Select(cardId => cardId.Trim().ToUpperInvariant())
+                .ToHashSet(StringComparer.Ordinal);
 
-        var unknownCardIds = requestedRestrictions
-            .Select(restriction => restriction.CardId)
-            .Where(cardId => !catalogEntryIdsByCardId.ContainsKey(cardId))
-            .OrderBy(cardId => cardId, StringComparer.Ordinal)
+        var unknownCardCodes = requestedCardCodes
+            .Where(code => !knownCardCodes.Contains(code))
+            .OrderBy(code => code, StringComparer.Ordinal)
             .ToList();
 
-        if (unknownCardIds.Count > 0)
+        if (unknownCardCodes.Count > 0)
         {
             return Error.Validation(
                 code: "Deck.Rulesets.UnknownCards",
-                description: $"Unknown card id(s): {string.Join(", ", unknownCardIds)}.");
+                description: $"Unknown card code(s): {string.Join(", ", unknownCardCodes)}.");
         }
 
         return requestedRestrictions
             .Select(restriction => new DeckRulesetCardRestriction
             {
-                CardCatalogEntryId = catalogEntryIdsByCardId[restriction.CardId],
+                MatchType = restriction.MatchType,
+                Code = restriction.Code,
                 MaxCopies = restriction.MaxCopies,
             })
             .ToList();
@@ -382,6 +415,7 @@ public sealed class DeckRulesetService : IDeckRulesetService
             Key: ruleset.Key,
             Name: ruleset.Name,
             IsActive: ruleset.IsActive,
+            CardPoolMode: ruleset.CardPoolMode,
             LeaderCount: ruleset.LeaderCount,
             NonLeaderCardCount: ruleset.NonLeaderCardCount,
             MaxCopiesPerNonLeaderCard: ruleset.MaxCopiesPerNonLeaderCard,
@@ -390,9 +424,11 @@ public sealed class DeckRulesetService : IDeckRulesetService
             AllowSummonCards: ruleset.AllowSummonCards,
             SortOrder: ruleset.SortOrder,
             CardRestrictions: ruleset.CardRestrictions
-                .OrderBy(restriction => restriction.CardCatalogEntry.CardId, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(restriction => restriction.MatchType)
+                .ThenBy(restriction => restriction.Code, StringComparer.Ordinal)
                 .Select(restriction => new DeckRulesetCardRestrictionResponse(
-                    CardId: restriction.CardCatalogEntry.CardId,
+                    MatchType: restriction.MatchType,
+                    Code: restriction.Code,
                     MaxCopies: restriction.MaxCopies))
                 .ToList(),
             ClockEnabled: ruleset.ClockEnabled,
@@ -401,6 +437,37 @@ public sealed class DeckRulesetService : IDeckRulesetService
             PlayerPoolSeconds: ruleset.PlayerPoolSeconds,
             TimeoutsBeforeForfeit: ruleset.TimeoutsBeforeForfeit,
             AvailableInQuickMatch: ruleset.AvailableInQuickMatch);
+    }
+
+    /// <summary>Projects the stored rules into the shape evaluation reads, ordered for a stable payload.</summary>
+    private static List<DeckRulesetCardRule> ToCardRules(DeckRuleset ruleset)
+    {
+        return ruleset.CardRestrictions
+            .OrderBy(restriction => restriction.MatchType)
+            .ThenBy(restriction => restriction.Code, StringComparer.Ordinal)
+            .Select(restriction => new DeckRulesetCardRule(
+                restriction.MatchType,
+                restriction.Code.Trim().ToUpperInvariant(),
+                restriction.MaxCopies))
+            .ToList();
+    }
+
+    /// <summary>
+    /// A closed pool with no rule that allows anything would fail every deck, and it would look like a broken
+    /// format rather than a misconfigured one, so the empty case is refused at write time.
+    /// </summary>
+    private static ErrorOr<Success> ValidateCardPool(
+        CardPoolMode cardPoolMode,
+        IReadOnlyCollection<DeckRulesetCardRestriction> rules)
+    {
+        if (cardPoolMode != CardPoolMode.AllowList || rules.Any(rule => rule.MaxCopies > 0))
+        {
+            return Result.Success;
+        }
+
+        return Error.Validation(
+            code: "Deck.Rulesets.EmptyAllowList",
+            description: "An allow-list ruleset needs at least one rule that allows a card or a set.");
     }
 
     /// <summary>The persisted columns as the policy a created game snapshots.</summary>

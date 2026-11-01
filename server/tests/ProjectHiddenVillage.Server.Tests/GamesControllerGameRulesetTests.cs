@@ -325,6 +325,11 @@ public sealed class GamesControllerGameRulesetTests
             return Task.FromResult(definition);
         }
 
+        public Task<ErrorOr<List<DeckRulesetSetCodeResponse>>> GetCardPoolSetCodes()
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<ErrorOr<DeckRulesetResponse>> CreateRuleset(CreateDeckRulesetRequest request)
         {
             throw new NotImplementedException();

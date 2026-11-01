@@ -2,6 +2,7 @@ import { api } from '@/services/api/httpClient'
 import type {
   ICreateDeckRulesetRequest,
   IDeckRuleset,
+  IDeckRulesetSetCode,
   IUpdateDeckRulesetRequest,
 } from '@/types/deckRuleset'
 
@@ -36,4 +37,13 @@ export async function updateDeckRuleset(
 
 export async function deleteDeckRuleset(rulesetId: string): Promise<void> {
   await api.delete(`/api/deck-rulesets/${encodeURIComponent(rulesetId)}`)
+}
+
+/**
+ * The set codes the catalogue holds, with card counts. Admin-only, because it exists to feed the rule editor with
+ * real set codes instead of making the admin guess them.
+ */
+export async function fetchDeckRulesetSetCodes(): Promise<IDeckRulesetSetCode[]> {
+  const { data } = await api.get<IDeckRulesetSetCode[]>('/api/deck-rulesets/card-pool/set-codes')
+  return data
 }

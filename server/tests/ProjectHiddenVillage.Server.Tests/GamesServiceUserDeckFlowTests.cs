@@ -493,6 +493,7 @@ public sealed class GamesServiceUserDeckFlowTests
             Key: "standard",
             Name: "Standard",
             IsActive: true,
+            CardPoolMode: CardPoolMode.Open,
             LeaderCount: 1,
             NonLeaderCardCount: 2,
             MaxCopiesPerNonLeaderCard: 4,

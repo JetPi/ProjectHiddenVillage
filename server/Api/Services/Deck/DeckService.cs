@@ -1220,7 +1220,6 @@ public sealed partial class DeckService : IDeckService
             .AsNoTracking()
             .Where(ruleset => ruleset.IsActive)
             .Include(ruleset => ruleset.CardRestrictions)
-            .ThenInclude(restriction => restriction.CardCatalogEntry)
             .OrderBy(ruleset => ruleset.SortOrder)
             .ThenBy(ruleset => ruleset.Name)
             .ToListAsync();
@@ -1237,10 +1236,15 @@ public sealed partial class DeckService : IDeckService
                 RequireLeaderColorMatch: ruleset.RequireLeaderColorMatch,
                 AllowChakraCards: ruleset.AllowChakraCards,
                 AllowSummonCards: ruleset.AllowSummonCards,
-                MaxCopiesByCardId: ruleset.CardRestrictions.ToDictionary(
-                    restriction => restriction.CardCatalogEntry.CardId.Trim().ToUpperInvariant(),
-                    restriction => restriction.MaxCopies,
-                    comparer: StringComparer.Ordinal),
+                CardPoolMode: ruleset.CardPoolMode,
+                CardRules: ruleset.CardRestrictions
+                    .OrderBy(restriction => restriction.MatchType)
+                    .ThenBy(restriction => restriction.Code, StringComparer.Ordinal)
+                    .Select(restriction => new DeckRulesetCardRule(
+                        restriction.MatchType,
+                        restriction.Code.Trim().ToUpperInvariant(),
+                        restriction.MaxCopies))
+                    .ToList(),
                 // Deck validation never reads the clock, but the definition is the single shape a ruleset is
                 // projected into, so it carries the policy rather than leaving an implicit untimed default.
                 Clock: GameClockPolicy.FromSeconds(

@@ -12,6 +12,12 @@ public interface IDeckRulesetService
     /// </summary>
     Task<ErrorOr<DeckRulesetDefinition>> GetActiveRulesetDefinition(Guid rulesetId);
 
+    /// <summary>
+    /// Every set code the catalogue currently contains, with how many cards carry it. The admin rule editor uses
+    /// it so rules name real sets instead of codes the admin has to guess.
+    /// </summary>
+    Task<ErrorOr<List<DeckRulesetSetCodeResponse>>> GetCardPoolSetCodes();
+
     Task<ErrorOr<DeckRulesetResponse>> CreateRuleset(CreateDeckRulesetRequest request);
 
     Task<ErrorOr<DeckRulesetResponse>> UpdateRuleset(string rulesetId, UpdateDeckRulesetRequest request);

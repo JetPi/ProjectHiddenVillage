@@ -44,24 +44,54 @@ public sealed class DeckRulesetRequestValidatorTests
     public void Validate_RejectsARestrictionAboveTheAllowedMaximum()
     {
         var result = new CreateDeckRulesetRequestValidator().Validate(CreateRequest(
-            restrictions: [new DeckRulesetCardRestrictionRequest("C-001", 100)]));
+            restrictions:
+            [
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Card, "C-001", 100),
+            ]));
 
         Assert.IsFalse(result.IsValid);
         Assert.IsTrue(result.Errors.Any(error => error.PropertyName.Contains("MaxCopies")));
     }
 
     [TestMethod]
-    public void Validate_RejectsDuplicateRestrictionCardIds()
+    public void Validate_RejectsDuplicateRuleMatchers()
     {
         var result = new CreateDeckRulesetRequestValidator().Validate(CreateRequest(
             restrictions:
             [
-                new DeckRulesetCardRestrictionRequest("C-001", 0),
-                new DeckRulesetCardRestrictionRequest("c-001", 2),
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Card, "C-001", 0),
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Card, "c-001", 2),
             ]));
 
         Assert.IsFalse(result.IsValid);
         Assert.IsTrue(result.Errors.Any(error => error.PropertyName == nameof(CreateDeckRulesetRequest.CardRestrictions)));
+    }
+
+    [TestMethod]
+    public void Validate_AcceptsTheSameCodeAsBothACardRuleAndASetRule()
+    {
+        // A card code and a set code are separate match spaces, so "SAMPLE" can legitimately mean both.
+        var result = new CreateDeckRulesetRequestValidator().Validate(CreateRequest(
+            restrictions:
+            [
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Set, "SAMPLE", 0),
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Card, "SAMPLE-1", 1),
+            ]));
+
+        Assert.IsTrue(result.IsValid, result.ToString());
+    }
+
+    [TestMethod]
+    public void Validate_RejectsASetRuleThatContainsADash()
+    {
+        var result = new CreateDeckRulesetRequestValidator().Validate(CreateRequest(
+            restrictions:
+            [
+                new DeckRulesetCardRestrictionRequest(CardRestrictionMatchType.Set, "SAMPLE-1", 0),
+            ]));
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.ErrorMessage.Contains("before the first dash")));
     }
 
     [TestMethod]
@@ -70,6 +100,7 @@ public sealed class DeckRulesetRequestValidatorTests
         var result = new UpdateDeckRulesetRequestValidator().Validate(new UpdateDeckRulesetRequest(
             Name: "Standard",
             IsActive: true,
+            CardPoolMode: CardPoolMode.Open,
             LeaderCount: 1,
             NonLeaderCardCount: 50,
             MaxCopiesPerNonLeaderCard: 4,
@@ -110,12 +141,14 @@ public sealed class DeckRulesetRequestValidatorTests
         string key = "standard",
         int leaderCount = 1,
         int nonLeaderCardCount = 50,
-        IReadOnlyList<DeckRulesetCardRestrictionRequest>? restrictions = null)
+        IReadOnlyList<DeckRulesetCardRestrictionRequest>? restrictions = null,
+        CardPoolMode cardPoolMode = CardPoolMode.Open)
     {
         return new CreateDeckRulesetRequest(
             Key: key,
             Name: "Standard",
             IsActive: true,
+            CardPoolMode: cardPoolMode,
             LeaderCount: leaderCount,
             NonLeaderCardCount: nonLeaderCardCount,
             MaxCopiesPerNonLeaderCard: 4,

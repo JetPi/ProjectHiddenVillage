@@ -8,6 +8,7 @@ public sealed class DeckRulesetConfiguration : IEntityTypeConfiguration<DeckRule
 {
     internal static readonly Guid StandardRulesetId = Guid.Parse("20000000-0000-0000-0000-000000000001");
     internal static readonly Guid PreReleaseRulesetId = Guid.Parse("20000000-0000-0000-0000-000000000002");
+    internal static readonly Guid UnrestrictedRulesetId = Guid.Parse("20000000-0000-0000-0000-000000000003");
 
     private static readonly DateTimeOffset SeedTimestamp = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
@@ -55,6 +56,7 @@ public sealed class DeckRulesetConfiguration : IEntityTypeConfiguration<DeckRule
                 Key = "standard",
                 Name = "Standard",
                 IsActive = true,
+                CardPoolMode = CardPoolMode.Open,
                 LeaderCount = 1,
                 NonLeaderCardCount = 50,
                 MaxCopiesPerNonLeaderCard = 4,
@@ -76,6 +78,10 @@ public sealed class DeckRulesetConfiguration : IEntityTypeConfiguration<DeckRule
                 Key = "pre-release",
                 Name = "Pre-Release",
                 IsActive = true,
+                // Closed pool: only the revealed sets are playable, so a SAMPLE placeholder stays out of the
+                // format even when new placeholders are added to the catalogue. The allow rules live in
+                // DeckRulesetCardRestrictionConfiguration.
+                CardPoolMode = CardPoolMode.AllowList,
                 LeaderCount = 1,
                 NonLeaderCardCount = 30,
                 MaxCopiesPerNonLeaderCard = 3,
@@ -88,6 +94,32 @@ public sealed class DeckRulesetConfiguration : IEntityTypeConfiguration<DeckRule
                 PlayerPoolSeconds = 1800,
                 TimeoutsBeforeForfeit = 3,
                 SortOrder = 1,
+                CreatedAtUtc = SeedTimestamp,
+                UpdatedAtUtc = SeedTimestamp,
+            },
+            // The everything-goes format: same structural limits as Standard, an open pool with no rules, and
+            // Chakra and Summon cards allowed. Host-only, because placeholder cards would otherwise reach the
+            // matchmaker.
+            new DeckRuleset
+            {
+                Id = UnrestrictedRulesetId,
+                Key = "unrestricted",
+                Name = "Unrestricted",
+                IsActive = true,
+                CardPoolMode = CardPoolMode.Open,
+                AvailableInQuickMatch = false,
+                LeaderCount = 1,
+                NonLeaderCardCount = 50,
+                MaxCopiesPerNonLeaderCard = 4,
+                RequireLeaderColorMatch = true,
+                AllowChakraCards = true,
+                AllowSummonCards = true,
+                ClockEnabled = true,
+                MainPhaseSeconds = 60,
+                OtherPhaseSeconds = 30,
+                PlayerPoolSeconds = 1800,
+                TimeoutsBeforeForfeit = 3,
+                SortOrder = 2,
                 CreatedAtUtc = SeedTimestamp,
                 UpdatedAtUtc = SeedTimestamp,
             });

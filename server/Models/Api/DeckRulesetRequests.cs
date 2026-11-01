@@ -1,12 +1,23 @@
 namespace ProjectHiddenVillage.Server;
 
-public sealed record DeckRulesetCardRestrictionResponse(string CardId, int MaxCopies);
+/// <summary>
+/// One card-pool rule as the API exposes it. The matcher is a code, not a catalogue id, so a rule can name a set
+/// and can outlive a catalogue edit.
+/// </summary>
+public sealed record DeckRulesetCardRestrictionResponse(
+    CardRestrictionMatchType MatchType,
+    string Code,
+    int MaxCopies);
+
+/// <summary>A set code present in the catalogue, with how many cards carry it. Feeds the rule editor.</summary>
+public sealed record DeckRulesetSetCodeResponse(string Code, int CardCount);
 
 public sealed record DeckRulesetResponse(
     Guid Id,
     string Key,
     string Name,
     bool IsActive,
+    CardPoolMode CardPoolMode,
     int LeaderCount,
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,
@@ -42,12 +53,20 @@ public interface IDeckRulesetClockRequest
     int TimeoutsBeforeForfeit { get; }
 }
 
-public sealed record DeckRulesetCardRestrictionRequest(string CardId, int MaxCopies);
+/// <summary>
+/// A rule the admin screen submits: either a whole card code (<c>SAMPLE-3</c>) or a set code (<c>SAMPLE</c>),
+/// plus the copy cap where zero bans the matched cards.
+/// </summary>
+public sealed record DeckRulesetCardRestrictionRequest(
+    CardRestrictionMatchType MatchType,
+    string Code,
+    int MaxCopies);
 
 public sealed record CreateDeckRulesetRequest(
     string Key,
     string Name,
     bool IsActive,
+    CardPoolMode CardPoolMode,
     int LeaderCount,
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,
@@ -66,6 +85,7 @@ public sealed record CreateDeckRulesetRequest(
 public sealed record UpdateDeckRulesetRequest(
     string Name,
     bool IsActive,
+    CardPoolMode CardPoolMode,
     int LeaderCount,
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,

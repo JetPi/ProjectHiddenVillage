@@ -44,6 +44,26 @@ public sealed class DeckRulesetController : ApiControllerBase
         return Ok(result.Value);
     }
 
+    /// <summary>
+    /// The set codes the catalogue holds, with card counts, so the rule editor can offer them as suggestions
+    /// rather than expecting the admin to know every prefix.
+    /// </summary>
+    [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
+    [HttpGet("card-pool/set-codes")]
+    [ProducesResponseType(typeof(List<DeckRulesetSetCodeResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<List<DeckRulesetSetCodeResponse>>> GetCardPoolSetCodes()
+    {
+        var result = await deckRulesetService.GetCardPoolSetCodes();
+        if (result.IsError)
+        {
+            return ProblemFromErrors<List<DeckRulesetSetCodeResponse>>(result.Errors);
+        }
+
+        return Ok(result.Value);
+    }
+
     [Authorize(Policy = AuthorizationPolicies.CardCatalogAdmin)]
     [HttpPost]
     [ProducesResponseType(typeof(DeckRulesetResponse), StatusCodes.Status201Created)]

@@ -31,6 +31,7 @@ export type IDeckRuleViolationCode =
   | 'tooManyCopies'
   | 'bannedCard'
   | 'limitedCard'
+  | 'notInCardPool'
   | 'colorMismatch'
 
 export type IDeckRuleViolation = {

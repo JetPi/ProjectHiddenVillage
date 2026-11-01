@@ -6,6 +6,7 @@ import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/app
 import { normalizeDeckCardId } from '@/domain/deck/parseDeckList'
 import type { IDeckCardMetadata } from '@/domain/deck/types'
 import { useCardCatalogByIdsQuery } from '@/services/queries/cardQueries'
+import { useDeckRulesetSetCodesQuery } from '@/services/queries/deckRulesetQueries'
 import { DeckRulesetEditorPane, DeckRulesetListRail } from '@/views/admin/components'
 import { useDeckRulesetAdminModel } from '@/views/admin/model/useDeckRulesetAdminModel'
 import { getApiErrorMessage } from '@/views/utils/getApiErrorMessage'
@@ -16,15 +17,19 @@ export function DeckRulesetAdminView() {
   const { t } = useTranslation()
   const model = useDeckRulesetAdminModel()
 
+  // Only whole-card rules name a catalogue entry, so only they are worth resolving for display. Set rules cover
+  // every card that carries the code, including placeholder cards nobody has opened yet.
   const restrictionCardIds = useMemo(
     () =>
       model.draft.restrictions
-        .map((restriction) => restriction.cardId.trim())
+        .filter((restriction) => restriction.matchType === 'Card')
+        .map((restriction) => restriction.code.trim())
         .filter((cardId) => cardId.length > 0),
     [model.draft.restrictions],
   )
 
   const restrictionCardsQuery = useCardCatalogByIdsQuery(restrictionCardIds)
+  const setCodesQuery = useDeckRulesetSetCodesQuery()
 
   const cardsById = useMemo(() => {
     const byId = new Map<string, IDeckCardMetadata>()
@@ -114,6 +119,7 @@ export function DeckRulesetAdminView() {
                 draft={model.draft}
                 violations={model.violations}
                 cardsById={cardsById}
+                setCodes={setCodesQuery.data ?? []}
                 canSave={model.canSave}
                 isDirty={model.isDirty}
                 isSaving={model.isSaving}

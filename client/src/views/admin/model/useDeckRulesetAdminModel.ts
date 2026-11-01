@@ -8,6 +8,7 @@ import {
 import type {
   ICreateDeckRulesetRequest,
   IDeckRuleset,
+  IDeckRulesetCardRestrictionMatchType,
   IUpdateDeckRulesetRequest,
 } from '@/types/deckRuleset'
 import type {
@@ -21,11 +22,15 @@ const MAX_DECK_CARD_COUNT = 200
 const MAX_COPIES_PER_CARD = 99
 const MAX_RESTRICTION_COPIES = 99
 const MAX_TIMEOUTS_BEFORE_FORFEIT = 10
+/** Mirrors the `Code` column of a card rule. */
+const MAX_RESTRICTION_CODE_LENGTH = 32
+const RESTRICTION_CODE_PATTERN = /^[A-Z0-9]+(?:-[A-Z0-9]+)*$/
 
 const EMPTY_DRAFT: IDeckRulesetDraft = {
   key: '',
   name: '',
   isActive: true,
+  cardPoolMode: 'Open',
   // A new format joins the quick-match queue unless the admin deliberately marks it host-only.
   availableInQuickMatch: true,
   leaderCount: 1,
@@ -48,6 +53,7 @@ function toDraft(ruleset: IDeckRuleset): IDeckRulesetDraft {
     key: ruleset.key,
     name: ruleset.name,
     isActive: ruleset.isActive,
+    cardPoolMode: ruleset.cardPoolMode,
     availableInQuickMatch: ruleset.availableInQuickMatch,
     leaderCount: ruleset.leaderCount,
     nonLeaderCardCount: ruleset.nonLeaderCardCount,
@@ -72,10 +78,12 @@ function buildDraftSignature(draft: IDeckRulesetDraft): string {
     name: draft.name.trim(),
     restrictions: [...draft.restrictions]
       .map((restriction) => ({
-        cardId: restriction.cardId.trim().toLowerCase(),
+        matchType: restriction.matchType,
+        code: restriction.code.trim().toUpperCase(),
         maxCopies: restriction.maxCopies,
       }))
-      .sort((left, right) => left.cardId.localeCompare(right.cardId)),
+      .sort((left, right) =>
+        `${left.matchType}:${left.code}`.localeCompare(`${right.matchType}:${right.code}`)),
   })
 }
 
@@ -84,6 +92,7 @@ function toCreatePayload(draft: IDeckRulesetDraft): ICreateDeckRulesetRequest {
     key: draft.key.trim().toLowerCase(),
     name: draft.name.trim(),
     isActive: draft.isActive,
+    cardPoolMode: draft.cardPoolMode,
     availableInQuickMatch: draft.availableInQuickMatch,
     leaderCount: draft.leaderCount,
     nonLeaderCardCount: draft.nonLeaderCardCount,
@@ -98,7 +107,8 @@ function toCreatePayload(draft: IDeckRulesetDraft): ICreateDeckRulesetRequest {
     playerPoolSeconds: draft.playerPoolSeconds,
     timeoutsBeforeForfeit: draft.timeoutsBeforeForfeit,
     cardRestrictions: draft.restrictions.map((restriction) => ({
-      cardId: restriction.cardId.trim(),
+      matchType: restriction.matchType,
+      code: restriction.code.trim().toUpperCase(),
       maxCopies: restriction.maxCopies,
     })),
   }
@@ -108,6 +118,7 @@ function toUpdatePayload(draft: IDeckRulesetDraft): IUpdateDeckRulesetRequest {
   return {
     name: draft.name.trim(),
     isActive: draft.isActive,
+    cardPoolMode: draft.cardPoolMode,
     availableInQuickMatch: draft.availableInQuickMatch,
     leaderCount: draft.leaderCount,
     nonLeaderCardCount: draft.nonLeaderCardCount,
@@ -122,7 +133,8 @@ function toUpdatePayload(draft: IDeckRulesetDraft): IUpdateDeckRulesetRequest {
     playerPoolSeconds: draft.playerPoolSeconds,
     timeoutsBeforeForfeit: draft.timeoutsBeforeForfeit,
     cardRestrictions: draft.restrictions.map((restriction) => ({
-      cardId: restriction.cardId.trim(),
+      matchType: restriction.matchType,
+      code: restriction.code.trim().toUpperCase(),
       maxCopies: restriction.maxCopies,
     })),
   }
@@ -209,20 +221,41 @@ function buildViolations(
     })
   }
 
-  const seenCardIds = new Set<string>()
-  for (const restriction of draft.restrictions) {
-    const cardId = restriction.cardId.trim().toLowerCase()
+  // A closed pool with no allowing rule would fail every deck, so it is refused before it is saved rather than
+  // looking like a broken format afterwards.
+  if (draft.cardPoolMode === 'AllowList' && !draft.restrictions.some((restriction) => restriction.maxCopies > 0)) {
+    violations.push({ messageKey: 'admin.rulesets.validation.allowListEmpty' })
+  }
 
-    if (cardId.length === 0) {
+  const seenMatchers = new Set<string>()
+  for (const restriction of draft.restrictions) {
+    const code = restriction.code.trim().toUpperCase()
+
+    if (code.length === 0) {
       continue
     }
 
-    if (seenCardIds.has(cardId)) {
+    if (code.length > MAX_RESTRICTION_CODE_LENGTH || !RESTRICTION_CODE_PATTERN.test(code)) {
+      violations.push({
+        messageKey: 'admin.rulesets.validation.restrictionCodeFormat',
+        params: { max: MAX_RESTRICTION_CODE_LENGTH },
+      })
+      break
+    }
+
+    // A set is the segment before the first dash, so a dash inside a set rule would match nothing.
+    if (restriction.matchType === 'Set' && code.includes('-')) {
+      violations.push({ messageKey: 'admin.rulesets.validation.restrictionSetCodeHasDash' })
+      break
+    }
+
+    const matcherKey = `${restriction.matchType}:${code}`
+    if (seenMatchers.has(matcherKey)) {
       violations.push({ messageKey: 'admin.rulesets.validation.restrictionDuplicates' })
       break
     }
 
-    seenCardIds.add(cardId)
+    seenMatchers.add(matcherKey)
 
     if (
       !Number.isInteger(restriction.maxCopies)
@@ -280,36 +313,58 @@ export function useDeckRulesetAdminModel() {
     setEditedDraft({ ...draft, ...patch })
   }
 
-  const addRestriction = (cardId: string) => {
-    const trimmedCardId = cardId.trim()
-    if (!trimmedCardId) {
+  const addRestriction = (
+    matchType: IDeckRulesetCardRestrictionMatchType,
+    code: string,
+    maxCopies?: number,
+  ) => {
+    const normalizedCode = code.trim().toUpperCase()
+    if (!normalizedCode) {
       return
     }
 
     const alreadyPresent = draft.restrictions.some(
-      (restriction) => restriction.cardId.trim().toLowerCase() === trimmedCardId.toLowerCase(),
+      (restriction) =>
+        restriction.matchType === matchType
+        && restriction.code.trim().toUpperCase() === normalizedCode,
     )
 
     if (alreadyPresent) {
       return
     }
 
+    // A new rule in an open pool is a ban until the admin raises it; in a closed pool it has to allow something or
+    // it would be a rule that removes cards from a pool it is already not in.
+    const defaultMaxCopies = maxCopies
+      ?? (draft.cardPoolMode === 'AllowList' ? draft.maxCopiesPerNonLeaderCard : 0)
+
     patchDraft({
-      restrictions: [...draft.restrictions, { cardId: trimmedCardId, maxCopies: 0 }],
+      restrictions: [
+        ...draft.restrictions,
+        { matchType, code: normalizedCode, maxCopies: defaultMaxCopies },
+      ],
     })
   }
 
-  const updateRestrictionMaxCopies = (cardId: string, maxCopies: number) => {
+  const updateRestrictionMaxCopies = (
+    matchType: IDeckRulesetCardRestrictionMatchType,
+    code: string,
+    maxCopies: number,
+  ) => {
     patchDraft({
       restrictions: draft.restrictions.map((restriction) =>
-        restriction.cardId === cardId ? { ...restriction, maxCopies } : restriction,
+        restriction.matchType === matchType && restriction.code === code
+          ? { ...restriction, maxCopies }
+          : restriction,
       ),
     })
   }
 
-  const removeRestriction = (cardId: string) => {
+  const removeRestriction = (matchType: IDeckRulesetCardRestrictionMatchType, code: string) => {
     patchDraft({
-      restrictions: draft.restrictions.filter((restriction) => restriction.cardId !== cardId),
+      restrictions: draft.restrictions.filter(
+        (restriction) => !(restriction.matchType === matchType && restriction.code === code),
+      ),
     })
   }
 
