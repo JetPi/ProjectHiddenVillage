@@ -4,8 +4,12 @@ namespace ProjectHiddenVillage.Server;
 /// One card-pool rule as the API exposes it. The matcher is a code, not a catalogue id, so a rule can name a set
 /// and can outlive a catalogue edit.
 /// </summary>
+/// <summary>
+/// One rule as the client reads it. `MatchType` is a name, not the enum: the API serialises enums as numbers, and
+/// the client compares this field against `"Card"` and `"Set"`.
+/// </summary>
 public sealed record DeckRulesetCardRestrictionResponse(
-    CardRestrictionMatchType MatchType,
+    string MatchType,
     string Code,
     int MaxCopies);
 
@@ -17,7 +21,8 @@ public sealed record DeckRulesetResponse(
     string Key,
     string Name,
     bool IsActive,
-    CardPoolMode CardPoolMode,
+    // A name, not the enum: see DeckRulesetCardRestrictionResponse.
+    string CardPoolMode,
     int LeaderCount,
     int NonLeaderCardCount,
     int MaxCopiesPerNonLeaderCard,

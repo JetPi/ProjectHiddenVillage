@@ -182,6 +182,13 @@ enforced here as well as in the service.
   rows rather than checkboxes - the same control, and the same visible switch surface, the rest of the admin uses.
   The four timing budgets render only while the clock toggle is on, since a format with no clock has no budgets to
   show.
+- **`cardPoolMode` and `matchType` travel as names, not enums.** The API's
+  [`FlexibleEnumJsonConverterFactory`](../server/Api/Serialization/FlexibleEnumJsonConverterFactory.cs:101) writes
+  enums as numbers, so a response DTO that exposed them as enums made the admin read `1` where it compared against
+  `"AllowList"`: the select fell back to its first option and the saved mode looked like it had reverted to Open.
+  Both response records now carry strings and
+  [`DeckRulesetResponseSerializationTests`](../server/tests/ProjectHiddenVillage.Server.Tests/DeckRulesetResponseSerializationTests.cs:16)
+  pins the JSON so the mocks cannot hide it again.
 
 ## As implemented
 

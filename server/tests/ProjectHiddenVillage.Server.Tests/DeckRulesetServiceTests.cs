@@ -384,7 +384,7 @@ public sealed class DeckRulesetServiceTests
 
         Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
         var rule = result.Value.CardRestrictions.Single();
-        Assert.AreEqual(CardRestrictionMatchType.Set, rule.MatchType);
+        Assert.AreEqual("Set", rule.MatchType, "the response carries the name the client compares against");
         Assert.AreEqual("SAMPLE", rule.Code);
     }
 

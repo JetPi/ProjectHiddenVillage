@@ -477,7 +477,9 @@ public sealed class DeckRulesetService : IDeckRulesetService
             Key: ruleset.Key,
             Name: ruleset.Name,
             IsActive: ruleset.IsActive,
-            CardPoolMode: ruleset.CardPoolMode,
+            // Names, not the enums: this API writes enums as numbers, and the admin compares these against
+            // "Open"/"AllowList" and "Card"/"Set".
+            CardPoolMode: ruleset.CardPoolMode.ToString(),
             LeaderCount: ruleset.LeaderCount,
             NonLeaderCardCount: ruleset.NonLeaderCardCount,
             MaxCopiesPerNonLeaderCard: ruleset.MaxCopiesPerNonLeaderCard,
@@ -487,7 +489,7 @@ public sealed class DeckRulesetService : IDeckRulesetService
                 .OrderBy(restriction => restriction.MatchType)
                 .ThenBy(restriction => restriction.Code, StringComparer.Ordinal)
                 .Select(restriction => new DeckRulesetCardRestrictionResponse(
-                    MatchType: restriction.MatchType,
+                    MatchType: restriction.MatchType.ToString(),
                     Code: restriction.Code,
                     MaxCopies: restriction.MaxCopies))
                 .ToList(),
