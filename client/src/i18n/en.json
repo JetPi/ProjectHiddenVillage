@@ -454,6 +454,10 @@
       "reviewBoard": "Review board",
       "returnToMainPage": "Return to main page"
     },
+    "presence": {
+      "present": "Your opponent is on this board.",
+      "away": "Your opponent is not on this board."
+    },
     "rematch": {
       "offer": "Rematch",
       "accept": "Accept rematch",

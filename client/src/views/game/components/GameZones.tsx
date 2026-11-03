@@ -4,6 +4,7 @@ import { twMerge } from 'tailwind-merge'
 import { CardListOverlay, LeaderCard } from '@/components/ui/cards'
 import { PlayBottomResourceZone, PlayPileZone, PlayTopResourceZone } from '@/components/ui/game'
 import { GamePhaseActionRow } from './GamePhaseActionRow'
+import { OpponentPresenceIndicator } from './OpponentPresenceIndicator'
 import type { IAttackLinkRenderConfig, IGameZonesProps  } from '@/views/game/types'
 import {
   buildCardListEntries,
@@ -36,6 +37,8 @@ type OpenTrashPileSide = 'top' | 'bottom'
 function GameZones(props: IGameZonesProps) {
   const { t } = useTranslation()
   const { topLeaderCard, bottomLeaderCard } = props.derivedGameState
+  // Presence is a statement about the other seat, so a table with only one seat has nothing to report.
+  const hasOpponent = Boolean(props.derivedGameState.opponentPlayer)
   const [openTrashPile, setOpenTrashPile] = useState<OpenTrashPileSide | null>(null)
   const pendingCardTargeting = useGameUIStore((state) => state.pendingCardTargeting)
   const pendingSummonTargeting = useGameUIStore((state) => state.pendingSummonTargeting)
@@ -310,7 +313,15 @@ function GameZones(props: IGameZonesProps) {
             />
           </div>
 
-          <div className="flex min-h-0 w-full justify-end pr-3">
+          <div className="relative flex min-h-0 w-full justify-end pr-3">
+            {/* The dot reports on the other seat, so it only exists once there is one: a lone host waiting for a join
+                has nobody to be absent. */}
+            {hasOpponent ? (
+              <OpponentPresenceIndicator
+                isPresent={props.isOpponentPresent ?? true}
+                className="absolute right-0 top-0 z-[250]"
+              />
+            ) : null}
             <div
               className={twMerge(
                 props.topLeaderCardFrameClassName,

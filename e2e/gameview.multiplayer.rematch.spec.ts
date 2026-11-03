@@ -29,8 +29,6 @@ type GameStateWithRematch = Awaited<ReturnType<typeof fetchGameState>> & {
   pendingRematch?: PendingRematch | null
 }
 
-/** The grace a release waits out, plus one sweeper tick - the window before a departure is applied server side. */
-const RELEASE_WINDOW_MS = 35_000
 
 /**
  * A rematch is agreed on the finished board and then claimed from the login view, which is where each player picks
@@ -98,14 +96,16 @@ test.describe('GameView multiplayer rematch', () => {
       // happens immediately - that is the window a refresh lives in.
       await loserPage.goto('/sign-in')
 
-      // The winner comes back to the tab after the grace and the sweep: the banner is cleared by the probe rather
-      // than by a timer, which is the whole no-polling rule.
-      await winnerPage.waitForTimeout(RELEASE_WINDOW_MS)
-      await winnerPage.evaluate(() => {
-        window.dispatchEvent(new Event('focus'))
-      })
+      // The winner comes back to the tab: the probe is what clears the banner, never a timer on the client. The
+      // server applies the release on its own sweep, and the keepalive request an unloading page sends can land well
+      // after the navigation, so the return is repeated until it has rather than fired at one fixed instant.
+      await expect.poll(async () => {
+        await winnerPage.evaluate(() => {
+          window.dispatchEvent(new Event('focus'))
+        })
 
-      await expect(winnerPage.getByTestId('login-rematch-banner')).toHaveCount(0, { timeout: 30_000 })
+        return await winnerPage.getByTestId('login-rematch-banner').count()
+      }, { timeout: 90_000, intervals: [5_000] }).toBe(0)
 
       // And the code is no longer reserved for anybody: the reservation was dropped, not merely hidden.
       const probe = await request.get(`${API_BASE_URL}/api/games/${reservedCode}/ruleset`)

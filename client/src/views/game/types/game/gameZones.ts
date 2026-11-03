@@ -34,6 +34,12 @@ export type IGameZonesProps = {
   authUserId?: string
   availableActions: IGameActionOptionResponse[]
   isConnected: boolean
+  /**
+   * Whether the other seat is on this board right now, drawn as the status dot on the opponent's side. Optional and
+   * defaulting to present: an unobserved seat is not an absent one, and callers that do not track presence should not
+   * paint a red dot.
+   */
+  isOpponentPresent?: boolean
   isActionPending: boolean
   isActionBlocked: boolean
   isPresentationPending: boolean

@@ -95,9 +95,13 @@ the other seat in that case is the player who offered.
 
 ## Client
 
-- [`useRematchOpponentPresence`](../client/src/views/game/hooks/GameView/memos/useRematchOpponentPresence.ts:1) turns
-  the published countdown into a boolean: present while the value is `null`, absent immediately when it is `0`, and
-  otherwise present until the countdown runs out - one local timer, no polling.
+- [`useOpponentPresence`](../client/src/views/game/hooks/GameView/memos/useOpponentPresence.ts:1) turns the published
+  countdown into a boolean: present while the value is `null`, absent immediately when it is `0`, and otherwise
+  present until the countdown runs out - one local timer, no polling.
+- [`OpponentPresenceIndicator`](../client/src/views/game/components/OpponentPresenceIndicator.tsx:1) is the board's
+  own read of the same answer: a dot on the opponent's side, green while they are watching and red once they are gone,
+  with the wording only on `aria-label` / `title`. It is not drawn on a table that has only one seat, because there is
+  nobody to report on.
 - [`GameOverOverlay`](../client/src/views/game/components/GameOverOverlay.tsx:22) grays out `Rematch` and
   `Accept rematch` while the opponent is away, and shows `game.rematch.opponentAway` under the offer notes. `Decline`,
   `Withdraw request`, the corner dismiss and `Return to main page` stay live.
@@ -116,6 +120,8 @@ the other seat in that case is the player who offered.
 - e2e (`gameview.multiplayer.rematch.spec.ts`): the loser walks off the finished board, the offer grays out and names
   the reason once the grace has passed, a hub-issued offer is refused with the error code, and the control comes back
   when the loser rejoins the board.
+- e2e (`gameview.multiplayer.presence.spec.ts`): the board's dot is green on both sides while both are watching, turns
+  red on the remaining board once the other player leaves, and green again when they come back.
 
 ## Configuration
 

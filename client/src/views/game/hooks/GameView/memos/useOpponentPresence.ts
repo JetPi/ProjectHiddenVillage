@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 
 /**
- * Whether the other seat still counts as present for the rematch handshake.
+ * Whether the other seat is on this board right now.
  *
- * The server is the authority: `null` means the opponent is watching this board right now - or that presence is not
- * observed at all, which is treated the same way - and a number is how much of the grace that keeps a refresh from
- * looking like a departure is left. The countdown itself is local and re-syncs on the next state read, exactly like
- * the action clock's deadline, so the finished board grays the offer out without polling anything.
+ * The server is the authority: `null` means the opponent is watching - or that presence is not observed at all, which
+ * is treated the same way - and a number is how much of the grace that keeps a refresh from looking like a departure
+ * is left. The countdown itself is local and re-syncs on the next state read, exactly like the action clock's
+ * deadline, so both the board's status dot and the rematch offer follow it without polling anything.
  */
-function useRematchOpponentPresence(secondsRemaining: number | null | undefined): boolean {
+function useOpponentPresence(secondsRemaining: number | null | undefined): boolean {
   const seconds = secondsRemaining ?? null
   // What ran out, not a plain boolean: a later state read carries a different remainder, so the countdown restarts
   // on its own without the effect having to reset anything.
@@ -35,4 +35,4 @@ function useRematchOpponentPresence(secondsRemaining: number | null | undefined)
   return seconds > 0 && expiredSeconds !== seconds
 }
 
-export { useRematchOpponentPresence }
+export { useOpponentPresence }
