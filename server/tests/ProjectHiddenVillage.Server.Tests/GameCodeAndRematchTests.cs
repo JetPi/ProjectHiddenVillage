@@ -124,6 +124,55 @@ public sealed class GameCodeLifecycleTests
     }
 
     [TestMethod]
+    public void RetiringAnUnstartedTable_FreesItsCode_AndLeavesNothingToJoin()
+    {
+        var allocator = new GameCodeAllocator(quarantineCapacity: 0);
+        var registry = CreateRegistry(allocator);
+
+        var game = registry.Create(
+            [new Player { Id = "p1", Deck = ["card-1"] }],
+            BuildDefinitions(),
+            preferredGameCode: "ABCDE");
+
+        Assert.IsTrue(registry.TryRetireUnstarted(game.Id));
+        Assert.IsFalse(registry.TryGet("ABCDE", out _));
+        Assert.IsFalse(allocator.IsClaimed("ABCDE"));
+
+        // A join that arrives after the creator backed out finds no table at all; it must never seat a player at the
+        // retired instance, where nobody would ever see them.
+        Assert.ThrowsException<KeyNotFoundException>(() =>
+            registry.Join("ABCDE", new Player { Id = "p2", Deck = ["card-1"] }));
+
+        // Undoing twice - a second click, or the sweep looking at the same table again - is not an error.
+        Assert.IsFalse(registry.TryRetireUnstarted("ABCDE"));
+
+        var reopened = registry.Create(
+            [new Player { Id = "p3", Deck = ["card-1"] }],
+            BuildDefinitions(),
+            preferredGameCode: "ABCDE");
+
+        Assert.AreEqual("ABCDE", reopened.Id);
+    }
+
+    [TestMethod]
+    public void RetiringAnUnstartedTable_LeavesATableThatAlreadyHasTwoPlayersAlone()
+    {
+        var allocator = new GameCodeAllocator(quarantineCapacity: 0);
+        var registry = CreateRegistry(allocator);
+
+        var game = registry.Create(
+            [new Player { Id = "p1", Deck = ["card-1"] }],
+            BuildDefinitions(),
+            preferredGameCode: "ABCDE");
+
+        registry.Join(game.Id, new Player { Id = "p2", Deck = ["card-1"] });
+
+        Assert.IsFalse(registry.TryRetireUnstarted(game.Id), "A table with an opponent is a game, not an undo.");
+        Assert.IsTrue(registry.TryGet("ABCDE", out _));
+        Assert.IsTrue(allocator.IsClaimed("ABCDE"), "The code of a live table must stay claimed.");
+    }
+
+    [TestMethod]
     public void CreateWithReservedCode_RefusesACodeNoReservationHolds()
     {
         var allocator = new GameCodeAllocator();

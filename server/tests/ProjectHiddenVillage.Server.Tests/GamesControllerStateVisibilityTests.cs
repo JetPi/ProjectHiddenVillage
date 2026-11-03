@@ -349,6 +349,11 @@ public sealed class GamesControllerStateVisibilityTests
         {
             throw new NotImplementedException();
         }
+
+        public Task<ErrorOr<Success>> CancelUnstartedGameForUser(string gameCode, string requestingPlayerId)
+        {
+            throw new NotImplementedException();
+        }
     }
 
 }

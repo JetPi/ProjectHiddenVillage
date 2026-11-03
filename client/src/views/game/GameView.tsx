@@ -1,14 +1,17 @@
 import { ArrowLeft, X } from 'lucide-react'
 import { MotionConfig } from 'motion/react'
 import { useGameCardsQuery } from '@/services/queries/cardQueries'
+import { cancelUnstartedGame } from '@/services/api/gameApi'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLoaderData, useNavigate } from 'react-router-dom'
 import { PageShell } from '@/components/layout/PageShell'
+import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { Panel } from '@/components/ui'
 import { useAuthSessionStore } from '@/state/authSession'
 import { storePendingRematch } from '@/state/pendingRematch'
 import { useThemeStore } from '@/state/themeStore'
+import { isApiConflictError } from '@/views/utils/getApiErrorMessage'
 import {
   buildLeaderCardFrameClass,
   extractTargetIds,
@@ -300,6 +303,28 @@ export function GameView() {
     await resolvePromptAction({ ...gameActionDeps, selectedOption })
   }
 
+  /**
+   * Closing a table nobody has joined retires it: the code stops being joinable and goes back to the allocator, and
+   * the host returns to the login view with their deck and format still chosen. A 409 is the interesting answer -
+   * an opponent took the seat while the host was deciding - so the table is a game now and the board stays.
+   */
+  async function closeUnstartedTable(): Promise<boolean> {
+    try {
+      await cancelUnstartedGame(joinCode)
+      showAppSuccessToast(t('game.closeTable.closed'))
+      void navigate('/')
+      return true
+    } catch (error) {
+      if (isApiConflictError(error)) {
+        showAppInfoToast(t('game.closeTable.seatTaken'))
+        return false
+      }
+
+      showAppInfoToast(t('game.closeTable.failed'))
+      return false
+    }
+  }
+
   return (
     <PageShell
       compact
@@ -387,6 +412,7 @@ export function GameView() {
               onConfirmEffectTargetSelection={submitEffectTargetSelection}
               onToggleTheme={toggleTheme}
               onForfeit={forfeitGame}
+              onCloseTable={closeUnstartedTable}
               onRequestRedo={requestRedo}
             />
 

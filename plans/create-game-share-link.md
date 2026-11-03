@@ -52,8 +52,8 @@ moment to hand it to an opponent - the creator has already sat down and the boar
   textarea + `execCommand` so the buttons keep working on plain-http deployments and in browsers that refuse the
   modern API.
 - Navigation happens from the dialog's `Enter Game`, which is the same hand-off create always used
-  (`setSession` → `navigate(toGameRoutePath(gameId))`). Deliberately no dismiss button: the game exists, and the
-  creator's only way back into it is the code they are being shown.
+  (`setSession` → `navigate(toGameRoutePath(gameId))`). The other exit is `Close table`, and it is an undo rather
+  than a dismissal: the table is retired and its code released (see `plans/host-cancel-undo.md`).
 
 ### 4. The creator is handed over when an opponent sits down
 
@@ -71,14 +71,18 @@ moment to hand it to an opponent - the creator has already sat down and the boar
 - Polling keeps running in a background tab (`refetchIntervalInBackground: true`): the creator waiting for a friend
   is exactly the person whose tab is elsewhere.
 - If the check itself can no longer succeed (the game is gone, or the creator is no longer a player of it), the
-  dialog replaces the wait with a failure note and a `Back` action instead of waiting forever.
+  dialog replaces the wait with a failure note instead of waiting forever. Closing the table is offered throughout,
+  so that case no longer needs a button of its own.
 
 ## Deliberate limits
 
 - The dialog is not persisted. A reload before confirming loses the code from the screen (the game itself is
-  in-memory and would be stranded anyway); the invite link is still on the clipboard if it was copied.
+  in-memory, so the retirement sweep collects it; `Close table` retires it immediately); the invite link is still on
+  the clipboard if it was copied.
 - Hand-over latency is bounded by the poll interval (2s), which reads as immediate to a human. The creator can
   always press `Enter Game` instead of waiting.
+- Closing a table is refused once an opponent is seated: from then on the table is a game, and leaving it is a
+  resignation rather than an undo. The creator is handed over instead.
 
 ## Coverage
 

@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
+import { X } from 'lucide-react'
 import { AppButton, Panel } from '@/components/ui'
-import { FormInput } from '@/components/forms'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
-import { hasSecondPlayer, useGameOpponentJoinedQuery } from '@/services/queries/gameStateQueries'
+import { cancelUnstartedGame } from '@/services/api/gameApi'
+import {
+  gameStateQueryKeys,
+  hasSecondPlayer,
+  useGameOpponentJoinedQuery,
+} from '@/services/queries/gameStateQueries'
+import { isApiConflictError } from '@/views/utils/getApiErrorMessage'
 import { copyTextToClipboard } from '@/views/utils/clipboard'
 import { buildGameInviteLink } from '@/views/login/utils/gameInviteLink'
 
@@ -13,8 +20,8 @@ export type ICreateGameShareDialogProps = {
   /** The host-only rules this table was opened with, already worded - empty for a plain table. */
   modifierLabels?: string[]
   onEnterGame: () => void
-  /** Leaves the created game behind - only offered when the wait can no longer be trusted. */
-  onLeave: () => void
+  /** The creator backed out: the table is gone, or on its way out, so return to the hosting form. */
+  onCancel: () => void
 }
 
 type TCopyTarget = 'code' | 'link'
@@ -22,20 +29,26 @@ type TCopyTarget = 'code' | 'link'
 /**
  * The creator's only chance to hand out the code before sitting down: the game already exists and is joinable, so
  * the code and the link are real. The dialog is the last step of create mode - `Enter Game` is what actually
- * navigates - which is why it never dismisses itself.
+ * navigates - which is why it never dismisses itself on a stray click.
  *
  * It also watches the table: the moment a second player sits down the creator is handed over, so inviting somebody
  * does not leave them parked on this screen while the game starts without them.
+ *
+ * Backing out is an undo, not just a dismissal. The table was minted for this dialog, so cancelling retires it and
+ * gives its code back; if an opponent took the seat while the creator was deciding, the server refuses and the
+ * creator is handed over instead of losing a game that now has somebody in it.
  */
 export function CreateGameShareDialog({
   gameId,
   rulesetName,
   modifierLabels = [],
   onEnterGame,
-  onLeave,
+  onCancel,
 }: ICreateGameShareDialogProps) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const [copiedTarget, setCopiedTarget] = useState<TCopyTarget | null>(null)
+  const [isCancelling, setIsCancelling] = useState(false)
   const hasEnteredRef = useRef(false)
   const inviteLink = buildGameInviteLink(gameId)
 
@@ -46,14 +59,24 @@ export function CreateGameShareDialog({
   const isWatchingGame = !opponentJoinedQuery.isError
 
   useEffect(() => {
-    if (!hasOpponent || hasEnteredRef.current) {
+    // A seat that appears while the creator is closing the table is the server's answer to report (409), not a
+    // reason to navigate out from under the request: doing both would hide the table that just became real.
+    if (!hasOpponent || hasEnteredRef.current || isCancelling) {
       return
     }
 
     // The poll can report the same second player on the next tick as well, and the creator must only be moved once.
     hasEnteredRef.current = true
     onEnterGame()
-  }, [hasOpponent, onEnterGame])
+  }, [hasOpponent, isCancelling, onEnterGame])
+
+  const forgetCachedTable = () => {
+    // The table is gone, so nothing may keep answering for its code. Deferred until after the dialog has left the
+    // tree: removing an entry the poll is still observing would only have the poll recreate it.
+    window.setTimeout(() => {
+      queryClient.removeQueries({ queryKey: gameStateQueryKeys.byCode(gameId) })
+    }, 0)
+  }
 
   const handleCopy = async (target: TCopyTarget) => {
     const value = target === 'link' ? inviteLink : gameId
@@ -71,6 +94,37 @@ export function CreateGameShareDialog({
     )
   }
 
+  const handleCancel = async () => {
+    if (isCancelling) {
+      return
+    }
+
+    setIsCancelling(true)
+
+    try {
+      await cancelUnstartedGame(gameId)
+      showAppSuccessToast(t('auth.createGame.tableClosed'))
+      onCancel()
+      forgetCachedTable()
+    } catch (error) {
+      if (isApiConflictError(error)) {
+        // Somebody sat down first: the table is a game now, so the creator is handed over to it rather than kept
+        // out of it. The poll is also running, and this is the same hand-off it would have made.
+        showAppInfoToast(t('auth.createGame.seatTaken'))
+        hasEnteredRef.current = true
+        onEnterGame()
+        return
+      }
+
+      // The host asked to leave and has to be able to: the table is at worst left to the retirement sweep, which is
+      // exactly what would have happened had the dialog never existed. The 404 case never reaches here - the API
+      // call resolves it as "already undone".
+      showAppInfoToast(t('auth.createGame.cancelFailed'))
+      onCancel()
+      forgetCachedTable()
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
@@ -78,10 +132,28 @@ export function CreateGameShareDialog({
       aria-modal="true"
       aria-labelledby="create-game-share-title"
     >
-      <Panel className="w-full max-w-md p-5 text-center">
+      <Panel className="relative w-full max-w-md p-5 text-center">
+        {/* Backing out is a corner action, not one of the three things the dialog exists to offer: it stays small and
+            out of the row, so it cannot be mistaken for the way forward. */}
+        <AppButton
+          type="button"
+          variant="ghost"
+          onClick={() => void handleCancel()}
+          disabled={isCancelling}
+          data-testid="create-game-back"
+          aria-label={
+            isCancelling
+              ? t('auth.createGame.cancelling')
+              : t('auth.createGame.cancelTable')
+          }
+          title={t('auth.createGame.cancelTable')}
+          className="absolute right-1.5 top-1.5 h-7 w-7 min-w-0 rounded-md px-0 py-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+        >
+          {isCancelling ? <span className="text-[10px] leading-none">…</span> : <X size={16} />}
+        </AppButton>
         <h2
           id="create-game-share-title"
-          className="text-lg font-semibold text-[var(--text-primary)]"
+          className="px-6 text-lg font-semibold text-[var(--text-primary)]"
         >
           {t('auth.createGame.title', { ruleset: rulesetName })}
         </h2>
@@ -104,21 +176,6 @@ export function CreateGameShareDialog({
           {gameId}
         </p>
 
-        <label
-          htmlFor="create-game-invite-link"
-          className="mt-4 block text-[11px] font-normal uppercase leading-none tracking-[0.08em] text-[var(--text-muted)]"
-        >
-          {t('auth.createGame.linkLabel')}
-        </label>
-        <FormInput
-          id="create-game-invite-link"
-          data-testid="create-game-link"
-          value={inviteLink}
-          readOnly
-          onFocus={(event) => event.currentTarget.select()}
-          className="mt-1 py-1.5 text-xs"
-        />
-
         <p
           data-testid="create-game-waiting"
           className={`mt-3 text-xs ${
@@ -137,6 +194,7 @@ export function CreateGameShareDialog({
             type="button"
             variant="ghost"
             onClick={() => void handleCopy('code')}
+            disabled={isCancelling}
             data-testid="create-game-copy-code"
           >
             {copiedTarget === 'code'
@@ -147,6 +205,7 @@ export function CreateGameShareDialog({
             type="button"
             variant="ghost"
             onClick={() => void handleCopy('link')}
+            disabled={isCancelling}
             data-testid="create-game-copy-link"
           >
             {copiedTarget === 'link'
@@ -156,20 +215,12 @@ export function CreateGameShareDialog({
           <AppButton
             type="button"
             onClick={onEnterGame}
+            disabled={isCancelling}
             data-testid="create-game-enter"
           >
             {t('auth.createGame.enter')}
           </AppButton>
-          {!isWatchingGame ? (
-            <AppButton
-              type="button"
-              variant="ghost"
-              onClick={onLeave}
-              data-testid="create-game-back"
-            >
-              {t('auth.createGame.back')}
-            </AppButton>
-          ) : null}
+         
         </div>
       </Panel>
     </div>

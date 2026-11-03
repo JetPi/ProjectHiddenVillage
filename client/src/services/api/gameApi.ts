@@ -62,6 +62,32 @@ export async function createGameForUser(request: ICreateGameForUserRequest): Pro
   }
 }
 
+/**
+ * Undoes the creation of a hosted table: the server retires the one-seat table and hands its code back to the
+ * allocator, instead of leaving a joinable table nobody is hosting until the retirement sweep notices.
+ *
+ * A 404 is the outcome the caller wants anyway - the table was already retired, or the caller is no longer seated in
+ * it - so it resolves. A 409 is the opposite: an opponent took the second seat while the creator was backing out, so
+ * the table is a game now and the caller has to hand them over to the board rather than close anything.
+ */
+export async function cancelUnstartedGame(gameCode: string): Promise<void> {
+  const code = gameCode.trim()
+
+  if (!code) {
+    return
+  }
+
+  try {
+    await api.delete(`/api/games/${encodeURIComponent(code)}`)
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return
+    }
+
+    throw error
+  }
+}
+
 export async function joinGameAsPlayer(
   gameCode: string,
   request: IJoinGameAsPlayerRequest,

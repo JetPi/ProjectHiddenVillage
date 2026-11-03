@@ -191,6 +191,74 @@ public sealed class GameInstanceService(
         }
     }
 
+    public Task<ErrorOr<Success>> CancelUnstartedGameForUser(string gameCode, string requestingPlayerId)
+    {
+        return Task.FromResult(CancelUnstartedGame(gameCode, requestingPlayerId));
+    }
+
+    /// <summary>
+    /// Undoes the creation of a hosted table. The creator mints a real, joinable table so the code can be shared, and
+    /// backing out of that screen must take the table with it: retiring it releases the code immediately instead of
+    /// leaving a joinable table nobody is hosting until the retirement sweep gets round to it. Only a seated player
+    /// may ask, and only while the table has one seat - once an opponent sits down, leaving is a resignation, not an
+    /// undo, and the answer says so.
+    ///
+    /// Synchronous inside: the registry does the seat check and the removal under one lock, so there is nothing to
+    /// await between deciding and retiring.
+    /// </summary>
+    private ErrorOr<Success> CancelUnstartedGame(string gameCode, string requestingPlayerId)
+    {
+        if (string.IsNullOrWhiteSpace(gameCode))
+        {
+            return Error.Validation(code: "Game.Cancel.MissingCode", description: "Game code is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(requestingPlayerId))
+        {
+            return Error.Unauthorized(code: "Game.Cancel.Unauthorized", description: "A player id is required.");
+        }
+
+        var normalizedGameCode = gameCode.Trim();
+
+        if (!registry.TryGet(normalizedGameCode, out var game) || game is null)
+        {
+            return Error.NotFound(
+                code: "Game.Cancel.NotFound",
+                description: $"Game instance '{normalizedGameCode}' was not found.");
+        }
+
+        if (!game.State.Players.Any(player =>
+                string.Equals(player.PlayerId, requestingPlayerId, StringComparison.Ordinal)))
+        {
+            return Error.Forbidden(
+                code: "Game.Cancel.Forbidden",
+                description: "Only a player of this table can cancel it.");
+        }
+
+        if (registry.TryRetireUnstarted(normalizedGameCode))
+        {
+            return Result.Success;
+        }
+
+        // The table refused to retire: either an opponent took the second seat between the read above and the
+        // removal, or it left the registry some other way. Answer which one, so the client knows whether to hand the
+        // host over to the board they were about to abandon.
+        if (!registry.TryGet(normalizedGameCode, out var current) || current is null)
+        {
+            return Error.NotFound(
+                code: "Game.Cancel.NotFound",
+                description: $"Game instance '{normalizedGameCode}' was not found.");
+        }
+
+        return current.State.Players.Count >= 2
+            ? Error.Conflict(
+                code: "Game.Cancel.SeatTaken",
+                description: "An opponent has taken the second seat, so this table can no longer be cancelled.")
+            : Error.Conflict(
+                code: "Game.Cancel.NotCancellable",
+                description: "This table could not be closed. Try again in a moment.");
+    }
+
     /// <summary>
     /// Seats a player in a table that was reserved by a rematch agreement. The first claim opens the table under the
     /// reserved code, inheriting the previous match's ruleset binding, clock policy and modifiers; the second claim

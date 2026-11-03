@@ -405,6 +405,9 @@ public sealed class GamesHubNormalizationTests
         public Task<ErrorOr<GameInstance>> JoinGameForUser(string gameCode, JoinGameAsPlayer request)
             => JoinHandler?.Invoke(gameCode, request)
                ?? throw new InvalidOperationException("JoinHandler not configured.");
+
+        public Task<ErrorOr<Success>> CancelUnstartedGameForUser(string gameCode, string requestingPlayerId)
+            => throw new NotImplementedException();
     }
 
     private sealed class StubGameRedoHandlingService : IGameRedoHandlingService

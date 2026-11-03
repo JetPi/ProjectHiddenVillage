@@ -17,7 +17,6 @@ import {
   AdaptiveFormField,
   Form,
   FormActions,
-  FormCheckboxField,
   FormErrorText,
   FormField,
   FormLabel,
@@ -25,6 +24,7 @@ import {
   OptionToggle,
 } from '@/components/forms'
 import type { IAdaptiveFieldConfig, ISelectChoice } from '@/components/forms'
+import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { Lightbulb, LogIn, Pencil, X } from 'lucide-react'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { clearAuthSession, useAuthSessionStore, type IAuthSession } from '@/state/authSession'
@@ -209,8 +209,8 @@ export function LoginView() {
   const [savedDeckCardsByDeckId, setSavedDeckCardsByDeckId] = useState<Record<string, IDeckCardInput[]>>({})
   const [starterDeckCardsByDeckId, setStarterDeckCardsByDeckId] = useState<Record<string, IDeckCardInput[]>>({})
   const [activeTicket, setActiveTicket] = useState<IMatchTicket | null>(() => readStoredMatchTicket())
-  // A created game exists on the server the moment `Enter Game` runs, so its code is held here while the creator
-  // copies it. The board is only opened once they confirm.
+  // A created game exists on the server the moment `Host` runs, so its code is held here while the creator copies
+  // it. The board is only opened once they confirm, and backing out retires the table through the dialog.
   // A rematch the two players already agreed on: the reserved table code is waiting for this view to claim it, and
   // the deck chosen here is the one brought to the next match.
   const [pendingRematch, setPendingRematch] = useState(() => readPendingRematch())
@@ -1232,6 +1232,15 @@ export function LoginView() {
     navigate(toGameRoutePath(gameId))
   }
 
+  /**
+   * The creator backed out. The dialog has already retired the table (or found it gone, or been handed over because
+   * an opponent sat down), so this only closes the dialog: every selection on the form is still there, which makes
+   * hosting again - possibly under another format or deck - one click away.
+   */
+  const handleCancelCreatedGame = () => {
+    setCreatedGameShare(null)
+  }
+
   const startQuickmatch = async (identity: IAuthSession, deckId: string, ruleset: IDeckRuleset) => {
     try {
       const ticket = await enqueueMatchMutation.mutateAsync({
@@ -1718,13 +1727,15 @@ export function LoginView() {
                     {/* Host-only: an invite table may run without the action clock. Quick match never offers it.
                         It sits under the button so the format select and the Host button stay level with the code
                         field and Join on the other half of the tab. */}
-                    <FormCheckboxField
-                      id="hostTimeRelaxed"
-                      data-testid="host-time-relaxed"
-                      label={t('auth.hostTimeRelaxed')}
-                      checked={hostTimeRelaxed}
-                      onChange={(event) => setHostTimeRelaxed(event.target.checked)}
-                    />
+                    <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+                      <CardAdminToggleSwitch
+                        checked={hostTimeRelaxed}
+                        onChange={setHostTimeRelaxed}
+                        ariaLabel={t('auth.hostTimeRelaxed')}
+                        dataTestId="host-time-relaxed"
+                      />
+                      <span>{t('auth.hostTimeRelaxed')}</span>
+                    </label>
                   </div>
                 </div>
               )}
@@ -1955,7 +1966,7 @@ export function LoginView() {
           rulesetName={createdGameShare.rulesetName}
           modifierLabels={createdGameShare.modifierLabels}
           onEnterGame={handleEnterCreatedGame}
-          onLeave={() => setCreatedGameShare(null)}
+          onCancel={handleCancelCreatedGame}
         />
       ) : null}
 

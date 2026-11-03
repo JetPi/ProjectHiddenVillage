@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Flag, Lightbulb, MessageSquare, RotateCcw, ScrollText, X } from "lucide-react";
+import { Flag, Lightbulb, LogOut, MessageSquare, RotateCcw, ScrollText, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { IGameZonesProps } from "@/views/game/types";
 import { AppButton } from "@/components/ui";
 import { useGameChatStore } from "@/state/gameChatStore";
 import { useGameUIStore } from "@/state/gameUIStore";
 import { useHasRoomForChatColumn } from "@/views/game/hooks";
+import { CloseTableConfirmDialog } from './CloseTableConfirmDialog'
 import { ForfeitConfirmDialog } from './ForfeitConfirmDialog'
 
 // Tooltips are rendered outside the sidebar's own column, straight over the board, so they need both an opaque
@@ -28,11 +29,16 @@ export function SideBarButtons(props: IGameZonesProps){
     const hasRoomForChat = useHasRoomForChatColumn()
     const [isForfeitDialogOpen, setIsForfeitDialogOpen] = useState(false)
     const [isForfeiting, setIsForfeiting] = useState(false)
+    const [isCloseTableDialogOpen, setIsCloseTableDialogOpen] = useState(false)
+    const [isClosingTable, setIsClosingTable] = useState(false)
 
     const frozenClassName = props.isPresentationPending ? ' pointer-events-none' : ''
    
     const rulesetName = props.gameState.ruleset?.name ?? null
     const isGameOver = Boolean(props.gameState.gameOutcome)
+    // A table that has not reached two players has no game to resign yet: the only thing to do there is close it,
+    // which retires the table and stops its code from being joinable.
+    const isWaitingForPlayers = !isGameOver && props.gameState.players.length < 2
     const isRedoPending = Boolean(props.gameState.pendingRedo)
     // The button is only offered while asking would actually go somewhere: the engine decides when a rewind point
     // exists, and a request cannot be raised mid-transition or while one is already waiting.
@@ -47,6 +53,17 @@ export function SideBarButtons(props: IGameZonesProps){
       // The result overlay takes over on success, so the dialog must not linger behind it.
       if (didForfeit) {
         setIsForfeitDialogOpen(false)
+      }
+    }
+
+    const confirmCloseTable = async () => {
+      setIsClosingTable(true)
+      const didClose = await props.onCloseTable()
+      setIsClosingTable(false)
+
+      // Success navigates back to the login view, taking this dialog with it.
+      if (didClose) {
+        setIsCloseTableDialogOpen(false)
       }
     }
 
@@ -90,7 +107,25 @@ export function SideBarButtons(props: IGameZonesProps){
           </span>
         </div>
 
-        {isGameOver ? null : (
+        {isGameOver ? null : isWaitingForPlayers ? (
+          <div className="group relative">
+            {/* Nothing has been played yet, so the exit is "close the table" rather than a resignation: retiring it
+                is what stops the code from being joinable and gives it back to the allocator. */}
+            <AppButton
+              type="button"
+              variant="ghost"
+              data-testid="close-table-button"
+              aria-label={t('game.sidebar.closeTableAria')}
+              onClick={() => setIsCloseTableDialogOpen(true)}
+              className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+            >
+              <LogOut size={10} />
+            </AppButton>
+            <span className={SIDEBAR_TOOLTIP_CLASS_NAME}>
+              {t('game.sidebar.closeTableTooltip')}
+            </span>
+          </div>
+        ) : (
           <div className="group relative">
             <AppButton
               type="button"
@@ -222,6 +257,16 @@ export function SideBarButtons(props: IGameZonesProps){
           onCancel={() => setIsForfeitDialogOpen(false)}
           onConfirm={() => {
             void confirmForfeit()
+          }}
+        />
+      ) : null}
+
+      {isCloseTableDialogOpen ? (
+        <CloseTableConfirmDialog
+          isSubmitting={isClosingTable}
+          onCancel={() => setIsCloseTableDialogOpen(false)}
+          onConfirm={() => {
+            void confirmCloseTable()
           }}
         />
       ) : null}
