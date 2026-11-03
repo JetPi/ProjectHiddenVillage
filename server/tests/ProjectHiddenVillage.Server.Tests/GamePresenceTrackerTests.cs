@@ -82,4 +82,69 @@ public sealed class GamePresenceTrackerTests
 
         Assert.AreEqual(0, tracker.GetConnectedPlayerIds("game-1").Count);
     }
+
+    [TestMethod]
+    public void GetPresenceDeadline_IsSilentWhileThePlayerIsWatching()
+    {
+        var time = new GameCodeLifecycleTests.MutableTimeProvider(DateTimeOffset.UnixEpoch);
+        var timedTracker = new GamePresenceTracker(time);
+
+        timedTracker.RegisterConnection("game-1", "player-a", "connection-1");
+
+        Assert.IsNull(
+            timedTracker.GetPresenceDeadline("game-1", "player-a", TimeSpan.FromSeconds(5)),
+            "A connected player has no departure to count from.");
+    }
+
+    [TestMethod]
+    public void GetPresenceDeadline_StartsAtTheDepartureOfTheLastConnection()
+    {
+        var time = new GameCodeLifecycleTests.MutableTimeProvider(DateTimeOffset.UnixEpoch);
+        var timedTracker = new GamePresenceTracker(time);
+
+        timedTracker.RegisterConnection("game-1", "player-a", "connection-1");
+        timedTracker.RegisterConnection("game-1", "player-a", "connection-2");
+
+        time.Advance(TimeSpan.FromSeconds(10));
+        timedTracker.RemoveConnection("connection-1");
+
+        Assert.IsNull(
+            timedTracker.GetPresenceDeadline("game-1", "player-a", TimeSpan.FromSeconds(5)),
+            "A second tab is still watching, so nothing has departed yet.");
+
+        time.Advance(TimeSpan.FromSeconds(10));
+        timedTracker.RemoveConnection("connection-2");
+
+        Assert.AreEqual(
+            DateTimeOffset.UnixEpoch.AddSeconds(25),
+            timedTracker.GetPresenceDeadline("game-1", "player-a", TimeSpan.FromSeconds(5)));
+    }
+
+    [TestMethod]
+    public void GetPresenceDeadline_ForgetsTheDepartureWhenThePlayerIsBack()
+    {
+        var time = new GameCodeLifecycleTests.MutableTimeProvider(DateTimeOffset.UnixEpoch);
+        var timedTracker = new GamePresenceTracker(time);
+
+        timedTracker.RegisterConnection("game-1", "player-a", "connection-1");
+        timedTracker.RemoveConnection("connection-1");
+
+        Assert.IsNotNull(timedTracker.GetPresenceDeadline("game-1", "player-a", TimeSpan.FromSeconds(5)));
+
+        timedTracker.RegisterConnection("game-1", "player-a", "connection-2");
+
+        Assert.IsNull(
+            timedTracker.GetPresenceDeadline("game-1", "player-a", TimeSpan.FromSeconds(5)),
+            "Watching again is proof the player never really left.");
+    }
+
+    [TestMethod]
+    public void GetPresenceDeadline_AnswersNothingForAPlayerItNeverSaw()
+    {
+        Assert.IsNull(
+            tracker.GetPresenceDeadline("game-1", "player-a", TimeSpan.FromSeconds(5)),
+            "An unobserved seat is not an empty one: the board must not gray out over it.");
+        Assert.IsNull(tracker.GetPresenceDeadline("   ", "player-a", TimeSpan.FromSeconds(5)));
+        Assert.IsNull(tracker.GetPresenceDeadline("game-1", "   ", TimeSpan.FromSeconds(5)));
+    }
 }

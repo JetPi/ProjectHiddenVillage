@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
+using ProjectHiddenVillage.Server.Api.Services.Rematch;
 using System.Security.Claims;
 
 namespace ProjectHiddenVillage.Server.Tests;
@@ -71,6 +72,52 @@ public sealed class GamesControllerStateVisibilityTests
         Assert.AreEqual(1, opponent.HandCount);
         Assert.AreEqual("concealed-card", opponent.Hand[0].CardDefinitionId);
         Assert.AreEqual(1, opponent.CharacterField.Count);
+    }
+
+    [TestMethod]
+    public void GetCurrentGameState_PublishesTheRemainingPresenceGrace()
+    {
+        var requesterId = Guid.NewGuid();
+        var requesterPlayerId = requesterId.ToString("N");
+        var opponentPlayerId = Guid.NewGuid().ToString("N");
+
+        var gameState = new GameState
+        {
+            GameId = "ABCDE",
+            CardDefinitions = BuildCardDefinitions(),
+            Players =
+            [
+                new PlayerState
+                {
+                    PlayerId = requesterPlayerId,
+                    LeaderCardInstance = CreateLeader(requesterPlayerId)
+                },
+                new PlayerState
+                {
+                    PlayerId = opponentPlayerId,
+                    LeaderCardInstance = CreateLeader(opponentPlayerId)
+                }
+            ]
+        };
+
+        // The loader's snapshot has to agree with the hub's answer, or a reloaded finished board would open with the
+        // rematch offer live until the socket corrected it.
+        var controller = new GamesController(
+            new StubGameReadService(gameState),
+            new StubGameInstanceService(),
+            rematchHandlingService: new StubRematchHandlingService { OpponentPresenceSecondsRemaining = 0 });
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = CreateHttpContextWithSub(requesterId.ToString())
+        };
+
+        var response = controller.GetCurrentGameState("ABCDE");
+
+        var ok = response.Result as OkObjectResult;
+        Assert.IsNotNull(ok);
+        var payload = ok.Value as GameStateResponse;
+        Assert.IsNotNull(payload);
+        Assert.AreEqual(0, payload.OpponentPresenceSecondsRemaining);
     }
 
     [TestMethod]
@@ -330,6 +377,53 @@ public sealed class GamesControllerStateVisibilityTests
         public ErrorOr<GameInstance> GetById(string gameCode)
         {
             return new GameInstance(gameState);
+        }
+    }
+
+    private sealed class StubRematchHandlingService : IRematchHandlingService
+    {
+        public int? OpponentPresenceSecondsRemaining { get; init; }
+
+        public ErrorOr<GameInstance> RequestRematch(string gameId, string playerId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ErrorOr<GameInstance> AcceptRematch(string gameId, string playerId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ErrorOr<GameInstance> DeclineRematch(string gameId, string playerId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public int? GetOpponentPresenceSecondsRemaining(string gameId, string requestingPlayerId)
+        {
+            return OpponentPresenceSecondsRemaining;
+        }
+
+        public ErrorOr<RematchReservation> GetActiveReservation(
+            string gameCode,
+            string? requestingPlayerId = null,
+            bool cancelsPendingRelease = false)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ErrorOr<Success> ReleaseReservation(string gameCode, string playerId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IReadOnlyList<string> ReleaseReservationsForPlayer(string playerId, string? exceptGameCode = null)
+        {
+            return [];
+        }
+
+        public void CompleteReservation(string gameCode)
+        {
         }
     }
 

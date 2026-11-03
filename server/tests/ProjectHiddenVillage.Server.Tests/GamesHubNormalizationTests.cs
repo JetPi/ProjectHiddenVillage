@@ -266,11 +266,79 @@ public sealed class GamesHubNormalizationTests
         Assert.AreEqual(0, hub.ClientsRecorder.GetGroupMessages(canonicalGameId).Count);
     }
 
+    [TestMethod]
+    public async Task SubscribeToGame_InvalidatesTheGroup_SoTheOpponentLearnsTheBoardHasCompany()
+    {
+        var requesterUserId = Guid.NewGuid();
+        const string canonicalGameId = "ABCDE";
+
+        var game = CreateGameInstance(canonicalGameId, requesterUserId.ToString("N"));
+
+        var hub = CreateHub(
+            requesterUserId,
+            new StubGameInstanceService(),
+            new StubGamePhaseHandlingService(),
+            new StubGameReadService(canonicalGameId, game));
+
+        await hub.Hub.SubscribeToGame("abcde");
+
+        var messages = hub.ClientsRecorder.GetGroupMessages(canonicalGameId);
+        Assert.AreEqual(1, messages.Count);
+        Assert.AreEqual("GameStateInvalidated", messages[0].Method);
+        Assert.AreEqual(canonicalGameId, (string)messages[0].Args[0]);
+    }
+
+    [TestMethod]
+    public async Task UnsubscribeFromGame_InvalidatesTheGroup_SoTheRematchOfferCanGrayOut()
+    {
+        var requesterUserId = Guid.NewGuid();
+        const string canonicalGameId = "ABCDE";
+
+        var game = CreateGameInstance(canonicalGameId, requesterUserId.ToString("N"));
+
+        var hub = CreateHub(
+            requesterUserId,
+            new StubGameInstanceService(),
+            new StubGamePhaseHandlingService(),
+            new StubGameReadService(canonicalGameId, game));
+
+        await hub.Hub.SubscribeToGame("abcde");
+        await hub.Hub.UnsubscribeFromGame("abcde");
+
+        var messages = hub.ClientsRecorder.GetGroupMessages(canonicalGameId);
+        Assert.AreEqual(2, messages.Count, "Arriving and leaving are both presence changes.");
+        Assert.AreEqual("GameStateInvalidated", messages[1].Method);
+    }
+
+    [TestMethod]
+    public async Task GetCurrentGameState_PublishesTheRemainingPresenceGrace()
+    {
+        var requesterUserId = Guid.NewGuid();
+        var otherPlayerId = Guid.NewGuid().ToString("N");
+        const string canonicalGameId = "ABCDE";
+
+        var game = CreateGameInstance(canonicalGameId, requesterUserId.ToString("N"), otherPlayerId);
+
+        var hub = CreateHub(
+            requesterUserId,
+            new StubGameInstanceService(),
+            new StubGamePhaseHandlingService(),
+            new StubGameReadService(canonicalGameId, game),
+            opponentPresenceSecondsRemaining: 0);
+
+        var result = await hub.Hub.GetCurrentGameState("abcde");
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsNotNull(result.Value);
+        Assert.AreEqual(0, result.Value.OpponentPresenceSecondsRemaining);
+    }
+
     private static HubFixture CreateHub(
         Guid requesterUserId,
         IGameInstanceService instanceService,
         IGamePhaseHandlingService phaseHandlingService,
-        IGameReadService gameReadService)
+        IGameReadService gameReadService,
+        int? opponentPresenceSecondsRemaining = null)
     {
         var groupsRecorder = new RecordingGroupManager();
         var clientsRecorder = new RecordingHubCallerClients();
@@ -278,7 +346,7 @@ public sealed class GamesHubNormalizationTests
             instanceService,
             phaseHandlingService,
             new StubGameRedoHandlingService(),
-            new StubRematchHandlingService(),
+            new StubRematchHandlingService { OpponentPresenceSecondsRemaining = opponentPresenceSecondsRemaining },
             gameReadService,
             new GamePresenceTracker(),
             new GameChatStore(Options.Create(new GameChatOptions()), new TestClockProvider(DateTimeOffset.UnixEpoch)),
@@ -428,8 +496,14 @@ public sealed class GamesHubNormalizationTests
 
     private sealed class StubRematchHandlingService : IRematchHandlingService
     {
+        /// <summary>What the mapped state publishes as the other seat's remaining presence grace.</summary>
+        public int? OpponentPresenceSecondsRemaining { get; init; }
+
         public ErrorOr<GameInstance> RequestRematch(string gameId, string playerId)
             => throw new NotImplementedException();
+
+        public int? GetOpponentPresenceSecondsRemaining(string gameId, string requestingPlayerId)
+            => OpponentPresenceSecondsRemaining;
 
         public ErrorOr<GameInstance> AcceptRematch(string gameId, string playerId)
             => throw new NotImplementedException();
@@ -502,7 +576,7 @@ public sealed class GamesHubNormalizationTests
         }
 
         public ErrorOr<GameInstance> ReleasePhasePresentationRequirement(string gameId, string playerId)
-            => throw new NotImplementedException();
+            => Error.NotFound(code: "Game.ReleasePhasePresentation.NotFound", description: "stub");
 
         public ErrorOr<GameInstance> ForfeitGame(string gameId, string playerId)
         {

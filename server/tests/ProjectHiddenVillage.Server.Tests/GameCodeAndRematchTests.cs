@@ -642,6 +642,135 @@ public sealed class RematchHandlingTests
         Assert.IsTrue(harness.Allocator.IsClaimed(second), "The code being claimed must survive the move-on rule.");
     }
 
+    [TestMethod]
+    public void AnOffer_IsRefused_OnceTheOpponentHasBeenAwayLongerThanTheGrace()
+    {
+        var harness = CreateHarness();
+        var game = GameTableReaperTests.CreateFinishedGame(harness.Registry);
+        WatchBothPlayers(harness, game.Id);
+
+        harness.Presence.RemoveConnection(ConnectionId(game.Id, "p2"));
+        harness.Time.Advance(TimeSpan.FromSeconds(PresenceGraceSeconds + 1));
+
+        var result = harness.Service.RequestRematch(game.Id, "p1");
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Game.Rematch.OpponentAway", result.FirstError.Code);
+        Assert.IsNull(game.PendingRematch);
+    }
+
+    [TestMethod]
+    public void AnOffer_IsAllowed_WhileTheOpponentIsStillInsideTheGrace()
+    {
+        var harness = CreateHarness();
+        var game = GameTableReaperTests.CreateFinishedGame(harness.Registry);
+        WatchBothPlayers(harness, game.Id);
+
+        // The opponent's tab is reloading: for a few seconds nothing distinguishes that from a departure.
+        harness.Presence.RemoveConnection(ConnectionId(game.Id, "p2"));
+        harness.Time.Advance(TimeSpan.FromSeconds(1));
+
+        var result = harness.Service.RequestRematch(game.Id, "p1");
+
+        Assert.IsFalse(result.IsError);
+        Assert.IsNotNull(game.PendingRematch);
+    }
+
+    [TestMethod]
+    public void AnOffer_FromAPlayerWhoLeft_TheOtherSeatCannotAnswer()
+    {
+        var harness = CreateHarness();
+        var game = GameTableReaperTests.CreateFinishedGame(harness.Registry);
+        WatchBothPlayers(harness, game.Id);
+
+        Assert.IsFalse(harness.Service.RequestRematch(game.Id, "p1").IsError);
+
+        harness.Presence.RemoveConnection(ConnectionId(game.Id, "p1"));
+        harness.Time.Advance(TimeSpan.FromSeconds(PresenceGraceSeconds + 1));
+
+        var result = harness.Service.AcceptRematch(game.Id, "p2");
+
+        Assert.IsTrue(result.IsError);
+        Assert.AreEqual("Game.Rematch.OpponentAway", result.FirstError.Code);
+        Assert.IsNull(game.PendingRematch!.ReservedCode);
+    }
+
+    [TestMethod]
+    public void ADepartedOpponent_DoesNotStopTheOtherSeatFromClearingTheOffer()
+    {
+        var harness = CreateHarness();
+        var game = GameTableReaperTests.CreateFinishedGame(harness.Registry);
+        WatchBothPlayers(harness, game.Id);
+
+        Assert.IsFalse(harness.Service.RequestRematch(game.Id, "p1").IsError);
+        harness.Presence.RemoveConnection(ConnectionId(game.Id, "p1"));
+        harness.Time.Advance(TimeSpan.FromSeconds(PresenceGraceSeconds + 1));
+
+        var declined = harness.Service.DeclineRematch(game.Id, "p2");
+
+        Assert.IsFalse(declined.IsError);
+        Assert.IsTrue(game.PendingRematch!.IsDeclined);
+    }
+
+    [TestMethod]
+    public void AskingAgainAfterTheAgreement_StillAnswersTheReservedCode()
+    {
+        var harness = CreateHarness();
+        var game = GameTableReaperTests.CreateFinishedGame(harness.Registry);
+        WatchBothPlayers(harness, game.Id);
+
+        Assert.IsFalse(harness.Service.RequestRematch(game.Id, "p1").IsError);
+        Assert.IsFalse(harness.Service.AcceptRematch(game.Id, "p2").IsError);
+
+        var reservedCode = game.PendingRematch!.ReservedCode!;
+
+        // The agreement is already made, so a repeated request is idempotent - even if the opponent has since left
+        // the board: there is nothing left to decide, only a code to hand back.
+        harness.Presence.RemoveConnection(ConnectionId(game.Id, "p2"));
+        harness.Time.Advance(TimeSpan.FromSeconds(PresenceGraceSeconds + 1));
+
+        var again = harness.Service.RequestRematch(game.Id, "p1");
+
+        Assert.IsFalse(again.IsError);
+        Assert.AreEqual(reservedCode, game.PendingRematch!.ReservedCode);
+    }
+
+    [TestMethod]
+    public void ThePresenceCountdown_IsPublishedOnlyAfterTheOpponentLeaves()
+    {
+        var harness = CreateHarness();
+        var game = GameTableReaperTests.CreateFinishedGame(harness.Registry);
+        WatchBothPlayers(harness, game.Id);
+
+        Assert.IsNull(
+            harness.Service.GetOpponentPresenceSecondsRemaining(game.Id, "p1"),
+            "A watching opponent is not a countdown.");
+
+        harness.Presence.RemoveConnection(ConnectionId(game.Id, "p2"));
+
+        Assert.AreEqual(PresenceGraceSeconds, harness.Service.GetOpponentPresenceSecondsRemaining(game.Id, "p1"));
+
+        harness.Time.Advance(TimeSpan.FromSeconds(2));
+
+        Assert.AreEqual(PresenceGraceSeconds - 2, harness.Service.GetOpponentPresenceSecondsRemaining(game.Id, "p1"));
+
+        harness.Time.Advance(TimeSpan.FromSeconds(10));
+
+        Assert.AreEqual(0, harness.Service.GetOpponentPresenceSecondsRemaining(game.Id, "p1"));
+
+        harness.Presence.RegisterConnection(game.Id, "p2", ConnectionId(game.Id, "p2"));
+
+        Assert.IsNull(harness.Service.GetOpponentPresenceSecondsRemaining(game.Id, "p1"));
+    }
+
+    private static string ConnectionId(string gameId, string playerId) => $"{gameId}-{playerId}";
+
+    private static void WatchBothPlayers(RematchHarness harness, string gameId)
+    {
+        harness.Presence.RegisterConnection(gameId, "p1", ConnectionId(gameId, "p1"));
+        harness.Presence.RegisterConnection(gameId, "p2", ConnectionId(gameId, "p2"));
+    }
+
     /// <summary>Reserves a table the same way the handshake does, and returns its code.</summary>
     private static string ReserveTable(RematchHarness harness)
     {
@@ -653,6 +782,8 @@ public sealed class RematchHandlingTests
     }
 
     private const int ReleaseGraceSeconds = 20;
+
+    private const int PresenceGraceSeconds = 5;
 
     private static GameRulesetBinding CreateBinding()
     {
@@ -671,6 +802,7 @@ public sealed class RematchHandlingTests
         var registry = GameCodeLifecycleTests.CreateRegistry(allocator);
         var time = new GameCodeLifecycleTests.MutableTimeProvider(DateTimeOffset.UnixEpoch);
         var reservations = new RematchReservationStore(allocator, registry, time);
+        var presence = new GamePresenceTracker(time);
 
         var service = new RematchHandlingService(
             registry,
@@ -681,10 +813,12 @@ public sealed class RematchHandlingTests
                 ConsentLifetimeSeconds = consentLifetimeSeconds,
                 ReservationLifetimeSeconds = reservationLifetimeSeconds,
                 ReleaseGraceSeconds = ReleaseGraceSeconds,
+                OpponentPresenceGraceSeconds = PresenceGraceSeconds,
             },
-            time);
+            time,
+            presenceTracker: presence);
 
-        return new RematchHarness(registry, allocator, reservations, service, time);
+        return new RematchHarness(registry, allocator, reservations, service, time, presence);
     }
 
     private sealed record RematchHarness(
@@ -692,5 +826,6 @@ public sealed class RematchHandlingTests
         IGameCodeAllocator Allocator,
         RematchReservationStore Reservations,
         RematchHandlingService Service,
-        GameCodeLifecycleTests.MutableTimeProvider Time);
+        GameCodeLifecycleTests.MutableTimeProvider Time,
+        GamePresenceTracker Presence);
 }

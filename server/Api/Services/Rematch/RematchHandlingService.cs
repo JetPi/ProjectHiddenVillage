@@ -21,7 +21,8 @@ public sealed class RematchHandlingService(
     ProjectHiddenVillage.Server.Api.Services.Games.IGameCodeAllocator codeAllocator,
     RematchOptions options,
     TimeProvider timeProvider,
-    MaintenanceState? maintenanceState = null) : IRematchHandlingService
+    MaintenanceState? maintenanceState = null,
+    IGamePresenceTracker? presenceTracker = null) : IRematchHandlingService
 {
     public ErrorOr<GameInstance> RequestRematch(string gameId, string requestingPlayerId)
     {
@@ -60,6 +61,14 @@ public sealed class RematchHandlingService(
             if (offer is not null && string.Equals(offer.RequestedByPlayerId, requestingPlayerId, StringComparison.Ordinal))
             {
                 return game;
+            }
+
+            // Everything below commits something, so both need somebody on the other end: offering into an empty chair
+            // is the wait this handshake exists to avoid, and answering a departed player is the same wait mirrored.
+            var opponentCheck = EnsureOpponentStillHere(game, requestingPlayerId);
+            if (opponentCheck.IsError)
+            {
+                return opponentCheck.Errors;
             }
 
             // The opponent offered first, so this request IS the agreement.
@@ -107,6 +116,14 @@ public sealed class RematchHandlingService(
                 return game;
             }
 
+            // An offer from a player who left the board is not worth reserving a table for: the seat would wait for
+            // somebody who is not coming back.
+            var opponentCheck = EnsureOpponentStillHere(game, respondingPlayerId);
+            if (opponentCheck.IsError)
+            {
+                return opponentCheck.Errors;
+            }
+
             return AcceptOffer(game, respondingPlayerId, offer, now);
         }
     }
@@ -149,6 +166,36 @@ public sealed class RematchHandlingService(
 
             return game;
         }
+    }
+
+    public int? GetOpponentPresenceSecondsRemaining(string gameId, string requestingPlayerId)
+    {
+        if (presenceTracker is null || string.IsNullOrWhiteSpace(gameId))
+        {
+            return null;
+        }
+
+        if (!registry.TryGet(gameId.Trim(), out var game) || game is null)
+        {
+            return null;
+        }
+
+        var opponentPlayerId = ResolveOpponentPlayerId(game, requestingPlayerId);
+        if (opponentPlayerId is null)
+        {
+            return null;
+        }
+
+        // Null covers both "watching right now" and "never seen by this process": neither is a departure, and a board
+        // is not grayed out over an observation the server does not have.
+        if (presenceTracker.GetPresenceDeadline(game.Id, opponentPlayerId, PresenceGrace) is not { } deadline)
+        {
+            return null;
+        }
+
+        var remaining = deadline - timeProvider.GetUtcNow();
+
+        return remaining <= TimeSpan.Zero ? 0 : (int)Math.Ceiling(remaining.TotalSeconds);
     }
 
     public ErrorOr<RematchReservation> GetActiveReservation(
@@ -285,6 +332,37 @@ public sealed class RematchHandlingService(
     private TimeSpan ReservationLifetime => TimeSpan.FromSeconds(Math.Max(30, options.ReservationLifetimeSeconds));
 
     private TimeSpan ReleaseGrace => TimeSpan.FromSeconds(Math.Max(0, options.ReleaseGraceSeconds));
+
+    private TimeSpan PresenceGrace => TimeSpan.FromSeconds(Math.Max(0, options.OpponentPresenceGraceSeconds));
+
+    /// <summary>
+    /// Refuses the handshake once the other seat's grace has run out. A player who is merely refreshing is still
+    /// inside it, which is what keeps a reload from settling the offer for both players.
+    /// </summary>
+    private ErrorOr<Success> EnsureOpponentStillHere(GameInstance game, string playerId)
+    {
+        return GetOpponentPresenceSecondsRemaining(game.Id, playerId) == 0
+            ? Error.Conflict(
+                code: "Game.Rematch.OpponentAway",
+                description: "Your opponent is not connected to this board, so a rematch cannot be offered. Try again once they are back.")
+            : Result.Success;
+    }
+
+    /// <summary>The other seat of a two-player table, or null when this player is not one of them.</summary>
+    private static string? ResolveOpponentPlayerId(GameInstance game, string playerId)
+    {
+        if (game.State.Players.Count != 2)
+        {
+            return null;
+        }
+
+        var isSeated = game.State.Players.Any(player =>
+            string.Equals(player.PlayerId, playerId, StringComparison.Ordinal));
+
+        return isSeated
+            ? game.State.Players.First(player => !string.Equals(player.PlayerId, playerId, StringComparison.Ordinal)).PlayerId
+            : null;
+    }
 
     /// <summary>
     /// Agrees to the offer, then reserves the next table. A code that cannot be reserved leaves no half-agreed

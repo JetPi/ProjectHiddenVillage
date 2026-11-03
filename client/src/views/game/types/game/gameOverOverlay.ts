@@ -21,6 +21,11 @@ export type IGameOverOverlayProps = {
    * players agreed it carries the reserved table code.
    */
   rematch?: IPendingRematchResponse | null
+  /**
+   * Whether the other seat is still watching this board. Offering a rematch to somebody who left reserves a table
+   * nobody will claim, so the control is grayed out instead. Defaults to true: an unobserved seat is not an empty one.
+   */
+  opponentPresent?: boolean
   /** Offers the opponent another match, or accepts theirs when the offer already exists. */
   onRequestRematch?: () => Promise<boolean>
   onAcceptRematch?: () => Promise<boolean>

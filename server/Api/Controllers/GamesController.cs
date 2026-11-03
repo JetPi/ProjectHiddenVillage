@@ -177,7 +177,12 @@ public sealed class GamesController(
             ]);
         }
 
-        return Ok(GameStateResponseMapper.ToGameStateResponse(result.Value, requestingPlayerIdResult.Value));
+        // The loader's snapshot and the hub's answer carry the same rematch presence, so a reloaded finished board
+        // opens on the right answer instead of waiting for the socket to correct it.
+        return Ok(GameStateResponseMapper.ToGameStateResponse(
+            result.Value,
+            requestingPlayerIdResult.Value,
+            rematchHandlingService?.GetOpponentPresenceSecondsRemaining(result.Value.Id, requestingPlayerIdResult.Value)));
     }
 
     [HttpGet("{gameId}/cards")]

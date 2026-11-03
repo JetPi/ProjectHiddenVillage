@@ -289,6 +289,9 @@ export type IGameStateResponse = {
   // The rematch offer on a finished board. Absent while nothing is on the table; once both players agreed it carries
   // the code of the table they will claim from the login view.
   pendingRematch?: IPendingRematchResponse | null
+  // How much of the other seat's presence grace is left before the rematch offer grays out. Null while they are
+  // watching this board right now (and when presence is not observed at all); 0 once their departure is real.
+  opponentPresenceSecondsRemaining?: number | null
 }
 
 export type IPendingRematchResponse = {

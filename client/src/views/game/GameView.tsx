@@ -43,7 +43,8 @@ import {
   useRetainedActionBlocked,
   useRetainedPhaseActionSource,
   useGameCardsBackfill,
-  useGameViewSideEffects
+  useGameViewSideEffects,
+  useRematchOpponentPresence,
 } from '@/views/game/hooks'
 
 function isSamePlayerId(left: string | null | undefined, right: string | null | undefined): boolean {
@@ -167,6 +168,9 @@ export function GameView() {
   const reservedRematchCode = gameState.pendingRematch?.reservedCode ?? null
   const reservedRematchRulesetName = gameState.pendingRematch?.rulesetName ?? null
   const reservedRematchExpiresAtUtc = gameState.pendingRematch?.expiresAtUtc ?? null
+  // Offering another match needs somebody to offer it to: the state counts down the grace the server gives a board
+  // that just went quiet, so a refresh does not gray the control out and a real departure eventually does.
+  const isOpponentPresent = useRematchOpponentPresence(gameState.opponentPresenceSecondsRemaining)
   // The state must be *this* board's, or the hand-off below would replay the previous game's agreement as soon as
   // this route mounts - which is exactly what sent players back to the login view right after claiming the table.
   const isCurrentBoardState = isSameGameCode(gameState.gameId, joinCode)
@@ -492,6 +496,7 @@ export function GameView() {
             authUserId={authUserId}
             onDismiss={dismissGameOverOverlay}
             rematch={gameState.pendingRematch ?? null}
+            opponentPresent={isOpponentPresent}
             onRequestRematch={requestRematch}
             onAcceptRematch={acceptRematch}
             onDeclineRematch={declineRematch}

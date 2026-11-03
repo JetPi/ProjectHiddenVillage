@@ -224,6 +224,14 @@ export async function tryCompleteEndStepViaHub(gameCode: string, player: PlayerA
   return await invokeGameHubMethod(player, 'CompleteEndStep', [gameCode.toUpperCase()])
 }
 
+/**
+ * Offers a rematch from a helper connection so a refusal can be inspected. The helper connection never subscribes, so
+ * it is not the board's presence: the caller's browser page is what keeps that player seated and watching.
+ */
+export async function tryRequestRematchViaHub(gameCode: string, player: PlayerAuth): Promise<HubInvocationResult> {
+  return await invokeGameHubMethod(player, 'RequestRematch', [gameCode.toUpperCase()])
+}
+
 export async function executeCardActionViaHub(
   gameCode: string,
   player: PlayerAuth,
