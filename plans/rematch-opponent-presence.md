@@ -98,10 +98,15 @@ the other seat in that case is the player who offered.
 - [`useOpponentPresence`](../client/src/views/game/hooks/GameView/memos/useOpponentPresence.ts:1) turns the published
   countdown into a boolean: present while the value is `null`, absent immediately when it is `0`, and otherwise
   present until the countdown runs out - one local timer, no polling.
-- [`OpponentPresenceIndicator`](../client/src/views/game/components/OpponentPresenceIndicator.tsx:1) is the board's
-  own read of the same answer: a dot on the opponent's side, green while they are watching and red once they are gone,
-  with the wording only on `aria-label` / `title`. It is not drawn on a table that has only one seat, because there is
-  nobody to report on.
+- The side rail is the board's scoreboard. [`SideBarButtons`](../client/src/views/game/components/SidebarButtons.tsx:19)
+  drops the vertical join-code and format captions it used to carry, keeps its buttons dead centre, and puts one
+  caption at each end: the opponent's name with its dot at the top (their side of the board), this player's at the
+  bottom. The names come from `PlayerZonesResponse.PlayerName`, copied onto the seat from the `Player` that took it;
+  a seat composed without one draws the dot alone.
+- [`PlayerPresenceIndicator`](../client/src/views/game/components/PlayerPresenceIndicator.tsx:1) is the dot itself:
+  green while that player is watching, red once they are gone, with the wording only on `aria-label` / `title`
+  (`"<name>: Connected"`). The opponent's dot is the only one that can go red - this player is on the board by
+  definition.
 - [`GameOverOverlay`](../client/src/views/game/components/GameOverOverlay.tsx:22) grays out `Rematch` and
   `Accept rematch` while the opponent is away, and shows `game.rematch.opponentAway` under the offer notes. `Decline`,
   `Withdraw request`, the corner dismiss and `Return to main page` stay live.
@@ -120,8 +125,9 @@ the other seat in that case is the player who offered.
 - e2e (`gameview.multiplayer.rematch.spec.ts`): the loser walks off the finished board, the offer grays out and names
   the reason once the grace has passed, a hub-issued offer is refused with the error code, and the control comes back
   when the loser rejoins the board.
-- e2e (`gameview.multiplayer.presence.spec.ts`): the board's dot is green on both sides while both are watching, turns
-  red on the remaining board once the other player leaves, and green again when they come back.
+- e2e (`gameview.multiplayer.presence.spec.ts`): each rail names the other seat beside its dot, both dots are green
+  while both are watching, the remaining board's dot turns red once the other player leaves, and green again when
+  they come back.
 
 ## Configuration
 

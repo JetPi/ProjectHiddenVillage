@@ -41,7 +41,10 @@ test.describe('GameView', () => {
     test('renders started board with stable anchors', async () => {
       await expect(page.getByText('Route Error')).toHaveCount(0)
       await expect(page.getByTestId('game-board')).toBeVisible()
-      await expect(page.getByTestId('game-join-code')).toContainText(setup.gameCode)
+      // The side rail is the scoreboard now: each seat's name with its status dot. The join code and the format name
+      // that used to sit here are gone.
+      await expect(page.getByTestId('opponent-presence-indicator')).toBeVisible()
+      await expect(page.getByTestId('player-presence-indicator')).toBeVisible()
 
       await expect(page.getByTestId('top-hand-row')).toBeVisible()
       await expect(page.getByTestId('bottom-hand-row')).toBeVisible()

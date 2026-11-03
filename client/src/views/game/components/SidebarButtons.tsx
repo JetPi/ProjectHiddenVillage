@@ -6,8 +6,10 @@ import { AppButton } from "@/components/ui";
 import { useGameChatStore } from "@/state/gameChatStore";
 import { useGameUIStore } from "@/state/gameUIStore";
 import { useHasRoomForChatColumn } from "@/views/game/hooks";
+import { normalizePlayerId } from "@/views/game/utils/functions";
 import { CloseTableConfirmDialog } from './CloseTableConfirmDialog'
 import { ForfeitConfirmDialog } from './ForfeitConfirmDialog'
+import { PlayerPresenceIndicator } from './PlayerPresenceIndicator'
 
 // Tooltips are rendered outside the sidebar's own column, straight over the board, so they need both an opaque
 // fill (a token that actually resolves - `--surface-elevated` is not defined anywhere, which left these labels
@@ -15,6 +17,11 @@ import { ForfeitConfirmDialog } from './ForfeitConfirmDialog'
 // hand card at z-[260].
 const SIDEBAR_TOOLTIP_CLASS_NAME =
   'pointer-events-none absolute right-full top-1/2 z-[300] mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--popup-bg)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-md group-hover:block'
+
+// The player captions at each end of the rail: the same quiet vertical treatment the join code and the format name
+// used to have, capped so a long name cannot run down the whole board.
+const RAIL_PLAYER_NAME_CLASS_NAME =
+  'max-h-24 overflow-hidden whitespace-nowrap px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] [writing-mode:vertical-rl] rotate-180'
 
 export function SideBarButtons(props: IGameZonesProps){
     const { t } = useTranslation()
@@ -34,7 +41,17 @@ export function SideBarButtons(props: IGameZonesProps){
 
     const frozenClassName = props.isPresentationPending ? ' pointer-events-none' : ''
    
-    const rulesetName = props.gameState.ruleset?.name ?? null
+    // The rail names each seat beside its status dot: the opponent at the top (their side of the board) and this
+    // player at the bottom. Seats composed without a name simply keep the dot.
+    const ownPlayerId = normalizePlayerId(props.authUserId ?? '')
+    const ownPlayer = ownPlayerId
+      ? props.gameState.players.find((player) => normalizePlayerId(player.playerId) === ownPlayerId)
+      : undefined
+    const opponentPlayer = ownPlayerId
+      ? props.gameState.players.find((player) => normalizePlayerId(player.playerId) !== ownPlayerId)
+      : props.gameState.players[0]
+    const ownName = ownPlayer?.playerName?.trim() ?? ''
+    const opponentName = opponentPlayer?.playerName?.trim() ?? ''
     const isGameOver = Boolean(props.gameState.gameOutcome)
     // A table that has not reached two players has no game to resign yet: the only thing to do there is close it,
     // which retires the table and stops its code from being joinable.
@@ -68,26 +85,26 @@ export function SideBarButtons(props: IGameZonesProps){
     }
 
     return <>
-      {/* This root stays the grid item so `justify-center` still centres the rail in the column. It also carries the
+      {/* This root stays the grid item so `justify-center` still centres the buttons in the column. It also carries the
           stacking order that keeps the buttons above the compact action log, which overlaps this column: the log
-          button is the only thing that can close that panel. */}
-      <div className="relative z-40 flex flex-col items-end justify-center gap-1">
-        {rulesetName ? (
+          button is the only thing that can close that panel. The player captions are taken out of the flow, so the
+          buttons stay dead centre whatever the names are. */}
+      <div className="relative z-40 flex flex-col items-center justify-center gap-1">
+        {opponentPlayer ? (
           <div
-            data-testid="game-ruleset-name"
-            title={rulesetName}
-            className="mb-1 px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] [writing-mode:vertical-rl] rotate-180"
+            data-testid="opponent-presence"
+            className="absolute left-1/2 top-0 flex -translate-x-1/2 flex-col items-center gap-1"
           >
-            {rulesetName}
-          </div>
-        ) : null}
-
-        {props.joinCode ? (
-          <div
-            data-testid="game-join-code"
-            className="mb-1 px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] [writing-mode:vertical-rl] rotate-180"
-          >
-            {props.joinCode}
+            <PlayerPresenceIndicator
+              isPresent={props.isOpponentPresent ?? true}
+              playerName={opponentName}
+              testId="opponent-presence-indicator"
+            />
+            {opponentName ? (
+              <span data-testid="opponent-presence-name" className={RAIL_PLAYER_NAME_CLASS_NAME}>
+                {opponentName}
+              </span>
+            ) : null}
           </div>
         ) : null}
 
@@ -249,6 +266,18 @@ export function SideBarButtons(props: IGameZonesProps){
             </span>
           </div>
         )}
+
+        <div
+          data-testid="player-presence"
+          className="absolute bottom-0 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1"
+        >
+          {ownName ? (
+            <span data-testid="player-presence-name" className={RAIL_PLAYER_NAME_CLASS_NAME}>
+              {ownName}
+            </span>
+          ) : null}
+          <PlayerPresenceIndicator isPresent playerName={ownName} testId="player-presence-indicator" />
+        </div>
       </div>
 
       {isForfeitDialogOpen ? (

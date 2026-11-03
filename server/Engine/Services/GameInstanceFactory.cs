@@ -174,6 +174,7 @@ public sealed class GameInstanceFactory
         return new PlayerState
         {
             PlayerId = player.Id,
+            PlayerName = ResolvePlayerName(player),
             DeckShuffleSeed = deckSeed,
             DeckShuffleCount = 1,
             TurnCount = 0,
@@ -184,6 +185,14 @@ public sealed class GameInstanceFactory
             Battlefield = [],
             DiscardPile = []
         };
+    }
+
+    /// <summary>
+    /// The name the board shows for a seat: the display name when the caller provided one, otherwise the plain name.
+    /// </summary>
+    private static string ResolvePlayerName(Player player)
+    {
+        return string.IsNullOrWhiteSpace(player.DisplayName) ? player.Name : player.DisplayName;
     }
 
     private static int ResolveDeckSeed(int gameSeed, string playerId, int playerIndex)

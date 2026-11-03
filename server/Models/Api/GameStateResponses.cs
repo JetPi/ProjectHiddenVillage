@@ -305,6 +305,9 @@ public sealed record GameCardActionMaterialRequirementResponse(
 
 public sealed record PlayerZonesResponse(
     string PlayerId,
+    // The seat's display name, so the board can label each side next to its presence dot. Empty when the seat was
+    // composed without one, which the board renders as a bare dot.
+    string PlayerName,
     int TurnCount,
     bool IsSummonCardReady,
     int ResourcePool,

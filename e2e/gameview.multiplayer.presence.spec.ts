@@ -43,8 +43,13 @@ test.describe('GameView multiplayer presence', () => {
       try {
         await waitUntilBothPlayersPresent(request, setup.gameCode, setup.playerOne.session.accessToken)
   
+        // Each rail names the other seat beside its dot, on that seat's own side of the board.
         await expect(pages.playerOnePage.getByTestId('opponent-presence-indicator')).toHaveAttribute('data-present', 'true')
+        await expect(pages.playerOnePage.getByTestId('opponent-presence-name')).toHaveText(setup.playerTwo.session.username)
+        await expect(pages.playerOnePage.getByTestId('player-presence-name')).toHaveText(setup.playerOne.session.username)
+  
         await expect(pages.playerTwoPage.getByTestId('opponent-presence-indicator')).toHaveAttribute('data-present', 'true')
+        await expect(pages.playerTwoPage.getByTestId('opponent-presence-name')).toHaveText(setup.playerOne.session.username)
   
         // Off the board altogether: the dot turns red, but only after the grace a refresh would have used.
         await pages.playerTwoPage.goto('/sign-in')

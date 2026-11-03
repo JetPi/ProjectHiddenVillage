@@ -102,6 +102,9 @@ export type IGameLeaderCardInstanceResponse = {
 
 export type IGamePlayerStateResponse = {
   playerId: string
+  // The seat's display name, for the board to label each side next to its presence dot. Empty when the seat was
+  // composed without one, in which case the board draws the dot alone.
+  playerName?: string
   turnCount: number
   isSummonCardReady: boolean
   leader: IGameLeaderCardInstanceResponse
