@@ -13,6 +13,7 @@ export const gameEntryModeOptions: readonly IToggleOption<IGameEntryMode>[] = [
   { value: 'join_or_host', label: 'auth.config.modeJoinOrHost' },
 ]
 
+
 /**
  * Quick match queues inside a format and hosting opens a table bound to one, so both actions pick a format; joining
  * by code does not, because the code decides the table. The question is about the action a button asks for, not the

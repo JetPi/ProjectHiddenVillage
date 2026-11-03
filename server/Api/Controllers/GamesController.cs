@@ -103,6 +103,49 @@ public sealed class GamesController(
         return Ok(new GameInstanceResponse(result.Value.Id));
     }
 
+    /// <summary>
+    /// Undoes the creation of a hosted table. The creator minted it so the code could be shared, so backing out of the
+    /// share screen has to take the table with it: the registry retires it and hands the code back to the allocator.
+    /// Once an opponent sits down the answer is 409 - leaving a live game is a resignation, not an undo - and the
+    /// client hands the creator over to the board instead of closing anything.
+    /// </summary>
+    [HttpDelete("{gameId}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<object>> CancelGame(string gameId)
+    {
+        var requestingPlayerIdResult = GetRequestingPlayerId();
+        if (requestingPlayerIdResult.IsError)
+        {
+            return ProblemFromErrors<object>(requestingPlayerIdResult.Errors);
+        }
+
+        var result = await gameInstanceService.CancelUnstartedGameForUser(gameId, requestingPlayerIdResult.Value);
+        if (result.IsError)
+        {
+            return ProblemFromErrors<object>(result.Errors);
+        }
+
+        if (gamesHubContext is not null)
+        {
+            try
+            {
+                await gamesHubContext.Clients.Group(gameId.Trim()).SendAsync("GameStateInvalidated", gameId.Trim());
+            }
+            catch
+            {
+                // Best effort only: the table is gone whether or not the notification lands.
+            }
+        }
+
+        return NoContent();
+    }
+
     [HttpGet("{gameId}/state")]
     [Authorize]
     [ProducesResponseType(typeof(GameStateResponse), StatusCodes.Status200OK)]

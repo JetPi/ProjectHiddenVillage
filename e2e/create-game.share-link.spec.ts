@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page, Route } from '@playwright/test'
+import { API_BASE_URL, createGame, login, SEEDED_PLAYER_PROFILES } from './helpers/multiplayer/api'
 
 /**
  * Hosting is exercised with the network mocked, for the same reason quick match is: the ruleset list, the catalogue
@@ -58,6 +59,11 @@ type CreateGameMockOptions = {
   lonelyStateReads?: number
   /** Answers every state read with a 404, as if the game had vanished or the creator were no longer in it. */
   failStateRead?: boolean
+  /**
+   * Answers the cancel call with this status instead of retiring the table. 409 is the seat that was taken while the
+   * creator was deciding, which has to hand them over to the board rather than close anything.
+   */
+  cancelStatus?: number
 }
 
 async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
@@ -71,9 +77,10 @@ async function fulfillJson(route: Route, body: unknown, status = 200): Promise<v
 async function mockCreateGameNetwork(
   page: Page,
   options: CreateGameMockOptions = {},
-): Promise<{ createPayloads: CreateGamePayload[]; gameStatePaths: string[] }> {
+): Promise<{ createPayloads: CreateGamePayload[]; gameStatePaths: string[]; cancelCalls: string[] }> {
   const createPayloads: CreateGamePayload[] = []
   const gameStatePaths: string[] = []
+  const cancelCalls: string[] = []
   let gameStateReads = 0
 
   await page.route(/\/api\/deck-rulesets$/, (route) => fulfillJson(route, [MOCKED_RULESET]))
@@ -124,6 +131,24 @@ async function mockCreateGameNetwork(
     await fulfillJson(route, { id: CREATED_GAME_CODE })
   })
 
+  // Backing out retires the table through this call. It is recorded so the spec can prove the dialog closed the
+  // table it created instead of merely forgetting the code.
+  await page.route(new RegExp(`/api/games/${CREATED_GAME_CODE}$`), async (route) => {
+    if (route.request().method() !== 'DELETE') {
+      await route.fallback()
+      return
+    }
+
+    cancelCalls.push(CREATED_GAME_CODE)
+
+    if (options.cancelStatus !== undefined) {
+      await fulfillJson(route, { description: 'An opponent has taken the second seat.' }, options.cancelStatus)
+      return
+    }
+
+    await route.fulfill({ status: 204, body: '' })
+  })
+
   // The share dialog polls its own game while the creator waits. The route names the code exactly as the server
   // handed it out: game codes are case sensitive server side, so a lowercased request would fall through to the
   // real API here and the hand-over would never happen - which is the regression this spec has to catch.
@@ -143,7 +168,7 @@ async function mockCreateGameNetwork(
     await fulfillJson(route, { gameId: CREATED_GAME_CODE, players })
   })
 
-  return { createPayloads, gameStatePaths }
+  return { createPayloads, gameStatePaths, cancelCalls }
 }
 
 /** The import dialog keeps the last deck list in localStorage, so seeding it skips the dialog entirely. */
@@ -181,18 +206,15 @@ async function submitCreate(page: Page, deckText = '1x L-001\n2x N-001'): Promis
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] })
 
-test('create binds the game to the selected format and shows its code and invite link', async ({ page }) => {
+test('create binds the game to the selected format and shows its code', async ({ page }) => {
   const { createPayloads } = await mockCreateGameNetwork(page)
 
   await submitCreate(page)
 
   const shareDialog = page.getByRole('dialog', { name: /Your E2E Format game is ready/ })
   await expect(shareDialog).toBeVisible()
+  // The code is what the friend types. The absolute link is handed out by Copy link, covered further down.
   await expect(page.getByTestId('create-game-code')).toHaveText(CREATED_GAME_CODE)
-
-  const origin = new URL(page.url()).origin
-  const inviteLink = `${origin}/game/${CREATED_GAME_CODE}`
-  await expect(page.getByTestId('create-game-link')).toHaveValue(inviteLink)
 
   // The creator stays on the login view until they confirm, so the invite can be sent before the board covers it.
   expect(new URL(page.url()).pathname).toBe('/')
@@ -211,7 +233,7 @@ test('hosting a time relaxed table sends the modifier and says so in the share d
   await page.getByLabel('Display Name').fill('Guest One')
   await page.getByRole('radio', { name: 'Join or Host' }).click()
 
-  // The toggle lives on the hosting half of the tab only: quick match has no way to ask for it.
+  // The switch lives on the hosting half of the tab only: quick match has no way to ask for it.
   await expect(page.getByTestId('host-time-relaxed')).not.toBeChecked()
   await page.getByTestId('host-time-relaxed').check()
   await page.getByRole('button', { name: 'Host' }).click()
@@ -285,13 +307,13 @@ test('an imported deck that does not fit the selected format is refused with a p
 })
 
 test('a game that can no longer be checked says so and offers a way back', async ({ page }) => {
-  await mockCreateGameNetwork(page, { failStateRead: true })
+  const { cancelCalls } = await mockCreateGameNetwork(page, { failStateRead: true })
 
   await submitCreate(page)
 
   // The poll retries before giving up, so this note means "the wait itself is broken", not a one-off hiccup.
   await expect(page.getByTestId('create-game-waiting')).toHaveText(
-    'This game can no longer be checked. Use Enter Game to try again, or go back.',
+    'This game can no longer be checked. Use Enter Game to try again, or close the table.',
   )
 
   await page.getByTestId('create-game-back').click()
@@ -299,6 +321,45 @@ test('a game that can no longer be checked says so and offers a way back', async
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Host' })).toBeVisible()
   expect(new URL(page.url()).pathname).toBe('/')
+  // Even a table that can no longer be read is retired rather than left for the sweep.
+  expect(cancelCalls).toEqual([CREATED_GAME_CODE])
+})
+
+test('backing out of the share dialog closes the table and returns to the host form', async ({ page }) => {
+  const { cancelCalls, createPayloads } = await mockCreateGameNetwork(page)
+
+  await submitCreate(page)
+
+  const shareDialog = page.getByRole('dialog', { name: /Your E2E Format game is ready/ })
+  await expect(shareDialog).toBeVisible()
+  // The wait can be trusted here, and the undo is still offered: the creator is not trapped by a table they opened
+  // by mistake.
+  await expect(page.getByTestId('create-game-waiting')).toHaveText('Waiting for your opponent to join.')
+  // The undo is a small corner icon, so the label is what a screen reader gets rather than button text.
+  await expect(page.getByTestId('create-game-back')).toHaveAccessibleName('Close table')
+
+  await page.getByTestId('create-game-back').click()
+
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Host' })).toBeVisible()
+  expect(new URL(page.url()).pathname).toBe('/')
+
+  // Exactly the code the dialog showed, and undoing is not creating again.
+  expect(cancelCalls).toEqual([CREATED_GAME_CODE])
+  expect(createPayloads).toHaveLength(1)
+})
+
+test('backing out after an opponent sat down keeps the game and hands the creator over', async ({ page }) => {
+  // The table the creator is trying to close is already somebody else's game: the server refuses the undo.
+  const { cancelCalls } = await mockCreateGameNetwork(page, { failStateRead: true, cancelStatus: 409 })
+
+  await submitCreate(page)
+
+  await page.getByTestId('create-game-back').click()
+
+  // No dialog and no login form: the creator is taken to the board they were about to abandon.
+  await page.waitForURL(new RegExp(`/game/${CREATED_GAME_CODE}$`))
+  expect(cancelCalls).toEqual([CREATED_GAME_CODE])
 })
 
 /**
@@ -372,4 +433,56 @@ test('joining a coded table refuses a deck that does not fit its format', async 
   ).toBeVisible()
   expect(joinPayloads).toHaveLength(0)
   expect(createPayloads).toHaveLength(0)
+})
+
+/**
+ * The board half of the undo. A host who pressed Enter Game is parked on "Waiting for player" with only a forfeit
+ * button, which would hand the win to somebody who is not there. Closing the table is the real exit, and the server
+ * really has to forget the table: the code is a shared invite, not a local draft.
+ */
+test('a host alone on the board can close the table, and the code stops working', async ({ browser, request }) => {
+  const seededPlayer = SEEDED_PLAYER_PROFILES.default.one
+  const session = await login(request, seededPlayer.email, seededPlayer.password)
+  const gameCode = await createGame(request, seededPlayer.id, seededPlayer.deckId, session.accessToken)
+
+  const context = await browser.newContext({
+    extraHTTPHeaders: {
+      'X-Dev-User-Id': session.id,
+    },
+  })
+
+  await context.addInitScript(({ storageKey, authSession }) => {
+    window.localStorage.setItem(storageKey, JSON.stringify(authSession))
+  }, {
+    storageKey: 'phv-auth-session',
+    authSession: {
+      userId: session.id,
+      username: session.username,
+      email: session.email,
+      accessToken: session.accessToken,
+      expiresAt: session.expiresAt,
+    },
+  })
+
+  const page = await context.newPage()
+  await page.goto(`/game/${gameCode}`)
+  await expect(page.getByTestId('game-board')).toBeVisible({ timeout: 30_000 })
+
+  // Nobody has joined: the exit is a table close, never a resignation against an absent opponent.
+  await expect(page.getByTestId('forfeit-game-button')).toHaveCount(0)
+  await page.getByTestId('close-table-button').click()
+  await expect(page.getByTestId('close-table-confirm-dialog')).toBeVisible()
+  await page.getByTestId('close-table-confirm-button').click()
+
+  await page.waitForURL(/\/$/)
+
+  // The table is gone for its own creator too, which is what makes the code allocatable again.
+  const stateResponse = await request.get(`${API_BASE_URL}/api/games/${gameCode}/state`, {
+    headers: {
+      Authorization: `Bearer ${session.accessToken}`,
+    },
+  })
+  expect(stateResponse.status()).toBe(404)
+
+  await context.close()
 })

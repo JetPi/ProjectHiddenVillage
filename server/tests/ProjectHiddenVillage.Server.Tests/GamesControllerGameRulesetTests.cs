@@ -367,5 +367,10 @@ public sealed class GamesControllerGameRulesetTests
         {
             throw new NotImplementedException();
         }
+
+        public Task<ErrorOr<Success>> CancelUnstartedGameForUser(string gameCode, string requestingPlayerId)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

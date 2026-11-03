@@ -44,6 +44,11 @@ export type IGameZonesProps = {
   onToggleTheme: () => void
   /** Resigns from the game after the confirmation dialog is accepted; resolves false when the server refused. */
   onForfeit: () => Promise<boolean>
+  /**
+   * Closes a table nobody has joined yet, which retires it and releases its code; resolves false when the server
+   * refused because an opponent took the seat while the host was deciding.
+   */
+  onCloseTable: () => Promise<boolean>
   /** Asks the opponent to let the board go back one move; resolves false when the server refused. */
   onRequestRedo: () => Promise<boolean>
 }

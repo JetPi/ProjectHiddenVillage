@@ -1,3 +1,4 @@
+using ErrorOr;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
@@ -464,11 +465,120 @@ public sealed class GamesServiceUserDeckFlowTests
         Assert.IsTrue(playerDeck.Take(5).Any(card => card.CardDefinitionId == "S-003"));
     }
 
+    [TestMethod]
+    public async Task CancelUnstartedGameForUser_RetiresTheTableAndFreesItsCode()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var host = CreateUser("host-cancel@example.com", "host-cancel");
+        var card = CreateCatalogEntry("N-001", "Card A");
+
+        dbContext.Users.Add(host);
+        dbContext.Decks.Add(CreateDeck(host.Id, [(card, 2)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
+        var services = CreateServices(dbContext);
+
+        var created = await services.InstanceService.CreateGameForUser(new CreateGameForUserRequest(host.Id, deckId));
+        Assert.IsFalse(created.IsError, created.IsError ? created.FirstError.Description : string.Empty);
+
+        var gameCode = created.Value.Id;
+        Assert.IsTrue(services.CodeAllocator.IsClaimed(gameCode), "Opening the table claims its code.");
+
+        var cancelled = await services.InstanceService.CancelUnstartedGameForUser(gameCode, host.Id.ToString("N"));
+
+        Assert.IsFalse(cancelled.IsError, cancelled.IsError ? cancelled.FirstError.Description : string.Empty);
+        Assert.IsFalse(services.Registry.TryGet(gameCode, out _), "A cancelled table must leave the registry.");
+        Assert.IsFalse(
+            services.CodeAllocator.IsClaimed(gameCode),
+            "Undoing the creation has to give the code back, not just hide the table.");
+
+        // A second click, or a retried request, is answered with "nothing left to undo": the client treats that as
+        // already done rather than as an error worth showing.
+        var again = await services.InstanceService.CancelUnstartedGameForUser(gameCode, host.Id.ToString("N"));
+        Assert.IsTrue(again.IsError);
+        Assert.AreEqual(ErrorType.NotFound, again.FirstError.Type);
+        Assert.AreEqual("Game.Cancel.NotFound", again.FirstError.Code);
+    }
+
+    [TestMethod]
+    public async Task CancelUnstartedGameForUser_RefusesSomebodyWhoIsNotSeated()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var host = CreateUser("host-stranger@example.com", "host-stranger");
+        var card = CreateCatalogEntry("N-001", "Card A");
+
+        dbContext.Users.Add(host);
+        dbContext.Decks.Add(CreateDeck(host.Id, [(card, 2)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckId = await dbContext.Decks.Select(deck => deck.Id).SingleAsync();
+        var services = CreateServices(dbContext);
+
+        var created = await services.InstanceService.CreateGameForUser(new CreateGameForUserRequest(host.Id, deckId));
+        Assert.IsFalse(created.IsError, created.IsError ? created.FirstError.Description : string.Empty);
+
+        var cancelled = await services.InstanceService.CancelUnstartedGameForUser(
+            created.Value.Id,
+            Guid.NewGuid().ToString("N"));
+
+        Assert.IsTrue(cancelled.IsError);
+        Assert.AreEqual(ErrorType.Forbidden, cancelled.FirstError.Type);
+        Assert.AreEqual("Game.Cancel.Forbidden", cancelled.FirstError.Code);
+        Assert.IsTrue(services.Registry.TryGet(created.Value.Id, out _), "A refused cancel must leave the table alone.");
+    }
+
+    [TestMethod]
+    public async Task CancelUnstartedGameForUser_RefusesOnceAnOpponentIsSeated()
+    {
+        await using var dbContext = CreateDbContext();
+
+        var host = CreateUser("host-seat@example.com", "host-seat");
+        var opponent = CreateUser("opponent-seat@example.com", "opponent-seat");
+        var hostCard = CreateCatalogEntry("N-001", "Card A");
+        var opponentCard = CreateCatalogEntry("N-002", "Card B");
+
+        dbContext.Users.AddRange(host, opponent);
+        dbContext.Decks.AddRange(
+            CreateDeck(host.Id, [(hostCard, 2)]),
+            CreateDeck(opponent.Id, [(opponentCard, 2)]));
+        await dbContext.SaveChangesAsync();
+
+        var deckIdsByUserId = await dbContext.Decks
+            .AsNoTracking()
+            .ToDictionaryAsync(deck => deck.UserId!.Value, deck => deck.Id);
+        var services = CreateServices(dbContext);
+
+        var created = await services.InstanceService.CreateGameForUser(
+            new CreateGameForUserRequest(host.Id, deckIdsByUserId[host.Id]));
+        Assert.IsFalse(created.IsError, created.IsError ? created.FirstError.Description : string.Empty);
+
+        var joined = await services.InstanceService.JoinGameForUser(
+            created.Value.Id,
+            new JoinGameAsPlayer(opponent.Id, deckIdsByUserId[opponent.Id]));
+        Assert.IsFalse(joined.IsError, joined.IsError ? joined.FirstError.Description : string.Empty);
+
+        var cancelled = await services.InstanceService.CancelUnstartedGameForUser(
+            created.Value.Id,
+            host.Id.ToString("N"));
+
+        Assert.IsTrue(cancelled.IsError);
+        Assert.AreEqual(ErrorType.Conflict, cancelled.FirstError.Type);
+        Assert.AreEqual("Game.Cancel.SeatTaken", cancelled.FirstError.Code);
+        Assert.IsTrue(
+            services.Registry.TryGet(created.Value.Id, out _),
+            "Once an opponent is seated the table is a game, and leaving it is a resignation.");
+    }
+
     private static TestGameServices CreateServices(ApplicationDbContext dbContext)
     {
+        var codeAllocator = new GameCodeAllocator();
         var registry = new InMemoryGameInstanceRegistry(
             new GameInstanceFactory(),
-            new global::ProjectHiddenVillage.Server.Engine.GamePhaseService(new global::ProjectHiddenVillage.Server.Engine.GamePhaseStateService()));
+            new global::ProjectHiddenVillage.Server.Engine.GamePhaseService(new global::ProjectHiddenVillage.Server.Engine.GamePhaseStateService()),
+            codeAllocator: codeAllocator);
 
         var effectHandlingService = new GameEffectHandlingService();
         var readService = new GamesReadService(
@@ -484,7 +594,9 @@ public sealed class GamesServiceUserDeckFlowTests
         return new TestGameServices(
             InstanceService: new GameInstanceService(registry, readService, rulesets, new GameRulesetDeckValidator()),
             ReadService: readService,
-            Rulesets: rulesets);
+            Rulesets: rulesets,
+            Registry: registry,
+            CodeAllocator: codeAllocator);
     }
 
     private static async Task<Guid> SeedStandardRulesetAsync(TestGameServices services)
@@ -508,7 +620,9 @@ public sealed class GamesServiceUserDeckFlowTests
     private sealed record TestGameServices(
         IGameInstanceService InstanceService,
         IGameReadService ReadService,
-        DeckRulesetService Rulesets);
+        DeckRulesetService Rulesets,
+        InMemoryGameInstanceRegistry Registry,
+        IGameCodeAllocator CodeAllocator);
 
     private static User CreateUser(string email, string username)
     {

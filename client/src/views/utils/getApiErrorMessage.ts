@@ -28,3 +28,11 @@ export function getApiErrorMessage(error: unknown, fallbackMessage: string): str
 export function isApiBadRequestError(error: unknown): boolean {
   return axios.isAxiosError(error) && error.response?.status === 400
 }
+
+/**
+ * Whether the API refused the request because the resource changed underneath it - a hosted table that took its
+ * second player while its creator was backing out, for instance. Callers read this as "not a failure, a new state".
+ */
+export function isApiConflictError(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 409
+}

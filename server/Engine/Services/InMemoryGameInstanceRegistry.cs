@@ -227,6 +227,22 @@ public sealed partial class InMemoryGameInstanceRegistry
     /// </summary>
     public bool TryRetire(string gameId)
     {
+        return TryRetireCore(gameId, requireUnstarted: false);
+    }
+
+    /// <summary>
+    /// Retires a table that never reached a second player: the creator backing out of the table they had just opened.
+    /// The seat count and the removal happen under the instance lock, which <see cref="Join"/> also holds while it
+    /// seats somebody, so an opponent joining at the same instant makes this return false - the table is no longer an
+    /// undo, it is a game.
+    /// </summary>
+    public bool TryRetireUnstarted(string gameId)
+    {
+        return TryRetireCore(gameId, requireUnstarted: true);
+    }
+
+    private bool TryRetireCore(string gameId, bool requireUnstarted)
+    {
         if (string.IsNullOrWhiteSpace(gameId))
         {
             return false;
@@ -234,18 +250,39 @@ public sealed partial class InMemoryGameInstanceRegistry
 
         var normalizedGameId = gameId.Trim();
 
-        if (!instances.TryRemove(normalizedGameId, out var instance) || instance is null)
+        if (!instances.TryGetValue(normalizedGameId, out var instance) || instance is null)
         {
             return false;
         }
 
-        ClearPresentationWatchdog(normalizedGameId);
-        ClearClockWatchdog(normalizedGameId);
-        ClearRedoWatchdog(normalizedGameId);
-        instance.StopClock();
-        codeAllocator.Release(normalizedGameId);
+        // The instance lock is what makes "is this table still only one seat?" and "take it out of the registry" one
+        // step against a concurrent join. Retirement itself happens under the same lock, so a join that started
+        // before it either seats first (and the table survives this pass) or finds the table gone (see Join's own
+        // membership check) instead of seating a player at a game nobody can reach.
+        lock (instance)
+        {
+            if (requireUnstarted && instance.State.Players.Count >= 2)
+            {
+                return false;
+            }
 
-        return true;
+            if (!instances.TryRemove(normalizedGameId, out var removed) || removed is null)
+            {
+                return false;
+            }
+
+            RetireInstance(normalizedGameId, removed);
+            return true;
+        }
+    }
+
+    private void RetireInstance(string gameId, GameInstance instance)
+    {
+        ClearPresentationWatchdog(gameId);
+        ClearClockWatchdog(gameId);
+        ClearRedoWatchdog(gameId);
+        instance.StopClock();
+        codeAllocator.Release(gameId);
     }
 
     public GameInstance Join(string gameId, Player player, Random? random = null)
@@ -263,6 +300,14 @@ public sealed partial class InMemoryGameInstanceRegistry
 
         lock (instance)
         {
+            // The table may have been retired between the lookup above and this lock - the creator backing out of
+            // their own hosted table, or the reaper. Seating a player at a table the registry no longer holds would
+            // report a successful join at a game that does not exist, so it fails like any other unknown code.
+            if (!instances.TryGetValue(instance.State.GameId, out var registered) || !ReferenceEquals(registered, instance))
+            {
+                throw new KeyNotFoundException($"Game instance '{gameId}' is no longer registered.");
+            }
+
             if (instance.State.Players.Count >= 2)
             {
                 throw new InvalidOperationException($"Game instance '{gameId}' already has two players.");
