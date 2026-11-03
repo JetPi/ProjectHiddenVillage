@@ -27,4 +27,11 @@ public sealed class RematchOptions
     /// (or claiming a seat) cancels it, and only a player who really left lets it land.
     /// </summary>
     public int ReleaseGraceSeconds { get; set; } = 20;
+
+    /// <summary>
+    /// How long a player who stopped watching the finished board still counts as present for the rematch handshake.
+    /// A refresh unmounts and re-subscribes exactly like a departure, so the two are told apart by time: inside the
+    /// grace the offer stays live, and only afterwards is it grayed out - and refused by the hub.
+    /// </summary>
+    public int OpponentPresenceGraceSeconds { get; set; } = 5;
 }

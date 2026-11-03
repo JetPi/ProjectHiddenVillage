@@ -102,6 +102,9 @@ export type IGameLeaderCardInstanceResponse = {
 
 export type IGamePlayerStateResponse = {
   playerId: string
+  // The seat's display name, for the board to label each side next to its presence dot. Empty when the seat was
+  // composed without one, in which case the board draws the dot alone.
+  playerName?: string
   turnCount: number
   isSummonCardReady: boolean
   leader: IGameLeaderCardInstanceResponse
@@ -289,6 +292,9 @@ export type IGameStateResponse = {
   // The rematch offer on a finished board. Absent while nothing is on the table; once both players agreed it carries
   // the code of the table they will claim from the login view.
   pendingRematch?: IPendingRematchResponse | null
+  // How much of the other seat's presence grace is left before the rematch offer grays out. Null while they are
+  // watching this board right now (and when presence is not observed at all); 0 once their departure is real.
+  opponentPresenceSecondsRemaining?: number | null
 }
 
 export type IPendingRematchResponse = {

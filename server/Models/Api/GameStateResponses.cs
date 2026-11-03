@@ -60,7 +60,11 @@ public sealed record GameStateResponse(
     bool CanRequestRedo = false,
     // The rematch offer on a finished board: who asked, whether the other seat agreed, and - once it did - the code
     // of the table both players will claim from the login view. Null while nothing is on the table.
-    PendingRematchResponse? PendingRematch = null);
+    PendingRematchResponse? PendingRematch = null,
+    // How much of the other seat's presence grace is left for the rematch handshake. Null while they are watching this
+    // board right now - and when presence is not observed at all, which the board treats the same way - and 0 once
+    // their departure is real. The finished board counts it down locally, so a refresh does not gray the offer out.
+    int? OpponentPresenceSecondsRemaining = null);
 
 /// <summary>
 /// A rematch offered on a finished game. <see cref="ReservedCode"/> is the lobby both players go back to the login
@@ -301,6 +305,9 @@ public sealed record GameCardActionMaterialRequirementResponse(
 
 public sealed record PlayerZonesResponse(
     string PlayerId,
+    // The seat's display name, so the board can label each side next to its presence dot. Empty when the seat was
+    // composed without one, which the board renders as a bare dot.
+    string PlayerName,
     int TurnCount,
     bool IsSummonCardReady,
     int ResourcePool,

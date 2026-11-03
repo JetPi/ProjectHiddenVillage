@@ -30,7 +30,7 @@ public sealed partial class GamesHub
         await Groups.AddToGroupAsync(Context.ConnectionId, gameId);
         gamePresenceTracker.RegisterConnection(gameId, requesterIdResult.Value, Context.ConnectionId);
 
-        var stateResponse = GameStateResponseMapper.ToGameStateResponse(createResult.Value, requesterIdResult.Value);
+        var stateResponse = MapGameState(createResult.Value, requesterIdResult.Value);
         await Clients.Group(gameId).SendAsync("GameStateInvalidated", gameId);
 
         return HubOperationResult<GameStateResponse>.Success(stateResponse);
@@ -61,7 +61,7 @@ public sealed partial class GamesHub
         await Groups.AddToGroupAsync(Context.ConnectionId, normalizedGameId);
         gamePresenceTracker.RegisterConnection(normalizedGameId, requesterIdResult.Value, Context.ConnectionId);
 
-        var stateResponse = GameStateResponseMapper.ToGameStateResponse(joinResult.Value, requesterIdResult.Value);
+        var stateResponse = MapGameState(joinResult.Value, requesterIdResult.Value);
         await Clients.Group(normalizedGameId).SendAsync("GameStateInvalidated", normalizedGameId);
         await Clients.Group(normalizedGameId).SendAsync("GameParticipantJoined", normalizedGameId);
 

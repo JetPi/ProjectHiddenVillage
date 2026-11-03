@@ -16,6 +16,7 @@ public static partial class GameStateResponseMapper
 
         return new PlayerZonesResponse(
             PlayerId: player.PlayerId,
+            PlayerName: player.PlayerName,
             TurnCount: player.TurnCount,
             IsSummonCardReady: state.IsSummonCardReady(player.PlayerId),
             ResourcePool: player.ResourcePool,

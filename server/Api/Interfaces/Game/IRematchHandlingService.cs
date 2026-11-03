@@ -10,11 +10,24 @@ namespace ProjectHiddenVillage.Server.Api.Interfaces.Game;
 /// </summary>
 public interface IRematchHandlingService
 {
-    /// <summary>Records that this player wants another match, or answers the opponent's open offer.</summary>
+    /// <summary>
+    /// Records that this player wants another match, or answers the opponent's open offer. Refused with
+    /// <c>Game.Rematch.OpponentAway</c> once the other seat has been away longer than the presence grace.
+    /// </summary>
     ErrorOr<GameInstance> RequestRematch(string gameId, string requestingPlayerId);
 
-    /// <summary>Agrees to the opponent's offer, which reserves the next table and hands its code to both players.</summary>
+    /// <summary>
+    /// Agrees to the opponent's offer, which reserves the next table and hands its code to both players. Refused
+    /// with <c>Game.Rematch.OpponentAway</c> when the player who offered has already left the board.
+    /// </summary>
     ErrorOr<GameInstance> AcceptRematch(string gameId, string respondingPlayerId);
+
+    /// <summary>
+    /// How much of the other seat's presence grace is left, or null while they are watching the board right now - and
+    /// null too when presence is not observed at all, which the board reads as present. Zero means the departure is
+    /// real: the rematch offer is grayed out and <see cref="RequestRematch"/> refuses it.
+    /// </summary>
+    int? GetOpponentPresenceSecondsRemaining(string gameId, string requestingPlayerId);
 
     /// <summary>Refuses the offer (or withdraws one's own), which settles the rematch for both players.</summary>
     ErrorOr<GameInstance> DeclineRematch(string gameId, string respondingPlayerId);

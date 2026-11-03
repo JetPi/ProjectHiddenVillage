@@ -24,6 +24,7 @@ function GameOverOverlay({
   authUserId,
   onDismiss,
   rematch,
+  opponentPresent = true,
   onRequestRematch,
   onAcceptRematch,
   onDeclineRematch,
@@ -131,6 +132,14 @@ function GameOverOverlay({
           </p>
         ) : null}
 
+        {/* The other seat left the board. The offer is not hidden - it is still the answer to "play again", it just
+            cannot go anywhere until they are back - so the control stays, grayed out, with the reason under it. */}
+        {!isReserved && !opponentPresent ? (
+          <p data-testid="rematch-opponent-away-note" className="mt-4 text-xs text-[var(--text-secondary)]">
+            {t('game.rematch.opponentAway')}
+          </p>
+        ) : null}
+
         <div className="mt-4 flex flex-col gap-2">
           {!isReserved && rematch && !isOwnOffer ? (
             <>
@@ -138,7 +147,7 @@ function GameOverOverlay({
                 type="button"
                 data-testid="rematch-accept-button"
                 className="w-full justify-center"
-                disabled={isRematchBusy}
+                disabled={isRematchBusy || !opponentPresent}
                 onClick={() => void runRematchAction(onAcceptRematch)}
               >
                 {t('game.rematch.accept')}
@@ -160,7 +169,7 @@ function GameOverOverlay({
               type="button"
               data-testid="rematch-offer-button"
               className="w-full justify-center"
-              disabled={isRematchBusy}
+              disabled={isRematchBusy || !opponentPresent}
               onClick={() => void runRematchAction(onRequestRematch)}
             >
               {t('game.rematch.offer')}

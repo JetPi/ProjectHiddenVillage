@@ -11,6 +11,13 @@ public sealed class PlayerState
 
     public string PlayerId { get; set; } = string.Empty;
 
+    /// <summary>
+    /// The seat's display name, copied from the <see cref="Player"/> that took it. The board names each side from it,
+    /// next to that side's presence dot; a composition that never set one publishes an empty name and the board draws
+    /// the dot alone.
+    /// </summary>
+    public string PlayerName { get; set; } = string.Empty;
+
     public int DeckShuffleSeed { get; set; }
 
     public int DeckShuffleCount { get; set; }

@@ -43,7 +43,8 @@ import {
   useRetainedActionBlocked,
   useRetainedPhaseActionSource,
   useGameCardsBackfill,
-  useGameViewSideEffects
+  useGameViewSideEffects,
+  useOpponentPresence,
 } from '@/views/game/hooks'
 
 function isSamePlayerId(left: string | null | undefined, right: string | null | undefined): boolean {
@@ -167,6 +168,9 @@ export function GameView() {
   const reservedRematchCode = gameState.pendingRematch?.reservedCode ?? null
   const reservedRematchRulesetName = gameState.pendingRematch?.rulesetName ?? null
   const reservedRematchExpiresAtUtc = gameState.pendingRematch?.expiresAtUtc ?? null
+  // Is the other seat still on this board? The state counts down the grace the server gives a board that just went
+  // quiet, so a refresh neither flips the status dot nor grays the rematch offer out, and a real departure does both.
+  const isOpponentPresent = useOpponentPresence(gameState.opponentPresenceSecondsRemaining)
   // The state must be *this* board's, or the hand-off below would replay the previous game's agreement as soon as
   // this route mounts - which is exactly what sent players back to the login view right after claiming the table.
   const isCurrentBoardState = isSameGameCode(gameState.gameId, joinCode)
@@ -403,6 +407,7 @@ export function GameView() {
               authUserId={authUserId}
               availableActions={mappedAvailableActions}
               isConnected={isConnected}
+              isOpponentPresent={isOpponentPresent}
               isActionPending={isActionPending}
               isActionBlocked={isActionBlocked}
               isPresentationPending={isHolding}
@@ -492,6 +497,7 @@ export function GameView() {
             authUserId={authUserId}
             onDismiss={dismissGameOverOverlay}
             rematch={gameState.pendingRematch ?? null}
+            opponentPresent={isOpponentPresent}
             onRequestRematch={requestRematch}
             onAcceptRematch={acceptRematch}
             onDeclineRematch={declineRematch}

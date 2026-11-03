@@ -274,9 +274,17 @@ public sealed class GamesControllerGameRulesetTests
 
         public List<(string Code, string PlayerId)> ReleaseCalls { get; } = [];
 
+        /// <summary>What the mapped state publishes as the other seat's remaining presence grace.</summary>
+        public int? OpponentPresenceSecondsRemaining { get; init; }
+
         public ErrorOr<GameInstance> RequestRematch(string gameId, string playerId)
         {
             throw new NotImplementedException();
+        }
+
+        public int? GetOpponentPresenceSecondsRemaining(string gameId, string requestingPlayerId)
+        {
+            return OpponentPresenceSecondsRemaining;
         }
 
         public ErrorOr<GameInstance> AcceptRematch(string gameId, string playerId)

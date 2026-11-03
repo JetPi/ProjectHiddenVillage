@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.SignalR;
 using ProjectHiddenVillage.Server.Api.Interfaces.Game;
 
 namespace ProjectHiddenVillage.Server.Api.Hubs;
@@ -23,6 +24,8 @@ public sealed partial class GamesHub
         // Presence is what the phase presentations wait on, so it is tracked from the moment the board is
         // actually watching the game - not from the connection alone.
         gamePresenceTracker.RegisterConnection(normalizedGameId, requesterIdResult.Value, Context.ConnectionId);
+
+        await NotifyPresenceChangedAsync(normalizedGameId);
     }
 
     public async Task UnsubscribeFromGame(string gameId)
@@ -32,18 +35,46 @@ public sealed partial class GamesHub
             return;
         }
 
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, NormalizeGameId(gameId));
-        ReleasePendingRequirementsForConnection(gamePresenceTracker.RemoveConnection(Context.ConnectionId));
+        var normalizedGameId = NormalizeGameId(gameId);
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, normalizedGameId);
+
+        var watchedGames = gamePresenceTracker.RemoveConnection(Context.ConnectionId);
+        ReleasePendingRequirementsForConnection(watchedGames);
+
+        if (watchedGames.Any(address => string.Equals(address.GameId, normalizedGameId, StringComparison.Ordinal)))
+        {
+            await NotifyPresenceChangedAsync(normalizedGameId);
+        }
     }
 
     /// <summary>
     /// A closed tab must stop counting as a watcher: otherwise a presentation minted while it was connected
-    /// would wait for an acknowledgement that can never arrive.
+    /// would wait for an acknowledgement that can never arrive, and the opponent would keep offering a rematch to
+    /// somebody who is gone.
     /// </summary>
-    public override Task OnDisconnectedAsync(Exception? exception)
+    public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        ReleasePendingRequirementsForConnection(gamePresenceTracker.RemoveConnection(Context.ConnectionId));
-        return base.OnDisconnectedAsync(exception);
+        var watchedGames = gamePresenceTracker.RemoveConnection(Context.ConnectionId);
+        ReleasePendingRequirementsForConnection(watchedGames);
+
+        foreach (var gameId in watchedGames
+            .Select(address => address.GameId)
+            .Distinct(StringComparer.Ordinal))
+        {
+            await NotifyPresenceChangedAsync(gameId);
+        }
+
+        await base.OnDisconnectedAsync(exception);
+    }
+
+    /// <summary>
+    /// Who is watching a board is part of the state the finished board reads - it decides whether the rematch offer
+    /// can be made at all - so a watcher arriving or leaving is announced the way a mutation is: the clients refetch
+    /// instead of guessing, and the grace the answer carries keeps a refresh from graying the offer out.
+    /// </summary>
+    private Task NotifyPresenceChangedAsync(string normalizedGameId)
+    {
+        return Clients.Group(normalizedGameId).SendAsync("GameStateInvalidated", normalizedGameId);
     }
 
     /// <summary>

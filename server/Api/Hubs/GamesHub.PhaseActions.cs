@@ -126,7 +126,7 @@ public sealed partial class GamesHub
             return HubOperationResult<GameStateResponse>.FromErrors(result.Errors);
         }
 
-        var stateResponse = GameStateResponseMapper.ToGameStateResponse(result.Value, requesterIdResult.Value);
+        var stateResponse = MapGameState(result.Value, requesterIdResult.Value);
         await NotifyGameStateInvalidatedAsync(result.Value);
 
         return HubOperationResult<GameStateResponse>.Success(stateResponse);
@@ -170,7 +170,7 @@ public sealed partial class GamesHub
             return HubOperationResult<GameStateResponse>.FromErrors(result.Errors);
         }
 
-        var stateResponse = GameStateResponseMapper.ToGameStateResponse(result.Value, requesterIdResult.Value);
+        var stateResponse = MapGameState(result.Value, requesterIdResult.Value);
         await NotifyGameStateInvalidatedAsync(result.Value);
 
         return HubOperationResult<GameStateResponse>.Success(stateResponse);

@@ -454,6 +454,10 @@
       "reviewBoard": "Review board",
       "returnToMainPage": "Return to main page"
     },
+    "presence": {
+      "present": "Connected",
+      "away": "Not connected"
+    },
     "rematch": {
       "offer": "Rematch",
       "accept": "Accept rematch",
@@ -467,7 +471,8 @@
       "noRuleset": "no format",
       "requestFailed": "The rematch could not be offered.",
       "acceptFailed": "The rematch could not be accepted.",
-      "opponentLeft": "Your opponent left, so this rematch is no longer available."
+      "opponentLeft": "Your opponent left, so this rematch is no longer available.",
+      "opponentAway": "Your opponent is not on this board right now. You can offer a rematch once they are back."
     },
     "actionLog": {
       "heading": "Action log",

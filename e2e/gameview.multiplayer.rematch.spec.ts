@@ -10,6 +10,7 @@ import {
   resolvePromptViaHub,
   resolveStartingPromptOwner,
   setupMultiplayerGame,
+  tryRequestRematchViaHub,
 } from './helpers/gameviewMultiplayerHelpers'
 import type { GameOutcomeResponse, MultiplayerSetup } from './helpers/gameviewMultiplayerHelpers'
 import { API_BASE_URL } from './helpers/multiplayer/api'
@@ -28,8 +29,6 @@ type GameStateWithRematch = Awaited<ReturnType<typeof fetchGameState>> & {
   pendingRematch?: PendingRematch | null
 }
 
-/** The grace a release waits out, plus one sweeper tick - the window before a departure is applied server side. */
-const RELEASE_WINDOW_MS = 35_000
 
 /**
  * A rematch is agreed on the finished board and then claimed from the login view, which is where each player picks
@@ -97,14 +96,16 @@ test.describe('GameView multiplayer rematch', () => {
       // happens immediately - that is the window a refresh lives in.
       await loserPage.goto('/sign-in')
 
-      // The winner comes back to the tab after the grace and the sweep: the banner is cleared by the probe rather
-      // than by a timer, which is the whole no-polling rule.
-      await winnerPage.waitForTimeout(RELEASE_WINDOW_MS)
-      await winnerPage.evaluate(() => {
-        window.dispatchEvent(new Event('focus'))
-      })
+      // The winner comes back to the tab: the probe is what clears the banner, never a timer on the client. The
+      // server applies the release on its own sweep, and the keepalive request an unloading page sends can land well
+      // after the navigation, so the return is repeated until it has rather than fired at one fixed instant.
+      await expect.poll(async () => {
+        await winnerPage.evaluate(() => {
+          window.dispatchEvent(new Event('focus'))
+        })
 
-      await expect(winnerPage.getByTestId('login-rematch-banner')).toHaveCount(0, { timeout: 30_000 })
+        return await winnerPage.getByTestId('login-rematch-banner').count()
+      }, { timeout: 90_000, intervals: [5_000] }).toBe(0)
 
       // And the code is no longer reserved for anybody: the reservation was dropped, not merely hidden.
       const probe = await request.get(`${API_BASE_URL}/api/games/${reservedCode}/ruleset`)
@@ -113,23 +114,58 @@ test.describe('GameView multiplayer rematch', () => {
       await closeMultiplayerPages(pages)
     }
   })
+
+  test('the offer grays out while the opponent is away from the finished board', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request, 'deck-out', {}, { warmStart: false })
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      const { winnerPage, loserPage, winner } = await driveToFinishedBoards(request, setup, pages)
+
+      // Both boards are watching, so there is somebody to offer a rematch to.
+      await expect(winnerPage.getByTestId('rematch-offer-button')).toBeEnabled()
+
+      // The loser walks off the finished board instead of answering. The server grants a short grace, because a
+      // refresh is indistinguishable from a departure - so the control only grays out once that has run out.
+      await loserPage.goto('/sign-in')
+
+      await expect(winnerPage.getByTestId('rematch-opponent-away-note')).toBeVisible({ timeout: 30_000 })
+      await expect(winnerPage.getByTestId('rematch-offer-button')).toBeDisabled()
+
+      // The grayed control is a hint; the seat check is the authority, and it refuses with the reason.
+      const refusal = await tryRequestRematchViaHub(setup.gameCode, winner)
+
+      expect(refusal.succeeded).toBe(false)
+      expect(refusal.errorCode).toBe('Game.Rematch.OpponentAway')
+
+      // Coming back to the board re-enables it: the control follows presence, it does not latch.
+      await loserPage.goto(`/game/${setup.gameCode}`)
+
+      await expect(winnerPage.getByTestId('rematch-opponent-away-note')).toHaveCount(0, { timeout: 30_000 })
+      await expect(winnerPage.getByTestId('rematch-offer-button')).toBeEnabled()
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
 })
 
-/**
- * Plays the seeded deck-out game to its result and walks both players through the offer and the acceptance, leaving
- * them on the login view. Returns the pages and the winner's identity, since which page is which depends on who lost.
- */
-async function driveToAgreedRematch(
-  request: APIRequestContext,
-  setup: MultiplayerSetup,
-  pages: Awaited<ReturnType<typeof openMultiplayerPages>>,
-): Promise<{
+type FinishedBoards = {
   winnerPage: Page
   loserPage: Page
   winner: MultiplayerSetup['playerOne']
   loser: MultiplayerSetup['playerOne']
   isPlayerOneTheLoser: boolean
-}> {
+}
+
+/**
+ * Plays the seeded deck-out game to its result. Returns both finished boards with the winner's identity, since which
+ * page is which depends on who lost.
+ */
+async function driveToFinishedBoards(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: Awaited<ReturnType<typeof openMultiplayerPages>>,
+): Promise<FinishedBoards> {
   const startingPromptOwner = await resolveStartingPromptOwner(request, setup)
   const startingOwner = startingPromptOwner === 'playerOne' ? setup.playerOne : setup.playerTwo
   await resolvePromptViaHub(setup.gameCode, startingOwner, 'goFirst')
@@ -149,6 +185,20 @@ async function driveToAgreedRematch(
   await expect(winnerPage.getByTestId('game-over-overlay')).toBeVisible({ timeout: 30_000 })
   await expect(loserPage.getByTestId('game-over-overlay')).toBeVisible({ timeout: 30_000 })
 
+  return { winnerPage, loserPage, winner, loser, isPlayerOneTheLoser }
+}
+
+/**
+ * Walks both players through the offer and the acceptance, leaving them on the login view with the reserved code.
+ */
+async function driveToAgreedRematch(
+  request: APIRequestContext,
+  setup: MultiplayerSetup,
+  pages: Awaited<ReturnType<typeof openMultiplayerPages>>,
+): Promise<FinishedBoards> {
+  const finished = await driveToFinishedBoards(request, setup, pages)
+  const { winnerPage, loserPage } = finished
+
   // The winner offers; the opponent sees the offer arrive on their own finished board.
   await winnerPage.getByTestId('rematch-offer-button').click()
   await expect(winnerPage.getByTestId('rematch-waiting-note')).toBeVisible({ timeout: 30_000 })
@@ -160,7 +210,7 @@ async function driveToAgreedRematch(
   await winnerPage.waitForURL((url) => url.pathname === '/', { timeout: 30_000 })
   await loserPage.waitForURL((url) => url.pathname === '/', { timeout: 30_000 })
 
-  return { winnerPage, loserPage, winner, loser, isPlayerOneTheLoser }
+  return finished
 }
 
 async function waitForReservedCode(

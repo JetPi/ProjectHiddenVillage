@@ -251,3 +251,7 @@ the next game within the half hour - is a follow-up with its own lifecycle:
 [`plans/rematch-abandonment.md`](plans/rematch-abandonment.md:1). It raises the reservation ceiling to 30 minutes,
 adds a deferred release so a refresh is not mistaken for a departure, and retires a one-player table whose opponent
 walked away.
+
+The offer itself is presence-checked before any of that can happen: a finished board with nobody on the other seat
+publishes a countdown instead of an enabled control, and the hub refuses the call once it runs out. See
+[`plans/rematch-opponent-presence.md`](plans/rematch-opponent-presence.md:1).

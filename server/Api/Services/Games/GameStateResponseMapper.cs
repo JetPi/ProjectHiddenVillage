@@ -13,7 +13,14 @@ public static partial class GameStateResponseMapper
     /// </summary>
     private const int MaxEffectNotices = 20;
 
-    public static GameStateResponse ToGameStateResponse(GameInstance game, string requestingPlayerId)
+    /// <param name="opponentPresenceSecondsRemaining">
+    /// The other seat's remaining presence grace for the rematch handshake, as the rematch service counts it; null
+    /// when they are watching the board, or when presence is not observed at all.
+    /// </param>
+    public static GameStateResponse ToGameStateResponse(
+        GameInstance game,
+        string requestingPlayerId,
+        int? opponentPresenceSecondsRemaining = null)
     {
         ArgumentNullException.ThrowIfNull(game);
 
@@ -37,7 +44,8 @@ public static partial class GameStateResponseMapper
                 && game.PendingPhasePresentation is null
                 && game.HasRewindTarget,
             // Only a finished board offers a rematch: there is no next match before this one ends.
-            pendingRematch: hasOutcome ? ToRematchResponse(game.PendingRematch) : null);
+            pendingRematch: hasOutcome ? ToRematchResponse(game.PendingRematch) : null,
+            opponentPresenceSecondsRemaining: opponentPresenceSecondsRemaining);
     }
 
     public static GameStateResponse ToGameStateResponse(GameState state, string requestingPlayerId)
@@ -56,7 +64,8 @@ public static partial class GameStateResponseMapper
             pendingRedo: null,
             lastRewindId: null,
             canRequestRedo: false,
-            pendingRematch: null);
+            pendingRematch: null,
+            opponentPresenceSecondsRemaining: null);
     }
 
     private static PendingRematchResponse? ToRematchResponse(RematchOffer? offer)
@@ -112,7 +121,8 @@ public static partial class GameStateResponseMapper
         RedoRequestResponse? pendingRedo,
         string? lastRewindId,
         bool canRequestRedo,
-        PendingRematchResponse? pendingRematch)
+        PendingRematchResponse? pendingRematch,
+        int? opponentPresenceSecondsRemaining)
     {
         var phaseData = PhaseStateService.GetPhaseData(state.Phase);
         var hasOutcome = GameEndRules.IsGameOver(state);
@@ -175,7 +185,8 @@ public static partial class GameStateResponseMapper
             PendingRedo: pendingRedo,
             LastRewindId: lastRewindId,
             CanRequestRedo: canRequestRedo,
-            PendingRematch: pendingRematch);
+            PendingRematch: pendingRematch,
+            OpponentPresenceSecondsRemaining: opponentPresenceSecondsRemaining);
     }
 
     /// <summary>

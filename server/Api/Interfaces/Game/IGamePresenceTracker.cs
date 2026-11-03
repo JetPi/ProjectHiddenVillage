@@ -29,4 +29,11 @@ public interface IGamePresenceTracker
     IReadOnlyList<string> GetConnectedPlayerIds(string gameId);
 
     bool IsPlayerConnected(string gameId, string playerId);
+
+    /// <summary>
+    /// When a player stops counting as present for a handshake that tolerates a refresh, or null when they are
+    /// watching the game right now - and null too for a player this process never saw, so an unobservable seat is
+    /// never mistaken for an empty one. Past the answered instant the departure is real.
+    /// </summary>
+    DateTimeOffset? GetPresenceDeadline(string gameId, string playerId, TimeSpan grace);
 }
