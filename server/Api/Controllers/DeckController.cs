@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ProjectHiddenVillage.Server.Api.Interfaces.Auth;
 using ProjectHiddenVillage.Server.Api.Interfaces.Deck;
 using ProjectHiddenVillage.Server.Data.DTOs;
 using ProjectHiddenVillage.Server.Data.Entities;
@@ -13,10 +14,12 @@ namespace ProjectHiddenVillage.Server;
 public sealed class DeckController : ApiControllerBase
 {
     private readonly IDeckService deckService;
+    private readonly IActorCapabilityResolver capabilityResolver;
 
-    public DeckController(IDeckService deckService)
+    public DeckController(IDeckService deckService, IActorCapabilityResolver capabilityResolver)
     {
         this.deckService = deckService;
+        this.capabilityResolver = capabilityResolver;
     }
 
     [Authorize(Policy = AuthorizationPolicies.RegisteredUser)]
@@ -69,7 +72,7 @@ public sealed class DeckController : ApiControllerBase
             deckId,
             request,
             GetRequestingUserId(),
-            IsCardCatalogAdmin());
+            await IsCardCatalogAdminAsync());
 
         if (result.IsError)
         {
@@ -94,7 +97,7 @@ public sealed class DeckController : ApiControllerBase
         var result = await deckService.DeleteDeck(
             deckId,
             GetRequestingUserId(),
-            IsCardCatalogAdmin());
+            await IsCardCatalogAdminAsync());
 
         if (result.IsError)
         {
@@ -149,10 +152,14 @@ public sealed class DeckController : ApiControllerBase
         return Guid.TryParse(rawUserId, out var userId) ? userId : null;
     }
 
-    private bool IsCardCatalogAdmin()
+    /// <summary>
+    /// These two actions are plain <c>[Authorize]</c>, so the policy's database-backed admin check never runs for
+    /// them. Asking the same resolver is what keeps a demoted administrator out of the catalogue-wide branch that
+    /// the service applies when <c>isAdmin</c> is true.
+    /// </summary>
+    private async Task<bool> IsCardCatalogAdminAsync()
     {
-        return User?.HasClaim(
-            AuthorizationPolicies.CardCatalogAdminClaimType,
-            AuthorizationPolicies.CardCatalogAdminClaimValue) == true;
+        return GetRequestingUserId() is { } userId
+            && await capabilityResolver.IsCardCatalogAdminAsync(userId);
     }
 }

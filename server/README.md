@@ -66,6 +66,16 @@ dotnet build ProjectHiddenVillage.Server.csproj
   cards. Set `PHV_RESEED_OVERWRITES_EXISTING=true` when replacing them is what you want — it is the only path
   that writes over stored cards.
 
+## Development Authentication Bypass
+
+- In Development the API can authenticate a request as a seeded user without a token, so the client and the e2e
+  suite can call authenticated routes without signing in first.
+- It is off unless `PHV_ALLOW_DEVELOPMENT_BYPASS=true` is set. `npm run dev` and `scripts/e2e-start-server.sh` set it;
+  any other Development host has to ask for it explicitly, because the bypass hands every caller the
+  `card_catalog_admin` claim.
+- That claim is still checked against the `users` row by `CardCatalogAdminAuthorizationHandler`, so a bypass identity
+  pointing at a non-admin account cannot write to the catalogue.
+
 ## E2E Dedicated Database
 
 - E2E server startup uses a dedicated database via `scripts/e2e-start-server.sh`.

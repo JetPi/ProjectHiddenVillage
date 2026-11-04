@@ -23,7 +23,7 @@ WORKDIR /app
 
 COPY --from=build /app/publish .
 
-# Card art lives on a Fly volume mounted at /data; these keep the app writing there
+# Card art lives on the compose volume mounted at /data; these keep the app writing there
 # instead of into the ephemeral container filesystem.
 ENV CardArt__CacheDirectory=/data/card-art-cache \
     CardArt__UploadDirectory=/data/card-art-uploads \

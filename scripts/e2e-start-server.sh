@@ -48,8 +48,12 @@ export CardArt__SourceHostAllowlist__0="e2e.invalid"
 export CardArt__UploadDirectory="card-art-uploads-e2e"
 export CardArt__CacheDirectory="card-art-cache-e2e"
 
+# PHV_ALLOW_DEVELOPMENT_BYPASS is opt-in on purpose: the development bypass authenticates an anonymous caller as a
+# seeded administrator, so Development alone no longer turns it on. The e2e suite predates the admin screens and
+# relies on it for the anonymous reads it makes, so it asks for it here explicitly.
 ASPNETCORE_ENVIRONMENT=Development \
 DOTNET_ENVIRONMENT=Development \
 PHV_INCLUDE_TEST_SEED_PROFILES=true \
+PHV_ALLOW_DEVELOPMENT_BYPASS=true \
 ConnectionStrings__DefaultConnection="${CONNECTION_STRING}" \
 dotnet run --project server/ProjectHiddenVillage.Server.csproj --configuration Release --urls http://127.0.0.1:3101

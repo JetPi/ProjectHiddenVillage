@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using System.Net;
 using FluentValidation;
 using FluentValidation.AspNetCore;
@@ -203,6 +204,9 @@ builder.Services.AddScoped<ReferenceCatalogSeeder>();
 builder.Services.Configure<AdminBootstrapOptions>(builder.Configuration.GetSection(AdminBootstrapOptions.SectionName));
 builder.Services.AddScoped<AdminBootstrapSeeder>();
 builder.Services.AddSingleton<IAuthTokenService, AuthTokenService>();
+// What an account may do is read back from the database on the request that needs it, not carried in the token
+// for the token's whole life: see CardCatalogAdminAuthorizationHandler.
+builder.Services.AddScoped<IActorCapabilityResolver, ActorCapabilityResolver>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services
     .AddControllers()
@@ -410,9 +414,13 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AuthorizationPolicies.CardCatalogAdmin, policy =>
     {
         policy.RequireAuthenticatedUser();
+        // The claim is the cheap half of the gate: an ordinary player's token is refused without touching the
+        // database. The requirement is the authoritative half, so a token minted while its holder was an admin
+        // stops writing as soon as the stored account is demoted or removed.
         policy.RequireClaim(
             AuthorizationPolicies.CardCatalogAdminClaimType,
             AuthorizationPolicies.CardCatalogAdminClaimValue);
+        policy.Requirements.Add(new CardCatalogAdminRequirement());
     });
 
     // Everything a guest may do is plain authenticated play. Anything that persists ownership - saving a deck,
@@ -425,6 +433,9 @@ builder.Services.AddAuthorization(options =>
                 && claim.Value == AuthorizationPolicies.GuestClaimValue));
     });
 });
+
+// Scoped, like the DbContext it reads through: the handler is resolved per request.
+builder.Services.AddScoped<IAuthorizationHandler, CardCatalogAdminAuthorizationHandler>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
