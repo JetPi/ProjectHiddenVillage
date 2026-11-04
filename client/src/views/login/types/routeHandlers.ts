@@ -6,6 +6,8 @@ export type ILoginResponse = {
   email: string
   accessToken: string
   expiresAt: string
+  /** Mirrors the `card_catalog_admin` claim the token carries; the admin route guard re-checks it server-side. */
+  isCardCatalogAdmin: boolean
 }
 
 export type ILoginApiRequest = {

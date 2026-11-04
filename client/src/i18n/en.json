@@ -126,6 +126,10 @@
   "auth": {
     "title": "Shinobi Tactics",
     "tagline": "A free Naruto TCG online simulator",
+    "community": {
+      "prompt": "Something to report, or just want to talk about the game?",
+      "joinDiscord": "Join the Discord"
+    },
     "onlinePlayers_one": "{{count}} player online",
     "onlinePlayers_other": "{{count}} players online",
     "maintenance": {
@@ -673,6 +677,10 @@
     }
   },
   "admin": {
+    "guard": {
+      "signInRequired": "Sign in with an administrator account to open that page.",
+      "verificationFailed": "Your admin access could not be confirmed. Try again in a moment."
+    },
     "view": {
       "title": "Card Admin",
       "backToLogin": "Back to Login",

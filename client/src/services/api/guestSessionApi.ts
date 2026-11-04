@@ -23,5 +23,7 @@ export async function createGuestSession(displayName: string): Promise<IAuthSess
     accessToken: data.accessToken,
     expiresAt: data.expiresAt,
     isGuest: true,
+    // Guests are minted without the admin claim and never receive one; the server refuses to put it in a guest token.
+    isCardCatalogAdmin: false,
   }
 }

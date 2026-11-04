@@ -63,6 +63,7 @@ import {
 } from '@/domain/deck/parseDeckList'
 import { CreateGameShareDialog } from '@/views/login/components/CreateGameShareDialog'
 import { DeckImportDialog } from '@/views/login/components/DeckImportDialog'
+import { DiscordInvite } from '@/views/login/components/DiscordInvite'
 import { DeleteDeckConfirmDialog } from '@/views/login/components/DeleteDeckConfirmDialog'
 import { MatchmakingSearchDialog } from '@/views/login/components/MatchmakingSearchDialog'
 import { QueuedPlayersBadge } from '@/views/login/components/QueuedPlayersBadge'
@@ -2003,6 +2004,7 @@ export function LoginView() {
         editDeckName={editingDeck ? describeDeckName(editingDeck) : null}
         leaderWillResetRecord={leaderWillResetRecord}
       />
+      <DiscordInvite />
     </PageShell>
   )
 }

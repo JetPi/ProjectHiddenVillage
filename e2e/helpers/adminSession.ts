@@ -26,5 +26,6 @@ export async function createAdminSession(request: APIRequestContext): Promise<Au
     email: response.email,
     accessToken: response.accessToken,
     expiresAt: response.expiresAt,
+    isCardCatalogAdmin: response.isCardCatalogAdmin,
   }
 }

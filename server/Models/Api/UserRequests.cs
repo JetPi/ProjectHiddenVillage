@@ -11,7 +11,10 @@ public sealed record LoginResponse(
     string Username,
     string Email,
     string AccessToken,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt,
+    // The client keeps this so admin routes can be gated before they render. The server still re-checks the token
+    // on every call - this flag is a navigation hint, never the authority.
+    bool IsCardCatalogAdmin);
 
 /// <summary>
 /// What a guest is asked for. A display name is the entire sign-up: guests get a player id, a token and

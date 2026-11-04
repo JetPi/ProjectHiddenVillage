@@ -61,6 +61,7 @@ export async function signInAction({ request }: ActionFunctionArgs): Promise<ISi
       accessToken: loginResponse.accessToken,
       expiresAt: loginResponse.expiresAt,
       isGuest: false,
+      isCardCatalogAdmin: loginResponse.isCardCatalogAdmin === true,
     }
 
     persistAuthSession(authUser)

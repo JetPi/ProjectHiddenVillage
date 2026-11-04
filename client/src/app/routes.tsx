@@ -1,7 +1,9 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { RouteErrorBoundary } from '@/components/feedback/RouteErrorBoundary'
 import { AuthRouteErrorBoundary } from '@/components/feedback/AuthRouteErrorBoundary'
+import { AdminRouteErrorBoundary } from '@/components/feedback/AdminRouteErrorBoundary'
 import { Navigate } from 'react-router-dom'
+import { adminRouteGuard } from '@/app/guards/adminRouteGuard'
 import { RouteTransitionOverlay } from '@/app/RouteTransitionOverlay'
 import { AppHydrateFallback } from '@/app/AppHydrateFallback'
 
@@ -62,54 +64,68 @@ export const router = createBrowserRouter([
         errorElement: <AuthRouteErrorBoundary />,
       },
       {
-        path: '/admin/cards',
-        lazy: async () => {
-          const { CardAdminView } = await import('@/views/admin/CardAdminView')
+        // One gate for the whole subtree. The parent's loader runs before any child renders - and before a child can
+        // be reached by URL - so a new admin screen is protected the moment it is added here. `children` stay
+        // path-relative (`cards`, not `/admin/cards`) precisely so they cannot escape the parent.
+        path: '/admin',
+        loader: adminRouteGuard,
+        errorElement: <AdminRouteErrorBoundary />,
+        children: [
+          {
+            index: true,
+            element: <Navigate to="/admin/cards" replace />,
+          },
+          {
+            path: 'cards',
+            lazy: async () => {
+              const { CardAdminView } = await import('@/views/admin/CardAdminView')
 
-          return {
-            Component: CardAdminView,
-          }
-        },
-      },
-      {
-        path: '/admin/cards/new',
-        lazy: async () => {
-          const { CardAdminCreateView } = await import('@/views/admin/CardAdminCreateView')
+              return {
+                Component: CardAdminView,
+              }
+            },
+          },
+          {
+            path: 'cards/new',
+            lazy: async () => {
+              const { CardAdminCreateView } = await import('@/views/admin/CardAdminCreateView')
 
-          return {
-            Component: CardAdminCreateView,
-          }
-        },
-      },
-      {
-        path: '/admin/decks',
-        lazy: async () => {
-          const { DeckAdminView } = await import('@/views/admin/DeckAdminView')
+              return {
+                Component: CardAdminCreateView,
+              }
+            },
+          },
+          {
+            path: 'decks',
+            lazy: async () => {
+              const { DeckAdminView } = await import('@/views/admin/DeckAdminView')
 
-          return {
-            Component: DeckAdminView,
-          }
-        },
-      },
-      {
-        path: '/admin/decks/:deckId',
-        lazy: async () => {
-          const { DeckAdminView } = await import('@/views/admin/DeckAdminView')
+              return {
+                Component: DeckAdminView,
+              }
+            },
+          },
+          {
+            path: 'decks/:deckId',
+            lazy: async () => {
+              const { DeckAdminView } = await import('@/views/admin/DeckAdminView')
 
-          return {
-            Component: DeckAdminView,
-          }
-        },
-      },
-      {
-        path: '/admin/rulesets',
-        lazy: async () => {
-          const { DeckRulesetAdminView } = await import('@/views/admin/DeckRulesetAdminView')
+              return {
+                Component: DeckAdminView,
+              }
+            },
+          },
+          {
+            path: 'rulesets',
+            lazy: async () => {
+              const { DeckRulesetAdminView } = await import('@/views/admin/DeckRulesetAdminView')
 
-          return {
-            Component: DeckRulesetAdminView,
-          }
-        },
+              return {
+                Component: DeckRulesetAdminView,
+              }
+            },
+          },
+        ],
       },
       {
         path: '*',

@@ -102,7 +102,8 @@ public sealed class GuestUserService : IGuestUserService
             Username: guest.Username,
             Email: guest.Email,
             AccessToken: token.AccessToken,
-            ExpiresAt: token.ExpiresAt);
+            ExpiresAt: token.ExpiresAt,
+            IsCardCatalogAdmin: false);
     }
 
     public async Task TouchAsync(string playerId, CancellationToken cancellationToken = default)

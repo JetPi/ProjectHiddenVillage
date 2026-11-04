@@ -55,6 +55,7 @@ export async function loginAction({ request }: ActionFunctionArgs): Promise<ILog
       accessToken: payload.accessToken,
       expiresAt: payload.expiresAt,
       isGuest: false,
+      isCardCatalogAdmin: payload.isCardCatalogAdmin === true,
     }
 
     persistAuthSession(authUser)

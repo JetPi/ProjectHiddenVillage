@@ -33,6 +33,9 @@ function parseAuthSession(rawValue: string | null): IAuthSession | null {
       expiresAt: parsed.expiresAt,
       // Sessions persisted before guests existed have no flag and were all registered accounts.
       isGuest: parsed.isGuest === true,
+      // Sessions persisted before admin gating existed have no flag either. Defaulting to false is the safe read:
+      // the admin route guard re-verifies against the server before it renders anything.
+      isCardCatalogAdmin: parsed.isCardCatalogAdmin === true,
     }
   } catch {
     return null
