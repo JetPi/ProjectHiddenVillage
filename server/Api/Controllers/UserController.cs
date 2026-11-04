@@ -1,3 +1,6 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProjectHiddenVillage.Server.Api.Interfaces.Auth;
 using ProjectHiddenVillage.Server.Api.Interfaces.User;
@@ -86,11 +89,48 @@ public sealed class UserController : ApiControllerBase
 			Username: userResult.Value.Username,
 			Email: userResult.Value.Email,
 			AccessToken: tokenResult.AccessToken,
-			ExpiresAt: tokenResult.ExpiresAt));
+			ExpiresAt: tokenResult.ExpiresAt,
+			IsCardCatalogAdmin: userResult.Value.IsCardCatalogAdmin));
 	}
 
+	/// <summary>
+	/// The caller's own record, resolved from the token instead of a route value. The client's admin route guard
+	/// asks this question here so the answer comes from the server: a flag written into localStorage cannot make
+	/// someone an admin, and a revoked or expired token answers 401 no matter what the browser believes.
+	/// </summary>
+	[Authorize]
+	[HttpGet("me")]
+	[ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<ActionResult<UserResponse>> GetCurrentUser()
+	{
+		var rawUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+			?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+		if (!Guid.TryParse(rawUserId, out var userId))
+		{
+			return Unauthorized();
+		}
+
+		var result = await userService.GetUser(userId.ToString());
+		if (result.IsError)
+		{
+			return ProblemFromErrors<UserResponse>(result.Errors);
+		}
+
+		return Ok(result.Value);
+	}
+
+	/// <summary>
+	/// Another account's record. Authenticated only: the response carries the account's email and whether it is an
+	/// administrator, which is exactly the pair an anonymous visitor would need to enumerate the admin accounts -
+	/// and hiding the admin screens behind a guard while publishing that list would be pointless.
+	/// </summary>
+	[Authorize]
 	[HttpGet("{userId}")]
 	[ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
 	[ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
 	[ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
 	public async Task<ActionResult<UserResponse>> GetUser(string userId)
@@ -104,8 +144,13 @@ public sealed class UserController : ApiControllerBase
 		return Ok(result.Value);
 	}
 
+	/// <summary>
+	/// The account list, with the same reasoning as <see cref="GetUser"/>: it names every administrator.
+	/// </summary>
+	[Authorize]
 	[HttpGet]
 	[ProducesResponseType(typeof(PagedResponse<UserResponse>), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
 	[ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
 	public async Task<ActionResult<PagedResponse<UserResponse>>> GetUsers([FromQuery] int page = 1, [FromQuery] int pageSize = 100)
 	{

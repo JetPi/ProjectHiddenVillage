@@ -6,6 +6,10 @@ export type AuthSession = {
   email: string
   accessToken: string
   expiresAt: string
+  /** Optional here because most flows never touch an admin screen; the client treats a missing value as false. */
+  isCardCatalogAdmin?: boolean
+  /** Settings a spec seeds for its own purposes land here too, so the shape stays open. */
+  isGuest?: boolean
 }
 
 export type PlayerAuth = {
@@ -139,4 +143,5 @@ export type LoginResponse = {
   email: string
   accessToken: string
   expiresAt: string
+  isCardCatalogAdmin: boolean
 }

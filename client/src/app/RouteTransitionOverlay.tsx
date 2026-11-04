@@ -1,5 +1,9 @@
-import { Outlet, useNavigation } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Outlet, useLocation, useNavigation } from 'react-router-dom'
 import { AppLoadingChip } from '@/components/feedback/AppLoadingChip'
+import { showAppInfoToast } from '@/components/feedback/appToastNotifications'
+import i18n from '@/i18n'
+import { consumeAdminSignInNotice } from '@/app/guards/adminGuardNotice'
 
 /**
  * The navigation scrim.
@@ -16,7 +20,22 @@ import { AppLoadingChip } from '@/components/feedback/AppLoadingChip'
  */
 export function RouteTransitionOverlay() {
   const navigation = useNavigation()
+  const location = useLocation()
   const isNavigationBusy = navigation.state !== 'idle'
+
+  // The admin guard bounces anonymous visitors to the login panel; it can only leave a flag behind, because a toast
+  // raised inside its loader would fire before the redirect lands. The notice is emitted here, after the panel is
+  // mounted, and the flag is consumed so no later navigation replays it.
+  useEffect(() => {
+    if (!consumeAdminSignInNotice()) {
+      return
+    }
+
+    showAppInfoToast(i18n.t('admin.guard.signInRequired'), {
+      id: 'admin-route-guard-status',
+      position: 'top-right',
+    })
+  }, [location.pathname])
 
   return (
     <>

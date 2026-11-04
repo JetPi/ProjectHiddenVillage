@@ -673,6 +673,10 @@
     }
   },
   "admin": {
+    "guard": {
+      "signInRequired": "Sign in with an administrator account to open that page.",
+      "verificationFailed": "Your admin access could not be confirmed. Try again in a moment."
+    },
     "view": {
       "title": "Card Admin",
       "backToLogin": "Back to Login",

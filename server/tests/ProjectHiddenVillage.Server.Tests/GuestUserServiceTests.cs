@@ -26,6 +26,9 @@ public sealed class GuestUserServiceTests
 
         Assert.IsFalse(result.IsError, result.IsError ? result.FirstError.Description : string.Empty);
         Assert.AreEqual("Shadow", result.Value.Username);
+        Assert.IsFalse(
+            result.Value.IsCardCatalogAdmin,
+            "A guest session can never report admin capability, whatever the client stores beside it.");
 
         var guest = await dbContext.Users.SingleAsync();
         Assert.IsTrue(guest.IsGuest);
