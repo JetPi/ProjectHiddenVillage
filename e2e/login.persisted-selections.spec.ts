@@ -113,10 +113,17 @@ test.describe('login selections', () => {
     const deckPicker = page.getByRole('combobox', { name: DECK_OPTIONS })
     await expect(deckPicker).toContainText(SELECT_PLACEHOLDER, { timeout: 30_000 })
 
-    const persisted = await readPersistedSelections(page)
-    expect(persisted?.state?.deckOptionsByMode?.starter_decks).toBe('')
+    // The corrected value is written when the deck list resolves, which can land a tick after the picker repaints -
+    // a single read was racing that write whenever the machine was busy running other specs.
+    await expect
+      .poll(
+        async () => (await readPersistedSelections(page))?.state?.deckOptionsByMode?.starter_decks,
+        { timeout: 5_000 },
+      )
+      .toBe('')
+
     // The rest of the remembered configuration is untouched by that correction.
-    expect(persisted?.state?.displayName).toBe('Ghost Deck Player')
+    expect((await readPersistedSelections(page))?.state?.displayName).toBe('Ghost Deck Player')
   })
 })
 
