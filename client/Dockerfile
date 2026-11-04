@@ -1,5 +1,5 @@
 # Static client image: Vite build served by nginx.
-# The API is a separate Fly app (see the repository-root Dockerfile and fly.toml).
+# The API is a separate container service (see the repository-root Dockerfile and docker-compose.yml).
 
 FROM node:22-alpine AS build
 WORKDIR /app

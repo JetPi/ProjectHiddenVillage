@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev:prepare": "sh -c 'fuser -k 3001/tcp 2>/dev/null || true; fuser -k 5173/tcp 2>/dev/null || true; fuser -k 5174/tcp 2>/dev/null || true'",
-    "dev": "npm run dev:prepare && concurrently -n client,server -c cyan,green \"npm --prefix client run dev\" \"ASPNETCORE_ENVIRONMENT=Development DOTNET_ENVIRONMENT=Development dotnet watch --project server/ProjectHiddenVillage.Server.csproj run --urls http://127.0.0.1:3001\"",
+    "dev": "npm run dev:prepare && concurrently -n client,server -c cyan,green \"npm --prefix client run dev\" \"ASPNETCORE_ENVIRONMENT=Development DOTNET_ENVIRONMENT=Development PHV_ALLOW_DEVELOPMENT_BYPASS=true dotnet watch --project server/ProjectHiddenVillage.Server.csproj run --urls http://127.0.0.1:3001\"",
     "e2e:prepare": "sh -c 'fuser -k 3101/tcp 2>/dev/null || true; fuser -k 4173/tcp 2>/dev/null || true'",
     "e2e:build:client": "VITE_API_BASE_URL=http://127.0.0.1:3101 npm --prefix client run build",
     "e2e:start:client": "npm --prefix client run preview -- --host 127.0.0.1 --port 4173 --strictPort",
