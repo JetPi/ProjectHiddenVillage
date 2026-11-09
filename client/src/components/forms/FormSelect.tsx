@@ -66,7 +66,7 @@ export function FormSelect({
         aria-haspopup="listbox"
         onClick={() => setIsOpen((prev) => !prev)}
         className={twMerge(
-          'w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--field-bg)] px-4 py-3 pr-12 text-left text-sm normal-case text-[var(--text-primary)] focus:border-[var(--focus-ring)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60',
+          'w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--field-bg)] px-4 py-3 pr-12 text-left text-base normal-case text-[var(--text-primary)] focus:border-[var(--focus-ring)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm',
           className,
         )}
       >
