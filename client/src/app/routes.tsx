@@ -2,6 +2,8 @@ import { createBrowserRouter } from 'react-router-dom'
 import { RouteErrorBoundary } from '@/components/feedback/RouteErrorBoundary'
 import { AuthRouteErrorBoundary } from '@/components/feedback/AuthRouteErrorBoundary'
 import { AdminRouteErrorBoundary } from '@/components/feedback/AdminRouteErrorBoundary'
+// Eager on purpose: AdminRouteErrorBoundary already pulls it in for the admin 404, so a lazy route could not split it.
+import { NotFoundView } from '@/views/NotFoundView'
 import { Navigate } from 'react-router-dom'
 import { adminRouteGuard } from '@/app/guards/adminRouteGuard'
 import { RouteTransitionOverlay } from '@/app/RouteTransitionOverlay'
@@ -129,13 +131,7 @@ export const router = createBrowserRouter([
       },
       {
         path: '*',
-        lazy: async () => {
-          const { NotFoundView } = await import('@/views/NotFoundView')
-
-          return {
-            Component: NotFoundView,
-          }
-        },
+        element: <NotFoundView />,
       },
     ],
   },

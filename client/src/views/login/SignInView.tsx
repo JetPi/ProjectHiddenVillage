@@ -20,7 +20,7 @@ export function SignInView() {
   const isSubmitting = navigation.state === 'submitting'
 
   return (
-    <PageShell>
+    <PageShell scrollable>
       <div className="flex min-h-[80vh] w-full items-center justify-center px-3 sm:px-4">
         <Panel className="w-full max-w-md p-5">
           <h1 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">{t('auth.signIn.title')}</h1>

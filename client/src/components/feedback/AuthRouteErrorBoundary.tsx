@@ -29,7 +29,7 @@ export function AuthRouteErrorBoundary() {
   const error = useRouteError()
 
   return (
-    <PageShell>
+    <PageShell scrollable>
       <div className="flex min-h-[70vh] w-full items-center justify-center px-3 sm:px-4">
         <Panel className="w-full max-w-lg p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-accent)]">

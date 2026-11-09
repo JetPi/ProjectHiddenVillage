@@ -14,18 +14,15 @@ import { Link, useActionData, useNavigate, useNavigation } from 'react-router-do
 import { PageShell } from '@/components/layout/PageShell'
 import { AppButton, Panel } from '@/components/ui'
 import {
-  AdaptiveFormField,
   Form,
   FormActions,
   FormErrorText,
   FormField,
   FormLabel,
   FormInput,
-  OptionToggle,
 } from '@/components/forms'
 import type { IAdaptiveFieldConfig, ISelectChoice } from '@/components/forms'
-import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
-import { Lightbulb, LogIn, Pencil, X } from 'lucide-react'
+import { Pencil, X } from 'lucide-react'
 import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { clearAuthSession, useAuthSessionStore, type IAuthSession } from '@/state/authSession'
 import { ensurePlayerIdentity } from '@/state/guestSession'
@@ -67,6 +64,9 @@ import { DiscordInvite } from '@/views/login/components/DiscordInvite'
 import { DeleteDeckConfirmDialog } from '@/views/login/components/DeleteDeckConfirmDialog'
 import { MatchmakingSearchDialog } from '@/views/login/components/MatchmakingSearchDialog'
 import { QueuedPlayersBadge } from '@/views/login/components/QueuedPlayersBadge'
+import { LoginDeckPanel } from '@/views/login/components/panels/LoginDeckPanel'
+import { LoginDisplayNameField } from '@/views/login/components/panels/LoginDisplayNameField'
+import { LoginGameEntryPanel } from '@/views/login/components/panels/LoginGameEntryPanel'
 import { writeCachedImportedDeck } from '@/views/login/utils/cachedImportedDeck'
 import { buildDefaultSavedDeckName } from '@/views/login/utils/defaultDeckName'
 import { resolvePersistedDeckSelection } from '@/views/login/utils/persistedDeckSelection'
@@ -1545,7 +1545,7 @@ export function LoginView() {
   }
 
   return (
-    <PageShell>
+    <PageShell scrollable>
       <div className="grid w-full grid-cols-1 gap-4 px-2 sm:px-4">
         {/* The other player agreed to another match: this banner is the reason the join form arrived filled in, and
             it stays until the table is claimed so the player knows which code they are sitting down at. */}
@@ -1579,7 +1579,7 @@ export function LoginView() {
         ) : null}
         <Panel className="my-2 w-full border-0 bg-transparent px-5 text-center shadow-none">
           <p
-            className={`mt-1 font-['Water_Brush'] text-6xl leading-none tracking-wide text-[var(--text-primary)] transition-opacity duration-150 sm:text-7xl ${
+            className={`mt-1 font-['Water_Brush'] text-4xl leading-none tracking-wide text-[var(--text-primary)] transition-opacity duration-150 sm:text-6xl lg:text-7xl ${
               isTitleFontReady ? 'opacity-100' : 'opacity-0'
             }`}
           >
@@ -1600,251 +1600,78 @@ export function LoginView() {
           </div>
         ) : null}
         <Panel className="my-2 w-full px-5 pt-3">
-          <Form className="mt-0 grid grid-cols-2 items-stretch gap-x-4" onSubmit={handleSubmit}>
+          <Form
+            className="mt-0 grid grid-cols-1 items-stretch gap-3 lg:grid-cols-2 lg:gap-x-4 lg:gap-y-0"
+            onSubmit={handleSubmit}
+          >
+            <LoginDisplayNameField
+              className="col-span-full min-w-0"
+              displayName={displayName}
+              onDisplayNameChange={setDisplayName}
+              showError={showDisplayNameError}
+              onlineViewers={onlineViewers}
+              onToggleTheme={toggleTheme}
+              isAuthenticated={Boolean(authUsername)}
+              onOpenSessionDialog={() => {
+                if (authUsername) {
+                  setIsLogoutModalOpen(true)
+                  return
+                }
 
-            <FormField className="col-span-2">
-              <div className="flex items-center justify-between gap-3">
-                <FormLabel htmlFor="displayName" className="mb-0">{t('auth.displayName')}</FormLabel>
-                <div className="flex items-center gap-2">
-                  {onlineViewers !== null ? (
-                    <p
-                      data-testid="online-players"
-                      className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]"
-                    >
-                      {t('auth.onlinePlayers', { count: onlineViewers })}
-                    </p>
-                  ) : null}
-                  <AppButton
-                    type="button"
-                    variant="ghost"
-                    onClick={toggleTheme}
-                    aria-label={t('auth.toggleThemeAria')}
-                    className="h-6 w-6 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
-                  >
-                    <Lightbulb size={12} />
-                  </AppButton>
-                </div>
-              </div>
-              <div className="relative">
-                <FormInput
-                  id="displayName"
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  placeholder={t('auth.displayNamePlaceholder')}
-                  maxLength={24}
-                  className="py-1.5 pr-12"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (authUsername) {
-                      setIsLogoutModalOpen(true)
-                      return
-                    }
+                setIsLoginModalOpen(true)
+              }}
+            />
 
-                    setIsLoginModalOpen(true)
-                  }}
-                  aria-label={authUsername ? t('auth.openLogoutModalAria') : t('auth.openLoginModalAria')}
-                  className="absolute right-0 top-0 bottom-0 inline-flex w-10 items-center justify-center rounded-r-xl border-l border-[var(--border-subtle)] bg-transparent text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-                >
-                  {authUsername ? <X size={14} /> : <LogIn size={14} />}
-                </button>
-              </div>
-              {showDisplayNameError ? <FormErrorText>{t('auth.displayNameRequired')}</FormErrorText> : null}
-            </FormField>
+            <LoginGameEntryPanel
+              className="min-w-0"
+              gameEntryMode={gameEntryMode}
+              gameEntryModeOptions={translatedGameEntryModeOptions}
+              onGameEntryModeChange={setGameEntryMode}
+              quickmatchRulesetId={quickmatchRulesetId}
+              quickmatchRulesetConfig={quickmatchRulesetConfig}
+              onQuickmatchRulesetChange={(value) => setRulesetId('quickmatch', value)}
+              canQuickmatch={quickmatchRulesets.length > 0}
+              hostRulesetId={hostRulesetId}
+              hostRulesetConfig={hostRulesetConfig}
+              onHostRulesetChange={(value) => setRulesetId('host', value)}
+              joinGameCode={joinGameCode}
+              joinGameCodeConfig={translatedJoinGameCodeConfig}
+              onJoinGameCodeChange={setJoinGameCode}
+              hostTimeRelaxed={hostTimeRelaxed}
+              onHostTimeRelaxedChange={setHostTimeRelaxed}
+              isBusy={pendingIntent !== null}
+              isMaintenance={isMaintenance}
+            />
 
-            <FormField className="col-span-1">
-              <OptionToggle
-                ariaLabel={t('auth.gameEntryModeAria')}
-                value={gameEntryMode}
-                options={translatedGameEntryModeOptions}
-                optionClassName="py-1"
-                onChange={(nextMode) => {
-                  setGameEntryMode(nextMode)
-                }}
-              />
-
-              {gameEntryMode === 'quickmatch' ? (
-                <>
-                  <AdaptiveFormField
-                    id="quickmatchRuleset"
-                    value={quickmatchRulesetId}
-                    onValueChange={(value) => setRulesetId('quickmatch', value)}
-                    config={quickmatchRulesetConfig}
-                    ariaLabel={t('auth.format')}
-                    className="py-1.5"
-                  />
-                  <AppButton
-                    type="submit"
-                    name="intent"
-                    value="quickmatch"
-                    disabled={pendingIntent !== null || quickmatchRulesets.length === 0 || isMaintenance}
-                    className="w-full justify-center py-1.5"
-                  >
-                    {t('auth.findMatch')}
-                  </AppButton>
-                </>
-              ) : (
-                <div className="grid grid-cols-2 items-start gap-2">
-                  <div className="space-y-2">
-                    <AdaptiveFormField
-                      id="joinGameCode"
-                      value={joinGameCode}
-                      onValueChange={setJoinGameCode}
-                      config={translatedJoinGameCodeConfig}
-                      ariaLabel={t('auth.gameCode')}
-                      className="py-1.5"
-                    />
-                    <AppButton
-                      type="submit"
-                      name="intent"
-                      value="join"
-                      disabled={pendingIntent !== null || isMaintenance}
-                      className="w-full justify-center py-1.5"
-                    >
-                      {t('auth.join')}
-                    </AppButton>
-                  </div>
-
-                  <div className="space-y-2">
-                    <AdaptiveFormField
-                      id="hostRuleset"
-                      value={hostRulesetId}
-                      onValueChange={(value) => setRulesetId('host', value)}
-                      config={hostRulesetConfig}
-                      ariaLabel={t('auth.format')}
-                      className="py-1.5"
-                    />
-                    <AppButton
-                      type="submit"
-                      name="intent"
-                      value="host"
-                      disabled={pendingIntent !== null || isMaintenance}
-                      className="w-full justify-center py-1.5"
-                    >
-                      {t('auth.host')}
-                    </AppButton>
-                    {/* Host-only: an invite table may run without the action clock. Quick match never offers it.
-                        It sits under the button so the format select and the Host button stay level with the code
-                        field and Join on the other half of the tab. */}
-                    <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-                      <CardAdminToggleSwitch
-                        checked={hostTimeRelaxed}
-                        onChange={setHostTimeRelaxed}
-                        ariaLabel={t('auth.hostTimeRelaxed')}
-                        dataTestId="host-time-relaxed"
-                      />
-                      <span>{t('auth.hostTimeRelaxed')}</span>
-                    </label>
-                  </div>
-                </div>
-              )}
-            </FormField>
-
-            <FormField className="col-span-1">
-                {/* The deck toggle is the first thing in this column, exactly like the tab toggle in the other one, so
-                    both columns start on the same line. The retry hint sits below it for the same reason. */}
-                <OptionToggle
-                  ariaLabel={t('auth.deckOptionsModeAria')}
-                  value={deckOptionsMode}
-                  options={translatedDeckOptionsModeOptions}
-                  optionClassName="py-1"
-                  onChange={handleDeckOptionsModeChange}
-                />
-                {starterDeckFetchFailed && deckOptionsMode === 'starter_decks' ? (
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setStarterDeckRetryToken((value) => value + 1)}
-                      className="px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] transition-opacity hover:opacity-75"
-                    >
-                      {t('auth.retry')}
-                    </button>
-                  </div>
-                ) : null}
-                {isGuestSession && deckOptionsMode === 'saved_decks' ? (
-                  <p className="text-[11px] leading-4 text-[var(--text-muted)]">
-                    {t('auth.deckChoice.guestSavedDecksHint')}
-                  </p>
-                ) : null}
-                {deckOptionsMode === 'import' ? (
-                  <>
-                    <AppButton
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setIsImportModalOpen(true)}
-                      className="w-full justify-center py-1.5"
-                    >
-                      {t('auth.importDeckButton')}
-                    </AppButton>
-                    {importedDeckParseError && importedDeckParseError.code !== 'empty' ? (
-                      <p
-                        role="alert"
-                        data-testid="login-deck-invalid-value"
-                        className="truncate text-xs font-medium leading-5 text-[var(--button-primary-bg)]"
-                      >
-                        {t('auth.invalidDeckValue')}
-                      </p>
-                    ) : null}
-                  </>
-                ) : (
-                  <AdaptiveFormField
-                    id="deckOptions"
-                    value={activeDeckOption}
-                    onValueChange={setDeckOptionValue}
-                    config={activeDeckFieldConfig}
-                    ariaLabel={t('auth.deckOptions')}
-                    className="py-1.5"
-                  />
-                )}
-                {summaryDeckName || summaryDeckEvaluation ? (
-                  <div
-                    data-testid="login-deck-summary"
-                    data-legal={
-                      summaryDeckEvaluation
-                        ? summaryDeckEvaluation.isValid
-                          ? 'true'
-                          : 'false'
-                        : 'unknown'
-                    }
-                    className="flex min-w-0 items-center gap-2 text-xs font-normal leading-5"
-                  >
-                    {summaryDeckEvaluation && !isCheckingDeckSummary ? (
-                      <span
-                        data-testid="login-deck-summary-pill"
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] ${
-                          summaryDeckEvaluation.isValid
-                            ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
-                            : 'bg-[var(--button-primary-bg)]/20 text-[var(--button-primary-bg)]'
-                        }`}
-                      >
-                        {summaryDeckEvaluation.isValid
-                          ? t('auth.deckSummary.legalPill')
-                          : t('auth.deckSummary.illegalPill')}
-                      </span>
-                    ) : null}
-                    <span className="min-w-0 truncate text-[var(--text-secondary)]">{summaryDeckName}</span>
-                    {/* A stored deck always reports a record: the server sends one for a deck that was played, and a
-                        deck nobody has played yet is exactly "no games", not a missing line. */}
-                    {activeDeckOption.trim() && deckOptionsMode !== 'import' ? (
-                      <span
-                        data-testid="login-deck-record"
-                        className="shrink-0 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]"
-                      >
-                        {describeDeckRecord(activeDeckRecord ?? EMPTY_DECK_RECORD)}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-              </FormField>
+            <LoginDeckPanel
+              className="min-w-0"
+              deckOptionsMode={deckOptionsMode}
+              deckOptionsModeOptions={translatedDeckOptionsModeOptions}
+              onDeckOptionsModeChange={handleDeckOptionsModeChange}
+              deckOptionValue={activeDeckOption}
+              deckFieldConfig={activeDeckFieldConfig}
+              onDeckOptionChange={setDeckOptionValue}
+              showStarterDeckRetry={starterDeckFetchFailed && deckOptionsMode === 'starter_decks'}
+              onRetryStarterDecks={() => setStarterDeckRetryToken((value) => value + 1)}
+              showGuestSavedDeckHint={isGuestSession && deckOptionsMode === 'saved_decks'}
+              onOpenImportDialog={() => setIsImportModalOpen(true)}
+              hasImportError={Boolean(importedDeckParseError && importedDeckParseError.code !== 'empty')}
+              summaryDeckName={summaryDeckName}
+              summaryEvaluation={summaryDeckEvaluation}
+              isCheckingSummary={isCheckingDeckSummary}
+              summaryRecordLabel={
+                activeDeckOption.trim() && deckOptionsMode !== 'import'
+                  ? describeDeckRecord(activeDeckRecord ?? EMPTY_DECK_RECORD)
+                  : null
+              }
+            />
           </Form>
         </Panel>
       </div>
 
       {isLoginModalOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-6 backdrop-blur-[2px] sm:items-center"
           role="dialog"
           aria-modal="true"
           aria-labelledby="login-modal-title"
@@ -1920,7 +1747,7 @@ export function LoginView() {
 
       {isLogoutModalOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-6 backdrop-blur-[2px] sm:items-center"
           role="dialog"
           aria-modal="true"
           aria-labelledby="logout-modal-title"
