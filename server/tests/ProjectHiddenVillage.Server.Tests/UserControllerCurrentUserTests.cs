@@ -107,7 +107,11 @@ public sealed class UserControllerCurrentUserTests
 
     private static UserController BuildController(IUserService userService, ClaimsPrincipal? principal = null)
     {
-        var controller = new UserController(userService, new StubGuestUserService(), CreateAuthTokenService());
+        var controller = new UserController(
+            userService,
+            new StubGuestUserService(),
+            CreateAuthTokenService(),
+            new UnusedPasswordResetService());
 
         controller.ControllerContext = new ControllerContext
         {
@@ -159,6 +163,18 @@ public sealed class UserControllerCurrentUserTests
 
         public Task<ErrorOr<PagedResponse<UserResponse>>> GetUsers(int page = 1, int pageSize = 100) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class UnusedPasswordResetService : IPasswordResetService
+    {
+        public Task<ErrorOr<Success>> RequestAsync(
+            PasswordResetRequestDto request,
+            string? requestedFromIp,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ErrorOr<Guid>> ConfirmAsync(
+            PasswordResetConfirmDto request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class StubGuestUserService : IGuestUserService

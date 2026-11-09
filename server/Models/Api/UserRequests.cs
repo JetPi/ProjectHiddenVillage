@@ -4,7 +4,10 @@ public sealed record UserResponse(
     Guid Id,
     string Username,
     string Email,
-    bool IsCardCatalogAdmin);
+    bool IsCardCatalogAdmin,
+    // The password generation this account is on. Login copies it into the token so a reset can revoke sessions;
+    // clients have no use for it and simply ignore it.
+    int AuthVersion = 0);
 
 public sealed record LoginResponse(
     Guid Id,

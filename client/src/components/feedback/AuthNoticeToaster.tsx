@@ -23,6 +23,14 @@ export function AuthNoticeToaster() {
         continue
       }
 
+      if (notice.kind === 'passwordReset') {
+        showAppSuccessToast(t('auth.toasts.passwordReset'), {
+          id: 'auth-password-reset-status',
+          duration: 3200,
+        })
+        continue
+      }
+
       showAppInfoToast(t('auth.toasts.loggedInAs', { username: notice.username }), {
         id: 'auth-login-status',
         duration: 3200,

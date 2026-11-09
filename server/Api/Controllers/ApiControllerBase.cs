@@ -6,7 +6,14 @@ namespace ProjectHiddenVillage.Server;
 
 public abstract class ApiControllerBase : ControllerBase
 {
-    protected ActionResult<T> ProblemFromErrors<T>(List<Error> errors)
+    protected ActionResult<T> ProblemFromErrors<T>(List<Error> errors) =>
+        new(ProblemFromErrors(errors));
+
+    /// <summary>
+    /// The same mapping without a response type, for actions that normally return 202 (or no body at all) and only
+    /// have an error to report.
+    /// </summary>
+    protected ActionResult ProblemFromErrors(List<Error> errors)
     {
         var firstError = errors[0];
 

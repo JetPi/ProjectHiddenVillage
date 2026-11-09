@@ -14,6 +14,12 @@ public static class AuthorizationPolicies
     public const string GuestClaimValue = "true";
 
     /// <summary>
+    /// The account's <c>AuthVersion</c> at the moment the session was minted. A password reset increments the stored
+    /// version, and validation refuses any token whose claim no longer matches.
+    /// </summary>
+    public const string AuthVersionClaimType = "ver";
+
+    /// <summary>
     /// Authenticated and not a guest. Used by the endpoints that persist something a guest must not own.
     /// </summary>
     public const string RegisteredUser = "RegisteredUser";

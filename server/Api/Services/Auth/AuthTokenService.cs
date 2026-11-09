@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -15,7 +16,12 @@ public sealed class AuthTokenService : IAuthTokenService
         this.jwtOptions = jwtOptions.Value;
     }
 
-    public AuthTokenResult CreateToken(Guid userId, string username, string email, bool isCardCatalogAdmin)
+    public AuthTokenResult CreateToken(
+        Guid userId,
+        string username,
+        string email,
+        bool isCardCatalogAdmin,
+        int authVersion = 0)
     {
         if (string.IsNullOrWhiteSpace(email))
         {
@@ -24,6 +30,9 @@ public sealed class AuthTokenService : IAuthTokenService
 
         var claims = CreateIdentityClaims(userId, username);
         claims.Add(new Claim(JwtRegisteredClaimNames.Email, email));
+        claims.Add(new Claim(
+            AuthorizationPolicies.AuthVersionClaimType,
+            authVersion.ToString(CultureInfo.InvariantCulture)));
 
         if (isCardCatalogAdmin)
         {

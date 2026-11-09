@@ -513,6 +513,45 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.ToTable("game_log_archives", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.PasswordResetToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ConsumedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RequestedFromIp")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("password_reset_tokens", (string)null);
+                });
+
             modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.Player1CharacterFieldCard", b =>
                 {
                     b.Property<Guid>("Id")
@@ -789,6 +828,11 @@ namespace ProjectHiddenVillage.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("AuthVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -813,6 +857,9 @@ namespace ProjectHiddenVillage.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<DateTimeOffset?>("PasswordChangedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -927,6 +974,17 @@ namespace ProjectHiddenVillage.Server.Migrations
                     b.Navigation("Player2Deck");
 
                     b.Navigation("Player2User");
+                });
+
+            modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.PasswordResetToken", b =>
+                {
+                    b.HasOne("ProjectHiddenVillage.Server.Data.Entities.User", "User")
+                        .WithMany("PasswordResetTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.Player1CharacterFieldCard", b =>
@@ -1076,6 +1134,8 @@ namespace ProjectHiddenVillage.Server.Migrations
             modelBuilder.Entity("ProjectHiddenVillage.Server.Data.Entities.User", b =>
                 {
                     b.Navigation("Decks");
+
+                    b.Navigation("PasswordResetTokens");
 
                     b.Navigation("Player1GameInstances");
 

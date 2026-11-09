@@ -21,6 +21,9 @@
       rel="stylesheet"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- The reset link carries a live token in its query string. With no Referer, a click from that page cannot
+         hand the token to whatever it navigates to. -->
+    <meta name="referrer" content="no-referrer" />
     <title>Shinobi Tactics Sim</title>
     <style>
       html,

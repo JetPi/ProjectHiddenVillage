@@ -42,6 +42,10 @@ dotnet ef database update \
 # network call, so `CardImage` deterministically falls back instead of slowing the suite down.
 export CardArt__SourceHostAllowlist__0="e2e.invalid"
 
+# The recovery link is mailed by an absolute URL, and the e2e client is served by `vite preview`. The spec follows
+# the path from that URL, but pointing it at the real preview origin keeps the recorded link honest.
+export Email__AppPublicBaseUrl="http://127.0.0.1:4173"
+
 # Its own art stores, because dev and e2e share the server content root: with one directory the e2e database's
 # orphan sweep sees every master the dev database references as unreferenced (and the other way round), and
 # deletes it once the grace window passes.

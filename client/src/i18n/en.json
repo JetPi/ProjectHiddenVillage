@@ -252,6 +252,7 @@
     },
     "toasts": {
       "accountCreated": "Account created successfully.",
+      "passwordReset": "Password updated. You are signed in.",
       "loggedInAs": "Logged in as {{username}}",
       "loggedOut": "Logged out successfully.",
       "deckDeleted": "Deck \"{{name}}\" deleted.",
@@ -288,6 +289,12 @@
       "loginFailed": "Login failed. Please try again.",
       "signUpRequired": "Username, email, and password are required.",
       "signUpFailed": "Sign up failed. Please try again.",
+      "emailRequired": "Enter the email address for your account.",
+      "passwordResetRequestFailed": "The reset request could not be sent. Please try again in a moment.",
+      "resetLinkMissing": "This page needs a reset link. Request a new one.",
+      "passwordTooShort": "Use at least {{count}} characters.",
+      "passwordMismatch": "The two passwords do not match.",
+      "passwordResetFailed": "The password could not be changed. The link may have expired; request a new one.",
       "deckEmpty": "Please paste at least one deck line (example: 1x N-001).",
       "deckInvalidLine": "Invalid deck line {{line}}: \"{{value}}\". Expected format like \"1x N-001\".",
       "deckPositiveQuantity": "Deck line {{line}} must use a positive quantity."
@@ -303,6 +310,29 @@
       "back": "Back",
       "creatingAccount": "Creating Account...",
       "submit": "Sign In"
+    },
+    "forgotPassword": {
+      "title": "Forgot your password?",
+      "description": "Enter the email address on your account. If it matches a registered account, we will send a link to choose a new password.",
+      "email": "Email",
+      "emailPlaceholder": "you@example.com",
+      "submit": "Send reset link",
+      "submitting": "Sending…",
+      "sent": "If an account exists for that address, a reset link is on its way. The link expires in an hour.",
+      "backToLogin": "Back to login",
+      "link": "Forgot your password?"
+    },
+    "resetPassword": {
+      "title": "Choose a new password",
+      "description": "Pick a password of at least 10 characters. You will be signed in on this device right away.",
+      "password": "New password",
+      "passwordPlaceholder": "At least 10 characters",
+      "confirmPassword": "Confirm new password",
+      "confirmPasswordPlaceholder": "Repeat the new password",
+      "submit": "Set new password",
+      "submitting": "Saving…",
+      "missingToken": "This reset link is incomplete. Request a new one from the recovery form.",
+      "requestNewLink": "Request a new link"
     },
     "config": {
       "deckImport": "Import",

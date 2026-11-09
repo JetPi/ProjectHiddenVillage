@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ProjectHiddenVillage.Server.Api.Interfaces.Auth;
 using ProjectHiddenVillage.Server.Api.Interfaces.User;
 using ProjectHiddenVillage.Server.Data.DTOs;
@@ -15,15 +16,18 @@ public sealed class UserController : ApiControllerBase
 	private readonly IUserService userService;
 	private readonly IGuestUserService guestUserService;
 	private readonly IAuthTokenService authTokenService;
+	private readonly IPasswordResetService passwordResetService;
 
 	public UserController(
 		IUserService userService,
 		IGuestUserService guestUserService,
-		IAuthTokenService authTokenService)
+		IAuthTokenService authTokenService,
+		IPasswordResetService passwordResetService)
 	{
 		this.userService = userService;
 		this.guestUserService = guestUserService;
 		this.authTokenService = authTokenService;
+		this.passwordResetService = passwordResetService;
 	}
 
 	[HttpPost]
@@ -82,7 +86,76 @@ public sealed class UserController : ApiControllerBase
 			userResult.Value.Id,
 			userResult.Value.Username,
 			userResult.Value.Email,
-			userResult.Value.IsCardCatalogAdmin);
+			userResult.Value.IsCardCatalogAdmin,
+			userResult.Value.AuthVersion);
+
+		return Ok(new LoginResponse(
+			Id: userResult.Value.Id,
+			Username: userResult.Value.Username,
+			Email: userResult.Value.Email,
+			AccessToken: tokenResult.AccessToken,
+			ExpiresAt: tokenResult.ExpiresAt,
+			IsCardCatalogAdmin: userResult.Value.IsCardCatalogAdmin));
+	}
+
+	/// <summary>
+	/// Starts password recovery. The answer is 202 whether the address has an account or not, and whether a link was
+	/// actually mailed or silently dropped by the per-account caps: any difference would turn this endpoint into a
+	/// way to test whether an email is registered.
+	/// </summary>
+	[HttpPost("password-reset/request")]
+	[EnableRateLimiting(PasswordResetRateLimitPolicies.Request)]
+	[ProducesResponseType(StatusCodes.Status202Accepted)]
+	[ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+	public async Task<IActionResult> RequestPasswordReset([FromBody] PasswordResetRequestDto request)
+	{
+		var result = await passwordResetService.RequestAsync(
+			request,
+			HttpContext.Connection.RemoteIpAddress?.ToString());
+
+		if (result.IsError)
+		{
+			return ProblemFromErrors(result.Errors);
+		}
+
+		return Accepted();
+	}
+
+	/// <summary>
+	/// Spends a recovery link and signs the account in on this device, reusing the login response shape so the client
+	/// has one session contract. The link is single use and this call bumps <c>AuthVersion</c>, which is what ends
+	/// every session that existed before the password changed.
+	/// </summary>
+	[HttpPost("password-reset/confirm")]
+	[EnableRateLimiting(PasswordResetRateLimitPolicies.Confirm)]
+	[ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	[ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+	public async Task<ActionResult<LoginResponse>> ConfirmPasswordReset([FromBody] PasswordResetConfirmDto request)
+	{
+		var confirmResult = await passwordResetService.ConfirmAsync(request);
+		if (confirmResult.IsError)
+		{
+			return ProblemFromErrors<LoginResponse>(confirmResult.Errors);
+		}
+
+		var userResult = await userService.GetUser(confirmResult.Value.ToString());
+		if (userResult.IsError)
+		{
+			return ProblemFromErrors<LoginResponse>(userResult.Errors);
+		}
+
+		var tokenResult = authTokenService.CreateToken(
+			userResult.Value.Id,
+			userResult.Value.Username,
+			userResult.Value.Email,
+			userResult.Value.IsCardCatalogAdmin,
+			userResult.Value.AuthVersion);
+
+		// The body carries a live session, so neither it nor the page that consumes it may be cached.
+		Response.Headers.CacheControl = "no-store";
 
 		return Ok(new LoginResponse(
 			Id: userResult.Value.Id,

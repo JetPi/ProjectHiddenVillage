@@ -74,6 +74,14 @@ services:
       AdminBootstrap__Email: ${ADMIN_BOOTSTRAP_EMAIL:-}
       AdminBootstrap__Username: ${ADMIN_BOOTSTRAP_USERNAME:-}
       AdminBootstrap__Password: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+      # Password recovery. Provider=None (the default) suppresses delivery; Resend needs a verified sending
+      # domain and an API key. The link always points at the browser app, never at the API host.
+      PasswordReset__Enabled: ${PASSWORD_RESET_ENABLED:-true}
+      Email__Provider: ${EMAIL_PROVIDER:-None}
+      Email__FromName: "${EMAIL_FROM_NAME:-Hidden Village}"
+      Email__FromAddress: ${EMAIL_FROM_ADDRESS:-}
+      Email__Resend__ApiKey: ${EMAIL_RESEND_API_KEY:-}
+      Email__AppPublicBaseUrl: https://${GAME_HOST}
       # B14: maintenance boots closed when asked, and POST /api/maintenance/disable opens the site again.
       Maintenance__Enabled: ${MAINTENANCE_ENABLED:-false}
       Maintenance__Message: ${MAINTENANCE_MESSAGE:-The server is restarting for a scheduled update. New games resume shortly.}

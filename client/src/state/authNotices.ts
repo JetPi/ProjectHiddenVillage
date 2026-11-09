@@ -1,6 +1,10 @@
 import { create } from 'zustand'
 
-export type TAuthNoticeKind = 'signedIn' | 'signedUp'
+/**
+ * `passwordReset` is the third way a session is acquired: the recovery link signs the account in, and that moment
+ * deserves the same one-shot announcement as a login rather than a silent redirect.
+ */
+export type TAuthNoticeKind = 'signedIn' | 'signedUp' | 'passwordReset'
 
 export type IAuthNotice = {
   id: number
