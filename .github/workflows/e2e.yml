@@ -12,8 +12,12 @@ on:
 permissions:
   contents: read
 
+# One group per ref: a new push cancels the run it supersedes instead of queueing behind it. Queued
+# runs are the ones that get wedged when the Actions orchestrator lags, and every one of them is a
+# run someone then has to cancel by hand. `github.ref` is `refs/pull/<n>/merge` on pull_request, so
+# each PR gets its own group and pushing to that PR only cancels that PR's run.
 concurrency:
-  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

@@ -18,10 +18,22 @@ env:
   # Baked into the client bundle at build time, so it must be the public API origin.
   API_BASE_URL: https://api.shinobitactics.dev
 
+# Without a concurrency group every push to main left its own api+web pair running, and the builds
+# are the slowest jobs in the repo: a few pushes in a row parked the queue behind stale builds that
+# also kept the docker layer cache busy. One group per ref means a new push supersedes the old one.
+# A cancelled build publishes no image for that sha, so re-run it (Actions > the run > Re-run jobs)
+# if you ever need to deploy that older commit instead of the newest one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   api:
     name: API image
     runs-on: ubuntu-latest
+    # The default timeout is 360 minutes, so a wedged docker build looks exactly like a workflow
+    # stuck in the queue and blocks every push behind it.
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -52,6 +64,7 @@ jobs:
   web:
     name: Client image
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
