@@ -27,6 +27,16 @@ public sealed class User
 
     public string PasswordHash { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Monotonic counter carried by every registered session token as the <c>ver</c> claim. JWT validation compares
+    /// the claim with this row: a password reset increments it, which is how a stolen token stops working even
+    /// though the tokens themselves cannot be revoked. Guest tokens carry no claim and skip the comparison.
+    /// </summary>
+    public int AuthVersion { get; set; }
+
+    /// <summary>When the stored password was last replaced. Operator support and audit only; no authorization reads it.</summary>
+    public DateTimeOffset? PasswordChangedAtUtc { get; set; }
+
     public List<Deck> Decks { get; set; } = [];
 
     public List<GameInstance> Player1GameInstances { get; set; } = [];
@@ -34,4 +44,6 @@ public sealed class User
     public List<GameInstance> Player2GameInstances { get; set; } = [];
 
     public List<SavedDeck> SavedDecks { get; set; } = new List<SavedDeck>();
+
+    public List<PasswordResetToken> PasswordResetTokens { get; set; } = [];
 }

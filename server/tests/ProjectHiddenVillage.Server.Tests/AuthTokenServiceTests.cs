@@ -42,6 +42,37 @@ public sealed class AuthTokenServiceTests
         Assert.IsNull(adminClaim);
     }
 
+    [TestMethod]
+    public void CreateToken_CarriesThePasswordGeneration()
+    {
+        var service = CreateService();
+
+        var result = service.CreateToken(
+            userId: Guid.NewGuid(),
+            username: "standard-user",
+            email: "user@example.com",
+            isCardCatalogAdmin: false,
+            authVersion: 3);
+
+        var token = new JwtSecurityTokenHandler().ReadJwtToken(result.AccessToken);
+        var versionClaim = token.Claims.Single(claim => claim.Type == AuthorizationPolicies.AuthVersionClaimType);
+
+        Assert.AreEqual("3", versionClaim.Value);
+    }
+
+    [TestMethod]
+    public void CreateGuestToken_CarriesNoPasswordGeneration()
+    {
+        // Guests have no password to reset, so the absence of the claim is what keeps the version check from
+        // touching them at all.
+        var service = CreateService();
+
+        var result = service.CreateGuestToken(Guid.NewGuid(), "guest-player");
+
+        var token = new JwtSecurityTokenHandler().ReadJwtToken(result.AccessToken);
+        Assert.IsNull(token.Claims.FirstOrDefault(claim => claim.Type == AuthorizationPolicies.AuthVersionClaimType));
+    }
+
     private static AuthTokenService CreateService()
     {
         var jwtOptions = Options.Create(new JwtOptions

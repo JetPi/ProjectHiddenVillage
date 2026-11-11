@@ -70,6 +70,15 @@ export function SignInView() {
               />
             </FormField>
 
+            <div className="text-right">
+              <Link
+                to="/forgot-password"
+                className="text-xs font-semibold text-[var(--text-accent)] underline-offset-2 hover:underline"
+              >
+                {t('auth.forgotPassword.link')}
+              </Link>
+            </div>
+
             {actionData?.signUp?.ok === false && actionData.signUp.error ? (
               <FormErrorText>{actionData.signUp.error}</FormErrorText>
             ) : null}

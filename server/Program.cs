@@ -3,13 +3,19 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Net;
+using System.Threading.RateLimiting;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using ProjectHiddenVillage.Server;
 using ProjectHiddenVillage.Server.Api.Interfaces.Auth;
+using ProjectHiddenVillage.Server.Api.Services.Auth;
+using ProjectHiddenVillage.Server.Api.Services.Email;
+using Microsoft.Extensions.Options;
 using ProjectHiddenVillage.Server.Api.Interfaces.Card;
 using ProjectHiddenVillage.Server.Api.Interfaces.CardArt;
 using ProjectHiddenVillage.Server.Api.Services.CardArt;
@@ -25,6 +31,7 @@ using ProjectHiddenVillage.Server.Api.Services.Games;
 using ProjectHiddenVillage.Server.Api.Services.Maintenance;
 using ProjectHiddenVillage.Server.Api.Interfaces.User;
 using ProjectHiddenVillage.Server.Api.Serialization;
+using ProjectHiddenVillage.Server.Api.Testing;
 using ProjectHiddenVillage.Server.Data;
 using ProjectHiddenVillage.Server.Data.Seeding.Bootstrap;
 using ProjectHiddenVillage.Server.Data.Seeding.Development;
@@ -52,6 +59,15 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddHttpClient();
+// The deployed API is only reachable through Caddy on the private compose network, and the proxy appends the real
+// client address. Trusting that network is what makes RemoteIpAddress - and therefore any per-caller limit or log -
+// mean a caller instead of the proxy container.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 builder.Services.Configure<CardArtOptions>(builder.Configuration.GetSection(CardArtOptions.SectionName));
 builder.Services.AddScoped<ICardArtService, CardArtService>();
 builder.Services.AddScoped<ICardArtWriteService, CardArtWriteService>();
@@ -208,6 +224,63 @@ builder.Services.AddSingleton<IAuthTokenService, AuthTokenService>();
 // for the token's whole life: see CardCatalogAdminAuthorizationHandler.
 builder.Services.AddScoped<IActorCapabilityResolver, ActorCapabilityResolver>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+// Password recovery: links are hashed at rest and delivery sits behind IEmailSender, so an environment without a
+// mail provider still exercises the exact production code path and only drops the message.
+builder.Services.Configure<PasswordResetOptions>(builder.Configuration.GetSection(PasswordResetOptions.SectionName));
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
+builder.Services.AddHttpClient(ResendEmailSender.HttpClientName);
+builder.Services.AddSingleton<PasswordResetEmailRecorder>();
+builder.Services.AddScoped<IEmailSender>(serviceProvider =>
+{
+    var emailOptions = serviceProvider.GetRequiredService<IOptions<EmailOptions>>().Value;
+
+    // The provider is a deployment decision. Anything unrecognised - including "None" - gets a suppressing
+    // sender rather than a hard failure, because a typo must not take the API down with it.
+    if (string.Equals(emailOptions.Provider, EmailProviders.Resend, StringComparison.OrdinalIgnoreCase))
+    {
+        return ActivatorUtilities.CreateInstance<ResendEmailSender>(serviceProvider);
+    }
+
+    // The e2e suite has no mailbox. With the test profiles enabled, the mail is recorded so the test-gated
+    // endpoint can hand the link back; anywhere else it is only logged.
+    var environment = serviceProvider.GetRequiredService<IWebHostEnvironment>();
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+
+    return environment.IsDevelopment() && TestEndpointGate.IsConfigured(configuration)
+        ? ActivatorUtilities.CreateInstance<RecordingEmailSender>(serviceProvider)
+        : ActivatorUtilities.CreateInstance<NullEmailSender>(serviceProvider);
+});
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+// The validated password generation of an account, memoised for a minute: see AuthVersionCache for why the API
+// cannot afford the read on every authenticated request, and why a reset still revokes immediately.
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<IAuthTokenVersionValidator, AuthVersionValidator>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy(PasswordResetRateLimitPolicies.Request, context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: PasswordResetRateLimitPolicies.ResolveClientKey(context),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = PasswordResetRateLimitPolicies.RequestPermitLimitPerHour,
+                QueueLimit = 0,
+                Window = TimeSpan.FromHours(1)
+            }));
+
+    options.AddPolicy(PasswordResetRateLimitPolicies.Confirm, context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: PasswordResetRateLimitPolicies.ResolveClientKey(context),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = PasswordResetRateLimitPolicies.ConfirmPermitLimitPerHour,
+                QueueLimit = 0,
+                Window = TimeSpan.FromHours(1)
+            }));
+});
 builder.Services
     .AddControllers()
     .AddJsonOptions(options =>
@@ -409,6 +482,16 @@ else
         });
 }
 
+// Attached once, after either branch has registered its JwtBearer events, because the rule is the same in both
+// environments: a registered token is only good for the password generation it was minted with.
+builder.Services
+    .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure(options =>
+    {
+        options.Events ??= new JwtBearerEvents();
+        options.Events.OnTokenValidated = ValidateAuthVersionAsync;
+    });
+
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(AuthorizationPolicies.CardCatalogAdmin, policy =>
@@ -450,6 +533,27 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+
+using (var emailScope = app.Services.CreateScope())
+{
+    // A provider that is selected but not configured does not fail requests: it drops them, exactly like the flow
+    // would for an unknown address. This line is therefore the only place the operator finds out.
+    var emailSender = emailScope.ServiceProvider.GetRequiredService<IEmailSender>();
+    var emailOptions = emailScope.ServiceProvider.GetRequiredService<IOptions<EmailOptions>>().Value;
+
+    if (!emailSender.IsConfigured)
+    {
+        startupLogger.LogWarning(
+            "Email:Provider={Provider} is selected but not configured (missing API key or from-address); password reset mail will not be delivered.",
+            emailOptions.Provider);
+    }
+    else if (emailSender is NullEmailSender)
+    {
+        startupLogger.LogInformation(
+            "Email:Provider={Provider}: password reset mail is suppressed and only logged.",
+            emailOptions.Provider);
+    }
+}
 
 var isAppSettingsSource = jwtKeyProvider is FileConfigurationProvider fileConfigurationProvider &&
     fileConfigurationProvider.Source.Path is string providerPath &&
@@ -523,7 +627,9 @@ app.UseSwaggerUI(options =>
 });
 
 app.MapGet("/docs.json", () => Results.Redirect("/docs/v1.json"));
+app.UseForwardedHeaders();
 app.UseCors("ClientDev");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -573,4 +679,18 @@ static bool IsAllowedClientOrigin(string origin, HashSet<string> configuredOrigi
     }
 
     return IPAddress.TryParse(parsedOrigin.Host, out var address) && IPAddress.IsLoopback(address);
+}
+
+/// <summary>
+/// Refuses a JWT whose <c>ver</c> claim no longer matches the account. The handler fails the authentication step,
+/// and the existing OnChallenge turns that into the same JSON 401 an expired token gets.
+/// </summary>
+static async Task ValidateAuthVersionAsync(TokenValidatedContext context)
+{
+    var validator = context.HttpContext.RequestServices.GetRequiredService<IAuthTokenVersionValidator>();
+
+    if (!await validator.IsCurrentAsync(context.Principal!, context.HttpContext.RequestAborted))
+    {
+        context.Fail("This session is no longer valid. Sign in again.");
+    }
 }

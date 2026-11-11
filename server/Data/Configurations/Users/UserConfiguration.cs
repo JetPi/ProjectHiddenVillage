@@ -19,6 +19,12 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasMaxLength(512);
 
+        // Existing rows start at 0, which is exactly what their already-minted tokens assume: a token without a
+        // `ver` claim is refused, so the first login after this ships is what makes the account compatible again.
+        entity.Property(record => record.AuthVersion)
+            .IsRequired()
+            .HasDefaultValue(0);
+
         entity.Property(record => record.IsCardCatalogAdmin)
             .IsRequired()
             .HasDefaultValue(false);
@@ -34,6 +40,8 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         entity.Property(record => record.LastSeenAtUtc)
             .IsRequired()
             .HasDefaultValueSql("now()");
+
+        entity.Property(record => record.PasswordChangedAtUtc);
 
         entity.HasIndex(record => record.Email)
             .IsUnique();

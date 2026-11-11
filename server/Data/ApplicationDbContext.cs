@@ -13,6 +13,7 @@ public sealed class ApplicationDbContext : DbContext
 
     public DbSet<GameLogArchiveEntry> GameLogArchives => Set<GameLogArchiveEntry>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Deck> Decks => Set<Deck>();
     public DbSet<DeckCard> DeckCards => Set<DeckCard>();
     public DbSet<Player1RuntimeDeckCard> Player1RuntimeDeckCards => Set<Player1RuntimeDeckCard>();

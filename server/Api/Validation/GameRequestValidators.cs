@@ -135,8 +135,10 @@ public sealed class UserDtoValidator : AbstractValidator<UserDto>
             .NotEmpty().WithMessage("Email is required.")
             .EmailAddress().WithMessage("Email must be a valid email address.");
 
+        // Same policy as recovery: registration is where the account's first password comes from, so the two
+        // cannot disagree without one of them being wrong.
         RuleFor(userDto => userDto.Password)
-            .NotEmpty().WithMessage("Password is required.");
+            .ApplyUserPasswordPolicy();
     }
 }
 
@@ -165,8 +167,32 @@ public sealed class UserLoginDtoValidator : AbstractValidator<UserLoginDto>
             .NotEmpty().WithMessage("Email is required.")
             .EmailAddress().WithMessage("Email must be a valid email address.");
 
+        // Deliberately only non-empty: the policy applies when a password is *chosen*, not when an existing one is
+        // presented. Applying the length rule here would lock out every account whose password predates it.
         RuleFor(userDto => userDto.Password)
             .NotEmpty().WithMessage("Password is required.");
+    }
+}
+
+public sealed class PasswordResetRequestDtoValidator : AbstractValidator<PasswordResetRequestDto>
+{
+    public PasswordResetRequestDtoValidator()
+    {
+        RuleFor(request => request.Email)
+            .NotEmpty().WithMessage("Email is required.")
+            .EmailAddress().WithMessage("Email must be a valid email address.");
+    }
+}
+
+public sealed class PasswordResetConfirmDtoValidator : AbstractValidator<PasswordResetConfirmDto>
+{
+    public PasswordResetConfirmDtoValidator()
+    {
+        RuleFor(request => request.Token)
+            .NotEmpty().WithMessage("Token is required.");
+
+        RuleFor(request => request.NewPassword)
+            .ApplyUserPasswordPolicy();
     }
 }
 

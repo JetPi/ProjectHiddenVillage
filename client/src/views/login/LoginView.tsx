@@ -1720,6 +1720,16 @@ export function LoginView() {
                   required
                 />
               </FormField>
+              <div className="text-right">
+                <Link
+                  to="/forgot-password"
+                  data-testid="login-forgot-password"
+                  onClick={() => setIsLoginModalOpen(false)}
+                  className="text-xs font-semibold text-[var(--text-accent)] underline-offset-2 hover:underline"
+                >
+                  {t('auth.forgotPassword.link')}
+                </Link>
+              </div>
               {actionData?.login?.ok === false && actionData.login.error ? (
                 <FormErrorText>{actionData.login.error}</FormErrorText>
               ) : null}

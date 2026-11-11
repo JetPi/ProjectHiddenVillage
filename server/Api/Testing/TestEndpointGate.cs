@@ -23,13 +23,7 @@ public static class TestEndpointGate
             return false;
         }
 
-        var configured = configuration[TestEndpointsEnvironmentVariable];
-        if (bool.TryParse(configured, out var enabled) && enabled)
-        {
-            return true;
-        }
-
-        if (string.Equals(configured, "1", StringComparison.Ordinal))
+        if (IsConfigured(configuration))
         {
             return true;
         }
@@ -40,5 +34,17 @@ public static class TestEndpointGate
             TestEndpointsEnvironmentVariable);
 
         return false;
+    }
+
+    /// <summary>
+    /// The configuration half of the gate, without the environment check or the warning. Service registration uses
+    /// it to decide whether a test-only collaborator (the recording mail sender) should exist at all.
+    /// </summary>
+    public static bool IsConfigured(IConfiguration configuration)
+    {
+        var configured = configuration[TestEndpointsEnvironmentVariable];
+
+        return (bool.TryParse(configured, out var enabled) && enabled) ||
+            string.Equals(configured, "1", StringComparison.Ordinal);
     }
 }

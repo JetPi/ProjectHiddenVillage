@@ -66,6 +66,42 @@ export const router = createBrowserRouter([
         errorElement: <AuthRouteErrorBoundary />,
       },
       {
+        // Recovery only: the mailed link lands on /reset-password and the account is signed in from there, so no
+        // second screen and no signed-in change-password route exist.
+        path: '/forgot-password',
+        lazy: async () => {
+          const [{ ForgotPasswordView }, { forgotPasswordAction, forgotPasswordLoader }] =
+            await Promise.all([
+              import('@/views/login/ForgotPasswordView'),
+              import('@/views/login/handlers/forgotPasswordRouteHandlers'),
+            ])
+
+          return {
+            Component: ForgotPasswordView,
+            loader: forgotPasswordLoader,
+            action: forgotPasswordAction,
+          }
+        },
+        errorElement: <AuthRouteErrorBoundary />,
+      },
+      {
+        path: '/reset-password',
+        lazy: async () => {
+          const [{ ResetPasswordView }, { resetPasswordAction, resetPasswordLoader }] =
+            await Promise.all([
+              import('@/views/login/ResetPasswordView'),
+              import('@/views/login/handlers/resetPasswordRouteHandlers'),
+            ])
+
+          return {
+            Component: ResetPasswordView,
+            loader: resetPasswordLoader,
+            action: resetPasswordAction,
+          }
+        },
+        errorElement: <AuthRouteErrorBoundary />,
+      },
+      {
         // One gate for the whole subtree. The parent's loader runs before any child renders - and before a child can
         // be reached by URL - so a new admin screen is protected the moment it is added here. `children` stay
         // path-relative (`cards`, not `/admin/cards`) precisely so they cannot escape the parent.
