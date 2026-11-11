@@ -13,7 +13,7 @@ public sealed class ResendEmailSender : IEmailSender
 {
     public const string HttpClientName = "Resend";
 
-    private const string Subject = "Reset your Hidden Village password";
+    private const string Subject = "Reset your Shinobi Tactics password";
 
     private readonly HttpClient httpClient;
     private readonly EmailOptions options;
@@ -89,7 +89,7 @@ public sealed class ResendEmailSender : IEmailSender
             [
                 $"Hi {email.RecipientUsername},",
                 string.Empty,
-                "Someone asked to reset the password on your Hidden Village account.",
+                "Someone asked to reset the password on your Shinobi Tactics account.",
                 "If it was you, open this link to choose a new one:",
                 string.Empty,
                 email.ResetUrl,
@@ -111,7 +111,7 @@ public sealed class ResendEmailSender : IEmailSender
             [
                 "<div style=\"font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.5;color:#1f2933\">",
                 $"<p>Hi {username},</p>",
-                "<p>Someone asked to reset the password on your Hidden Village account.</p>",
+                "<p>Someone asked to reset the password on your Shinobi Tactics account.</p>",
                 "<p>If it was you, choose a new password here:</p>",
                 $"<p><a href=\"{resetUrl}\">Reset my password</a></p>",
                 $"<p>The link stops working at {email.ExpiresAtUtc:yyyy-MM-dd HH:mm} UTC.</p>",

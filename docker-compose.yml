@@ -78,7 +78,7 @@ services:
       # domain and an API key. The link always points at the browser app, never at the API host.
       PasswordReset__Enabled: ${PASSWORD_RESET_ENABLED:-true}
       Email__Provider: ${EMAIL_PROVIDER:-None}
-      Email__FromName: "${EMAIL_FROM_NAME:-Hidden Village}"
+      Email__FromName: "${EMAIL_FROM_NAME:-Shinobi Tactics}"
       Email__FromAddress: ${EMAIL_FROM_ADDRESS:-}
       Email__Resend__ApiKey: ${EMAIL_RESEND_API_KEY:-}
       Email__AppPublicBaseUrl: https://${GAME_HOST}

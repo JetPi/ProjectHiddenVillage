@@ -122,7 +122,7 @@ Options bound from configuration (`EmailOptions`, section `Email`):
 "Email": {
   "Provider": "None",                                  // None | Resend | Smtp
   "FromAddress": "no-reply@mail.shinobitactics.dev",
-  "FromName": "Hidden Village",
+  "FromName": "Shinobi Tactics",
   "AppPublicBaseUrl": "http://localhost:5173",          // https://game.shinobitactics.dev in production
   "Resend": { "ApiKey": "" },
   "Smtp": { "Host": "", "Port": 587, "Username": "", "Password": "" }
@@ -278,9 +278,27 @@ Shipped in code:
 Verification: `dotnet build` clean, `dotnet test` 1078 passed, `npx playwright test e2e/auth.password-reset.spec.ts`
 3 passed, `npm run typecheck` clean.
 
-Still manual: verifying the sending domain and publishing its SPF/DKIM/DMARC records, and flipping
-`EMAIL_PROVIDER=Resend` with a real key. Until that is done the flow works end to end with `Provider=None`, which only
-suppresses delivery.
+## Resend setup (done)
+
+- Domain **`mail.shinobitactics.dev`**, id `d6923fbc-3cdc-4dc3-b50c-3d93d7c80f32`, region `eu-west-1` (Nuremberg is
+  the closest box), sending on, receiving off. Status **verified**.
+- Records live in Cloudflare, all DNS-only: `resend._domainkey.mail` TXT (DKIM), `send.mail` MX 10
+  `feedback-smtp.eu-west-1.amazonses.com`, `send.mail` TXT SPF, `rsend.mail` CNAME `send.forge.rmta.net`, plus
+  `_dmarc.mail` TXT `v=DMARC1; p=none; rua=…` added by hand.
+  Domain Connect was not offered in the Resend UI for this zone, so the records were added manually; the one-click
+  path is only available to accounts where Resend shows a **Sign in to Cloudflare** button.
+- Key: name `PHV production password reset`, id `9d1630fe-b1db-4986-9ed8-d1ec110ea23b`, **sending access only,
+  restricted to the domain**. The token exists in `/opt/phv/.env` as `EMAIL_RESEND_API_KEY`; the local copy used to
+  transfer it was deleted, and the value never appeared in a shell argument or this repository.
+- `/opt/phv/.env` now also carries `EMAIL_PROVIDER=Resend`, `EMAIL_FROM_NAME=Shinobi Tactics`,
+  `EMAIL_FROM_ADDRESS=no-reply@mail.shinobitactics.dev`, `PASSWORD_RESET_ENABLED=true`. A timestamped `.env` backup
+  sits beside it.
+- Delivery proven with a live send: Resend id `01a1cc4e-f61e-708c-8bcc-1e8f31df39ea`, `last_event: delivered`,
+  from `Shinobi Tactics <no-reply@mail.shinobitactics.dev>`.
+
+Not applied yet: the running API still has `Provider=None` until the container is recreated, which only happens on
+the next deploy. The image also has to be built from `main` (publish-images does not run for feature branches), so the
+sequence is: commit, merge to `main`, wait for `Publish images`, then run the `Deploy` workflow.
 
 One deliberate rollout cost: tokens minted before this change carry no `ver` claim and are refused, so every current
 session needs one login. That is the price of not letting a stolen pre-reset token survive its full 12-hour life.

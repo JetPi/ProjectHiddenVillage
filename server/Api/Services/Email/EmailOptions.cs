@@ -12,7 +12,10 @@ public sealed class EmailOptions
 
     public string FromAddress { get; set; } = string.Empty;
 
-    public string FromName { get; set; } = "Hidden Village";
+    /// <summary>
+    /// The display name recipients see beside the address. It is the game's public name, not the repository's.
+    /// </summary>
+    public string FromName { get; set; } = "Shinobi Tactics";
 
     /// <summary>
     /// Browser origin the reset link must point at. It is deliberately separate from the CORS origins: the API must

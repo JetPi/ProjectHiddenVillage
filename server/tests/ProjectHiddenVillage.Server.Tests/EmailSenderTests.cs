@@ -33,9 +33,9 @@ public sealed class EmailSenderTests
         StringAssert.Contains(handler.Body, "player@example.com");
         // The JSON encoder escapes the angle brackets of the display-name form, so only the stable halves are
         // asserted here.
-        StringAssert.Contains(handler.Body, "Hidden Village");
+        StringAssert.Contains(handler.Body, "Shinobi Tactics");
         StringAssert.Contains(handler.Body, "no-reply@test");
-        StringAssert.Contains(handler.Body, "Reset your Hidden Village password");
+        StringAssert.Contains(handler.Body, "Reset your Shinobi Tactics password");
         StringAssert.Contains(handler.Body, ResetUrl);
     }
 
@@ -89,7 +89,7 @@ public sealed class EmailSenderTests
             {
                 Provider = EmailProviders.Resend,
                 FromAddress = "no-reply@test",
-                FromName = "Hidden Village",
+                FromName = "Shinobi Tactics",
                 AppPublicBaseUrl = "https://game.test",
                 Resend = new ResendEmailOptions { ApiKey = "test-key", BaseUrl = "https://api.resend.test" },
             }),
