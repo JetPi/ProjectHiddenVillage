@@ -232,6 +232,129 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
     }
 
     [TestMethod]
+    public void ExecuteCardAction_NormalSummon_ChooseStep_AsksBeforeTheReveal()
+    {
+        // Mirrors N-013 (Itachi Uchiha): "Choose 1 Leader or Character: Reveal the top card of your deck, and if
+        // the revealed card has the [Uchiha Clan] type, the selected card cannot attack...". The choice comes
+        // first, so the player commits to a card before knowing what the reveal turns over.
+        var game = CreateGame(definitionId: "onsummon-def-chained-freeze");
+        AddDeckCard(game, RevealDeckInstanceId, "card-1");
+
+        registry.ExecuteCardAction(game.Id, CreateSummonRequest(), CreateRevealFreezeExecutor());
+
+        var choicePrompt = game.GetPendingPrompt();
+        Assert.IsNotNull(choicePrompt);
+        Assert.AreEqual(
+            EffectSelectionPromptKind.FreezeFromZone,
+            choicePrompt.SelectionPromptKind,
+            "The chain must ask for its target before the reveal, not after it.");
+
+        var chosenTargetId = choicePrompt.Options[0];
+        registry.ResolvePrompt(
+            game.Id,
+            requestedPlayerId: "p1",
+            selectedOption: chosenTargetId,
+            reactiveEffectOrchestrator: null,
+            sequentialEffectExecutor: CreateRevealFreezeExecutor());
+
+        // The answer is consumed by the chain, which now reveals the top card and presents it.
+        var presentation = game.GetPendingPrompt();
+        Assert.IsNotNull(presentation);
+        Assert.AreEqual(EffectSelectionPromptKind.RevealPresentation, presentation.SelectionPromptKind);
+
+        registry.ResolvePrompt(
+            game.Id,
+            requestedPlayerId: "p1",
+            selectedOption: ReactiveEffectExecutionConstants.RevealPresentedOption,
+            reactiveEffectOrchestrator: null,
+            sequentialEffectExecutor: CreateRevealFreezeExecutor());
+
+        // The revealed top card is not an [Uchiha Clan] card, so the reveal's post-condition fails and its
+        // success branch never runs: no further prompt is raised and nothing is frozen.
+        Assert.IsNull(game.GetPendingPrompt());
+        Assert.IsFalse(
+            game.State.AppliedCardEffects.Any(effectState => string.Equals(
+                effectState.Keyword,
+                FreezeCardEffect.CannotAttackKeyword,
+                StringComparison.Ordinal)),
+            "A non-[Uchiha Clan] reveal must not freeze the chosen card.");
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_NormalSummon_FreezesTheTargetChosenBeforeTheReveal_WhenTheRevealMatches()
+    {
+        // The other half of the contract: a matching reveal freezes the card the player chose *before* the
+        // reveal, without asking a second time.
+        var game = CreateGame(definitionId: "onsummon-def-chained-freeze");
+        AddDeckCard(game, RevealDeckInstanceId, "uchiha-card");
+
+        registry.ExecuteCardAction(game.Id, CreateSummonRequest(), CreateRevealFreezeExecutor());
+
+        var choicePrompt = game.GetPendingPrompt();
+        Assert.IsNotNull(choicePrompt);
+        var chosenTargetId = choicePrompt.Options[0];
+
+        registry.ResolvePrompt(
+            game.Id,
+            requestedPlayerId: "p1",
+            selectedOption: chosenTargetId,
+            reactiveEffectOrchestrator: null,
+            sequentialEffectExecutor: CreateRevealFreezeExecutor());
+
+        var presentation = game.GetPendingPrompt();
+        Assert.IsNotNull(presentation);
+        Assert.AreEqual(EffectSelectionPromptKind.RevealPresentation, presentation.SelectionPromptKind);
+
+        registry.ResolvePrompt(
+            game.Id,
+            requestedPlayerId: "p1",
+            selectedOption: ReactiveEffectExecutionConstants.RevealPresentedOption,
+            reactiveEffectOrchestrator: null,
+            sequentialEffectExecutor: CreateRevealFreezeExecutor());
+
+        // No second prompt: the success branch resolves the choice the chain already holds.
+        Assert.IsNull(game.GetPendingPrompt());
+        Assert.IsTrue(
+            game.State.AppliedCardEffects.Any(effectState =>
+                string.Equals(effectState.Keyword, FreezeCardEffect.CannotAttackKeyword, StringComparison.Ordinal)
+                && string.Equals(effectState.TargetCardInstanceId, chosenTargetId, StringComparison.Ordinal)),
+            "A matching reveal must freeze the card chosen before the reveal.");
+    }
+
+    [TestMethod]
+    public void ExecuteAutomaticOnSummonEffects_SkipsAChainedStepThatWasNotFlaggedSubordinate()
+    {
+        // Chain membership is decided by the branch link, not by the flag: data imported with
+        // `isSubordinate: false` on a chained step must still fire once, from its starter only.
+        var game = CreateGame(definitionId: "onsummon-def-unflagged-chain");
+        var recordingExecutor = new RecordingSequentialEffectExecutor();
+
+        GameTriggeredEffectRunner.ExecuteAutomaticOnSummonEffects(
+            game,
+            actingPlayerId: "p1",
+            summonedCard: AddBattlefieldCard(game, SummonedInstanceId, "onsummon-def-unflagged-chain"),
+            sequentialEffectExecutor: recordingExecutor);
+
+        CollectionAssert.AreEqual(new[] { "choose-target" }, recordingExecutor.ExecutedEffectIds.ToArray());
+    }
+
+    [TestMethod]
+    public void ExecuteAutomaticOnSummonEffects_DispatchesOnlyTheChainHead_WhenASubordinateStepSharesTheTiming()
+    {
+        var game = CreateGame(definitionId: "onsummon-def-chained-freeze");
+        var recordingExecutor = new RecordingSequentialEffectExecutor();
+
+        GameTriggeredEffectRunner.ExecuteAutomaticOnSummonEffects(
+            game,
+            actingPlayerId: "p1",
+            summonedCard: AddBattlefieldCard(game, SummonedInstanceId, "onsummon-def-chained-freeze"),
+            sequentialEffectExecutor: recordingExecutor);
+
+        // The reveal and freeze steps are reached through the choose step's chain only.
+        CollectionAssert.AreEqual(new[] { "choose-target" }, recordingExecutor.ExecutedEffectIds.ToArray());
+    }
+
+    [TestMethod]
     public void ExecuteCardAction_NormalSummon_PromptedOnSummonTrashRecall_AsksWithTheTrashAndResumesWithTheAnswer()
     {
         var recallEffect = new RecordingSummonEffect();
@@ -469,6 +592,19 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
                 "onsummon-def-trash-recall",
                 "On Summon Trash Recall",
                 [CreateTrashRecallEffect()]),
+            ["onsummon-def-chained-freeze"] = CreateCharacterDefinition(
+                "onsummon-def-chained-freeze",
+                "On Summon Chained Freeze",
+                [CreateChooseTargetEffect(), CreateChainedFreezeRevealEffect(), CreateChainedFreezeStep()]),
+            ["onsummon-def-unflagged-chain"] = CreateCharacterDefinition(
+                "onsummon-def-unflagged-chain",
+                "On Summon Unflagged Chain",
+                [
+                    CreateChooseTargetEffect(),
+                    CreateChainedFreezeRevealEffect(),
+                    CreateChainedFreezeStep(isSubordinate: false),
+                ]),
+            ["uchiha-card"] = CreateUchihaCharacterDefinition("uchiha-card"),
             ["tribute-summon-def"] = CreateTributeSummonDefinition(),
             ["tribute-summon-reveal-def"] = CreateTributeSummonRevealDefinition(),
         };
@@ -501,6 +637,13 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
         }
 
         definition.Effects.AddRange(effects);
+        return definition;
+    }
+
+    private static CharacterCard CreateUchihaCharacterDefinition(string definitionId)
+    {
+        var definition = CreateCharacterDefinition(definitionId, "Uchiha Filler", []);
+        definition.Traits = ["Uchiha Clan"];
         return definition;
     }
 
@@ -580,6 +723,160 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
         };
     }
 
+    /// <summary>
+    /// The first clause of N-013 (Itachi Uchiha): "Choose 1 Leader or Character". It only collects the choice,
+    /// and the chain acts on it later through <see cref="EffectExecutionTargetSource.ChainTargets"/>.
+    /// </summary>
+    private static EffectSpec CreateChooseTargetEffect()
+    {
+        return new EffectSpec
+        {
+            Id = "choose-target",
+            RuntimeEffectType = RuntimeEffects.SelectTargets,
+            EffectType = EffectKind.Activated,
+            Timing = EffectTiming.OnSummon,
+            DurationMode = EffectDurationMode.Instant,
+            IsOptional = false,
+            OnSuccessEffectId = "reveal-top",
+            ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+            TargetSlotName = "chosen",
+            ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+            SelectionTiming = EffectSelectionTiming.Prompted,
+            SelectionPromptKind = EffectSelectionPromptKind.FreezeFromZone,
+            TargetRules = new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                ExactTargetCount = 1,
+                AutoSelectAllValidTargets = false,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Any,
+                        InZone = PlayerZone.Leader,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction(),
+                    },
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Any,
+                        InZone = PlayerZone.CharacterField,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction(),
+                    },
+                ],
+            },
+        };
+    }
+
+    /// <summary>
+    /// The middle step of the authored N-013 chain: "[On Summon]" reveals the top card of the deck (Reveal
+    /// First) and gates the chain on the revealed card carrying the [Uchiha Clan] type. It is a chain step of
+    /// the choose-target starter, so it is flagged subordinate and shares the starter's timing.
+    /// </summary>
+    private static EffectSpec CreateChainedFreezeRevealEffect()
+    {
+        return new EffectSpec
+        {
+            Id = "reveal-top",
+            IsSubordinate = true,
+            RuntimeEffectType = RuntimeEffects.RevealCard,
+            EffectType = EffectKind.Activated,
+            Timing = EffectTiming.OnSummon,
+            DurationMode = EffectDurationMode.Instant,
+            IsOptional = false,
+            OnSuccessEffectId = "freeze-target",
+            RevealTimingMode = RevealTimingMode.RevealFirst,
+            RevealPostConditionRuleSet = new ZoneCardRestrictionRuleSet
+            {
+                Operator = RequirementGroupOperator.All,
+                Restrictions =
+                [
+                    new ZoneCardRestriction
+                    {
+                        MatchMode = ZoneRestrictionMatchMode.All,
+                        Predicates =
+                        [
+                            new ZoneCardPropertyPredicate
+                            {
+                                Property = ZoneCardProperty.Trait,
+                                Operator = ZoneCardPredicateOperator.Equals,
+                                Value = "Uchiha Clan",
+                                IgnoreCase = true,
+                            }
+                        ],
+                    }
+                ],
+            },
+            ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+            ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+            TargetRules = new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                AutoSelectAllValidTargets = true,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Self,
+                        InZone = PlayerZone.Deck,
+                        LocationSelector = new EffectTargetLocationSelector
+                        {
+                            Kind = EffectTargetLocationSelectorKind.DeckTop,
+                        },
+                    }
+                ],
+            },
+        };
+    }
+
+    /// <summary>
+    /// The reveal's success branch: the authored N-013 Freeze Card step. It is reached only through
+    /// <c>reveal-top</c>'s <see cref="EffectSpec.OnSuccessEffectId"/> and it freezes the card the chain's first
+    /// step chose (<see cref="EffectExecutionTargetSource.ChainTargets"/>), so it never asks again.
+    /// </summary>
+    private static EffectSpec CreateChainedFreezeStep(bool isSubordinate = true)
+    {
+        return new EffectSpec
+        {
+            Id = "freeze-target",
+            IsSubordinate = isSubordinate,
+            RuntimeEffectType = RuntimeEffects.FreezeCard,
+            EffectType = EffectKind.Activated,
+            Timing = EffectTiming.OnSummon,
+            DurationMode = EffectDurationMode.DuringOpponentNextTurn,
+            IsOptional = false,
+            ExecutionTargetSource = EffectExecutionTargetSource.ChainTargets,
+            ChainTargetSlotName = "chosen",
+            ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+            SelectionTiming = EffectSelectionTiming.Upfront,
+            SelectionPromptKind = EffectSelectionPromptKind.FreezeFromZone,
+            TargetRules = new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                ExactTargetCount = 1,
+                AutoSelectAllValidTargets = false,
+                Rules =
+                [
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Any,
+                        InZone = PlayerZone.Leader,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction(),
+                    },
+                    new EffectTargetRule
+                    {
+                        Scope = EffectTargetRange.Any,
+                        InZone = PlayerZone.CharacterField,
+                        ExactSelectedTargetCount = 1,
+                        Restriction = new ZoneCardRestriction(),
+                    },
+                ],
+            },
+        };
+    }
+
     private static void AddTrashCard(GameInstance game, string instanceId, string definitionId)
     {
         game.State.Players[0].DiscardPile.Add(new CardInstance
@@ -645,6 +942,28 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
     }
 
     /// <summary>
+    /// The real <see cref="RevealCardEffect"/> + <see cref="FreezeCardEffect"/> composition the N-013 chain
+    /// needs ("reveal the top card of your deck, and if it is [Uchiha Clan], freeze the chosen card").
+    /// </summary>
+    private static IGameSequentialEffectExecutor CreateRevealFreezeExecutor()
+    {
+        var canExecuteEvaluator = new GameEffectCanExecuteEvaluator(
+            new EffectContextConditionEvaluator(),
+            new EffectTargetResolver(),
+            new GameValidTargetResultFactory(),
+            new GameEffectConditionDiagnostics());
+        var targetResolver = new EffectTargetResolver();
+        var effectSpecResolver = new GameRuntimeEffectSpecResolver();
+
+        return new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new SelectTargetsEffect(),
+            new RevealCardEffect(effectSpecResolver, canExecuteEvaluator, targetResolver),
+            new FreezeCardEffect(effectSpecResolver, canExecuteEvaluator, targetResolver),
+        ]));
+    }
+
+    /// <summary>
     /// Stands in for <see cref="SummonCardEffect"/> in the resumed chain: it records the selection the node was
     /// handed, which is what proves the prompt answer reached the effect (the real summon behaviour itself is
     /// covered by SummonCardEffectTests).
@@ -670,6 +989,29 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
             IReadOnlyList<GameEffectTargetReference> selectedTargets)
         {
             SelectedTargetInstanceIds.AddRange(selectedTargets.Select(target => target.CardInstanceId));
+            return Result.Success;
+        }
+    }
+
+    /// <summary>
+    /// Records which node each dispatched chain was cloned around, so a test can pin exactly what the trigger
+    /// runner fired (the clone keeps the triggering node first).
+    /// </summary>
+    private sealed class RecordingSequentialEffectExecutor : IGameSequentialEffectExecutor
+    {
+        public List<string> ExecutedEffectIds { get; } = [];
+
+        public ErrorOr<Success> Execute(GameCardEffectContext context)
+        {
+            ExecutedEffectIds.Add(context.SourceCardDefinition.Effects[0].Id);
+            return Result.Success;
+        }
+
+        public ErrorOr<Success> Resume(
+            GameInstance game,
+            PendingEffectContinuation continuation,
+            IReadOnlyList<GameEffectTargetReference> selection)
+        {
             return Result.Success;
         }
     }
@@ -795,6 +1137,7 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
             },
             OnSuccessEffectId = "summon-revealed-card",
             ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+            TargetSlotName = "revealed",
             ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
             TargetRules = new EffectTargetRuleSet
             {
@@ -827,7 +1170,8 @@ public sealed class InMemoryGameInstanceRegistryOnSummonTests
             EffectType = EffectKind.Activated,
             Timing = EffectTiming.DuringYourMain,
             DurationMode = EffectDurationMode.Instant,
-            ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+            ExecutionTargetSource = EffectExecutionTargetSource.ChainTargets,
+            ChainTargetSlotName = "revealed",
             ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
             TargetRules = new EffectTargetRuleSet
             {

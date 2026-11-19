@@ -67,6 +67,13 @@ export function CardAdminEffectsSection({
   effectBranchErrors,
 }: ICardAdminEffectsSectionProps) {
   const { t } = useTranslation()
+  const publishedTargetSlotNames = Array.from(
+    new Set(
+      parsedEffects
+        .map((candidate) => candidate.targetSlotName?.trim() ?? '')
+        .filter((slotName) => slotName.length > 0),
+    ),
+  )
   const [draggedEffectIndex, setDraggedEffectIndex] = useState<number | null>(null)
   const [dragOverEffectIndex, setDragOverEffectIndex] = useState<number | null>(null)
   const dragPreviewRef = useRef<HTMLDivElement | null>(null)
@@ -360,15 +367,23 @@ export function CardAdminEffectsSection({
                             }))
                             : nextTargetRules
 
+                          const nextExecutionTargetSource: string =
+                            nextRuntimeEffectType === 'Reveal Card' || nextRuntimeEffectType === 'Select Targets'
+                              ? 'Selected Targets'
+                              : nextRuntimeEffectType === 'Lock Chakra Recovery' || hidesTargetCount
+                                ? 'None'
+                                : current.executionTargetSource
+
                           return {
                             ...current,
                             runtimeEffectType: nextRuntimeEffectType,
-                            executionTargetSource:
-                              nextRuntimeEffectType === 'Reveal Card'
-                                ? 'Selected Targets'
-                                : nextRuntimeEffectType === 'Lock Chakra Recovery' || hidesTargetCount
-                                  ? 'None'
-                                  : current.executionTargetSource,
+                            executionTargetSource: nextExecutionTargetSource,
+                            // A slot name only means something for the source that owns it, so switching away
+                            // drops it instead of leaving a value the authoring contract rejects.
+                            targetSlotName:
+                              nextExecutionTargetSource === 'Selected Targets' ? current.targetSlotName ?? null : null,
+                            chainTargetSlotName:
+                              nextExecutionTargetSource === 'Chain Targets' ? current.chainTargetSlotName ?? null : null,
                             suppressSummonedTargetsEffectsWhileOnField:
                               nextRuntimeEffectType === 'Summon Card'
                                 ? current.suppressSummonedTargetsEffectsWhileOnField
@@ -524,6 +539,7 @@ export function CardAdminEffectsSection({
                   effectIndex={effectIndex}
                   updateEffectAt={updateEffectAt}
                   effectBranchErrors={effectBranchErrors[effectIndex]}
+                  publishedTargetSlotNames={publishedTargetSlotNames}
                 />
 
                 <CardAdminTargetRulesPanel

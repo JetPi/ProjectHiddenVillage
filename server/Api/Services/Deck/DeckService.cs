@@ -719,7 +719,9 @@ public sealed partial class DeckService : IDeckService
                     ContextRules: effect.ContextRules
                         .Select(ToContextRuleResponse)
                         .ToList(),
-                    TargetRules: ToTargetRuleSetResponse(effect.TargetRules))),
+                    TargetRules: ToTargetRuleSetResponse(effect.TargetRules),
+                    TargetSlotName: effect.TargetSlotName,
+                    ChainTargetSlotName: effect.ChainTargetSlotName)),
                 Life: entry.Life,
                 Health: entry.Health,
                 CannotBeNormalSummoned: entry.CannotBeNormalSummoned,

@@ -69,9 +69,19 @@ public sealed class StoredEffectEnumContractTests
         Assert.AreEqual(12, (int)RuntimeEffects.InterruptAttack);
         Assert.AreEqual(13, (int)RuntimeEffects.MoveCard);
         Assert.AreEqual(14, (int)RuntimeEffects.LockChakraRecovery);
+        Assert.AreEqual(15, (int)RuntimeEffects.SelectTargets);
 
         var occupied = Enum.GetValues<RuntimeEffects>().Select(value => (int)value).ToList();
         CollectionAssert.DoesNotContain(occupied, 6, "Stored ordinals 6 and 7 are retired and must stay unused.");
         CollectionAssert.DoesNotContain(occupied, 7, "Stored ordinals 6 and 7 are retired and must stay unused.");
+    }
+
+    [TestMethod]
+    public void EffectExecutionTargetSource_KeepsTheOrdinalsStoredNodesWereWrittenWith()
+    {
+        Assert.AreEqual(0, (int)EffectExecutionTargetSource.SelectedTargets);
+        Assert.AreEqual(1, (int)EffectExecutionTargetSource.SourceCard);
+        Assert.AreEqual(2, (int)EffectExecutionTargetSource.None);
+        Assert.AreEqual(3, (int)EffectExecutionTargetSource.ChainTargets);
     }
 }

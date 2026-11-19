@@ -28,6 +28,15 @@ public enum RuntimeEffects
     /// selected targets. Distinct from <see cref="FreezeCard"/>, which freezes a chosen card's keyword.
     /// </summary>
     LockChakraRecovery = 14,
+
+    /// <summary>
+    /// A step that only collects the player's choice: "Choose 1 Leader or Character" as a clause of its own,
+    /// with nothing to resolve when it runs. It exists so a chain can ask before its effect resolves and
+    /// then act on that answer later (N-013: choose the card, reveal the top of the deck, and only freeze the
+    /// chosen card if the reveal matches). The answer is carried to later steps through
+    /// <see cref="EffectExecutionTargetSource.ChainTargets"/>.
+    /// </summary>
+    SelectTargets = 15,
 }
 
 public sealed class EffectContextCondition

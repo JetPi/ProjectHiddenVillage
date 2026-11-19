@@ -189,6 +189,8 @@ export type ICardCatalogEffectRequest = {
   selectionPromptKind?: string
   searchRevealSelection?: boolean
   searchShuffleAfter?: boolean
+  targetSlotName?: string | null
+  chainTargetSlotName?: string | null
   suppressSummonedTargetsEffectsWhileOnField: boolean
   revealTimingMode: string
   revealPostConditionRuleSet: ICardCatalogZoneCardRestrictionRuleSetRequest | null

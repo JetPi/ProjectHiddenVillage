@@ -12,6 +12,7 @@ export const RUNTIME_EFFECT_OPTIONS = [
   'Summon Card',
   'Move Card',
   'Lock Chakra Recovery',
+  'Select Targets',
 ] as const
 
 export const EFFECT_KIND_OPTIONS = [
@@ -72,6 +73,7 @@ export const RUNTIME_EFFECT_LABEL_KEYS: Readonly<Record<string, string>> = {
   'Summon Card': 'admin.options.runtimeEffect.summonCard',
   'Move Card': 'admin.options.runtimeEffect.moveCard',
   'Lock Chakra Recovery': 'admin.options.runtimeEffect.lockChakraRecovery',
+  'Select Targets': 'admin.options.runtimeEffect.selectTargets',
 }
 
 export const EFFECT_KIND_LABEL_KEYS: Readonly<Record<string, string>> = {

@@ -1743,6 +1743,310 @@ public sealed class GameSequentialEffectExecutorTests
         CollectionAssert.AreEqual(new[] { "fallback" }, observedSpecIds.ToArray());
     }
 
+    [TestMethod]
+    public void Execute_ChainTargetSlot_ResolvesTheNamedProducersTargets_NotTheEntrySelection()
+    {
+        var observedTargets = new List<(string EffectSpecId, IReadOnlyList<string> TargetIds)>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingTargetsEffect(SelectTargetsEffect.EffectKey, observedTargets, requiresTargets: false),
+            new RecordingTargetsEffect(FreezeCardEffect.EffectKey, observedTargets, requiresTargets: true),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "choose-step",
+                RuntimeEffectType = RuntimeEffects.SelectTargets,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.OnSummon,
+                TargetSlotName = "chosen",
+                OnSuccessEffectId = "freeze-step",
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    AutoSelectAllValidTargets = true,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Opponent,
+                            InZone = PlayerZone.CharacterField,
+                            Restriction = new ZoneCardRestriction(),
+                        }
+                    ],
+                },
+            },
+            new EffectSpec
+            {
+                Id = "freeze-step",
+                IsSubordinate = true,
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.OnSummon,
+                ExecutionTargetSource = EffectExecutionTargetSource.ChainTargets,
+                ChainTargetSlotName = "chosen",
+                ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+                SelectionTiming = EffectSelectionTiming.Upfront,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet(),
+            });
+
+        var enemyCard = CreateCardOnField("enemy-def", "enemy-1", "p2", "Enemy");
+        var ownCard = CreateCardOnField("own-def", "own-1", "p1", "Own");
+        var context = CreateContext(
+            sourceDefinition,
+            playerOneFieldCards: [ownCard],
+            playerTwoFieldCards: [enemyCard],
+            selectedTargets:
+            [
+                new GameEffectTargetReference("p1", PlayerZone.CharacterField, "own-1")
+            ]);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError, result.FirstError.Description);
+        CollectionAssert.AreEqual(
+            new[] { "choose-step", "freeze-step" },
+            observedTargets.Select(entry => entry.EffectSpecId).ToArray());
+        CollectionAssert.AreEqual(new[] { "enemy-1" }, observedTargets[0].TargetIds.ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "enemy-1" },
+            observedTargets[1].TargetIds.ToArray(),
+            "The consumer must read the producer's slot, not the selection the chain was started with.");
+    }
+
+    [TestMethod]
+    public void Execute_ChainTargetSlot_EndsTheChain_WhenTheSlotResolvedNothing()
+    {
+        var observedTargets = new List<(string EffectSpecId, IReadOnlyList<string> TargetIds)>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingTargetsEffect(SelectTargetsEffect.EffectKey, observedTargets, requiresTargets: false),
+            new RecordingTargetsEffect(FreezeCardEffect.EffectKey, observedTargets, requiresTargets: true),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "choose-step",
+                RuntimeEffectType = RuntimeEffects.SelectTargets,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.OnSummon,
+                TargetSlotName = "chosen",
+                OnSuccessEffectId = "freeze-step",
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    AutoSelectAllValidTargets = true,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Opponent,
+                            InZone = PlayerZone.CharacterField,
+                            Restriction = new ZoneCardRestriction(),
+                        }
+                    ],
+                },
+            },
+            new EffectSpec
+            {
+                Id = "freeze-step",
+                IsSubordinate = true,
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.OnSummon,
+                ExecutionTargetSource = EffectExecutionTargetSource.ChainTargets,
+                ChainTargetSlotName = "chosen",
+                ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+                SelectionTiming = EffectSelectionTiming.Upfront,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet(),
+            });
+
+        // No opposing characters, so the producer publishes an empty slot and the consumer has nothing to act on.
+        var context = CreateContext(sourceDefinition);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError, result.FirstError.Description);
+        CollectionAssert.AreEqual(new[] { "choose-step" }, observedTargets.Select(entry => entry.EffectSpecId).ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_AtomicChain_PublishesTheSlotAtPlanTime_SoALaterStepCanReadIt()
+    {
+        var observedTargets = new List<(string EffectSpecId, IReadOnlyList<string> TargetIds)>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingTargetsEffect(SelectTargetsEffect.EffectKey, observedTargets, requiresTargets: false),
+            new RecordingTargetsEffect(FreezeCardEffect.EffectKey, observedTargets, requiresTargets: true),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "choose-step",
+                RuntimeEffectType = RuntimeEffects.SelectTargets,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.OnSummon,
+                TargetSlotName = "chosen",
+                OnSuccessEffectId = "freeze-step",
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    AutoSelectAllValidTargets = true,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Opponent,
+                            InZone = PlayerZone.CharacterField,
+                            Restriction = new ZoneCardRestriction(),
+                        }
+                    ],
+                },
+            },
+            new EffectSpec
+            {
+                Id = "freeze-step",
+                IsSubordinate = true,
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.OnSummon,
+                ExecutionTargetSource = EffectExecutionTargetSource.ChainTargets,
+                ChainTargetSlotName = "chosen",
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                SelectionTiming = EffectSelectionTiming.Upfront,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet(),
+            });
+
+        var enemyCard = CreateCardOnField("enemy-def", "enemy-1", "p2", "Enemy");
+        var context = CreateContext(sourceDefinition, playerTwoFieldCards: [enemyCard]);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError, result.FirstError.Description);
+        CollectionAssert.AreEqual(
+            new[] { "choose-step", "freeze-step" },
+            observedTargets.Select(entry => entry.EffectSpecId).ToArray());
+        CollectionAssert.AreEqual(new[] { "enemy-1" }, observedTargets[1].TargetIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_ChainTargetsWithoutASlotName_ResolvesTheEntrySelection()
+    {
+        var observedTargets = new List<(string EffectSpecId, IReadOnlyList<string> TargetIds)>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingTargetsEffect(FreezeCardEffect.EffectKey, observedTargets, requiresTargets: true),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "freeze-step",
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.OnSummon,
+                ExecutionTargetSource = EffectExecutionTargetSource.ChainTargets,
+                ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+                SelectionTiming = EffectSelectionTiming.Upfront,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet(),
+            });
+
+        var ownCard = CreateCardOnField("own-def", "own-1", "p1", "Own");
+        var context = CreateContext(
+            sourceDefinition,
+            playerOneFieldCards: [ownCard],
+            selectedTargets:
+            [
+                new GameEffectTargetReference("p1", PlayerZone.CharacterField, "own-1")
+            ]);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError, result.FirstError.Description);
+        CollectionAssert.AreEqual(new[] { "own-1" }, observedTargets.Single().TargetIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Execute_ChainedStepWithoutItsOwnTargets_NoLongerActsOnTheRevealedCard()
+    {
+        // "Reveal the top card, then summon it" used to work through an implicit fallback: a chained step with
+        // no selection of its own acted on whatever the previous step revealed. Chains now name the reveal's
+        // slot instead, so this shape resolves nothing and the step never runs.
+        var observedSpecIds = new List<string>();
+        var observedTargets = new List<(string EffectSpecId, IReadOnlyList<string> TargetIds)>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new RecordingRevealEffect(observedSpecIds, "own-1"),
+            new RecordingTargetsEffect(FreezeCardEffect.EffectKey, observedTargets, requiresTargets: true),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.Quick,
+                RevealTimingMode = RevealTimingMode.RevealFirst,
+                OnSuccessEffectId = "consumer-step",
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    AutoSelectAllValidTargets = true,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Self,
+                            InZone = PlayerZone.CharacterField,
+                            Restriction = new ZoneCardRestriction(),
+                        }
+                    ],
+                },
+            },
+            new EffectSpec
+            {
+                Id = "consumer-step",
+                IsSubordinate = true,
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.Quick,
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+                SelectionTiming = EffectSelectionTiming.Upfront,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet(),
+            });
+
+        var ownCard = CreateCardOnField("own-def", "own-1", "p1", "Own");
+        var context = CreateContext(sourceDefinition, playerOneFieldCards: [ownCard]);
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError, result.FirstError.Description);
+        CollectionAssert.AreEqual(new[] { "reveal-step" }, observedSpecIds.ToArray());
+        CollectionAssert.AreEqual(Array.Empty<string>(), observedTargets.Select(entry => entry.EffectSpecId).ToArray());
+    }
+
     private static GameCardEffectContext CreateContext(
         Card sourceDefinition,
         IReadOnlyDictionary<string, string>? arguments = null,
@@ -2198,6 +2502,39 @@ public sealed class GameSequentialEffectExecutorTests
         {
             Assert.IsTrue(context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument, out var activeEffectSpecId));
             observedSpecIds.Add(activeEffectSpecId!);
+            return Result.Success;
+        }
+    }
+
+    /// <summary>Records the targets each step was handed, keyed by the effect spec that executed.</summary>
+    private sealed class RecordingTargetsEffect(
+        string effectTypeKey,
+        List<(string EffectSpecId, IReadOnlyList<string> TargetIds)> observedTargets,
+        bool requiresTargets) : IGameCardEffect
+    {
+        public string EffectTypeKey => effectTypeKey;
+
+        public CanExecuteResult CanExecute(GameCardEffectContext context)
+        {
+            return new CanExecuteResult
+            {
+                CanExecute = !requiresTargets || context.SelectedTargets.Count > 0
+            };
+        }
+
+        public IReadOnlyList<GameEffectTargetReference> GetValidTargets(GameCardEffectContext context)
+        {
+            return [];
+        }
+
+        public ErrorOr<Success> Execute(
+            GameCardEffectContext context,
+            IReadOnlyList<GameEffectTargetReference> selectedTargets)
+        {
+            Assert.IsTrue(context.Arguments.TryGetValue(ReactiveEffectExecutionConstants.ActiveEffectSpecIdArgument, out var activeEffectSpecId));
+            observedTargets.Add((
+                activeEffectSpecId!,
+                selectedTargets.Select(target => target.CardInstanceId).ToList()));
             return Result.Success;
         }
     }

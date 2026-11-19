@@ -32,6 +32,22 @@ public static class ReactiveEffectExecutionConstants
     public const string RevealedPrimaryTargetIdArgument = "revealedPrimaryTargetId";
 
     /// <summary>
+    /// Card instance ids of the selection the running chain was started with (an activation's selection, or the
+    /// answer to a "Choose 1 Leader or Character" step the chain resumes at). A
+    /// <see cref="EffectExecutionTargetSource.ChainTargets"/> step with no named slot reads this instead of asking
+    /// again, which is what lets a chain choose first and resolve later (N-013).
+    /// </summary>
+    public const string ChainSelectedTargetIdsArgument = "__chainSelectedTargetIds";
+
+    /// <summary>
+    /// Prefix of the argument under which a step that declares
+    /// <see cref="EffectSpec.TargetSlotName"/> publishes the card instance ids it resolved, so later steps of the
+    /// same chain can execute against exactly those targets
+    /// (<see cref="EffectExecutionTargetSource.ChainTargets"/> + <see cref="EffectSpec.ChainTargetSlotName"/>).
+    /// </summary>
+    public const string ChainTargetSlotArgumentPrefix = "__chainTargetSlot:";
+
+    /// <summary>
     /// The single option of a reveal presentation prompt: acknowledging it is not a choice, it only tells the
     /// suspended chain that the player has seen the revealed card and it may carry on.
     /// </summary>

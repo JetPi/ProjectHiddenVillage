@@ -738,7 +738,9 @@ public sealed class CardMappingService : ICardMappingService
                     SelectionTiming: effect.SelectionTiming.ToString(),
                     SelectionPromptKind: effect.SelectionPromptKind.ToString(),
                     SearchRevealSelection: effect.SearchRevealSelection,
-                    SearchShuffleAfter: effect.SearchShuffleAfter))
+                    SearchShuffleAfter: effect.SearchShuffleAfter,
+                    TargetSlotName: effect.TargetSlotName,
+                    ChainTargetSlotName: effect.ChainTargetSlotName))
 ,
             Life: entry.Life,
             Health: entry.Health,

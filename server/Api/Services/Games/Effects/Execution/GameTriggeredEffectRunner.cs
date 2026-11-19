@@ -50,9 +50,26 @@ public static class GameTriggeredEffectRunner
     {
         var failures = new List<string>();
 
+        // Chain membership is decided by the branch links, exactly like SupportActivationPlanner's root rule:
+        // any node another same-timing node reaches through an on-success / on-failure branch is a step of that
+        // chain - the chain shares the starter's timing and runs in chain order - and never a trigger of its
+        // own. Dispatching it separately ran the step twice and, worse, ran it without the starter's
+        // precondition: N-013 (Itachi) authors its chained Freeze Card step with the `On Summon` timing, so the
+        // freeze fired on every summon no matter what the reveal turned over. The flag is deliberately not
+        // consulted, so data that left `IsSubordinate` false is still read as a chain. A node reached only from
+        // a differently-timed root (N-022's reveal, reached from the `DuringYourMain` tribute requirement) is
+        // the summon trigger's own entry point and keeps dispatching.
+        var chainedSameTimingNodeIds = CollectSameTimingBranchTargetIds(sourceCardDefinition, timing);
+
         foreach (var effectSpec in sourceCardDefinition.Effects)
         {
             if (effectSpec.Timing != timing || effectSpec.IsOptional)
+            {
+                continue;
+            }
+
+            var nodeId = effectSpec.Id?.Trim();
+            if (!string.IsNullOrEmpty(nodeId) && chainedSameTimingNodeIds.Contains(nodeId))
             {
                 continue;
             }
@@ -84,6 +101,49 @@ public static class GameTriggeredEffectRunner
         }
 
         return failures;
+    }
+
+    /// <summary>
+    /// The ids of the nodes a <paramref name="timing"/>-timed node reaches through its on-success /
+    /// on-failure branches. Used to keep a chained step from being dispatched as a trigger of its own,
+    /// regardless of how the `IsSubordinate` flag was authored.
+    /// </summary>
+    private static HashSet<string> CollectSameTimingBranchTargetIds(Card sourceCardDefinition, EffectTiming timing)
+    {
+        var branchTargetIds = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var effectSpec in sourceCardDefinition.Effects)
+        {
+            if (effectSpec.Timing != timing)
+            {
+                continue;
+            }
+
+            var sourceId = effectSpec.Id?.Trim();
+            AddBranchTarget(branchTargetIds, sourceId, effectSpec.OnSuccessEffectId);
+            AddBranchTarget(branchTargetIds, sourceId, effectSpec.OnFailureEffectId);
+        }
+
+        return branchTargetIds;
+    }
+
+    private static void AddBranchTarget(HashSet<string> branchTargetIds, string? sourceEffectId, string? branchEffectId)
+    {
+        if (string.IsNullOrWhiteSpace(branchEffectId))
+        {
+            return;
+        }
+
+        var normalizedBranchId = branchEffectId.Trim();
+
+        // A self-reference is the authoring contract's business to reject; the dispatcher must not read it as
+        // "this node is a chain step" and silently stop firing the card's effect.
+        if (string.Equals(normalizedBranchId, sourceEffectId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        branchTargetIds.Add(normalizedBranchId);
     }
 
     /// <summary>

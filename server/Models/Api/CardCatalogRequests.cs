@@ -71,7 +71,11 @@ public sealed record CardCatalogEffectResponse(
     string? SelectionTiming = null,
     string? SelectionPromptKind = null,
     bool SearchRevealSelection = true,
-    bool SearchShuffleAfter = true);
+    bool SearchShuffleAfter = true,
+    // Chain target slots: a step publishes the targets it resolved under TargetSlotName, and a Chain Targets step
+    // names the slot it reads in ChainTargetSlotName (empty = the selection the chain was started with).
+    string? TargetSlotName = null,
+    string? ChainTargetSlotName = null);
 
 public sealed record CardCatalogPassiveReevaluationResponse(
     IReadOnlyList<string> TriggerKinds,

@@ -4,6 +4,7 @@ export const EXECUTION_TARGET_SOURCE_OPTIONS = [
   'Selected Targets',
   'Source Card',
   'None',
+  'Chain Targets',
 ] as const
 
 export const EXECUTION_FLOW_MODE_OPTIONS = ['Per Step', 'Atomic Chain'] as const
@@ -44,6 +45,7 @@ export const EXECUTION_TARGET_SOURCE_LABEL_KEYS: Readonly<Record<string, string>
   'Selected Targets': 'admin.options.executionTargetSource.selectedTargets',
   'Source Card': 'admin.options.executionTargetSource.sourceCard',
   'None': 'admin.options.executionTargetSource.none',
+  'Chain Targets': 'admin.options.executionTargetSource.chainTargets',
 }
 
 export const EXECUTION_FLOW_MODE_LABEL_KEYS: Readonly<Record<string, string>> = {
