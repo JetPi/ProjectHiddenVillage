@@ -3620,7 +3620,7 @@
                     "onFailureEffectId": null,
                     "runtimeEffectType": "Summon Card",
                     "effectType": "Activated",
-                    "timing": "During Your Main",
+                    "timing": "On Summon",
                     "durationMode": "Instant",
                     "passiveMode": "None",
                     "passiveReevaluation": null,

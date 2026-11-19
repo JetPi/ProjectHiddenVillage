@@ -66,10 +66,20 @@ public sealed class GameSequentialEffectExecutor(
         }
 
         // The prompt answer IS this node's selection; a node that never prompted keeps whatever it had. A
-        // reveal presentation prompt is the exception: its option is an acknowledgement, not a selection, so the
-        // targets the suspended step already had stay in place.
-        var selectedTargets = continuation.RevealPresentation is not null
-            ? continuation.SelectedTargets
+        // reveal presentation prompt is the exception: its option is an acknowledgement, not a selection, so
+        // the node the chain resumes at starts with no selection of its own. Handing it the revealed cards as
+        // if they were its answer silenced the question a prompted branch step has to ask (N-013: "Choose 1
+        // Leader or Character: Reveal the top card of your deck, and if it has the [Uchiha Clan] type, ...") -
+        // the freeze step then acted on the revealed card instead of asking for its own target. A branch step
+        // that acts on the revealed cards still resolves them from the reveal's published arguments
+        // (N-022: "reveal the top card of your deck, then summon it").
+        var isRevealPresentationAcknowledgement = continuation.RevealPresentation is not null
+            && selection.All(target => string.Equals(
+                target.CardInstanceId,
+                ReactiveEffectExecutionConstants.RevealPresentedOption,
+                StringComparison.Ordinal));
+        IReadOnlyList<GameEffectTargetReference> selectedTargets = isRevealPresentationAcknowledgement
+            ? []
             : selection.Count > 0
                 ? selection
                 : continuation.SelectedTargets;

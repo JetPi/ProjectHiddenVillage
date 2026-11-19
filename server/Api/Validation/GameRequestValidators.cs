@@ -731,6 +731,10 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
         RuleFor(request => request.Effects)
             .Must(effects => effects is null || BranchTargetsMustReferenceEntryEffects(effects))
             .WithMessage("Effects referenced by OnSuccessEffectId or OnFailureEffectId must be marked as subordinate.");
+
+        RuleFor(request => request.Effects)
+            .Must(effects => effects is null || BranchTargetsShareTheirStartersTiming(effects))
+            .WithMessage("An effect reached through OnSuccessEffectId or OnFailureEffectId must use the same timing as the effect that branches to it: a chain starts once and runs as one trigger, so every step shares its starter's timing.");
     }
 
     private static bool HasAnyPatchableField(UpdateCardEffectsRequest request)
@@ -933,6 +937,65 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// A chain starts once and runs as one trigger, so every effect reached through <c>OnSuccessEffectId</c> /
+    /// <c>OnFailureEffectId</c> keeps the timing of the effect that branches to it. That keeps timing-based
+    /// checks (trigger dispatch, ability windows) reading the whole chain under the starter's window instead of
+    /// finding steps with a window of their own.
+    ///
+    /// Independent effects are deliberately unaffected: a card may still declare several roots that share a
+    /// timing (N-016 declares two `SupportActivated` roots), because nothing branches to them.
+    ///
+    /// The summon procedure is the one hand-off that is not a chain: a `Tribute` / summon-requirement node
+    /// resolves the summon, and the summoned card's "[On Summon]" effect starts the summon-trigger chain, which
+    /// therefore has to carry the trigger timing (N-003/N-005/N-014/N-022 all branch from a `During Your Main`
+    /// requirement to an `On Summon` node by design).
+    /// </summary>
+    private static bool BranchTargetsShareTheirStartersTiming(IReadOnlyList<EffectSpec> effects)
+    {
+        // Built by index for the same reason as the other branch checks: duplicate or missing ids are another
+        // rule's report, and this check must not convert that report into an exception.
+        var effectById = new Dictionary<string, EffectSpec>(StringComparer.Ordinal);
+        foreach (var effect in effects)
+        {
+            effectById[effect.Id?.Trim() ?? string.Empty] = effect;
+        }
+
+        foreach (var effect in effects)
+        {
+            if (IsSummonProcedureHandOff(effect))
+            {
+                continue;
+            }
+
+            foreach (var branchTargetId in (string?[])[effect.OnSuccessEffectId?.Trim(), effect.OnFailureEffectId?.Trim()])
+            {
+                if (string.IsNullOrWhiteSpace(branchTargetId)
+                    || !effectById.TryGetValue(branchTargetId, out var branchTarget))
+                {
+                    continue;
+                }
+
+                if (branchTarget.Timing != effect.Timing)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// True for the summon procedure's hand-off to the summoned card's own trigger chain, which legitimately
+    /// changes timing (`During Your Main` requirement -> `On Summon` effect).
+    /// </summary>
+    private static bool IsSummonProcedureHandOff(EffectSpec effect)
+    {
+        return effect.RuntimeEffectType == RuntimeEffects.Tribute
+            || effect.EffectType == EffectKind.SummonRequirement;
     }
 
     private static bool BranchTargetsMustReferenceEntryEffects(IReadOnlyList<EffectSpec> effects)
