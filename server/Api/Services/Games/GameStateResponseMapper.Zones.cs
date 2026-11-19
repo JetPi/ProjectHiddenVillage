@@ -14,6 +14,11 @@ public static partial class GameStateResponseMapper
     {
         var isRequestingPlayer = IsSamePlayerId(player.PlayerId, requestingPlayerId);
 
+        // A row that already holds two cards on one slot - a game played before the slot allocator existed -
+        // is repaired on the way out, so the client stops flipping between the stacked cards on its next state
+        // push instead of waiting for a restart. Both players' rows pass through here.
+        SupportSlotRules.NormalizeSlots(player.SupportZone);
+
         return new PlayerZonesResponse(
             PlayerId: player.PlayerId,
             PlayerName: player.PlayerName,

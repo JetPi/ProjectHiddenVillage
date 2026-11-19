@@ -230,6 +230,33 @@ paths:
   invocation an explicit hand→field summon uses). The generic move-ghost effect cannot do this — a card drawn by the
   deck pile has no card-face snapshot — and because the flight is state-driven it also plays on the opponent's client.
 
+## Support row: one card per slot
+
+- **The engine assigns a support card's slot index; nothing else derives one.** A support row is five slots
+  (`SupportSlotRules.SlotCount` on the server, `SUPPORT_SLOT_COUNT` on the client) and holds at most one card
+  per slot, always in `0..4`. Every entry point - Set Support, a `MoveCard` effect, a `SearchCard` effect, any
+  wrapper that forwards no destination index - resolves its slot through `SupportSlotRules`. A card whose
+  explicit slot is taken or outside the row is rejected, and a full row is refused instead of overflowed.
+- **The row length is not a slot index.** `GameRuntimeDeckService.MoveCardToZone` used `SupportZone.Count` as
+  the slot whenever no index was given. Once a support card leaves from a middle slot the row keeps a hole, so
+  that length named a slot that was already occupied: two cards on one slot, or index 5 on a full row (a card no
+  client draws). That is the defect behind "an opponent support card flashes the card beneath it".
+- A refused support move must not consume the card: the slot is resolved **before** the card is removed from its
+  source zone.
+- The row is published sorted by `(slotIndex, instanceId)` with a stable sort. `List.Sort` is unstable, so an
+  equal pair had no guaranteed order and could swap between pushes - and a swap remounts that cell's
+  instance-keyed `PlayCard`, which paints one blank frame before the art: a visible flash.
+- `ZoneCardSlots` paints **every instance it is given, exactly once**: `buildSupportSlotLayout`
+  (`views/game/utils/functions/cards/supportSlotLayout.ts`) orders by slot then instance id, gives a card whose
+  slot is taken or missing the first free slot, and only reports the surplus as overflow (dev-only warning).
+  Never collapse the row into a `Map` keyed by slot index - the loser vanished, every card after it slid one
+  cell, and which one won depended on the order the server happened to publish.
+- `GameStateResponseMapper` normalizes the row on publish (`SupportSlotRules.NormalizeSlots`), so a game already
+  corrupted in memory heals on its next state push instead of flipping until a restart. Guards:
+  `server/tests/ProjectHiddenVillage.Server.Tests/SupportSlotAssignmentTests.cs` and
+  `e2e/gameview.multiplayer.support.spec.ts` ("the support row paints every card once, on its own slot, across a
+  refresh").
+
 ## Card movement: one visual per instance
 
 - **A card instance is painted at most once at any moment.** The flight that carries it

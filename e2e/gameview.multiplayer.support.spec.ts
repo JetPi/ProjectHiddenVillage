@@ -374,7 +374,71 @@ test.describe('GameView multiplayer support activation', () => {
       await closeMultiplayerPages(pages)
     }
   })
+
+  // Regression for the reported "support card flashes the card beneath it". Two cards on one slot index used to
+  // be collapsed by the client, so the survivor - chosen by the order the server happened to publish - flipped
+  // on a refresh and its cell remounted. The row must paint every published card exactly once, on the slot the
+  // engine gave it, and a full board refresh must not move any of them.
+  test('the support row paints every card once, on its own slot, across a refresh', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request, 'default', {
+      one: { deckId: rangeDeckOne },
+      two: { deckId: rangeDeckTwo },
+    })
+    const pages = await openMultiplayerPages(browser, setup)
+
+    try {
+      // No card definition on purpose: whichever player is on turn sets whichever support-capable card their
+      // hand offers, which is the same path the board takes when a player sets a support.
+      const setSupport = await resolveActorWithBottomHandAction(request, setup, pages, 'Set Support')
+      const actorPage = setSupport.actorPage
+      const supportHandCard = actorPage.locator(`[data-testid="bottom-hand-card-${setSupport.cardInstanceId}"]`)
+      await supportHandCard.hover()
+      await supportHandCard.getByRole('button', { name: /^set support$/i }).click()
+
+      const readSupportRow = async () => {
+        await expect.poll(async () => {
+          const state = await fetchGameState(request, setup.gameCode, setSupport.actor.session.accessToken)
+          return resolvePlayerState(state, setSupport.actor).supportZone
+            .some((card) => card.instanceId === setSupport.cardInstanceId)
+        }, {
+          timeout: 12_000,
+        }).toBe(true)
+
+        const state = await fetchGameState(request, setup.gameCode, setSupport.actor.session.accessToken)
+        const serverRow = sortSupportRowEntries(
+          resolvePlayerState(state, setSupport.actor).supportZone.map((card) => ({
+            slotIndex: typeof card.supportSlotIndex === 'number' ? card.supportSlotIndex : -1,
+            instanceId: card.instanceId,
+          })),
+        )
+
+        await expect.poll(async () => sortSupportRowEntries(await getBottomSupportCardsBySlot(actorPage)), {
+          timeout: 12_000,
+        }).toEqual(serverRow)
+
+        const renderedRow = sortSupportRowEntries(await getBottomSupportCardsBySlot(actorPage))
+        // One card per slot, and every instance the server published is painted (never dropped).
+        expect(new Set(renderedRow.map((entry) => entry.slotIndex)).size).toBe(renderedRow.length)
+        expect(new Set(renderedRow.map((entry) => entry.instanceId)).size).toBe(renderedRow.length)
+
+        return renderedRow
+      }
+
+      const beforeRefresh = await readSupportRow()
+
+      await actorPage.reload()
+
+      const afterRefresh = await readSupportRow()
+      expect(afterRefresh).toEqual(beforeRefresh)
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
 })
+
+function sortSupportRowEntries<T extends { slotIndex: number }>(entries: T[]): T[] {
+  return [...entries].sort((left, right) => left.slotIndex - right.slotIndex)
+}
 
 /**
  * N-010 (Karin) is the "[During Your Opponent's Attack] ... you gain 2 Life" support of deck two, so player one
