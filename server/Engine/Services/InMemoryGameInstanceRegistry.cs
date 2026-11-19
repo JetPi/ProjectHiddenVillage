@@ -26,7 +26,6 @@ public sealed partial class InMemoryGameInstanceRegistry
     private const string ResolveOptionalAttackEffectActionPrefix = "resolve-optional-attack-effect:";
     private const string SupportSlotIndexArgumentKey = "supportSlotIndex";
     private const string SummonTargetIdArgumentKey = "summonTargetId";
-    private const int MaxSupportSlots = 5;
     private static readonly IGameRuntimeEffectSpecResolver RuntimeEffectSpecResolver = new GameRuntimeEffectSpecResolver();
     private static readonly IGameEffectTargetResolver EffectTargetResolver = new EffectTargetResolver();
 
@@ -3889,46 +3888,23 @@ public sealed partial class InMemoryGameInstanceRegistry
     /// Resolves where a set support lands. Players never pick a slot: the card goes to the leftmost empty
     /// support slot, so an explicit index is only honoured when it is valid *and* free (kept for clients that
     /// still send one and for tests that pin a specific slot).
+    ///
+    /// The rule itself lives in <see cref="SupportSlotRules"/> so this path and every effect-driven move into the
+    /// support row cannot drift apart - they previously did, and a move effect could stack two cards on one slot.
     /// </summary>
     private static bool TryResolveSupportSlotIndex(
         PlayerState actingPlayer,
         IReadOnlyDictionary<string, string> arguments,
         out int slotIndex)
     {
-        var occupiedSlots = actingPlayer.SupportZone
-            .Select((card, currentIndex) => card.SupportSlotIndex ?? currentIndex)
-            .ToHashSet();
-
+        int? requestedSlotIndex = null;
         if (arguments.TryGetValue(SupportSlotIndexArgumentKey, out var rawSlot)
-            && int.TryParse(rawSlot, out var requestedSlotIndex))
+            && int.TryParse(rawSlot, out var parsedSlotIndex))
         {
-            if (requestedSlotIndex < 0 || requestedSlotIndex >= MaxSupportSlots)
-            {
-                throw new InvalidOperationException("A valid support slot index is required.");
-            }
-
-            if (occupiedSlots.Contains(requestedSlotIndex))
-            {
-                throw new InvalidOperationException($"Support slot {requestedSlotIndex} is already occupied.");
-            }
-
-            slotIndex = requestedSlotIndex;
-            return true;
+            requestedSlotIndex = parsedSlotIndex;
         }
 
-        for (var candidateSlot = 0; candidateSlot < MaxSupportSlots; candidateSlot++)
-        {
-            if (occupiedSlots.Contains(candidateSlot))
-            {
-                continue;
-            }
-
-            slotIndex = candidateSlot;
-            return true;
-        }
-
-        slotIndex = -1;
-        return false;
+        return SupportSlotRules.TryResolveSlot(actingPlayer.SupportZone, requestedSlotIndex, out slotIndex);
     }
 
     private CardInstance MoveCardToZone(

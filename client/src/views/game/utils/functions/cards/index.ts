@@ -239,3 +239,6 @@ export {
   filterVisibleCardActions,
   resolveBattleRestrictionReason,
 }
+
+export { buildSupportSlotLayout, SUPPORT_SLOT_COUNT } from './supportSlotLayout'
+export type { ISupportSlotLayout } from './supportSlotLayout'

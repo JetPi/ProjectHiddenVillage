@@ -1,19 +1,20 @@
 import { twMerge } from 'tailwind-merge'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { CardBack, CardImage } from '@/components/ui/cards'
 import { CARD_SIZES } from '@/components/ui/cards/constants'
 import {PlayCard } from '@/components/ui/game'
 import { LEADER_CARD_IMAGE_CLASS } from '@/views/game/utils/contants'
 import { NonLeaderCardOverlay } from './NonLeaderCardOverlay'
-import { 
-  getBattleTargetHighlightClass, 
-  getCardsAndOptions, 
-  getSummonTargetHighlightClass, 
-  isCardRestedState, 
-  isMatchingInstance, 
-  toAnchorId, 
-  resolveCardActionOptionsForInstanceId, 
-  resolveNonLeaderCards
+import {
+  buildSupportSlotLayout,
+  getBattleTargetHighlightClass,
+  getCardsAndOptions,
+  getSummonTargetHighlightClass,
+  isCardRestedState,
+  isMatchingInstance,
+  toAnchorId,
+  resolveCardActionOptionsForInstanceId,
+  SUPPORT_SLOT_COUNT,
 } from '@/views/game/utils/functions'
 import type { IZoneCardSlotsProps } from '@/views/game/types'
 import { useGameUIStore } from '@/state/gameUIStore'
@@ -25,44 +26,44 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
     const isBattleActionTargeting = useGameUIStore((state) => state.pendingCardTargeting !== null)
     const isSummonActionTargeting = useGameUIStore((state) => state.pendingSummonTargeting !== null)
     const isEffectMultiTargeting = useGameUIStore((state) => state.pendingEffectTargeting !== null)
-    
-    const bottomSupportCardsBySlotIndex = useMemo(() => {
-    const cardsBySlot = new Map<number, ReturnType<typeof resolveNonLeaderCards>[number]>()
-    for (const [currentIndex, card] of cardOptions.bottomSupportCards.entries()) {
-      const resolvedSlotIndex = typeof card.supportSlotIndex === 'number'
-        ? card.supportSlotIndex
-        : currentIndex
 
-      if (resolvedSlotIndex >= 0 && resolvedSlotIndex < 5) {
-        cardsBySlot.set(resolvedSlotIndex, card)
+    // One card per slot, decided by the data alone: a card whose slot is taken or missing takes a free slot
+    // instead of being dropped, so the row no longer loses a card or slides its neighbours on a refresh.
+    const bottomSupportLayout = useMemo(
+      () => buildSupportSlotLayout(cardOptions.bottomSupportCards),
+      [cardOptions.bottomSupportCards],
+    )
+    const topSupportLayout = useMemo(
+      () => buildSupportSlotLayout(cardOptions.topSupportCards),
+      [cardOptions.topSupportCards],
+    )
+    const supportLayout = isCurrentPlayerZone ? bottomSupportLayout : topSupportLayout
+
+    useEffect(() => {
+      if (!import.meta.env.DEV) {
+        return
       }
-    }
 
-    return cardsBySlot
-  }, [cardOptions.bottomSupportCards])
-
-  const topSupportCardsBySlotIndex = useMemo(() => {
-    const cardsBySlot = new Map<number, ReturnType<typeof resolveNonLeaderCards>[number]>()
-    for (const [currentIndex, card] of cardOptions.topSupportCards.entries()) {
-      const resolvedSlotIndex = typeof card.supportSlotIndex === 'number'
-        ? card.supportSlotIndex
-        : currentIndex
-
-      if (resolvedSlotIndex >= 0 && resolvedSlotIndex < 5) {
-        cardsBySlot.set(resolvedSlotIndex, card)
+      if (supportLayout.contestedSlotIndexes.length === 0 && supportLayout.overflowInstanceIds.length === 0) {
+        return
       }
-    }
 
-    return cardsBySlot
-  }, [cardOptions.topSupportCards])
+      console.warn(
+        '[support-row] the engine published a support row that cannot be drawn one card per slot',
+        {
+          side: isCurrentPlayerZone ? 'bottom' : 'top',
+          contestedSlotIndexes: supportLayout.contestedSlotIndexes,
+          displacedInstanceIds: supportLayout.displacedInstanceIds,
+          overflowInstanceIds: supportLayout.overflowInstanceIds,
+        },
+      )
+    }, [isCurrentPlayerZone, supportLayout])
 
     return (
       <div className="card-drop-zone grid min-h-0 w-full overflow-hidden grid-cols-5 justify-items-center gap-1.5">
-        {Array.from({ length: 5 }).map((_, index) => {
+        {Array.from({ length: SUPPORT_SLOT_COUNT }).map((_, index) => {
           const card = zone === 'support'
-            ? (isCurrentPlayerZone
-              ? (bottomSupportCardsBySlotIndex.get(index) ?? null)
-              : (topSupportCardsBySlotIndex.get(index) ?? null))
+            ? (supportLayout.slots[index] ?? null)
             : (cards[index] ?? null)
 
           if (!card) {

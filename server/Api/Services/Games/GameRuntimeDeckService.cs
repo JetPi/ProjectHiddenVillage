@@ -200,6 +200,30 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 				$"Card instance '{cardInstanceId}' was not found in source zone '{sourceZone}' for player '{playerId}'.");
 		}
 
+		// A refused move must not consume the card, so the support slot is resolved before anything leaves the
+		// source zone. (Deriving the slot from the row length could only fail after the card had been removed -
+		// a full support row silently swallowed the card it refused.)
+		int? supportSlotIndexToAssign = null;
+		if (destinationZone == PlayerZone.SupportZone)
+		{
+			// Heal a row that already holds two cards on one slot before asking it for a free one.
+			SupportSlotRules.NormalizeSlots(destinationList);
+
+			// Moving within the row: the card's own slot must not count as occupied by itself.
+			var supportAssignmentRow = ReferenceEquals(sourceList, destinationList)
+				? destinationList
+					.Where(card => !string.Equals(card.InstanceId, cardInstanceId, StringComparison.Ordinal))
+					.ToList()
+				: destinationList;
+
+			if (!SupportSlotRules.TryResolveSlot(supportAssignmentRow, destinationIndex, out var resolvedSupportSlotIndex))
+			{
+				throw new InvalidOperationException("No empty support slot is available for this card.");
+			}
+
+			supportSlotIndexToAssign = resolvedSupportSlotIndex;
+		}
+
 		var movedCard = sourceList[sourceIndex];
 		sourceList.RemoveAt(sourceIndex);
 
@@ -230,15 +254,18 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 
 		if (destinationZone == PlayerZone.SupportZone)
 		{
-			var supportSlotIndex = destinationIndex ?? destinationList.Count;
-			movedCard.SupportSlotIndex = supportSlotIndex;
+			movedCard.SupportSlotIndex = supportSlotIndexToAssign!.Value;
 			destinationList.Add(movedCard);
-			destinationList.Sort((left, right) =>
-			{
-				var leftIndex = left.SupportSlotIndex ?? int.MaxValue;
-				var rightIndex = right.SupportSlotIndex ?? int.MaxValue;
-				return leftIndex.CompareTo(rightIndex);
-			});
+
+			// Stable order on purpose: the client paints one card per slot, so a row it receives twice must not
+			// shuffle. `List.Sort` is not stable and left the duplicate pair in an arbitrary order.
+			var orderedSupportCards = destinationList
+				.OrderBy(card => card.SupportSlotIndex ?? int.MaxValue)
+				.ThenBy(card => card.InstanceId, StringComparer.Ordinal)
+				.ToList();
+			destinationList.Clear();
+			destinationList.AddRange(orderedSupportCards);
+
 			RecordZoneMove(gameInstance, movedCard, resolvedDestinationPlayerId, sourceZone, destinationZone);
 			return movedCard;
 		}
