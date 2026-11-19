@@ -155,7 +155,7 @@ function StatusChip({ kind, label, detail, shouldReduceMotion }: IStatusChipProp
           setAnchorRect(null)
         }}
         className={twMerge(
-          'pointer-events-auto inline-flex h-4 w-4 items-center justify-center rounded-sm border border-white/40 text-white shadow-sm backdrop-blur-[1px]',
+          'pointer-events-auto inline-flex h-[calc(16*var(--game-unit))] w-[calc(16*var(--game-unit))] items-center justify-center rounded-sm border border-white/40 text-white shadow-sm backdrop-blur-[1px]',
           'hover:border-white/80 hover:brightness-110 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white',
           badge.chipClassName,
         )}
@@ -176,7 +176,7 @@ function StatusChip({ kind, label, detail, shouldReduceMotion }: IStatusChipProp
                 width: `${tooltipStyle.width}px`,
                 transform: 'translateY(-100%)',
               }}
-              className="pointer-events-none z-[70] rounded-md border border-white/25 bg-slate-950/95 px-2 py-1 text-[10px] leading-tight text-white shadow-lg"
+              className="pointer-events-none z-[70] rounded-md border border-white/25 bg-slate-950/95 px-2 py-1 text-[length:var(--game-font-sm)] leading-tight text-white shadow-lg"
             >
               <span className="block font-extrabold uppercase tracking-[0.06em]">{label}</span>
               <span className="mt-0.5 block text-white/80">{detail}</span>

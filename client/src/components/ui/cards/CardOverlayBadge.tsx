@@ -9,10 +9,12 @@ const POSITION_CLASSES: Record<NonNullable<ICardOverlayBadgeProps['position']>, 
   'bottom-right': 'bottom-0 right-0 rounded-tl-md border-l border-t border-slate-500/65',
 }
 
+// Sizes are multiples of the game surface's unit so a badge keeps its share of a card that grew with the window;
+// the literals reproduce today's 20/24/28px boxes at 1x.
 const SIZE_CLASSES = {
-  sm: 'h-5 w-6 text-[10px]',
-  md: 'h-6 w-6 text-xs',
-  lg: 'h-7 w-7 text-xs',
+  sm: 'h-[calc(20*var(--game-unit))] w-[calc(24*var(--game-unit))] text-[length:var(--game-font-sm)]',
+  md: 'h-[calc(24*var(--game-unit))] w-[calc(24*var(--game-unit))] text-[length:var(--game-font-lg)]',
+  lg: 'h-[calc(28*var(--game-unit))] w-[calc(28*var(--game-unit))] text-[length:var(--game-font-lg)]',
 } as const;
 
 export function CardOverlayBadge({ size = "md", position = 'bottom-right', className, testId, children }: ICardOverlayBadgeProps) {

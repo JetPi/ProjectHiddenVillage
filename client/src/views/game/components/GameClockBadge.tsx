@@ -58,10 +58,10 @@ function GameClockCountdown({ clock, authUserId }: IGameClockCountdownProps) {
       title={strikesLabel ?? ownerLabel}
       className={`flex shrink-0 flex-col items-center justify-center rounded-md border bg-[var(--surface-muted)] px-1.5 py-0.5 leading-none transition-colors duration-200 ${themeClasses}`}
     >
-      <span className="text-[12px] font-extrabold tabular-nums">{countdown}</span>
-      <span className="text-[8px] uppercase tracking-[0.12em] opacity-70">{ownerLabel}</span>
+      <span className="text-[length:var(--game-font-lg)] font-extrabold tabular-nums">{countdown}</span>
+      <span className="text-[length:var(--game-font-2xs)] uppercase tracking-[0.12em] opacity-70">{ownerLabel}</span>
       {strikesLabel ? (
-        <span data-testid="game-clock-strikes" className="mt-0.5 text-[8px] font-semibold text-rose-500">
+        <span data-testid="game-clock-strikes" className="mt-0.5 text-[length:var(--game-font-2xs)] font-semibold text-rose-500">
           {strikesLabel}
         </span>
       ) : null}

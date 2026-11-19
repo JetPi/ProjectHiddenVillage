@@ -265,11 +265,13 @@ function GameZones(props: IGameZonesProps) {
   }
 
   return (
-    <div className="grid min-h-0 grid-cols-[1fr_1.5rem] gap-0.5">
+    // The icon rail on the right edge scales with the board's unit so its 20px buttons do not sit dwarfed beside a
+    // 264px card on a 4K window.
+    <div className="grid min-h-0 grid-cols-[1fr_var(--game-sidebar-rail-width)] gap-0.5">
       <div
         ref={boardZoneRef}
         data-testid="game-board"
-        className="game-board-spill relative grid min-h-0 overflow-visible grid-rows-[1fr_1fr_auto_1fr_1fr] gap-1 rounded-2xl pt-2 pr-0.5 pb-2 pl-2 turn-zone-split"
+        className="game-board-spill relative grid min-h-0 overflow-visible grid-rows-[1fr_1fr_auto_1fr_1fr] gap-[var(--game-gap)] rounded-2xl pt-2 pr-0.5 pb-2 pl-2 turn-zone-split"
       >
         {attackLinkRenderConfig ? (
           <AttackLinkArrow config={attackLinkRenderConfig} />
@@ -277,9 +279,9 @@ function GameZones(props: IGameZonesProps) {
 
         <div
           data-board-half="true"
-          className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5"
+          className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-[var(--game-gap)] rounded-xl p-0.5"
         >
-          <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
+          <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-[var(--game-gap)]">
             <PlayPileZone
               side="top"
               labels={['Deck', 'Trash']}
@@ -339,7 +341,7 @@ function GameZones(props: IGameZonesProps) {
 
         <div
           data-board-half="true"
-          className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-1 rounded-xl p-0.5"
+          className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-[var(--game-gap)] rounded-xl p-0.5"
         >
           <div className="min-h-0 w-full pl-2">
             <div
@@ -366,7 +368,7 @@ function GameZones(props: IGameZonesProps) {
             {RenderZoneCardSlots({ ...renderZoneCardSlotsProps, zone: 'support', visibilityMode: 'hover', isCurrentPlayerZone: true })}
           </div>
 
-          <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-1">
+          <div className="grid min-h-0 grid-rows-[1fr_1fr] gap-[var(--game-gap)]">
             <PlayBottomResourceZone
               currentChakra={props.derivedGameState.currentPlayer?.resourcePool ?? 0}
               isSummonCardReady={props.derivedGameState.currentPlayer?.isSummonCardReady ?? true}

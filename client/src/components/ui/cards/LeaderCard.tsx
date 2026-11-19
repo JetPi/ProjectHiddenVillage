@@ -13,10 +13,12 @@ import { CardStatusBadgeRail } from '@/views/game/components/CardStatusBadgeRail
 import { filterVisibleCardActions, resolveBattleRestrictionReason } from '@/views/game/utils/functions/cards'
 
 const RECOVERY_ACTION_LABEL = 'Recovery'
-const DISABLED_RECOVERY_CLASSNAME = "mx-2 inline-flex h-5 w-5 items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-90"
-const ENABLED_RECOVERY_CLASSNAME = "mx-2 inline-flex h-5 w-5 items-center justify-center rounded-sm border border-orange-400 bg-orange-800 text-orange-200 transition-colors duration-150 hover:bg-orange-700 hover:border-orange-400"
+// Every box below is a multiple of the game surface's unit, so the leader's controls keep their share of a card that
+// grew with the window instead of turning into specks on a 4K board.
+const DISABLED_RECOVERY_CLASSNAME = "mx-2 inline-flex h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-90"
+const ENABLED_RECOVERY_CLASSNAME = "mx-2 inline-flex h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] items-center justify-center rounded-sm border border-orange-400 bg-orange-800 text-orange-200 transition-colors duration-150 hover:bg-orange-700 hover:border-orange-400"
 const LEADER_OVERLAY_CONTAINER_CLASSNAME = 'card-overlay-controls pointer-events-none absolute mx-auto inset-0 z-20 gap-1 w-fit flex flex-col items-center content-center justify-center opacity-0 transition-opacity duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100'
-const LEADER_ACTION_BUTTON_CLASSNAME = 'w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
+const LEADER_ACTION_BUTTON_CLASSNAME = 'w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-[length:var(--game-font-sm)] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
 
 function splitRecoveryAction(actionOptions: IGameActionOptionResponse[]): {
   actionOptions: IGameActionOptionResponse[]
@@ -115,7 +117,7 @@ export function LeaderCard({
               type="button"
               onClick={() => setIsPreviewOpen(true)}
               aria-label={t('components.ui.leaderCard.openDetails')}
-              className="inline-flex h-5 w-5 items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80"
+              className="inline-flex h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80"
             >
               <Eye size={10} />
             </button>
@@ -148,7 +150,7 @@ export function LeaderCard({
               disabled={isDisabled}
               // A fixed width keeps the centred chip from resizing (and so from shifting) when the label changes
               // between Select and Selected.
-              className={twMerge(LEADER_ACTION_BUTTON_CLASSNAME, 'w-[4.25rem]')}
+              className={twMerge(LEADER_ACTION_BUTTON_CLASSNAME, 'w-[var(--game-chip-width)]')}
             >
               {t('components.ui.leaderCard.select')}
             </button>

@@ -333,11 +333,18 @@ export function GameView() {
     <PageShell
       compact
       edgeToEdge
+      // The board's width ladder outgrows the shell's default `max-w-7xl` on large screens, so the shell has to stop
+      // clipping it; the board's own cap is what keeps the play area from running edge to edge.
+      fullBleed
       data-testid="game-view-root"
       className="pt-0 pb-0 sm:pt-0 sm:pb-0 lg:pt-0 lg:pb-0"
       overlayClassName="opacity-65"
     >
       <MotionConfig reducedMotion="user">
+      {/* The surface owns the sizing contract (`--game-unit`, board caps, HUD gutter) in `index.css`, so the board
+          and the fixed HUD panels layered over it all read the same numbers. Above 1600px its right padding reserves
+          the HUD's column. */}
+      <div data-game-surface="true" className="h-full min-h-0 w-full">
       <div
         data-game-board="true"
         className={`mx-auto h-full min-h-0 w-full overflow-visible gap-1.5 rounded-2xl ${GAMEBOARD_MAX_WIDTH_CLASS} ${GAMEBOARD_COLUMNS_CLASS}`}
@@ -540,6 +547,7 @@ export function GameView() {
           </div>
         ) : null}
 
+      </div>
       </div>
       </MotionConfig>
     </PageShell>

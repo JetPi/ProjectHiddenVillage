@@ -10,8 +10,8 @@ import type { IGameChatMessage } from '@/services/api/types/gameChat'
 import type { IGameChatPanelProps } from '@/views/game/types'
 import { useHasRoomForChatColumn } from '@/views/game/hooks'
 import {
-  ACTION_LOG_COMPACT_BOTTOM_REM,
-  GAME_CHAT_PANEL_HEIGHT_REM,
+  GAME_CHAT_BOTTOM_CSS,
+  GAME_CHAT_HEIGHT_CSS,
   HUD_PANEL_WIDTH_CLASS,
 } from '@/views/game/utils/contants'
 
@@ -138,28 +138,28 @@ function GameChatPanel({ authUserId, isConnected, onSendMessage }: IGameChatPane
       data-testid="game-chat-panel"
       data-dock={hasRoom ? 'docked' : 'toggled'}
       style={{
-        bottom: `${ACTION_LOG_COMPACT_BOTTOM_REM}rem`,
-        height: `${GAME_CHAT_PANEL_HEIGHT_REM}rem`,
+        bottom: GAME_CHAT_BOTTOM_CSS,
+        height: GAME_CHAT_HEIGHT_CSS,
       }}
       className={twMerge(
-        'fixed right-2 z-30 flex flex-col overflow-hidden rounded-xl border border-cyan-300/45 bg-slate-950/92 text-[10px] leading-tight text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm',
+        'fixed right-2 z-30 flex flex-col overflow-hidden rounded-xl border border-cyan-300/45 bg-slate-950/92 text-[length:var(--game-font-sm)] leading-tight text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm',
         HUD_PANEL_WIDTH_CLASS,
       )}
     >
       <div className="flex shrink-0 items-center gap-1 border-b border-white/10 px-2 py-1">
-        <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-cyan-200">
+        <span className="text-[length:var(--game-font-sm)] font-extrabold uppercase tracking-[0.14em] text-cyan-200">
           {t('game.chat.heading')}
         </span>
       </div>
 
       {isConnected ? null : (
-        <p data-testid="game-chat-offline" className="shrink-0 px-2 py-1 text-[9px] font-semibold text-amber-200">
+        <p data-testid="game-chat-offline" className="shrink-0 px-2 py-1 text-[length:var(--game-font-xs)] font-semibold text-amber-200">
           {t('game.chat.offline')}
         </p>
       )}
 
       {renderedMessages.length === 0 ? (
-        <p data-testid="game-chat-empty" className="px-2 py-2 text-[10px] text-white/65">
+        <p data-testid="game-chat-empty" className="px-2 py-2 text-[length:var(--game-font-sm)] text-white/65">
           {t('game.chat.empty')}
         </p>
       ) : (
@@ -177,7 +177,7 @@ function GameChatPanel({ authUserId, isConnected, onSendMessage }: IGameChatPane
               data-sequence={message.sequence}
               className={twMerge('flex flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}
             >
-              <span className="px-0.5 text-[8px] font-semibold uppercase tracking-[0.06em] text-white/40">
+              <span className="px-0.5 text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.06em] text-white/40">
                 {isOwn ? t('game.chat.you') : t('game.chat.opponent')}
                 {time ? ` · ${time}` : ''}
               </span>
@@ -197,7 +197,7 @@ function GameChatPanel({ authUserId, isConnected, onSendMessage }: IGameChatPane
       )}
 
       {error ? (
-        <p data-testid="game-chat-error" className="shrink-0 px-2 pb-1 text-[9px] font-semibold text-rose-200">
+        <p data-testid="game-chat-error" className="shrink-0 px-2 pb-1 text-[length:var(--game-font-xs)] font-semibold text-rose-200">
           {error}
         </p>
       ) : null}
@@ -211,10 +211,10 @@ function GameChatPanel({ authUserId, isConnected, onSendMessage }: IGameChatPane
           onChange={(event) => setDraft(event.target.value)}
           placeholder={t('game.chat.placeholder')}
           aria-label={t('game.chat.inputAria')}
-          className="min-w-0 flex-1 rounded-md border border-white/20 bg-white/10 px-1.5 py-1 text-[10px] text-white placeholder:text-white/40 focus:border-cyan-300/70 focus:outline-none disabled:opacity-60"
+          className="min-w-0 flex-1 rounded-md border border-white/20 bg-white/10 px-1.5 py-1 text-[length:var(--game-font-sm)] text-white placeholder:text-white/40 focus:border-cyan-300/70 focus:outline-none disabled:opacity-60"
         />
         {isCounterVisible ? (
-          <span data-testid="game-chat-counter" className="shrink-0 text-[8px] tabular-nums text-white/50">
+          <span data-testid="game-chat-counter" className="shrink-0 text-[length:var(--game-font-2xs)] tabular-nums text-white/50">
             {draft.length}/{GAME_CHAT_MAX_TEXT_LENGTH}
           </span>
         ) : null}

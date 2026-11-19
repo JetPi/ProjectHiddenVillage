@@ -16,12 +16,18 @@ import { PlayerPresenceIndicator } from './PlayerPresenceIndicator'
 // see-through) and a z-index above every board layer they can cover: attack links sit at z-[240] and a dragged
 // hand card at z-[260].
 const SIDEBAR_TOOLTIP_CLASS_NAME =
-  'pointer-events-none absolute right-full top-1/2 z-[300] mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--popup-bg)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--text-primary)] shadow-md group-hover:block'
+  'pointer-events-none absolute right-full top-1/2 z-[300] mr-1.5 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--popup-bg)] px-1.5 py-0.5 text-[length:var(--game-font-xs)] font-semibold text-[var(--text-primary)] shadow-md group-hover:block'
+
+// The rail's buttons are icon-only, so a box that grew while its glyph stayed 10px would read as an empty square.
+// The `[&_svg]` utilities scale the lucide glyph with the box; the literals are today's 20px box and 10/12px icons.
+const SIDEBAR_BUTTON_CLASS_NAME =
+  'h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)] [&_svg]:h-[calc(10*var(--game-unit))] [&_svg]:w-[calc(10*var(--game-unit))]'
+const SIDEBAR_CANCEL_BUTTON_CLASS_NAME = `${SIDEBAR_BUTTON_CLASS_NAME} [&_svg]:h-[calc(12*var(--game-unit))] [&_svg]:w-[calc(12*var(--game-unit))]`
 
 // The player captions at each end of the rail: the same quiet vertical treatment the join code and the format name
 // used to have, capped so a long name cannot run down the whole board.
 const RAIL_PLAYER_NAME_CLASS_NAME =
-  'max-h-24 overflow-hidden whitespace-nowrap px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] [writing-mode:vertical-rl] rotate-180'
+  'max-h-24 overflow-hidden whitespace-nowrap px-0.5 py-0.5 text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] opacity-[0.45] [writing-mode:vertical-rl] rotate-180'
 
 export function SideBarButtons(props: IGameZonesProps){
     const { t } = useTranslation()
@@ -115,7 +121,7 @@ export function SideBarButtons(props: IGameZonesProps){
             data-testid="theme-toggle-button"
             onClick={props.onToggleTheme}
             aria-label={t('game.sidebar.toggleThemeAria')}
-            className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+            className={SIDEBAR_BUTTON_CLASS_NAME}
           >
             <Lightbulb size={10} />
           </AppButton>
@@ -134,7 +140,7 @@ export function SideBarButtons(props: IGameZonesProps){
               data-testid="close-table-button"
               aria-label={t('game.sidebar.closeTableAria')}
               onClick={() => setIsCloseTableDialogOpen(true)}
-              className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+              className={SIDEBAR_BUTTON_CLASS_NAME}
             >
               <LogOut size={10} />
             </AppButton>
@@ -152,7 +158,7 @@ export function SideBarButtons(props: IGameZonesProps){
               onClick={() => setIsForfeitDialogOpen(true)}
               // Deliberately not frozen by a presentation: resigning is exactly what a player must be able to do
               // while the table is parked on a transition or on the opponent.
-              className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+              className={SIDEBAR_BUTTON_CLASS_NAME}
             >
               <Flag size={10} />
             </AppButton>
@@ -169,7 +175,7 @@ export function SideBarButtons(props: IGameZonesProps){
               variant="ghost"
               aria-label={t('game.sidebar.cancelAttackAria')}
               onClick={() => useGameUIStore.getState().cancelBattleTargeting()}
-              className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+              className={SIDEBAR_CANCEL_BUTTON_CLASS_NAME}
             >
               <X size={12} strokeWidth={2.5} />
             </AppButton>
@@ -186,7 +192,7 @@ export function SideBarButtons(props: IGameZonesProps){
               variant="ghost"
               aria-label={t('game.sidebar.cancelTargetAria')}
               onClick={() => useGameUIStore.getState().cancelEffectTargeting()}
-              className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+              className={SIDEBAR_CANCEL_BUTTON_CLASS_NAME}
             >
               <X size={12} strokeWidth={2.5} />
             </AppButton>
@@ -211,7 +217,7 @@ export function SideBarButtons(props: IGameZonesProps){
               disabled={!canRequestRedo}
               aria-disabled={props.isPresentationPending || isRedoPending || undefined}
               tabIndex={props.isPresentationPending || isRedoPending ? -1 : undefined}
-              className={`h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]${frozenClassName}`}
+              className={`${SIDEBAR_BUTTON_CLASS_NAME}${frozenClassName}`}
             >
               <RotateCcw size={10} />
             </AppButton>
@@ -231,7 +237,7 @@ export function SideBarButtons(props: IGameZonesProps){
             aria-label={t('game.sidebar.openLogAria')}
             aria-pressed={isActionLogOpen}
             onClick={toggleActionLog}
-            className="h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+            className={SIDEBAR_BUTTON_CLASS_NAME}
           >
             <ScrollText size={10} />
           </AppButton>
@@ -250,7 +256,7 @@ export function SideBarButtons(props: IGameZonesProps){
               aria-label={t('game.sidebar.openChatAria')}
               aria-pressed={isGameChatOpen}
               onClick={toggleGameChat}
-              className="relative h-5 w-5 min-w-0 rounded-md bg-[var(--surface-muted)] px-0 py-0 text-[var(--text-primary)]"
+              className={`relative ${SIDEBAR_BUTTON_CLASS_NAME}`}
             >
               <MessageSquare size={10} />
               {unreadChatCount > 0 && !isGameChatOpen ? (

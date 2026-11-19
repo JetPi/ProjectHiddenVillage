@@ -20,7 +20,7 @@ function isTrashLabel(label: string): boolean {
 export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', gameState, deckCardRef, trashCardRef, onOpenTrashPile }: IPlayPileZoneProps) {
   const { t } = useTranslation()
   const labeledPileCardClassName =
-    'h-full flex items-center justify-center text-center overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[10px]'
+    'h-full flex items-center justify-center text-center overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[length:var(--game-font-sm)]'
   const deckPileCardClassName = 'h-full overflow-hidden rounded-lg'
   const columnCount = Math.max(labels.length, 1)
 
@@ -96,7 +96,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
               <CardOverlayBadge
                 className={twMerge(
                   badgeValue === 0 ? 'hidden' : '',
-                  'h-5 w-5 border-slate-300/35 bg-slate-900/45 text-[10px] text-white',
+                  'h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] border-slate-300/35 bg-slate-900/45 text-[length:var(--game-font-sm)] text-white',
                 )}
               >{badgeValue}</CardOverlayBadge>
               {isDeckLabel(label) ? (
@@ -137,7 +137,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                     data-testid="trash-pile-viewer-button"
                     aria-label={t('components.game.openTrashPile')}
                     onClick={onOpenTrashPile}
-                    className="absolute right-2 top-2 z-30 inline-flex h-5 w-5 items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80"
+                    className="absolute right-2 top-2 z-30 inline-flex h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80"
                   >
                     <Eye size={10} />
                   </button>

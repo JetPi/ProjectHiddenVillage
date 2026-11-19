@@ -74,7 +74,7 @@ function GameHandRow<TCard>({
         )}
 
         {footer ? (
-          <div className={twMerge('mt-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]', footerClassName)}>
+          <div className={twMerge('mt-1 text-[length:var(--game-font-xs)] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]', footerClassName)}>
             {footer}
           </div>
         ) : null}

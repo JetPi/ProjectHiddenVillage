@@ -5,8 +5,8 @@ import type { ISupportChainBubbleProps, ISupportChainViewActor, ISupportChainVie
 import { buildSupportChainView, shouldShowSupportChainBubble, shouldSupportChainScroll } from '@/views/game/utils/functions/helpers'
 import {
   HUD_PANEL_WIDTH_CLASS,
-  SUPPORT_CHAIN_LIST_MAX_HEIGHT_REM,
-  SUPPORT_CHAIN_TOP_REM,
+  SUPPORT_CHAIN_LIST_MAX_HEIGHT_CSS,
+  SUPPORT_CHAIN_TOP_CSS,
 } from '@/views/game/utils/contants'
 
 const ACTOR_LABEL_KEYS = {
@@ -48,19 +48,19 @@ function SupportChainBubble({ gameInstance, authUserId }: ISupportChainBubblePro
     <div
       data-testid="support-chain-bubble"
       data-scrollable={isScrollable ? 'true' : 'false'}
-      style={{ top: `${SUPPORT_CHAIN_TOP_REM}rem` }}
+      style={{ top: SUPPORT_CHAIN_TOP_CSS }}
       className={twMerge(
-        'support-chain-bubble-enter pointer-events-none fixed right-2 z-40 flex flex-col gap-1 rounded-xl border border-cyan-300/45 bg-slate-950/90 p-2 text-[10px] leading-tight text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm',
+        'support-chain-bubble-enter pointer-events-none fixed right-2 z-40 flex flex-col gap-1 rounded-xl border border-cyan-300/45 bg-slate-950/90 p-2 text-[length:var(--game-font-sm)] leading-tight text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm',
         HUD_PANEL_WIDTH_CLASS,
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-cyan-200">
+        <span className="text-[length:var(--game-font-sm)] font-extrabold uppercase tracking-[0.14em] text-cyan-200">
           {t('game.supportChain.heading')}
         </span>
         <span
           data-testid="support-chain-count"
-          className="rounded-full border border-white/20 bg-white/10 px-1.5 py-px text-[9px] font-semibold text-white/85"
+          className="rounded-full border border-white/20 bg-white/10 px-1.5 py-px text-[length:var(--game-font-xs)] font-semibold text-white/85"
         >
           {entries.length === 1
             ? t('game.supportChain.countOne')
@@ -73,7 +73,7 @@ function SupportChainBubble({ gameInstance, authUserId }: ISupportChainBubblePro
       <ol
         ref={listRef}
         data-testid="support-chain-list"
-        style={isScrollable ? { maxHeight: `${SUPPORT_CHAIN_LIST_MAX_HEIGHT_REM}rem` } : undefined}
+        style={isScrollable ? { maxHeight: SUPPORT_CHAIN_LIST_MAX_HEIGHT_CSS } : undefined}
         className={twMerge(
           'flex flex-col gap-1',
           isScrollable ? 'pointer-events-auto overflow-y-auto overscroll-contain pr-0.5' : '',
@@ -85,7 +85,7 @@ function SupportChainBubble({ gameInstance, authUserId }: ISupportChainBubblePro
       </ol>
 
       {entries.length > 1 ? (
-        <p className="text-[9px] leading-snug text-white/55">{t('game.supportChain.resolvesLifo')}</p>
+        <p className="text-[length:var(--game-font-xs)] leading-snug text-white/55">{t('game.supportChain.resolvesLifo')}</p>
       ) : null}
     </div>
   )
@@ -109,12 +109,12 @@ function SupportChainBubbleRow({ entry }: { entry: ISupportChainViewEntry }) {
       )}
     >
       <div className="flex items-center gap-1">
-        <span className="shrink-0 rounded-sm border border-white/25 bg-black/40 px-1 font-mono text-[9px] font-bold text-white/85">
+        <span className="shrink-0 rounded-sm border border-white/25 bg-black/40 px-1 font-mono text-[length:var(--game-font-xs)] font-bold text-white/85">
           #{entry.sequence}
         </span>
         <span
           className={twMerge(
-            'shrink-0 rounded-sm border px-1 text-[8px] font-bold uppercase tracking-[0.06em]',
+            'shrink-0 rounded-sm border px-1 text-[length:var(--game-font-2xs)] font-bold uppercase tracking-[0.06em]',
             ACTOR_CHIP_CLASS[entry.actor],
           )}
         >
@@ -124,7 +124,7 @@ function SupportChainBubbleRow({ entry }: { entry: ISupportChainViewEntry }) {
           {entry.sourceCardDisplayName || t('game.supportChain.unknownSupport')}
         </span>
         {entry.resolvesNext ? (
-          <span className="shrink-0 rounded-sm border border-amber-300/70 bg-amber-400/20 px-1 text-[8px] font-bold uppercase tracking-[0.06em] text-amber-100">
+          <span className="shrink-0 rounded-sm border border-amber-300/70 bg-amber-400/20 px-1 text-[length:var(--game-font-2xs)] font-bold uppercase tracking-[0.06em] text-amber-100">
             {t('game.supportChain.next')}
           </span>
         ) : null}

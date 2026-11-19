@@ -11,7 +11,7 @@ const OVERLAY_VISIBILITY_CLASSNAME =
   'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
 
 const ACTION_CHIP_CLASSNAME =
-  'w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
+  'w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-center text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
 
 function NonLeaderCardOverlay({
   previewCard,
@@ -77,7 +77,7 @@ function NonLeaderCardOverlay({
       ) : null}
       <div
         className={twMerge(
-          'card-overlay-controls absolute inset-0 z-20 rounded-md p-1 text-[9px] text-[var(--text-primary)] transition-opacity duration-200 ease-out',
+          'card-overlay-controls absolute inset-0 z-20 rounded-md p-1 text-[length:var(--game-font-xs)] text-[var(--text-primary)] transition-opacity duration-200 ease-out',
           disableInteractions
             ? 'pointer-events-none opacity-0'
             : isChoosingTarget || isTributeTargetCandidate || isEffectTargetCandidate
@@ -108,7 +108,7 @@ function NonLeaderCardOverlay({
                 onChooseTarget()
               }}
               disabled={!isConnected || isActionPending}
-              className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {t('game.zone.choose')}
             </button>
@@ -118,7 +118,7 @@ function NonLeaderCardOverlay({
               onClick={() => {
                 onToggleSummonTarget()
               }}
-              className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80"
+              className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80"
             >
               {t('game.zone.tribute')}
             </button>
@@ -132,8 +132,8 @@ function NonLeaderCardOverlay({
               }}
               className={twMerge(
                 // Fixed width: "Select" and "Selected" used to resize the chip, so it shifted under the cursor
-                // on every toggle.
-                'w-[4.25rem] max-w-full rounded-sm border px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-[0.04em] transition-colors duration-150',
+                // on every toggle. The width is a multiple of the board unit so a scaled label still fits.
+                'w-[var(--game-chip-width)] max-w-full rounded-sm border px-1.5 py-0.5 text-center text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.04em] transition-colors duration-150',
                 isEffectTargetSelected
                   ? 'border-amber-300/90 bg-amber-300/85 text-black hover:bg-amber-200'
                   : 'border-white/35 bg-black/65 text-white hover:bg-black/80',
@@ -163,7 +163,7 @@ function NonLeaderCardOverlay({
       </div>
 
       {visibilityMode === 'mixed' ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-between rounded-b-md border-t border-[var(--border-subtle)] bg-[var(--surface-elevated)]/95 px-1 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)]">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-between rounded-b-md border-t border-[var(--border-subtle)] bg-[var(--surface-elevated)]/95 px-1 py-0.5 text-[length:var(--game-font-2xs)] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)]">
           <span>
             {hasActions
               ? visibleActionOptions.length === 1
@@ -180,7 +180,7 @@ function NonLeaderCardOverlay({
             data-testid="tribute-requirement-label"
             title={summonRequirementText}
             className={twMerge(
-              'card-overlay-requirement-label pointer-events-none absolute inset-x-0 z-10 flex w-full items-center justify-center rounded-b-md border-t px-1 py-0.5 text-center text-[10px] font-extrabold leading-none',
+              'card-overlay-requirement-label pointer-events-none absolute inset-x-0 z-10 flex w-full items-center justify-center rounded-b-md border-t px-1 py-0.5 text-center text-[length:var(--game-font-sm)] font-extrabold leading-none',
               tributeLabelClassName,
             isSummonTargetSelected
               ? 'border-amber-300/40 bg-black/75 text-amber-200'

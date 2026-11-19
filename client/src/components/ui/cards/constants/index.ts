@@ -21,20 +21,21 @@ export const CARD_ART_IMAGE_CLASS = 'block h-full w-full rounded-none object-cov
  * `sizes` for each card surface, in one place so a call site picks a role instead of guessing a box.
  *
  * These drive which ladder step the browser downloads: the numbers mirror the rendered card widths produced by
- * the board layout (a card is `row height x 0.722`, capped by `--resource-rail-max-width` and the board's
- * `max-w-[1050px]` columns), so a 1x screen stays on the small variants and a 3x screen climbs to the master.
+ * the board layout (a card is `row height x 0.722`, capped by the resource rail and the board's width ladder), so
+ * a 1x screen stays on the small variants and a 3x screen climbs to the master. The `1600px` step covers the
+ * large-screen rungs, where `--game-unit` has grown the rail and the hand row past their original sizes.
  */
 export const CARD_SIZES = {
-  /** Leader card: tallest card on the board, drawn up to ~290 CSS px wide. */
-  leader: '(min-width: 1024px) 290px, (min-width: 640px) 200px, 150px',
+  /** Leader card: tallest card on the board, up to ~290 CSS px wide on a laptop and ~400 on a large screen. */
+  leader: '(min-width: 1600px) 400px, (min-width: 1024px) 290px, (min-width: 640px) 200px, 150px',
   /** Character-field card inside a battlefield row. */
-  battlefieldCard: '(min-width: 1024px) 170px, 120px',
+  battlefieldCard: '(min-width: 1600px) 240px, (min-width: 1024px) 170px, 120px',
   /** One of the five support slots in a zone row. */
-  supportSlot: '(min-width: 1024px) 92px, 64px',
+  supportSlot: '(min-width: 1600px) 130px, (min-width: 1024px) 92px, 64px',
   /** A card in a hand row. */
-  handCard: '(min-width: 1024px) 120px, 84px',
-  /** Deck reveal / trash top, capped by the 208px resource rail. */
-  pileCard: '(min-width: 1024px) 208px, 150px',
+  handCard: '(min-width: 1600px) 170px, (min-width: 1024px) 120px, 84px',
+  /** Deck reveal / trash top, capped by the resource rail (208px at the base unit). */
+  pileCard: '(min-width: 1600px) 300px, (min-width: 1024px) 208px, 150px',
   /** One tile in the prompt card chooser (five per row, inside a max-w-2xl panel). */
   promptTile: '(min-width: 640px) 124px, 92px',
   /** A row thumbnail in the trash/deck list overlay. */

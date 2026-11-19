@@ -158,7 +158,7 @@ function GamePhaseActionRow({
           data-testid={phaseTestId}
           className={`min-w-0 flex-1 rounded-md border border-[var(--border-subtle)] py-0.5 text-center transition-[max-width,transform,opacity] duration-300 ease-out ${phaseThemeClasses}`}
         >
-          <span key={phaseValue} className="phase-indicator-text-swap inline-block text-[12px] font-extrabold leading-none">
+          <span key={phaseValue} className="phase-indicator-text-swap inline-block text-[length:var(--game-font-lg)] font-extrabold leading-none">
             {translatePhaseValue(t, phaseValue)}
           </span>
         </div>

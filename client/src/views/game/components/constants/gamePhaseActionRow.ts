@@ -11,7 +11,7 @@ function isTurnAdvanceActionId(actionId: string): boolean {
 }
 
 const phaseActionChipClassName =
-  'h-full shrink-0 whitespace-nowrap rounded-md border border-[var(--border-subtle)] px-1.5 text-[10px] font-extrabold leading-none transition-[color,background-color,filter] duration-300 ease-out enabled:hover:brightness-120'
+  'h-full shrink-0 whitespace-nowrap rounded-md border border-[var(--border-subtle)] px-1.5 text-[length:var(--game-font-sm)] font-extrabold leading-none transition-[color,background-color,filter] duration-300 ease-out enabled:hover:brightness-120'
 
 const invertedPhaseThemeClassByPhaseTheme: Record<string, string> = {
   'turn-indicator-orange turn-indicator-text-light-theme': 'turn-indicator-inverted-orange',

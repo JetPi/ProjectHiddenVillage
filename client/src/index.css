@@ -541,3 +541,99 @@ body[data-card-flight-active='true'] .card-drop-zone {
 [data-card-arrival-pending='true'] {
   visibility: hidden;
 }
+
+/* Game surface sizing.
+ *
+ * The game view is the one screen that has to read from a laptop to a 4K panel, so its chrome is derived from a
+ * single unit instead of a pile of fixed pixel sizes. The unit tracks the window height, because the card frames
+ * are height-driven too: a label that is ~9 percent of its card at 720p stays ~9 percent of its card at 2160p. The
+ * 1px floor means every window at or below 900px tall keeps the sizes this board has always had, and the 2.4px
+ * ceiling stops a 5K window from turning the HUD into billboards.
+ *
+ * Board width has its own ladder further down, so the play area fills a wide screen instead of sitting in the
+ * middle of it. Above 1600px the surface also reserves a right-hand gutter for the docked HUD panels, which is why
+ * the board is centred inside [data-game-surface] rather than in the viewport.
+ */
+@property --game-unit {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 1px;
+}
+
+@property --game-hud-width {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 252px;
+}
+
+[data-game-surface] {
+  --game-unit: clamp(1px, 0.1111dvh, 2.4px);
+
+  --game-font-2xs: calc(8 * var(--game-unit));
+  --game-font-xs: calc(9 * var(--game-unit));
+  --game-font-sm: calc(10 * var(--game-unit));
+  --game-font-md: calc(11 * var(--game-unit));
+  --game-font-lg: calc(12 * var(--game-unit));
+  --game-font-xl: calc(14 * var(--game-unit));
+
+  --game-icon-xs: calc(8 * var(--game-unit));
+  --game-icon-sm: calc(10 * var(--game-unit));
+  --game-icon-md: calc(12 * var(--game-unit));
+  --game-gap: calc(4 * var(--game-unit));
+  --game-chip-width: calc(68 * var(--game-unit));
+
+  /* The board's own rails: the resource column and the icon rail on its right edge. Overriding the global rail
+     token here (rather than in :root) keeps every other view on its original 208px budget. */
+  --game-rail-width: calc(208 * var(--game-unit));
+  --resource-rail-max-width: var(--game-rail-width);
+  --game-sidebar-rail-width: calc(24 * var(--game-unit));
+
+  /* HUD width grows with the viewport width while its type grows with the height, so the panel keeps a similar
+     text-to-width ratio on a 1080p laptop and a 4K panel. */
+  --game-hud-width: clamp(252px, 14vw + 20px, 560px);
+  --game-hud-gutter: 0px;
+
+  /* The right-hand HUD shares one vertical budget: the support chain owns the top, the action log sits under it,
+     and the docked chat strip owns the bottom. Derived from the same unit so the three never drift apart. */
+  --game-support-chain-top: calc(8 * var(--game-unit));
+  --game-support-chain-list-max-height: calc(136 * var(--game-unit));
+  --game-action-log-top: calc(208 * var(--game-unit));
+  --game-action-log-min-height: calc(112 * var(--game-unit));
+  --game-action-log-bottom: calc(8 * var(--game-unit));
+  --game-action-log-bottom-with-chat: calc(160 * var(--game-unit));
+  --game-chat-height: calc(144 * var(--game-unit));
+  --game-chat-bottom: calc(8 * var(--game-unit));
+
+  --gameboard-max-width: 1050px;
+}
+
+/* Board width ladder. Each rung is also trimmed by the 1417 x unit guard, which reads the same button from the
+   other side: a 3440x1440 ultrawide is wide enough to stretch the play area to nearly 3000px, but its rows are
+   still 1440-tall rows, so the guard keeps the board from spreading cards that stay 170px wide. */
+@media (min-width: 1600px) {
+  [data-game-surface] {
+    --gameboard-max-width: min(1400px, calc(1417 * var(--game-unit)));
+    --game-hud-gutter: calc(var(--game-hud-width) + 24px);
+    /* The board is centred inside the space this leaves, not inside the viewport, so the docked HUD keeps its own
+       margin instead of hanging over the zones. */
+    padding-right: var(--game-hud-gutter);
+  }
+}
+
+@media (min-width: 1920px) {
+  [data-game-surface] {
+    --gameboard-max-width: min(1600px, calc(1417 * var(--game-unit)));
+  }
+}
+
+@media (min-width: 2560px) {
+  [data-game-surface] {
+    --gameboard-max-width: min(1900px, calc(1417 * var(--game-unit)));
+  }
+}
+
+@media (min-width: 3200px) {
+  [data-game-surface] {
+    --gameboard-max-width: min(3000px, calc(1417 * var(--game-unit)));
+  }
+}

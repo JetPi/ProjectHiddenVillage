@@ -12,9 +12,10 @@ import {
  * Chat is its own stream on the game connection: it never rides the action gate, never refetches the board and
  * never shows up in the action log.
  *
- * The strip docks only while it would clear the board. The board is centred and capped at 1050px, so the panel needs
- * roughly 1590px of viewport before it stops hanging over the zones; a default 1280px window is behind the sidebar
- * button instead, and nothing is covered unless the player asks for it.
+ * The strip docks only while it would clear the board. Below 1600px nothing is reserved for it, so the board keeps
+ * its 1050px cap and a default 1280px window is behind the sidebar button instead. From 1600px up the game surface
+ * reserves `--game-hud-gutter` on its right, which is sized from the same HUD width the panel renders at, so the
+ * docked strip always has its own margin - `WIDE_VIEWPORT` lands in that range.
  */
 const WIDE_VIEWPORT = { width: 1680, height: 900 }
 

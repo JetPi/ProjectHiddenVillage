@@ -7,10 +7,10 @@ import type { IActionLogProps, IActionLogViewEntry } from '@/views/game/types'
 import { useHasRoomForChatColumn } from '@/views/game/hooks'
 import { buildActionLogView, formatActionLogEngineToken } from '@/views/game/utils/functions/helpers'
 import {
-  ACTION_LOG_COMPACT_BOTTOM_REM,
-  ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_REM,
-  ACTION_LOG_COMPACT_MIN_HEIGHT_REM,
-  ACTION_LOG_COMPACT_TOP_REM,
+  ACTION_LOG_COMPACT_BOTTOM_CSS,
+  ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_CSS,
+  ACTION_LOG_COMPACT_MIN_HEIGHT_CSS,
+  ACTION_LOG_COMPACT_TOP_CSS,
   HUD_PANEL_WIDTH_CLASS,
 } from '@/views/game/utils/contants'
 
@@ -140,14 +140,14 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
           isExpanded
             ? undefined
             : {
-              top: `${ACTION_LOG_COMPACT_TOP_REM}rem`,
+              top: ACTION_LOG_COMPACT_TOP_CSS,
               // The docked chat strip owns the bottom of this corner, so the compact log stops above it.
-              bottom: `${hasRoomForChat ? ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_REM : ACTION_LOG_COMPACT_BOTTOM_REM}rem`,
-              minHeight: `${ACTION_LOG_COMPACT_MIN_HEIGHT_REM}rem`,
+              bottom: hasRoomForChat ? ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_CSS : ACTION_LOG_COMPACT_BOTTOM_CSS,
+              minHeight: ACTION_LOG_COMPACT_MIN_HEIGHT_CSS,
             }
         }
         className={twMerge(
-          'flex flex-col overflow-hidden rounded-xl border border-cyan-300/45 bg-slate-950/92 text-[10px] leading-tight text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm',
+          'flex flex-col overflow-hidden rounded-xl border border-cyan-300/45 bg-slate-950/92 text-[length:var(--game-font-sm)] leading-tight text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm',
           HUD_PANEL_WIDTH_CLASS,
           isExpanded
             ? 'fixed inset-y-2 right-2 z-[280] w-[min(28rem,46vw)] max-w-none'
@@ -155,7 +155,7 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
         )}
       >
         <div className="flex shrink-0 items-center gap-1 border-b border-white/10 px-2 py-1">
-          <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-cyan-200">
+          <span className="text-[length:var(--game-font-sm)] font-extrabold uppercase tracking-[0.14em] text-cyan-200">
             {t('game.actionLog.heading')}
           </span>
 
@@ -175,13 +175,13 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
         </div>
 
         {isConnected ? null : (
-          <p data-testid="action-log-offline" className="shrink-0 px-2 py-1 text-[9px] font-semibold text-amber-200">
+          <p data-testid="action-log-offline" className="shrink-0 px-2 py-1 text-[length:var(--game-font-xs)] font-semibold text-amber-200">
             {t('game.actionLog.offline')}
           </p>
         )}
 
         {entries.length === 0 ? (
-          <p data-testid="action-log-empty" className="px-2 py-2 text-[10px] text-white/65">
+          <p data-testid="action-log-empty" className="px-2 py-2 text-[length:var(--game-font-sm)] text-white/65">
             {t('game.actionLog.empty')}
           </p>
         ) : (
@@ -223,7 +223,7 @@ function ActionLogEntryRow({ entry, showTurnHeader }: { entry: IActionLogViewEnt
       {showTurnHeader ? (
         <span
           data-testid="action-log-turn"
-          className="mt-1 text-[8px] font-bold uppercase tracking-[0.14em] text-white/45"
+          className="mt-1 text-[length:var(--game-font-2xs)] font-bold uppercase tracking-[0.14em] text-white/45"
         >
           {entry.turnOwner === 'you'
             ? t('game.actionLog.yourTurn', { turn: entry.turnOrdinal ?? entry.turnNumber })
@@ -241,7 +241,7 @@ function ActionLogEntryRow({ entry, showTurnHeader }: { entry: IActionLogViewEnt
       >
         <span
           className={twMerge(
-            'mt-px shrink-0 rounded-sm border px-1 text-[8px] font-bold uppercase tracking-[0.06em]',
+            'mt-px shrink-0 rounded-sm border px-1 text-[length:var(--game-font-2xs)] font-bold uppercase tracking-[0.06em]',
             ACTOR_CHIP_CLASS[entry.actor],
           )}
         >
@@ -251,12 +251,12 @@ function ActionLogEntryRow({ entry, showTurnHeader }: { entry: IActionLogViewEnt
           {entry.text}
         </span>
         {entry.details ? (
-            <span data-testid="action-log-details" className="shrink-0 text-[8px] uppercase tracking-[0.06em] text-white/40">
+            <span data-testid="action-log-details" className="shrink-0 text-[length:var(--game-font-2xs)] uppercase tracking-[0.06em] text-white/40">
               {"Turn Start"}
             </span>
           ) : null}
         {entry.phase ? (
-          <span className="shrink-0 text-[8px] uppercase tracking-[0.06em] text-white/40">
+          <span className="shrink-0 text-[length:var(--game-font-2xs)] uppercase tracking-[0.06em] text-white/40">
             {formatActionLogEngineToken(entry.phase)}
           </span>
         ) : null}
