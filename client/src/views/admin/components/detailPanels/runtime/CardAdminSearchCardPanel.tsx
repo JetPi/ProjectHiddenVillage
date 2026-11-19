@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { CardAdminChevronIcon, CardAdminToggleSwitch } from '@/views/admin/components/controls'
+import { CardAdminChevronIcon, CardAdminInfoTip, CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import type { ICardAdminSearchCardPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 
 export function CardAdminSearchCardPanel({
@@ -17,10 +17,6 @@ export function CardAdminSearchCardPanel({
       </summary>
 
       <div className="mt-3 grid grid-cols-1 gap-3">
-        <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
-          {t('admin.panels.searchCard.help')}
-        </p>
-
         <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
           <CardAdminToggleSwitch
             checked={effect.searchRevealSelection ?? true}
@@ -29,6 +25,7 @@ export function CardAdminSearchCardPanel({
             ariaLabel={t('admin.panels.searchCard.revealSelection')}
           />
           {t('admin.panels.searchCard.revealSelection')}
+          <CardAdminInfoTip text={t('admin.panels.searchCard.help')} />
         </label>
 
         <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">

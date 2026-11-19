@@ -71,8 +71,8 @@ public sealed class GameSequentialEffectExecutor(
         // if they were its answer silenced the question a prompted branch step has to ask (N-013: "Choose 1
         // Leader or Character: Reveal the top card of your deck, and if it has the [Uchiha Clan] type, ...") -
         // the freeze step then acted on the revealed card instead of asking for its own target. A branch step
-        // that acts on the revealed cards still resolves them from the reveal's published arguments
-        // (N-022: "reveal the top card of your deck, then summon it").
+        // that acts on the revealed cards names the reveal's target slot (N-022: "reveal the top card of your
+        // deck, then summon it"), which survives the suspension as a chain argument.
         var isRevealPresentationAcknowledgement = continuation.RevealPresentation is not null
             && selection.All(target => string.Equals(
                 target.CardInstanceId,
@@ -163,6 +163,24 @@ public sealed class GameSequentialEffectExecutor(
         // earlier step produces (for example the cards revealed by a RevealCard step) are visible to
         // the steps that follow it.
         var sharedArguments = new Dictionary<string, string>(context.Arguments, StringComparer.Ordinal);
+
+        // The selection the chain was started with (an activation's choice, or the answer to a "Choose 1 Leader
+        // or Character" step the chain resumes at) is published once so later steps can execute against
+        // ChainTargets instead of asking again. An existing value is never overwritten: a resumed prompt for a
+        // later step must not replace the choice made earlier in the chain.
+        if (context.SelectedTargets.Count > 0
+            && !sharedArguments.ContainsKey(ReactiveEffectExecutionConstants.ChainSelectedTargetIdsArgument))
+        {
+            var chainTargetIds = string.Join(
+                ",",
+                context.SelectedTargets
+                    .Select(target => target.CardInstanceId)
+                    .Where(targetId => !string.IsNullOrWhiteSpace(targetId)));
+            if (chainTargetIds.Length > 0)
+            {
+                sharedArguments[ReactiveEffectExecutionConstants.ChainSelectedTargetIdsArgument] = chainTargetIds;
+            }
+        }
 
         while (!string.IsNullOrWhiteSpace(currentNodeId))
         {
@@ -267,6 +285,14 @@ public sealed class GameSequentialEffectExecutor(
                 return selectedTargetsResult.Errors;
             }
 
+            if (effectSpec.ExecutionTargetSource == EffectExecutionTargetSource.ChainTargets
+                && selectedTargetsResult.Value.Count == 0)
+            {
+                // A chain-target step with nothing to act on looks like a dead card from the board, and an
+                // automatic trigger has no action chip that could explain it otherwise.
+                RecordNoValidTargetsNotice(stepContext, effectSpec, node.NodeId);
+            }
+
             var perEffectContext = new GameCardEffectContext(
                 game: context.Game,
                 actingPlayer: context.ActingPlayer,
@@ -313,6 +339,7 @@ public sealed class GameSequentialEffectExecutor(
             // Hand values an effect produced (for example the cards a RevealCard step revealed) to the
             // steps that follow it in this chain.
             PropagateRevealedArguments(perEffectContext.Arguments, sharedArguments);
+            PublishTargetSlot(effectSpec, perEffectContext.SelectedTargets, sharedArguments);
 
             var nextNodeId = branchOnSuccess;
             if (shouldExecuteBeforeCondition
@@ -401,10 +428,11 @@ public sealed class GameSequentialEffectExecutor(
                 return new AtomicChainExecutionResult(chain.NextNodeId);
             }
 
-            // A "Reveal First" node just executed, so the rest of the chain can only be planned now:
-            // its post-condition picks the success/failure branch and the cards it revealed (published
-            // through its arguments) become the targets of the following steps - for example
-            // "reveal the top card of your deck, then summon it".
+            // A "Reveal First" node just executed, so the rest of the chain can only be planned now: its
+            // post-condition picks the success/failure branch. The revealed ids travel into the shared
+            // arguments because that re-evaluation reads them from there, and because a resumed chain keeps
+            // them available; a following step that acts on the revealed cards reads the slot the reveal
+            // published (TargetSlotName) instead.
             PropagateRevealedArguments(revealFirstStep.Context.Arguments, sharedArguments);
 
             var revealEffectSpec = nodeById[revealFirstStep.NodeId].EffectSpec;
@@ -456,6 +484,11 @@ public sealed class GameSequentialEffectExecutor(
         var currentNodeId = startNodeId;
         var traversedInPlan = new HashSet<string>(StringComparer.Ordinal);
         var isFirstNodeInChain = true;
+
+        // Slots published while planning. An atomic chain resolves every step's targets before anything runs,
+        // so a producer's slot has to be visible to the steps planned after it; if the plan aborts those steps
+        // never execute, so the slots are rolled back.
+        var publishedSlotKeys = new List<string>();
         var simulatedResourcePoolByPlayer = context.Game.State.Players.ToDictionary(
             player => player.PlayerId,
             player => player.ResourcePool,
@@ -546,6 +579,12 @@ public sealed class GameSequentialEffectExecutor(
                 return selectedTargetsResult.Errors;
             }
 
+            if (effectSpec.ExecutionTargetSource == EffectExecutionTargetSource.ChainTargets
+                && selectedTargetsResult.Value.Count == 0)
+            {
+                RecordNoValidTargetsNotice(stepContext, effectSpec, node.NodeId);
+            }
+
             var perEffectContext = new GameCardEffectContext(
                 game: context.Game,
                 actingPlayer: context.ActingPlayer,
@@ -558,6 +597,7 @@ public sealed class GameSequentialEffectExecutor(
             if (!canExecuteResult.CanExecute)
             {
                 var nextNodeId = branchOnFailure;
+                RemovePublishedTargetSlots(sharedArguments, publishedSlotKeys);
                 return new AtomicExecutionPlan(
                     Steps: [],
                     Aborted: true,
@@ -571,10 +611,17 @@ public sealed class GameSequentialEffectExecutor(
             if (preflightResult.IsError)
             {
                 var nextNodeId = branchOnFailure;
+                RemovePublishedTargetSlots(sharedArguments, publishedSlotKeys);
                 return new AtomicExecutionPlan(
                     Steps: [],
                     Aborted: true,
                     NextNodeId: nextNodeId);
+            }
+
+            var publishedSlotKey = PublishTargetSlot(effectSpec, perEffectContext.SelectedTargets, sharedArguments);
+            if (publishedSlotKey is not null)
+            {
+                publishedSlotKeys.Add(publishedSlotKey);
             }
 
             steps.Add(new PlannedExecutionStep(
@@ -758,8 +805,10 @@ public sealed class GameSequentialEffectExecutor(
 
     /// <summary>
     /// Copies the values an effect published into its step arguments (currently the cards produced by a
-    /// RevealCard step) into the shared arguments so the following steps of the same chain can act on
-    /// them - for example summoning the revealed card.
+    /// RevealCard step) into the shared arguments. An atomic chain re-evaluates a reveal's post-condition
+    /// after the reveal executed, and that pass reads the revealed ids from the shared arguments; steps that
+    /// need to *act* on the revealed cards name the reveal's target slot
+    /// (<see cref="EffectSpec.TargetSlotName"/> / <see cref="EffectSpec.ChainTargetSlotName"/>) instead.
     /// </summary>
     private static void PropagateRevealedArguments(
         IReadOnlyDictionary<string, string> stepArguments,
@@ -773,6 +822,20 @@ public sealed class GameSequentialEffectExecutor(
             stepArguments,
             sharedArguments,
             ReactiveEffectExecutionConstants.RevealedPrimaryTargetIdArgument);
+    }
+
+    /// <summary>
+    /// Drops the slots published by an atomic plan that aborted: none of those steps executed, so a following
+    /// failure branch must not read targets that were only resolved on paper.
+    /// </summary>
+    private static void RemovePublishedTargetSlots(
+        Dictionary<string, string> sharedArguments,
+        IReadOnlyList<string> publishedSlotKeys)
+    {
+        foreach (var publishedSlotKey in publishedSlotKeys)
+        {
+            sharedArguments.Remove(publishedSlotKey);
+        }
     }
 
     private static void CopyArgument(
@@ -1107,6 +1170,8 @@ public sealed class GameSequentialEffectExecutor(
         {
             EffectExecutionTargetSource.SelectedTargets => ResolveSelectedTargets(context, effectSpec),
             EffectExecutionTargetSource.SourceCard => ResolveSourceCardTarget(context),
+            EffectExecutionTargetSource.ChainTargets => ErrorOrFactory.From(
+                ResolveChainSelectedTargets(context, effectSpec)),
             EffectExecutionTargetSource.None => ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(Array.Empty<GameEffectTargetReference>()),
             _ => Error.Validation(
                 code: "Game.Effect.Sequential.UnsupportedTargetSource",
@@ -1122,6 +1187,72 @@ public sealed class GameSequentialEffectExecutor(
         return ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(filteredTargets);
     }
 
+    /// <summary>
+    /// Resolves the cards a
+    /// <see cref="EffectExecutionTargetSource.ChainTargets"/> step executes against: the slot named by
+    /// <see cref="EffectSpec.ChainTargetSlotName"/> when the step names one (a producer earlier in the chain
+    /// published it), otherwise the selection the chain was started with (see
+    /// <see cref="ReactiveEffectExecutionConstants.ChainSelectedTargetIdsArgument"/>). A chain that never made a
+    /// selection resolves no targets, so a step that depends on one cannot execute and takes its failure branch
+    /// instead of acting on an unrelated card.
+    /// </summary>
+    private static IReadOnlyList<GameEffectTargetReference> ResolveChainSelectedTargets(
+        GameCardEffectContext context,
+        EffectSpec effectSpec)
+    {
+        var slotName = effectSpec.ChainTargetSlotName?.Trim();
+        var argumentKey = string.IsNullOrEmpty(slotName)
+            ? ReactiveEffectExecutionConstants.ChainSelectedTargetIdsArgument
+            : ReactiveEffectExecutionConstants.ChainTargetSlotArgumentPrefix + slotName;
+
+        if (!context.Arguments.TryGetValue(argumentKey, out var selectedIdsCsv)
+            || string.IsNullOrWhiteSpace(selectedIdsCsv))
+        {
+            return [];
+        }
+
+        var targets = new List<GameEffectTargetReference>();
+
+        foreach (var selectedId in selectedIdsCsv
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.Ordinal))
+        {
+            var reference = TryResolveCardTargetReference(context, selectedId);
+            if (reference is not null)
+            {
+                targets.Add(reference);
+            }
+        }
+
+        return targets;
+    }
+
+    /// <summary>
+    /// Publishes the targets a step resolved under <see cref="EffectSpec.TargetSlotName"/>, so a later step of
+    /// the same chain can execute against exactly those cards by naming the slot. Last write wins: a branch graph
+    /// can execute the same producer twice, and the most recent resolution is the one the following steps mean.
+    /// </summary>
+    private static string? PublishTargetSlot(
+        EffectSpec effectSpec,
+        IReadOnlyList<GameEffectTargetReference> resolvedTargets,
+        Dictionary<string, string> sharedArguments)
+    {
+        var slotName = effectSpec.TargetSlotName?.Trim();
+        if (string.IsNullOrEmpty(slotName))
+        {
+            return null;
+        }
+
+        var argumentKey = ReactiveEffectExecutionConstants.ChainTargetSlotArgumentPrefix + slotName;
+        sharedArguments[argumentKey] = string.Join(
+            ",",
+            resolvedTargets
+                .Select(target => target.CardInstanceId)
+                .Where(targetId => !string.IsNullOrWhiteSpace(targetId)));
+
+        return argumentKey;
+    }
+
     private ErrorOr<IReadOnlyList<GameEffectTargetReference>> ResolveSelectedTargets(GameCardEffectContext context, EffectSpec effectSpec)
     {
         if (effectSpec.TargetRules.AutoSelectAllValidTargets)
@@ -1135,9 +1266,10 @@ public sealed class GameSequentialEffectExecutor(
             return ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(context.SelectedTargets);
         }
 
-        // Subordinate steps of a reveal chain ("reveal the top card of your deck, then summon it")
-        // carry no explicit selection of their own - they act on the cards the previous step revealed.
-        return ErrorOrFactory.From(ResolveRevealedTargets(context));
+        // A step that declares no selection of its own and has nothing to auto-resolve has no targets. Chains
+        // that act on the cards an earlier step produced name that step's slot (Chain Targets); the executor no
+        // longer infers "whatever the previous reveal turned over" from the position in the chain.
+        return ErrorOrFactory.From<IReadOnlyList<GameEffectTargetReference>>(Array.Empty<GameEffectTargetReference>());
     }
 
     private static IReadOnlyList<GameEffectTargetReference> ResolveRevealedTargets(GameCardEffectContext context)

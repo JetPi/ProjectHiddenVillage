@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { AppButton, CardImage } from '@/components/ui'
 import { CARD_SIZES } from '@/components/ui/cards/constants'
 import { CardAdminArtSourceDialog } from './CardAdminArtSourceDialog'
+import { CardAdminInfoTip } from '@/views/admin/components/controls'
 import type { ICardAdminStoredArt } from '@/views/admin/types/cardAdminDetailTypes'
 
 const INPUT_CLASS =
@@ -71,7 +72,7 @@ export function CardAdminArtPicker({
                   : t('admin.art.addImage')}
             </AppButton>
 
-            <span className="text-[11px] text-[var(--text-muted)]">{t('admin.art.uploadHelp')}</span>
+            <CardAdminInfoTip text={t('admin.art.uploadHelp')} />
           </div>
 
           {statusMessage ? (
@@ -102,7 +103,7 @@ export function CardAdminArtPicker({
                   </a>
                 ) : null}
 
-                <span className="text-[11px] text-[var(--text-muted)]">{t('admin.art.currentImageHelp')}</span>
+                <CardAdminInfoTip text={t('admin.art.currentImageHelp')} />
               </div>
             </div>
           ) : null}

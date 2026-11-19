@@ -1128,7 +1128,13 @@
         "countWithoutCollectionHelp": "This effect resolves its own target (Execution Target Source: None) but still declares a target count. Nothing is ever collected, and the count only makes the effect read \u201cNo valid targets available.\u201d.",
         "selectionTimingHelp": "Upfront asks for the targets together with the activation. Prompted asks with a pop-up once this step runs, so an earlier step can change the candidate pool first (\u201cdraw 1 card, then place 1 card from your hand on top of your deck\u201d) - author that as two chained effects, the second one Prompted.",
         "selectionPromptKindHelp": "Which wording the prompt uses. The copy lives in the client, so a new kind here needs a matching client entry.",
-        "promptedWithoutCandidateHelp": "A prompted selection needs something to pick from: add target rules, a target count, or a move-card action with a source zone (that zone supplies the candidates). Without one the prompt is skipped."
+        "promptedWithoutCandidateHelp": "A prompted selection needs something to pick from: add target rules, a target count, or a move-card action with a source zone (that zone supplies the candidates). Without one the prompt is skipped.",
+        "targetSlot": "Publishes Target Slot",
+        "targetSlotPlaceholder": "e.g. chosen",
+        "targetSlotHelp": "Optional. Publishes the targets this step resolved under this name, so a later step of the same chain can act on exactly those cards. Names are unique per card.",
+        "chainTargetSlot": "Chain Target Slot",
+        "chainTargetSlotInitial": "The chain's initial selection",
+        "chainTargetSlotHelp": "Which earlier step's targets this step acts on. Leave it on the initial selection for \u201cwhatever the chain was started with\u201d; pick a published slot to act on what a specific earlier step resolved (for example the card chosen before a reveal)."
       },
       "targetRules": {
         "title": "Target Rules",
@@ -1261,7 +1267,8 @@
         "revealCard": "Reveal Card",
         "summonCard": "Summon Card",
         "moveCard": "Move Card",
-        "lockChakraRecovery": "Lock Chakra Recovery"
+        "lockChakraRecovery": "Lock Chakra Recovery",
+        "selectTargets": "Select Targets"
       },
       "effectKind": {
         "support": "Support",
@@ -1355,7 +1362,8 @@
       "executionTargetSource": {
         "selectedTargets": "Selected Targets",
         "sourceCard": "Source Card",
-        "none": "None"
+        "none": "None",
+        "chainTargets": "Chain Targets"
       },
       "executionFlowMode": {
         "perStep": "Per Step",

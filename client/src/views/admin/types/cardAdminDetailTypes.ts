@@ -220,6 +220,8 @@ export type ICardAdminEffectPanelBaseProps = {
 
 export type ICardAdminExecutionPanelProps = ICardAdminEffectPanelBaseProps & {
   effectBranchErrors?: string[]
+  /** Target slot names published anywhere on the card, offered when the step reads a chain target slot. */
+  publishedTargetSlotNames?: readonly string[]
 }
 
 export type ICardAdminTargetRulesPanelProps = ICardAdminEffectPanelBaseProps

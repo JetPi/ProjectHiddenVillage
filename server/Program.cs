@@ -175,6 +175,7 @@ builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGame
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.AlterResourcesEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.MoveCardEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.RevealCardEffect>();
+builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.SelectTargetsEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.LockChakraRecoveryEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameCardEffect, ProjectHiddenVillage.Server.Api.Services.Games.SearchCardEffect>();
 builder.Services.AddScoped<ProjectHiddenVillage.Server.Api.Interfaces.Game.IGameEffectTargetSpecification, ProjectHiddenVillage.Server.Api.Services.Games.AllowAllTargetsSpecification>();

@@ -16,7 +16,7 @@ import {
   SELECTION_TIMING_OPTIONS,
 } from '@/views/admin/constants'
 import { AppButton } from '@/components/ui'
-import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
+import { CardAdminInfoTip, CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { CardAdminChevronIcon } from '@/views/admin/components/controls'
 import type { ICardAdminExecutionPanelProps } from '@/views/admin/types/cardAdminDetailTypes'
 import { CardAdminSelect } from '@/views/admin/components/controls'
@@ -26,6 +26,7 @@ export function CardAdminExecutionPanel({
   effectIndex,
   updateEffectAt,
   effectBranchErrors,
+  publishedTargetSlotNames = [],
 }: ICardAdminExecutionPanelProps) {
   const { t } = useTranslation()
   const {
@@ -46,33 +47,33 @@ export function CardAdminExecutionPanel({
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
       <div className="space-y-1">
-        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.execution.targetSource')}</label>
+        <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+          {t('admin.panels.execution.targetSource')}
+          {isPlayerScopedChakraLock ? (
+            <CardAdminInfoTip text={t('admin.panels.execution.chakraLockHelp')} />
+          ) : null}
+          {isAttackNegation ? (
+            <CardAdminInfoTip text={t('admin.panels.execution.attackNegationHelp')} />
+          ) : null}
+        </label>
         <CardAdminSelect
           value={effect.executionTargetSource}
-          onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, executionTargetSource: value }))}
+          onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({
+            ...current,
+            executionTargetSource: value,
+            // Each slot field belongs to one target source; switching away drops the stale value.
+            targetSlotName: value === 'Selected Targets' ? current.targetSlotName ?? null : null,
+            chainTargetSlotName: value === 'Chain Targets' ? current.chainTargetSlotName ?? null : null,
+          }))}
         >
           {EXECUTION_TARGET_SOURCE_OPTIONS.map((option) => (
             <option key={option} value={option}>{optionLabel(t, EXECUTION_TARGET_SOURCE_LABEL_KEYS, option)}</option>
           ))}
         </CardAdminSelect>
 
-        {isPlayerScopedChakraLock ? (
-          <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
-            {t('admin.panels.execution.chakraLockHelp')}
-          </p>
-        ) : null}
-
-        {isAttackNegation ? (
-          <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
-            {t('admin.panels.execution.attackNegationHelp')}
-          </p>
-        ) : null}
-
         {asksForSelectionWithoutTargetRules ? (
-          <div className="space-y-1 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2">
-            <p className="text-[11px] leading-snug text-amber-700">
-              {t('admin.panels.execution.selectionWithoutRulesHelp')}
-            </p>
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2">
+            <CardAdminInfoTip tone="warning" text={t('admin.panels.execution.selectionWithoutRulesHelp')} />
             <AppButton
               type="button"
               variant="ghost"
@@ -83,11 +84,54 @@ export function CardAdminExecutionPanel({
           </div>
         ) : null}
 
+        {effect.executionTargetSource === 'Selected Targets' ? (
+          <div className="space-y-1">
+            <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+              {t('admin.panels.execution.targetSlot')}
+              <CardAdminInfoTip text={t('admin.panels.execution.targetSlotHelp')} />
+            </label>
+            <input
+              type="text"
+              value={effect.targetSlotName ?? ''}
+              placeholder={t('admin.panels.execution.targetSlotPlaceholder')}
+              onChange={(event) =>
+                updateEffectAt(effectIndex, (current) => ({
+                  ...current,
+                  targetSlotName: event.target.value.length > 0 ? event.target.value : null,
+                }))}
+              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+            />
+          </div>
+        ) : null}
+
+        {effect.executionTargetSource === 'Chain Targets' ? (
+          <div className="space-y-1">
+            <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+              {t('admin.panels.execution.chainTargetSlot')}
+              <CardAdminInfoTip text={t('admin.panels.execution.chainTargetSlotHelp')} />
+            </label>
+            <CardAdminSelect
+              value={effect.chainTargetSlotName ?? ''}
+              onValueChange={(value) =>
+                updateEffectAt(effectIndex, (current) => ({
+                  ...current,
+                  chainTargetSlotName: value.length > 0 ? value : null,
+                }))}
+            >
+              <option value="">{t('admin.panels.execution.chainTargetSlotInitial')}</option>
+              {Array.from(new Set([
+                ...publishedTargetSlotNames,
+                ...(effect.chainTargetSlotName ? [effect.chainTargetSlotName] : []),
+              ])).map((slotName) => (
+                <option key={slotName} value={slotName}>{slotName}</option>
+              ))}
+            </CardAdminSelect>
+          </div>
+        ) : null}
+
         {declaresCountWithoutCollection ? (
-          <div className="space-y-1 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2">
-            <p className="text-[11px] leading-snug text-amber-700">
-              {t('admin.panels.execution.countWithoutCollectionHelp')}
-            </p>
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2">
+            <CardAdminInfoTip tone="warning" text={t('admin.panels.execution.countWithoutCollectionHelp')} />
             <AppButton
               type="button"
               variant="ghost"
@@ -120,7 +164,10 @@ export function CardAdminExecutionPanel({
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.execution.selectionTiming')}</label>
+        <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+          {t('admin.panels.execution.selectionTiming')}
+          <CardAdminInfoTip text={t('admin.panels.execution.selectionTimingHelp')} />
+        </label>
         <CardAdminSelect
           value={effect.selectionTiming ?? 'Upfront'}
           onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, selectionTiming: value }))}
@@ -129,14 +176,14 @@ export function CardAdminExecutionPanel({
             <option key={option} value={option}>{optionLabel(t, SELECTION_TIMING_LABEL_KEYS, option)}</option>
           ))}
         </CardAdminSelect>
-        <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
-          {t('admin.panels.execution.selectionTimingHelp')}
-        </p>
       </div>
 
       {isPromptedSelection ? (
         <div className="space-y-1">
-          <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.panels.execution.selectionPromptKind')}</label>
+          <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+            {t('admin.panels.execution.selectionPromptKind')}
+            <CardAdminInfoTip text={t('admin.panels.execution.selectionPromptKindHelp')} />
+          </label>
           <CardAdminSelect
             value={effect.selectionPromptKind ?? 'Generic'}
             onValueChange={(value) => updateEffectAt(effectIndex, (current) => ({ ...current, selectionPromptKind: value }))}
@@ -145,17 +192,12 @@ export function CardAdminExecutionPanel({
               <option key={option} value={option}>{optionLabel(t, SELECTION_PROMPT_KIND_LABEL_KEYS, option)}</option>
             ))}
           </CardAdminSelect>
-          <p className="text-[11px] leading-snug text-[var(--text-secondary)]">
-            {t('admin.panels.execution.selectionPromptKindHelp')}
-          </p>
         </div>
       ) : null}
 
       {promptedWithoutCandidateSource ? (
-        <div className="space-y-1 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2 sm:col-span-2">
-          <p className="text-[11px] leading-snug text-amber-700">
-            {t('admin.panels.execution.promptedWithoutCandidateHelp')}
-          </p>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/60 bg-amber-500/10 p-2 sm:col-span-2">
+          <CardAdminInfoTip tone="warning" text={t('admin.panels.execution.promptedWithoutCandidateHelp')} />
           <AppButton
             type="button"
             variant="ghost"

@@ -124,6 +124,14 @@ public enum EffectExecutionTargetSource
     SelectedTargets,
     SourceCard,
     None,
+
+    /// <summary>
+    /// The selection an earlier step of the same chain made - the answer the chain was started with, or the one
+    /// its <see cref="RuntimeEffects.SelectTargets"/> step asked for. Used by a step that must act on a card
+    /// chosen before the chain reached it (N-013: choose the card, reveal the top of the deck, then freeze the
+    /// chosen card only if the reveal matched).
+    /// </summary>
+    ChainTargets,
 }
 
 public enum EffectExecutionFlowMode

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { translateKey } from '@/i18n'
 import { AppButton } from '@/components/ui'
 import { FormInput, FormLabel } from '@/components/forms'
-import { CardAdminToggleSwitch } from '@/views/admin/components/controls'
+import { CardAdminInfoTip, CardAdminToggleSwitch } from '@/views/admin/components/controls'
 import { normalizeDeckCardId } from '@/domain/deck/parseDeckList'
 import type { IDeckCardMetadata } from '@/domain/deck/types'
 import type {
@@ -219,11 +219,8 @@ export function DeckRulesetEditorPane({
               onChange={(checked) => onPatch({ availableInQuickMatch: checked })}
             />
             <span>{t('admin.rulesets.editor.availableInQuickMatch')}</span>
+            <CardAdminInfoTip text={t('admin.rulesets.editor.availableInQuickMatchHint')} />
           </label>
-
-          <p className="text-[10px] leading-4 text-[var(--text-muted)] sm:col-span-2">
-            {t('admin.rulesets.editor.availableInQuickMatchHint')}
-          </p>
 
           <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
             <CardAdminToggleSwitch
@@ -239,10 +236,10 @@ export function DeckRulesetEditorPane({
         <section>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">
-              <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+              <h2 className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
                 {t('admin.rulesets.editor.clockTitle')}
+                <CardAdminInfoTip text={t('admin.rulesets.editor.clockHint')} />
               </h2>
-              <p className="text-[10px] text-[var(--text-muted)]">{t('admin.rulesets.editor.clockHint')}</p>
             </div>
 
             <label className="flex shrink-0 items-center gap-2 text-sm text-[var(--text-primary)]">
@@ -328,10 +325,10 @@ export function DeckRulesetEditorPane({
         </section>
 
         <section>
-          <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+          <h2 className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
             {t('admin.rulesets.editor.cardPoolTitle')}
+            <CardAdminInfoTip text={t('admin.rulesets.editor.cardPoolHint')} />
           </h2>
-          <p className="text-[10px] text-[var(--text-muted)]">{t('admin.rulesets.editor.cardPoolHint')}</p>
 
           <div className="mt-2">
             <FormLabel htmlFor="admin-ruleset-pool-mode">{t('admin.rulesets.editor.cardPoolMode')}</FormLabel>
@@ -345,19 +342,19 @@ export function DeckRulesetEditorPane({
               <option value="Open">{t('admin.rulesets.editor.cardPoolModeOpen')}</option>
               <option value="AllowList">{t('admin.rulesets.editor.cardPoolModeAllowList')}</option>
             </select>
-            <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-              {draft.cardPoolMode === 'AllowList'
-                ? t('admin.rulesets.editor.cardPoolModeAllowListHint')
-                : t('admin.rulesets.editor.cardPoolModeOpenHint')}
-            </p>
+            <span className="mt-1 flex items-center gap-1.5">
+              <CardAdminInfoTip
+                text={draft.cardPoolMode === 'AllowList'
+                  ? t('admin.rulesets.editor.cardPoolModeAllowListHint')
+                  : t('admin.rulesets.editor.cardPoolModeOpenHint')}
+              />
+            </span>
           </div>
 
-          <h3 className="mt-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+          <h3 className="mt-3 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
             {t('admin.rulesets.editor.restrictionsTitle')}
+            <CardAdminInfoTip text={t('admin.rulesets.editor.restrictionsHint')} />
           </h3>
-          <p className="text-[10px] text-[var(--text-muted)]">
-            {t('admin.rulesets.editor.restrictionsHint')}
-          </p>
 
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <select

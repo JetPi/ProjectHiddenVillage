@@ -341,6 +341,7 @@ public sealed class InMemoryGameInstanceRegistryWhenAttackingTests
             DurationMode = EffectDurationMode.Instant,
             IsOptional = isOptional,
             OnSuccessEffectId = onSuccessEffectId,
+            TargetSlotName = "revealed",
             RevealTimingMode = RevealTimingMode.RevealFirst,
             RevealPostConditionRestriction = postCondition,
             ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
@@ -375,7 +376,8 @@ public sealed class InMemoryGameInstanceRegistryWhenAttackingTests
             EffectType = EffectKind.Activated,
             Timing = EffectTiming.WhenAttacking,
             DurationMode = EffectDurationMode.Instant,
-            ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+            ExecutionTargetSource = EffectExecutionTargetSource.ChainTargets,
+            ChainTargetSlotName = "revealed",
             ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
             TargetRules = new EffectTargetRuleSet
             {

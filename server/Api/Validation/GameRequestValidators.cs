@@ -207,6 +207,8 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
         Enum.GetValues<EffectExecutionConditionArgumentKey>()
             .Select(argumentKey => argumentKey.ToWireValue()));
 
+    private const int MaxTargetSlotNameLength = 64;
+
     public UpdateCardEffectsRequestValidator()
     {
         RuleFor(request => request)
@@ -326,6 +328,15 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                     .Must(value => value.RevealPostConditionRuleSet is null
                         || value.RevealPostConditionRuleSet.Restrictions is { Count: > 0 })
                     .WithMessage("Reveal post-condition rule set must include at least one restriction group.");
+
+                // The post-condition is evaluated on the cards this step turned over, so those cards must come
+                // from its own target rules. Resolving them from an earlier step's choice (Chain Targets) checked
+                // the condition against the card the player picked - already a visible Leader/Character - instead
+                // of the revealed one, and presented nothing.
+                effect.RuleFor(value => value)
+                    .Must(value => value.RevealTimingMode != RevealTimingMode.RevealFirst
+                        || value.ExecutionTargetSource == EffectExecutionTargetSource.SelectedTargets)
+                    .WithMessage("A Reveal First step reveals the cards its post-condition checks, so it must use Execution Target Source = Selected Targets.");
 
                 effect.RuleFor(value => value)
                     .Must(value => value.RevealPostConditionRestriction is null
@@ -645,6 +656,62 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
                             action.Operation == MoveCardOperationType.Move && action.SourceZone is not null))
                     .WithMessage("Prompted selection needs candidates: declare target rules/counts, or a move-card action with a source zone.");
 
+                // "Choose 1 Leader or Character" as its own clause: it collects the choice and resolves nothing,
+                // so the chosen cards have to be named by its target rules.
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType != RuntimeEffects.SelectTargets
+                        || value.ExecutionTargetSource == EffectExecutionTargetSource.SelectedTargets)
+                    .WithMessage("Select Targets collects the player's choice, so it must use Execution Target Source = Selected Targets.");
+
+                // The automatic triggers are dispatched with no activation payload, so an upfront selection has
+                // nothing to read and the step would resolve zero targets, fail and end the chain - silently,
+                // since it is a triggered effect with no action chip to explain the no-op.
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType != RuntimeEffects.SelectTargets
+                        || value.Timing is not (EffectTiming.OnSummon or EffectTiming.WhenAttacking)
+                        || value.SelectionTiming == EffectSelectionTiming.Prompted)
+                    .WithMessage("An [On Summon] / [When Attacking] step cannot receive an upfront selection: set Select Targets' Selection Timing to Prompted so the chain can ask.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.RuntimeEffectType != RuntimeEffects.SelectTargets
+                        || value.TargetRules.Rules.Count > 0)
+                    .WithMessage("Select Targets must describe what may be chosen in Target Rules.");
+
+                // Chain Targets executes the choice an earlier step of the same chain made, so the node has to be
+                // a step of that chain and must not ask for a selection of its own.
+                effect.RuleFor(value => value)
+                    .Must(value => value.ExecutionTargetSource != EffectExecutionTargetSource.ChainTargets
+                        || value.IsSubordinate)
+                    .WithMessage("Chain Targets resolves an earlier step's choice, so the node must be a chain step: mark it subordinate and branch to it from the effect that starts the chain.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.ExecutionTargetSource != EffectExecutionTargetSource.ChainTargets
+                        || value.SelectionTiming == EffectSelectionTiming.Upfront)
+                    .WithMessage("Chain Targets executes the choice an earlier step already made, so the node must not ask again: set Selection Timing to Upfront.");
+
+                // Target slots: a step that resolves its own targets may publish them under a name, and a
+                // Chain Targets step may name the slot it reads. The name is how a chain acts on "what an earlier
+                // step resolved" instead of "whatever position it happens to sit at".
+                effect.RuleFor(value => value)
+                    .Must(value => value.TargetSlotName is null
+                        || (value.TargetSlotName.Trim().Length is > 0 and <= MaxTargetSlotNameLength))
+                    .WithMessage($"Publishes Target Slot must be a name of at most {MaxTargetSlotNameLength} characters.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.ChainTargetSlotName is null
+                        || (value.ChainTargetSlotName.Trim().Length is > 0 and <= MaxTargetSlotNameLength))
+                    .WithMessage($"Chain Target Slot must be a name of at most {MaxTargetSlotNameLength} characters.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.TargetSlotName is null
+                        || value.ExecutionTargetSource == EffectExecutionTargetSource.SelectedTargets)
+                    .WithMessage("Only a step that resolves its own targets can publish a target slot: set Execution Target Source to Selected Targets.");
+
+                effect.RuleFor(value => value)
+                    .Must(value => value.ChainTargetSlotName is null
+                        || value.ExecutionTargetSource == EffectExecutionTargetSource.ChainTargets)
+                    .WithMessage("Chain Target Slot is only meaningful with Execution Target Source = Chain Targets.");
+
                 // "Search your deck for a card": the searched deck is the candidate pool, so exactly one move
                 // action from the deck describes what happens to the chosen card.
                 effect.RuleFor(value => value)
@@ -735,6 +802,14 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
         RuleFor(request => request.Effects)
             .Must(effects => effects is null || BranchTargetsShareTheirStartersTiming(effects))
             .WithMessage("An effect reached through OnSuccessEffectId or OnFailureEffectId must use the same timing as the effect that branches to it: a chain starts once and runs as one trigger, so every step shares its starter's timing.");
+
+        RuleFor(request => request.Effects)
+            .Must(effects => effects is null || TargetSlotsResolveToAnEarlierProducer(effects))
+            .WithMessage("A Chain Target Slot must be unique on the card and published by a step earlier in the same chain (the publisher must reach the step that reads it).");
+
+        RuleFor(request => request.Effects)
+            .Must(effects => effects is null || RevealFirstBranchTargetsNameTheirTargets(effects))
+            .WithMessage("A step reached from a Reveal First effect must name what it acts on: use Chain Targets with a slot the reveal publishes, or declare its own target rules. The executor no longer infers the revealed cards from the step's position in the chain.");
     }
 
     private static bool HasAnyPatchableField(UpdateCardEffectsRequest request)
@@ -996,6 +1071,170 @@ public sealed class UpdateCardEffectsRequestValidator : AbstractValidator<Update
     {
         return effect.RuntimeEffectType == RuntimeEffects.Tribute
             || effect.EffectType == EffectKind.SummonRequirement;
+    }
+
+    /// <summary>
+    /// Every <see cref="EffectSpec.ChainTargetSlotName"/> has to resolve to exactly one producer that runs before
+    /// it. Slot names are card-local, so a duplicate producer would make the consumer ambiguous; and requiring the
+    /// producer to *reach* the consumer through branch edges is what guarantees "earlier in the same chain" -
+    /// never a sibling branch, a descendant, another root, or the consumer itself.
+    /// </summary>
+    private static bool TargetSlotsResolveToAnEarlierProducer(IReadOnlyList<EffectSpec> effects)
+    {
+        var producerIdsBySlotName = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var branchEdgesById = BuildBranchEdgesById(effects);
+
+        foreach (var effect in effects)
+        {
+            var slotName = effect.TargetSlotName?.Trim();
+            if (string.IsNullOrEmpty(slotName))
+            {
+                continue;
+            }
+
+            if (!producerIdsBySlotName.TryGetValue(slotName, out var producerIds))
+            {
+                producerIds = [];
+                producerIdsBySlotName[slotName] = producerIds;
+            }
+
+            producerIds.Add(effect.Id?.Trim() ?? string.Empty);
+        }
+
+        if (producerIdsBySlotName.Values.Any(producerIds => producerIds.Count > 1))
+        {
+            return false;
+        }
+
+        foreach (var effect in effects)
+        {
+            var slotName = effect.ChainTargetSlotName?.Trim();
+            if (string.IsNullOrEmpty(slotName))
+            {
+                continue;
+            }
+
+            if (!producerIdsBySlotName.TryGetValue(slotName, out var producerIds))
+            {
+                return false;
+            }
+
+            var consumerId = effect.Id?.Trim() ?? string.Empty;
+            if (!producerIds.Any(producerId => BranchReaches(producerId, consumerId, branchEdgesById)))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static Dictionary<string, string[]> BuildBranchEdgesById(IReadOnlyList<EffectSpec> effects)
+    {
+        var branchEdgesById = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+        foreach (var effect in effects)
+        {
+            // A duplicate id is the uniqueness rule's business. Building the map by index keeps this check
+            // from throwing on the very input another rule is already rejecting.
+            branchEdgesById[effect.Id?.Trim() ?? string.Empty] = new[]
+            {
+                effect.OnSuccessEffectId?.Trim(),
+                effect.OnFailureEffectId?.Trim(),
+            }
+                .Where(target => !string.IsNullOrWhiteSpace(target))
+                .Cast<string>()
+                .ToArray();
+        }
+
+        return branchEdgesById;
+    }
+
+    private static bool BranchReaches(
+        string startId,
+        string targetId,
+        IReadOnlyDictionary<string, string[]> branchEdgesById)
+    {
+        if (string.Equals(startId, targetId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var visited = new HashSet<string>(StringComparer.Ordinal) { startId };
+        var pending = new Stack<string>();
+        pending.Push(startId);
+
+        while (pending.Count > 0)
+        {
+            var currentId = pending.Pop();
+            if (!branchEdgesById.TryGetValue(currentId, out var nextIds))
+            {
+                continue;
+            }
+
+            foreach (var nextId in nextIds)
+            {
+                if (string.Equals(nextId, targetId, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+
+                if (visited.Add(nextId))
+                {
+                    pending.Push(nextId);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// "Reveal the top card of your deck, then summon it" used to work because a chained step with no
+    /// selection of its own fell back to the cards the previous step revealed. That inference is gone, so a
+    /// branch target of a <see cref="RevealTimingMode.RevealFirst"/> step has to say what it acts on: the
+    /// reveal's published slot (Chain Targets) or its own target rules/counts.
+    /// </summary>
+    private static bool RevealFirstBranchTargetsNameTheirTargets(IReadOnlyList<EffectSpec> effects)
+    {
+        var effectById = new Dictionary<string, EffectSpec>(StringComparer.Ordinal);
+        foreach (var effect in effects)
+        {
+            effectById[effect.Id?.Trim() ?? string.Empty] = effect;
+        }
+
+        foreach (var effect in effects)
+        {
+            if (effect.RevealTimingMode != RevealTimingMode.RevealFirst)
+            {
+                continue;
+            }
+
+            foreach (var branchTargetId in (string?[])[effect.OnSuccessEffectId?.Trim(), effect.OnFailureEffectId?.Trim()])
+            {
+                if (string.IsNullOrWhiteSpace(branchTargetId)
+                    || !effectById.TryGetValue(branchTargetId, out var branchTarget)
+                    || branchTarget.ExecutionTargetSource != EffectExecutionTargetSource.SelectedTargets)
+                {
+                    continue;
+                }
+
+                var declaresSelection = branchTarget.TargetRules.AutoSelectAllValidTargets
+                    || branchTarget.TargetRules.Rules.Count > 0
+                    || branchTarget.TargetRules.ExactTargetCount.HasValue
+                    || branchTarget.TargetRules.MinimumTargetCount.HasValue
+                    || branchTarget.TargetRules.MaximumTargetCount.HasValue
+                    || branchTarget.MoveCardActions.Any(action =>
+                        action.Operation == MoveCardOperationType.Move && action.SourceZone is not null);
+
+                if (!declaresSelection)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     private static bool BranchTargetsMustReferenceEntryEffects(IReadOnlyList<EffectSpec> effects)

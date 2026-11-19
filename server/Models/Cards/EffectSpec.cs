@@ -275,6 +275,24 @@ public sealed class EffectSpec
 
     public EffectExecutionTargetSource ExecutionTargetSource { get; set; } = EffectExecutionTargetSource.SelectedTargets;
 
+    /// <summary>
+    /// Publishes the targets this step resolved under a card-local name, so a later step of the same chain can
+    /// address them by name instead of by position: "Choose 1 Leader or Character" publishes <c>chosen</c>, and
+    /// the freeze step at the end of the chain reads <c>chosen</c> however many steps sit in between. A producer
+    /// feeds any number of consumers; the name has to be unique on the card, and it can only be read by steps the
+    /// producer actually reaches through its branches (the authoring contract enforces both).
+    /// </summary>
+    public string? TargetSlotName { get; set; }
+
+    /// <summary>
+    /// Which published slot a <see cref="EffectExecutionTargetSource.ChainTargets"/> step executes against.
+    /// Empty keeps the original meaning: the selection the chain was started with (an activation's choice, or the
+    /// answer to a prompted step the chain resumes at). Named slots allow a step to act on what an earlier step
+    /// resolved instead - the selection itself, a reveal, or anything else - which is how a chain can choose a
+    /// card, reveal the deck top, and only resolve the chosen card when the reveal matched.
+    /// </summary>
+    public string? ChainTargetSlotName { get; set; }
+
     public EffectExecutionFlowMode ExecutionFlowMode { get; set; } = EffectExecutionFlowMode.PerStep;
 
     /// <summary>

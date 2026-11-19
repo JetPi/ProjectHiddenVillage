@@ -3,6 +3,7 @@ import type { ClipboardEvent, DragEvent, ReactNode, SyntheticEvent } from 'react
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
+import { CardAdminInfoTip } from '@/views/admin/components/controls'
 import {
   CARD_ART_MAX_UPLOAD_BYTES,
   CARD_ART_MIN_SOURCE_WIDTH,
@@ -191,14 +192,16 @@ export function CardAdminArtSourceDialog({
         aria-labelledby="card-admin-art-source-title"
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-4"
       >
-        <h2
-          id="card-admin-art-source-title"
-          className="text-lg font-bold text-[var(--text-primary)]"
-        >
-          {t('admin.art.sourceDialog.title')}
-        </h2>
-
-        <p className="mt-1 text-xs text-[var(--text-secondary)]">{t('admin.art.sourceDialog.storesAs', { width: CARD_ART_MIN_SOURCE_WIDTH })}</p>
+        <div className="flex items-center gap-2">
+          <h2
+            id="card-admin-art-source-title"
+            className="text-lg font-bold text-[var(--text-primary)]"
+          >
+            {t('admin.art.sourceDialog.title')}
+          </h2>
+          <CardAdminInfoTip text={t('admin.art.sourceDialog.storesAs', { width: CARD_ART_MIN_SOURCE_WIDTH })} />
+          <CardAdminInfoTip text={t('admin.art.sourceDialog.addressHint')} />
+        </div>
 
         <div
           id="card-admin-art-paste"
@@ -229,8 +232,11 @@ export function CardAdminArtSourceDialog({
           </div>
 
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-[var(--text-primary)]">{t('admin.art.sourceDialog.pasteTitle')}</p>
-            <p className="text-xs text-[var(--text-secondary)]">{t('admin.art.sourceDialog.pasteHint')}</p>
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
+              {t('admin.art.sourceDialog.pasteTitle')}
+              <CardAdminInfoTip text={t('admin.art.sourceDialog.pasteHint')} />
+              <CardAdminInfoTip text={t('admin.art.sourceDialog.dropHint')} />
+            </p>
 
             <div className="flex flex-wrap items-center gap-2">
               <AppButton
@@ -242,7 +248,7 @@ export function CardAdminArtSourceDialog({
                 {t('admin.art.sourceDialog.chooseFile')}
               </AppButton>
 
-              <span className="text-[11px] text-[var(--text-muted)]">{t('admin.art.uploadHelp')}</span>
+              <CardAdminInfoTip text={t('admin.art.uploadHelp')} />
             </div>
 
             <input
@@ -263,8 +269,6 @@ export function CardAdminArtSourceDialog({
               tabIndex={-1}
               className="sr-only"
             />
-
-            <p className="text-[11px] text-[var(--text-muted)]">{t('admin.art.sourceDialog.dropHint')}</p>
 
             {candidate ? (
               <p className="break-all font-mono text-[11px] text-[var(--text-primary)]">
@@ -290,8 +294,6 @@ export function CardAdminArtSourceDialog({
             {blockedMessage}
           </p>
         ) : null}
-
-        <p className="mt-3 text-[11px] text-[var(--text-muted)]">{t('admin.art.sourceDialog.addressHint')}</p>
 
         <div className="mt-4 flex flex-wrap justify-end gap-2">
           <AppButton type="button" variant="ghost" onClick={onClose} disabled={disabled}>

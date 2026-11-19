@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
 import { CardAdminArtPicker } from '@/views/admin/components/detail'
-import { CardAdminTokenField } from '@/views/admin/components/controls'
+import { CardAdminInfoTip, CardAdminTokenField } from '@/views/admin/components/controls'
 import type { ICardAdminIdentityPanelProps } from '@/views/admin/types/cardAdminCreateTypes'
 
 const LABEL_CLASS = 'text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]'
@@ -44,8 +44,9 @@ export function CardAdminIdentityPanel({
         <div className="min-w-0 lg:border-l lg:border-[var(--border-subtle)] lg:pl-4">
           <div className="grid grid-cols-1 gap-3">
             <div>
-              <label className={LABEL_CLASS} htmlFor="card-admin-create-names">
+              <label className={`${LABEL_CLASS} flex items-center gap-1.5`} htmlFor="card-admin-create-names">
                 {t('admin.create.identity.name')}
+                <CardAdminInfoTip text={t('admin.create.identity.nameHelp')} />
               </label>
               <CardAdminTokenField
                 id="card-admin-create-names"
@@ -56,12 +57,12 @@ export function CardAdminIdentityPanel({
                 ariaLabel={t('admin.create.identity.name')}
                 chipTestId="admin-identity-name-chip"
               />
-              <p className="mt-1 text-[11px] text-[var(--text-muted)]">{t('admin.create.identity.nameHelp')}</p>
             </div>
 
             <div>
-              <label className={LABEL_CLASS} htmlFor="card-admin-create-traits">
+              <label className={`${LABEL_CLASS} flex items-center gap-1.5`} htmlFor="card-admin-create-traits">
                 {t('admin.create.identity.traits')}
+                <CardAdminInfoTip text={t('admin.create.identity.traitsHelp')} />
               </label>
               <CardAdminTokenField
                 id="card-admin-create-traits"
@@ -73,7 +74,6 @@ export function CardAdminIdentityPanel({
                 ariaLabel={t('admin.create.identity.traits')}
                 chipTestId="admin-identity-trait-chip"
               />
-              <p className="mt-1 text-[11px] text-[var(--text-muted)]">{t('admin.create.identity.traitsHelp')}</p>
             </div>
           </div>
         </div>

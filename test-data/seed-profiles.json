@@ -2348,14 +2348,14 @@
       ],
       "effects": [
         {
-          "id": "freeze-target",
-          "isSubordinate": true,
-          "onSuccessEffectId": null,
+          "id": "choose-target",
+          "isSubordinate": false,
+          "onSuccessEffectId": "reveal-top",
           "onFailureEffectId": null,
-          "runtimeEffectType": "Freeze Card",
+          "runtimeEffectType": "Select Targets",
           "effectType": "Activated",
           "timing": "On Summon",
-          "durationMode": "During Opponent Next Turn",
+          "durationMode": "Instant",
           "passiveMode": "None",
           "passiveReevaluation": null,
           "passiveConsequences": [],
@@ -2366,6 +2366,7 @@
           "globalRestrictions": "None",
           "executionTargetSource": "Selected Targets",
           "executionFlowMode": "Per Step",
+          "targetSlotName": "chosen",
           "selectionTiming": "Prompted",
           "selectionPromptKind": "FreezeFromZone",
           "suppressSummonedTargetsEffectsWhileOnField": false,
@@ -2424,8 +2425,85 @@
           }
         },
         {
+          "id": "freeze-target",
+          "isSubordinate": true,
+          "onSuccessEffectId": null,
+          "onFailureEffectId": null,
+          "runtimeEffectType": "Freeze Card",
+          "effectType": "Activated",
+          "timing": "On Summon",
+          "durationMode": "During Opponent Next Turn",
+          "passiveMode": "None",
+          "passiveReevaluation": null,
+          "passiveConsequences": [],
+          "keywordModifications": [],
+          "targetRange": "Any",
+          "isOptional": false,
+          "chakraCost": null,
+          "globalRestrictions": "None",
+          "executionTargetSource": "Chain Targets",
+          "executionFlowMode": "Per Step",
+          "chainTargetSlotName": "chosen",
+          "selectionTiming": "Upfront",
+          "selectionPromptKind": "FreezeFromZone",
+          "suppressSummonedTargetsEffectsWhileOnField": false,
+          "revealTimingMode": "Reveal Last",
+          "revealPostConditionRuleSet": null,
+          "revealPostConditionRestriction": null,
+          "revealPostConditionPredicate": null,
+          "executionCondition": null,
+          "attributeModifications": [],
+          "chakraAdjustments": [],
+          "summonCardFlips": [],
+          "faceStateLocks": [],
+          "moveCardActions": [],
+          "contextRules": [],
+          "targetRules": {
+            "operator": "Any",
+            "exactTargetCount": 1,
+            "minimumTargetCount": null,
+            "maximumTargetCount": null,
+            "autoSelectAllValidTargets": false,
+            "tributeComposition": null,
+            "rules": [
+              {
+                "scope": "Any",
+                "inZone": "Leader",
+                "locationSelector": {
+                  "kind": "Any",
+                  "supportSlotIndex": null
+                },
+                "tributeRole": null,
+                "exactSelectedTargetCount": null,
+                "minimumSelectedTargetCount": null,
+                "maximumSelectedTargetCount": null,
+                "restriction": {
+                  "predicates": [],
+                  "matchMode": "Any"
+                }
+              },
+              {
+                "scope": "Any",
+                "inZone": "Character Field",
+                "locationSelector": {
+                  "kind": "Any",
+                  "supportSlotIndex": null
+                },
+                "tributeRole": null,
+                "exactSelectedTargetCount": null,
+                "minimumSelectedTargetCount": null,
+                "maximumSelectedTargetCount": null,
+                "restriction": {
+                  "predicates": [],
+                  "matchMode": "Any"
+                }
+              }
+            ]
+          }
+        },
+        {
           "id": "reveal-top",
-          "isSubordinate": false,
+          "isSubordinate": true,
           "onSuccessEffectId": "freeze-target",
           "onFailureEffectId": null,
           "runtimeEffectType": "Reveal Card",
@@ -3074,6 +3152,7 @@
           "globalRestrictions": "None",
           "executionTargetSource": "Selected Targets",
           "executionFlowMode": "Atomic Chain",
+          "targetSlotName": "revealed",
           "suppressSummonedTargetsEffectsWhileOnField": false,
           "revealTimingMode": "Reveal First",
           "revealPostConditionRuleSet": {
@@ -3183,8 +3262,9 @@
           "isOptional": false,
           "chakraCost": null,
           "globalRestrictions": "None",
-          "executionTargetSource": "Selected Targets",
+          "executionTargetSource": "Chain Targets",
           "executionFlowMode": "Atomic Chain",
+          "chainTargetSlotName": "revealed",
           "suppressSummonedTargetsEffectsWhileOnField": false,
           "revealTimingMode": "Reveal Last",
           "revealPostConditionRuleSet": null,
@@ -3550,6 +3630,7 @@
           "globalRestrictions": "None",
           "executionTargetSource": "Selected Targets",
           "executionFlowMode": "Per Step",
+          "targetSlotName": "revealed",
           "suppressSummonedTargetsEffectsWhileOnField": false,
           "revealTimingMode": "Reveal First",
           "revealPostConditionRuleSet": {
@@ -3639,8 +3720,9 @@
           "isOptional": false,
           "chakraCost": null,
           "globalRestrictions": "None",
-          "executionTargetSource": "Selected Targets",
+          "executionTargetSource": "Chain Targets",
           "executionFlowMode": "Per Step",
+          "chainTargetSlotName": "revealed",
           "suppressSummonedTargetsEffectsWhileOnField": false,
           "revealTimingMode": "Reveal Last",
           "revealPostConditionRuleSet": null,
