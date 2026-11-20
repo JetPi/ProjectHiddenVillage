@@ -92,6 +92,42 @@ test.describe('GameView multiplayer action log', () => {
       await expect(summonEntry).toBeVisible()
       await expect(summonEntry).toContainText(/summoned/i)
 
+      // An entry is two rows: the actor pill and the phase share a header row, and the sentence gets the width below
+      // them. Sharing one row squeezed the sentence into a one-word column as soon as the phase name was long
+      // ("CHOOSE STARTING PLAYER"), so the text row has to fill the entry.
+      const entryRows = await summonEntry.evaluate((entry) => {
+        const entryBox = entry.getBoundingClientRect()
+        const header = entry.firstElementChild
+        const text = entry.lastElementChild
+        const textBox = text ? text.getBoundingClientRect() : null
+        return {
+          innerWidth: entryBox.width - Number.parseFloat(getComputedStyle(entry).paddingLeft) * 2,
+          textWidth: textBox?.width ?? 0,
+          textTop: textBox?.top ?? 0,
+          headerBottom: header ? header.getBoundingClientRect().bottom : 0,
+        }
+      })
+      expect(entryRows.textWidth).toBeGreaterThanOrEqual(entryRows.innerWidth - 2)
+      expect(entryRows.textTop).toBeGreaterThanOrEqual(entryRows.headerBottom - 1)
+
+      // Whichever metadata a row carries - the reason ("Turn Start") or the phase ("End Step") - it sits flush with the
+      // entry's right edge. One of them hugging the pill while the other sat at the far edge read as two kinds of row.
+      const metaRightGaps = await panel.evaluate((element) => Array.from(
+        element.querySelectorAll('[data-testid="action-log-entry"]'),
+      ).flatMap((entry) => {
+        const meta = entry.querySelector('[data-testid="action-log-details"], [data-testid="action-log-phase"]')
+        if (!meta) {
+          return []
+        }
+        const paddingRight = Number.parseFloat(getComputedStyle(entry).paddingRight)
+        return [Math.round((entry.getBoundingClientRect().right - paddingRight) - meta.getBoundingClientRect().right)]
+      }))
+      expect(metaRightGaps.length).toBeGreaterThan(0)
+      for (const gap of metaRightGaps) {
+        expect(gap, 'the entry metadata should be right-aligned').toBeLessThanOrEqual(2)
+        expect(gap, 'the entry metadata should be right-aligned').toBeGreaterThanOrEqual(-2)
+      }
+
       // Nothing the panel renders may carry an engine identifier. The audit message is only a development aid, so a
       // row showing a player or entry id means the phrasing path regressed. No row may claim a prompt was answered
       // either: reveals are acknowledged by the client, and the log has to say what happened instead.
