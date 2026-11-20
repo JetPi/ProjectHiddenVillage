@@ -69,7 +69,7 @@ function GamePromptOverlayPanel({
           )}
         >
           <div className="mb-2 text-center">
-            <h2 className="text-[length:var(--game-chrome-font-2xl)] font-semibold text-[var(--text-primary)]">{prompt.title}</h2>
+            <h2 className="text-[length:var(--game-dialog-font-2xl)] font-semibold text-[var(--text-primary)]">{prompt.title}</h2>
           </div>
 
           {visibleCandidates.length > 0 ? (
@@ -117,7 +117,7 @@ function GamePromptOverlayPanel({
                     onResolve(option.value)
                   }}
                   disabled={!isConnected || isActionPending}
-                  className="w-full justify-center text-[length:var(--game-chrome-font-xl)]"
+                  className="w-full justify-center text-[length:var(--game-dialog-font-xl)]"
                 >
                   {option.label}
                 </AppButton>
@@ -131,7 +131,7 @@ function GamePromptOverlayPanel({
             <p
               data-testid="prompt-reconnecting-note"
               role="status"
-              className="mt-3 text-center text-[length:var(--game-chrome-font-sm)] text-[var(--text-secondary)]"
+              className="mt-3 text-center text-[length:var(--game-dialog-font-sm)] text-[var(--text-secondary)]"
             >
               {t('game.prompt.reconnecting')}
             </p>

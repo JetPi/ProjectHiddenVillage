@@ -588,18 +588,27 @@ body[data-card-flight-active='true'] .card-drop-zone {
   --game-font-lg: calc(12 * var(--game-unit));
   --game-font-xl: calc(14 * var(--game-unit));
 
-  /* Chrome that lives *outside* the card frames - HUD panels, banners, dialogs - gets a small extra push on very
-     wide screens. In-card text must stay exactly proportional: its chips have widths derived from the unit, so a
-     boost there would start clipping labels. Dialog widths follow the same boost, so line length is unchanged. */
+  /* Fixed-position chrome - the HUD panels and the banners - scales with the unit and nothing else. It must NOT take
+     the wide-screen boost: its width is bounded by the viewport (the HUD's column plus the board's margin), so bigger
+     type without a bigger box is what crushed the chat panel and truncated "TIME RELAXED". Dialogs are different:
+     they own their width, so they take the boost and grow with it. */
   --game-type-boost: 1;
-  --game-chrome-font-2xs: calc(8 * var(--game-unit) * var(--game-type-boost));
-  --game-chrome-font-xs: calc(9 * var(--game-unit) * var(--game-type-boost));
-  --game-chrome-font-sm: calc(10 * var(--game-unit) * var(--game-type-boost));
-  --game-chrome-font-md: calc(11 * var(--game-unit) * var(--game-type-boost));
-  --game-chrome-font-lg: calc(12 * var(--game-unit) * var(--game-type-boost));
-  --game-chrome-font-xl: calc(14 * var(--game-unit) * var(--game-type-boost));
-  --game-chrome-font-2xl: calc(18 * var(--game-unit) * var(--game-type-boost));
-  --game-chrome-font-3xl: calc(30 * var(--game-unit) * var(--game-type-boost));
+  --game-chrome-font-2xs: calc(8 * var(--game-unit));
+  --game-chrome-font-xs: calc(9 * var(--game-unit));
+  --game-chrome-font-sm: calc(10 * var(--game-unit));
+  --game-chrome-font-md: calc(11 * var(--game-unit));
+  --game-chrome-font-lg: calc(12 * var(--game-unit));
+  --game-chrome-font-xl: calc(14 * var(--game-unit));
+  --game-chrome-font-2xl: calc(18 * var(--game-unit));
+  --game-chrome-font-3xl: calc(30 * var(--game-unit));
+  --game-dialog-font-2xs: calc(8 * var(--game-unit) * var(--game-type-boost));
+  --game-dialog-font-xs: calc(9 * var(--game-unit) * var(--game-type-boost));
+  --game-dialog-font-sm: calc(10 * var(--game-unit) * var(--game-type-boost));
+  --game-dialog-font-md: calc(11 * var(--game-unit) * var(--game-type-boost));
+  --game-dialog-font-lg: calc(12 * var(--game-unit) * var(--game-type-boost));
+  --game-dialog-font-xl: calc(14 * var(--game-unit) * var(--game-type-boost));
+  --game-dialog-font-2xl: calc(18 * var(--game-unit) * var(--game-type-boost));
+  --game-dialog-font-3xl: calc(30 * var(--game-unit) * var(--game-type-boost));
   --game-dialog-padding: calc(20 * var(--game-unit) * var(--game-type-boost));
   --game-dialog-gap: calc(8 * var(--game-unit) * var(--game-type-boost));
   --game-dialog-width-sm: min(calc(384 * var(--game-unit) * var(--game-type-boost)), calc(100vw - 2rem));
@@ -625,9 +634,10 @@ body[data-card-flight-active='true'] .card-drop-zone {
   --resource-rail-max-width: var(--game-rail-width);
   --game-sidebar-rail-width: calc(24 * var(--game-unit));
 
-  /* HUD width grows with the viewport width while its type grows with the height, so the panel keeps a similar
-     text-to-width ratio on a 1080p laptop and a 4K panel. */
-  --game-hud-width: clamp(252px, 14vw + 20px, 480px);
+  /* The HUD panel is a unit-sized box with a viewport cap: 252 units at any height, but never more than 15% of the
+     window. That keeps its text-to-width ratio (a 30px line inside ~576px on a 4K board is the same ~19-25 characters
+     a 10px line gets inside 252px at 720p) while the vw cap stops it from eating the board on an ultrawide. */
+  --game-hud-width: clamp(252px, calc(252 * var(--game-unit)), 15vw);
   --game-hud-gutter: 0px;
 
   /* The right-hand HUD shares one vertical budget: the support chain owns the top, the action log sits under it,

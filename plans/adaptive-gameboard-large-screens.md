@@ -66,8 +66,8 @@ Shipped tokens (confirmed by the large-screen spec):
 | `--game-gap` | `4px` | `4 * unit` | `6px` | `8px` | `12px` |
 | board-scope `--resource-rail-max-width` | `208px` | `208 * unit` | `312px` | `416px` | `624px` |
 | `--game-sidebar-rail-width` | `24px` | `24 * unit` | `36px` | `48px` | `72px` |
-| `--game-hud-width` | `252px` | `clamp(252px, 14vw + 20px, 480px)` | `289px` | `378px` | `480px` |
-| `--game-hud-gutter` | `0` | `hud width + 24px`, only at `min-width: 1600px` | `313px` | `402px` | `504px` |
+| `--game-hud-width` | `252px` | `clamp(252px, 252 * unit, 15vw)` | `288px` | `384px` | `576px` |
+| `--game-hud-gutter` | `0` | `hud width + 24px`, only at `min-width: 1600px` | `312px` | `408px` | `600px` |
 | `--gameboard-max-width` | `1050px` | tier caps `1400 / 1600 / 1900 / 3000px` at `1600 / 1920 / 2560 / 3200`, each trimmed by `min(..., 1417 * unit)` | cap | cap | cap |
 
 The unit's **reference is 720px tall, not the middle of the range**: it is `1px` at the smallest window the board is
@@ -94,12 +94,13 @@ The CSS viewport a 4K panel reports depends on the OS scale factor, and each cas
 
 | Display | CSS viewport | Unit | Type (`sm` HUD/label) | Board | Board share of width |
 | --- | --- | --- | --- | --- | --- |
-| 4K at 200% | 1920x1080 | `1.5` | `15px` | `1294px` | `67%` |
-| 4K at 150% | 2560x1440 | `2` | `20px` | `1755px` | `69%` |
-| 4K at 100% | 3840x2160 | `3` | `30px` | `2832px` | `74%` |
+| 4K at 200% | 1920x1080 | `1.5` | `15px` | `1296px` | `67%` |
+| 4K at 150% | 2560x1440 | `2` | `20px` | `1744px` | `68%` |
+| 4K at 100% | 3840x2160 | `3` | `30px` | `2640px` | `69%` |
 
-So yes, it escalates through 4K at every OS scale: the board grows from 1050px to 2832px on a 3840-wide window (74
-percent) and keeps about 500px of clear margin on both sides for the HUD, while a 10px label becomes 30px because the
+So yes, it escalates through 4K at every OS scale: the board grows from 1050px to 2640px on a 3840-wide window (69
+percent) and keeps 576px of clear margin on both sides for the HUD - a panel that grows with the type it holds instead
+of squeezing it - while a 10px label becomes 30px because the
 card it sits in became three times as tall. The knobs, in order of effect, are the unit's reference height (720px,
 which sets how *fast* the chrome grows), the reserved gutter (which sets the width), and the `3000px` tier cap.
 
@@ -211,8 +212,9 @@ surface, and [`cardPreloadService`](client/src/services/cardPreloadService.ts:10
 the window height so a laptop still warms the small rung and a 4K window warms the master.
 
 **Coverage** - [`gameview.large-screen-layout.spec.ts`](e2e/gameview.large-screen-layout.spec.ts:1) pins the rungs
-(1280x720 -> 1050px/10px, 1600x900 -> 1050px/12.5px at the breakpoint itself, 1920x1080 -> 1294px/15px,
-2560x1440 -> 1755px/20px, 3840x2160 -> 2832px/30px), asserts the board has equal margins on both sides at every rung,
+(1280x720 -> 1050px/10px, 1600x900 -> 1050px/12.5px at the breakpoint itself, 1920x1080 -> 1296px/15px,
+2560x1440 -> 1744px/20px, 3840x2160 -> 2640px/30px), asserts the HUD panel is 252/288/384/576px wide at those rungs,
+asserts the board has equal margins on both sides at every rung,
 stops short of the docked HUD, keeps the leader, pile and hand cards at the art's `200/277` ratio, and never scrolls
 sideways; [`gameview.chakra-scaling.spec.ts`](e2e/gameview.chakra-scaling.spec.ts:18) now measures the rail instead of
 assuming 137px, and asserts the rail itself grows with the window.
@@ -224,8 +226,10 @@ assuming 137px, and asserts the rail itself grows with the window.
    Matching it on the left keeps the play area centred, and the strip still has its own margin on the right.
 2. The reservation is capped at half the slack beyond 1050px, so the breakpoint never makes the board narrower than it
    was at 1599px - it grows into the reservation instead.
-3. The HUD panel's width is viewport-driven (`clamp(252px, 14vw + 20px, 480px)`) while its type is height-driven, so
-   the two ladders have separate knobs; at any 16:9 size they keep the same text-to-width ratio.
+3. The HUD panel is a unit-sized box with a viewport cap (`clamp(252px, 252 * unit, 15vw)`), so its type-to-width ratio
+   is preserved at every size; the fixed-position chrome (HUD and banners) deliberately does **not** take the
+   wide-screen type boost, because a boost without a matching box is what crushed the chat and truncated "TIME
+   RELAXED". Dialogs own their width, so they do take it (`--game-dialog-font-*` + `--game-dialog-width-*`).
 4. The unit's reference height is 720px, not 900px: a slower ladder than the row-height growth is exactly what made
    the first cut's 4K labels read as tiny inside cards that had tripled. The rail and pile cards were also losing
    their aspect ratio at 1080p and 4K for the same reason (the height-driven frame was width-clamped by a rail that
@@ -387,6 +391,13 @@ those components are handed, and one of them is genuinely broken:
   silently fell back to the body's 16px no matter how large the card got. Its width, gap, type, padding and radius are
   now computed from the board's resolved `--game-unit` at hover time and applied inline (176u wide, 10u type), which
   works from a portal - a 4K tooltip is 528px wide with 30px type instead of 176px holding 16px.
+- **HUD and banners are unit-sized boxes; dialogs take the boost.** The wide-screen type boost had also been applied to
+  the fixed-position chrome, whose box is viewport-bounded: the chat panel was 480px wide holding 37px text ("the chat
+  is smushed") and the modifiers pill 224px wide holding 27px ("TIME RELAX"). The HUD panel is now
+  `clamp(252px, 252 x unit, 15vw)`; it and the banners use the unboosted `--game-chrome-font-*` family, while the boost
+  moved to a separate `--game-dialog-font-*` family used only by dialogs and the card preview, which own their width.
+  The modifier badge, the three top banners and the chat's own paddings and gaps are unit multiples, so their boxes
+  grow with their text.
 - **The status rail clears the life badge.** [`LeaderCard`](client/src/components/ui/cards/LeaderCard.tsx:106) parked
   the rail at a fixed `bottom-8 right-1` while the life badge is a `24 x unit` square in the same corner, so at 4K the
   rail sat inside it - the "effect badge overlaps the life HUD" report. The rail, its chip gap and the non-leader rail

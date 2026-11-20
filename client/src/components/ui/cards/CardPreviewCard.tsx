@@ -133,13 +133,13 @@ export function CardPreviewCard({
                       >
                           <div className="shrink-0 border-b border-[var(--border-subtle)] pb-2 text-center">
                               <div className="flex items-center justify-center gap-2">
-                                  <h2 className="text-[length:var(--game-chrome-font-3xl)] font-black leading-tight text-[var(--text-primary)]">{primaryName}</h2>
-                                  <span className="self-end pb-0.5 text-[length:var(--game-chrome-font-xs)] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                                  <h2 className="text-[length:var(--game-dialog-font-3xl)] font-black leading-tight text-[var(--text-primary)]">{primaryName}</h2>
+                                  <span className="self-end pb-0.5 text-[length:var(--game-dialog-font-xs)] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">
                                       {card.type || t('components.ui.cardPreview.unknownType')}
                                   </span>
                               </div>
 
-                              <p className="mt-1 text-[length:var(--game-chrome-font-sm)] leading-relaxed text-[var(--text-secondary)]">
+                              <p className="mt-1 text-[length:var(--game-dialog-font-sm)] leading-relaxed text-[var(--text-secondary)]">
                                   {card.traits.length > 0 ? card.traits.join(' • ') : t('components.ui.cardPreview.noTraits')}
                               </p>
                           </div>
@@ -161,12 +161,12 @@ export function CardPreviewCard({
 
                           <div className="grid w-full grid-cols-3 gap-1.5">
                                   <p className="flex w-full flex-col items-center justify-center rounded-md border border-[var(--stat-pill-pow-border)] bg-[var(--stat-pill-pow-bg)] px-2.5 py-1 text-center leading-tight text-[var(--stat-pill-pow-text)]">
-                                      <span className="text-[length:var(--game-chrome-font-2xs)] font-medium tracking-wide">{t('components.ui.cardPreview.power')}</span>
-                                      <span className="text-[length:var(--game-chrome-font-sm)] font-semibold">{card.power}</span>
+                                      <span className="text-[length:var(--game-dialog-font-2xs)] font-medium tracking-wide">{t('components.ui.cardPreview.power')}</span>
+                                      <span className="text-[length:var(--game-dialog-font-sm)] font-semibold">{card.power}</span>
                                   </p>
                                   <p className="flex w-full flex-col items-center justify-center rounded-md border border-[var(--stat-pill-dmg-border)] bg-[var(--stat-pill-dmg-bg)] px-2.5 py-1 text-center leading-tight text-[var(--stat-pill-dmg-text)]">
-                                      <span className="text-[length:var(--game-chrome-font-2xs)] font-medium tracking-wide">{t('components.ui.cardPreview.damage')}</span>
-                                      <span className="text-[length:var(--game-chrome-font-sm)] font-semibold">{card.damage}</span>
+                                      <span className="text-[length:var(--game-dialog-font-2xs)] font-medium tracking-wide">{t('components.ui.cardPreview.damage')}</span>
+                                      <span className="text-[length:var(--game-dialog-font-sm)] font-semibold">{card.damage}</span>
                                   </p>
                                   <p className={twMerge(
                                       'flex w-full flex-col items-center justify-center rounded-md border px-2.5 py-1 text-center leading-tight',
@@ -174,11 +174,11 @@ export function CardPreviewCard({
                                           ? 'border-[var(--stat-pill-life-border)] bg-[var(--stat-pill-life-bg)] text-[var(--stat-pill-life-text)]'
                                           : 'border-[var(--stat-pill-hp-border)] bg-[var(--stat-pill-hp-bg)] text-[var(--stat-pill-hp-text)]',
                                   )}>
-                                      <span className="text-[length:var(--game-chrome-font-2xs)] font-medium tracking-wide">{vitalityLabel}</span>
-                                      <span className="text-[length:var(--game-chrome-font-sm)] font-semibold">{vitalityValue}</span>
+                                      <span className="text-[length:var(--game-dialog-font-2xs)] font-medium tracking-wide">{vitalityLabel}</span>
+                                      <span className="text-[length:var(--game-dialog-font-sm)] font-semibold">{vitalityValue}</span>
                                   </p>
 
-                              <p className="col-span-3 mt-2 text-[length:var(--game-chrome-font-md)] leading-relaxed text-[var(--text-secondary)] sm:mt-3">
+                              <p className="col-span-3 mt-2 text-[length:var(--game-dialog-font-md)] leading-relaxed text-[var(--text-secondary)] sm:mt-3">
                                   {descriptionContent}
                               </p>
                           </div>

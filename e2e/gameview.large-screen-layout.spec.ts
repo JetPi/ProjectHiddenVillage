@@ -21,14 +21,15 @@ import type { Page } from '@playwright/test'
  * card identical on a laptop and a 4K panel: 10px in a 78px pile card at 720p, 30px in a 234px one at 2160p.
  */
 const RUNGS = [
-  { width: 1280, height: 720, boardWidthPx: 1050, labelFontPx: 10, cardRadiusPx: 12, hudDocked: false },
+  { width: 1280, height: 720, boardWidthPx: 1050, labelFontPx: 10, cardRadiusPx: 12, hudWidthPx: 0, hudDocked: false },
   // The breakpoint itself: the reservation takes at most half of the slack beyond 1050px, so the board does not
   // snap narrower just because the HUD gutter started existing. The margin it leaves is already enough for the
   // 252px strip and its clearance, so the chat docks here too.
-  { width: 1600, height: 900, boardWidthPx: 1050, labelFontPx: 12.5, cardRadiusPx: 15, hudDocked: true },
-  { width: 1920, height: 1080, boardWidthPx: 1294, labelFontPx: 15, cardRadiusPx: 18, hudDocked: true },
-  { width: 2560, height: 1440, boardWidthPx: 1755, labelFontPx: 20, cardRadiusPx: 24, hudDocked: true },
-  { width: 3840, height: 2160, boardWidthPx: 2832, labelFontPx: 30, cardRadiusPx: 36, hudDocked: true },
+  // At 1600 the clamp's floor still wins (15vw is only 240), so the panel keeps its base width here.
+  { width: 1600, height: 900, boardWidthPx: 1050, labelFontPx: 12.5, cardRadiusPx: 15, hudWidthPx: 252, hudDocked: true },
+  { width: 1920, height: 1080, boardWidthPx: 1296, labelFontPx: 15, cardRadiusPx: 18, hudWidthPx: 288, hudDocked: true },
+  { width: 2560, height: 1440, boardWidthPx: 1744, labelFontPx: 20, cardRadiusPx: 24, hudWidthPx: 384, hudDocked: true },
+  { width: 3840, height: 2160, boardWidthPx: 2640, labelFontPx: 30, cardRadiusPx: 36, hudWidthPx: 576, hudDocked: true },
 ] as const
 
 const SIZE_TOLERANCE_PX = 2
@@ -42,9 +43,9 @@ const ASPECT_TOLERANCE = 0.02
 const HUD_BODY_MIN_PX: Record<string, number> = {
   '1280x720': 0,
   '1600x900': 12,
-  '1920x1080': 17,
-  '2560x1440': 22,
-  '3840x2160': 36,
+  '1920x1080': 14,
+  '2560x1440': 18,
+  '3840x2160': 26,
 }
 
 test.describe('GameView large-screen layout', () => {
@@ -64,14 +65,38 @@ test.describe('GameView large-screen layout', () => {
       const page = summonActor.actorPage
       const handCard = page.locator(`[data-testid="bottom-hand-card-${summonActor.cardInstanceId}"]`)
 
+      // Do the hovering *at 4K*: the report is that the options never appear on a big display, so the hand card's own
+      // controls have to fade in and sit inside the card before anything else is measured.
+      await page.setViewportSize({ width: 3840, height: 2160 })
+      await page.waitForTimeout(500)
+
       await handCard.hover()
+      await page.waitForTimeout(400)
+      const handOverlay = await handCard.evaluate((element) => {
+        const controls = element.querySelector('.card-overlay-controls')
+        const buttons = Array.from(element.querySelectorAll('.card-overlay-controls button'))
+        const cardRect = element.getBoundingClientRect()
+        const outside = buttons.filter((button) => {
+          const rect = button.getBoundingClientRect()
+
+          return rect.left < cardRect.left - 1 || rect.right > cardRect.right + 1
+        }).length
+
+        return {
+          opacity: controls ? Number.parseFloat(getComputedStyle(controls).opacity) : null,
+          buttonCount: buttons.length,
+          outsideCardCount: outside,
+        }
+      })
+      expect(handOverlay.opacity, 'the hand card options should fade in on hover at 4K').not.toBeNull()
+      expect(handOverlay.opacity!).toBeGreaterThan(0.5)
+      expect(handOverlay.buttonCount, 'the hand card should render its option chips at 4K').toBeGreaterThan(0)
+      expect(handOverlay.outsideCardCount, 'the option chips should stay inside the card at 4K').toBe(0)
+
       await handCard.getByRole('button', { name: /^summon$/i }).click()
 
       const fieldCard = page.locator('[data-zone="character-field-card"]').first()
       await expect(fieldCard).toBeVisible({ timeout: 15_000 })
-
-      await page.setViewportSize({ width: 3840, height: 2160 })
-      await page.waitForTimeout(500)
 
       // The card's own options must still appear on hover at 4K: the report was "no details, no game options" from a
       // running build, so this pins the layer rather than trusting the layout math.
@@ -342,6 +367,30 @@ test.describe('GameView large-screen layout', () => {
             hudBodyPx,
             `the HUD body text is too small at ${rung.width}x${rung.height}`,
           ).toBeGreaterThanOrEqual(HUD_BODY_MIN_PX[`${rung.width}x${rung.height}`] ?? 0)
+        }
+
+        // The HUD box must grow with the type it holds: a fixed 480px panel with 30px text is the "chat is smushed"
+        // report. Its width is `clamp(252px, 252 x unit, 15vw)`.
+        if (rung.hudDocked) {
+          const chatBox = await page.locator('[data-testid="game-chat-panel"]').first().boundingBox()
+          expect(chatBox, `the chat panel had no box at ${rung.width}x${rung.height}`).not.toBeNull()
+          const hudWidthToken = await page.evaluate(() => {
+            const surface = document.querySelector('[data-game-surface]')
+
+            return surface ? getComputedStyle(surface).getPropertyValue('--game-hud-width').trim() : ''
+          })
+          expect(
+            Math.abs(chatBox!.width - rung.hudWidthPx),
+            `the chat panel should be ${rung.hudWidthPx}px wide at ${rung.width}x${rung.height} `
+              + `(measured ${chatBox!.width}, token "${hudWidthToken}")`,
+          ).toBeLessThanOrEqual(2)
+        }
+
+        // The modifiers pill is width-capped; the cap has to follow the unit, or "TIME RELAXED" truncates.
+        const modifierPill = page.locator('[data-testid="game-match-modifier"] span').first()
+        if (await modifierPill.count() > 0) {
+          const pillFits = await modifierPill.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)
+          expect(pillFits, `the modifier pill should not truncate at ${rung.width}x${rung.height}`).toBe(true)
         }
 
         // The ladder is capped by the room the shell actually gives the board, so it must never overflow sideways.

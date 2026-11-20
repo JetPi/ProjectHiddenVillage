@@ -32,12 +32,13 @@ export function MatchModifierBadge({ modifiers }: IMatchModifierBadgeProps) {
   return (
     <div
       data-testid="game-match-modifier"
-      className="pointer-events-none fixed right-2 top-2 z-[300] flex w-max max-w-[min(14rem,45vw)] flex-col items-end gap-1"
+      // The pill's box has to grow with the unit too: at a fixed 224px a 27px label truncated to "TIME RELAX".
+      className="pointer-events-none fixed right-2 top-2 z-[300] flex w-max max-w-[min(45vw,calc(224*var(--game-unit)))] flex-col items-end gap-[var(--game-gap)]"
     >
       {modifierLabels.map((label) => (
         <span
           key={label}
-          className="inline-flex max-w-full items-center truncate rounded-full border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-2.5 py-1 text-[length:var(--game-chrome-font-xs)] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--text-primary)] shadow-lg ring-1 ring-black/25"
+          className="inline-flex max-w-full items-center truncate rounded-full border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-[calc(10*var(--game-unit))] py-[calc(4*var(--game-unit))] text-[length:var(--game-chrome-font-xs)] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--text-primary)] shadow-lg ring-1 ring-black/25"
         >
           {label}
         </span>
