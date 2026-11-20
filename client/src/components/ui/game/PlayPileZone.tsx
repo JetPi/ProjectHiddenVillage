@@ -137,7 +137,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                     data-testid="trash-pile-viewer-button"
                     aria-label={t('components.game.openTrashPile')}
                     onClick={onOpenTrashPile}
-                    className="absolute right-2 top-2 z-30 inline-flex h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80"
+                    className="absolute right-2 top-2 z-30 inline-flex h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80 [&_svg]:h-[calc(10*var(--game-unit))] [&_svg]:w-[calc(10*var(--game-unit))]"
                   >
                     <Eye size={10} />
                   </button>

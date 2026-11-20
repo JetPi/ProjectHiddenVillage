@@ -326,6 +326,22 @@ master's native 900px, which is the practical way to read art text the board can
 that case passes in the final green run, and the dialog type was also raised from the label scale to the body scale -
 `--game-chrome-font-xl`, i.e. 14px at unit 1 - so no dialog text got smaller than it was before.)
 
+## 12. App-screen scaling for the auth views
+
+The login view has the same problem the board had, for a different reason: it is entirely rem-based (`text-xs`,
+`max-w-*`, `p-*`), so on a 4K window the panel renders as a laptop-sized card in the middle of the screen.
+
+- [`PageShell`](client/src/components/layout/PageShell.tsx:5) gained an opt-in `scaleToViewport` prop. While such a
+  shell is mounted it sets `data-surface="app"` on `<html>` and removes it on unmount, so the scale is scoped to the
+  auth screens and never leaks into the game view's px-token ladder or the admin screens.
+- [`index.css`](client/src/index.css:157) then applies
+  `html[data-surface='app'] { font-size: clamp(16px, calc(0.55vw + 8.8px), 28px) }`: 16px at 1280 and below (so no
+  laptop, tablet or phone layout moves), ~19px at 1920, ~23px at 2560 and capped at 28px from ~3480 upwards. Because
+  every size on those pages is rem-based, type, paddings and the panel's `max-w-*` grow together.
+- [`app-large-screen-scaling.spec.ts`](e2e/app-large-screen-scaling.spec.ts:1) pins it: the root font is 16 at
+  1280x720, grows past 1.2x at 2560x1440 and keeps growing at 3840x2160 without passing the cap, the login panel's
+  control width follows it, and no rung introduces a horizontal scroll. The phone specs still pass untouched.
+
 ## 11. Card surface parity audit
 
 Answer to "are the big views using different components": **no**. Every board surface is the same component tree at
@@ -362,6 +378,19 @@ those components are handed, and one of them is genuinely broken:
 - **Chip padding scales.** The phase row's action chips used a fixed `px-1.5`, and the card action chips `px-1`/`py-0.5`
   around type that is 3x bigger at 4K, which is why labels looked like they touched the borders. Both are unit
   multiples now (6u horizontal, 2u vertical), and the phase row's gaps follow `--game-gap`.
+- **Icon glyphs scale with their boxes.** Lucide icons take a `size` *prop*, so they stayed 9-12px inside chips that
+  had grown three times: status chips (9u), the leader/non-leader/pile preview eyes (10u), the leader recovery flame
+  (10u), the action log's collapse control and the chat's send button (9u inside a 16u box), the game-over close (11u)
+  and the unread chat dot (6u) all scale now, via `[&_svg]` utilities on the buttons that own them.
+- **Status tooltips read at any size.** The tooltip is portalled to `document.body`, i.e. *outside*
+  `[data-game-surface]`, so none of the board's custom properties resolve there: its `text-[length:var(--game-font-sm)]`
+  silently fell back to the body's 16px no matter how large the card got. Its width, gap, type, padding and radius are
+  now computed from the board's resolved `--game-unit` at hover time and applied inline (176u wide, 10u type), which
+  works from a portal - a 4K tooltip is 528px wide with 30px type instead of 176px holding 16px.
+- **The status rail clears the life badge.** [`LeaderCard`](client/src/components/ui/cards/LeaderCard.tsx:106) parked
+  the rail at a fixed `bottom-8 right-1` while the life badge is a `24 x unit` square in the same corner, so at 4K the
+  rail sat inside it - the "effect badge overlaps the life HUD" report. The rail, its chip gap and the non-leader rail
+  and tribute-label offsets are unit multiples now, so the badge stays above the HUD at every size.
 
 Parity measured with a borderless probe at 1280x720 and 3840x2160 (card box, radius, image box, hover):
 

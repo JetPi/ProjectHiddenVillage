@@ -263,7 +263,7 @@ export function SideBarButtons(props: IGameZonesProps){
                 <span
                   data-testid="game-chat-unread"
                   aria-hidden="true"
-                  className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-orange-400"
+                  className="absolute -right-0.5 -top-0.5 h-[calc(6*var(--game-unit))] w-[calc(6*var(--game-unit))] rounded-full bg-orange-400"
                 />
               ) : null}
             </AppButton>

@@ -77,7 +77,7 @@ function GameOverOverlay({
           aria-label={t('game.outcome.reviewBoard')}
           title={t('game.outcome.reviewBoard')}
           onClick={onDismiss}
-          className="absolute right-2 top-2 inline-flex h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-[var(--text-secondary)] transition-[filter,color] hover:brightness-125 hover:text-[var(--text-primary)]"
+          className="absolute right-2 top-2 inline-flex h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-[var(--text-secondary)] transition-[filter,color] hover:brightness-125 hover:text-[var(--text-primary)] [&_svg]:h-[calc(11*var(--game-unit))] [&_svg]:w-[calc(11*var(--game-unit))]"
         >
           <X size={11} strokeWidth={2.5} />
         </button>

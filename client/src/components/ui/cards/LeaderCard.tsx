@@ -108,10 +108,12 @@ export function LeaderCard({
           <CardOverlayBadge className='text-green-300' testId='leader-life-badge'>{badgeValue}</CardOverlayBadge>
         ) : null}
 
+        {/* The rail sits above the life badge, which is a `24 x unit` square in the bottom-right corner. A fixed
+            `bottom-8` (32px) is inside that square at 4K - the "effect badge overlaps the life HUD" report. */}
         <CardStatusBadgeRail
           statusEffects={leaderCard.statusEffects}
           cannotAttackReason={battleRestrictionReason}
-          className='bottom-8 right-1 justify-end'
+          className='bottom-[calc(32*var(--game-unit))] right-[calc(4*var(--game-unit))] justify-end'
         />
 
         {previewCard && showPreviewButton && showOverlayControls ? (
@@ -120,7 +122,7 @@ export function LeaderCard({
               type="button"
               onClick={() => setIsPreviewOpen(true)}
               aria-label={t('components.ui.leaderCard.openDetails')}
-              className="inline-flex h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80"
+              className="inline-flex h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80 [&_svg]:h-[calc(10*var(--game-unit))] [&_svg]:w-[calc(10*var(--game-unit))]"
             >
               <Eye size={10} />
             </button>
@@ -191,7 +193,7 @@ export function LeaderCard({
               onClick={() => {
                 onSelectActionOption?.(recoveryAction.actionId)
               }}
-              className={isDisabled || !recoveryAction.isEnabled ? DISABLED_RECOVERY_CLASSNAME : ENABLED_RECOVERY_CLASSNAME}
+              className={`${isDisabled || !recoveryAction.isEnabled ? DISABLED_RECOVERY_CLASSNAME : ENABLED_RECOVERY_CLASSNAME} [&_svg]:h-[calc(10*var(--game-unit))] [&_svg]:w-[calc(10*var(--game-unit))]`}
             >
               <Flame size={10} />
             </button>

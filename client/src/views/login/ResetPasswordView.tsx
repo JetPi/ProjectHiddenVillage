@@ -27,7 +27,7 @@ export function ResetPasswordView() {
   const isSubmitting = navigation.state === 'submitting'
 
   return (
-    <PageShell scrollable>
+    <PageShell scrollable scaleToViewport>
       <div className="flex min-h-[80vh] w-full items-center justify-center px-3 sm:px-4">
         <Panel className="w-full max-w-md p-5">
           <h1 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">

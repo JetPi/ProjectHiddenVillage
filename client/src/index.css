@@ -154,6 +154,14 @@ html[data-theme='light'] {
   --resource-summon-lane-width: 3.9rem;
 }
 
+/* App screens that opt in through `PageShell scaleToViewport` (the auth views today) are rem-based end to end, so the
+ * root font size is the single lever that scales them: 16px at 1280 and below (no layout change for laptop windows or
+ * the phone specs), ~19px at 1920, ~23px at 2560 and capped at 28px from ~3480 upwards. The game view opts out and
+ * uses its own px-token ladder. */
+html[data-surface='app'] {
+  font-size: clamp(16px, 0.55vw + 8.8px, 28px);
+}
+
 @layer base {
   *,
   *::before,

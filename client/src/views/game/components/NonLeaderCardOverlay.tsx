@@ -55,8 +55,9 @@ function NonLeaderCardOverlay({
   // badges jump the moment a target pick started. The label moves above the rail instead, so the badges never do.
   // A tribute candidate has no rail at all, so the label drops to the bottom edge.
   const hasStatusRail = (card?.statusEffects.length ?? 0) > 0 && !isTributeTargetCandidate
-  const statusRailClassName = 'bottom-0.5 left-0.5'
-  const tributeLabelClassName = hasStatusRail ? 'bottom-6' : 'bottom-0'
+  // Unit-based offsets, so the rail keeps clear of the card's own damage chip and the tribute label at any size.
+  const statusRailClassName = 'bottom-[calc(2*var(--game-unit))] left-[calc(2*var(--game-unit))]'
+  const tributeLabelClassName = hasStatusRail ? 'bottom-[calc(24*var(--game-unit))]' : 'bottom-0'
 
   return (
     <>
@@ -94,7 +95,7 @@ function NonLeaderCardOverlay({
                 setIsCardPreviewOpen(true)
               }}
               aria-label={t('game.zone.openCardDetails')}
-              className="inline-flex h-5 w-5 items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80"
+              className="inline-flex h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] items-center justify-center rounded-sm border border-white/35 bg-black/65 text-white transition-colors duration-150 hover:bg-black/80 [&_svg]:h-[calc(10*var(--game-unit))] [&_svg]:w-[calc(10*var(--game-unit))]"
             >
               <Eye size={10} />
             </button>

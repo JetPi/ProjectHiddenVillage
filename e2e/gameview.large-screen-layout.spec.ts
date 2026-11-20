@@ -92,6 +92,35 @@ test.describe('GameView large-screen layout', () => {
       expect(overlay.chipCount, 'the battlefield card should render its option chips').toBeGreaterThan(0)
       expect(overlay.chipVisible, 'the battlefield card option chip should have a size').toBe(true)
 
+      // Status badges: the rail must clear the life badge under it, and its tooltip (portalled to the body, where the
+      // board's custom properties do not reach) must carry unit-sized type rather than the body's 16px.
+      const statusChip = page.locator('[data-zone="leader-card"] [data-status-effect="CannotAttack"]').first()
+      if (await statusChip.count() > 0) {
+        const rail = await page.locator('[data-zone="leader-card"] [data-testid="card-status-badges"]').first().boundingBox()
+        const lifeBadge = await page.locator('[data-zone="leader-card"] [data-testid="leader-life-badge"]').first().boundingBox()
+        expect(rail).not.toBeNull()
+        expect(lifeBadge).not.toBeNull()
+        if (rail && lifeBadge) {
+          expect(
+            rail.y + rail.height,
+            'the status rail should sit above the life badge, not over it',
+          ).toBeLessThanOrEqual(lifeBadge.y + 2)
+        }
+
+        await statusChip.hover()
+        const tooltip = page.locator('[data-testid="card-status-tooltip"]').first()
+        await expect(tooltip).toBeVisible({ timeout: 5_000 })
+        const tooltipMetrics = await tooltip.evaluate((element) => {
+          const style = getComputedStyle(element)
+
+          return { font: Number.parseFloat(style.fontSize), width: element.getBoundingClientRect().width }
+        })
+        expect(tooltipMetrics.font, 'the status tooltip type should scale with the board at 4K')
+          .toBeGreaterThanOrEqual(24)
+        expect(tooltipMetrics.width, 'the status tooltip should be wide enough for its type at 4K')
+          .toBeGreaterThanOrEqual(400)
+      }
+
       const box = await fieldCard.boundingBox()
       expect(box, 'the summoned card had no box').not.toBeNull()
       expect(
@@ -243,9 +272,14 @@ test.describe('GameView large-screen layout', () => {
         await page.waitForTimeout(400)
         const hover = await topLeader.evaluate((element) => {
           const float = element.querySelector('.card-overlay-float')
+          const icon = float?.querySelector('svg')
 
           return float
-            ? { opacity: Number.parseFloat(getComputedStyle(float).opacity), width: float.getBoundingClientRect().width }
+            ? {
+                opacity: Number.parseFloat(getComputedStyle(float).opacity),
+                width: float.getBoundingClientRect().width,
+                iconWidth: icon ? icon.getBoundingClientRect().width : 0,
+              }
             : null
         })
         if (hover !== null) {
@@ -253,6 +287,10 @@ test.describe('GameView large-screen layout', () => {
             .toBeGreaterThan(0.5)
           expect(hover.width, `the leader hover control should have a size at ${rung.width}x${rung.height}`)
             .toBeGreaterThan(0)
+          // The glyph inside the control has to scale with its box, not stay at 10px (the "icons are unreadable"
+          // report): it is 10 units, i.e. five sixths of the 12-unit card radius.
+          expect(hover.iconWidth, `the hover control icon should scale at ${rung.width}x${rung.height}`)
+            .toBeGreaterThan(rung.cardRadiusPx * 0.6)
         }
 
         // The leader's damage chip is deliberately narrower than tall; its width has to be a unit multiple too, or it

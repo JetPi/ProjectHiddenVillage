@@ -167,7 +167,7 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
               aria-pressed={isExpanded}
               disabled={!isExpanded && mustStepAside}
               onClick={() => setActionLogExpanded(!isExpanded)}
-              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border border-white/25 bg-white/10 text-white/85 transition-[filter] hover:brightness-125 disabled:opacity-40"
+              className="inline-flex h-[calc(16*var(--game-unit))] w-[calc(16*var(--game-unit))] shrink-0 items-center justify-center rounded border border-white/25 bg-white/10 text-white/85 transition-[filter] hover:brightness-125 disabled:opacity-40 [&_svg]:h-[calc(9*var(--game-unit))] [&_svg]:w-[calc(9*var(--game-unit))]"
             >
               {isExpanded ? <Minimize2 size={9} /> : <Maximize2 size={9} />}
             </button>
