@@ -312,7 +312,10 @@ function GameZones(props: IGameZonesProps) {
             />
           </div>
 
-          <div className="flex min-h-0 w-full justify-end pr-3">
+          {/* Both leader slots use the same shell: stretch the row height, hug the card (which is `w-fit`), and take
+              the same inset from the board's outer edge. The halves used to differ (a flex shrink-to-fit frame on
+              top, a full-width block below), which made the lower leader sit and clip differently. */}
+          <div className="flex min-h-0 w-full items-stretch justify-end px-[calc(8*var(--game-unit))]">
             <div
               className={twMerge(
                 props.topLeaderCardFrameClassName,
@@ -343,7 +346,7 @@ function GameZones(props: IGameZonesProps) {
           data-board-half="true"
           className="relative z-20 row-span-2 grid min-h-0 grid-cols-[var(--resource-rail-max-width)_minmax(0,1fr)_var(--resource-rail-max-width)] gap-[var(--game-gap)] rounded-xl p-0.5"
         >
-          <div className="min-h-0 w-full pl-2">
+          <div className="flex min-h-0 w-full items-stretch justify-start px-[calc(8*var(--game-unit))]">
             <div
               className={twMerge(
                 props.bottomLeaderCardFrameClassName,

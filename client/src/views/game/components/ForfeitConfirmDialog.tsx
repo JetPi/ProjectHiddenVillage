@@ -22,24 +22,24 @@ function ForfeitConfirmDialog({ isSubmitting, onCancel, onConfirm }: IForfeitCon
       aria-labelledby="forfeit-confirm-title"
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4"
     >
-      <Panel className="w-full max-w-sm p-6 text-center">
+      <Panel className="w-full max-w-[var(--game-dialog-width-sm)] p-[var(--game-dialog-padding)] text-center">
         <p
           id="forfeit-confirm-title"
-          className="text-xl font-extrabold uppercase tracking-[0.18em] text-rose-200"
+          className="text-[length:var(--game-chrome-font-2xl)] font-extrabold uppercase tracking-[0.18em] text-rose-200"
         >
           {t('game.forfeit.title')}
         </p>
 
-        <p className="mt-3 text-sm text-[var(--text-secondary)]">{t('game.forfeit.body')}</p>
+        <p className="mt-3 text-[length:var(--game-chrome-font-xl)] text-[var(--text-secondary)]">{t('game.forfeit.body')}</p>
 
-        <div className="mt-5 flex gap-2">
+        <div className="mt-5 flex gap-[var(--game-dialog-gap)]">
           <AppButton
             type="button"
             data-testid="forfeit-cancel-button"
             autoFocus
             disabled={isSubmitting}
             onClick={onCancel}
-            className="flex-1 justify-center"
+            className="flex-1 justify-center text-[length:var(--game-chrome-font-xl)]"
           >
             {t('game.forfeit.cancel')}
           </AppButton>
@@ -49,7 +49,7 @@ function ForfeitConfirmDialog({ isSubmitting, onCancel, onConfirm }: IForfeitCon
             data-testid="forfeit-confirm-button"
             disabled={isSubmitting}
             onClick={onConfirm}
-            className="flex-1 justify-center border-rose-400/60 bg-rose-600 text-white hover:bg-rose-500 disabled:hover:bg-rose-600"
+            className="flex-1 justify-center border-rose-400/60 bg-rose-600 text-[length:var(--game-chrome-font-xl)] text-white hover:bg-rose-500 disabled:hover:bg-rose-600"
           >
             {isSubmitting ? t('game.forfeit.resigning') : t('game.forfeit.confirm')}
           </AppButton>

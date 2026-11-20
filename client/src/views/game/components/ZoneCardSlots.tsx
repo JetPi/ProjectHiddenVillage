@@ -75,14 +75,14 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                 data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
                 data-slot-index={index}
                 disabled
-                className="h-full cursor-default rounded-lg"
+                className="h-full cursor-default rounded-[var(--game-radius-card,12px)]"
               >
                 <PlayCard
                   data-zone={zone}
                   data-slot-side={isCurrentPlayerZone ? 'bottom' : 'top'}
                   data-slot-index={index}
                   data-slot-card="true"
-                  className="h-full rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]"
+                  className="h-full rounded-[var(--game-radius-card,12px)] border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)]"
                 />
               </button>
             )
@@ -137,7 +137,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
               data-card-instance-id={card.instanceId}
               data-slot-card="true"
               className={twMerge(
-                'group relative h-full min-h-0 w-auto min-w-0 max-w-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
+                'group relative h-full min-h-0 w-auto min-w-0 max-w-full overflow-hidden rounded-[var(--game-radius-card,12px)] bg-[var(--surface-elevated)]',
                 zone === 'support' ? 'border-transparent' : 'border border-[var(--border-subtle)]',
                 visibilityFlags.shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
                 targetFlags.isBattleTarget ? getBattleTargetHighlightClass(isCurrentPlayerZone ? 'bottom' : 'top') : '',
@@ -156,7 +156,7 @@ export function RenderZoneCardSlots(data: IZoneCardSlotsProps) {
                   className={LEADER_CARD_IMAGE_CLASS}
                 />
               ) : (
-                <CardBack className="h-full w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
+                <CardBack className="h-full w-full rounded-[inherit] border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />
               )}
 
               {cardStateFlags.isConcealedSupportCard ? (

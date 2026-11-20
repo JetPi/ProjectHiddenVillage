@@ -10,8 +10,9 @@ import { CardStatusBadgeRail } from './CardStatusBadgeRail'
 const OVERLAY_VISIBILITY_CLASSNAME =
   'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
 
+// Unit-scaled padding, same reason as the leader's chips: 4px next to 24px type leaves no breathing room.
 const ACTION_CHIP_CLASSNAME =
-  'w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1 py-0.5 text-center text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
+  'w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-[calc(4*var(--game-unit))] py-[calc(2*var(--game-unit))] text-center text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60'
 
 function NonLeaderCardOverlay({
   previewCard,
@@ -61,7 +62,7 @@ function NonLeaderCardOverlay({
     <>
       {showZoneHud && card ? (
         <>
-          <CardOverlayBadge position="top-left" size='sm' className='w-4 text-red-900 bg-white'>{card.currentDamage}</CardOverlayBadge>
+          <CardOverlayBadge position="top-left" size='sm' className='w-[calc(16*var(--game-unit))] text-red-900 bg-white'>{card.currentDamage}</CardOverlayBadge>
           <CardOverlayBadge position="top-right" size='sm'>
             <span className="text-red-300">{card.currentPower}</span>:<span className="text-green-300">{card.currentHealth}</span>
           </CardOverlayBadge>
@@ -108,7 +109,7 @@ function NonLeaderCardOverlay({
                 onChooseTarget()
               }}
               disabled={!isConnected || isActionPending}
-              className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-[calc(6*var(--game-unit))] py-[calc(2*var(--game-unit))] text-center text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {t('game.zone.choose')}
             </button>
@@ -118,7 +119,7 @@ function NonLeaderCardOverlay({
               onClick={() => {
                 onToggleSummonTarget()
               }}
-              className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-1.5 py-0.5 text-center text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80"
+              className="w-fit max-w-full rounded-sm border border-white/35 bg-black/65 px-[calc(6*var(--game-unit))] py-[calc(2*var(--game-unit))] text-center text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.04em] text-white transition-colors duration-150 hover:bg-black/80"
             >
               {t('game.zone.tribute')}
             </button>
@@ -133,7 +134,7 @@ function NonLeaderCardOverlay({
               className={twMerge(
                 // Fixed width: "Select" and "Selected" used to resize the chip, so it shifted under the cursor
                 // on every toggle. The width is a multiple of the board unit so a scaled label still fits.
-                'w-[var(--game-chip-width)] max-w-full rounded-sm border px-1.5 py-0.5 text-center text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.04em] transition-colors duration-150',
+                'w-[var(--game-chip-width)] max-w-full rounded-sm border px-[calc(6*var(--game-unit))] py-[calc(2*var(--game-unit))] text-center text-[length:var(--game-font-2xs)] font-semibold uppercase tracking-[0.04em] transition-colors duration-150',
                 isEffectTargetSelected
                   ? 'border-amber-300/90 bg-amber-300/85 text-black hover:bg-amber-200'
                   : 'border-white/35 bg-black/65 text-white hover:bg-black/80',

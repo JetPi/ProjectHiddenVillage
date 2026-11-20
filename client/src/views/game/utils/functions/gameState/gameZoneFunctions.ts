@@ -273,7 +273,9 @@ function buildLeaderCardProps(
       'data-zone': 'leader-card',
       'data-slot-side': slotSide,
       className: twMerge(
-        'h-full transition-transform duration-300 ease-out origin-center',
+        // The card owns its corner and clips its own image; the frame around it must stay unpainted and unclipped so a
+        // rested leader's tilt and its attack outline are not cut. Rotating the card clips nothing of itself.
+        'h-full overflow-hidden rounded-[var(--game-radius-card,12px)] transition-transform duration-300 ease-out origin-center',
         isRested ? LEADER_RESTED_ROTATION_CLASS : 'rotate-0',
         shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
         isAttackLinkEndpoint ? 'attack-link-leader-outline' : '',

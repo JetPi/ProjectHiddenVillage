@@ -72,13 +72,13 @@ function GamePhaseActionRow({
 
   return (
     <div className="grid min-h-0 grid-cols-6">
-      <div className="col-span-6 flex min-h-0 min-w-0 items-stretch gap-1">
+      <div className="col-span-6 flex min-h-0 min-w-0 items-stretch gap-[var(--game-gap)]">
         <div
           className={`overflow-hidden transition-opacity duration-200 ease-out ${
             hasOptions ? 'max-w-[55%] opacity-100' : 'pointer-events-none max-w-0 opacity-0'
           }`}
         >
-          <div className="flex h-full w-max items-stretch gap-1 overflow-x-auto">
+          <div className="flex h-full w-max items-stretch gap-[var(--game-gap)] overflow-x-auto">
             {renderedActions.map(({ action, isUsable }) => (
               <button
                 key={action.actionId}
@@ -156,7 +156,7 @@ function GamePhaseActionRow({
 
         <div
           data-testid={phaseTestId}
-          className={`min-w-0 flex-1 rounded-md border border-[var(--border-subtle)] py-0.5 text-center transition-[max-width,transform,opacity] duration-300 ease-out ${phaseThemeClasses}`}
+          className={`min-w-0 flex-1 rounded-md border border-[var(--border-subtle)] py-[calc(2*var(--game-unit))] text-center transition-[max-width,transform,opacity] duration-300 ease-out ${phaseThemeClasses}`}
         >
           <span key={phaseValue} className="phase-indicator-text-swap inline-block text-[length:var(--game-font-lg)] font-extrabold leading-none">
             {translatePhaseValue(t, phaseValue)}

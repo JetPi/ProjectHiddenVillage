@@ -68,7 +68,7 @@ function GameOverOverlay({
       transition={OVERLAY_ENTER_SPRING}
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4"
     >
-      <Panel className="relative w-full max-w-sm p-6 text-center">
+      <Panel className="relative w-full max-w-[var(--game-dialog-width-sm)] p-[var(--game-dialog-padding)] text-center">
         {/* A corner affordance rather than a third action: dismissing means "take this off my board", so it stays
             small and out of the reading order of the result itself. */}
         <button
@@ -77,7 +77,7 @@ function GameOverOverlay({
           aria-label={t('game.outcome.reviewBoard')}
           title={t('game.outcome.reviewBoard')}
           onClick={onDismiss}
-          className="absolute right-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-[var(--text-secondary)] transition-[filter,color] hover:brightness-125 hover:text-[var(--text-primary)]"
+          className="absolute right-2 top-2 inline-flex h-[calc(20*var(--game-unit))] w-[calc(20*var(--game-unit))] items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-[var(--text-secondary)] transition-[filter,color] hover:brightness-125 hover:text-[var(--text-primary)]"
         >
           <X size={11} strokeWidth={2.5} />
         </button>
@@ -86,14 +86,14 @@ function GameOverOverlay({
           data-testid="game-over-headline"
           data-standing={presentation.standing}
           className={twMerge(
-            'text-3xl font-extrabold uppercase tracking-[0.2em]',
+            'text-[length:var(--game-chrome-font-3xl)] font-extrabold uppercase tracking-[0.2em]',
             HEADLINE_CLASS[presentation.standing],
           )}
         >
           {presentation.headline}
         </p>
 
-        <p data-testid="game-over-reason" className="mt-3 text-sm text-[var(--text-secondary)]">
+        <p data-testid="game-over-reason" className="mt-3 text-[length:var(--game-chrome-font-xl)] text-[var(--text-secondary)]">
           {presentation.reason}
         </p>
 
@@ -102,10 +102,10 @@ function GameOverOverlay({
             match is chosen. */}
         {isReserved ? (
           <div data-testid="rematch-reserved-note" className="mt-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-left">
-            <p className="text-xs font-semibold text-[var(--text-primary)]">
+            <p className="text-[length:var(--game-chrome-font-sm)] font-semibold text-[var(--text-primary)]">
               {t('game.rematch.reservedHeadline')}
             </p>
-            <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+            <p className="mt-1 text-[length:var(--game-chrome-font-xs)] text-[var(--text-secondary)]">
               {t('game.rematch.reservedHint', {
                 code: rematch?.reservedCode ?? '',
                 ruleset: rematch?.rulesetName ?? t('game.rematch.noRuleset'),
@@ -115,19 +115,19 @@ function GameOverOverlay({
         ) : null}
 
         {isDeclined ? (
-          <p data-testid="rematch-declined-note" className="mt-4 text-xs text-[var(--text-secondary)]">
+          <p data-testid="rematch-declined-note" className="mt-4 text-[length:var(--game-chrome-font-sm)] text-[var(--text-secondary)]">
             {t('game.rematch.declined')}
           </p>
         ) : null}
 
         {rematch && !isOwnOffer && !isReserved && !isDeclined ? (
-          <p data-testid="rematch-offer-note" className="mt-4 text-xs text-[var(--text-secondary)]">
+          <p data-testid="rematch-offer-note" className="mt-4 text-[length:var(--game-chrome-font-sm)] text-[var(--text-secondary)]">
             {t('game.rematch.incomingOffer')}
           </p>
         ) : null}
 
         {rematch && isOwnOffer && !isReserved && !isDeclined ? (
-          <p data-testid="rematch-waiting-note" className="mt-4 text-xs text-[var(--text-secondary)]">
+          <p data-testid="rematch-waiting-note" className="mt-4 text-[length:var(--game-chrome-font-sm)] text-[var(--text-secondary)]">
             {t('game.rematch.waitingForOpponent')}
           </p>
         ) : null}
@@ -135,18 +135,18 @@ function GameOverOverlay({
         {/* The other seat left the board. The offer is not hidden - it is still the answer to "play again", it just
             cannot go anywhere until they are back - so the control stays, grayed out, with the reason under it. */}
         {!isReserved && !opponentPresent ? (
-          <p data-testid="rematch-opponent-away-note" className="mt-4 text-xs text-[var(--text-secondary)]">
+          <p data-testid="rematch-opponent-away-note" className="mt-4 text-[length:var(--game-chrome-font-sm)] text-[var(--text-secondary)]">
             {t('game.rematch.opponentAway')}
           </p>
         ) : null}
 
-        <div className="mt-4 flex flex-col gap-2">
+        <div className="mt-4 flex flex-col gap-[var(--game-dialog-gap)]">
           {!isReserved && rematch && !isOwnOffer ? (
             <>
               <AppButton
                 type="button"
                 data-testid="rematch-accept-button"
-                className="w-full justify-center"
+                className="w-full justify-center text-[length:var(--game-chrome-font-xl)]"
                 disabled={isRematchBusy || !opponentPresent}
                 onClick={() => void runRematchAction(onAcceptRematch)}
               >
@@ -155,7 +155,7 @@ function GameOverOverlay({
               <AppButton
                 type="button"
                 data-testid="rematch-decline-button"
-                className="w-full justify-center"
+                className="w-full justify-center text-[length:var(--game-chrome-font-xl)]"
                 disabled={isRematchBusy}
                 onClick={() => void runRematchAction(onDeclineRematch)}
               >
@@ -168,7 +168,7 @@ function GameOverOverlay({
             <AppButton
               type="button"
               data-testid="rematch-offer-button"
-              className="w-full justify-center"
+              className="w-full justify-center text-[length:var(--game-chrome-font-xl)]"
               disabled={isRematchBusy || !opponentPresent}
               onClick={() => void runRematchAction(onRequestRematch)}
             >
@@ -180,7 +180,7 @@ function GameOverOverlay({
             <AppButton
               type="button"
               data-testid="rematch-withdraw-button"
-              className="w-full justify-center"
+              className="w-full justify-center text-[length:var(--game-chrome-font-xl)]"
               disabled={isRematchBusy}
               onClick={() => void runRematchAction(onDeclineRematch)}
             >
@@ -191,7 +191,7 @@ function GameOverOverlay({
           <AppButton
             type="button"
             data-testid="game-over-return-button"
-            className="w-full justify-center"
+            className="w-full justify-center text-[length:var(--game-chrome-font-xl)]"
             onClick={() => {
               void navigate('/')
             }}

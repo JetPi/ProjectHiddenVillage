@@ -72,7 +72,14 @@ function BattlefieldCardBody({
       data-slot-index={isDeparting ? undefined : index}
       data-card-instance-id={isDeparting ? undefined : card.instanceId}
       className={twMerge(
-        'group relative h-full w-full overflow-hidden rounded-lg bg-[var(--surface-elevated)]',
+        // Height-driven like every other card surface. `w-full` used to win over `PlayCard`'s aspect ratio, so the
+        // card was stretched to its flex share: invisible while the slot and the row happened to match at 720p,
+        // obvious once the rows grew. The row keeps its order and gap, the cards keep their shape.
+        //
+        // The height cap is what keeps five ratio-locked cards inside the row: `3.7` is five card widths plus their
+        // gaps expressed in card heights (`5 x 0.722` with a little breath), so a tall row bends the card height to
+        // the row's width instead of letting the fifth card spill into the resource rail.
+        'group relative h-[min(100%,calc((100cqw-4*var(--game-gap))/3.7))] w-auto max-w-full shrink-0 overflow-hidden rounded-[var(--game-radius-card,12px)] bg-[var(--surface-elevated)]',
         shouldDimRestedCard ? 'opacity-80 saturate-75' : '',
         isBattleTarget ? getBattleTargetHighlightClass(side) : '',
         isSummonTarget ? getSummonTargetHighlightClass(side) : '',
@@ -90,7 +97,7 @@ function BattlefieldCardBody({
           className={LEADER_CARD_IMAGE_CLASS}
         />
       ) : (
-        <CardBack className="h-full w-full rounded-lg bg-[var(--surface-elevated)]" />
+        <CardBack className="h-full w-full rounded-[inherit] bg-[var(--surface-elevated)]" />
       )}
 
       {isSelectedSummonTarget || isSelectedEffectTarget ? (
@@ -270,7 +277,9 @@ export function BattlefieldRow({ data }: { data: IBattleFieldRowProps }) {
     <div
       data-zone="character-field-row"
       data-slot-side={side}
-      className="flex h-full min-h-0 w-full items-center justify-start gap-5 overflow-visible rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5"
+      // An inline-size container so the card height cap above can measure the row's width. Deliberately not `size`:
+      // that would add block-size containment and change what the flight animations see.
+      className="flex h-full min-h-0 w-full items-center justify-start gap-[var(--game-gap)] overflow-visible rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-1.5 [container-type:inline-size]"
     >
       {data.cards.map((card, index) => (
         <BattlefieldCard key={`character-field-${card.instanceId}`} data={data} card={card} index={index} />

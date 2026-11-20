@@ -20,8 +20,8 @@ function isTrashLabel(label: string): boolean {
 export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', gameState, deckCardRef, trashCardRef, onOpenTrashPile }: IPlayPileZoneProps) {
   const { t } = useTranslation()
   const labeledPileCardClassName =
-    'h-full flex items-center justify-center text-center overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[length:var(--game-font-sm)]'
-  const deckPileCardClassName = 'h-full overflow-hidden rounded-lg'
+    'h-full flex items-center justify-center text-center overflow-hidden rounded-[var(--game-radius-card,12px)] border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[length:var(--game-font-sm)]'
+  const deckPileCardClassName = 'h-full overflow-hidden rounded-[var(--game-radius-card,12px)]'
   const columnCount = Math.max(labels.length, 1)
 
   const currentPlayer = gameState?.currentPlayer
@@ -110,7 +110,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                         variant="board"
                         sizes={CARD_SIZES.pileCard}
                         alt={t('components.game.revealedDeckCard.alt')}
-                        className="h-full w-full rounded-lg object-cover"
+                        className="h-full w-full rounded-[inherit] object-cover"
                       />
                     ) : null
                   }
@@ -121,7 +121,7 @@ export function PlayPileZone({ labels, side, className, cardBackTone = 'blue', g
                   variant="board"
                   sizes={CARD_SIZES.pileCard}
                   alt={t('components.game.trashCard.alt')}
-                  className="h-full w-full rounded-lg object-cover"
+                  className="h-full w-full rounded-[inherit] object-cover"
                 />
               ) : (
                 isDeckLabel(label)

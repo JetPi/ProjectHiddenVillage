@@ -61,19 +61,21 @@ function GamePromptOverlayPanel({
       >
         <Panel
           className={twMerge(
-            'w-full p-5',
-            visibleCandidates.length > 0 ? 'max-w-2xl' : 'max-w-sm',
+            // Same ladder as the board behind it: a starting-player question should not be the smallest text on a
+            // 4K screen. Width, padding and type all come from the surface's unit and the wide-screen type boost.
+            'w-full p-[var(--game-dialog-padding)]',
+            visibleCandidates.length > 0 ? 'max-w-[var(--game-dialog-width-2xl)]' : 'max-w-[var(--game-dialog-width-sm)]',
             isBoardInspectable && 'pointer-events-auto',
           )}
         >
           <div className="mb-2 text-center">
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">{prompt.title}</h2>
+            <h2 className="text-[length:var(--game-chrome-font-2xl)] font-semibold text-[var(--text-primary)]">{prompt.title}</h2>
           </div>
 
           {visibleCandidates.length > 0 ? (
             <div
               data-testid="prompt-card-options"
-              className="mt-4 grid max-h-[24rem] grid-cols-5 gap-2 overflow-y-auto themed-scrollbar"
+              className="mt-4 grid max-h-[calc(384*var(--game-unit))] grid-cols-5 gap-[var(--game-dialog-gap)] overflow-y-auto themed-scrollbar"
             >
               {visibleCandidates.map((card) => (
                 <button
@@ -103,7 +105,7 @@ function GamePromptOverlayPanel({
             </div>
           ) : (
             <div
-              className="mt-4 grid gap-2"
+              className="mt-4 grid gap-[var(--game-dialog-gap)]"
               style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
             >
               {prompt.options.map((option) => (
@@ -115,7 +117,7 @@ function GamePromptOverlayPanel({
                     onResolve(option.value)
                   }}
                   disabled={!isConnected || isActionPending}
-                  className="w-full justify-center"
+                  className="w-full justify-center text-[length:var(--game-chrome-font-xl)]"
                 >
                   {option.label}
                 </AppButton>
@@ -129,7 +131,7 @@ function GamePromptOverlayPanel({
             <p
               data-testid="prompt-reconnecting-note"
               role="status"
-              className="mt-3 text-center text-xs text-[var(--text-secondary)]"
+              className="mt-3 text-center text-[length:var(--game-chrome-font-sm)] text-[var(--text-secondary)]"
             >
               {t('game.prompt.reconnecting')}
             </p>

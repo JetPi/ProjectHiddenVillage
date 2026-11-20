@@ -117,7 +117,7 @@ export function CardImage({
         aria-label={resolvedFallbackLabel}
         data-testid="card-image-fallback"
         className={twMerge(
-          'relative grid min-h-0 min-w-0 place-items-center overflow-hidden rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)] text-center text-xs tracking-[0.08em] text-[var(--text-muted)]',
+          'relative grid min-h-0 min-w-0 place-items-center overflow-hidden rounded-[var(--game-radius-card,12px)] border border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)] text-center text-xs tracking-[0.08em] text-[var(--text-muted)]',
           className,
         )}
         style={{ width, height }}
@@ -131,7 +131,7 @@ export function CardImage({
           }}
           loading="lazy"
           decoding="async"
-          className="absolute inset-0 block h-full w-full rounded-xl object-cover"
+          className="absolute inset-0 block h-full w-full rounded-[inherit] object-cover"
         />
       </div>
     )
@@ -154,7 +154,9 @@ export function CardImage({
       decoding={decoding}
       fetchPriority={fetchPriority}
       onError={handleError}
-      className={twMerge('rounded-xl object-cover', className)}
+      // The radius is board-scaled inside the game view and the previous 12px everywhere else; card surfaces that
+      // want to follow their frame pass `rounded-[inherit]`.
+      className={twMerge('rounded-[var(--game-radius-card,12px)] object-cover', className)}
     />
   )
 }

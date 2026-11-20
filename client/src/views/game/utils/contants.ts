@@ -1,4 +1,3 @@
-import { CARD_ART_IMAGE_CLASS } from '@/components/ui/cards'
 import {
   DRAW_TO_HAND_REVEAL_DELAY_MS,
   DRAW_TO_HAND_STAGGER_MS,
@@ -22,8 +21,15 @@ const ATTACK_ARROW_LINE_FILTER = 'drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)) drop-s
 // declaration instead of two ladders that can drift apart.
 const GAMEBOARD_MAX_WIDTH_CLASS = 'max-w-[var(--gameboard-max-width)]'
 const GAMEBOARD_COLUMNS_CLASS = 'lg:grid-cols-[1.1fr_1.7fr_1.1fr]'
-const LEADER_CARD_FRAME_CLASS = 'relative h-full overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[length:var(--game-font-sm)]'
-const LEADER_CARD_IMAGE_CLASS = CARD_ART_IMAGE_CLASS
+// `w-fit` keeps the frame the size of the card instead of the width of the rail, so both leaders inset identically.
+// `overflow-visible` is deliberate: the frame used to clip a rested leader's 5 degree tilt and its attack outline.
+// `max-h` is the height at which the card is exactly as wide as its rail (208 units / 0.722 = 288 units). Without it
+// a taller half would ask for a wider leader than the rail can give and the card would be width-clamped out of shape.
+const LEADER_CARD_FRAME_CLASS = 'relative h-full w-fit max-w-full max-h-[calc(288*var(--game-unit))] shrink-0 overflow-visible rounded-[var(--game-radius-card,12px)] border border-[var(--border-subtle)] bg-[var(--surface-elevated)] text-[length:var(--game-font-sm)]'
+// Every board card image inherits its frame's radius instead of declaring one of its own: `CARD_ART_IMAGE_CLASS`'s
+// `rounded-none` used to be concatenated with a `rounded-lg`, which left the winner to Tailwind's utility order (the
+// square leader corner), and a fixed radius does not scale with the card either. `rounded-[inherit]` fixes both.
+const LEADER_CARD_IMAGE_CLASS = 'block h-full w-full rounded-[inherit] object-cover'
 
 // The right-hand HUD panels share one vertical budget.
 //

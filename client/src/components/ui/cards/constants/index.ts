@@ -40,8 +40,8 @@ export const CARD_SIZES = {
   promptTile: '(min-width: 640px) 124px, 92px',
   /** A row thumbnail in the trash/deck list overlay. */
   listRow: '56px',
-  /** The slide-in card preview panel. */
-  previewPanel: 'min(92vw, 22rem)',
+  /** The slide-in card preview panel: unit-scaled up to the master's native width. */
+  previewPanel: 'min(92vw, 900px)',
   /** Admin catalogue tile: the hover art preview. */
   adminTile: '(min-width: 1024px) 320px, 100vw',
   /** Admin catalogue tile thumbnail and the art picker preview. */

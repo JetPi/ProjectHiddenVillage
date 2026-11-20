@@ -567,7 +567,11 @@ body[data-card-flight-active='true'] .card-drop-zone {
 }
 
 [data-game-surface] {
-  --game-unit: clamp(1px, 0.1111dvh, 2.4px);
+  /* 1px at a 720px-tall window, i.e. the smallest window this board is designed for, and exactly proportional to the
+     window height above it. The reference has to be the *bottom* of the supported range, not its middle: the card
+     frames are row-height driven, so anything slower than the height growth leaves the labels smaller relative to
+     their card on a large screen than they are on a laptop - which is the "text looks tiny on 4K" report. */
+  --game-unit: clamp(1px, calc(100dvh / 720), 3px);
 
   --game-font-2xs: calc(8 * var(--game-unit));
   --game-font-xs: calc(9 * var(--game-unit));
@@ -576,21 +580,46 @@ body[data-card-flight-active='true'] .card-drop-zone {
   --game-font-lg: calc(12 * var(--game-unit));
   --game-font-xl: calc(14 * var(--game-unit));
 
+  /* Chrome that lives *outside* the card frames - HUD panels, banners, dialogs - gets a small extra push on very
+     wide screens. In-card text must stay exactly proportional: its chips have widths derived from the unit, so a
+     boost there would start clipping labels. Dialog widths follow the same boost, so line length is unchanged. */
+  --game-type-boost: 1;
+  --game-chrome-font-2xs: calc(8 * var(--game-unit) * var(--game-type-boost));
+  --game-chrome-font-xs: calc(9 * var(--game-unit) * var(--game-type-boost));
+  --game-chrome-font-sm: calc(10 * var(--game-unit) * var(--game-type-boost));
+  --game-chrome-font-md: calc(11 * var(--game-unit) * var(--game-type-boost));
+  --game-chrome-font-lg: calc(12 * var(--game-unit) * var(--game-type-boost));
+  --game-chrome-font-xl: calc(14 * var(--game-unit) * var(--game-type-boost));
+  --game-chrome-font-2xl: calc(18 * var(--game-unit) * var(--game-type-boost));
+  --game-chrome-font-3xl: calc(30 * var(--game-unit) * var(--game-type-boost));
+  --game-dialog-padding: calc(20 * var(--game-unit) * var(--game-type-boost));
+  --game-dialog-gap: calc(8 * var(--game-unit) * var(--game-type-boost));
+  --game-dialog-width-sm: min(calc(384 * var(--game-unit) * var(--game-type-boost)), calc(100vw - 2rem));
+  --game-dialog-width-lg: min(calc(512 * var(--game-unit) * var(--game-type-boost)), calc(100vw - 2rem));
+  --game-dialog-width-2xl: min(calc(672 * var(--game-unit) * var(--game-type-boost)), calc(100vw - 2rem));
+
   --game-icon-xs: calc(8 * var(--game-unit));
   --game-icon-sm: calc(10 * var(--game-unit));
   --game-icon-md: calc(12 * var(--game-unit));
   --game-gap: calc(4 * var(--game-unit));
+  /* Card corners scale with the card. A fixed 8/12px radius on a 510px-wide leader reads as a square corner next to
+     the same card on a laptop, which is exactly the "the big one lost its rounded corners" report. Every board card
+     frame takes this radius and every image inside inherits it, so a card rounds once at any size. */
+  --game-radius-card: calc(12 * var(--game-unit));
   --game-chip-width: calc(68 * var(--game-unit));
 
   /* The board's own rails: the resource column and the icon rail on its right edge. Overriding the global rail
      token here (rather than in :root) keeps every other view on its original 208px budget. */
-  --game-rail-width: calc(208 * var(--game-unit));
+  /* 224 units, not 208: the leader slot spends one unit-inset on each side, so the card itself still gets the 208
+     units it is sized for (`208 / 0.722 = 288` units of height). The old 208 rail clipped the leader once the zone
+     panel grew taller than four equal rows. */
+  --game-rail-width: calc(224 * var(--game-unit));
   --resource-rail-max-width: var(--game-rail-width);
   --game-sidebar-rail-width: calc(24 * var(--game-unit));
 
   /* HUD width grows with the viewport width while its type grows with the height, so the panel keeps a similar
      text-to-width ratio on a 1080p laptop and a 4K panel. */
-  --game-hud-width: clamp(252px, 14vw + 20px, 560px);
+  --game-hud-width: clamp(252px, 14vw + 20px, 480px);
   --game-hud-gutter: 0px;
 
   /* The right-hand HUD shares one vertical budget: the support chain owns the top, the action log sits under it,
@@ -610,13 +639,30 @@ body[data-card-flight-active='true'] .card-drop-zone {
 /* Board width ladder. Each rung is also trimmed by the 1417 x unit guard, which reads the same button from the
    other side: a 3440x1440 ultrawide is wide enough to stretch the play area to nearly 3000px, but its rows are
    still 1440-tall rows, so the guard keeps the board from spreading cards that stay 170px wide. */
+@media (min-width: 1920px) {
+  [data-game-surface] {
+    --game-type-boost: 1.15;
+  }
+}
+
+@media (min-width: 3200px) {
+  [data-game-surface] {
+    --game-type-boost: 1.25;
+  }
+}
+
 @media (min-width: 1600px) {
   [data-game-surface] {
     --gameboard-max-width: min(1400px, calc(1417 * var(--game-unit)));
     --game-hud-gutter: calc(var(--game-hud-width) + 24px);
-    /* The board is centred inside the space this leaves, not inside the viewport, so the docked HUD keeps its own
-       margin instead of hanging over the zones. */
-    padding-right: var(--game-hud-gutter);
+    /* Symmetric, not right-only: the HUD needs its column on the right, but reserving it on one side alone left the
+       board shoved against the left edge with all the slack behind the panels. Matching the reservation on the left
+       keeps `mx-auto` centring the play area in the window, and the docked HUD still has its own margin.
+       The reservation also never eats into the board's base width: it takes at most half of the slack the window
+       has beyond 1050px, so crossing this breakpoint grows the board smoothly instead of snapping it narrower than
+       the 1050px it had a pixel earlier. Below that point there is no room for the strip, and the measured dock
+       check in `useHasRoomForChatColumn` keeps the chat behind the sidebar button, exactly as it does at 1280px. */
+    padding-inline: min(var(--game-hud-gutter), calc((100vw - 1050px) / 2));
   }
 }
 

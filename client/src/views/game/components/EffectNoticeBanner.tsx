@@ -37,7 +37,7 @@ function EffectNoticeToast({ notice }: { notice: IEffectNoticeResponse }) {
       initial={{ opacity: 0, y: -6 }}
       animate={isExpired ? { opacity: 0, y: -6 } : { opacity: 1, y: 0 }}
       transition={isExpired ? OVERLAY_EXIT_TRANSITION : OVERLAY_ENTER_SPRING}
-      className="pointer-events-none fixed left-2 top-2 z-40 flex max-w-[min(60vw,24rem)] items-start gap-2 rounded-lg border border-amber-300/50 bg-slate-950/90 px-3 py-2 text-[length:var(--game-font-md)] font-semibold leading-tight text-amber-50 shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm"
+      className="pointer-events-none fixed left-2 top-2 z-40 flex max-w-[min(60vw,24rem)] items-start gap-2 rounded-lg border border-amber-300/50 bg-slate-950/90 px-3 py-2 text-[length:var(--game-chrome-font-md)] font-semibold leading-tight text-amber-50 shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm"
     >
       <span aria-hidden="true" className="shrink-0 text-amber-300">
         !

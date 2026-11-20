@@ -11,18 +11,18 @@ const FIXED_CARD_IDS = ['C-001', 'S-001']
  * Widest a board card is drawn, in CSS px, at the base unit. The leader card is the largest surface and it lives in
  * the resource rail, so the rail's 208px budget is what caps it; every other card is narrower.
  *
- * The rail is a multiple of `--game-unit` (`index.css`), which tracks the window height from 1x to 2.4x, so the
+ * The rail is a multiple of `--game-unit` (`index.css`), which tracks the window height from 1x to 3x, so the
  * preloader resolves the same factor here: a laptop keeps warming the small step while a 4K window warms the master.
  */
 const BASE_WIDEST_BOARD_CARD_CSS_PX = 208
-const UNIT_REFERENCE_VIEWPORT_HEIGHT_PX = 900
-const MAX_GAME_UNIT = 2.4
+const UNIT_REFERENCE_VIEWPORT_HEIGHT_PX = 720
+const MAX_GAME_UNIT = 3
 
 /** Past 3x there is nothing left to gain: the ladder's widest step is the master. */
 const MAX_PRELOAD_PIXEL_RATIO = 3
 
 /**
- * The board's unit as the CSS resolves it: `clamp(1, viewport height / 900, 2.4)`.
+ * The board's unit as the CSS resolves it: `clamp(1, viewport height / 720, 3)`.
  *
  * Kept in step with `[data-game-surface] { --game-unit }` by hand - both are three numbers, and reading the CSS
  * property here would need a mounted surface for a preload that can run before the board paints.
