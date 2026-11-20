@@ -35,17 +35,17 @@ function RedoConsentDialog({ isOpen, onRespond }: IRedoConsentDialogProps) {
       aria-labelledby="redo-consent-title"
       className="fixed inset-0 z-[400] flex items-start justify-center bg-black/70 px-4 pt-[18vh]"
     >
-      <Panel className="w-full max-w-sm p-6 text-center">
+      <Panel className="w-full max-w-[var(--game-dialog-width-sm)] p-[var(--game-dialog-padding)] text-center">
         <p
           id="redo-consent-title"
-          className="text-lg font-semibold text-[var(--text-primary)]"
+          className="text-[length:var(--game-dialog-font-2xl)] font-semibold text-[var(--text-primary)]"
         >
           {t('game.redo.requestTitle')}
         </p>
 
-        <p className="mt-3 text-sm text-[var(--text-secondary)]">{t('game.redo.requestBody')}</p>
+        <p className="mt-3 text-[length:var(--game-dialog-font-xl)] text-[var(--text-secondary)]">{t('game.redo.requestBody')}</p>
 
-        <div className="mt-5 flex gap-2">
+        <div className="mt-5 flex gap-[var(--game-dialog-gap)]">
           <AppButton
             type="button"
             data-testid="redo-decline-button"
@@ -54,7 +54,7 @@ function RedoConsentDialog({ isOpen, onRespond }: IRedoConsentDialogProps) {
             onClick={() => {
               void respond(false)
             }}
-            className="flex-1 justify-center"
+            className="flex-1 justify-center text-[length:var(--game-dialog-font-xl)]"
           >
             {t('game.redo.decline')}
           </AppButton>
@@ -66,7 +66,7 @@ function RedoConsentDialog({ isOpen, onRespond }: IRedoConsentDialogProps) {
             onClick={() => {
               void respond(true)
             }}
-            className="flex-1 justify-center border-amber-300/60 bg-amber-500 text-slate-950 hover:bg-amber-400 disabled:hover:bg-amber-500"
+            className="flex-1 justify-center border-amber-300/60 bg-amber-500 text-[length:var(--game-dialog-font-xl)] text-slate-950 hover:bg-amber-400 disabled:hover:bg-amber-500"
           >
             {isAnswering ? t('game.redo.answering') : t('game.redo.accept')}
           </AppButton>

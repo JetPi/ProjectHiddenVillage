@@ -66,6 +66,19 @@ test.describe('GameView multiplayer action log', () => {
       await expect(panel).toBeVisible()
       await expect(panel).toHaveAttribute('data-mode', 'compact')
 
+      // The compact column shares the right edge with the sidebar rail on this viewport, so the panel has to win the
+      // stacking contest: the log is what the reader just opened, and it may not sit behind the icons it covers.
+      const railToggleBox = await logToggle.boundingBox()
+      expect(railToggleBox).not.toBeNull()
+      const topmostAtRailToggle = await actorPage.evaluate(({ x, y }) => {
+        const hit = document.elementFromPoint(x, y)
+        return hit !== null && hit.closest('[data-testid="action-log-panel"]') !== null
+      }, {
+        x: railToggleBox!.x + railToggleBox!.width / 2,
+        y: railToggleBox!.y + railToggleBox!.height / 2,
+      })
+      expect(topmostAtRailToggle).toBe(true)
+
       // The compact panel is an overlay beside the board: it must not resize the board, whose geometry the attack
       // links and card flights are anchored to.
       const boardAfterOpen = await gameBoard.boundingBox()
@@ -78,6 +91,42 @@ test.describe('GameView multiplayer action log', () => {
         .last()
       await expect(summonEntry).toBeVisible()
       await expect(summonEntry).toContainText(/summoned/i)
+
+      // An entry is two rows: the actor pill and the phase share a header row, and the sentence gets the width below
+      // them. Sharing one row squeezed the sentence into a one-word column as soon as the phase name was long
+      // ("CHOOSE STARTING PLAYER"), so the text row has to fill the entry.
+      const entryRows = await summonEntry.evaluate((entry) => {
+        const entryBox = entry.getBoundingClientRect()
+        const header = entry.firstElementChild
+        const text = entry.lastElementChild
+        const textBox = text ? text.getBoundingClientRect() : null
+        return {
+          innerWidth: entryBox.width - Number.parseFloat(getComputedStyle(entry).paddingLeft) * 2,
+          textWidth: textBox?.width ?? 0,
+          textTop: textBox?.top ?? 0,
+          headerBottom: header ? header.getBoundingClientRect().bottom : 0,
+        }
+      })
+      expect(entryRows.textWidth).toBeGreaterThanOrEqual(entryRows.innerWidth - 2)
+      expect(entryRows.textTop).toBeGreaterThanOrEqual(entryRows.headerBottom - 1)
+
+      // Whichever metadata a row carries - the reason ("Turn Start") or the phase ("End Step") - it sits flush with the
+      // entry's right edge. One of them hugging the pill while the other sat at the far edge read as two kinds of row.
+      const metaRightGaps = await panel.evaluate((element) => Array.from(
+        element.querySelectorAll('[data-testid="action-log-entry"]'),
+      ).flatMap((entry) => {
+        const meta = entry.querySelector('[data-testid="action-log-details"], [data-testid="action-log-phase"]')
+        if (!meta) {
+          return []
+        }
+        const paddingRight = Number.parseFloat(getComputedStyle(entry).paddingRight)
+        return [Math.round((entry.getBoundingClientRect().right - paddingRight) - meta.getBoundingClientRect().right)]
+      }))
+      expect(metaRightGaps.length).toBeGreaterThan(0)
+      for (const gap of metaRightGaps) {
+        expect(gap, 'the entry metadata should be right-aligned').toBeLessThanOrEqual(2)
+        expect(gap, 'the entry metadata should be right-aligned').toBeGreaterThanOrEqual(-2)
+      }
 
       // Nothing the panel renders may carry an engine identifier. The audit message is only a development aid, so a
       // row showing a player or entry id means the phrasing path regressed. No row may claim a prompt was answered
@@ -97,7 +146,7 @@ test.describe('GameView multiplayer action log', () => {
       }
 
       // Expanding is the panel's own affordance. An outside click returns it to the compact column - the log stays
-      // open, because only the board's button closes it.
+      // open, because only a close control closes it.
       await panel.locator('[data-testid="action-log-expand"]').click()
       await expect(panel).toHaveAttribute('data-mode', 'expanded')
 
@@ -105,8 +154,18 @@ test.describe('GameView multiplayer action log', () => {
       await expect(panel).toHaveAttribute('data-mode', 'compact')
       await expect(panel).toBeVisible()
 
-      // The board's log button is the only open/close affordance: the panel itself only expands and collapses.
+      // Covering the rail means burying its log toggle, so the panel carries its own X: without it the reader would
+      // have no way back out of a log they opened by accident.
+      const panelClose = panel.locator('[data-testid="action-log-close"]')
+      await expect(panelClose).toBeVisible()
+      await panelClose.click()
+      await expect(panel).toBeHidden()
+
+      // With the panel gone the rail's own control is hit-testable again, and it still toggles both ways.
+      await expect(logToggle).toBeVisible()
       await logToggle.click()
+      await expect(panel).toBeVisible()
+      await panel.locator('[data-testid="action-log-close"]').click()
       await expect(panel).toBeHidden()
     } finally {
       await closeMultiplayerPages(pages)

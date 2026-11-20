@@ -10,8 +10,10 @@ function isTurnAdvanceActionId(actionId: string): boolean {
   return turnAdvanceActionIds.has(actionId)
 }
 
+// Horizontal padding is a unit multiple so the chip keeps the same breathing room at 12px and at 36px type; the
+// fixed `px-1.5` read as text touching the border on a 4K board.
 const phaseActionChipClassName =
-  'h-full shrink-0 whitespace-nowrap rounded-md border border-[var(--border-subtle)] px-1.5 text-[10px] font-extrabold leading-none transition-[color,background-color,filter] duration-300 ease-out enabled:hover:brightness-120'
+  'h-full shrink-0 whitespace-nowrap rounded-md border border-[var(--border-subtle)] px-[calc(6*var(--game-unit))] text-[length:var(--game-font-sm)] font-extrabold leading-none transition-[color,background-color,filter] duration-300 ease-out enabled:hover:brightness-120'
 
 const invertedPhaseThemeClassByPhaseTheme: Record<string, string> = {
   'turn-indicator-orange turn-indicator-text-light-theme': 'turn-indicator-inverted-orange',

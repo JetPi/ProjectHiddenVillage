@@ -195,7 +195,9 @@ export function mapActionToHubIntent(
 }
 
 function buildLeaderCardFrameClass(baseClassName: string, hasCard: boolean): string {
-  return `${baseClassName} ${hasCard ? 'border-transparent' : ''}`.trim()
+  // With a card the frame must paint nothing at all: it no longer clips, so its own border/background would show as a
+  // rim around the rounded card. Without a card it is the placeholder box, and keeps both.
+  return `${baseClassName} ${hasCard ? 'border-transparent bg-transparent' : ''}`.trim()
 }
 
 export {

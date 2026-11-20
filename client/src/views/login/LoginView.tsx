@@ -1545,7 +1545,7 @@ export function LoginView() {
   }
 
   return (
-    <PageShell scrollable>
+    <PageShell scrollable scaleToViewport>
       <div className="grid w-full grid-cols-1 gap-4 px-2 sm:px-4">
         {/* The other player agreed to another match: this banner is the reason the join form arrived filled in, and
             it stays until the table is claimed so the player knows which code they are sitting down at. */}

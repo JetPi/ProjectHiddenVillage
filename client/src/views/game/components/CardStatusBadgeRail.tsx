@@ -81,9 +81,29 @@ const STATUS_ORDER: TCardStatusEffectKind[] = [
 
 // The tooltip is portalled to the body: the card is `overflow-hidden`, so anything positioned inside it would be
 // clipped at the card edge, and the hover overlay sits at z-20 above the rail.
-const TOOLTIP_WIDTH_PX = 176
-const TOOLTIP_GAP_PX = 6
+//
+// Both numbers are *base* values at unit 1 and are scaled by the board's unit at hover time. A fixed 176px tooltip
+// holding 30px type on a 4K board is unreadable, and the same applies to the chip glyph, which is sized by CSS below.
+const BASE_TOOLTIP_WIDTH_PX = 176
+const BASE_TOOLTIP_GAP_PX = 6
+const BASE_TOOLTIP_FONT_PX = 10
 const VIEWPORT_MARGIN_PX = 8
+
+/** The board's resolved unit (`1px` outside the game view), so the tooltip scales with the card it belongs to. */
+function resolveGameUnit(): number {
+  if (typeof document === 'undefined') {
+    return 1
+  }
+
+  const surface = document.querySelector('[data-game-surface]')
+  if (!surface) {
+    return 1
+  }
+
+  const unit = Number.parseFloat(getComputedStyle(surface).getPropertyValue('--game-unit'))
+
+  return Number.isFinite(unit) && unit > 0 ? unit : 1
+}
 
 // A status appears and disappears on a state push, which reads as a pop when the chip is mounted and unmounted
 // outright. Entering fades the chip up from a slightly smaller size and leaving fades it back down; both are short
@@ -115,19 +135,33 @@ function StatusChip({ kind, label, detail, shouldReduceMotion }: IStatusChipProp
     setAnchorRect(element.getBoundingClientRect())
   }
 
-  const tooltipStyle = anchorRect === null
-    ? null
-    : {
-        left: Math.max(
-          VIEWPORT_MARGIN_PX,
-          Math.min(
-            anchorRect.left + anchorRect.width / 2 - TOOLTIP_WIDTH_PX / 2,
-            window.innerWidth - TOOLTIP_WIDTH_PX - VIEWPORT_MARGIN_PX,
-          ),
+  const tooltipStyle = (() => {
+    if (anchorRect === null) {
+      return null
+    }
+
+    const unit = resolveGameUnit()
+    const tooltipWidth = BASE_TOOLTIP_WIDTH_PX * unit
+
+    // The tooltip is portalled to the body, i.e. *outside* `[data-game-surface]`, so none of the board's custom
+    // properties resolve here - `text-[length:var(--game-font-sm)]` silently fell back to the body's 16px. Its type,
+    // padding, radius and gap are therefore computed from the measured unit and set inline.
+    return {
+      left: Math.max(
+        VIEWPORT_MARGIN_PX,
+        Math.min(
+          anchorRect.left + anchorRect.width / 2 - tooltipWidth / 2,
+          window.innerWidth - tooltipWidth - VIEWPORT_MARGIN_PX,
         ),
-        top: anchorRect.top - TOOLTIP_GAP_PX,
-        width: TOOLTIP_WIDTH_PX,
-      }
+      ),
+      top: anchorRect.top - BASE_TOOLTIP_GAP_PX * unit,
+      width: tooltipWidth,
+      fontSize: `${BASE_TOOLTIP_FONT_PX * unit}px`,
+      lineHeight: 1.25,
+      padding: `${4 * unit}px ${8 * unit}px`,
+      borderRadius: `${8 * unit}px`,
+    }
+  })()
 
   return (
     <>
@@ -155,7 +189,9 @@ function StatusChip({ kind, label, detail, shouldReduceMotion }: IStatusChipProp
           setAnchorRect(null)
         }}
         className={twMerge(
-          'pointer-events-auto inline-flex h-4 w-4 items-center justify-center rounded-sm border border-white/40 text-white shadow-sm backdrop-blur-[1px]',
+          // The box scales with the unit, so the lucide glyph has to as well; a 9px icon inside a 48px chip is the
+          // "icons are unreadable" report.
+          'pointer-events-auto inline-flex h-[calc(16*var(--game-unit))] w-[calc(16*var(--game-unit))] items-center justify-center rounded-sm border border-white/40 text-white shadow-sm backdrop-blur-[1px] [&_svg]:h-[calc(9*var(--game-unit))] [&_svg]:w-[calc(9*var(--game-unit))]',
           'hover:border-white/80 hover:brightness-110 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white',
           badge.chipClassName,
         )}
@@ -174,9 +210,15 @@ function StatusChip({ kind, label, detail, shouldReduceMotion }: IStatusChipProp
                 left: `${tooltipStyle.left}px`,
                 top: `${tooltipStyle.top}px`,
                 width: `${tooltipStyle.width}px`,
+                // Type, padding and radius come from `tooltipStyle` (see above): custom properties do not reach a
+                // body portal.
+                fontSize: tooltipStyle.fontSize,
+                lineHeight: tooltipStyle.lineHeight,
+                padding: tooltipStyle.padding,
+                borderRadius: tooltipStyle.borderRadius,
                 transform: 'translateY(-100%)',
               }}
-              className="pointer-events-none z-[70] rounded-md border border-white/25 bg-slate-950/95 px-2 py-1 text-[10px] leading-tight text-white shadow-lg"
+              className="pointer-events-none z-[70] border border-white/25 bg-slate-950/95 text-white shadow-lg"
             >
               <span className="block font-extrabold uppercase tracking-[0.06em]">{label}</span>
               <span className="mt-0.5 block text-white/80">{detail}</span>
@@ -273,7 +315,7 @@ function CardStatusBadgeRail({
       aria-label={t('game.zone.status.railAria')}
       data-testid="card-status-badges"
       className={twMerge(
-        'card-status-badges absolute z-30 flex items-center gap-0.5',
+        'card-status-badges absolute z-30 flex items-center gap-[calc(2*var(--game-unit))]',
         className,
       )}
     >

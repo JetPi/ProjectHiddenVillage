@@ -8,6 +8,7 @@ export function PageShell({
   fullBleed = false,
   edgeToEdge = false,
   scrollable = false,
+  scaleToViewport = false,
   className = '',
   overlayClassName = '',
   backgroundClassName,
@@ -23,6 +24,22 @@ export function PageShell({
   useEffect(() => {
     initializeTheme()
   }, [initializeTheme])
+
+  // The auth screens are rem-based end to end, so growing the root font size is the one lever that scales the whole
+  // page - headings, labels, paddings and the `max-w-*` panel widths together. The attribute is scoped to this shell's
+  // lifetime, so navigating to the game view removes it and its px-token ladder is unaffected.
+  useEffect(() => {
+    if (!scaleToViewport) {
+      return
+    }
+
+    const root = document.documentElement
+    root.dataset.surface = 'app'
+
+    return () => {
+      delete root.dataset.surface
+    }
+  }, [scaleToViewport])
 
   return (
     <div

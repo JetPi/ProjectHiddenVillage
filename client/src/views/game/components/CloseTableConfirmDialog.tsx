@@ -23,24 +23,24 @@ function CloseTableConfirmDialog({ isSubmitting, onCancel, onConfirm }: ICloseTa
       aria-labelledby="close-table-confirm-title"
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4"
     >
-      <Panel className="w-full max-w-sm p-6 text-center">
+      <Panel className="w-full max-w-[var(--game-dialog-width-sm)] p-[var(--game-dialog-padding)] text-center">
         <p
           id="close-table-confirm-title"
-          className="text-xl font-extrabold uppercase tracking-[0.18em] text-amber-200"
+          className="text-[length:var(--game-dialog-font-2xl)] font-extrabold uppercase tracking-[0.18em] text-amber-200"
         >
           {t('game.closeTable.title')}
         </p>
 
-        <p className="mt-3 text-sm text-[var(--text-secondary)]">{t('game.closeTable.body')}</p>
+        <p className="mt-3 text-[length:var(--game-dialog-font-xl)] text-[var(--text-secondary)]">{t('game.closeTable.body')}</p>
 
-        <div className="mt-5 flex gap-2">
+        <div className="mt-5 flex gap-[var(--game-dialog-gap)]">
           <AppButton
             type="button"
             data-testid="close-table-cancel-button"
             autoFocus
             disabled={isSubmitting}
             onClick={onCancel}
-            className="flex-1 justify-center"
+            className="flex-1 justify-center text-[length:var(--game-dialog-font-xl)]"
           >
             {t('game.closeTable.cancel')}
           </AppButton>
@@ -50,7 +50,7 @@ function CloseTableConfirmDialog({ isSubmitting, onCancel, onConfirm }: ICloseTa
             data-testid="close-table-confirm-button"
             disabled={isSubmitting}
             onClick={onConfirm}
-            className="flex-1 justify-center border-amber-400/60 bg-amber-600 text-white hover:bg-amber-500 disabled:hover:bg-amber-600"
+            className="flex-1 justify-center border-amber-400/60 bg-amber-600 text-[length:var(--game-dialog-font-xl)] text-white hover:bg-amber-500 disabled:hover:bg-amber-600"
           >
             {isSubmitting ? t('game.closeTable.cancelling') : t('game.closeTable.confirm')}
           </AppButton>

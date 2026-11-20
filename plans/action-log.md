@@ -127,6 +127,18 @@ stateDiagram-v2
   the overlay meant the maximise button was dead for the whole review - the one moment a long read is worth having.
 - The corner `Return to main page` control sits above the panel and its backdrop (`z-[290]`): leaving has to survive
   expanding the log, which is precisely what a reader does in review mode.
+- The compact column stacks *above* the sidebar rail (`z-[290]` against the rail's `z-40`), and carries its own close
+  button in the header. The two share the right edge on every viewport where the HUD is still docked over the board, so
+  the log - the thing the reader just opened - owns that corner, the icon rail keeps its buttons underneath, and the X
+  is what guarantees the panel can always be dismissed: burying the rail's log toggle must never trap the reader.
+- An entry is two rows, not one. The actor pill (`YOU` / `OPPONENT` / `GAME`) and the phase name share a header row -
+  the pill on the left, the phase right-aligned and truncated - and the sentence gets its own full-width row underneath.
+  Sharing one row meant the phase name competed with the sentence for the panel's 252px: a long phase such as
+  `CHOOSE STARTING PLAYER` left the sentence a column one word wide. The phase is context, so it now gives way first.
+- Everything that is not the actor pill - the reason (`Turn Start`) and the phase (`End Step`, `Mulligan`) - shares one
+  right-aligned group at the end of the header row. They used to be laid out independently, so a row carrying the reason
+  hugged the pill while a row carrying a phase sat at the far edge, which read as two different kinds of row. An entry
+  now looks the same whichever metadata it happens to have.
 - The list follows the newest entry only while the reader is already at the bottom, so rereading the start of a turn is
   not undone by the next push.
 

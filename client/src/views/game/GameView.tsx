@@ -333,11 +333,18 @@ export function GameView() {
     <PageShell
       compact
       edgeToEdge
+      // The board's width ladder outgrows the shell's default `max-w-7xl` on large screens, so the shell has to stop
+      // clipping it; the board's own cap is what keeps the play area from running edge to edge.
+      fullBleed
       data-testid="game-view-root"
       className="pt-0 pb-0 sm:pt-0 sm:pb-0 lg:pt-0 lg:pb-0"
       overlayClassName="opacity-65"
     >
       <MotionConfig reducedMotion="user">
+      {/* The surface owns the sizing contract (`--game-unit`, board caps, HUD gutter) in `index.css`, so the board
+          and the fixed HUD panels layered over it all read the same numbers. Above 1600px its right padding reserves
+          the HUD's column. */}
+      <div data-game-surface="true" className="h-full min-h-0 w-full">
       <div
         data-game-board="true"
         className={`mx-auto h-full min-h-0 w-full overflow-visible gap-1.5 rounded-2xl ${GAMEBOARD_MAX_WIDTH_CLASS} ${GAMEBOARD_COLUMNS_CLASS}`}
@@ -350,6 +357,10 @@ export function GameView() {
           className="col-span-full h-full min-h-0 border-hidden overflow-visible bg-transparent pt-0 pb-0.5 px-0.5 backdrop-blur-none"
           style={{ backdropFilter: 'none' }}
         >
+          {/* The three bands stay on fractions of the window (`7% / 71% / 22%` at every size), because a band that
+              changes its share of the screen as the window grows reads as a different layout - the hand zones going
+              proportionally smaller at 4K was exactly that. The cards still grow with the window height, which is
+              what makes the labels and art scale, so nothing needs to be re-proportioned at runtime. */}
           <div className="grid h-full min-h-0 grid-rows-[minmax(0,0.6fr)_minmax(0,6.1fr)_minmax(0,1.85fr)] gap-1 rounded-2xl px-0 pt-0 pb-0">
             <GameHandRow
               cards={topHandCards}
@@ -371,7 +382,7 @@ export function GameView() {
                     <FlippableCard
                       isFlipped={revealedCard !== null}
                       durationMs={340}
-                      back={<CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />}
+                      back={<CardBack className="h-full w-full rounded-[var(--game-radius-card,12px)] border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />}
                       front={
                         revealedCard ? (
                           <CardImage
@@ -381,7 +392,7 @@ export function GameView() {
                             alt={revealedCard.displayName}
                             loading="lazy"
                             decoding="async"
-                            className="h-full w-full rounded-md object-cover"
+                            className="h-full w-full rounded-[inherit] object-cover"
                           />
                         ) : null
                       }
@@ -540,6 +551,7 @@ export function GameView() {
           </div>
         ) : null}
 
+      </div>
       </div>
       </MotionConfig>
     </PageShell>

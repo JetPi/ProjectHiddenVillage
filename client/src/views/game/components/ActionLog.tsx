@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { Maximize2, Minimize2 } from 'lucide-react'
+import { Maximize2, Minimize2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { useGameUIStore } from '@/state/gameUIStore'
@@ -7,10 +7,10 @@ import type { IActionLogProps, IActionLogViewEntry } from '@/views/game/types'
 import { useHasRoomForChatColumn } from '@/views/game/hooks'
 import { buildActionLogView, formatActionLogEngineToken } from '@/views/game/utils/functions/helpers'
 import {
-  ACTION_LOG_COMPACT_BOTTOM_REM,
-  ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_REM,
-  ACTION_LOG_COMPACT_MIN_HEIGHT_REM,
-  ACTION_LOG_COMPACT_TOP_REM,
+  ACTION_LOG_COMPACT_BOTTOM_CSS,
+  ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_CSS,
+  ACTION_LOG_COMPACT_MIN_HEIGHT_CSS,
+  ACTION_LOG_COMPACT_TOP_CSS,
   HUD_PANEL_WIDTH_CLASS,
 } from '@/views/game/utils/contants'
 
@@ -37,12 +37,18 @@ const PINNED_TO_NEWEST_THRESHOLD_PX = 24
  * It sits under the support-chain band in its compact mode, so a long chain can never overlap it, and it covers the
  * board in its expanded mode, which the reader asks for from the panel itself. The board's log button only ever opens
  * and closes it: expanding is a decision about the panel, not about the game.
+ *
+ * The compact column stacks *above* the sidebar rail (z-290 over the rail's z-40) because the two share the right edge
+ * on every viewport narrow enough for the HUD to stay docked: the log is the thing the reader just opened, so it owns
+ * the corner and the icon rail keeps its controls underneath it. That is also why the panel carries its own close
+ * button - burying the log button must never leave the reader with a panel they cannot put away.
  */
 function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogProps) {
   const { t } = useTranslation()
   const isOpen = useGameUIStore((state) => state.isActionLogOpen)
   const isExpanded = useGameUIStore((state) => state.isActionLogExpanded)
   const setActionLogExpanded = useGameUIStore((state) => state.setActionLogExpanded)
+  const closeActionLog = useGameUIStore((state) => state.closeActionLog)
   const isGameOverOverlayDismissed = useGameUIStore((state) => state.isGameOverOverlayDismissed)
   const hasRoomForChat = useHasRoomForChatColumn()
 
@@ -140,26 +146,27 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
           isExpanded
             ? undefined
             : {
-              top: `${ACTION_LOG_COMPACT_TOP_REM}rem`,
+              top: ACTION_LOG_COMPACT_TOP_CSS,
               // The docked chat strip owns the bottom of this corner, so the compact log stops above it.
-              bottom: `${hasRoomForChat ? ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_REM : ACTION_LOG_COMPACT_BOTTOM_REM}rem`,
-              minHeight: `${ACTION_LOG_COMPACT_MIN_HEIGHT_REM}rem`,
+              bottom: hasRoomForChat ? ACTION_LOG_COMPACT_BOTTOM_WITH_CHAT_CSS : ACTION_LOG_COMPACT_BOTTOM_CSS,
+              minHeight: ACTION_LOG_COMPACT_MIN_HEIGHT_CSS,
             }
         }
         className={twMerge(
-          'flex flex-col overflow-hidden rounded-xl border border-cyan-300/45 bg-slate-950/92 text-[10px] leading-tight text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm',
+          'flex flex-col overflow-hidden rounded-xl border border-cyan-300/45 bg-slate-950/92 text-[length:var(--game-chrome-font-sm)] leading-tight text-white shadow-[0_12px_30px_rgba(0,0,0,0.55)] backdrop-blur-sm',
           HUD_PANEL_WIDTH_CLASS,
           isExpanded
             ? 'fixed inset-y-2 right-2 z-[280] w-[min(28rem,46vw)] max-w-none'
-            : 'fixed right-2 z-30',
+            // Above the sidebar rail (z-40) and below the sidebar tooltips (z-[300]) and the dialogs (z-[400]+).
+            : 'fixed right-2 z-[290]',
         )}
       >
         <div className="flex shrink-0 items-center gap-1 border-b border-white/10 px-2 py-1">
-          <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-cyan-200">
+          <span className="text-[length:var(--game-chrome-font-sm)] font-extrabold uppercase tracking-[0.14em] text-cyan-200">
             {t('game.actionLog.heading')}
           </span>
 
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             <button
               type="button"
               data-testid="action-log-expand"
@@ -167,21 +174,33 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
               aria-pressed={isExpanded}
               disabled={!isExpanded && mustStepAside}
               onClick={() => setActionLogExpanded(!isExpanded)}
-              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border border-white/25 bg-white/10 text-white/85 transition-[filter] hover:brightness-125 disabled:opacity-40"
+              className="inline-flex h-[calc(16*var(--game-unit))] w-[calc(16*var(--game-unit))] shrink-0 items-center justify-center rounded border border-white/25 bg-white/10 text-white/85 transition-[filter] hover:brightness-125 disabled:opacity-40 [&_svg]:h-[calc(9*var(--game-unit))] [&_svg]:w-[calc(9*var(--game-unit))]"
             >
               {isExpanded ? <Minimize2 size={9} /> : <Maximize2 size={9} />}
+            </button>
+
+            {/* The panel covers the rail's own log button whenever the two share the right edge, so the panel has to
+                be able to dismiss itself. */}
+            <button
+              type="button"
+              data-testid="action-log-close"
+              aria-label={t('game.actionLog.closeAria')}
+              onClick={closeActionLog}
+              className="inline-flex h-[calc(16*var(--game-unit))] w-[calc(16*var(--game-unit))] shrink-0 items-center justify-center rounded border border-white/25 bg-white/10 text-white/85 transition-[filter] hover:brightness-125 [&_svg]:h-[calc(9*var(--game-unit))] [&_svg]:w-[calc(9*var(--game-unit))]"
+            >
+              <X size={9} />
             </button>
           </div>
         </div>
 
         {isConnected ? null : (
-          <p data-testid="action-log-offline" className="shrink-0 px-2 py-1 text-[9px] font-semibold text-amber-200">
+          <p data-testid="action-log-offline" className="shrink-0 px-2 py-1 text-[length:var(--game-chrome-font-xs)] font-semibold text-amber-200">
             {t('game.actionLog.offline')}
           </p>
         )}
 
         {entries.length === 0 ? (
-          <p data-testid="action-log-empty" className="px-2 py-2 text-[10px] text-white/65">
+          <p data-testid="action-log-empty" className="px-2 py-2 text-[length:var(--game-chrome-font-sm)] text-white/65">
             {t('game.actionLog.empty')}
           </p>
         ) : (
@@ -223,7 +242,7 @@ function ActionLogEntryRow({ entry, showTurnHeader }: { entry: IActionLogViewEnt
       {showTurnHeader ? (
         <span
           data-testid="action-log-turn"
-          className="mt-1 text-[8px] font-bold uppercase tracking-[0.14em] text-white/45"
+          className="mt-1 text-[length:var(--game-chrome-font-2xs)] font-bold uppercase tracking-[0.14em] text-white/45"
         >
           {entry.turnOwner === 'you'
             ? t('game.actionLog.yourTurn', { turn: entry.turnOrdinal ?? entry.turnNumber })
@@ -233,33 +252,47 @@ function ActionLogEntryRow({ entry, showTurnHeader }: { entry: IActionLogViewEnt
         </span>
       ) : null}
 
+      {/* Two rows, not one: the actor pill, the phase and the reason all belong to the entry's header, and sharing a row
+          with the sentence squeezed the sentence into a column one word wide as soon as the phase name was long
+          ("CHOOSE STARTING PLAYER"). The header row carries the metadata; the sentence gets the full width underneath. */}
       <span
         data-testid="action-log-entry"
         data-action-type={entry.actionType}
         data-entry-sequence={entry.sequence}
-        className="flex items-start gap-1 rounded-lg border border-white/10 bg-white/[0.06] px-1.5 py-1"
+        className="flex flex-col gap-0.5 rounded-lg border border-white/10 bg-white/[0.06] px-1.5 py-1"
       >
-        <span
-          className={twMerge(
-            'mt-px shrink-0 rounded-sm border px-1 text-[8px] font-bold uppercase tracking-[0.06em]',
-            ACTOR_CHIP_CLASS[entry.actor],
-          )}
-        >
-          {t(ACTOR_LABEL_KEYS[entry.actor])}
+        <span className="flex min-w-0 items-center gap-[calc(4*var(--game-unit))]">
+          <span
+            className={twMerge(
+              'shrink-0 rounded-sm border px-1 text-[length:var(--game-chrome-font-2xs)] font-bold uppercase tracking-[0.06em]',
+              ACTOR_CHIP_CLASS[entry.actor],
+            )}
+          >
+            {t(ACTOR_LABEL_KEYS[entry.actor])}
+          </span>
+          {/* Everything that is not the actor sits flush right, whether it is the reason ("Turn Start") or the phase
+              ("End Step"): one of them alone used to hug the pill while the other sat at the far edge, which read as two
+              different kinds of row. They share one right-aligned group so an entry looks the same either way. */}
+          <span className="ml-auto flex min-w-0 items-center justify-end gap-[calc(4*var(--game-unit))]">
+            {entry.details ? (
+              <span data-testid="action-log-details" className="shrink-0 text-[length:var(--game-chrome-font-2xs)] uppercase tracking-[0.06em] text-white/40">
+                {"Turn Start"}
+              </span>
+            ) : null}
+            {entry.phase ? (
+              <span
+                data-testid="action-log-phase"
+                // Truncated: the phase is context, so it gives way before the sentence does.
+                className="min-w-0 truncate text-right text-[length:var(--game-chrome-font-2xs)] uppercase tracking-[0.06em] text-white/40"
+              >
+                {formatActionLogEngineToken(entry.phase)}
+              </span>
+            ) : null}
+          </span>
         </span>
-        <span className="min-w-0 flex-1 break-words">
+        <span className="min-w-0 break-words">
           {entry.text}
         </span>
-        {entry.details ? (
-            <span data-testid="action-log-details" className="shrink-0 text-[8px] uppercase tracking-[0.06em] text-white/40">
-              {"Turn Start"}
-            </span>
-          ) : null}
-        {entry.phase ? (
-          <span className="shrink-0 text-[8px] uppercase tracking-[0.06em] text-white/40">
-            {formatActionLogEngineToken(entry.phase)}
-          </span>
-        ) : null}
       </span>
     </li>
   )

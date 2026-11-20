@@ -61,10 +61,15 @@ function renderDescriptionLineWithKeywordPills(
     }
 
     nodes.push(
+      // Sized in `em`, not rem: this pill sits inside the description, and the description is the one run of text in the
+      // app that grows with the game unit. Fixed rem made the pill a speck of dust next to a 30px line on a 4K panel and
+      // almost as tall as the line on a laptop; as a fraction of its own line it reads the same at every size.
+      // `leading-none` is load-bearing: the chip inherits the paragraph's 1.6 line-height, and at 0.9em that would make
+      // it taller than the line it sits in, which is exactly how two stacked chips ended up touching.
       <span
         key={`description-keyword-${lineIndex}-${matchIndex}-${keyword}`}
         className={twMerge(
-          'mx-0.5 inline-flex items-center rounded-full border px-1.5 py-[0.05rem] align-middle text-[0.7rem] font-semibold uppercase tracking-[0.04em]',
+          'mx-[0.25em] inline-flex items-center gap-[0.3em] rounded-full border px-[0.55em] py-[0.12em] align-middle text-[0.9em] font-bold uppercase leading-none tracking-[0.03em]',
           DESCRIPTION_KEYWORD_PILL_CLASS_BY_COLOR[keywordColor],
         )}
         onMouseEnter={(event) => onKeywordMouseEnter(event, keyword)}
@@ -72,7 +77,7 @@ function renderDescriptionLineWithKeywordPills(
       >
         {keyword || fullMatch}
         {normalizeDescriptionKeyword(keyword) === 'support' && typeof supportCost === 'number' ? (
-          <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-black px-1 text-[0.7rem] font-bold leading-none text-white">
+          <span className="inline-flex h-[1.1em] min-w-[1.1em] items-center justify-center rounded-full bg-black px-[0.3em] text-[0.9em] font-bold leading-none text-white">
             {supportCost}
           </span>
         ) : null}

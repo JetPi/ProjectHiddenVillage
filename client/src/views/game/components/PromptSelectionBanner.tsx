@@ -38,9 +38,9 @@ function PromptSelectionBanner({ promptKey, title }: IPromptSelectionBannerProps
           exit={{ opacity: 0, scale: 0.98, transition: OVERLAY_EXIT_TRANSITION }}
           transition={OVERLAY_ENTER_SPRING}
           style={{ x: '-50%', y: '-50%' }}
-          className="pointer-events-none fixed left-1/2 top-1/2 z-40 max-w-[min(92vw,26rem)] rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]/95 px-4 py-2 text-center shadow-[var(--panel-shadow)]"
+          className="pointer-events-none fixed left-1/2 top-1/2 z-40 max-w-[min(92vw,calc(416*var(--game-unit)))] rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]/95 px-[calc(16*var(--game-unit))] py-[calc(8*var(--game-unit))] text-center shadow-[var(--panel-shadow)]"
         >
-          <p className="text-sm font-semibold text-[var(--text-primary)]">{title}</p>
+          <p className="text-[length:var(--game-chrome-font-xl)] font-semibold text-[var(--text-primary)]">{title}</p>
         </motion.div>
       ) : null}
     </AnimatePresence>

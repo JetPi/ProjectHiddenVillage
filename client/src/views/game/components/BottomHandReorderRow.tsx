@@ -70,7 +70,7 @@ export function BottomHandReorderRow({
               isFlipped={faceUpByInstanceId[card.instanceId] ?? true}
               durationMs={340}
               front={
-                <div className="group relative h-full w-full overflow-hidden rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]">
+                <div className="group relative h-full w-full overflow-hidden rounded-[var(--game-radius-card,12px)] border border-[var(--border-subtle)] bg-[var(--surface-elevated)]">
                   <CardImage
                     card={previewCard}
                     variant="board"
@@ -78,7 +78,7 @@ export function BottomHandReorderRow({
                     alt={previewCard?.displayName ?? 'Hand card'}
                     loading="lazy"
                     decoding="async"
-                    className="h-full w-full rounded-md object-contain"
+                    className="h-full w-full rounded-[inherit] object-cover"
                   />
 
                   <NonLeaderCardOverlay
@@ -114,7 +114,7 @@ export function BottomHandReorderRow({
                   />
                 </div>
               }
-              back={<CardBack className="h-full w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />}
+              back={<CardBack className="h-full w-full rounded-[inherit] border border-[var(--border-subtle)] bg-[var(--surface-elevated)]" />}
             />
           </div>
         )
