@@ -38,6 +38,31 @@ const SIZE_TOLERANCE_PX = 2
 const CARD_ASPECT_RATIO = 200 / 277
 const ASPECT_TOLERANCE = 0.02
 
+// The card detail panel is `352` game units wide, capped at the art master's 900px. Because that cap is what decides
+// its width on a big screen, its type is derived from the panel width and not from the window: the title is always
+// `30 / 352` of the panel, exactly as it is on a laptop.
+const PREVIEW_BASE_WIDTH_PX = 352
+const PREVIEW_ART_MASTER_PX = 900
+const PREVIEW_TITLE_SHARE = 30 / PREVIEW_BASE_WIDTH_PX
+// The art is deliberately not the panel width: it takes `240` of the panel's `352` units so the details get the rest
+// of the column, and it must never take more than half of the window height either.
+const PREVIEW_ART_UNITS = 240
+const PREVIEW_ART_WIDTH_SHARE = PREVIEW_ART_UNITS / PREVIEW_BASE_WIDTH_PX
+const PREVIEW_ART_MAX_HEIGHT_SHARE = 0.56
+// The ability text is the panel's body copy: one step over the traits and the stat labels, under the stat values.
+const PREVIEW_DESCRIPTION_UNITS = 14
+const PREVIEW_RADIUS_UNITS = 8
+// The details around the title are deliberately close in size: the type label, the traits, the description and the stat
+// labels all read at the same size, and the stat values sit two steps over it so the numbers win at a glance.
+const PREVIEW_TYPE_UNITS = 12
+// The traits read at the same size as the ability text: both are printed information, not captions.
+const PREVIEW_TRAITS_UNITS = 14
+const PREVIEW_PILL_LABEL_UNITS = 12
+const PREVIEW_PILL_VALUE_UNITS = 18
+// The keyword chips inside the description are `0.9em` of the line they annotate, i.e. `10.8 x unit` at 720p.
+const PREVIEW_CHIP_SHARE = 0.9
+const PREVIEW_PILL_GUTTER_UNITS = 10
+
 // HUD body text floor per rung. The chrome ladder is `10 x unit x boost`, and the floors sit just under it so a
 // regression in either factor fails loudly instead of quietly shrinking the panels.
 const HUD_BODY_MIN_PX: Record<string, number> = {
@@ -424,7 +449,210 @@ test.describe('GameView large-screen layout', () => {
       await closeMultiplayerPages(pages)
     }
   })
+
+  /**
+   * The card detail panel is the one dialog portalled out of the board, so it does not inherit the sizing contract:
+   * before it re-declared the token scope, every size inside it fell back to the browser's 16px, which on a 4K screen
+   * put laptop-sized details next to a 900px card. It also cannot simply follow the window, because its width stops
+   * at the art master: the panel's scale is the smallest of the three bounds that decide its width, and each detail is
+   * a multiple of it. The title/panel share is therefore the invariant worth pinning.
+   */
+  test('the card details panel scales with its own width at every rung', async ({ browser, request }) => {
+    const setup = await setupMultiplayerGame(request)
+    const pages = await openMultiplayerPages(browser, setup)
+    let sawKeywordChip = false
+
+    try {
+      const page = pages.playerOnePage
+
+      for (const rung of RUNGS) {
+        await page.setViewportSize({ width: rung.width, height: rung.height })
+
+        const handCard = page.locator('[data-testid^="bottom-hand-card-"]').first()
+        await handCard.hover()
+        await handCard.getByRole('button', { name: /card details/i }).first().click()
+
+        const dialog = page.locator('[role="dialog"]').last()
+        await expect(dialog).toBeVisible({ timeout: 15_000 })
+
+        // The same three bounds the CSS takes the minimum of: the boosted unit, the art master, and 92vw.
+        const expectedUnit = Math.min(
+          Math.min(Math.max(rung.height / 720, 1), 3)
+            * (rung.width >= 3200 ? 1.25 : rung.width >= 1920 ? 1.15 : 1),
+          PREVIEW_ART_MASTER_PX / PREVIEW_BASE_WIDTH_PX,
+          (0.92 * rung.width) / PREVIEW_BASE_WIDTH_PX,
+        )
+        const metrics = await readCardPreviewMetrics(page)
+
+        expect(
+          Math.abs(metrics.panelWidth - PREVIEW_BASE_WIDTH_PX * expectedUnit),
+          `the details panel should be ${Math.round(PREVIEW_BASE_WIDTH_PX * expectedUnit)}px wide `
+            + `at ${rung.width}x${rung.height} (measured ${metrics.panelWidth}, unit ${metrics.unitPx})`,
+        ).toBeLessThanOrEqual(SIZE_TOLERANCE_PX)
+
+        expect(
+          Math.abs(metrics.titleFontPx - 30 * expectedUnit),
+          `the panel title should scale with the panel at ${rung.width}x${rung.height} `
+            + `(measured ${metrics.titleFontPx}px)`,
+        ).toBeLessThanOrEqual(1)
+
+        const detailChecks: Array<{ label: string; measured: number; units: number }> = [
+          { label: 'description', measured: metrics.descriptionFontPx, units: PREVIEW_DESCRIPTION_UNITS },
+          { label: 'type label', measured: metrics.typeFontPx, units: PREVIEW_TYPE_UNITS },
+          { label: 'traits', measured: metrics.traitsFontPx, units: PREVIEW_TRAITS_UNITS },
+          { label: 'stat labels', measured: metrics.pillLabelFontPx, units: PREVIEW_PILL_LABEL_UNITS },
+          { label: 'stat values', measured: metrics.pillValueFontPx, units: PREVIEW_PILL_VALUE_UNITS },
+        ]
+
+        for (const check of detailChecks) {
+          expect(
+            Math.abs(check.measured - check.units * expectedUnit),
+            `the panel ${check.label} should scale with the panel at ${rung.width}x${rung.height} `
+              + `(expected ${(check.units * expectedUnit).toFixed(1)}px, measured ${check.measured}px)`,
+          ).toBeLessThanOrEqual(1)
+        }
+
+        expect(
+          Math.abs(metrics.artRadiusPx - PREVIEW_RADIUS_UNITS * expectedUnit),
+          `the panel's art corner should scale with the panel at ${rung.width}x${rung.height} `
+            + `(measured ${metrics.artRadiusPx}px)`,
+        ).toBeLessThanOrEqual(1)
+
+        // The art gives the details their room: it is 240 of the panel's 352 units wide and never more than half the
+        // window tall, which is what leaves the description a readable column instead of a strip under a full card.
+        expect(
+          Math.abs(metrics.artWidth / metrics.panelWidth - PREVIEW_ART_WIDTH_SHARE),
+          `the art should take ${(PREVIEW_ART_WIDTH_SHARE * 100).toFixed(0)}% of the panel width at `
+            + `${rung.width}x${rung.height} (measured ${((metrics.artWidth / metrics.panelWidth) * 100).toFixed(0)}%)`,
+        ).toBeLessThanOrEqual(0.02)
+
+        expect(
+          metrics.artHeight / metrics.panelHeight,
+          `the art should leave the details at least half the panel height at ${rung.width}x${rung.height} `
+            + `(art ${Math.round(metrics.artHeight)} of ${Math.round(metrics.panelHeight)})`,
+        ).toBeLessThanOrEqual(PREVIEW_ART_MAX_HEIGHT_SHARE)
+
+        // The pills have to read as pills at every size: the stat pills keep a real gutter between them, and the keyword
+        // chips inside the description keep their share of the line instead of staying at a fixed rem size.
+        expect(
+          metrics.pillGapPx,
+          `the stat pills should keep a gutter at ${rung.width}x${rung.height} `
+            + `(measured ${metrics.pillGapPx}px, expected at least `
+            + `${(PREVIEW_PILL_GUTTER_UNITS * expectedUnit).toFixed(1)}px)`,
+        ).toBeGreaterThanOrEqual(PREVIEW_PILL_GUTTER_UNITS * expectedUnit - 1)
+
+        if (metrics.chipFontPx > 0) {
+          sawKeywordChip = true
+          expect(
+            Math.abs(metrics.chipFontPx / metrics.descriptionFontPx - PREVIEW_CHIP_SHARE),
+            `the keyword chips should stay ${PREVIEW_CHIP_SHARE} of the description at ${rung.width}x${rung.height} `
+              + `(chip ${metrics.chipFontPx}px of ${metrics.descriptionFontPx}px)`,
+          ).toBeLessThanOrEqual(0.05)
+
+          // A chip taller than its line box is what made two stacked chips touch on a laptop.
+          expect(
+            metrics.chipHeightPx,
+            `the keyword chips should fit their line at ${rung.width}x${rung.height} `
+              + `(chip ${metrics.chipHeightPx}px, line ${metrics.descriptionLineHeightPx}px)`,
+          ).toBeLessThanOrEqual(metrics.descriptionLineHeightPx + 1)
+        }
+
+        // The invariant behind all three: the title keeps its share of the panel, so the details never outgrow the art.
+        const titleShare = metrics.titleFontPx / metrics.panelWidth
+        expect(
+          Math.abs(titleShare - PREVIEW_TITLE_SHARE),
+          `the title should keep ${(PREVIEW_TITLE_SHARE * 100).toFixed(1)}% of the panel width at `
+            + `${rung.width}x${rung.height} (measured ${(titleShare * 100).toFixed(1)}%)`,
+        ).toBeLessThanOrEqual(0.01)
+
+        expect(
+          metrics.overflows,
+          `the details panel should not overflow sideways at ${rung.width}x${rung.height}`,
+        ).toBe(false)
+
+        await page.keyboard.press('Escape')
+        await expect(dialog).toHaveCount(0)
+      }
+
+      expect(sawKeywordChip, 'the fixture hand should contain a card with a keyword chip').toBe(true)
+    } finally {
+      await closeMultiplayerPages(pages)
+    }
+  })
 })
+
+/**
+ * Geometry and type scale of the open card detail panel. It is portalled to `document.body`, so it is looked up from
+ * the dialog itself rather than from the board - which is exactly the reason it needs its own token scope.
+ */
+async function readCardPreviewMetrics(page: Page): Promise<{
+  unitPx: number
+  panelWidth: number
+  panelHeight: number
+  titleFontPx: number
+  typeFontPx: number
+  traitsFontPx: number
+  descriptionFontPx: number
+  descriptionLineHeightPx: number
+  pillLabelFontPx: number
+  pillValueFontPx: number
+  pillGapPx: number
+  chipFontPx: number
+  chipHeightPx: number
+  artWidth: number
+  artHeight: number
+  artRadiusPx: number
+  overflows: boolean
+}> {
+  return page.evaluate(() => {
+    const dialog = Array.from(document.querySelectorAll('[role="dialog"]')).pop() ?? null
+    if (!dialog) {
+      throw new Error('the card detail panel is not open')
+    }
+
+    const panel = dialog.querySelector(':scope > div > div')
+    const title = panel?.querySelector('h2') ?? null
+    const typeLabel = title?.nextElementSibling ?? null
+    const paragraphs = panel ? Array.from(panel.querySelectorAll('p')) : []
+    const art = panel?.querySelector('img') ?? null
+    const firstPill = paragraphs[1] ?? null
+    const pillLabel = firstPill?.querySelector('span') ?? null
+    const pillValue = firstPill?.querySelectorAll('span')[1] ?? null
+    const secondPill = paragraphs[2] ?? null
+    const description = paragraphs[paragraphs.length - 1] ?? null
+    const chip = description?.querySelector('span[class*="rounded-full"]') ?? null
+    const fontPx = (element: Element | null) => (element ? Number.parseFloat(getComputedStyle(element).fontSize) : 0)
+    const lineHeightPx = (element: Element | null) => (
+      element ? Number.parseFloat(getComputedStyle(element).lineHeight) : 0
+    )
+    const pillGapPx = firstPill && secondPill
+      ? secondPill.getBoundingClientRect().left - firstPill.getBoundingClientRect().right
+      : 0
+
+    const artBox = art?.getBoundingClientRect() ?? null
+    const panelBox = panel?.getBoundingClientRect() ?? null
+
+    return {
+      unitPx: Number.parseFloat(getComputedStyle(dialog).getPropertyValue('--game-preview-unit')),
+      panelWidth: panelBox?.width ?? 0,
+      panelHeight: panelBox?.height ?? 0,
+      titleFontPx: fontPx(title),
+      typeFontPx: fontPx(typeLabel),
+      traitsFontPx: fontPx(paragraphs[0] ?? null),
+      descriptionFontPx: fontPx(description),
+      descriptionLineHeightPx: lineHeightPx(description),
+      pillLabelFontPx: fontPx(pillLabel),
+      pillValueFontPx: fontPx(pillValue),
+      pillGapPx,
+      chipFontPx: fontPx(chip),
+      chipHeightPx: chip ? chip.getBoundingClientRect().height : 0,
+      artWidth: artBox?.width ?? 0,
+      artHeight: artBox?.height ?? 0,
+      artRadiusPx: art ? Number.parseFloat(getComputedStyle(art).borderTopLeftRadius) : 0,
+      overflows: panel ? panel.scrollWidth - panel.clientWidth > 1 : false,
+    }
+  })
+}
 
 /**
  * The pile label is the smallest piece of type on the board and it is readable from the first frame, which makes it a

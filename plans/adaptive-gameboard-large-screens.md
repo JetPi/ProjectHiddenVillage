@@ -443,3 +443,96 @@ screenshot.
   rung unchanged.
 - Screenshots at 3840x2160 with a populated board kept with the plan for visual review, since this is a look-and-feel
   change rather than a pure geometry one.
+
+## 13. Follow-up: the action log owns the right edge it shares with the rail
+
+The compact action log is a fixed column at `right-2` that is `--game-hud-width` wide. The sidebar rail is the
+rightmost column *inside* the board. On every viewport where the HUD is still docked over the board - which is
+everything below the 1600px rung - those two occupy the same strip of screen, so one of them necessarily paints over
+the other.
+
+Until this change the rail won, because the log sat at `z-30` and [`SideBarButtons`](client/src/views/game/components/SidebarButtons.tsx:32)
+sits at `z-40`. The result was the log's own header and text sliding *under* a column of icons that then still took
+their own clicks - the panel looked broken precisely where it was most useful.
+
+What changed:
+
+- The compact panel is now `z-[290]`: above the rail (`z-40`) and the hand rows (`z-30`), below the sidebar tooltips
+  (`z-[300]`) and every dialog. The log is the thing the reader just opened, so it owns that corner; the icons stay
+  underneath it as the report asked. The expanded panel keeps `z-[280]` over its own `z-[270]` backdrop.
+- The panel gained an `X` close control (`data-testid="action-log-close"`, `16 x unit` box, `9 x unit` glyph, same
+  chrome font and radius as the maximise button) wired to the store's `closeActionLog`. Covering the rail's log
+  toggle makes the toggle unreachable while the panel is open, so the panel must be able to put itself away; without
+  the X the reader would be trapped in a log they opened by accident.
+- [`gameview.multiplayer.action-log.spec.ts`](e2e/gameview.multiplayer.action-log.spec.ts:1) now hit-tests the rail
+  toggle with `document.elementFromPoint` while the log is open and asserts the topmost element resolves inside the
+  panel, then closes with the X, reopens from the rail and closes again. The old "the board's button is the only
+  open/close affordance" step was removed with the behaviour it described.
+
+## 14. Follow-up: the card detail panel is its own token scope
+
+The card details overlay ([`CardPreviewCard`](client/src/components/ui/cards/CardPreviewCard.tsx:32)) is portalled to
+`document.body`, i.e. outside `[data-game-surface]`. Custom properties do not cross that portal, so none of the game
+tokens existed in its subtree: `--game-unit` fell back to its `@property` initial value of `1px` and every
+`text-[length:var(--game-dialog-font-*)]` inside the panel was invalid at computed-value time, which resolves to
+`font-size: inherit`. A probe confirmed it directly - at 1280x720 and at 3840x2160 the title, the stat pills and the
+description all measured exactly `16px`, while the art beside them grew from 333px to 858px wide. That is the "the
+details of a card on this side need rescaling" report: the panel's text was frozen at browser defaults.
+
+Two things had to be true at once:
+
+- **The panel has to carry the token scope itself.** It now renders `data-game-preview="true"`, and `index.css`
+  declares the game token block on `[data-game-surface], [data-game-preview]`. The board ladder rungs (`--game-type-boost`,
+  `--gameboard-max-width`) apply to both; the `padding-inline` gutter stays surface-only, since the panel is a
+  full-screen overlay that must not be inset by the space the board reserves for the HUD.
+- **Its type cannot follow the window.** The panel width is `min(92vw, 352 x unit x boost, 900px)`, and 900px is the
+  master art width - beyond that the render only upscales. On a 4K window the unit is 3, so plain unit-based type would
+  have put a 112px heading inside a 900px panel. `--game-preview-unit` is therefore the smallest of exactly those three
+  bounds, and the panel re-bases all of its dialog font tokens, radius and padding on it.
+
+The composition followed the scale fix, because the panel's problem was never only that its text was frozen: the art
+took the full panel width and about 65% of a 720px-tall window, which left the details a strip underneath it. The art
+now takes `240` of the panel's `352` units (`--game-preview-art-width`, centred, never cropped), which is ~68% of the
+width and ~46% of a 720p window's height.
+
+The details then got their own pass, because the smaller type next to the big title was still what read as "cramped".
+They now sit on one short ladder instead of five ad-hoc sizes, all of them multiples of the preview unit: title `3xl`
+(30), stat values `2xl` (18), the traits line and the ability text at `xl` (14) - both are printed information the panel
+exists for, so they read as body copy rather than as captions - and the type label and the stat labels together at `lg`
+(12). The type label also lost its wide tracking (`0.06em -> 0.04em`) and gained weight so it holds its own against the
+title it sits beside, and the stat labels went from `medium` to `semibold uppercase` so a pill reads as label + value
+rather than two similar lines.
+
+Measured with the new spec (panel / art / title / description / art corner):
+
+| rung | preview unit | panel | art | title | type | traits + description | stat labels | stat values | art corner |
+|---|---|---|---|---|---|---|---|---|---|
+| 1280x720 | 1 | 352 | 240 | 30 | 12 | 14 | 12 | 18 | 8 |
+| 1600x900 | 1.25 | 440 | 300 | 37.5 | 15 | 17.5 | 15 | 22.5 | 10 |
+| 1920x1080 | 1.725 | 607 | 414 | 51.75 | 20.7 | 24.15 | 20.7 | 31.05 | 13.8 |
+| 2560x1440 | 2.3 | 810 | 552 | 69 | 27.6 | 32.2 | 27.6 | 41.4 | 18.4 |
+| 3840x2160 | 2.5568 (art cap) | 900 | 613.6 | 76.7 | 30.7 | 35.8 | 30.7 | 46.0 | 20.45 |
+
+The pills needed their own fix, for the same reason the panel did: they were the last fixed sizes left in it. They then
+got one more pass on the "err on the side of readable" request - the stat values went to `2xl` (18 units), the stat
+labels up to `lg` (12 units) with a `7 x unit` vertical padding, and the gutter to `12 x unit`.
+
+- **Keyword chips** (`SUMMON REQUIREMENTS`, `RUSH`, `ON SUMMON`, ...) were built by
+  [`renderDescriptionLineWithKeywordPills`](client/src/components/ui/cards/utils/CardPreview.tsx:14) with rem sizes -
+  `text-[0.7rem]`, `px-1.5`, `py-[0.05rem]`, a 16px support-cost bubble. Inside a description that grew to 30.7px on a
+  4K panel they stayed at 11.2px, which is the "the pills are too small to read" report, and on a laptop they were
+  almost as tall as the 19.5px line they sit in, so two stacked chips collided. They are now expressed in `em`
+  (`0.9em` text, `leading-none`, `0.55em` side padding, `0.12em` vertical, `0.25em` margins, a `1.1em` support bubble),
+  so a chip is always the same fraction of the line it annotates - 10.8px of 12 at 720p, 27.6px of 30.7 at 4K - and it
+  stays inside the line box (15px of 19.5 at 720p, 36px of 49.9 at 4K). The `leading-none` is what allows the larger
+  size without the collision coming back: inheriting the paragraph's 1.6 line-height at 0.9em would overflow the line.
+- **The three stat pills** had a `6 x unit` gutter, which at 720p read as one striped bar once the labels grew. The
+  gutter is now `12 x unit` (12px at 720p, 31px at 4K), so they read as three cards in a row.
+
+The title is `8.5%` of the panel width at every rung - the invariant
+[`gameview.large-screen-layout.spec.ts`](e2e/gameview.large-screen-layout.spec.ts:1) now pins, alongside the panel
+width, the description, type label, traits, stat labels, stat values and corner scale, the art's `68%` width share and
+its "never more than half the panel height" bound, the stat-pill gutter (`>= 8 x unit`), the keyword chip staying at
+`0.78` of the description and inside its line box, and a no-sideways-overflow check. The keyword tooltip inside the
+panel reads the same resolved unit (via `getComputedStyle` on the hovered pill, since the panel re-scopes the property)
+so its box and text grow with the panel too.

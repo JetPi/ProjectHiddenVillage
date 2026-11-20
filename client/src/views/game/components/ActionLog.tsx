@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { Maximize2, Minimize2 } from 'lucide-react'
+import { Maximize2, Minimize2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { twMerge } from 'tailwind-merge'
 import { useGameUIStore } from '@/state/gameUIStore'
@@ -37,12 +37,18 @@ const PINNED_TO_NEWEST_THRESHOLD_PX = 24
  * It sits under the support-chain band in its compact mode, so a long chain can never overlap it, and it covers the
  * board in its expanded mode, which the reader asks for from the panel itself. The board's log button only ever opens
  * and closes it: expanding is a decision about the panel, not about the game.
+ *
+ * The compact column stacks *above* the sidebar rail (z-290 over the rail's z-40) because the two share the right edge
+ * on every viewport narrow enough for the HUD to stay docked: the log is the thing the reader just opened, so it owns
+ * the corner and the icon rail keeps its controls underneath it. That is also why the panel carries its own close
+ * button - burying the log button must never leave the reader with a panel they cannot put away.
  */
 function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogProps) {
   const { t } = useTranslation()
   const isOpen = useGameUIStore((state) => state.isActionLogOpen)
   const isExpanded = useGameUIStore((state) => state.isActionLogExpanded)
   const setActionLogExpanded = useGameUIStore((state) => state.setActionLogExpanded)
+  const closeActionLog = useGameUIStore((state) => state.closeActionLog)
   const isGameOverOverlayDismissed = useGameUIStore((state) => state.isGameOverOverlayDismissed)
   const hasRoomForChat = useHasRoomForChatColumn()
 
@@ -151,7 +157,8 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
           HUD_PANEL_WIDTH_CLASS,
           isExpanded
             ? 'fixed inset-y-2 right-2 z-[280] w-[min(28rem,46vw)] max-w-none'
-            : 'fixed right-2 z-30',
+            // Above the sidebar rail (z-40) and below the sidebar tooltips (z-[300]) and the dialogs (z-[400]+).
+            : 'fixed right-2 z-[290]',
         )}
       >
         <div className="flex shrink-0 items-center gap-1 border-b border-white/10 px-2 py-1">
@@ -159,7 +166,7 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
             {t('game.actionLog.heading')}
           </span>
 
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             <button
               type="button"
               data-testid="action-log-expand"
@@ -170,6 +177,18 @@ function ActionLog({ gameState, authUserId, cardById, isConnected }: IActionLogP
               className="inline-flex h-[calc(16*var(--game-unit))] w-[calc(16*var(--game-unit))] shrink-0 items-center justify-center rounded border border-white/25 bg-white/10 text-white/85 transition-[filter] hover:brightness-125 disabled:opacity-40 [&_svg]:h-[calc(9*var(--game-unit))] [&_svg]:w-[calc(9*var(--game-unit))]"
             >
               {isExpanded ? <Minimize2 size={9} /> : <Maximize2 size={9} />}
+            </button>
+
+            {/* The panel covers the rail's own log button whenever the two share the right edge, so the panel has to
+                be able to dismiss itself. */}
+            <button
+              type="button"
+              data-testid="action-log-close"
+              aria-label={t('game.actionLog.closeAria')}
+              onClick={closeActionLog}
+              className="inline-flex h-[calc(16*var(--game-unit))] w-[calc(16*var(--game-unit))] shrink-0 items-center justify-center rounded border border-white/25 bg-white/10 text-white/85 transition-[filter] hover:brightness-125 [&_svg]:h-[calc(9*var(--game-unit))] [&_svg]:w-[calc(9*var(--game-unit))]"
+            >
+              <X size={9} />
             </button>
           </div>
         </div>

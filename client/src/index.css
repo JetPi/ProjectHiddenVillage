@@ -574,7 +574,16 @@ body[data-card-flight-active='true'] .card-drop-zone {
   initial-value: 252px;
 }
 
-[data-game-surface] {
+/* The card detail panel is portalled to `document.body`, so it has to carry the token scope itself - otherwise none of
+   the values below exist in its subtree and every size inside it falls back to the browser's 16px. */
+@property --game-preview-unit {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 1px;
+}
+
+[data-game-surface],
+[data-game-preview] {
   /* 1px at a 720px-tall window, i.e. the smallest window this board is designed for, and exactly proportional to the
      window height above it. The reference has to be the *bottom* of the supported range, not its middle: the card
      frames are row-height driven, so anything slower than the height growth leaves the labels smaller relative to
@@ -658,20 +667,28 @@ body[data-card-flight-active='true'] .card-drop-zone {
    other side: a 3440x1440 ultrawide is wide enough to stretch the play area to nearly 3000px, but its rows are
    still 1440-tall rows, so the guard keeps the board from spreading cards that stay 170px wide. */
 @media (min-width: 1920px) {
-  [data-game-surface] {
+  [data-game-surface],
+  [data-game-preview] {
     --game-type-boost: 1.15;
   }
 }
 
 @media (min-width: 3200px) {
-  [data-game-surface] {
+  [data-game-surface],
+  [data-game-preview] {
     --game-type-boost: 1.25;
   }
 }
 
 @media (min-width: 1600px) {
-  [data-game-surface] {
+  [data-game-surface],
+  [data-game-preview] {
     --gameboard-max-width: min(1400px, calc(1417 * var(--game-unit)));
+  }
+
+  /* The gutter is a board-layout rule, so it stays on the surface: the detail panel is a full-screen overlay and must
+     not be inset by the space the board reserves for the HUD. */
+  [data-game-surface] {
     --game-hud-gutter: calc(var(--game-hud-width) + 24px);
     /* Symmetric, not right-only: the HUD needs its column on the right, but reserving it on one side alone left the
        board shoved against the left edge with all the slack behind the panels. Matching the reservation on the left
@@ -685,19 +702,49 @@ body[data-card-flight-active='true'] .card-drop-zone {
 }
 
 @media (min-width: 1920px) {
-  [data-game-surface] {
+  [data-game-surface],
+  [data-game-preview] {
     --gameboard-max-width: min(1600px, calc(1417 * var(--game-unit)));
   }
 }
 
 @media (min-width: 2560px) {
-  [data-game-surface] {
+  [data-game-surface],
+  [data-game-preview] {
     --gameboard-max-width: min(1900px, calc(1417 * var(--game-unit)));
   }
 }
 
 @media (min-width: 3200px) {
-  [data-game-surface] {
+  [data-game-surface],
+  [data-game-preview] {
     --gameboard-max-width: min(3000px, calc(1417 * var(--game-unit)));
   }
+}
+
+/* Card detail panel scale.
+ *
+ * This is the one dialog whose width is capped by its art rather than by the window: the master card render is 900px
+ * wide, so the panel stops growing there. Its type therefore cannot keep following the unit either - a 4K window would
+ * put a 112px heading inside a 900px panel, which is the "text touching the borders" failure again. The panel's scale
+ * is the smallest of the three bounds that decide its width (the boosted unit, the 900px art cap, 92vw), and every
+ * size inside it is a multiple of that, so the details stay the same fraction of the panel at any window size.
+ */
+[data-game-preview] {
+  --game-preview-unit: min(calc(var(--game-unit) * var(--game-type-boost)), calc(900px / 352), calc(92vw / 352));
+  --game-dialog-font-2xs: calc(8 * var(--game-preview-unit));
+  --game-dialog-font-xs: calc(9 * var(--game-preview-unit));
+  --game-dialog-font-sm: calc(10 * var(--game-preview-unit));
+  --game-dialog-font-md: calc(11 * var(--game-preview-unit));
+  --game-dialog-font-lg: calc(12 * var(--game-preview-unit));
+  --game-dialog-font-xl: calc(14 * var(--game-preview-unit));
+  --game-dialog-font-2xl: calc(18 * var(--game-preview-unit));
+  --game-dialog-font-3xl: calc(30 * var(--game-preview-unit));
+  --game-preview-radius: calc(8 * var(--game-preview-unit));
+  --game-preview-padding: calc(8 * var(--game-preview-unit));
+  --game-preview-gap: calc(12 * var(--game-preview-unit));
+  /* The art is the panel's label, not the panel. At the full 352 units it filled 65% of a 720px-tall window and left
+     the details a strip under it; 240 units (~68% of the width, ~46% of a 720p window's height) leaves the description
+     the room it needs while the whole card is still inspectable, since the render is downscaled, never cropped. */
+  --game-preview-art-width: calc(240 * var(--game-preview-unit));
 }

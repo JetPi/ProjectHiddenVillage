@@ -127,6 +127,10 @@ stateDiagram-v2
   the overlay meant the maximise button was dead for the whole review - the one moment a long read is worth having.
 - The corner `Return to main page` control sits above the panel and its backdrop (`z-[290]`): leaving has to survive
   expanding the log, which is precisely what a reader does in review mode.
+- The compact column stacks *above* the sidebar rail (`z-[290]` against the rail's `z-40`), and carries its own close
+  button in the header. The two share the right edge on every viewport where the HUD is still docked over the board, so
+  the log - the thing the reader just opened - owns that corner, the icon rail keeps its buttons underneath, and the X
+  is what guarantees the panel can always be dismissed: burying the rail's log toggle must never trap the reader.
 - The list follows the newest entry only while the reader is already at the bottom, so rereading the start of a turn is
   not undone by the next push.
 
