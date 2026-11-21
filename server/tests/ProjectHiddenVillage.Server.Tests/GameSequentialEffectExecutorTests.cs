@@ -1986,8 +1986,11 @@ public sealed class GameSequentialEffectExecutorTests
     public void Execute_ChainedStepWithoutItsOwnTargets_NoLongerActsOnTheRevealedCard()
     {
         // "Reveal the top card, then summon it" used to work through an implicit fallback: a chained step with
-        // no selection of its own acted on whatever the previous step revealed. Chains now name the reveal's
-        // slot instead, so this shape resolves nothing and the step never runs.
+        // no selection of its own acted on whatever the previous step revealed. That fallback is gone, so when
+        // the chain runs straight through (the reveal here is of a card the player can already see, so nothing
+        // is presented) this shape resolves nothing and the step never runs. A reveal that suspends is different:
+        // resuming hands its cards to a branch node that takes the chain's selection - see
+        // Resume_RevealPresentationAcknowledgement_HandsTheRevealedCardToABranchStepThatTakesTheChainSelection.
         var observedSpecIds = new List<string>();
         var observedTargets = new List<(string EffectSpecId, IReadOnlyList<string> TargetIds)>();
         var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
@@ -2045,6 +2048,189 @@ public sealed class GameSequentialEffectExecutorTests
         Assert.IsFalse(result.IsError, result.FirstError.Description);
         CollectionAssert.AreEqual(new[] { "reveal-step" }, observedSpecIds.ToArray());
         CollectionAssert.AreEqual(Array.Empty<string>(), observedTargets.Select(entry => entry.EffectSpecId).ToArray());
+    }
+
+    [TestMethod]
+    public void Resume_RevealPresentationAcknowledgement_HandsTheRevealedCardToABranchStepThatTakesTheChainSelection()
+    {
+        // The shape the shipped N-019 chain is saved with: the branch node takes the chain's selection instead of
+        // naming the reveal's slot. Acknowledging the presentation must not leave it without a target.
+        var observedSpecIds = new List<string>();
+        var observedTargets = new List<(string EffectSpecId, IReadOnlyList<string> TargetIds)>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new DeckTopRevealEffect(observedSpecIds),
+            new RecordingTargetsEffect(FreezeCardEffect.EffectKey, observedTargets, requiresTargets: false),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.WhenAttacking,
+                RevealTimingMode = RevealTimingMode.RevealFirst,
+                OnSuccessEffectId = "consumer-step",
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    AutoSelectAllValidTargets = true,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Self,
+                            InZone = PlayerZone.Deck,
+                            LocationSelector = new EffectTargetLocationSelector
+                            {
+                                Kind = EffectTargetLocationSelectorKind.DeckTop,
+                            },
+                        }
+                    ],
+                },
+            },
+            new EffectSpec
+            {
+                Id = "consumer-step",
+                IsSubordinate = true,
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.WhenAttacking,
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+                SelectionTiming = EffectSelectionTiming.Upfront,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    ExactTargetCount = 1,
+                    AutoSelectAllValidTargets = false,
+                    Rules = [],
+                },
+            });
+
+        var context = CreateContext(sourceDefinition);
+        AddDeckCard(context, "deck-1", "deck-def");
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError, result.FirstError.Description);
+        CollectionAssert.AreEqual(new[] { "reveal-step" }, observedSpecIds.ToArray());
+
+        var prompt = context.Game.GetPendingPrompt();
+        Assert.IsNotNull(prompt);
+        Assert.AreEqual(EffectSelectionPromptKind.RevealPresentation, prompt.SelectionPromptKind);
+
+        var resumeResult = executor.Resume(context.Game, prompt.EffectContinuation, []);
+
+        Assert.IsFalse(resumeResult.IsError, resumeResult.FirstError.Description);
+        CollectionAssert.AreEqual(new[] { "reveal-step" }, observedSpecIds.ToArray());
+        Assert.AreEqual(1, observedTargets.Count);
+        Assert.AreEqual("consumer-step", observedTargets[0].EffectSpecId);
+        CollectionAssert.AreEqual(new[] { "deck-1" }, observedTargets[0].TargetIds.ToArray());
+    }
+
+    [TestMethod]
+    public void Resume_RevealPresentationAcknowledgement_StillMakesAPromptedBranchStepAskForItsOwnTarget()
+    {
+        // The other half of the rule: the acknowledgement must never answer a node that asks its own question.
+        var observedSpecIds = new List<string>();
+        var observedTargets = new List<(string EffectSpecId, IReadOnlyList<string> TargetIds)>();
+        var executor = new GameSequentialEffectExecutor(new GameCardEffectRegistry(
+        [
+            new DeckTopRevealEffect(observedSpecIds),
+            new RecordingTargetsEffect(FreezeCardEffect.EffectKey, observedTargets, requiresTargets: false),
+        ]));
+
+        var sourceDefinition = CreateSourceDefinition(
+            new EffectSpec
+            {
+                Id = "reveal-step",
+                RuntimeEffectType = RuntimeEffects.RevealCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.WhenAttacking,
+                RevealTimingMode = RevealTimingMode.RevealFirst,
+                OnSuccessEffectId = "prompted-step",
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                // Per Step, like N-013's chain: the generic walk is the one that asks a prompted node.
+                ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    AutoSelectAllValidTargets = true,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Self,
+                            InZone = PlayerZone.Deck,
+                            LocationSelector = new EffectTargetLocationSelector
+                            {
+                                Kind = EffectTargetLocationSelectorKind.DeckTop,
+                            },
+                        }
+                    ],
+                },
+            },
+            new EffectSpec
+            {
+                Id = "prompted-step",
+                IsSubordinate = true,
+                RuntimeEffectType = RuntimeEffects.FreezeCard,
+                EffectType = EffectKind.Activated,
+                Timing = EffectTiming.WhenAttacking,
+                ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+                ExecutionFlowMode = EffectExecutionFlowMode.PerStep,
+                SelectionTiming = EffectSelectionTiming.Prompted,
+                SelectionPromptKind = EffectSelectionPromptKind.FreezeFromZone,
+                ContextRules = [],
+                TargetRules = new EffectTargetRuleSet
+                {
+                    Operator = RequirementGroupOperator.Any,
+                    AutoSelectAllValidTargets = false,
+                    Rules =
+                    [
+                        new EffectTargetRule
+                        {
+                            Scope = EffectTargetRange.Self,
+                            InZone = PlayerZone.CharacterField,
+                            Restriction = new ZoneCardRestriction(),
+                        }
+                    ],
+                },
+            });
+
+        var ownCard = CreateCardOnField("own-def", "own-1", "p1", "Own");
+        var context = CreateContext(sourceDefinition, playerOneFieldCards: [ownCard]);
+        AddDeckCard(context, "deck-1", "deck-def");
+
+        var result = executor.Execute(context);
+
+        Assert.IsFalse(result.IsError, result.FirstError.Description);
+        var revealPrompt = context.Game.GetPendingPrompt();
+        Assert.IsNotNull(revealPrompt);
+        Assert.AreEqual(EffectSelectionPromptKind.RevealPresentation, revealPrompt.SelectionPromptKind);
+
+        // Resuming directly (the registry would dequeue the answered prompt first), so the queue is emptied here
+        // to leave only the question the resumed node asks.
+        context.Game.PendingPrompts.Dequeue();
+
+        var resumeResult = executor.Resume(context.Game, revealPrompt.EffectContinuation, []);
+
+        Assert.IsFalse(resumeResult.IsError, resumeResult.FirstError.Description);
+        // It asked instead of acting on the revealed card: no step executed and a prompt is waiting.
+        CollectionAssert.AreEqual(Array.Empty<string>(), observedTargets.Select(entry => entry.EffectSpecId).ToArray());
+        var questionPrompt = context.Game.GetPendingPrompt();
+        Assert.IsNotNull(questionPrompt);
+        Assert.AreEqual(EffectSelectionPromptKind.FreezeFromZone, questionPrompt.SelectionPromptKind);
+        CollectionAssert.Contains(questionPrompt.Options.ToList(), "own-1");
+        // The revealed deck card is not offered as this step's own choice.
+        Assert.IsFalse(questionPrompt.Options.Contains("deck-1"));
     }
 
     private static GameCardEffectContext CreateContext(

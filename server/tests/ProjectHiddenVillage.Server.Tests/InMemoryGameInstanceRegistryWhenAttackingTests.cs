@@ -108,6 +108,54 @@ public sealed class InMemoryGameInstanceRegistryWhenAttackingTests
     }
 
     [TestMethod]
+    public void ExecuteCardAction_WhenTheRevealSucceeds_SummonsTheRevealedCard_ForABranchStepThatTakesTheChainSelection()
+    {
+        var game = CreateGame(attackerDefinitionId: "attacker-def-chain-selection");
+        AddAttacker(game, "attacker-def-chain-selection");
+
+        var deckCountBefore = game.State.Players[0].Deck.Count;
+        var battlefieldCountBefore = game.State.Players[0].Battlefield.Count;
+
+        registry.ExecuteCardAction(game.Id, CreateBattleActionRequest(game), CreateSequentialExecutor());
+
+        AssertAttackCompleted(game);
+        // The reveal is presented first: nothing is summoned until the player has acknowledged it.
+        Assert.AreEqual(deckCountBefore, game.State.Players[0].Deck.Count);
+        Assert.AreEqual(battlefieldCountBefore, game.State.Players[0].Battlefield.Count);
+
+        AcknowledgeRevealPresentation(game);
+
+        // The branch node takes the chain's selection (Selected Targets, no slot name, no target rules), which is
+        // the shape the shipped N-019 effect is saved with: the card the reveal turned over IS that selection, so
+        // the summon happens instead of the chain resuming into a silent no-op.
+        Assert.AreEqual(deckCountBefore - 1, game.State.Players[0].Deck.Count);
+        Assert.AreEqual(battlefieldCountBefore + 1, game.State.Players[0].Battlefield.Count);
+        Assert.IsTrue(game.State.Players[0].Battlefield.Any(card => card.CardDefinitionId == "card-1"));
+        Assert.IsNull(game.GetPendingPrompt());
+    }
+
+    [TestMethod]
+    public void ExecuteCardAction_WhenTheRevealFailsThePostCondition_DoesNotSummon_ForABranchStepThatTakesTheChainSelection()
+    {
+        var game = CreateGame(attackerDefinitionId: "attacker-def-chain-selection-mismatch");
+        AddAttacker(game, "attacker-def-chain-selection-mismatch");
+
+        var deckCountBefore = game.State.Players[0].Deck.Count;
+        var battlefieldCountBefore = game.State.Players[0].Battlefield.Count;
+
+        registry.ExecuteCardAction(game.Id, CreateBattleActionRequest(game), CreateSequentialExecutor());
+
+        AssertAttackCompleted(game);
+        AcknowledgeRevealPresentation(game);
+
+        // The failed post-condition picks no branch at all, so the chain's selection is never used: the card goes
+        // back face down and nothing is summoned.
+        Assert.AreEqual(deckCountBefore, game.State.Players[0].Deck.Count);
+        Assert.AreEqual(battlefieldCountBefore, game.State.Players[0].Battlefield.Count);
+        Assert.AreEqual(0, game.State.Players[0].Deck.Count(card => card.IsRevealedToBothPlayers));
+    }
+
+    [TestMethod]
     public void ExecuteCardAction_BattleAction_WhenRevealedCardFailsThePostCondition_OnlyReveals()
     {
         var game = CreateGame(attackerDefinitionId: "attacker-def-postcondition-mismatch");
@@ -301,6 +349,22 @@ public sealed class InMemoryGameInstanceRegistryWhenAttackingTests
                     postCondition: CreateRevealedTypePostCondition("Leader")),
                 CreateSummonEffect(),
             ],
+            "attacker-def-chain-selection" =>
+            [
+                CreateRevealEffect(
+                    isOptional: false,
+                    onSuccessEffectId: "summon-revealed-card",
+                    postCondition: CreateRevealedTypePostCondition("Character")),
+                CreateChainSelectionSummonEffect(),
+            ],
+            "attacker-def-chain-selection-mismatch" =>
+            [
+                CreateRevealEffect(
+                    isOptional: false,
+                    onSuccessEffectId: "summon-revealed-card",
+                    postCondition: CreateRevealedTypePostCondition("Leader")),
+                CreateChainSelectionSummonEffect(),
+            ],
             _ =>
             [
                 CreateRevealEffect(isOptional: false, onSuccessEffectId: "summon-revealed-card"),
@@ -362,6 +426,33 @@ public sealed class InMemoryGameInstanceRegistryWhenAttackingTests
                         },
                     }
                 ],
+            },
+        };
+    }
+
+    /// <summary>
+    /// The branch shape the shipped N-019 effect is saved with: the summon step takes the chain's selection
+    /// instead of naming the reveal's target slot. Both shapes have to summon the revealed card.
+    /// </summary>
+    private static EffectSpec CreateChainSelectionSummonEffect()
+    {
+        return new EffectSpec
+        {
+            Id = "summon-revealed-card",
+            IsSubordinate = true,
+            RuntimeEffectType = RuntimeEffects.SummonCard,
+            EffectType = EffectKind.Activated,
+            Timing = EffectTiming.WhenAttacking,
+            DurationMode = EffectDurationMode.Instant,
+            ExecutionTargetSource = EffectExecutionTargetSource.SelectedTargets,
+            ExecutionFlowMode = EffectExecutionFlowMode.AtomicChain,
+            SelectionTiming = EffectSelectionTiming.Upfront,
+            TargetRules = new EffectTargetRuleSet
+            {
+                Operator = RequirementGroupOperator.Any,
+                ExactTargetCount = 1,
+                AutoSelectAllValidTargets = false,
+                Rules = [],
             },
         };
     }

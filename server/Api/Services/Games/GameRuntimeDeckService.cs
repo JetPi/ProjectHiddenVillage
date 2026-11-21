@@ -200,9 +200,27 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 				$"Card instance '{cardInstanceId}' was not found in source zone '{sourceZone}' for player '{playerId}'.");
 		}
 
-		// A refused move must not consume the card, so the support slot is resolved before anything leaves the
-		// source zone. (Deriving the slot from the row length could only fail after the card had been removed -
-		// a full support row silently swallowed the card it refused.)
+		// Every destination precondition is resolved before anything leaves the source zone. A refused move used
+		// to throw *after* the card had been taken out of its zone, which left the instance in no zone at all: the
+		// caller reported an error, the hub still published the mutated state, and both players lost the card for
+		// good (see plans/trash-pile-card-loss-diagnosis.md).
+		//
+		// A support destination is not a list position: its index is a slot, resolved by its own rule below. Every
+		// other destination is validated against its size before the removal. For a same-zone move the requested
+		// index is compared with the size *before* the card is taken out, which is the same accepted range the old
+		// post-removal check accepted: the decrement below maps `index == Count` onto the post-removal list end.
+		if (destinationZone != PlayerZone.SupportZone
+			&& destinationIndex.HasValue
+			&& (destinationIndex.Value < topDeck || destinationIndex.Value > destinationList.Count))
+		{
+			throw new ArgumentOutOfRangeException(
+				nameof(destinationIndex),
+				destinationIndex,
+				$"Destination index must be between {topDeck} and {destinationList.Count}.");
+		}
+
+		// The support slot is resolved before the removal for the same reason: a full row or an occupied/out-of-
+		// range requested slot refuses the move while the card is still in its source zone.
 		int? supportSlotIndexToAssign = null;
 		if (destinationZone == PlayerZone.SupportZone)
 		{
@@ -224,34 +242,25 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 			supportSlotIndexToAssign = resolvedSupportSlotIndex;
 		}
 
-		var movedCard = sourceList[sourceIndex];
-		sourceList.RemoveAt(sourceIndex);
-
-		if (sourceZone == PlayerZone.SupportZone)
-		{
-			movedCard.SupportSlotIndex = null;
-		}
-
-		if (movedCard.IsRevealedToBothPlayers && movedCard.RevealedInZone != destinationZone)
-		{
-			movedCard.IsRevealedToBothPlayers = false;
-			movedCard.RevealedInZone = null;
-		}
-
-		// Leaving the field drops every runtime value the card accumulated while it was there (stat overrides,
-		// damage, granted keywords, suppression) and dispels temporary effects aimed at it, so it cannot carry
-		// stale buffs into the trash and back. Kept before the SupportZone fast-path so no field exit is missed.
-		if (sourceZone == PlayerZone.CharacterField)
-		{
-			CharacterFieldStateRules.ApplyOnFieldExit(gameInstance.State, movedCard);
-		}
-
 		var insertIndex = destinationIndex ?? topDeck;
 		if (ReferenceEquals(sourceList, destinationList) && destinationIndex.HasValue && destinationIndex.Value > sourceIndex)
 		{
 			insertIndex--;
 		}
 
+		var movedCard = sourceList[sourceIndex];
+		sourceList.RemoveAt(sourceIndex);
+
+		// Slot bookkeeping for the row the card is leaving has to clear before it can claim a new slot, so it
+		// stays immediately after the removal.
+		if (sourceZone == PlayerZone.SupportZone)
+		{
+			movedCard.SupportSlotIndex = null;
+		}
+
+		// The card enters its destination as the first statement after the removal: the destination index is
+		// validated and the support slot is resolved, so neither insert can fail. Everything below only mutates
+		// the card, which is what makes it impossible for a later failure to leave the card in no zone.
 		if (destinationZone == PlayerZone.SupportZone)
 		{
 			movedCard.SupportSlotIndex = supportSlotIndexToAssign!.Value;
@@ -265,17 +274,24 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 				.ToList();
 			destinationList.Clear();
 			destinationList.AddRange(orderedSupportCards);
-
-			RecordZoneMove(gameInstance, movedCard, resolvedDestinationPlayerId, sourceZone, destinationZone);
-			return movedCard;
+		}
+		else
+		{
+			destinationList.Insert(insertIndex, movedCard);
 		}
 
-		if (insertIndex < topDeck || insertIndex > destinationList.Count)
+		if (movedCard.IsRevealedToBothPlayers && movedCard.RevealedInZone != destinationZone)
 		{
-			throw new ArgumentOutOfRangeException(
-				nameof(destinationIndex),
-				destinationIndex,
-				$"Destination index must be between {topDeck} and {destinationList.Count}.");
+			movedCard.IsRevealedToBothPlayers = false;
+			movedCard.RevealedInZone = null;
+		}
+
+		// Leaving the field drops every runtime value the card accumulated while it was there (stat overrides,
+		// damage, granted keywords, suppression) and dispels temporary effects aimed at it, so it cannot carry
+		// stale buffs into the trash and back. Runs for both destinations, including the SupportZone fast-path.
+		if (sourceZone == PlayerZone.CharacterField)
+		{
+			CharacterFieldStateRules.ApplyOnFieldExit(gameInstance.State, movedCard);
 		}
 
 		if (isCrossPlayerMove)
@@ -285,13 +301,12 @@ public sealed class GameRuntimeDeckService(IGameEffectHandlingService gameEffect
 
 		// Entering the field is a fresh placement: CharacterFieldStateRules clears any runtime value and dispels
 		// any temporary effect the instance kept from a previous stint, then stamps the summon-turn marker and
-		// stands it up. (The exit half already ran above, before the SupportZone fast-path.)
+		// stands it up. (The exit half already ran above.)
 		if (destinationZone == PlayerZone.CharacterField)
 		{
 			CharacterFieldStateRules.ApplyOnFieldEntry(gameInstance.State, movedCard, gameInstance.State.TurnNumber);
 		}
 
-		destinationList.Insert(insertIndex, movedCard);
 		RecordZoneMove(gameInstance, movedCard, resolvedDestinationPlayerId, sourceZone, destinationZone);
 		return movedCard;
 	}
