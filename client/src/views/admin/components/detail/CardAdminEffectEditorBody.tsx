@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppButton } from '@/components/ui'
+import { showAppInfoToast, showAppSuccessToast } from '@/components/feedback/appToastNotifications'
 import { fetchCardCatalogEffectConditionKeywords } from '@/services/api/cardCatalogApi'
 import { CardAdminSelectedCardSummary } from './CardAdminSelectedCardSummary'
+import { CardAdminEffectsImportDialog } from './CardAdminEffectsImportDialog'
 import { CardAdminConditionsSection, CardAdminEffectsSection } from '@/views/admin/components/detailSections'
-import { createDefaultEffect, normalizeEffectId } from '@/views/admin/utils'
+import { buildEffectsExport } from '@/views/admin/model/cardAdminEffectTransfer'
+import { copyTextToClipboard, createDefaultEffect, normalizeEffectId } from '@/views/admin/utils'
 import { CARD_CONDITION_OPTIONS_FALLBACK } from '@/views/admin/constants'
 import type { ICardAdminEffectEditorBodyProps } from '@/views/admin/types/cardAdminDetailTypes'
+import type { ICardEffectsImportSuccess } from '@/views/admin/model/cardAdminEffectTransfer'
 import type { ICardCatalogEffectRequest } from '@/services/api/types/cardCatalog'
 
 export function CardAdminEffectEditorBody({
@@ -23,6 +27,7 @@ export function CardAdminEffectEditorBody({
   const [collapsedEffects, setCollapsedEffects] = useState<Set<number>>(
     () => new Set(editorModel.draft.effects.map((_, index) => index)),
   )
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
 
   useEffect(() => {
     let isDisposed = false
@@ -200,6 +205,39 @@ export function CardAdminEffectEditorBody({
     })
   }
 
+  const handleExportEffects = async () => {
+    const payload = buildEffectsExport({
+      conditions: editorModel.draft.conditions,
+      effects: editorModel.draft.effects,
+      source: { cardId: card.id, displayName: card.displayName },
+    })
+
+    const copied = await copyTextToClipboard(payload)
+
+    if (copied) {
+      showAppSuccessToast(t('admin.transfer.exported'), {
+        id: 'card-effects-transfer',
+        position: 'top-right',
+      })
+      return
+    }
+
+    showAppInfoToast(t('admin.transfer.exportFailed'), {
+      id: 'card-effects-transfer',
+      position: 'top-right',
+    })
+  }
+
+  const handleImportEffects = (result: ICardEffectsImportSuccess) => {
+    editorModel.setConditions(result.conditions)
+    editorModel.setEffects(result.effects)
+    setCollapsedEffects(new Set(result.effects.map((_, index) => index)))
+    showAppSuccessToast(t('admin.transfer.applied'), {
+      id: 'card-effects-transfer',
+      position: 'top-right',
+    })
+  }
+
   return (
     <div className="mt-3 space-y-4">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -264,6 +302,12 @@ export function CardAdminEffectEditorBody({
         effectConditionKeywordOptions={effectConditionKeywordOptions}
         effectsError={editorModel.errors.effects}
         effectBranchErrors={editorModel.errors.effectBranches}
+        onExportEffects={() => {
+          void handleExportEffects()
+        }}
+        onImportEffects={() => setIsImportDialogOpen(true)}
+        canExportEffects={parsedEffects.length > 0}
+        canImportEffects={!isBusy}
       />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -276,6 +320,15 @@ export function CardAdminEffectEditorBody({
           {t('admin.detail.reset')}
         </AppButton>
       </div>
+
+      {isImportDialogOpen ? (
+        <CardAdminEffectsImportDialog
+          isOpen={isImportDialogOpen}
+          currentCardId={card.id}
+          onClose={() => setIsImportDialogOpen(false)}
+          onImport={handleImportEffects}
+        />
+      ) : null}
     </div>
   )
 }

@@ -3,6 +3,7 @@ import type {
   ICardCatalogEffectRequest,
   IUpdateCardCatalogEffectsRequest,
 } from '@/services/api/types/cardCatalog'
+import type { ICardEffectsImportSuccess } from '@/views/admin/model/cardAdminEffectTransfer'
 
 export type ICardAdminDetailPaneProps = {
   selectedCard: ICardCatalogItemResponse | null
@@ -110,6 +111,17 @@ export type ICardAdminEffectsSectionProps = {
   effectConditionKeywordOptions: string[]
   effectsError: string | null
   effectBranchErrors: Record<number, string[]>
+  onExportEffects: () => void
+  onImportEffects: () => void
+  canExportEffects: boolean
+  canImportEffects: boolean
+}
+
+export type ICardAdminEffectsImportDialogProps = {
+  isOpen: boolean
+  currentCardId: string | null
+  onClose: () => void
+  onImport: (result: ICardEffectsImportSuccess) => void
 }
 
 
@@ -157,6 +169,7 @@ export type ICardAdminEffectEditorFieldsModel = {
   addCondition: (value: string) => void
   removeCondition: (value: string) => void
   setEffects: (value: ICardCatalogEffectRequest[]) => void
+  setConditions: (value: string[]) => void
   reset: () => void
 }
 
