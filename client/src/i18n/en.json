@@ -1107,6 +1107,33 @@
         "removeCondition": "Remove {{condition}}"
       }
     },
+    "transfer": {
+      "export": "Export Effects",
+      "import": "Import Effects",
+      "exported": "Effects copied to the clipboard.",
+      "exportFailed": "The clipboard is unavailable, so the effects were not copied.",
+      "dialogTitle": "Import Card Effects",
+      "dialogBody": "Paste the JSON copied from the card you tested. Importing replaces every condition and effect on this card, and nothing is written to the server until you press Save.",
+      "label": "Effects payload",
+      "placeholder": "Paste the exported JSON here...",
+      "summary": "Ready to import {{effects}} effects and {{conditions}} conditions.",
+      "sourceCard": "Exported from {{name}} ({{id}}).",
+      "sourceCardUnknown": "Exported from a different card. Only its conditions and effects will be imported.",
+      "applied": "Effects imported. Review the effect panels, then save the card.",
+      "confirm": "Replace Effects",
+      "cancel": "Cancel",
+      "errors": {
+        "empty": "Paste an exported effects payload first.",
+        "invalidJson": "That is not valid JSON.",
+        "shape": "Expected an exported effects payload: an object with conditions and effects lists, or a bare list of effects.",
+        "kind": "That JSON belongs to a different export.",
+        "newerVersion": "This payload was exported by a newer admin client. Update this client before importing it.",
+        "effectShape": "Effect {{index}} is malformed: {{path}}.",
+        "effectShapeWithId": "Effect {{index}} ({{id}}) is malformed: {{path}}.",
+        "noContent": "The payload contains no conditions or effects.",
+        "validation": "The imported effects did not pass validation."
+      }
+    },
     "panels": {
       "execution": {
         "title": "Execution Target",

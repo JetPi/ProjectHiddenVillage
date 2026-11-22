@@ -135,6 +135,10 @@ export function useCardAdminEffectDraft(
     setDraft((current) => ({ ...current, effects: value }))
   }, [])
 
+  const setConditions = useCallback((value: string[]) => {
+    setDraft((current) => ({ ...current, conditions: value }))
+  }, [])
+
   const reset = useCallback(() => {
     setDraft(initialDraft)
     setErrors(EMPTY_VALIDATION_ERRORS)
@@ -165,6 +169,7 @@ export function useCardAdminEffectDraft(
     addCondition,
     removeCondition,
     setEffects,
+    setConditions,
     reset,
     setErrors,
     setStatusMessage,

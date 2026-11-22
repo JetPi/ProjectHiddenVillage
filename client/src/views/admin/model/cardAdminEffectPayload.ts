@@ -34,6 +34,40 @@ export function isLeaderType(cardType: string): boolean {
   return cardType.trim().toLowerCase() === 'leader'
 }
 
+/**
+ * The reveal post-condition fields predate the rule-set shape, so a card can still arrive carrying the
+ * legacy predicate/restriction pair. Both hydration and the effects importer funnel through here so an
+ * imported effect is hydrated exactly like a server-returned one.
+ */
+export function normalizeEffectForEditor(effect: ICardCatalogEffectRequest): ICardCatalogEffectRequest {
+  return {
+    ...effect,
+    revealPostConditionRuleSet: effect.revealPostConditionRuleSet ?? (effect.revealPostConditionRestriction
+      ? {
+        operator: 'All',
+        restrictions: [effect.revealPostConditionRestriction],
+      }
+      : effect.revealPostConditionPredicate
+        ? {
+          operator: 'All',
+          restrictions: [
+            {
+              predicates: [effect.revealPostConditionPredicate],
+              matchMode: 'All',
+            },
+          ],
+        }
+        : null),
+    revealPostConditionRestriction: effect.revealPostConditionRestriction ?? (effect.revealPostConditionPredicate
+      ? {
+        predicates: [effect.revealPostConditionPredicate],
+        matchMode: 'All',
+      }
+      : null),
+    revealPostConditionPredicate: effect.revealPostConditionPredicate ?? null,
+  }
+}
+
 export function toEditorDraft(card: ICardAdminEffectEditorHydrationSource | null): ICardAdminEffectEditorDraft {
   if (!card) {
     return EMPTY_DRAFT
@@ -50,32 +84,7 @@ export function toEditorDraft(card: ICardAdminEffectEditorHydrationSource | null
     supportEffect: card.supportEffect ?? '',
     cannotBeNormalSummoned: card.cannotBeNormalSummoned,
     conditions: [...card.conditions],
-    effects: card.effects.map((effect) => ({
-      ...effect,
-      revealPostConditionRuleSet: effect.revealPostConditionRuleSet ?? (effect.revealPostConditionRestriction
-        ? {
-          operator: 'All',
-          restrictions: [effect.revealPostConditionRestriction],
-        }
-        : effect.revealPostConditionPredicate
-          ? {
-            operator: 'All',
-            restrictions: [
-              {
-                predicates: [effect.revealPostConditionPredicate],
-                matchMode: 'All',
-              },
-            ],
-          }
-          : null),
-      revealPostConditionRestriction: effect.revealPostConditionRestriction ?? (effect.revealPostConditionPredicate
-        ? {
-          predicates: [effect.revealPostConditionPredicate],
-          matchMode: 'All',
-        }
-        : null),
-      revealPostConditionPredicate: effect.revealPostConditionPredicate ?? null,
-    })),
+    effects: card.effects.map(normalizeEffectForEditor),
   }
 }
 

@@ -65,6 +65,10 @@ export function CardAdminEffectsSection({
   effectConditionKeywordOptions,
   effectsError,
   effectBranchErrors,
+  onExportEffects,
+  onImportEffects,
+  canExportEffects,
+  canImportEffects,
 }: ICardAdminEffectsSectionProps) {
   const { t } = useTranslation()
   const publishedTargetSlotNames = Array.from(
@@ -118,15 +122,37 @@ export function CardAdminEffectsSection({
   return (
     <div className="grid grid-cols-1 gap-2">
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{t('admin.detail.sections.effects')}</p>
-          <AppButton
-            type="button"
-            variant="ghost"
-            onClick={addEffect}
-          >
-            {t('admin.detail.sections.addEffect')}
-          </AppButton>
+          <div className="flex flex-wrap items-center gap-2">
+            <AppButton
+              type="button"
+              variant="ghost"
+              data-testid="admin-effects-export"
+              onClick={onExportEffects}
+              disabled={!canExportEffects}
+            >
+              {t('admin.transfer.export')}
+            </AppButton>
+
+            <AppButton
+              type="button"
+              variant="ghost"
+              data-testid="admin-effects-import-open"
+              onClick={onImportEffects}
+              disabled={!canImportEffects}
+            >
+              {t('admin.transfer.import')}
+            </AppButton>
+
+            <AppButton
+              type="button"
+              variant="ghost"
+              onClick={addEffect}
+            >
+              {t('admin.detail.sections.addEffect')}
+            </AppButton>
+          </div>
         </div>
 
         <div className="space-y-2 border-t border-[var(--border-subtle)] border-l-2 border-l-sky-500/45 pl-3 pt-3">
