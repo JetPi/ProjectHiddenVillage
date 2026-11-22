@@ -247,6 +247,25 @@ request’s `SelectedTargets`; effects auto-resolve targets only when
   animates the card to its landing slot. An explicit `arguments.supportSlotIndex` is still honoured when it
   is valid and free (the request validator only checks it when it is present).
 
+## Reveal chains: what the branch step receives
+
+A "Reveal First" step suspends the chain on a `RevealPresentation` prompt. Its single option is an
+acknowledgement, **not** a selection, so on resume (`GameSequentialEffectExecutor.Resume`) the branch node is
+treated by shape:
+
+- **`SelectionTiming: Prompted`** always starts with an empty selection: it asks its own question (N-013:
+  "Choose 1 Leader or Character: Reveal the top card of your deck, and if it has the [Uchiha Clan] type, ...").
+  Handing it the revealed cards silenced the prompt.
+- **`Selected Targets`, no target rules, not auto-select** keeps the cards the reveal acted on - the shape the
+  live N-019 branch is saved with ("reveal the top card, and if it is ..., summon that card"). Without it the
+  summon resolved no targets and was a silent no-op.
+- **`Chain Targets` + `chainTargetSlotName`** is unaffected (it reads the reveal's published slot) and stays the
+  preferred authoring.
+
+Guards: `InMemoryGameInstanceRegistryWhenAttackingTests` (the shipped N-019 shape, end to end) and
+`GameSequentialEffectExecutorTests.Resume_RevealPresentationAcknowledgement_*`. Write-up:
+`plans/reveal-chain-summon-regression.md`.
+
 ## Tribute material requirements (server-declared — never derived client-side)
 
 - `GameCardActionTargetsResponse` carries both `RequirementLabels` (per-candidate short labels; an

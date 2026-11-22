@@ -26,6 +26,10 @@ function PromptSelectionBanner({ promptKey, title }: IPromptSelectionBannerProps
 
   const isVisible = Boolean(promptKey && title) && expiredPromptKey !== promptKey
 
+  // A pill, not a panel: horizontal padding has to outweigh the vertical one so the shape reads as a chip, while
+  // the radius stays a fixed slice of the unit (not `rounded-full`) so the caps never turn into a lozenge.
+  // `max-w` grew by the same 2x12 units the padding gained, so the text keeps the width it had before.
+
   return (
     <AnimatePresence>
       {isVisible ? (
@@ -38,7 +42,7 @@ function PromptSelectionBanner({ promptKey, title }: IPromptSelectionBannerProps
           exit={{ opacity: 0, scale: 0.98, transition: OVERLAY_EXIT_TRANSITION }}
           transition={OVERLAY_ENTER_SPRING}
           style={{ x: '-50%', y: '-50%' }}
-          className="pointer-events-none fixed left-1/2 top-1/2 z-40 max-w-[min(92vw,calc(416*var(--game-unit)))] rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]/95 px-[calc(16*var(--game-unit))] py-[calc(8*var(--game-unit))] text-center shadow-[var(--panel-shadow)]"
+          className="pointer-events-none fixed left-1/2 top-1/2 z-40 max-w-[min(92vw,calc(440*var(--game-unit)))] rounded-[calc(12*var(--game-unit))] border border-[var(--border-subtle)] bg-[var(--surface)]/95 px-[calc(28*var(--game-unit))] py-[calc(10*var(--game-unit))] text-center shadow-[var(--panel-shadow)]"
         >
           <p className="text-[length:var(--game-chrome-font-xl)] font-semibold text-[var(--text-primary)]">{title}</p>
         </motion.div>

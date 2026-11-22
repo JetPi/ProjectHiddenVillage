@@ -67,22 +67,42 @@ public sealed class GameSequentialEffectExecutor(
 
         // The prompt answer IS this node's selection; a node that never prompted keeps whatever it had. A
         // reveal presentation prompt is the exception: its option is an acknowledgement, not a selection, so
-        // the node the chain resumes at starts with no selection of its own. Handing it the revealed cards as
-        // if they were its answer silenced the question a prompted branch step has to ask (N-013: "Choose 1
-        // Leader or Character: Reveal the top card of your deck, and if it has the [Uchiha Clan] type, ...") -
-        // the freeze step then acted on the revealed card instead of asking for its own target. A branch step
-        // that acts on the revealed cards names the reveal's target slot (N-022: "reveal the top card of your
-        // deck, then summon it"), which survives the suspension as a chain argument.
+        // it must never *answer* a node that asks its own question. Handing the revealed cards to such a node
+        // silenced the question a prompted branch step has to ask (N-013: "Choose 1 Leader or Character: Reveal
+        // the top card of your deck, and if it has the [Uchiha Clan] type, ...") - the freeze step then acted on
+        // the revealed card instead of asking for its own target.
+        //
+        // A branch step that does not ask keeps the cards the reveal acted on: it takes the chain's selection
+        // (Selected Targets, no rules of its own), which is exactly how the shipped N-019 branch is authored
+        // ("reveal the top card, and if it is ..., summon that card"). Without this it resolved no targets and
+        // the summon silently did nothing. A step that names the reveal's target slot (Chain Targets, N-022)
+        // reads it from the chain arguments instead and is unaffected either way.
         var isRevealPresentationAcknowledgement = continuation.RevealPresentation is not null
             && selection.All(target => string.Equals(
                 target.CardInstanceId,
                 ReactiveEffectExecutionConstants.RevealPresentedOption,
                 StringComparison.Ordinal));
-        IReadOnlyList<GameEffectTargetReference> selectedTargets = isRevealPresentationAcknowledgement
-            ? []
-            : selection.Count > 0
-                ? selection
-                : continuation.SelectedTargets;
+
+        var resumeNodeEffectSpec = nodes
+            .FirstOrDefault(node => string.Equals(
+                node.NodeId,
+                continuation.ResumeNodeId?.Trim(),
+                StringComparison.Ordinal))?
+            .EffectSpec;
+        var resumeNodeKeepsTheChainSelection = resumeNodeEffectSpec is not null
+            && resumeNodeEffectSpec.ExecutionTargetSource == EffectExecutionTargetSource.SelectedTargets
+            && resumeNodeEffectSpec.SelectionTiming != EffectSelectionTiming.Prompted
+            && !resumeNodeEffectSpec.TargetRules.AutoSelectAllValidTargets;
+
+        IReadOnlyList<GameEffectTargetReference> selectedTargets;
+        if (isRevealPresentationAcknowledgement)
+        {
+            selectedTargets = resumeNodeKeepsTheChainSelection ? continuation.SelectedTargets : [];
+        }
+        else
+        {
+            selectedTargets = selection.Count > 0 ? selection : continuation.SelectedTargets;
+        }
         var context = new GameCardEffectContext(
             game: game,
             actingPlayer: new Player { Id = continuation.ActingPlayerId },

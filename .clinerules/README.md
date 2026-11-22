@@ -36,6 +36,27 @@ task touches that area).
 
 ## Pending follow-ups (pick up here)
 
+- **A reveal that succeeds summons the card it turned over again (fixed).** `dd55166` made a reveal-presentation
+  acknowledgement resume with an empty selection so a prompted branch node (N-013) asks its own question. That
+  also stripped the selection from a branch node that never asks - the shape the live N-019 entry is saved with
+  (`Selected Targets`, no rules, no `chainTargetSlotName`) - so its summon resolved no targets and did nothing;
+  the seeded card used the `Chain Targets` shape, which is why tests passed. `Resume` now hands the revealed
+  cards to a non-prompting `Selected Targets` node and still hands nothing to a prompting one. Pinned by
+  `InMemoryGameInstanceRegistryWhenAttackingTests` (shipped shape, attack → present → acknowledge → summon) and
+  `GameSequentialEffectExecutorTests.Resume_RevealPresentationAcknowledgement_*`; write-up in
+  `plans/reveal-chain-summon-regression.md`. Open, unrelated: an `Atomic Chain` never prompts, so a
+  `SelectionTiming: Prompted` node inside one executes with whatever selection it has - no shipped card does it.
+
+- **A refused zone move no longer deletes the card (fixed).** `GameRuntimeDeckService.MoveCardToZone` removed the
+  card from its source zone and *then* validated the destination index, so a refusal threw between the removal
+  and the insert: the instance existed in no zone, and the hub still publishes a failed operation's state, which
+  made the card vanish for both players and survive a refresh. The accepted range is unchanged - the bounds
+  check now runs before the removal, and `destinationIndex == Count` (cross-zone or same-zone) stays legal via
+  the same-zone decrement. The insert is the first statement after the removal, so no later failure can un-place
+  the card, and the hand-rolled sites (`DestroyCardEffect`, `SummonCardEffect`, `TributeSummonCardEffect`)
+  resolve their destination before removing. Pinned by `MoveCardRefusalTests`; write-up in
+  `plans/trash-pile-card-loss-diagnosis.md`.
+
 - **The game ends and both players see the result (shipped).** A write-once `GameState.Outcome`
   (`GameEndReason.LeaderLifeDepleted | DeckOut`) is resolved by the new `GameEndRules` (the single home, like
   `BattleActionRules`/`ChakraRecoveryRules`): every registry mutation now starts with

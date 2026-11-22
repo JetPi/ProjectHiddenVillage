@@ -124,6 +124,11 @@ public sealed class SummonCardEffect(
 			var cardInstance = sourceZone.First(card => card.InstanceId == target.CardInstanceId);
 
 			sourceZone.Remove(cardInstance);
+
+			// The card enters the field as the first statement after the removal: the field list was resolved
+			// before the loop, so this add cannot fail and no later step can leave the instance in no zone.
+			summoningPlayerField.Add(cardInstance);
+
 			if (cardInstance.IsRevealedToBothPlayers)
 			{
 				cardInstance.IsRevealedToBothPlayers = false;
@@ -136,7 +141,6 @@ public sealed class SummonCardEffect(
 			// the standing pose - so a card summoned out of the trash lands clean instead of buffed.
 			CharacterFieldStateRules.ApplyOnFieldEntry(context.Game.State, cardInstance, context.Game.State.TurnNumber);
 			cardInstance.EffectsSuppressedWhileOnField = suppressSummonedTargetsEffectsWhileOnField;
-			summoningPlayerField.Add(cardInstance);
 
 			// A summon performed by an effect places the card by hand rather than through the move service, so it
 			// records the movement itself - the client animates the card arriving from its source zone.

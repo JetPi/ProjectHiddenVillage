@@ -135,7 +135,16 @@ public sealed class TributeSummonCardEffect(
             var tributeSourceZone = PlayerZoneCardAccessor.GetCards(tributeTarget.Zone, tributeSourcePlayer);
             var tributeCard = tributeSourceZone.First(card => card.InstanceId == tributeTarget.CardInstanceId);
 
+            // The destination pile is resolved before the material leaves its zone: everything that can fail runs
+            // first, so no failure can leave the instance in no zone.
+            var ownerPlayer = context.Game.State.Players.First(player => player.PlayerId == tributeCard.OwnerPlayerId);
+            var ownerTrashZone = PlayerZoneCardAccessor.GetCards(PlayerZone.Trash, ownerPlayer);
+
             tributeSourceZone.Remove(tributeCard);
+
+            // The trash pile keeps the most recently discarded card at index 0 (matching
+            // GameRuntimeDeckService.MoveCardToZone) so clients can surface it as the pile's face.
+            ownerTrashZone.Insert(0, tributeCard);
 
             if (tributeTarget.Zone == PlayerZone.CharacterField)
             {
@@ -149,12 +158,6 @@ public sealed class TributeSummonCardEffect(
                 tributeCard.IsRevealedToBothPlayers = false;
                 tributeCard.RevealedInZone = null;
             }
-
-            var ownerPlayer = context.Game.State.Players.First(player => player.PlayerId == tributeCard.OwnerPlayerId);
-            var ownerTrashZone = PlayerZoneCardAccessor.GetCards(PlayerZone.Trash, ownerPlayer);
-            // The trash pile keeps the most recently discarded card at index 0 (matching
-            // GameRuntimeDeckService.MoveCardToZone) so clients can surface it as the pile's face.
-            ownerTrashZone.Insert(0, tributeCard);
 
             // This site moves the material by hand rather than through the move service, so it records the
             // movement itself - the client animates the tribute into the trash from this, not from a count delta.
@@ -175,7 +178,13 @@ public sealed class TributeSummonCardEffect(
         var summonSourceZone = PlayerZoneCardAccessor.GetCards(summonTarget.Zone, summonSourcePlayer);
         var summonedCard = summonSourceZone.First(card => card.InstanceId == summonTarget.CardInstanceId);
 
+        var summoningPlayerField = PlayerZoneCardAccessor.GetCards(PlayerZone.CharacterField, summoningPlayer);
+
         summonSourceZone.Remove(summonedCard);
+
+        // The card enters the field as the first statement after the removal: the field list is resolved, so this
+        // add cannot fail and no later step can leave the instance in no zone.
+        summoningPlayerField.Add(summonedCard);
 
         if (summonedCard.IsRevealedToBothPlayers)
         {
@@ -183,13 +192,11 @@ public sealed class TributeSummonCardEffect(
             summonedCard.RevealedInZone = null;
         }
 
-        var summoningPlayerField = PlayerZoneCardAccessor.GetCards(PlayerZone.CharacterField, summoningPlayer);
         // Entering the character field is a fresh placement (see CharacterFieldStateRules): the summoned card
         // cannot keep stat overrides, damage, granted keywords or temporary effects from a previous stint, and it
         // lands in the standing pose with a fresh summon-turn marker.
         CharacterFieldStateRules.ApplyOnFieldEntry(context.Game.State, summonedCard, context.Game.State.TurnNumber);
         summonedCard.ControllerPlayerId = summoningPlayer.PlayerId;
-        summoningPlayerField.Add(summonedCard);
 
         context.Game.State.RecordCardMovement(
             kind: CardMovementKinds.Summon,

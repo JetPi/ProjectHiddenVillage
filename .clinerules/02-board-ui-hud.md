@@ -243,6 +243,14 @@ paths:
   client draws). That is the defect behind "an opponent support card flashes the card beneath it".
 - A refused support move must not consume the card: the slot is resolved **before** the card is removed from its
   source zone.
+- **No zone move validates after it consumes the card.** `GameRuntimeDeckService.MoveCardToZone` resolves every
+  destination precondition first (cross-player, support slot, destination index) and inserts as the first
+  statement after the removal, so nothing that follows can leave the instance in no zone. This matters because
+  the hub still publishes the state of a *failed* mutation, so a swallow drops the card for both players with no
+  way back. The hand-rolled move sites (`DestroyCardEffect`, `SummonCardEffect`, `TributeSummonCardEffect`)
+  resolve their destination list before the removal for the same reason. Guards:
+  `server/tests/ProjectHiddenVillage.Server.Tests/MoveCardRefusalTests.cs`; write-up in
+  `plans/trash-pile-card-loss-diagnosis.md`.
 - The row is published sorted by `(slotIndex, instanceId)` with a stable sort. `List.Sort` is unstable, so an
   equal pair had no guaranteed order and could swap between pushes - and a swap remounts that cell's
   instance-keyed `PlayCard`, which paints one blank frame before the art: a visible flash.

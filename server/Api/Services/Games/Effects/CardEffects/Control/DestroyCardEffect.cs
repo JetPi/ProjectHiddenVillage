@@ -73,7 +73,18 @@ public sealed class DestroyCardEffect(
             var sourcePlayerZone = PlayerZoneCardAccessor.GetCards(sourceZone, sourcePlayer);
             var cardInstance = sourcePlayerZone.First(card => card.InstanceId == target.CardInstanceId);
 
+            // The destination pile is resolved before the card leaves its zone: everything that can fail runs
+            // first, so a failure can never leave the instance in no zone (the destination insert is the first
+            // statement after the removal and cannot fail).
+            var ownerPlayer = context.Game.State.Players.Find(player => player.PlayerId == cardInstance.OwnerPlayerId)!;
+
+            var ownerTrashZone = PlayerZoneCardAccessor.GetCards(PlayerZone.Trash, ownerPlayer);
+
             sourcePlayerZone.Remove(cardInstance);
+
+            // Newest-first: keeps the most recently destroyed card as the trash pile's face
+            // (matching GameRuntimeDeckService.MoveCardToZone).
+            ownerTrashZone.Insert(0, cardInstance);
 
             if (sourceZone == PlayerZone.CharacterField)
             {
@@ -87,13 +98,6 @@ public sealed class DestroyCardEffect(
                 cardInstance.IsRevealedToBothPlayers = false;
                 cardInstance.RevealedInZone = null;
             }
-
-            var ownerPlayer = context.Game.State.Players.Find(player => player.PlayerId == cardInstance.OwnerPlayerId)!;
-
-            var ownerTrashZone = PlayerZoneCardAccessor.GetCards(PlayerZone.Trash, ownerPlayer);
-            // Newest-first: keeps the most recently destroyed card as the trash pile's face
-            // (matching GameRuntimeDeckService.MoveCardToZone).
-            ownerTrashZone.Insert(0, cardInstance);
 
             // This path moves the card by hand rather than through the move service, so it records the movement
             // itself: the client animates the destruction out of its zone from this, not from a count delta.
